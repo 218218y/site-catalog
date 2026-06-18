@@ -28,6 +28,12 @@ def main() -> int:
     parser.add_argument("--thumb-quality", type=int, default=88)
     parser.add_argument("--format", choices=["webp", "jpg", "png"], default="jpg")
     parser.add_argument("--sharpen", type=float, default=1.0)
+    parser.add_argument("--ocr", choices=["auto", "always", "never"], default="auto")
+    parser.add_argument("--ocr-lang", default="heb+eng")
+    parser.add_argument("--ocr-dpi", type=int, default=260)
+    parser.add_argument("--ocr-min-chars", type=int, default=16)
+    parser.add_argument("--tesseract-cmd", default="tesseract")
+    parser.add_argument("--require-ocr", action="store_true")
     parser.add_argument("--no-clean", action="store_true")
     parser.add_argument("--skip-existing", action="store_true")
     args = parser.parse_args()
@@ -43,9 +49,15 @@ def main() -> int:
         clean=not args.no_clean,
         skip_existing=args.skip_existing,
         sharpen=args.sharpen,
+        ocr_mode=args.ocr,
+        ocr_lang=args.ocr_lang,
+        ocr_dpi=args.ocr_dpi,
+        ocr_min_chars=args.ocr_min_chars,
+        tesseract_cmd=args.tesseract_cmd,
+        require_ocr=args.require_ocr,
     )
-    pages = render_pdf(args.pdf.resolve(), args.out_dir.resolve(), options)
-    print(f"Done. Pages: {pages}")
+    pages, search_pages = render_pdf(args.pdf.resolve(), args.out_dir.resolve(), options)
+    print(f"Done. Pages: {pages}. Searchable pages: {len(search_pages)}")
     return 0
 
 

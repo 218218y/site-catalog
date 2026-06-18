@@ -10,7 +10,10 @@
 </head>
 <body class="reader-page">
   <header class="reader-header">
-    <a class="reader-home" href="index.html" aria-label="חזרה לדף הקטלוגים">רהיטי ברגיג</a>
+    <a class="reader-home" href="index.html" aria-label="חזרה לדף הקטלוגים">
+      <img class="reader-logo" data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
+      <span>רהיטי ברגיג</span>
+    </a>
     <div class="reader-title-wrap">
       <strong id="readerTitle">קטלוג</strong>
       <span id="readerMeta"></span>
@@ -19,10 +22,27 @@
   </header>
 
   <main class="reader-main" id="readerMain">
+    <section class="reader-search-panel" aria-labelledby="readerSearchTitle">
+      <div class="reader-search-title-row">
+        <strong id="readerSearchTitle">חיפוש בקטלוג הזה</strong>
+        <span id="readerSearchStatus">הקלד דגם או מילה מתוך העמודים.</span>
+      </div>
+      <div class="reader-search-box" role="search">
+        <label class="visually-hidden" for="readerSearchInput">חיפוש בקטלוג</label>
+        <input id="readerSearchInput" class="reader-search-input" type="search" autocomplete="off" placeholder="חיפוש דגם בקטלוג הנוכחי..." />
+        <button class="reader-button reader-search-clear hidden" id="readerSearchClear" type="button">נקה</button>
+      </div>
+      <div class="reader-search-results hidden" id="readerSearchResults" aria-live="polite"></div>
+    </section>
+
     <div class="reader-pages" id="readerPages"></div>
   </main>
 
+  <script src="wp_logo_data.js"></script>
+  <script src="brand-logo.js"></script>
   <script src="catalogs.generated.js"></script>
+  <script src="catalogs.search.js"></script>
+  <script src="catalog-search.js"></script>
   <script src="catalog-viewer.js"></script>
 </body>
 </html>

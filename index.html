@@ -13,7 +13,7 @@
 <body>
   <header class="site-header">
     <a class="brand" href="#top" aria-label="רהיטי ברגיג - דף הבית">
-      <img src="assets/brand/logo-placeholder.svg" alt="" class="brand-mark" />
+      <img class="brand-mark" data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
       <span class="brand-text">
         <strong>רהיטי ברגיג</strong>
         <small>גלריית קטלוגים</small>
@@ -28,6 +28,10 @@
   <main id="top">
     <section class="hero">
       <div class="hero-copy reveal">
+        <div class="hero-brand-badge" aria-label="רהיטי ברגיג">
+          <img data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
+          <span>קטלוגים דיגיטליים</span>
+        </div>
         <p class="eyebrow">קטלוגים דיגיטליים</p>
         <h1>כל הקטלוגים במקום אחד, בצפייה נקייה ונוחה.</h1>
         <p class="hero-text">
@@ -70,6 +74,24 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="search-panel panel reveal" id="catalogSearch" aria-labelledby="catalogSearchTitle">
+      <div class="section-head search-head">
+        <div>
+          <p class="eyebrow">חיפוש דגמים</p>
+          <h2 id="catalogSearchTitle">חיפוש בתוך כל הקטלוגים</h2>
+        </div>
+        <p class="section-note">החיפוש מתבסס על טקסט שחולץ מה־PDF ועל OCR בעברית בזמן ההמרה.</p>
+      </div>
+
+      <div class="search-box" role="search">
+        <label class="visually-hidden" for="globalSearchInput">חיפוש דגם בקטלוגים</label>
+        <input id="globalSearchInput" class="search-input" type="search" autocomplete="off" placeholder="הקלד דגם, מספר, שם מוצר או מילה מהקטלוג..." />
+        <button class="small-button search-clear hidden" id="globalSearchClear" type="button">נקה</button>
+      </div>
+      <p class="search-status" id="globalSearchStatus">הקלד לפחות 2 תווים כדי לחפש.</p>
+      <div class="search-results hidden" id="globalSearchResults" aria-live="polite"></div>
     </section>
 
     <section class="catalogs-section panel reveal" id="catalogs" aria-labelledby="catalogsTitle">
@@ -147,7 +169,9 @@
       <div class="lightbox-stage" id="lightboxStage">
         <div class="stage-canvas" id="stageCanvas">
           <div class="loading-pill hidden" id="viewerLoading">טוען עמוד...</div>
-          <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" />
+          <div class="lightbox-image-frame" id="lightboxImageFrame">
+            <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" />
+          </div>
         </div>
         <button class="stage-nav stage-next" id="nextPageBtn" type="button" aria-label="העמוד הבא">›</button>
         <button class="stage-nav stage-prev" id="prevPageBtn" type="button" aria-label="העמוד הקודם">‹</button>
@@ -162,7 +186,11 @@
     <p>© רהיטי ברגיג · קטלוגים דיגיטליים</p>
   </footer>
 
+  <script src="wp_logo_data.js"></script>
+  <script src="brand-logo.js"></script>
   <script src="catalogs.generated.js"></script>
+  <script src="catalogs.search.js"></script>
+  <script src="catalog-search.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

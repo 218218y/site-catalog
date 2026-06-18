@@ -12,6 +12,8 @@
 - דף בית מעוצב עם אנימציית פתיחה.
 - כרטיסי קטלוגים.
 - דף קטלוג עם **כל עמודי התמונות** של אותו קטלוג.
+- אינדקס חיפוש שנבנה בזמן ההמרה מטקסט PDF ומ־OCR בעברית/אנגלית.
+- חיפוש באתר לפי דגם, מספר או מילה מתוך הקטלוג, עם פתיחה ישירה של העמוד המתאים בתצוגה מוגדלת.
 - לחיצה על עמוד פותחת תצוגה גדולה ונוחה עם:
   - חיצי דפדוף
   - תמונות ממוזערות בתחתית
@@ -59,8 +61,12 @@ setup-windows.bat
 ```
 
 זה יוצר סביבת Python מקומית בתיקייה `.venv` ומתקין:
-- PyMuPDF – לקריאת PDF ורינדור עמודים
+- PyMuPDF – לקריאת PDF, חילוץ טקסט ורינדור עמודים
 - Pillow – לשמירת JPG / PNG / WebP
+
+שימו לב: OCR עצמו משתמש בתוכנת `tesseract` שמותקנת במחשב מחוץ ל־Python.
+כדי שחיפוש בעברית יעבוד על PDF סרוק, צריך ש־Tesseract יזהה את השפה `heb`.
+אם כבר מותקן אצלך `tesseract-ocr` עם עברית, אין צורך להוסיף חבילת Python בשביל זה.
 
 ### 4. המרת PDF לתמונות – הדרך המומלצת
 
@@ -134,6 +140,46 @@ http://localhost:8080
 - `Esc` סוגר את התצוגה הגדולה.
 - חיצים במקלדת מדפדפים בין העמודים.
 
+## חיפוש OCR בעברית
+
+בזמן ההמרה נוצרים עכשיו שני קבצים נוספים:
+
+```text
+catalogs.search.js
+catalogs.search.json
+```
+
+האתר משתמש ב־`catalogs.search.js` כדי לחפש דגמים בתוך עמודי הקטלוג.
+הסקריפט עובד כך:
+
+1. קודם מנסה לחלץ טקסט רגיל מתוך ה־PDF בעזרת PyMuPDF.
+2. אם בעמוד אין מספיק טקסט, הוא מריץ OCR עם Tesseract.
+3. ברירת המחדל היא עברית + אנגלית:
+
+```bash
+--ocr auto --ocr-lang heb+eng
+```
+
+אפשרויות שימושיות:
+
+```bash
+# OCR רק לעמודים שאין בהם שכבת טקסט
+python tools/build_catalogs.py --ocr auto --ocr-lang heb+eng
+
+# OCR לכל העמודים, שימושי אם שכבת הטקסט ב-PDF לא אמינה
+python tools/build_catalogs.py --ocr always --ocr-lang heb+eng
+
+# בלי OCR בכלל, רק חילוץ טקסט PDF
+python tools/build_catalogs.py --ocr never
+
+# להיכשל אם OCR נדרש אבל Tesseract/עברית לא זמינים
+python tools/build_catalogs.py --require-ocr
+```
+
+אם החיפוש לא מוצא דגמים מתוך PDF סרוק, נסה להריץ פעם אחת עם `--ocr always`.
+
+---
+
 ## שיפור איכות – מה שיניתי
 
 ההמרה עכשיו משופרת בכמה נקודות:
@@ -200,7 +246,7 @@ python -m http.server 8080
 ### דוגמה להמרת JPG איכותי:
 
 ```bash
-python tools\build_catalogs.py --format jpg --dpi 220 --max-width 2800 --max-height 2800 --thumb-size 420 --quality 94 --thumb-quality 88 --sharpen 1.0
+python tools\build_catalogs.py --format jpg --dpi 220 --max-width 2800 --max-height 2800 --thumb-size 420 --quality 94 --thumb-quality 88 --sharpen 1.0 --ocr auto --ocr-lang heb+eng
 ```
 
 ### דוגמה להמרת PNG מקסימלית:

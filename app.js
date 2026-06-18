@@ -1,4 +1,5 @@
 const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
+const catalogSearch = window.BargigCatalogSearch || null;
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -28,6 +29,10 @@ const els = {
   catalogCount: $("catalogCount"),
   pageCount: $("pageCount"),
   openFirstCatalog: $("openFirstCatalog"),
+  globalSearchInput: $("globalSearchInput"),
+  globalSearchResults: $("globalSearchResults"),
+  globalSearchStatus: $("globalSearchStatus"),
+  globalSearchClear: $("globalSearchClear"),
   catalogDetail: $("catalogDetail"),
   catalogTitle: $("catalogDetailTitle"),
   catalogDescription: $("catalogDescription"),
@@ -49,6 +54,7 @@ const els = {
   lightboxTitle: $("lightboxTitle"),
   lightboxMeta: $("lightboxMeta"),
   lightboxImage: $("lightboxImage"),
+  lightboxImageFrame: $("lightboxImageFrame"),
   lightboxThumbs: $("lightboxThumbs"),
   lightboxStage: $("lightboxStage"),
   stageCanvas: $("stageCanvas"),
@@ -169,7 +175,9 @@ function renderCatalogCards() {
     const cover = catalog.cover || pageSrc(catalog, 1);
     return `
       <article class="catalog-card">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${escapeHtml(catalog.title)}" loading="lazy" />
+        <div class="catalog-cover-frame catalog-image-frame">
+          <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${escapeHtml(catalog.title)}" loading="lazy" />
+        </div>
         <div class="catalog-body">
           <div class="catalog-meta">
             <span class="pill">${escapeHtml(catalog.category || "קטלוג")}</span>
@@ -192,6 +200,74 @@ function renderCatalogCards() {
 
   els.catalogGrid.querySelectorAll("[data-enter-catalog]").forEach((button) => {
     button.addEventListener("click", () => openCatalogPage(button.dataset.enterCatalog));
+  });
+}
+
+
+function initSearchStatus() {
+  if (!els.globalSearchStatus) return;
+  if (!catalogSearch?.hasIndex?.()) {
+    els.globalSearchStatus.textContent = "החיפוש יופעל אחרי הרצת ההמרה מחדש, שמייצרת גם אינדקס OCR לקובץ catalogs.search.js.";
+    return;
+  }
+  const count = catalogSearch.indexedPageCount?.() || 0;
+  els.globalSearchStatus.textContent = `מוכן לחיפוש בתוך ${count} עמודים מאונדקסים. הקלד לפחות 2 תווים.`;
+}
+
+function renderSearchResults(query) {
+  const rawQuery = String(query || "").trim();
+  if (!els.globalSearchResults || !els.globalSearchStatus) return;
+
+  els.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
+
+  if (rawQuery.length < 2) {
+    els.globalSearchResults.classList.add("hidden");
+    els.globalSearchResults.innerHTML = "";
+    initSearchStatus();
+    return;
+  }
+
+  if (!catalogSearch?.hasIndex?.()) {
+    els.globalSearchResults.classList.add("hidden");
+    els.globalSearchResults.innerHTML = "";
+    els.globalSearchStatus.textContent = "עדיין אין אינדקס חיפוש. הרץ convert-catalogs מחדש כדי ליצור OCR בעברית וקובץ catalogs.search.js.";
+    return;
+  }
+
+  const results = catalogSearch.search(rawQuery, { limit: 72 });
+  if (!results.length) {
+    els.globalSearchResults.classList.remove("hidden");
+    els.globalSearchResults.innerHTML = `
+      <article class="search-empty">
+        <strong>לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”</strong>
+        <p>נסה מספר דגם קצר יותר, חלק מהמילה, או הרץ OCR במצב <code>--ocr always</code> אם ה־PDF הוא סריקה כבדה.</p>
+      </article>
+    `;
+    els.globalSearchStatus.textContent = "אין תוצאות מתאימות.";
+    return;
+  }
+
+  els.globalSearchStatus.textContent = `נמצאו ${results.length} תוצאות. לחיצה פותחת את העמוד במקום הנכון בתצוגה מוגדלת.`;
+  els.globalSearchResults.classList.remove("hidden");
+  els.globalSearchResults.innerHTML = results.map((result) => `
+    <article class="search-result-card">
+      <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${result.page}">
+        <span class="search-result-thumb-frame catalog-image-frame">
+          <img class="search-result-thumb" src="${escapeHtml(result.thumb)}" alt="${escapeHtml(result.catalogTitle)} - עמוד ${result.page}" loading="lazy" />
+        </span>
+        <span class="search-result-body">
+          <strong>${escapeHtml(result.catalogTitle)}</strong>
+          <span class="search-result-meta">עמוד ${result.page}</span>
+          <span class="search-result-excerpt">${escapeHtml(result.excerpt || "התאמה לפי טקסט OCR בעמוד זה")}</span>
+        </span>
+      </button>
+    </article>
+  `).join("");
+
+  els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openCatalog(button.dataset.searchCatalog, { openPage: Number(button.dataset.searchPage) });
+    });
   });
 }
 
@@ -285,8 +361,9 @@ function pointerMidpoint(first, second) {
 
 function clampPan() {
   const image = els.lightboxImage;
+  const frame = els.lightboxImageFrame;
   const stage = els.stageCanvas;
-  if (!image?.naturalWidth || !image?.naturalHeight || !stage) return;
+  if (!image?.naturalWidth || !image?.naturalHeight || !frame || !stage) return;
 
   const imageWidth = image.naturalWidth * state.fitScale * state.zoom;
   const imageHeight = image.naturalHeight * state.fitScale * state.zoom;
@@ -307,8 +384,9 @@ function resetImagePosition() {
 
 function applyZoom() {
   const image = els.lightboxImage;
+  const frame = els.lightboxImageFrame;
   const stage = els.stageCanvas;
-  if (!image?.naturalWidth || !image?.naturalHeight || !stage) return;
+  if (!image?.naturalWidth || !image?.naturalHeight || !frame || !stage) return;
 
   const availableWidth = Math.max(260, stage.clientWidth - 18);
   const availableHeight = Math.max(260, stage.clientHeight - 18);
@@ -318,12 +396,14 @@ function applyZoom() {
   );
 
   const fitWidth = Math.max(220, Math.round(image.naturalWidth * state.fitScale));
-  image.style.width = `${fitWidth}px`;
+  frame.style.width = `${fitWidth}px`;
+  frame.style.height = "auto";
+  image.style.width = "100%";
   image.style.height = "auto";
 
   if (state.zoom <= 1.001) resetImagePosition();
   clampPan();
-  image.style.transform = `translate(-50%, -50%) translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+  frame.style.transform = `translate(-50%, -50%) translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
   els.lightbox?.classList.toggle("is-zoomed", state.zoom > 1.01);
 }
 
@@ -381,7 +461,7 @@ function renderLightboxThumbs() {
   const thumbs = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
     thumbs.push(`
-      <button class="lightbox-thumb ${page === state.page ? "active" : ""}" type="button" data-page="${page}" aria-label="מעבר לעמוד ${page}">
+      <button class="lightbox-thumb catalog-image-frame ${page === state.page ? "active" : ""}" type="button" data-page="${page}" aria-label="מעבר לעמוד ${page}">
         <img src="${escapeHtml(thumbSrc(catalog, page))}" alt="" loading="lazy" />
       </button>
     `);
@@ -623,6 +703,13 @@ function attachEvents() {
     if (catalogs[0]) openCatalog(catalogs[0].id, { scroll: true });
   });
 
+  els.globalSearchInput?.addEventListener("input", () => renderSearchResults(els.globalSearchInput.value));
+  els.globalSearchClear?.addEventListener("click", () => {
+    els.globalSearchInput.value = "";
+    els.globalSearchInput.focus();
+    renderSearchResults("");
+  });
+
   els.catalogSelect?.addEventListener("change", () => openCatalog(els.catalogSelect.value));
   els.openViewerFromTop?.addEventListener("click", () => openLightbox(1));
   els.scrollToTopBtn?.addEventListener("click", () => els.catalogDetail.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -702,6 +789,7 @@ function init() {
   renderHeroShots();
   renderCatalogCards();
   fillCatalogSelect();
+  initSearchStatus();
   attachEvents();
 
   const route = parseHash();

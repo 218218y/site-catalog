@@ -8,7 +8,7 @@ if not exist .venv\Scripts\activate.bat (
   exit /b 1
 )
 call .venv\Scripts\activate.bat
-python tools\build_catalogs.py --format jpg --dpi 240 --max-width 3200 --max-height 3200 --thumb-size 460 --quality 96 --thumb-quality 90 --sharpen 1.1
+python tools\build_catalogs.py --format jpg --dpi 240 --max-width 3200 --max-height 3200 --thumb-size 460 --quality 96 --thumb-quality 90 --sharpen 1.1 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
 if errorlevel 1 goto error
 echo.
 echo Extra-high-quality JPG conversion finished.

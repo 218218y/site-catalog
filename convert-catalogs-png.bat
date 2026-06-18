@@ -8,7 +8,7 @@ if not exist .venv\Scripts\activate.bat (
   exit /b 1
 )
 call .venv\Scripts\activate.bat
-python tools\build_catalogs.py --format png --dpi 240 --max-width 3200 --max-height 3200 --thumb-size 460 --quality 100 --thumb-quality 100 --sharpen 1.0
+python tools\build_catalogs.py --format png --dpi 240 --max-width 3200 --max-height 3200 --thumb-size 460 --quality 100 --thumb-quality 100 --sharpen 1.0 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
 if errorlevel 1 goto error
 echo.
 echo Maximum-quality PNG conversion finished.

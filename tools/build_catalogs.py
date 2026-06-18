@@ -20,7 +20,9 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -43,6 +45,12 @@ class RenderOptions:
     clean: bool
     skip_existing: bool
     sharpen: float
+    ocr_mode: str
+    ocr_lang: str
+    ocr_dpi: int
+    ocr_min_chars: int
+    tesseract_cmd: str
+    require_ocr: bool
 
 
 def project_root() -> Path:
@@ -103,7 +111,114 @@ def save_image(image: Image.Image, output_path: Path, image_format: str, quality
         raise ValueError(f"Unsupported image format: {image_format}")
 
 
-def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> int:
+def render_page_image(page: fitz.Page, dpi: int) -> Image.Image:
+    scale = max(1.0, dpi / 72.0)
+    matrix = fitz.Matrix(scale, scale)
+    pix = page.get_pixmap(matrix=matrix, alpha=False, colorspace=fitz.csRGB)
+    return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+
+
+def normalize_search_text(value: str) -> str:
+    return " ".join(str(value or "").replace("\u00ad", "").split())
+
+
+def extract_embedded_text(page: fitz.Page) -> str:
+    return normalize_search_text(page.get_text("text", sort=True))
+
+
+class OcrRunner:
+    def __init__(self, options: RenderOptions) -> None:
+        self.options = options
+        self._available: bool | None = None
+        self._warned_unavailable = False
+        self._warned_failure = False
+
+    def should_run(self, embedded_text: str) -> bool:
+        if self.options.ocr_mode == "never":
+            return False
+        if self.options.ocr_mode == "always":
+            return True
+        return len(embedded_text) < self.options.ocr_min_chars
+
+    def _is_available(self) -> bool:
+        if self._available is not None:
+            return self._available
+        try:
+            completed = subprocess.run(
+                [self.options.tesseract_cmd, "--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            self._available = completed.returncode == 0
+        except OSError:
+            self._available = False
+        return self._available
+
+    def recognize(self, image: Image.Image, label: str) -> str:
+        if not self._is_available():
+            message = (
+                f"Tesseract OCR was not found by command {self.options.tesseract_cmd!r}. "
+                "Images were rendered, but OCR search text was not created for scanned pages."
+            )
+            if self.options.require_ocr:
+                raise RuntimeError(message)
+            if not self._warned_unavailable:
+                print(f"[ocr-warn] {message}", file=sys.stderr)
+                self._warned_unavailable = True
+            return ""
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            image.save(tmp_path, "PNG")
+            completed = subprocess.run(
+                [
+                    self.options.tesseract_cmd,
+                    str(tmp_path),
+                    "stdout",
+                    "-l",
+                    self.options.ocr_lang,
+                    "--psm",
+                    "6",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            if completed.returncode != 0:
+                message = completed.stderr.strip() or f"Tesseract failed on {label}"
+                if self.options.require_ocr:
+                    raise RuntimeError(message)
+                if not self._warned_failure:
+                    print(f"[ocr-warn] {message}", file=sys.stderr)
+                    self._warned_failure = True
+                return ""
+            return normalize_search_text(completed.stdout)
+        finally:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def build_page_search_text(page: fitz.Page, ocr: OcrRunner, options: RenderOptions, label: str) -> str:
+    embedded_text = extract_embedded_text(page)
+    if not ocr.should_run(embedded_text):
+        return embedded_text
+
+    ocr_image = render_page_image(page, options.ocr_dpi)
+    ocr_text = ocr.recognize(ocr_image, label)
+    if embedded_text and ocr_text:
+        return normalize_search_text(f"{embedded_text} {ocr_text}")
+    return normalize_search_text(ocr_text or embedded_text)
+
+
+def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[int, list[dict[str, Any]]]:
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
@@ -115,17 +230,23 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> int:
         thumb_dir = out_dir / "thumbs"
         ext = options.image_format
 
+        ocr = OcrRunner(options)
+        search_pages: list[dict[str, Any]] = []
+
         for page_number, page in enumerate(doc, start=1):
             page_file = out_dir / f"page-{page_number:03d}.{ext}"
             thumb_file = thumb_dir / f"page-{page_number:03d}.{ext}"
+            label = f"{pdf_path.name} page {page_number}/{len(doc)}"
+
+            page_text = build_page_search_text(page, ocr, options, label)
+            if page_text:
+                search_pages.append({"page": page_number, "text": page_text})
+
             if options.skip_existing and page_file.exists() and thumb_file.exists():
                 print(f"[skip] {pdf_path.name}: page {page_number}/{len(doc)} already exists")
                 continue
 
-            scale = max(1.0, options.dpi / 72.0)
-            matrix = fitz.Matrix(scale, scale)
-            pix = page.get_pixmap(matrix=matrix, alpha=False, colorspace=fitz.csRGB)
-            image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            image = render_page_image(page, options.dpi)
 
             if image.width > options.max_width or image.height > options.max_height:
                 image.thumbnail((options.max_width, options.max_height), Image.Resampling.LANCZOS)
@@ -140,7 +261,7 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> int:
 
             print(f"[render] {pdf_path.name}: page {page_number}/{len(doc)} -> {rel_to_root(page_file)}")
 
-        return len(doc)
+        return len(doc), search_pages
 
 
 def build_generated_entry(item: dict[str, Any], pages: int, out_dir: Path, image_format: str) -> dict[str, Any]:
@@ -161,14 +282,30 @@ def build_generated_entry(item: dict[str, Any], pages: int, out_dir: Path, image
     return entry
 
 
-def write_generated_files(entries: list[dict[str, Any]]) -> None:
+def build_search_entry(item: dict[str, Any], search_pages: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "catalogId": item["id"],
+        "title": item["title"],
+        "pages": search_pages,
+    }
+
+
+def write_generated_files(entries: list[dict[str, Any]], search_entries: list[dict[str, Any]]) -> None:
     root = project_root()
     payload = json.dumps(entries, ensure_ascii=False, indent=2)
+    search_payload = json.dumps(search_entries, ensure_ascii=False, indent=2)
     (root / "catalogs.generated.json").write_text(payload + "\n", encoding="utf-8")
     (root / "catalogs.generated.js").write_text(
         "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
         "// לא מומלץ לערוך אותו ידנית. עריכה עושים בקובץ catalogs.config.json ואז מריצים שוב המרה.\n"
         f"window.BARGIG_CATALOGS = {payload};\n",
+        encoding="utf-8",
+    )
+    (root / "catalogs.search.json").write_text(search_payload + "\n", encoding="utf-8")
+    (root / "catalogs.search.js").write_text(
+        "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
+        "// כאן נמצא אינדקס החיפוש שנוצר מטקסט ה-PDF ומ-OCR.\n"
+        f"window.BARGIG_CATALOG_SEARCH = {search_payload};\n",
         encoding="utf-8",
     )
 
@@ -184,6 +321,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--thumb-quality", type=int, default=88, help="Thumbnail quality for webp/jpg, 1-100")
     parser.add_argument("--format", choices=sorted(SUPPORTED_FORMATS), default="jpg", help="Output image format")
     parser.add_argument("--sharpen", type=float, default=1.0, help="Sharpen amount after resize, 0 disables")
+    parser.add_argument(
+        "--ocr",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Create search text with OCR. auto uses embedded PDF text first and OCRs scanned/empty pages",
+    )
+    parser.add_argument("--ocr-lang", default="heb+eng", help="Tesseract OCR language, e.g. heb, eng or heb+eng")
+    parser.add_argument("--ocr-dpi", type=int, default=260, help="DPI used only for OCR input images")
+    parser.add_argument("--ocr-min-chars", type=int, default=16, help="In auto mode, OCR pages with less embedded text than this")
+    parser.add_argument("--tesseract-cmd", default="tesseract", help="Tesseract executable path/name")
+    parser.add_argument("--require-ocr", action="store_true", help="Fail conversion if OCR is needed but Tesseract cannot run")
     parser.add_argument("--no-clean", action="store_true", help="Do not delete old output folder before rendering")
     parser.add_argument("--skip-existing", action="store_true", help="Skip pages that already have image and thumbnail files")
     return parser.parse_args()
@@ -204,11 +352,18 @@ def main() -> int:
         clean=not args.no_clean,
         skip_existing=args.skip_existing,
         sharpen=max(0.0, float(args.sharpen)),
+        ocr_mode=args.ocr,
+        ocr_lang=str(args.ocr_lang).strip() or "heb+eng",
+        ocr_dpi=max(120, int(args.ocr_dpi)),
+        ocr_min_chars=max(0, int(args.ocr_min_chars)),
+        tesseract_cmd=str(args.tesseract_cmd).strip() or "tesseract",
+        require_ocr=bool(args.require_ocr),
     )
 
     try:
         config = load_config(config_path)
         generated: list[dict[str, Any]] = []
+        search_generated: list[dict[str, Any]] = []
 
         for item in config:
             catalog_id = str(item["id"])
@@ -216,16 +371,19 @@ def main() -> int:
             out_dir = (root / "assets" / "pages" / catalog_id).resolve()
 
             print(f"\n=== {item['title']} ===")
-            pages = render_pdf(pdf_path, out_dir, options)
+            pages, search_pages = render_pdf(pdf_path, out_dir, options)
             generated.append(build_generated_entry(item, pages, out_dir, options.image_format))
+            search_generated.append(build_search_entry(item, search_pages))
 
         generated.sort(key=lambda row: row.get("sort", 9999))
-        write_generated_files(generated)
+        search_generated.sort(key=lambda row: next((item.get("sort", 9999) for item in config if item["id"] == row["catalogId"]), 9999))
+        write_generated_files(generated, search_generated)
 
         print("\nDone.")
         print(f"Catalogs: {len(generated)}")
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.generated.js")
+        print("Generated: catalogs.search.js")
         print("You may delete the PDFs after conversion if you only want to keep the images.")
         print("Open index.html or run: python -m http.server 8080")
         return 0
