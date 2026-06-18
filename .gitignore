@@ -1,0 +1,16 @@
+dist/
+test-results/
+.artifacts/
+.venv
+assets/
+playwright-report/
+.artifacts/
+coverage/
+**/*.min.js
+node_modules/
+build/
+coverage/
+.cache/
+.env
+.DS_Store
+*.log

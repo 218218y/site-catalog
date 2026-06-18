@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#8b6f5a" />
+  <title>קטלוגים | רהיטי ברגיג</title>
+  <meta name="description" content="גלריית קטלוגים נקייה ומהירה עבור רהיטי ברגיג - בחירת קטלוג, צפייה בכל העמודים והגדלה נוחה." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="רהיטי ברגיג - דף הבית">
+      <img src="assets/brand/logo-placeholder.svg" alt="" class="brand-mark" />
+      <span class="brand-text">
+        <strong>רהיטי ברגיג</strong>
+        <small>גלריית קטלוגים</small>
+      </span>
+    </a>
+
+    <nav class="top-nav" aria-label="ניווט ראשי">
+      <a href="#catalogs">קטלוגים</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy reveal">
+        <p class="eyebrow">קטלוגים דיגיטליים</p>
+        <h1>כל הקטלוגים במקום אחד, בצפייה נקייה ונוחה.</h1>
+        <p class="hero-text">
+          בוחרים קטלוג, צופים בעמודים בצורה מסודרת, ופותחים כל עמוד לתצוגה גדולה עם דפדוף נוח.
+        </p>
+
+        <div class="hero-stats">
+          <article>
+            <strong id="catalogCount">0</strong>
+            <span>קטלוגים</span>
+          </article>
+          <article>
+            <strong id="pageCount">0</strong>
+            <span>עמודים בסך הכל</span>
+          </article>
+          <article>
+            <strong>HD</strong>
+            <span>תצוגה גדולה</span>
+          </article>
+        </div>
+
+        <div class="hero-actions">
+          <a class="button primary" href="#catalogs">לבחירת קטלוג</a>
+          <button class="button ghost" id="openFirstCatalog" type="button">צפייה בקטלוג ראשון</button>
+        </div>
+      </div>
+
+      <div class="hero-showcase reveal reveal-delay">
+        <div class="floating-page floating-page-back">
+          <img id="heroShot3" alt="" />
+        </div>
+        <div class="floating-page floating-page-mid">
+          <img id="heroShot2" alt="" />
+        </div>
+        <div class="floating-page floating-page-front">
+          <img id="heroShot1" alt="" />
+          <div class="showcase-chip">
+            <span>תצוגה מהירה</span>
+            <strong>לחיצה, הגדלה, דפדוף</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="catalogs-section panel reveal" id="catalogs" aria-labelledby="catalogsTitle">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">בחרו קטלוג</p>
+          <h2 id="catalogsTitle">הקטלוגים של רהיטי ברגיג</h2>
+        </div>
+        <p class="section-note">אפשר לצפות בקטלוג בתוך האתר, או לפתוח אותו בדף נקי ונפרד.</p>
+      </div>
+
+      <div class="catalog-grid" id="catalogGrid"></div>
+    </section>
+
+    <section class="catalog-detail panel hidden reveal" id="catalogDetail" aria-labelledby="catalogDetailTitle">
+      <div class="catalog-hero">
+        <div class="catalog-intro">
+          <a class="back-link" href="#catalogs">← חזרה לרשימת הקטלוגים</a>
+          <p class="eyebrow">קטלוג נבחר</p>
+          <h2 id="catalogDetailTitle">בחרו קטלוג</h2>
+          <p id="catalogDescription" class="catalog-description">כאן יופיע תיאור קצר של הקטלוג.</p>
+
+          <div class="catalog-meta-row">
+            <span class="pill" id="catalogCategory">קטלוג</span>
+            <span class="pill" id="catalogPages">0 עמודים</span>
+          </div>
+
+          <div class="catalog-actions-row">
+            <label class="select-wrap" for="catalogSelect">
+              <span>מעבר לקטלוג אחר</span>
+              <select id="catalogSelect"></select>
+            </label>
+            <button class="button soft" id="openViewerFromTop" type="button">צפייה במסך מלא</button>
+          </div>
+        </div>
+
+        <div class="catalog-cover-wrap">
+          <img id="catalogCoverPreview" class="catalog-cover-preview" alt="תמונת שער הקטלוג" />
+        </div>
+      </div>
+
+      <div class="gallery-toolbar">
+        <div>
+          <strong>כל עמודי הקטלוג</strong>
+          <p>לחיצה על עמוד תפתח אותו בגדול. אפשר לדפדף עם חיצים, מקלדת או מגע.</p>
+        </div>
+        <div class="gallery-toolbar-actions">
+          <button class="small-button" id="scrollToTopBtn" type="button">חזרה לראש הקטלוג</button>
+        </div>
+      </div>
+
+      <div class="page-grid" id="pageGrid"></div>
+    </section>
+  </main>
+
+  <div class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
+    <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
+    <div class="lightbox-dialog">
+      <div class="top-hotspot" id="topHotspot" aria-hidden="true"></div>
+
+      <div class="lightbox-bar" id="lightboxBar">
+        <div>
+          <p class="eyebrow">תצוגת מסך מלא</p>
+          <h3 id="lightboxTitle">צפייה בעמוד</h3>
+          <p id="lightboxMeta" class="lightbox-meta">עמוד 1 מתוך 1</p>
+        </div>
+        <div class="lightbox-actions">
+          <button class="small-button" id="zoomOutBtn" type="button" title="הקטנה">−</button>
+          <button class="small-button" id="fitBtn" type="button">התאם למסך</button>
+          <button class="small-button" id="zoomInBtn" type="button" title="הגדלה">+</button>
+          <button class="small-button close-button" id="closeLightbox" type="button">סגור ✕</button>
+        </div>
+      </div>
+
+      <div class="lightbox-stage" id="lightboxStage">
+        <div class="stage-canvas" id="stageCanvas">
+          <div class="loading-pill hidden" id="viewerLoading">טוען עמוד...</div>
+          <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" />
+        </div>
+        <button class="stage-nav stage-next" id="nextPageBtn" type="button" aria-label="העמוד הבא">›</button>
+        <button class="stage-nav stage-prev" id="prevPageBtn" type="button" aria-label="העמוד הקודם">‹</button>
+      </div>
+
+      <div class="thumbs-hotspot" id="thumbsHotspot" aria-hidden="true"></div>
+      <div class="lightbox-thumbs" id="lightboxThumbs" aria-label="עמודי הקטלוג"></div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>© רהיטי ברגיג · קטלוגים דיגיטליים</p>
+  </footer>
+
+  <script src="catalogs.generated.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
