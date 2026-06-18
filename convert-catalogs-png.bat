@@ -13,6 +13,8 @@ if errorlevel 1 goto error
 echo.
 echo Maximum-quality PNG conversion finished.
 echo PNG files are larger, but very crisp.
+echo Existing converted catalogs were skipped and kept.
+echo To rebuild everything with these settings, run this manually with --force.
 echo.
 pause
 exit /b 0

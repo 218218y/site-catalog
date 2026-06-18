@@ -12,6 +12,7 @@ Defaults are tuned for quality and compatibility:
 
 Examples:
     python tools/build_catalogs.py
+    python tools/build_catalogs.py --force
     python tools/build_catalogs.py --format png
     python tools/build_catalogs.py --dpi 240 --quality 96
 """
@@ -19,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -31,6 +33,7 @@ import fitz  # PyMuPDF
 from PIL import Image, ImageFilter
 
 SUPPORTED_FORMATS = {"webp", "jpg", "png"}
+PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,14 @@ class RenderOptions:
     require_ocr: bool
 
 
+@dataclass(frozen=True)
+class ExistingCatalogOutput:
+    pages: int
+    image_format: str
+    is_complete: bool
+    reason: str = ""
+
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -62,6 +73,102 @@ def rel_to_root(path: Path) -> str:
         return path.relative_to(project_root()).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def _collect_page_numbers(directory: Path) -> dict[str, set[int]]:
+    """Return page numbers grouped by image extension from page-001.jpg style files."""
+    numbers_by_ext: dict[str, set[int]] = {ext: set() for ext in SUPPORTED_FORMATS}
+    if not directory.is_dir():
+        return numbers_by_ext
+
+    for file_path in directory.iterdir():
+        if not file_path.is_file():
+            continue
+        match = PAGE_FILE_RE.match(file_path.name)
+        if not match:
+            continue
+        page_number = int(match.group(1))
+        image_format = match.group(2).lower()
+        numbers_by_ext.setdefault(image_format, set()).add(page_number)
+    return numbers_by_ext
+
+
+def _format_output_status(out_dir: Path, image_format: str, page_count: int) -> str:
+    page_word = "page" if page_count == 1 else "pages"
+    return f"{rel_to_root(out_dir)} ({page_count} {page_word}, {image_format.upper()})"
+
+
+def inspect_existing_catalog_output(out_dir: Path, preferred_format: str) -> ExistingCatalogOutput | None:
+    """Check whether a catalog output folder is complete enough to reuse safely.
+
+    A reusable catalog must have a consecutive page sequence starting at 1, and a
+    matching thumbnail for every page. This prevents the site from pointing to
+    broken/missing page images when a previous conversion was interrupted.
+    """
+    if not out_dir.is_dir():
+        return None
+
+    page_numbers = _collect_page_numbers(out_dir)
+    thumb_numbers = _collect_page_numbers(out_dir / "thumbs")
+    formats = [preferred_format, *sorted(SUPPORTED_FORMATS - {preferred_format})]
+    incomplete: list[ExistingCatalogOutput] = []
+
+    for image_format in formats:
+        pages = page_numbers.get(image_format, set())
+        thumbs = thumb_numbers.get(image_format, set())
+        if not pages:
+            continue
+
+        expected = set(range(1, max(pages) + 1))
+        missing_pages = sorted(expected - pages)
+        missing_thumbs = sorted(expected - thumbs)
+        page_count = len(pages)
+
+        if 1 in pages and not missing_pages and not missing_thumbs:
+            return ExistingCatalogOutput(max(pages), image_format, True)
+
+        reason_parts = []
+        if 1 not in pages:
+            reason_parts.append("page-001 is missing")
+        if missing_pages:
+            preview = ", ".join(f"page-{number:03d}" for number in missing_pages[:5])
+            suffix = "..." if len(missing_pages) > 5 else ""
+            reason_parts.append(f"missing pages: {preview}{suffix}")
+        if missing_thumbs:
+            preview = ", ".join(f"page-{number:03d}" for number in missing_thumbs[:5])
+            suffix = "..." if len(missing_thumbs) > 5 else ""
+            reason_parts.append(f"missing thumbnails: {preview}{suffix}")
+        incomplete.append(ExistingCatalogOutput(page_count, image_format, False, "; ".join(reason_parts)))
+
+    if incomplete:
+        return max(incomplete, key=lambda output: output.pages)
+    return None
+
+
+def load_previous_search_pages(root: Path) -> dict[str, list[dict[str, Any]]]:
+    """Load the last generated OCR/search index so skipped catalogs keep search."""
+    search_json = root / "catalogs.search.json"
+    if not search_json.exists():
+        return {}
+
+    try:
+        payload = json.loads(search_json.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[warn] Could not read previous search index: {exc}", file=sys.stderr)
+        return {}
+
+    if not isinstance(payload, list):
+        return {}
+
+    result: dict[str, list[dict[str, Any]]] = {}
+    for entry in payload:
+        if not isinstance(entry, dict):
+            continue
+        catalog_id = str(entry.get("catalogId", "")).strip()
+        pages = entry.get("pages", [])
+        if catalog_id and isinstance(pages, list):
+            result[catalog_id] = [page for page in pages if isinstance(page, dict)]
+    return result
 
 
 def load_config(config_path: Path) -> list[dict[str, Any]]:
@@ -332,7 +439,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ocr-min-chars", type=int, default=16, help="In auto mode, OCR pages with less embedded text than this")
     parser.add_argument("--tesseract-cmd", default="tesseract", help="Tesseract executable path/name")
     parser.add_argument("--require-ocr", action="store_true", help="Fail conversion if OCR is needed but Tesseract cannot run")
-    parser.add_argument("--no-clean", action="store_true", help="Do not delete old output folder before rendering")
+    parser.add_argument(
+        "--force",
+        "--rebuild-all",
+        action="store_true",
+        help="Render every configured catalog again, even when assets/pages/<id> already exists",
+    )
+    parser.add_argument("--no-clean", action="store_true", help="When rendering, do not delete the old output folder first")
     parser.add_argument("--skip-existing", action="store_true", help="Skip pages that already have image and thumbnail files")
     return parser.parse_args()
 
@@ -364,13 +477,53 @@ def main() -> int:
         config = load_config(config_path)
         generated: list[dict[str, Any]] = []
         search_generated: list[dict[str, Any]] = []
+        previous_search_pages = load_previous_search_pages(root)
 
         for item in config:
             catalog_id = str(item["id"])
             pdf_path = (root / str(item["pdf"])).resolve()
             out_dir = (root / "assets" / "pages" / catalog_id).resolve()
+            existing_output = inspect_existing_catalog_output(out_dir, options.image_format)
 
             print(f"\n=== {item['title']} ===")
+            if existing_output and existing_output.is_complete and not args.force:
+                print(f"[skip-catalog] Already converted: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
+                if not pdf_path.exists():
+                    print(f"[keep] Source PDF is missing, keeping existing images: {rel_to_root(pdf_path)}")
+                search_pages = previous_search_pages.get(catalog_id, [])
+                if not search_pages:
+                    print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
+                generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format))
+                search_generated.append(build_search_entry(item, search_pages))
+                continue
+
+            if not pdf_path.exists():
+                if existing_output and existing_output.is_complete:
+                    print(f"[keep] Source PDF is missing, keeping existing images: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
+                    search_pages = previous_search_pages.get(catalog_id, [])
+                    if not search_pages:
+                        print("[warn] No previous OCR/search text found for this catalog; images will still be shown.")
+                    generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format))
+                    search_generated.append(build_search_entry(item, search_pages))
+                    continue
+
+                if existing_output:
+                    print(
+                        f"[warn] Found an incomplete output folder at {rel_to_root(out_dir)} ({existing_output.reason}), "
+                        "but the source PDF is missing. Skipping this catalog without deleting anything."
+                    )
+                else:
+                    print(
+                        f"[warn] Source PDF is missing and no converted images were found: {rel_to_root(pdf_path)}. "
+                        "Skipping this catalog without deleting anything."
+                    )
+                continue
+
+            if existing_output and not existing_output.is_complete:
+                print(f"[warn] Existing output is incomplete ({existing_output.reason}); rebuilding from PDF.")
+            elif existing_output and args.force:
+                print(f"[force] Rebuilding existing output: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
+
             pages, search_pages = render_pdf(pdf_path, out_dir, options)
             generated.append(build_generated_entry(item, pages, out_dir, options.image_format))
             search_generated.append(build_search_entry(item, search_pages))
@@ -384,6 +537,7 @@ def main() -> int:
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
+        print("Existing converted catalogs are kept and skipped by default. Use --force to rebuild all catalogs.")
         print("You may delete the PDFs after conversion if you only want to keep the images.")
         print("Open index.html or run: python -m http.server 8080")
         return 0

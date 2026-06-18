@@ -12,6 +12,8 @@ python tools\build_catalogs.py --format jpg --dpi 220 --max-width 2800 --max-hei
 if errorlevel 1 goto error
 echo.
 echo Conversion finished in high-quality JPG.
+echo Existing converted catalogs were skipped and kept.
+echo To rebuild everything, run convert-catalogs-force.bat
 echo You can now delete the PDFs if you only want to keep the images.
 echo Open index.html or run start-server.bat
 echo.

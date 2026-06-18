@@ -8,12 +8,11 @@ if not exist .venv\Scripts\activate.bat (
   exit /b 1
 )
 call .venv\Scripts\activate.bat
-python tools\build_catalogs.py --format jpg --dpi 240 --max-width 3200 --max-height 3200 --thumb-size 460 --quality 96 --thumb-quality 90 --sharpen 1.1 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
+python tools\build_catalogs.py --force --format jpg --dpi 220 --max-width 2800 --max-height 2800 --thumb-size 420 --quality 94 --thumb-quality 88 --sharpen 1.0 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
 if errorlevel 1 goto error
 echo.
-echo Extra-high-quality JPG conversion finished.
-echo Existing converted catalogs were skipped and kept.
-echo To rebuild everything with these settings, run this manually with --force.
+echo Forced conversion finished. All available PDFs were rebuilt.
+echo Existing converted catalogs whose PDF is missing were kept, not deleted.
 echo.
 pause
 exit /b 0
