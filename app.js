@@ -886,11 +886,10 @@ function syncViewerModeUi() {
   els.lightbox?.classList.toggle("mode-single", !isScrollMode);
 
   if (els.viewerModeToggle) {
-    els.viewerModeToggle.textContent = isScrollMode ? "תצוגה לצדדים" : "תצוגת גלילה";
-    els.viewerModeToggle.setAttribute(
-      "aria-label",
-      isScrollMode ? "מעבר לתצוגת תמונה אחת עם חיצים בצדדים" : "מעבר לתצוגת כל העמודים בגלילה מלמעלה למטה"
-    );
+    const label = isScrollMode ? "מעבר לתצוגת תמונה אחת עם חיצים בצדדים" : "מעבר לתצוגת כל העמודים בגלילה מלמעלה למטה";
+    els.viewerModeToggle.dataset.viewerMode = isScrollMode ? "scroll" : "single";
+    els.viewerModeToggle.setAttribute("aria-label", label);
+    els.viewerModeToggle.setAttribute("title", isScrollMode ? "תצוגה לצדדים" : "תצוגת גלילה");
   }
 
   if (els.lightboxModeLabel) {

@@ -191,11 +191,22 @@
           </div>
 
           <div class="lightbox-actions">
-            <button class="reader-button viewer-mode-toggle" id="viewerModeToggle" type="button">תצוגת גלילה</button>
-            <button class="reader-button viewer-zoom-control" id="zoomOutBtn" type="button" title="הקטנה">−</button>
-            <button class="reader-button viewer-zoom-control" id="fitBtn" type="button">התאם למסך</button>
-            <button class="reader-button viewer-zoom-control" id="zoomInBtn" type="button" title="הגדלה">+</button>
-            <button class="reader-button close-button" id="closeLightbox" type="button" aria-label="סגירה" title="סגירה">×</button>
+            <button class="reader-button reader-control-icon-button viewer-mode-toggle" id="viewerModeToggle" type="button" data-viewer-mode="single" aria-label="מעבר לתצוגת כל העמודים בגלילה מלמעלה למטה" title="תצוגת גלילה">
+              <svg class="viewer-mode-icon viewer-mode-icon-scroll" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v2A1.5 1.5 0 0 1 17 9.5H7A1.5 1.5 0 0 1 5.5 8V6A1.5 1.5 0 0 1 7 4.5Zm0 5h10a1.5 1.5 0 0 1 1.5 1.5v2A1.5 1.5 0 0 1 17 14.5H7A1.5 1.5 0 0 1 5.5 13v-2A1.5 1.5 0 0 1 7 9.5Zm0 5h10a1.5 1.5 0 0 1 1.5 1.5v2A1.5 1.5 0 0 1 17 19.5H7A1.5 1.5 0 0 1 5.5 18v-2A1.5 1.5 0 0 1 7 14.5Z" />
+              </svg>
+              <svg class="viewer-mode-icon viewer-mode-icon-single" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M8.2 5.4h7.6A2.2 2.2 0 0 1 18 7.6v8.8a2.2 2.2 0 0 1-2.2 2.2H8.2A2.2 2.2 0 0 1 6 16.4V7.6a2.2 2.2 0 0 1 2.2-2.2Zm-5 6.6 2.1-2.1m-2.1 2.1 2.1 2.1M20.8 12l-2.1-2.1m2.1 2.1-2.1 2.1" />
+              </svg>
+            </button>
+            <button class="reader-button reader-control-icon-button viewer-zoom-control" id="zoomOutBtn" type="button" aria-label="הקטנה" title="הקטנה">−</button>
+            <button class="reader-button reader-control-icon-button viewer-zoom-control" id="fitBtn" type="button" aria-label="התאמה למסך" title="התאם למסך">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M8.2 4.8H5.5a.7.7 0 0 0-.7.7v2.7M15.8 4.8h2.7a.7.7 0 0 1 .7.7v2.7M8.2 19.2H5.5a.7.7 0 0 1-.7-.7v-2.7M15.8 19.2h2.7a.7.7 0 0 0 .7-.7v-2.7M8.2 8.2h7.6v7.6H8.2z" />
+              </svg>
+            </button>
+            <button class="reader-button reader-control-icon-button viewer-zoom-control" id="zoomInBtn" type="button" aria-label="הגדלה" title="הגדלה">+</button>
+            <button class="reader-button reader-control-icon-button close-button" id="closeLightbox" type="button" aria-label="סגירה" title="סגירה">×</button>
           </div>
         </header>
 
