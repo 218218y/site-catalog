@@ -20,7 +20,9 @@ const state = {
   pointers: new Map(),
   lightboxOpen: false,
   thumbsHideTimer: 0,
-  uiHideTimer: 0
+  uiHideTimer: 0,
+  pageThumbLoadTimer: 0,
+  pageThumbObserver: null
 };
 
 const els = {
@@ -69,7 +71,10 @@ const els = {
   lightboxSearchInput: $("lightboxSearchInput"),
   lightboxSearchResults: $("lightboxSearchResults"),
   lightboxSearchStatus: $("lightboxSearchStatus"),
-  lightboxSearchClear: $("lightboxSearchClear")
+  lightboxSearchClear: $("lightboxSearchClear"),
+  lightboxFloatingPreview: $("lightboxFloatingPreview"),
+  lightboxFloatingPreviewImage: $("lightboxFloatingPreviewImage"),
+  lightboxFloatingPreviewPage: $("lightboxFloatingPreviewPage")
 };
 
 function pad(num) {
@@ -364,8 +369,59 @@ function fillCatalogSelect() {
   )).join("");
 }
 
+
+function clearDeferredPageThumbLoading() {
+  window.clearTimeout(state.pageThumbLoadTimer);
+  state.pageThumbLoadTimer = 0;
+  state.pageThumbObserver?.disconnect?.();
+  state.pageThumbObserver = null;
+}
+
+function loadDeferredPageThumb(img) {
+  const src = img?.dataset?.src;
+  if (!src || img.getAttribute("src") === src) return;
+  img.src = src;
+  img.removeAttribute("data-src");
+  img.classList.add("loaded");
+}
+
+function activateDeferredPageThumbLoading() {
+  if (!els.pageGrid) return;
+  const pendingImages = Array.from(els.pageGrid.querySelectorAll("img.page-thumb[data-src]"));
+  if (!pendingImages.length) return;
+
+  if (!("IntersectionObserver" in window)) {
+    pendingImages.forEach(loadDeferredPageThumb);
+    return;
+  }
+
+  state.pageThumbObserver?.disconnect?.();
+  state.pageThumbObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      loadDeferredPageThumb(entry.target);
+      observer.unobserve(entry.target);
+    });
+  }, {
+    root: null,
+    rootMargin: "900px 0px",
+    threshold: 0.01
+  });
+
+  pendingImages.forEach((img) => state.pageThumbObserver.observe(img));
+}
+
+function scheduleDeferredPageThumbLoading(delay = 0) {
+  clearDeferredPageThumbLoading();
+  state.pageThumbLoadTimer = window.setTimeout(() => {
+    state.pageThumbLoadTimer = 0;
+    activateDeferredPageThumbLoading();
+  }, Math.max(0, delay));
+}
+
 function renderPageGrid() {
   if (!state.catalog) return;
+  clearDeferredPageThumbLoading();
 
   const catalog = state.catalog;
   const cards = [];
@@ -374,7 +430,7 @@ function renderPageGrid() {
       <article class="page-card">
         <button class="page-button" type="button" data-open-page="${page}">
           <div class="page-thumb-wrap">
-            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" />
+            <img class="page-thumb" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" data-src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">
@@ -544,6 +600,39 @@ function setViewerLoading(isLoading) {
   els.viewerLoading.classList.toggle("hidden", !isLoading);
 }
 
+
+function hideLightboxFloatingPreview() {
+  els.lightboxFloatingPreview?.classList.remove("visible");
+}
+
+function positionLightboxFloatingPreview(button) {
+  const preview = els.lightboxFloatingPreview;
+  if (!preview || !button) return;
+
+  const buttonRect = button.getBoundingClientRect();
+  const previewWidth = Math.max(240, preview.offsetWidth || Math.min(420, window.innerWidth * 0.34));
+  const centerX = Math.min(
+    window.innerWidth - (previewWidth / 2) - 14,
+    Math.max((previewWidth / 2) + 14, buttonRect.left + (buttonRect.width / 2))
+  );
+  const bottom = Math.max(122, window.innerHeight - buttonRect.top + 12);
+
+  preview.style.left = `${centerX}px`;
+  preview.style.bottom = `${bottom}px`;
+}
+
+function showLightboxFloatingPreview(button) {
+  if (!state.catalog || !button || !els.lightboxFloatingPreview || !els.lightboxFloatingPreviewImage) return;
+
+  const page = clampPage(button.dataset.page, state.catalog);
+  const src = button.dataset.previewSrc || pageSrc(state.catalog, page);
+  els.lightboxFloatingPreviewImage.src = src;
+  els.lightboxFloatingPreviewImage.alt = `${state.catalog.title} - עמוד ${page}`;
+  if (els.lightboxFloatingPreviewPage) els.lightboxFloatingPreviewPage.textContent = `עמוד ${page}`;
+  els.lightboxFloatingPreview.classList.add("visible");
+  positionLightboxFloatingPreview(button);
+}
+
 function updateLightboxThumbs() {
   els.lightboxThumbs.querySelectorAll(".lightbox-thumb").forEach((button) => {
     const active = Number(button.dataset.page) === state.page;
@@ -560,14 +649,21 @@ function renderLightboxThumbs() {
   const thumbs = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
     thumbs.push(`
-      <button class="lightbox-thumb catalog-image-frame ${page === state.page ? "active" : ""}" type="button" data-page="${page}" aria-label="מעבר לעמוד ${page}">
-        <img src="${escapeHtml(thumbSrc(catalog, page))}" alt="" loading="lazy" />
+      <button class="lightbox-thumb catalog-image-frame ${page === state.page ? "active" : ""}" type="button" data-page="${page}" data-preview-src="${escapeHtml(pageSrc(catalog, page))}" aria-label="מעבר לעמוד ${page}">
+        <img src="${escapeHtml(thumbSrc(catalog, page))}" alt="" loading="lazy" decoding="async" />
       </button>
     `);
   }
   els.lightboxThumbs.innerHTML = thumbs.join("");
   els.lightboxThumbs.querySelectorAll(".lightbox-thumb").forEach((button) => {
-    button.addEventListener("click", () => setLightboxPage(Number(button.dataset.page)));
+    button.addEventListener("pointerenter", () => showLightboxFloatingPreview(button));
+    button.addEventListener("pointerleave", hideLightboxFloatingPreview);
+    button.addEventListener("focus", () => showLightboxFloatingPreview(button));
+    button.addEventListener("blur", hideLightboxFloatingPreview);
+    button.addEventListener("click", () => {
+      hideLightboxFloatingPreview();
+      setLightboxPage(Number(button.dataset.page));
+    });
   });
 }
 
@@ -620,9 +716,11 @@ function closeLightbox() {
   state.lightboxOpen = false;
   els.lightbox.classList.add("hidden");
   els.lightbox.classList.remove("show-thumbs", "show-ui");
+  hideLightboxFloatingPreview();
   window.clearTimeout(state.thumbsHideTimer);
   window.clearTimeout(state.uiHideTimer);
   document.body.classList.remove("no-scroll");
+  scheduleDeferredPageThumbLoading(0);
   updateHash();
 }
 
@@ -630,6 +728,7 @@ function setLightboxPage(page) {
   if (!state.catalog) return;
   const nextPage = clampPage(page, state.catalog);
   if (nextPage !== state.page) {
+    hideLightboxFloatingPreview();
     state.zoom = 1;
     resetImagePosition();
     state.pointers.clear();
@@ -678,6 +777,8 @@ function openCatalog(id, options = {}) {
 
   if (openPage != null) {
     openLightbox(openPage);
+  } else {
+    scheduleDeferredPageThumbLoading(scroll ? 520 : 0);
   }
 }
 
@@ -853,7 +954,10 @@ function attachEvents() {
   });
 
   els.lightboxThumbs?.addEventListener("mouseenter", keepThumbsOpen);
-  els.lightboxThumbs?.addEventListener("mouseleave", scheduleThumbsClose);
+  els.lightboxThumbs?.addEventListener("mouseleave", () => {
+    hideLightboxFloatingPreview();
+    scheduleThumbsClose();
+  });
   els.topHotspot?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseleave", () => {
@@ -868,7 +972,10 @@ function attachEvents() {
 
 
   window.addEventListener("resize", () => {
-    if (state.lightboxOpen) applyZoom();
+    if (state.lightboxOpen) {
+      hideLightboxFloatingPreview();
+      applyZoom();
+    }
   });
 
   window.addEventListener("keydown", (event) => {
@@ -897,13 +1004,16 @@ function attachEvents() {
     if (!target) return;
 
     if (!state.catalog || state.catalog.id !== target.id) {
-      openCatalog(target.id);
+      openCatalog(target.id, route.lightbox ? { openPage: route.page } : {});
+      return;
     }
 
     if (route.lightbox) {
       openLightbox(route.page);
     } else if (state.lightboxOpen) {
       closeLightbox();
+    } else {
+      scheduleDeferredPageThumbLoading(0);
     }
   });
 }
@@ -924,8 +1034,7 @@ function init() {
 
   const route = parseHash();
   if (route && catalogs.some((item) => item.id === route.id)) {
-    openCatalog(route.id);
-    if (route.lightbox) openLightbox(route.page);
+    openCatalog(route.id, route.lightbox ? { openPage: route.page } : {});
   }
 }
 

@@ -204,6 +204,48 @@ function scrollToReaderPage(page) {
   window.setTimeout(() => target.classList.remove("reader-page-frame-hit"), 1800);
 }
 
+function isReaderTypingTarget(target) {
+  if (!target) return false;
+  const tagName = String(target.tagName || "").toUpperCase();
+  return tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT" || target.isContentEditable;
+}
+
+function moveReaderPage(delta) {
+  const catalog = getSelectedCatalog();
+  if (!catalog) return;
+  const targetPage = clampPage((readerUiState.currentPage || 1) + delta, catalog);
+  if (targetPage === readerUiState.currentPage) return;
+  scrollToReaderPage(targetPage);
+}
+
+function handleReaderKeydown(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+  if (isReaderTypingTarget(event.target)) {
+    if (event.key === "Escape") {
+      event.target.blur?.();
+      readerSearchResults?.classList.add("hidden");
+    }
+    return;
+  }
+
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    moveReaderPage(-1);
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    moveReaderPage(1);
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    scrollToReaderPage(1);
+  } else if (event.key === "End") {
+    const catalog = getSelectedCatalog();
+    if (!catalog) return;
+    event.preventDefault();
+    scrollToReaderPage(catalog.pages);
+  }
+}
+
 function showReaderFloatingPreview(button) {
   if (!readerFloatingPreview || !readerFloatingPreviewImage || !button) return;
 
@@ -381,5 +423,6 @@ readerPageRail?.addEventListener("focusout", closePageRailSoon);
 
 window.addEventListener("scroll", scheduleCurrentPageUpdate, { passive: true });
 window.addEventListener("resize", scheduleCurrentPageUpdate);
+window.addEventListener("keydown", handleReaderKeydown);
 
 renderReader();
