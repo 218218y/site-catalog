@@ -5,7 +5,8 @@ const $ = (id) => document.getElementById(id);
 const readerTitle = $("readerTitle");
 const readerMeta = $("readerMeta");
 const readerPages = $("readerPages");
-const readerBack = $("readerBack");
+const readerScreenshot = $("readerScreenshot");
+const readerCopyLink = $("readerCopyLink");
 const readerSearchInput = $("readerSearchInput");
 const readerSearchResults = $("readerSearchResults");
 const readerSearchStatus = $("readerSearchStatus");
@@ -60,6 +61,114 @@ function clampPage(page, catalog) {
   if (!Number.isFinite(parsed)) return 1;
   const maxPage = Math.max(1, Number(catalog?.pages || 1));
   return Math.min(Math.max(parsed, 1), maxPage);
+}
+
+function safeFilePart(value) {
+  return String(value || "catalog")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 72) || "catalog";
+}
+
+function flashReaderAction(button, message) {
+  if (!button || !message) return;
+  const originalTitle = button.getAttribute("title") || "";
+  button.setAttribute("title", message);
+  button.classList.add("reader-icon-button-done");
+  window.setTimeout(() => {
+    if (originalTitle) button.setAttribute("title", originalTitle);
+    else button.removeAttribute("title");
+    button.classList.remove("reader-icon-button-done");
+  }, 1500);
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("image-load-failed"));
+    img.src = src;
+  });
+}
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 900);
+}
+
+async function downloadCurrentReaderImage() {
+  const catalog = getSelectedCatalog();
+  if (!catalog) return;
+  const currentPage = clampPage(readerUiState.currentPage || getRequestedPage() || 1, catalog);
+  const src = pageSrc(catalog, currentPage);
+
+  try {
+    const img = await loadImageElement(src);
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        window.alert("לא הצלחתי ליצור צילום מסך לעמוד הזה.");
+        return;
+      }
+      saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.png`);
+      flashReaderAction(readerScreenshot, "צילום המסך נשמר");
+    }, "image/png");
+  } catch (_error) {
+    window.alert("לא הצלחתי ליצור צילום מסך לעמוד הזה. כדאי לוודא שקבצי התמונות נטענים מאותו אתר ולא מחסימה של הדפדפן.");
+  }
+}
+
+function buildReaderPageUrl() {
+  const catalog = getSelectedCatalog();
+  if (!catalog) return window.location.href;
+  const currentPage = clampPage(readerUiState.currentPage || getRequestedPage() || 1, catalog);
+  const url = new URL(window.location.href);
+  url.searchParams.set("id", catalog.id);
+  url.searchParams.delete("catalog");
+  url.searchParams.set("page", String(currentPage));
+  url.hash = `page-${currentPage}`;
+  return url.href;
+}
+
+async function copyTextToClipboard(value) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.top = "-1000px";
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand("copy");
+  input.remove();
+}
+
+async function copyCurrentReaderLink() {
+  const link = buildReaderPageUrl();
+  try {
+    await copyTextToClipboard(link);
+    flashReaderAction(readerCopyLink, "הקישור הועתק");
+  } catch (_error) {
+    window.prompt("אפשר להעתיק את הקישור מכאן:", link);
+  }
 }
 
 function getSelectedCatalog() {
@@ -390,6 +499,9 @@ function renderReader() {
   }
 }
 
+readerScreenshot?.addEventListener("click", downloadCurrentReaderImage);
+readerCopyLink?.addEventListener("click", copyCurrentReaderLink);
+
 readerSearchInput?.addEventListener("input", () => renderReaderSearch(readerSearchInput.value));
 readerSearchClear?.addEventListener("click", () => {
   readerSearchInput.value = "";
@@ -397,10 +509,6 @@ readerSearchClear?.addEventListener("click", () => {
   renderReaderSearch("");
 });
 
-readerBack?.addEventListener("click", () => {
-  if (history.length > 1) history.back();
-  else window.location.href = "index.html";
-});
 
 readerTopHotspot?.addEventListener("mouseenter", () => openTopControls());
 readerTopHotspot?.addEventListener("mouseleave", closeTopControlsSoon);

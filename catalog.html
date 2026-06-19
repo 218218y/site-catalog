@@ -15,10 +15,23 @@
 
   <div class="reader-top-shell" id="readerTopShell">
     <header class="reader-header">
-      <a class="reader-home" href="index.html" aria-label="חזרה לדף הקטלוגים">
-        <img class="reader-logo" data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
-        <span>רהיטי ברגיג</span>
-      </a>
+      <div class="reader-brand-actions">
+        <a class="reader-home" href="index.html" aria-label="רהיטי ברגיג - דף הקטלוגים">
+          <img class="reader-logo" data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
+        </a>
+        <div class="reader-quick-actions" aria-label="פעולות לעמוד הנוכחי">
+          <button class="reader-button reader-icon-button" id="readerScreenshot" type="button" aria-label="צילום מסך של העמוד הנוכחי" title="צילום מסך">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M7.6 6.2 8.9 4.5h6.2l1.3 1.7H19a2 2 0 0 1 2 2v8.9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2h2.6Zm4.4 10a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6Zm0-1.8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/>
+            </svg>
+          </button>
+          <button class="reader-button reader-icon-button" id="readerCopyLink" type="button" aria-label="העתקת קישור לעמוד הנוכחי" title="העתקת קישור">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M10.6 13.4a1 1 0 0 1 0-1.4l2.8-2.8a3.2 3.2 0 0 1 4.5 4.5l-2.1 2.1a3.2 3.2 0 0 1-4.5 0 1 1 0 1 1 1.4-1.4 1.2 1.2 0 0 0 1.7 0l2.1-2.1a1.2 1.2 0 0 0-1.7-1.7L12 13.4a1 1 0 0 1-1.4 0Zm2.8-2.8a1 1 0 0 1 0 1.4l-2.8 2.8a1.2 1.2 0 0 0 1.7 1.7 1 1 0 1 1 1.4 1.4 3.2 3.2 0 0 1-4.5-4.5l2.8-2.8a1 1 0 0 1 1.4 0Zm-5.2 7.2a3.2 3.2 0 0 1 0-4.5l2.1-2.1a3.2 3.2 0 0 1 4.5 0 1 1 0 1 1-1.4 1.4 1.2 1.2 0 0 0-1.7 0l-2.1 2.1a1.2 1.2 0 0 0 0 1.7 1 1 0 0 1-1.4 1.4Z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
 
       <div class="reader-header-search" role="search" aria-labelledby="readerSearchTitle">
         <strong class="visually-hidden" id="readerSearchTitle">חיפוש בקטלוג הזה</strong>
@@ -34,7 +47,7 @@
         </div>
       </div>
 
-      <button class="reader-button" id="readerBack" type="button">חזרה</button>
+      <div class="reader-header-spacer" aria-hidden="true"></div>
     </header>
 
     <div class="reader-search-results hidden" id="readerSearchResults" aria-live="polite"></div>

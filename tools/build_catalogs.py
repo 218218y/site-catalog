@@ -356,7 +356,9 @@ def _has_light_text_pixels(image: Image.Image, box: tuple[int, int, int, int]) -
     sample = crop.resize((sample_width, sample_height), Image.Resampling.BILINEAR).convert("RGB")
     total = max(1, sample_width * sample_height)
     bright_neutral = 0
-    for red, green, blue in sample.getdata():
+    pixels = sample.get_flattened_data() if hasattr(sample, "get_flattened_data") else sample.getdata()
+    for pixel in pixels:
+        red, green, blue = pixel[:3]
         if red > 210 and green > 210 and blue > 210 and max(red, green, blue) - min(red, green, blue) < 35:
             bright_neutral += 1
     return bright_neutral / total >= 0.015

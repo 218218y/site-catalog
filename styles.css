@@ -653,7 +653,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 }
 .reader-header.lightbox-reader-header {
   width: 100%;
-  grid-template-columns: auto minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(190px, 1fr) minmax(220px, 560px) minmax(260px, 1fr);
   justify-content: stretch;
 }
 .lightbox-actions {
@@ -879,12 +879,11 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   backdrop-filter: blur(10px);
 }
 
-.lightbox-home-button {
-  flex: 0 0 auto;
+.lightbox-brand-lockup {
   border: 1px solid rgba(255,255,255,0.14);
 }
-.lightbox-home-button .reader-logo {
-  width: 96px;
+.lightbox-brand-lockup .reader-logo {
+  width: clamp(90px, 7.5vw, 116px);
 }
 .viewer-mode-toggle {
   background: rgba(217, 186, 163, 0.24) !important;
@@ -1156,14 +1155,31 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .reader-header {
   min-height: 58px;
   display: grid;
-  grid-template-columns: auto minmax(260px, 840px) auto;
+  grid-template-columns: minmax(190px, 1fr) minmax(220px, 560px) minmax(120px, 1fr);
   align-items: center;
-  justify-content: center;
+  justify-content: stretch;
   gap: 12px;
   padding: 7px clamp(10px, 2.4vw, 22px);
   background: linear-gradient(180deg, rgba(11,9,8,0.97), rgba(11,9,8,0.88));
   border-bottom: 1px solid rgba(255,255,255,0.08);
   backdrop-filter: blur(16px);
+}
+.reader-brand-actions {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  justify-self: start;
+}
+.reader-quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.reader-header-spacer {
+  min-width: 0;
 }
 .reader-home,
 .reader-button {
@@ -1180,6 +1196,16 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 26px rgba(0,0,0,0.16);
   transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
 }
+.reader-home {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 3px 6px;
+  border-radius: 17px;
+  overflow: hidden;
+}
+.reader-brand-lockup {
+  cursor: default;
+}
 .reader-button { cursor: pointer; }
 .reader-home:hover,
 .reader-button:hover {
@@ -1188,13 +1214,33 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   transform: translateY(-1px);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 14px 32px rgba(0,0,0,0.24);
 }
+.reader-brand-lockup:hover {
+  transform: none;
+}
 .reader-home:active,
 .reader-button:active {
   transform: translateY(0);
 }
+.reader-icon-button {
+  width: 40px;
+  min-width: 40px;
+  padding: 0 !important;
+  border-radius: 13px;
+}
+.reader-icon-button svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  fill: currentColor;
+}
+.reader-icon-button-done {
+  background: rgba(217, 186, 163, 0.34) !important;
+  border-color: rgba(255,255,255,0.34) !important;
+}
 .reader-header-search {
   min-width: 0;
   width: 100%;
+  max-width: 560px;
   justify-self: center;
 }
 .reader-title-wrap {
@@ -1661,8 +1707,11 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
 
 .reader-logo {
-  width: 118px;
+  width: clamp(92px, 8.6vw, 122px);
   height: auto;
+  flex: 0 0 auto;
+  border-radius: 15px;
+  clip-path: inset(0 round 15px);
   filter: drop-shadow(0 6px 14px rgba(0,0,0,0.18));
 }
 .reader-home {
@@ -1809,7 +1858,8 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   .catalog-hero { grid-template-columns: 1fr; }
   .gallery-toolbar, .section-head { flex-direction: column; align-items: stretch; }
   .search-results, .reader-search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .reader-header.lightbox-reader-header { grid-template-columns: auto minmax(160px, 1fr) auto; }
+  .reader-header,
+  .reader-header.lightbox-reader-header { grid-template-columns: minmax(170px, .85fr) minmax(180px, 520px) minmax(170px, .85fr); }
   .lightbox-actions { justify-content: flex-end; }
   .lightbox-actions .reader-button { flex: 0 0 auto; }
 }
@@ -1829,16 +1879,19 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   .search-result-button { grid-template-columns: 82px minmax(0, 1fr); }
   .search-result-thumb { width: 82px; height: 106px; }
   .reader-top-shell { max-height: calc(100vh - 8px); }
-  .reader-header {
+  .reader-header,
+  .reader-header.lightbox-reader-header {
     min-height: 54px;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    grid-template-columns: auto minmax(120px, 1fr) auto;
+    gap: 7px;
     padding-inline: 8px;
   }
-  .reader-header.lightbox-reader-header {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .reader-home { display: none; }
+  .reader-brand-actions { gap: 5px; }
+  .reader-home { padding-inline: 4px; }
+  .reader-logo,
+  .lightbox-brand-lockup .reader-logo { width: 84px; border-radius: 12px; clip-path: inset(0 round 12px); }
+  .reader-icon-button { width: 36px; min-width: 36px; min-height: 36px; }
+  .reader-icon-button svg { width: 18px; height: 18px; }
   .reader-header-search .reader-search-box {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px;
@@ -1927,4 +1980,18 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   .hero-brand-badge span { font-size: .9rem; }
   .reader-main { padding: 8px; }
   .reader-page-frame { border-radius: 12px; }
+}
+
+@media (max-width: 520px) {
+  .reader-header,
+  .reader-header.lightbox-reader-header {
+    grid-template-columns: auto minmax(92px, 1fr) auto;
+    gap: 5px;
+  }
+  .reader-logo,
+  .lightbox-brand-lockup .reader-logo { width: 72px; }
+  .reader-quick-actions { gap: 4px; }
+  .reader-icon-button { width: 34px; min-width: 34px; min-height: 34px; border-radius: 12px; }
+  .reader-search-input { padding-inline: 10px; }
+  .lightbox-actions .viewer-zoom-control { display: none; }
 }
