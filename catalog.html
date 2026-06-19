@@ -9,19 +9,23 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="reader-page">
-  <header class="reader-header">
-    <a class="reader-home" href="index.html" aria-label="חזרה לדף הקטלוגים">
-      <img class="reader-logo" data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
-      <span>רהיטי ברגיג</span>
-    </a>
-    <div class="reader-title-wrap">
-      <strong id="readerTitle">קטלוג</strong>
-      <span id="readerMeta"></span>
-    </div>
-    <button class="reader-button" id="readerBack" type="button">חזרה</button>
-  </header>
+  <div class="reader-top-hotspot" id="readerTopHotspot" aria-hidden="true">
+    <span>⌄</span>
+  </div>
 
-  <main class="reader-main" id="readerMain">
+  <div class="reader-top-shell" id="readerTopShell">
+    <header class="reader-header">
+      <a class="reader-home" href="index.html" aria-label="חזרה לדף הקטלוגים">
+        <img class="reader-logo" data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
+        <span>רהיטי ברגיג</span>
+      </a>
+      <div class="reader-title-wrap">
+        <strong id="readerTitle">קטלוג</strong>
+        <span id="readerMeta"></span>
+      </div>
+      <button class="reader-button" id="readerBack" type="button">חזרה</button>
+    </header>
+
     <section class="reader-search-panel" aria-labelledby="readerSearchTitle">
       <div class="reader-search-title-row">
         <strong id="readerSearchTitle">חיפוש בקטלוג הזה</strong>
@@ -34,7 +38,18 @@
       </div>
       <div class="reader-search-results hidden" id="readerSearchResults" aria-live="polite"></div>
     </section>
+  </div>
 
+  <div class="reader-side-hotspot" id="readerSideHotspot" aria-hidden="true">
+    <span>‹</span>
+  </div>
+
+  <aside class="reader-page-rail" id="readerPageRail" aria-label="מעבר מהיר בין עמודי הקטלוג">
+    <div class="reader-page-rail-title">עמודים</div>
+    <div class="reader-page-thumbs" id="readerPageThumbs"></div>
+  </aside>
+
+  <main class="reader-main" id="readerMain">
     <div class="reader-pages" id="readerPages"></div>
   </main>
 
