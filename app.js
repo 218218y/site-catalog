@@ -19,8 +19,11 @@ const state = {
   pinchLastMidY: 0,
   pointers: new Map(),
   lightboxOpen: false,
+  viewerMode: "single",
   thumbsHideTimer: 0,
   uiHideTimer: 0,
+  pageRailHideTimer: 0,
+  lightboxScrollRaf: 0,
   pageThumbLoadTimer: 0,
   pageThumbObserver: null
 };
@@ -54,12 +57,20 @@ const els = {
   lightboxBar: $("lightboxBar"),
   topHotspot: $("topHotspot"),
   thumbsHotspot: $("thumbsHotspot"),
+  lightboxHomeButton: $("lightboxHomeButton"),
+  lightboxModeLabel: $("lightboxModeLabel"),
+  viewerModeToggle: $("viewerModeToggle"),
   lightboxTitle: $("lightboxTitle"),
   lightboxMeta: $("lightboxMeta"),
   lightboxImage: $("lightboxImage"),
   lightboxImageFrame: $("lightboxImageFrame"),
   lightboxThumbs: $("lightboxThumbs"),
   lightboxStage: $("lightboxStage"),
+  lightboxScrollView: $("lightboxScrollView"),
+  lightboxScrollPages: $("lightboxScrollPages"),
+  lightboxSideHotspot: $("lightboxSideHotspot"),
+  lightboxPageRail: $("lightboxPageRail"),
+  lightboxPageThumbs: $("lightboxPageThumbs"),
   stageCanvas: $("stageCanvas"),
   viewerLoading: $("viewerLoading"),
   prevPageBtn: $("prevPageBtn"),
@@ -283,18 +294,30 @@ function renderLightboxSearchResults(query) {
   if (!results.length) {
     els.lightboxSearchStatus.textContent = "לא נמצאו תוצאות בקטלוג הפתוח.";
     els.lightboxSearchResults.innerHTML = `
-      <div class="lightbox-search-empty">לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”.</div>
+      <article class="reader-search-empty lightbox-search-empty">
+        <strong>לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”</strong>
+        <span>נסה חלק קצר יותר של הדגם או מילה אחרת.</span>
+      </article>
     `;
     return;
   }
 
   els.lightboxSearchStatus.textContent = `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
-  els.lightboxSearchResults.innerHTML = results.map((result) => `
-    <button class="lightbox-search-result" type="button" data-lightbox-search-page="${result.page}">
-      <span>עמוד ${result.page}</span>
-      <small>${escapeHtml(result.excerpt || "התאמה לפי OCR בעמוד זה")}</small>
-    </button>
-  `).join("");
+  els.lightboxSearchResults.innerHTML = results.map((result) => {
+    const page = clampPage(result.page, state.catalog);
+    const thumb = escapeHtml(result.thumb || thumbSrc(state.catalog, page));
+    return `
+      <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-page="${page}">
+        <span class="reader-search-thumb-frame catalog-image-frame">
+          <img src="${thumb}" alt="עמוד ${page}" loading="lazy" decoding="async" />
+        </span>
+        <span>
+          <strong>עמוד ${page}</strong>
+          <small>${escapeHtml(result.excerpt || "התאמה לפי OCR בעמוד זה")}</small>
+        </span>
+      </button>
+    `;
+  }).join("");
 
   els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -495,6 +518,7 @@ function updateHash() {
   let hash = `#catalog/${state.catalog.id}`;
   if (state.lightboxOpen) {
     hash += `/page/${state.page}`;
+    if (state.viewerMode === "scroll") hash += "/scroll";
   }
   history.replaceState(null, "", hash);
 }
@@ -610,6 +634,23 @@ function positionLightboxFloatingPreview(button) {
   if (!preview || !button) return;
 
   const buttonRect = button.getBoundingClientRect();
+
+  if (state.viewerMode === "scroll") {
+    const previewHeight = Math.max(240, preview.offsetHeight || Math.min(620, window.innerHeight * 0.74));
+    const railRect = button.closest?.(".lightbox-page-rail")?.getBoundingClientRect?.();
+    const centerY = Math.min(
+      window.innerHeight - (previewHeight / 2) - 14,
+      Math.max((previewHeight / 2) + 14, buttonRect.top + (buttonRect.height / 2))
+    );
+    const right = Math.max(12, window.innerWidth - (railRect?.left ?? buttonRect.left) + 12);
+
+    preview.style.left = "auto";
+    preview.style.bottom = "auto";
+    preview.style.right = `${right}px`;
+    preview.style.top = `${centerY}px`;
+    return;
+  }
+
   const previewWidth = Math.max(240, preview.offsetWidth || Math.min(420, window.innerWidth * 0.34));
   const centerX = Math.min(
     window.innerWidth - (previewWidth / 2) - 14,
@@ -617,6 +658,8 @@ function positionLightboxFloatingPreview(button) {
   );
   const bottom = Math.max(122, window.innerHeight - buttonRect.top + 12);
 
+  preview.style.right = "auto";
+  preview.style.top = "auto";
   preview.style.left = `${centerX}px`;
   preview.style.bottom = `${bottom}px`;
 }
@@ -633,18 +676,31 @@ function showLightboxFloatingPreview(button) {
   positionLightboxFloatingPreview(button);
 }
 
-function updateLightboxThumbs() {
-  els.lightboxThumbs.querySelectorAll(".lightbox-thumb").forEach((button) => {
+function updateLightboxThumbs(options = {}) {
+  const { scrollIntoView = true } = options;
+
+  els.lightboxThumbs?.querySelectorAll(".lightbox-thumb").forEach((button) => {
     const active = Number(button.dataset.page) === state.page;
     button.classList.toggle("active", active);
-    if (active) {
+    if (active && scrollIntoView && state.viewerMode === "single") {
+      button.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  });
+
+  els.lightboxPageThumbs?.querySelectorAll(".lightbox-page-thumb").forEach((button) => {
+    const active = Number(button.dataset.page) === state.page;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+
+    if (active && scrollIntoView && state.viewerMode === "scroll") {
       button.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   });
 }
 
 function renderLightboxThumbs() {
-  if (!state.catalog) return;
+  if (!state.catalog || !els.lightboxThumbs) return;
   const catalog = state.catalog;
   const thumbs = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
@@ -667,16 +723,210 @@ function renderLightboxThumbs() {
   });
 }
 
+function renderLightboxScrollPages() {
+  if (!state.catalog || !els.lightboxScrollPages) return;
+  const catalog = state.catalog;
+  const pages = [];
+
+  for (let page = 1; page <= catalog.pages; page += 1) {
+    const eager = Math.abs(page - state.page) <= 1;
+    pages.push(`
+      <figure class="lightbox-scroll-page-frame catalog-image-frame" id="lightbox-scroll-page-${page}" data-page="${page}">
+        <img class="lightbox-scroll-image" src="${escapeHtml(pageSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="${eager ? "eager" : "lazy"}" decoding="async" />
+      </figure>
+    `);
+  }
+
+  els.lightboxScrollPages.innerHTML = pages.join("");
+}
+
+function renderLightboxPageRail() {
+  if (!state.catalog || !els.lightboxPageThumbs) return;
+  const catalog = state.catalog;
+  const thumbs = [];
+
+  for (let page = 1; page <= catalog.pages; page += 1) {
+    const thumb = escapeHtml(thumbSrc(catalog, page));
+    const fullPage = escapeHtml(pageSrc(catalog, page));
+    thumbs.push(`
+      <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === state.page ? " active" : ""}" type="button" data-page="${page}" data-preview-src="${fullPage}" aria-label="מעבר לעמוד ${page}"${page === state.page ? ' aria-current="page"' : ""}>
+        <span class="lightbox-page-thumb-image-wrap">
+          <img src="${thumb}" alt="" loading="lazy" decoding="async" />
+        </span>
+        <span class="lightbox-page-thumb-number">${page}</span>
+      </button>
+    `);
+  }
+
+  els.lightboxPageThumbs.innerHTML = thumbs.join("");
+  els.lightboxPageThumbs.querySelectorAll(".lightbox-page-thumb").forEach((button) => {
+    button.addEventListener("pointerenter", () => showLightboxFloatingPreview(button));
+    button.addEventListener("pointerleave", hideLightboxFloatingPreview);
+    button.addEventListener("focus", () => showLightboxFloatingPreview(button));
+    button.addEventListener("blur", hideLightboxFloatingPreview);
+    button.addEventListener("click", () => {
+      hideLightboxFloatingPreview();
+      showPageRailTemporarily(1800);
+      setLightboxPage(Number(button.dataset.page), { smooth: true, hit: true });
+    });
+  });
+}
+
+function syncViewerModeUi() {
+  const isScrollMode = state.viewerMode === "scroll";
+  els.lightbox?.classList.toggle("mode-scroll", isScrollMode);
+  els.lightbox?.classList.toggle("mode-single", !isScrollMode);
+
+  if (els.viewerModeToggle) {
+    els.viewerModeToggle.textContent = isScrollMode ? "תצוגה לצדדים" : "תצוגת גלילה";
+    els.viewerModeToggle.setAttribute(
+      "aria-label",
+      isScrollMode ? "מעבר לתצוגת תמונה אחת עם חיצים בצדדים" : "מעבר לתצוגת כל העמודים בגלילה מלמעלה למטה"
+    );
+  }
+
+  if (els.lightboxModeLabel) {
+    els.lightboxModeLabel.textContent = isScrollMode ? "כניסה לקטלוג" : "תצוגת מסך מלא";
+  }
+}
+
+function setLightboxMode(mode, options = {}) {
+  if (!state.catalog) return;
+  const nextMode = mode === "scroll" ? "scroll" : "single";
+  const wasScrollMode = state.viewerMode === "scroll";
+  const pageToKeep = state.page;
+
+  if (nextMode === state.viewerMode) {
+    syncViewerModeUi();
+    if (nextMode === "scroll" && options.scrollToPage !== false) {
+      scrollToLightboxScrollPage(pageToKeep, { smooth: false, hit: false });
+    }
+    return;
+  }
+
+  hideLightboxFloatingPreview();
+  state.viewerMode = nextMode;
+  state.zoom = 1;
+  resetImagePosition();
+  state.pointers.clear();
+  els.lightbox?.classList.remove("show-thumbs", "show-page-rail");
+  syncViewerModeUi();
+  updateLightbox();
+
+  if (nextMode === "scroll") {
+    requestAnimationFrame(() => scrollToLightboxScrollPage(pageToKeep, { smooth: false, hit: false }));
+  } else if (wasScrollMode) {
+    showThumbsTemporarily(1300);
+  }
+}
+
+function toggleLightboxMode() {
+  setLightboxMode(state.viewerMode === "scroll" ? "single" : "scroll");
+}
+
+function showPageRailTemporarily(delay = 2600) {
+  if (!els.lightbox || state.viewerMode !== "scroll") return;
+  window.clearTimeout(state.pageRailHideTimer);
+  els.lightbox.classList.add("show-page-rail");
+  if (delay > 0) {
+    state.pageRailHideTimer = window.setTimeout(() => {
+      els.lightbox?.classList.remove("show-page-rail");
+    }, delay);
+  }
+}
+
+function keepPageRailOpen() {
+  if (state.viewerMode !== "scroll") return;
+  window.clearTimeout(state.pageRailHideTimer);
+  els.lightbox?.classList.add("show-page-rail");
+}
+
+function schedulePageRailClose() {
+  window.clearTimeout(state.pageRailHideTimer);
+  state.pageRailHideTimer = window.setTimeout(() => {
+    els.lightbox?.classList.remove("show-page-rail");
+  }, 420);
+}
+
+function scrollToLightboxScrollPage(page, options = {}) {
+  if (!state.catalog || !els.lightboxScrollView) return;
+  const { smooth = true, hit = false } = options;
+  const targetPage = clampPage(page, state.catalog);
+  const target = document.getElementById(`lightbox-scroll-page-${targetPage}`);
+  if (!target) return;
+
+  const containerTop = els.lightboxScrollView.getBoundingClientRect().top;
+  const targetTop = target.getBoundingClientRect().top - containerTop + els.lightboxScrollView.scrollTop;
+  els.lightboxScrollView.scrollTo({ top: Math.max(0, targetTop - 10), behavior: smooth ? "smooth" : "auto" });
+  updateLightboxThumbs({ scrollIntoView: true });
+
+  if (hit) {
+    target.classList.add("lightbox-scroll-page-hit");
+    window.setTimeout(() => target.classList.remove("lightbox-scroll-page-hit"), 1500);
+  }
+}
+
+function findCurrentLightboxScrollPage() {
+  if (!state.catalog || !els.lightboxScrollView || state.viewerMode !== "scroll") return;
+  const frames = Array.from(els.lightboxScrollPages?.querySelectorAll(".lightbox-scroll-page-frame") || []);
+  if (!frames.length) return;
+
+  const containerRect = els.lightboxScrollView.getBoundingClientRect();
+  const anchorY = containerRect.top + Math.max(110, els.lightboxScrollView.clientHeight * 0.32);
+  let closestPage = state.page || 1;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  frames.forEach((frame) => {
+    const rect = frame.getBoundingClientRect();
+    const page = Number(frame.dataset.page || 0);
+    if (!Number.isFinite(page) || page < 1) return;
+
+    if (rect.top <= anchorY && rect.bottom >= anchorY) {
+      closestPage = page;
+      closestDistance = -1;
+      return;
+    }
+
+    if (closestDistance >= 0) {
+      const distance = Math.min(Math.abs(rect.top - anchorY), Math.abs(rect.bottom - anchorY));
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestPage = page;
+      }
+    }
+  });
+
+  if (closestPage !== state.page) {
+    setLightboxPage(closestPage, { syncScroll: false, keepZoom: true });
+  }
+}
+
+function scheduleLightboxScrollPageUpdate() {
+  if (state.lightboxScrollRaf || state.viewerMode !== "scroll") return;
+  state.lightboxScrollRaf = window.requestAnimationFrame(() => {
+    state.lightboxScrollRaf = 0;
+    findCurrentLightboxScrollPage();
+  });
+}
+
 function updateLightbox() {
   if (!state.catalog) return;
   const catalog = state.catalog;
   state.page = clampPage(state.page, catalog);
+  syncViewerModeUi();
 
   els.lightboxTitle.textContent = catalog.title;
   els.lightboxMeta.textContent = `עמוד ${state.page} מתוך ${catalog.pages}`;
   initLightboxSearchStatus();
   els.prevPageBtn.disabled = state.page <= 1;
   els.nextPageBtn.disabled = state.page >= catalog.pages;
+
+  if (state.viewerMode === "scroll") {
+    setViewerLoading(false);
+    updateLightboxThumbs();
+    updateHash();
+    return;
+  }
 
   const src = pageSrc(catalog, state.page);
   const currentSrc = els.lightboxImage.getAttribute("src");
@@ -696,53 +946,73 @@ function updateLightbox() {
   updateHash();
 }
 
-function openLightbox(page = 1) {
+function openLightbox(page = 1, options = {}) {
   if (!state.catalog) return;
+  const mode = typeof options === "string" ? options : options.mode;
+  state.viewerMode = mode === "scroll" ? "scroll" : "single";
   state.page = clampPage(page, state.catalog);
   state.zoom = 1;
   resetImagePosition();
   state.pointers.clear();
   state.lightboxOpen = true;
   els.lightbox.classList.remove("hidden");
-  els.lightbox.classList.remove("show-thumbs");
+  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail");
   document.body.classList.add("no-scroll");
   renderLightboxThumbs();
+  renderLightboxScrollPages();
+  renderLightboxPageRail();
   resetLightboxSearch();
+  syncViewerModeUi();
   showTopUiTemporarily(1700);
   updateLightbox();
+
+  if (state.viewerMode === "scroll") {
+    requestAnimationFrame(() => scrollToLightboxScrollPage(state.page, { smooth: false, hit: false }));
+  }
 }
 
 function closeLightbox() {
   state.lightboxOpen = false;
   els.lightbox.classList.add("hidden");
-  els.lightbox.classList.remove("show-thumbs", "show-ui");
+  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "mode-scroll", "mode-single");
   hideLightboxFloatingPreview();
   window.clearTimeout(state.thumbsHideTimer);
   window.clearTimeout(state.uiHideTimer);
+  window.clearTimeout(state.pageRailHideTimer);
+  if (state.lightboxScrollRaf) window.cancelAnimationFrame(state.lightboxScrollRaf);
+  state.lightboxScrollRaf = 0;
   document.body.classList.remove("no-scroll");
   scheduleDeferredPageThumbLoading(0);
   updateHash();
 }
 
-function setLightboxPage(page) {
+function setLightboxPage(page, options = {}) {
   if (!state.catalog) return;
+  const { syncScroll = state.viewerMode === "scroll", smooth = true, hit = false, keepZoom = false } = options;
   const nextPage = clampPage(page, state.catalog);
   if (nextPage !== state.page) {
     hideLightboxFloatingPreview();
-    state.zoom = 1;
-    resetImagePosition();
-    state.pointers.clear();
+    if (!keepZoom) {
+      state.zoom = 1;
+      resetImagePosition();
+      state.pointers.clear();
+    }
   }
   state.page = nextPage;
   updateLightbox();
+
+  if (syncScroll && state.viewerMode === "scroll") {
+    scrollToLightboxScrollPage(nextPage, { smooth, hit });
+  }
 }
 
 function moveLightbox(delta) {
   if (!state.catalog) return;
-  setLightboxPage(state.page + delta);
+  setLightboxPage(state.page + delta, { smooth: true, hit: state.viewerMode === "scroll" });
 }
 
 function setZoom(nextZoom, options = {}) {
+  if (state.viewerMode === "scroll") return;
   const { showUi = true } = options;
   state.zoom = Math.min(5, Math.max(1, nextZoom));
   if (state.zoom <= 1.001) resetImagePosition();
@@ -751,18 +1021,12 @@ function setZoom(nextZoom, options = {}) {
 }
 
 
-function openCatalogPage(id) {
-  const catalog = catalogs.find((item) => item.id === id);
-  if (!catalog) return;
-  const url = new URL("catalog.html", window.location.href);
-  url.searchParams.set("id", catalog.id);
-  const opened = window.open(url.toString(), "_blank");
-  if (opened) opened.opener = null;
-  else window.location.href = url.toString();
+function openCatalogPage(id, page = 1) {
+  openCatalogInViewer(id, page, "scroll");
 }
 
 function openCatalog(id, options = {}) {
-  const { scroll = false, openPage = null } = options;
+  const { scroll = false, openPage = null, viewerMode = "single" } = options;
   const catalog = catalogs.find((item) => item.id === id) || catalogs[0] || null;
   if (!catalog) return;
 
@@ -776,26 +1040,31 @@ function openCatalog(id, options = {}) {
   }
 
   if (openPage != null) {
-    openLightbox(openPage);
+    openLightbox(openPage, { mode: viewerMode });
   } else {
     scheduleDeferredPageThumbLoading(scroll ? 520 : 0);
   }
 }
 
-function openCatalogInViewer(id, page = 1) {
+function openCatalogInViewer(id, page = 1, mode = "single") {
   const catalog = catalogs.find((item) => item.id === id) || catalogs[0] || null;
   if (!catalog) return;
 
   state.catalog = catalog;
   state.page = clampPage(page, catalog);
   renderCatalogDetail();
-  openLightbox(state.page);
+  openLightbox(state.page, { mode });
 }
 
 function parseHash() {
-  const pageMatch = location.hash.match(/^#catalog\/([a-z0-9-]+)\/page\/(\d+)$/i);
+  const pageMatch = location.hash.match(/^#catalog\/([a-z0-9-]+)\/page\/(\d+)(?:\/(scroll|single))?$/i);
   if (pageMatch) {
-    return { id: pageMatch[1], page: Number(pageMatch[2]), lightbox: true };
+    return {
+      id: pageMatch[1],
+      page: Number(pageMatch[2]),
+      lightbox: true,
+      viewerMode: pageMatch[3] === "scroll" ? "scroll" : "single"
+    };
   }
 
   const catalogMatch = location.hash.match(/^#catalog\/([a-z0-9-]+)$/i);
@@ -937,7 +1206,9 @@ function attachEvents() {
   els.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
 
   els.closeLightbox?.addEventListener("click", closeLightbox);
+  els.lightboxHomeButton?.addEventListener("click", closeLightbox);
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
+  els.viewerModeToggle?.addEventListener("click", toggleLightboxMode);
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
   els.zoomInBtn?.addEventListener("click", () => setZoom(state.zoom + 0.2));
@@ -958,6 +1229,19 @@ function attachEvents() {
     hideLightboxFloatingPreview();
     scheduleThumbsClose();
   });
+
+  els.lightboxSideHotspot?.addEventListener("mouseenter", () => showPageRailTemporarily(0));
+  els.lightboxSideHotspot?.addEventListener("mouseleave", schedulePageRailClose);
+  els.lightboxSideHotspot?.addEventListener("click", () => showPageRailTemporarily(2600));
+  els.lightboxPageRail?.addEventListener("mouseenter", keepPageRailOpen);
+  els.lightboxPageRail?.addEventListener("mouseleave", () => {
+    hideLightboxFloatingPreview();
+    schedulePageRailClose();
+  });
+  els.lightboxPageRail?.addEventListener("focusin", keepPageRailOpen);
+  els.lightboxPageRail?.addEventListener("focusout", schedulePageRailClose);
+  els.lightboxScrollView?.addEventListener("scroll", scheduleLightboxScrollPageUpdate, { passive: true });
+
   els.topHotspot?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseleave", () => {
@@ -974,7 +1258,8 @@ function attachEvents() {
   window.addEventListener("resize", () => {
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
-      applyZoom();
+      if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
+      else applyZoom();
     }
   });
 
@@ -992,9 +1277,10 @@ function attachEvents() {
     if (event.key === "Escape") closeLightbox();
     else if (event.key === "ArrowRight") moveLightbox(-1);
     else if (event.key === "ArrowLeft") moveLightbox(1);
-    else if (event.key === "ArrowDown") showThumbsTemporarily(3000);
-    else if (event.key === "Home") setLightboxPage(1);
-    else if (event.key === "End" && state.catalog) setLightboxPage(state.catalog.pages);
+    else if (event.key === "ArrowDown" && state.viewerMode === "single") showThumbsTemporarily(3000);
+    else if (event.key === "ArrowDown" && state.viewerMode === "scroll") showPageRailTemporarily(3000);
+    else if (event.key === "Home") setLightboxPage(1, { smooth: true, hit: state.viewerMode === "scroll" });
+    else if (event.key === "End" && state.catalog) setLightboxPage(state.catalog.pages, { smooth: true, hit: state.viewerMode === "scroll" });
   });
 
   window.addEventListener("hashchange", () => {
@@ -1004,12 +1290,12 @@ function attachEvents() {
     if (!target) return;
 
     if (!state.catalog || state.catalog.id !== target.id) {
-      openCatalog(target.id, route.lightbox ? { openPage: route.page } : {});
+      openCatalog(target.id, route.lightbox ? { openPage: route.page, viewerMode: route.viewerMode } : {});
       return;
     }
 
     if (route.lightbox) {
-      openLightbox(route.page);
+      openLightbox(route.page, { mode: route.viewerMode });
     } else if (state.lightboxOpen) {
       closeLightbox();
     } else {
@@ -1034,7 +1320,7 @@ function init() {
 
   const route = parseHash();
   if (route && catalogs.some((item) => item.id === route.id)) {
-    openCatalog(route.id, route.lightbox ? { openPage: route.page } : {});
+    openCatalog(route.id, route.lightbox ? { openPage: route.page, viewerMode: route.viewerMode } : {});
   }
 }
 

@@ -151,29 +151,42 @@
   <div class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
     <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
     <div class="lightbox-dialog">
-      <div class="top-hotspot" id="topHotspot" aria-hidden="true"></div>
+      <div class="reader-top-hotspot lightbox-top-hotspot" id="topHotspot" aria-hidden="true">
+        <span>⌄</span>
+      </div>
 
-      <div class="lightbox-bar" id="lightboxBar">
-        <div class="lightbox-title-block">
-          <p class="eyebrow">תצוגת מסך מלא</p>
-          <h3 id="lightboxTitle">צפייה בעמוד</h3>
-          <p id="lightboxMeta" class="lightbox-meta">עמוד 1 מתוך 1</p>
-        </div>
+      <div class="reader-top-shell lightbox-top-shell" id="lightboxBar">
+        <header class="reader-header lightbox-reader-header">
+          <button class="reader-home lightbox-home-button" id="lightboxHomeButton" type="button" aria-label="סגירת הצפייה וחזרה לאתר">
+            <img class="reader-logo" data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
+            <span>חזרה</span>
+          </button>
 
-        <div class="lightbox-search" role="search">
-          <label class="visually-hidden" for="lightboxSearchInput">חיפוש דגם בקטלוג הפתוח</label>
-          <input id="lightboxSearchInput" class="lightbox-search-input" type="search" autocomplete="off" placeholder="חיפוש דגם בקטלוג הזה..." />
-          <button class="small-button lightbox-search-clear hidden" id="lightboxSearchClear" type="button">נקה</button>
-          <div class="lightbox-search-status" id="lightboxSearchStatus">הקלד לפחות 2 תווים.</div>
-          <div class="lightbox-search-results hidden" id="lightboxSearchResults" aria-live="polite"></div>
-        </div>
+          <div class="reader-header-search lightbox-search" role="search" aria-labelledby="lightboxSearchTitle">
+            <strong class="visually-hidden" id="lightboxSearchTitle">חיפוש בקטלוג הפתוח</strong>
+            <label class="visually-hidden" for="lightboxSearchInput">חיפוש דגם בקטלוג הפתוח</label>
+            <div class="reader-search-box">
+              <input id="lightboxSearchInput" class="reader-search-input lightbox-search-input" type="search" autocomplete="off" placeholder="חיפוש דגם בקטלוג הזה..." aria-describedby="lightboxSearchStatus" />
+              <button class="reader-button lightbox-search-clear hidden" id="lightboxSearchClear" type="button">נקה</button>
+            </div>
+            <div class="reader-title-wrap visually-hidden" aria-live="polite">
+              <span id="lightboxModeLabel">תצוגת מסך מלא</span>
+              <span id="lightboxTitle">צפייה בעמוד</span>
+              <span id="lightboxMeta" class="lightbox-meta">עמוד 1 מתוך 1</span>
+              <span id="lightboxSearchStatus">הקלד לפחות 2 תווים.</span>
+            </div>
+          </div>
 
-        <div class="lightbox-actions">
-          <button class="small-button" id="zoomOutBtn" type="button" title="הקטנה">−</button>
-          <button class="small-button" id="fitBtn" type="button">התאם למסך</button>
-          <button class="small-button" id="zoomInBtn" type="button" title="הגדלה">+</button>
-          <button class="small-button close-button" id="closeLightbox" type="button">סגור ✕</button>
-        </div>
+          <div class="lightbox-actions">
+            <button class="reader-button viewer-mode-toggle" id="viewerModeToggle" type="button">תצוגת גלילה</button>
+            <button class="reader-button viewer-zoom-control" id="zoomOutBtn" type="button" title="הקטנה">−</button>
+            <button class="reader-button viewer-zoom-control" id="fitBtn" type="button">התאם למסך</button>
+            <button class="reader-button viewer-zoom-control" id="zoomInBtn" type="button" title="הגדלה">+</button>
+            <button class="reader-button close-button" id="closeLightbox" type="button" aria-label="סגירה" title="סגירה">×</button>
+          </div>
+        </header>
+
+        <div class="reader-search-results lightbox-search-results hidden" id="lightboxSearchResults" aria-live="polite"></div>
       </div>
 
       <div class="lightbox-stage" id="lightboxStage">
@@ -183,9 +196,19 @@
             <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" />
           </div>
         </div>
-        <button class="stage-nav stage-next" id="nextPageBtn" type="button" aria-label="העמוד הבא">›</button>
-        <button class="stage-nav stage-prev" id="prevPageBtn" type="button" aria-label="העמוד הקודם">‹</button>
+        <button class="stage-nav stage-next" id="nextPageBtn" type="button" aria-label="העמוד הבא">‹</button>
+        <button class="stage-nav stage-prev" id="prevPageBtn" type="button" aria-label="העמוד הקודם">›</button>
       </div>
+
+      <div class="lightbox-scroll-view" id="lightboxScrollView" aria-label="עמודי הקטלוג בתצוגת גלילה">
+        <div class="lightbox-scroll-pages" id="lightboxScrollPages"></div>
+      </div>
+
+      <div class="lightbox-side-hotspot" id="lightboxSideHotspot" aria-hidden="true"><span>‹</span></div>
+      <aside class="lightbox-page-rail" id="lightboxPageRail" aria-label="מעבר מהיר בין עמודי הקטלוג">
+        <div class="lightbox-page-rail-title">עמודים</div>
+        <div class="lightbox-page-thumbs" id="lightboxPageThumbs"></div>
+      </aside>
 
       <div class="thumbs-hotspot" id="thumbsHotspot" aria-hidden="true"></div>
       <div class="lightbox-thumbs" id="lightboxThumbs" aria-label="עמודי הקטלוג"></div>
