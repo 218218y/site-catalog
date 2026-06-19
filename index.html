@@ -26,56 +26,6 @@
   </header>
 
   <main id="top">
-    <section class="hero">
-      <div class="hero-copy reveal">
-        <div class="hero-brand-badge" aria-label="רהיטי ברגיג">
-          <img data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
-          <span>קטלוגים דיגיטליים</span>
-        </div>
-        <p class="eyebrow">קטלוגים דיגיטליים</p>
-        <h1>כל הקטלוגים במקום אחד, בצפייה נקייה ונוחה.</h1>
-        <p class="hero-text">
-          בוחרים קטלוג, צופים בעמודים בצורה מסודרת, ופותחים כל עמוד לתצוגה גדולה עם דפדוף נוח.
-        </p>
-
-        <div class="hero-stats">
-          <article>
-            <strong id="catalogCount">0</strong>
-            <span>קטלוגים</span>
-          </article>
-          <article>
-            <strong id="pageCount">0</strong>
-            <span>עמודים בסך הכל</span>
-          </article>
-          <article>
-            <strong>HD</strong>
-            <span>תצוגה גדולה</span>
-          </article>
-        </div>
-
-        <div class="hero-actions">
-          <a class="button primary" href="#catalogs">לבחירת קטלוג</a>
-          <button class="button ghost" id="openFirstCatalog" type="button">צפייה בקטלוג ראשון</button>
-        </div>
-      </div>
-
-      <div class="hero-showcase reveal reveal-delay">
-        <div class="floating-page floating-page-back">
-          <img id="heroShot3" alt="" />
-        </div>
-        <div class="floating-page floating-page-mid">
-          <img id="heroShot2" alt="" />
-        </div>
-        <div class="floating-page floating-page-front">
-          <img id="heroShot1" alt="" />
-          <div class="showcase-chip">
-            <span>תצוגה מהירה</span>
-            <strong>לחיצה, הגדלה, דפדוף</strong>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <section class="search-panel panel reveal" id="catalogSearch" aria-labelledby="catalogSearchTitle">
       <div class="section-head search-head">
         <div>
@@ -128,9 +78,10 @@
           </div>
         </div>
 
-        <div class="catalog-cover-wrap">
+        <button class="catalog-cover-wrap catalog-cover-button" id="catalogCoverOpenViewer" type="button" aria-label="פתיחת הקטלוג במסך מלא">
           <img id="catalogCoverPreview" class="catalog-cover-preview" alt="תמונת שער הקטלוג" />
-        </div>
+          <span class="catalog-cover-cta">צפייה במסך מלא</span>
+        </button>
       </div>
 
       <div class="gallery-toolbar">
@@ -145,6 +96,56 @@
 
       <div class="page-grid" id="pageGrid"></div>
     </section>
+    <section class="hero">
+      <div class="hero-copy reveal">
+        <div class="hero-brand-badge" aria-label="רהיטי ברגיג">
+          <img data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
+          <span>קטלוגים דיגיטליים</span>
+        </div>
+        <p class="eyebrow">קטלוגים דיגיטליים</p>
+        <h1>כל הקטלוגים במקום אחד, בצפייה נקייה ונוחה.</h1>
+        <p class="hero-text">
+          בוחרים קטלוג, צופים בעמודים בצורה מסודרת, ופותחים כל עמוד לתצוגה גדולה עם דפדוף נוח.
+        </p>
+
+        <div class="hero-stats">
+          <article>
+            <strong id="catalogCount">0</strong>
+            <span>קטלוגים</span>
+          </article>
+          <article>
+            <strong id="pageCount">0</strong>
+            <span>עמודים בסך הכל</span>
+          </article>
+          <article>
+            <strong>HD</strong>
+            <span>תצוגה גדולה</span>
+          </article>
+        </div>
+
+        <div class="hero-actions">
+          <a class="button primary" href="#catalogs">לבחירת קטלוג</a>
+          <button class="button ghost" id="openFirstCatalog" type="button">צפייה בקטלוג ראשון</button>
+        </div>
+      </div>
+
+      <div class="hero-showcase reveal reveal-delay">
+        <div class="floating-page floating-page-back">
+          <img id="heroShot3" alt="" />
+        </div>
+        <div class="floating-page floating-page-mid">
+          <img id="heroShot2" alt="" />
+        </div>
+        <div class="floating-page floating-page-front">
+          <img id="heroShot1" alt="" />
+          <div class="showcase-chip">
+            <span>תצוגה מהירה</span>
+            <strong>לחיצה, הגדלה, דפדוף</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <div class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
@@ -153,11 +154,20 @@
       <div class="top-hotspot" id="topHotspot" aria-hidden="true"></div>
 
       <div class="lightbox-bar" id="lightboxBar">
-        <div>
+        <div class="lightbox-title-block">
           <p class="eyebrow">תצוגת מסך מלא</p>
           <h3 id="lightboxTitle">צפייה בעמוד</h3>
           <p id="lightboxMeta" class="lightbox-meta">עמוד 1 מתוך 1</p>
         </div>
+
+        <div class="lightbox-search" role="search">
+          <label class="visually-hidden" for="lightboxSearchInput">חיפוש דגם בקטלוג הפתוח</label>
+          <input id="lightboxSearchInput" class="lightbox-search-input" type="search" autocomplete="off" placeholder="חיפוש דגם בקטלוג הזה..." />
+          <button class="small-button lightbox-search-clear hidden" id="lightboxSearchClear" type="button">נקה</button>
+          <div class="lightbox-search-status" id="lightboxSearchStatus">הקלד לפחות 2 תווים.</div>
+          <div class="lightbox-search-results hidden" id="lightboxSearchResults" aria-live="polite"></div>
+        </div>
+
         <div class="lightbox-actions">
           <button class="small-button" id="zoomOutBtn" type="button" title="הקטנה">−</button>
           <button class="small-button" id="fitBtn" type="button">התאם למסך</button>

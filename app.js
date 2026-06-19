@@ -40,6 +40,7 @@ const els = {
   catalogPages: $("catalogPages"),
   catalogSelect: $("catalogSelect"),
   catalogCoverPreview: $("catalogCoverPreview"),
+  catalogCoverOpenViewer: $("catalogCoverOpenViewer"),
   pageGrid: $("pageGrid"),
   openViewerFromTop: $("openViewerFromTop"),
   scrollToTopBtn: $("scrollToTopBtn"),
@@ -64,7 +65,11 @@ const els = {
   closeLightbox: $("closeLightbox"),
   zoomInBtn: $("zoomInBtn"),
   zoomOutBtn: $("zoomOutBtn"),
-  fitBtn: $("fitBtn")
+  fitBtn: $("fitBtn"),
+  lightboxSearchInput: $("lightboxSearchInput"),
+  lightboxSearchResults: $("lightboxSearchResults"),
+  lightboxSearchStatus: $("lightboxSearchStatus"),
+  lightboxSearchClear: $("lightboxSearchClear")
 };
 
 function pad(num) {
@@ -135,7 +140,7 @@ function renderEmptyState() {
   els.pageGrid.innerHTML = html;
   els.catalogCount.textContent = "0";
   els.pageCount.textContent = "0";
-  els.catalogDetail.classList.remove("hidden");
+  showCatalogDetail();
   els.catalogTitle.textContent = "עדיין אין קטלוגים להצגה";
   els.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.";
   els.catalogCategory.textContent = "קטלוגים";
@@ -175,9 +180,10 @@ function renderCatalogCards() {
     const cover = catalog.cover || pageSrc(catalog, 1);
     return `
       <article class="catalog-card">
-        <div class="catalog-cover-frame catalog-image-frame">
+        <button class="catalog-cover-frame catalog-image-frame catalog-cover-card-button" type="button" data-open-catalog-viewer="${escapeHtml(catalog.id)}" aria-label="פתיחת ${escapeHtml(catalog.title)} במסך מלא">
           <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${escapeHtml(catalog.title)}" loading="lazy" />
-        </div>
+          <span class="catalog-cover-card-cta">צפייה במסך מלא</span>
+        </button>
         <div class="catalog-body">
           <div class="catalog-meta">
             <span class="pill">${escapeHtml(catalog.category || "קטלוג")}</span>
@@ -193,6 +199,10 @@ function renderCatalogCards() {
       </article>
     `;
   }).join("");
+
+  els.catalogGrid.querySelectorAll("[data-open-catalog-viewer]").forEach((button) => {
+    button.addEventListener("click", () => openCatalogInViewer(button.dataset.openCatalogViewer));
+  });
 
   els.catalogGrid.querySelectorAll("[data-open-catalog]").forEach((button) => {
     button.addEventListener("click", () => openCatalog(button.dataset.openCatalog, { scroll: true }));
@@ -212,6 +222,82 @@ function initSearchStatus() {
   }
   const count = catalogSearch.indexedPageCount?.() || 0;
   els.globalSearchStatus.textContent = `מוכן לחיפוש בתוך ${count} עמודים מאונדקסים. הקלד לפחות 2 תווים.`;
+}
+
+function resetLightboxSearch() {
+  if (els.lightboxSearchInput) els.lightboxSearchInput.value = "";
+  els.lightboxSearchResults?.classList.add("hidden");
+  if (els.lightboxSearchResults) els.lightboxSearchResults.innerHTML = "";
+  els.lightboxSearchClear?.classList.add("hidden");
+  initLightboxSearchStatus();
+}
+
+function initLightboxSearchStatus() {
+  if (!els.lightboxSearchStatus) return;
+
+  const hasCatalog = Boolean(state.catalog);
+  const hasIndex = Boolean(catalogSearch?.hasIndex?.());
+  if (els.lightboxSearchInput) els.lightboxSearchInput.disabled = !hasCatalog || !hasIndex;
+
+  if (!hasCatalog) {
+    els.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
+    return;
+  }
+
+  if (!hasIndex) {
+    els.lightboxSearchStatus.textContent = "אין אינדקס OCR זמין לחיפוש.";
+    return;
+  }
+
+  els.lightboxSearchStatus.textContent = "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
+}
+
+function renderLightboxSearchResults(query) {
+  const rawQuery = String(query || "").trim();
+  if (!els.lightboxSearchResults || !els.lightboxSearchStatus) return;
+
+  els.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
+
+  if (rawQuery.length < 2) {
+    els.lightboxSearchResults.classList.add("hidden");
+    els.lightboxSearchResults.innerHTML = "";
+    initLightboxSearchStatus();
+    return;
+  }
+
+  if (!state.catalog || !catalogSearch?.hasIndex?.()) {
+    els.lightboxSearchResults.classList.add("hidden");
+    els.lightboxSearchResults.innerHTML = "";
+    els.lightboxSearchStatus.textContent = "אין אינדקס חיפוש פעיל לקטלוג הזה.";
+    return;
+  }
+
+  const results = catalogSearch.search(rawQuery, { catalogId: state.catalog.id, limit: 24 });
+  els.lightboxSearchResults.classList.remove("hidden");
+
+  if (!results.length) {
+    els.lightboxSearchStatus.textContent = "לא נמצאו תוצאות בקטלוג הפתוח.";
+    els.lightboxSearchResults.innerHTML = `
+      <div class="lightbox-search-empty">לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”.</div>
+    `;
+    return;
+  }
+
+  els.lightboxSearchStatus.textContent = `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
+  els.lightboxSearchResults.innerHTML = results.map((result) => `
+    <button class="lightbox-search-result" type="button" data-lightbox-search-page="${result.page}">
+      <span>עמוד ${result.page}</span>
+      <small>${escapeHtml(result.excerpt || "התאמה לפי OCR בעמוד זה")}</small>
+    </button>
+  `).join("");
+
+  els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setLightboxPage(Number(button.dataset.lightboxSearchPage));
+      showTopUiTemporarily(0);
+      els.lightboxSearchResults.classList.add("hidden");
+    });
+  });
 }
 
 function renderSearchResults(query) {
@@ -306,10 +392,23 @@ function renderPageGrid() {
   });
 }
 
+function showCatalogDetail() {
+  if (!els.catalogDetail) return;
+  els.catalogDetail.classList.remove("hidden");
+  els.catalogDetail.classList.add("in-view");
+}
+
+function scrollCatalogDetailIntoView() {
+  if (!els.catalogDetail) return;
+  requestAnimationFrame(() => {
+    els.catalogDetail.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
 function renderCatalogDetail() {
   if (!state.catalog) return;
   const catalog = state.catalog;
-  els.catalogDetail.classList.remove("hidden");
+  showCatalogDetail();
   els.catalogTitle.textContent = catalog.title;
   els.catalogDescription.textContent = catalog.description || "";
   els.catalogCategory.textContent = catalog.category || "קטלוג";
@@ -479,6 +578,7 @@ function updateLightbox() {
 
   els.lightboxTitle.textContent = catalog.title;
   els.lightboxMeta.textContent = `עמוד ${state.page} מתוך ${catalog.pages}`;
+  initLightboxSearchStatus();
   els.prevPageBtn.disabled = state.page <= 1;
   els.nextPageBtn.disabled = state.page >= catalog.pages;
 
@@ -511,6 +611,7 @@ function openLightbox(page = 1) {
   els.lightbox.classList.remove("show-thumbs");
   document.body.classList.add("no-scroll");
   renderLightboxThumbs();
+  resetLightboxSearch();
   showTopUiTemporarily(1700);
   updateLightbox();
 }
@@ -572,12 +673,22 @@ function openCatalog(id, options = {}) {
   updateHash();
 
   if (scroll) {
-    els.catalogDetail.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollCatalogDetailIntoView();
   }
 
   if (openPage != null) {
     openLightbox(openPage);
   }
+}
+
+function openCatalogInViewer(id, page = 1) {
+  const catalog = catalogs.find((item) => item.id === id) || catalogs[0] || null;
+  if (!catalog) return;
+
+  state.catalog = catalog;
+  state.page = clampPage(page, catalog);
+  renderCatalogDetail();
+  openLightbox(state.page);
 }
 
 function parseHash() {
@@ -710,9 +821,19 @@ function attachEvents() {
     renderSearchResults("");
   });
 
+  els.lightboxSearchInput?.addEventListener("input", () => renderLightboxSearchResults(els.lightboxSearchInput.value));
+  els.lightboxSearchInput?.addEventListener("focus", () => showTopUiTemporarily(0));
+  els.lightboxSearchClear?.addEventListener("click", () => {
+    els.lightboxSearchInput.value = "";
+    els.lightboxSearchInput.focus();
+    renderLightboxSearchResults("");
+    showTopUiTemporarily(0);
+  });
+
   els.catalogSelect?.addEventListener("change", () => openCatalog(els.catalogSelect.value));
   els.openViewerFromTop?.addEventListener("click", () => openLightbox(1));
-  els.scrollToTopBtn?.addEventListener("click", () => els.catalogDetail.scrollIntoView({ behavior: "smooth", block: "start" }));
+  els.catalogCoverOpenViewer?.addEventListener("click", () => openLightbox(1));
+  els.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
 
   els.closeLightbox?.addEventListener("click", closeLightbox);
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
@@ -752,6 +873,15 @@ function attachEvents() {
 
   window.addEventListener("keydown", (event) => {
     if (!state.lightboxOpen) return;
+    const target = event.target;
+    const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+    if (isTyping) {
+      if (event.key === "Escape") {
+        target.blur();
+        els.lightboxSearchResults?.classList.add("hidden");
+      }
+      return;
+    }
     if (event.key === "Escape") closeLightbox();
     else if (event.key === "ArrowRight") moveLightbox(-1);
     else if (event.key === "ArrowLeft") moveLightbox(1);
