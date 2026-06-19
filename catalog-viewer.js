@@ -15,6 +15,9 @@ const readerTopShell = $("readerTopShell");
 const readerSideHotspot = $("readerSideHotspot");
 const readerPageRail = $("readerPageRail");
 const readerPageThumbs = $("readerPageThumbs");
+const readerFloatingPreview = $("readerFloatingPreview");
+const readerFloatingPreviewImage = $("readerFloatingPreviewImage");
+const readerFloatingPreviewPage = $("readerFloatingPreviewPage");
 
 const readerUiState = {
   currentPage: 1,
@@ -171,14 +174,23 @@ function scheduleCurrentPageUpdate() {
   });
 }
 
+function setReaderSearchPlaceholder(catalog) {
+  if (!readerSearchInput) return;
+  const catalogTitle = String(catalog?.title || "").trim();
+  const label = catalogTitle ? `חפש בקטלוג הזה: ${catalogTitle}` : "חפש בקטלוג הזה";
+  readerSearchInput.placeholder = label;
+  readerSearchInput.setAttribute("aria-label", label);
+}
+
 function initReaderSearchStatus(catalog) {
+  setReaderSearchPlaceholder(catalog);
+  if (readerSearchInput) readerSearchInput.disabled = !catalog;
   if (!readerSearchStatus) return;
   if (!catalogSearch?.hasIndex?.()) {
     readerSearchStatus.textContent = "החיפוש יופעל אחרי הרצת ההמרה מחדש עם OCR, שמייצרת catalogs.search.js.";
     return;
   }
   readerSearchStatus.textContent = "הקלד לפחות 2 תווים כדי למצוא עמודים בקטלוג הזה.";
-  readerSearchInput.disabled = !catalog;
 }
 
 function scrollToReaderPage(page) {
@@ -190,6 +202,22 @@ function scrollToReaderPage(page) {
   target.scrollIntoView({ behavior: "smooth", block: "start" });
   target.classList.add("reader-page-frame-hit");
   window.setTimeout(() => target.classList.remove("reader-page-frame-hit"), 1800);
+}
+
+function showReaderFloatingPreview(button) {
+  if (!readerFloatingPreview || !readerFloatingPreviewImage || !button) return;
+
+  const page = Number(button.dataset.readerPage || 0);
+  const src = button.dataset.previewSrc || button.dataset.thumbSrc || "";
+  if (!page || !src) return;
+
+  readerFloatingPreviewImage.src = src;
+  if (readerFloatingPreviewPage) readerFloatingPreviewPage.textContent = `עמוד ${page}`;
+  readerFloatingPreview.classList.add("visible");
+}
+
+function hideReaderFloatingPreview() {
+  readerFloatingPreview?.classList.remove("visible");
 }
 
 function renderReaderSearch(query) {
@@ -257,9 +285,13 @@ function renderReaderPageRail(catalog) {
   readerPageRail?.classList.remove("hidden");
   const thumbs = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
+    const thumb = escapeHtml(thumbSrc(catalog, page));
+    const pageImage = escapeHtml(pageSrc(catalog, page));
     thumbs.push(`
-      <button class="reader-page-thumb reader-page-thumb-frame catalog-image-frame${page === 1 ? " active" : ""}" type="button" data-reader-page="${page}" aria-label="מעבר לעמוד ${page}"${page === 1 ? ' aria-current="page"' : ""}>
-        <img src="${escapeHtml(thumbSrc(catalog, page))}" alt="" loading="lazy" />
+      <button class="reader-page-thumb reader-page-thumb-frame catalog-image-frame${page === 1 ? " active" : ""}" type="button" data-reader-page="${page}" data-thumb-src="${thumb}" data-preview-src="${pageImage}" aria-label="מעבר לעמוד ${page}"${page === 1 ? ' aria-current="page"' : ""}>
+        <span class="reader-thumb-image-wrap">
+          <img src="${thumb}" alt="" loading="lazy" />
+        </span>
         <span class="reader-thumb-number">${page}</span>
       </button>
     `);
@@ -267,7 +299,12 @@ function renderReaderPageRail(catalog) {
 
   readerPageThumbs.innerHTML = thumbs.join("");
   readerPageThumbs.querySelectorAll(".reader-page-thumb").forEach((button) => {
+    button.addEventListener("pointerenter", () => showReaderFloatingPreview(button));
+    button.addEventListener("pointerleave", hideReaderFloatingPreview);
+    button.addEventListener("focus", () => showReaderFloatingPreview(button));
+    button.addEventListener("blur", hideReaderFloatingPreview);
     button.addEventListener("click", () => {
+      hideReaderFloatingPreview();
       openPageRail(1800);
       scrollToReaderPage(Number(button.dataset.readerPage));
     });
@@ -335,7 +372,10 @@ readerSideHotspot?.addEventListener("mouseenter", () => openPageRail());
 readerSideHotspot?.addEventListener("mouseleave", closePageRailSoon);
 readerSideHotspot?.addEventListener("click", () => openPageRail(2600));
 readerPageRail?.addEventListener("mouseenter", () => openPageRail());
-readerPageRail?.addEventListener("mouseleave", closePageRailSoon);
+readerPageRail?.addEventListener("mouseleave", () => {
+  hideReaderFloatingPreview();
+  closePageRailSoon();
+});
 readerPageRail?.addEventListener("focusin", () => openPageRail());
 readerPageRail?.addEventListener("focusout", closePageRailSoon);
 

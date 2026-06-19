@@ -19,25 +19,25 @@
         <img class="reader-logo" data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
         <span>רהיטי ברגיג</span>
       </a>
-      <div class="reader-title-wrap">
-        <strong id="readerTitle">קטלוג</strong>
-        <span id="readerMeta"></span>
+
+      <div class="reader-header-search" role="search" aria-labelledby="readerSearchTitle">
+        <strong class="visually-hidden" id="readerSearchTitle">חיפוש בקטלוג הזה</strong>
+        <label class="visually-hidden" for="readerSearchInput">חיפוש בקטלוג</label>
+        <div class="reader-search-box">
+          <input id="readerSearchInput" class="reader-search-input" type="search" autocomplete="off" placeholder="חפש בקטלוג הזה..." aria-describedby="readerSearchStatus" />
+          <button class="reader-button reader-search-clear hidden" id="readerSearchClear" type="button">נקה</button>
+        </div>
+        <div class="reader-title-wrap visually-hidden" aria-live="polite">
+          <span id="readerTitle">קטלוג</span>
+          <span id="readerMeta"></span>
+          <span id="readerSearchStatus">הקלד דגם או מילה מתוך העמודים.</span>
+        </div>
       </div>
+
       <button class="reader-button" id="readerBack" type="button">חזרה</button>
     </header>
 
-    <section class="reader-search-panel" aria-labelledby="readerSearchTitle">
-      <div class="reader-search-title-row">
-        <strong id="readerSearchTitle">חיפוש בקטלוג הזה</strong>
-        <span id="readerSearchStatus">הקלד דגם או מילה מתוך העמודים.</span>
-      </div>
-      <div class="reader-search-box" role="search">
-        <label class="visually-hidden" for="readerSearchInput">חיפוש בקטלוג</label>
-        <input id="readerSearchInput" class="reader-search-input" type="search" autocomplete="off" placeholder="חיפוש דגם בקטלוג הנוכחי..." />
-        <button class="reader-button reader-search-clear hidden" id="readerSearchClear" type="button">נקה</button>
-      </div>
-      <div class="reader-search-results hidden" id="readerSearchResults" aria-live="polite"></div>
-    </section>
+    <div class="reader-search-results hidden" id="readerSearchResults" aria-live="polite"></div>
   </div>
 
   <div class="reader-side-hotspot" id="readerSideHotspot" aria-hidden="true">
@@ -48,6 +48,11 @@
     <div class="reader-page-rail-title">עמודים</div>
     <div class="reader-page-thumbs" id="readerPageThumbs"></div>
   </aside>
+
+  <div class="reader-floating-preview" id="readerFloatingPreview" aria-hidden="true">
+    <img id="readerFloatingPreviewImage" alt="" loading="lazy" />
+    <span id="readerFloatingPreviewPage"></span>
+  </div>
 
   <main class="reader-main" id="readerMain">
     <div class="reader-pages" id="readerPages"></div>
