@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -263,7 +264,7 @@ class OcrRunner:
             self._available = False
         return self._available
 
-    def recognize(self, image: Image.Image, label: str) -> str:
+    def recognize(self, image: Image.Image, label: str, *, psm: int = 6) -> str:
         if not self._is_available():
             message = (
                 f"Tesseract OCR was not found by command {self.options.tesseract_cmd!r}. "
@@ -288,7 +289,7 @@ class OcrRunner:
                     "-l",
                     self.options.ocr_lang,
                     "--psm",
-                    "6",
+                    str(max(0, int(psm))),
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -296,6 +297,7 @@ class OcrRunner:
                 encoding="utf-8",
                 errors="replace",
                 check=False,
+                timeout=60,
             )
             if completed.returncode != 0:
                 message = completed.stderr.strip() or f"Tesseract failed on {label}"
@@ -306,11 +308,218 @@ class OcrRunner:
                     self._warned_failure = True
                 return ""
             return normalize_search_text(completed.stdout)
+        except subprocess.TimeoutExpired:
+            message = f"Tesseract timed out on {label}"
+            if self.options.require_ocr:
+                raise RuntimeError(message)
+            if not self._warned_failure:
+                print(f"[ocr-warn] {message}", file=sys.stderr)
+                self._warned_failure = True
+            return ""
         finally:
             try:
                 tmp_path.unlink(missing_ok=True)
             except OSError:
                 pass
+
+
+def _looks_like_teal_banner_pixel(pixel: tuple[int, int, int]) -> bool:
+    """Return true for the semi-transparent green/teal title ribbons used in photo catalog pages.
+
+    Tesseract is good at dark text on plain paper, but it often ignores white
+    letters sitting on a tinted translucent rectangle inside a full-page photo.
+    Detecting the ribbon lets us OCR only that local text block instead of asking
+    Tesseract to understand the whole photograph as one text paragraph.
+    """
+    red, green, blue = pixel
+    luminance = (red + green + blue) / 3
+    return (
+        green - red >= 14
+        and green - blue >= -12
+        and luminance < 165
+        and 85 <= green <= 190
+        and red < 170
+        and blue < 170
+    )
+
+
+
+
+def _has_light_text_pixels(image: Image.Image, box: tuple[int, int, int, int]) -> bool:
+    """Check that a detected ribbon contains enough bright neutral pixels to be white text."""
+    x0, y0, x1, y1 = box
+    if x1 <= x0 or y1 <= y0:
+        return False
+    crop = image.crop(box)
+    sample_width = max(1, min(180, crop.width // 8 or crop.width))
+    sample_height = max(1, round(crop.height * sample_width / max(1, crop.width)))
+    sample = crop.resize((sample_width, sample_height), Image.Resampling.BILINEAR).convert("RGB")
+    total = max(1, sample_width * sample_height)
+    bright_neutral = 0
+    for red, green, blue in sample.getdata():
+        if red > 210 and green > 210 and blue > 210 and max(red, green, blue) - min(red, green, blue) < 35:
+            bright_neutral += 1
+    return bright_neutral / total >= 0.015
+
+
+def _find_teal_banner_regions(image: Image.Image) -> list[tuple[int, int, int, int]]:
+    """Find large horizontal green title ribbons and return crop boxes in image pixels."""
+    source = image.convert("RGB")
+    width, height = source.size
+    if width <= 0 or height <= 0:
+        return []
+
+    sample_width = min(420, max(180, width // 5))
+    sample_height = max(1, round(height * sample_width / width))
+    sample = source.resize((sample_width, sample_height), Image.Resampling.BILINEAR)
+    pixels = sample.load()
+
+    mask = [[False] * sample_width for _ in range(sample_height)]
+    for y in range(sample_height):
+        for x in range(sample_width):
+            mask[y][x] = _looks_like_teal_banner_pixel(pixels[x, y])
+
+    visited = [[False] * sample_width for _ in range(sample_height)]
+    regions: list[tuple[int, int, int, int, int]] = []
+    min_component_pixels = max(80, int(sample_width * sample_height * 0.0015))
+
+    for start_y in range(sample_height):
+        for start_x in range(sample_width):
+            if visited[start_y][start_x] or not mask[start_y][start_x]:
+                continue
+
+            queue: deque[tuple[int, int]] = deque([(start_x, start_y)])
+            visited[start_y][start_x] = True
+            min_x = max_x = start_x
+            min_y = max_y = start_y
+            count = 0
+
+            while queue:
+                x, y = queue.popleft()
+                count += 1
+                min_x = min(min_x, x)
+                max_x = max(max_x, x)
+                min_y = min(min_y, y)
+                max_y = max(max_y, y)
+
+                for next_x, next_y in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if (
+                        next_x < 0
+                        or next_x >= sample_width
+                        or next_y < 0
+                        or next_y >= sample_height
+                        or visited[next_y][next_x]
+                        or not mask[next_y][next_x]
+                    ):
+                        continue
+                    visited[next_y][next_x] = True
+                    queue.append((next_x, next_y))
+
+            if count < min_component_pixels:
+                continue
+
+            box_width = max_x - min_x + 1
+            box_height = max_y - min_y + 1
+            rel_width = box_width / sample_width
+            rel_height = box_height / sample_height
+            fill_ratio = count / max(1, box_width * box_height)
+
+            # A title ribbon is a broad, relatively shallow block. This filters out
+            # large colored walls/backgrounds and tiny decorative icons.
+            if not (0.18 <= rel_width <= 0.72 and 0.045 <= rel_height <= 0.34 and fill_ratio >= 0.25):
+                continue
+
+            pad_x = max(8, int(width * 0.015))
+            pad_y = max(8, int(height * 0.015))
+            x0 = max(0, int(min_x * width / sample_width) - pad_x)
+            y0 = max(0, int(min_y * height / sample_height) - pad_y)
+            x1 = min(width, int((max_x + 1) * width / sample_width) + pad_x)
+            y1 = min(height, int((max_y + 1) * height / sample_height) + pad_y)
+            if not _has_light_text_pixels(source, (x0, y0, x1, y1)):
+                continue
+            regions.append((count, x0, y0, x1, y1))
+
+    # Prefer the most ribbon-like regions first and avoid near-duplicate crops.
+    regions.sort(reverse=True)
+    result: list[tuple[int, int, int, int]] = []
+    for _, x0, y0, x1, y1 in regions:
+        candidate = (x0, y0, x1, y1)
+        if any(_boxes_overlap_ratio(candidate, existing) > 0.65 for existing in result):
+            continue
+        result.append(candidate)
+        if len(result) >= 4:
+            break
+    return result
+
+
+def _boxes_overlap_ratio(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
+    left = max(a[0], b[0])
+    top = max(a[1], b[1])
+    right = min(a[2], b[2])
+    bottom = min(a[3], b[3])
+    if right <= left or bottom <= top:
+        return 0.0
+    intersection = (right - left) * (bottom - top)
+    area_a = max(1, (a[2] - a[0]) * (a[3] - a[1]))
+    area_b = max(1, (b[2] - b[0]) * (b[3] - b[1]))
+    return intersection / min(area_a, area_b)
+
+
+def _prepare_ocr_crop(crop: Image.Image, *, scale: int = 3) -> Image.Image:
+    """Upscale small title ribbons before OCR without changing the site images."""
+    if scale <= 1:
+        return crop.convert("RGB")
+    width, height = crop.size
+    return crop.convert("RGB").resize((width * scale, height * scale), Image.Resampling.LANCZOS)
+
+
+def _stack_ocr_crops(crops: list[Image.Image]) -> Image.Image | None:
+    if not crops:
+        return None
+    separator = 60
+    width = max(crop.width for crop in crops)
+    height = sum(crop.height for crop in crops) + separator * (len(crops) - 1)
+    canvas = Image.new("RGB", (width, height), "white")
+    y = 0
+    for crop in crops:
+        canvas.paste(crop, (0, y))
+        y += crop.height + separator
+    return canvas
+
+
+def _banner_ocr_crops(image: Image.Image) -> list[Image.Image]:
+    crops: list[Image.Image] = []
+    for box in _find_teal_banner_regions(image):
+        x0, y0, x1, y1 = box
+        box_height = y1 - y0
+
+        # The translucent rectangle can include a lot of empty background above or
+        # below the word. Several vertical trims are stacked into one OCR image so
+        # Tesseract sees clean text candidates without paying for many OCR calls.
+        vertical_windows = ((0.0, 1.0), (0.25, 0.85), (0.30, 0.75), (0.35, 0.95))
+        region_crops: list[Image.Image] = []
+        for start, end in vertical_windows:
+            crop_y0 = y0 + int(box_height * start)
+            crop_y1 = y0 + int(box_height * end)
+            if crop_y1 - crop_y0 < 24:
+                continue
+            region_crops.append(_prepare_ocr_crop(image.crop((x0, crop_y0, x1, crop_y1))))
+        stacked = _stack_ocr_crops(region_crops)
+        if stacked is not None:
+            crops.append(stacked)
+    return crops
+
+
+def _combine_search_texts(parts: list[str]) -> str:
+    seen: set[str] = set()
+    output: list[str] = []
+    for part in parts:
+        normalized = normalize_search_text(part)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        output.append(normalized)
+    return normalize_search_text(" ".join(output))
 
 
 def build_page_search_text(page: fitz.Page, ocr: OcrRunner, options: RenderOptions, label: str) -> str:
@@ -319,10 +528,13 @@ def build_page_search_text(page: fitz.Page, ocr: OcrRunner, options: RenderOptio
         return embedded_text
 
     ocr_image = render_page_image(page, options.ocr_dpi)
-    ocr_text = ocr.recognize(ocr_image, label)
-    if embedded_text and ocr_text:
-        return normalize_search_text(f"{embedded_text} {ocr_text}")
-    return normalize_search_text(ocr_text or embedded_text)
+    text_parts = [embedded_text, ocr.recognize(ocr_image, label, psm=6)]
+
+    banner_crops = _banner_ocr_crops(ocr_image)
+    for index, crop in enumerate(banner_crops, start=1):
+        text_parts.append(ocr.recognize(crop, f"{label} title ribbon {index}", psm=6))
+
+    return _combine_search_texts(text_parts)
 
 
 def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[int, list[dict[str, Any]]]:
