@@ -737,6 +737,30 @@ function hideLightboxFloatingPreview() {
   els.lightboxFloatingPreview?.classList.remove("visible");
 }
 
+function normalizeWheelDeltaToPixels(delta, deltaMode, pageSize = 0) {
+  const lineMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_LINE : 1;
+  const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
+
+  if (deltaMode === lineMode) return delta * 36;
+  if (deltaMode === pageMode) return delta * Math.max(1, pageSize);
+  return delta;
+}
+
+function handleLightboxThumbsWheel(event) {
+  if (state.viewerMode !== "single" || !els.lightboxThumbs) return;
+
+  const scroller = els.lightboxThumbs;
+  const hasHorizontalOverflow = scroller.scrollWidth > scroller.clientWidth + 1;
+  const isVerticalWheel = Math.abs(event.deltaY || 0) >= Math.abs(event.deltaX || 0);
+  if (!hasHorizontalOverflow || !isVerticalWheel || !event.deltaY) return;
+
+  event.preventDefault();
+  keepThumbsOpen();
+
+  const delta = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, scroller.clientWidth);
+  scroller.scrollLeft -= delta;
+}
+
 function positionLightboxFloatingPreview(button) {
   const preview = els.lightboxFloatingPreview;
   if (!preview || !button) return;
@@ -1333,6 +1357,7 @@ function attachEvents() {
   });
 
   els.lightboxThumbs?.addEventListener("mouseenter", keepThumbsOpen);
+  els.lightboxThumbs?.addEventListener("wheel", handleLightboxThumbsWheel, { passive: false });
   els.lightboxThumbs?.addEventListener("mouseleave", () => {
     hideLightboxFloatingPreview();
     scheduleThumbsClose();

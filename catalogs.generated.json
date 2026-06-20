@@ -28,5 +28,15 @@
     "dir": "assets/pages/tbi",
     "cover": "assets/pages/tbi/page-001.jpg",
     "imageExt": "jpg"
+  },
+  {
+    "id": "comfort",
+    "title": "קומפורט 2026",
+    "description": "מיטות איכות בעיצוב נקי ועדכני",
+    "category": "מיטות",
+    "pages": 60,
+    "dir": "assets/pages/comfort",
+    "cover": "assets/pages/comfort/page-001.jpg",
+    "imageExt": "jpg"
   }
 ]

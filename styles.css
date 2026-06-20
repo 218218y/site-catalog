@@ -886,8 +886,11 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 }
 .lightbox-floating-preview span {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
+  top: 18px;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
   min-width: 58px;
   min-height: 30px;
   display: inline-flex;
@@ -900,6 +903,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   border: 1px solid rgba(255,255,255,0.2);
   font-size: .9rem;
   font-weight: 900;
+  white-space: nowrap;
   backdrop-filter: blur(10px);
 }
 
@@ -1538,8 +1542,11 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 }
 .reader-floating-preview span {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
+  top: 18px;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
   min-width: 58px;
   min-height: 30px;
   display: inline-flex;
@@ -1552,6 +1559,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   border: 1px solid rgba(255,255,255,0.2);
   font-size: .9rem;
   font-weight: 900;
+  white-space: nowrap;
   backdrop-filter: blur(10px);
 }
 .reader-pages {

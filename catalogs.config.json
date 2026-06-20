@@ -19,5 +19,12 @@
     "description": "ארונות פתיחה בעיצובים מודרניים",
     "category": "ארונות",
     "pdf": "assets/pdfs/tbi-arnot-pticha-2026.pdf"
+  },
+  {
+    "id": "comfort",
+    "title": "קומפורט 2026",
+    "description": "מיטות איכות בעיצוב נקי ועדכני",
+    "category": "מיטות",
+    "pdf": "assets/pdfs/comfort-2026.pdf"
   }
 ]
