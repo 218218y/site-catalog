@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Iterable
 
 DEPLOY_FILES = [
+    "_headers",
     "index.html",
     "catalog.html",
     "styles.css",

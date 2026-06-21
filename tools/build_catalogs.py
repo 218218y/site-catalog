@@ -19,6 +19,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -144,6 +145,37 @@ def inspect_existing_catalog_output(out_dir: Path, preferred_format: str) -> Exi
     if incomplete:
         return max(incomplete, key=lambda output: output.pages)
     return None
+
+
+def collect_page_sizes(out_dir: Path, image_format: str, page_count: int) -> list[list[int]]:
+    """Read rendered page image dimensions for stable browser layout."""
+    sizes: list[list[int]] = []
+    for page_number in range(1, max(0, int(page_count)) + 1):
+        page_file = out_dir / f"page-{page_number:03d}.{image_format}"
+        try:
+            with Image.open(page_file) as image:
+                sizes.append([int(image.width), int(image.height)])
+        except (OSError, ValueError):
+            sizes.append([0, 0])
+    return sizes
+
+
+def catalog_asset_version(out_dir: Path, image_format: str, page_count: int) -> str:
+    """Create a compact cache-busting version from generated catalog assets."""
+    digest = hashlib.sha1()
+    for page_number in range(1, max(0, int(page_count)) + 1):
+        for relative in (
+            Path(f"page-{page_number:03d}.{image_format}"),
+            Path("thumbs") / f"page-{page_number:03d}.{image_format}",
+        ):
+            file_path = out_dir / relative
+            if not file_path.is_file():
+                continue
+            stat = file_path.stat()
+            digest.update(relative.as_posix().encode("utf-8"))
+            digest.update(str(stat.st_size).encode("ascii"))
+            digest.update(str(stat.st_mtime_ns).encode("ascii"))
+    return digest.hexdigest()[:12]
 
 
 def load_previous_search_pages(root: Path) -> dict[str, list[dict[str, Any]]]:
@@ -539,7 +571,7 @@ def build_page_search_text(page: fitz.Page, ocr: OcrRunner, options: RenderOptio
     return _combine_search_texts(text_parts)
 
 
-def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[int, list[dict[str, Any]]]:
+def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[int, list[dict[str, Any]], list[list[int]]]:
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
@@ -553,6 +585,7 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[i
 
         ocr = OcrRunner(options)
         search_pages: list[dict[str, Any]] = []
+        page_sizes: list[list[int]] = []
 
         for page_number, page in enumerate(doc, start=1):
             page_file = out_dir / f"page-{page_number:03d}.{ext}"
@@ -564,6 +597,11 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[i
                 search_pages.append({"page": page_number, "text": page_text})
 
             if options.skip_existing and page_file.exists() and thumb_file.exists():
+                try:
+                    with Image.open(page_file) as existing_image:
+                        page_sizes.append([int(existing_image.width), int(existing_image.height)])
+                except (OSError, ValueError):
+                    page_sizes.append([0, 0])
                 print(f"[skip] {pdf_path.name}: page {page_number}/{len(doc)} already exists")
                 continue
 
@@ -573,6 +611,7 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[i
                 image.thumbnail((options.max_width, options.max_height), Image.Resampling.LANCZOS)
 
             image = maybe_sharpen(image, options.sharpen)
+            page_sizes.append([int(image.width), int(image.height)])
             save_image(image, page_file, ext, options.quality)
 
             thumb = image.copy()
@@ -582,10 +621,16 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[i
 
             print(f"[render] {pdf_path.name}: page {page_number}/{len(doc)} -> {rel_to_root(page_file)}")
 
-        return len(doc), search_pages
+        return len(doc), search_pages, page_sizes
 
 
-def build_generated_entry(item: dict[str, Any], pages: int, out_dir: Path, image_format: str) -> dict[str, Any]:
+def build_generated_entry(
+    item: dict[str, Any],
+    pages: int,
+    out_dir: Path,
+    image_format: str,
+    page_sizes: list[list[int]] | None = None,
+) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "id": item["id"],
         "title": item["title"],
@@ -595,7 +640,11 @@ def build_generated_entry(item: dict[str, Any], pages: int, out_dir: Path, image
         "dir": rel_to_root(out_dir),
         "cover": f"{rel_to_root(out_dir)}/page-001.{image_format}",
         "imageExt": image_format,
+        "assetVersion": catalog_asset_version(out_dir, image_format, pages),
     }
+
+    if page_sizes and len(page_sizes) >= pages:
+        entry["pageSizes"] = page_sizes[:pages]
 
     for key in ("sort", "badge"):
         if key in item:
@@ -707,7 +756,8 @@ def main() -> int:
                 search_pages = previous_search_pages.get(catalog_id, [])
                 if not search_pages:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
-                generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format))
+                page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
+                generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
                 search_generated.append(build_search_entry(item, search_pages))
                 continue
 
@@ -717,7 +767,8 @@ def main() -> int:
                     search_pages = previous_search_pages.get(catalog_id, [])
                     if not search_pages:
                         print("[warn] No previous OCR/search text found for this catalog; images will still be shown.")
-                    generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format))
+                    page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
+                    generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
                     search_generated.append(build_search_entry(item, search_pages))
                     continue
 
@@ -738,8 +789,8 @@ def main() -> int:
             elif existing_output and args.force:
                 print(f"[force] Rebuilding existing output: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
 
-            pages, search_pages = render_pdf(pdf_path, out_dir, options)
-            generated.append(build_generated_entry(item, pages, out_dir, options.image_format))
+            pages, search_pages, page_sizes = render_pdf(pdf_path, out_dir, options)
+            generated.append(build_generated_entry(item, pages, out_dir, options.image_format, page_sizes))
             search_generated.append(build_search_entry(item, search_pages))
 
         generated.sort(key=lambda row: row.get("sort", 9999))

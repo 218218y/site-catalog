@@ -2,6 +2,8 @@ const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS 
 const catalogSearch = window.BargigCatalogSearch || null;
 
 const $ = (id) => document.getElementById(id);
+const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
 const state = {
   catalog: null,
   page: 1,
@@ -23,17 +25,19 @@ const state = {
   thumbsHideTimer: 0,
   uiHideTimer: 0,
   pageRailHideTimer: 0,
+  lastTouchLikeRailInputAt: 0,
   lightboxScrollRaf: 0,
   pageThumbLoadTimer: 0,
-  pageThumbObserver: null
+  pageThumbObserver: null,
+  lightboxScrollImageObserver: null
 };
 
 const els = {
   splash: $("splashScreen"),
   catalogGrid: $("catalogGrid"),
+  categoryNav: $("categoryNav"),
   catalogCount: $("catalogCount"),
   pageCount: $("pageCount"),
-  openFirstCatalog: $("openFirstCatalog"),
   globalSearchInput: $("globalSearchInput"),
   globalSearchResults: $("globalSearchResults"),
   globalSearchStatus: $("globalSearchStatus"),
@@ -49,9 +53,6 @@ const els = {
   pageGrid: $("pageGrid"),
   openViewerFromTop: $("openViewerFromTop"),
   scrollToTopBtn: $("scrollToTopBtn"),
-  heroShot1: $("heroShot1"),
-  heroShot2: $("heroShot2"),
-  heroShot3: $("heroShot3"),
   lightbox: $("lightbox"),
   lightboxBackdrop: $("lightboxBackdrop"),
   lightboxBar: $("lightboxBar"),
@@ -102,6 +103,40 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function catalogCategoryName(catalog) {
+  const category = String(catalog?.category || "").trim();
+  return category || "קטלוגים";
+}
+
+function categorySlug(value) {
+  return String(value || "catalog")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0590-\u05ff]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "catalog";
+}
+
+function categorySectionId(category, index) {
+  return `catalog-category-${categorySlug(category)}-${index + 1}`;
+}
+
+function getCatalogCategoryGroups() {
+  const groups = [];
+  const groupByCategory = new Map();
+
+  catalogs.forEach((catalog) => {
+    const category = catalogCategoryName(catalog);
+    if (!groupByCategory.has(category)) {
+      const group = { category, items: [] };
+      groupByCategory.set(category, group);
+      groups.push(group);
+    }
+    groupByCategory.get(category).items.push(catalog);
+  });
+
+  return groups;
+}
+
 function imageExt(catalog) {
   return catalog?.imageExt || "jpg";
 }
@@ -110,12 +145,37 @@ function catalogDir(catalog) {
   return catalog?.dir || `assets/pages/${catalog.id}`;
 }
 
+function withAssetVersion(url, catalog) {
+  const version = String(catalog?.assetVersion || "").trim();
+  if (!version) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+}
+
 function pageSrc(catalog, page) {
-  return `${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`;
+  return withAssetVersion(`${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`, catalog);
 }
 
 function thumbSrc(catalog, page) {
-  return `${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`;
+  return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+}
+
+function coverThumbSrc(catalog) {
+  return thumbSrc(catalog, 1);
+}
+
+function pageSize(catalog, page) {
+  const sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [];
+  const size = sizes[page - 1];
+  if (!Array.isArray(size) || size.length < 2) return null;
+  const width = Number(size[0]);
+  const height = Number(size[1]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
+function pageAspectStyle(catalog, page) {
+  const size = pageSize(catalog, page);
+  return size ? ` style="aspect-ratio: ${size.width} / ${size.height}"` : "";
 }
 
 function clampPage(page, catalog = state.catalog) {
@@ -154,6 +214,58 @@ function loadImageElement(src) {
     img.onerror = () => reject(new Error("image-load-failed"));
     img.src = src;
   });
+}
+
+function loadDeferredImage(img) {
+  const src = img?.dataset?.src;
+  if (!src || img.getAttribute("src") === src) return;
+  img.addEventListener("load", () => img.classList.add("loaded"), { once: true });
+  img.src = src;
+  img.removeAttribute("data-src");
+}
+
+function disconnectLightboxScrollImageLoading() {
+  state.lightboxScrollImageObserver?.disconnect?.();
+  state.lightboxScrollImageObserver = null;
+}
+
+function activateLightboxScrollImageLoading() {
+  if (!els.lightboxScrollPages) return;
+  const pendingImages = Array.from(els.lightboxScrollPages.querySelectorAll("img.lightbox-scroll-image[data-src]"));
+  if (!pendingImages.length) return;
+
+  if (!("IntersectionObserver" in window)) {
+    pendingImages.forEach(loadDeferredImage);
+    return;
+  }
+
+  disconnectLightboxScrollImageLoading();
+  state.lightboxScrollImageObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      loadDeferredImage(entry.target);
+      observer.unobserve(entry.target);
+    });
+  }, {
+    root: els.lightboxScrollView || null,
+    rootMargin: "1800px 0px",
+    threshold: 0.01
+  });
+
+  pendingImages.forEach((img) => state.lightboxScrollImageObserver.observe(img));
+}
+
+function ensureLightboxScrollPageLoaded(page, radius = 1) {
+  if (!state.catalog || !els.lightboxScrollPages) return;
+  const targetPage = clampPage(page, state.catalog);
+  for (let nextPage = targetPage - radius; nextPage <= targetPage + radius; nextPage += 1) {
+    if (nextPage < 1 || nextPage > state.catalog.pages) continue;
+    const img = els.lightboxScrollPages.querySelector(`#lightbox-scroll-page-${nextPage} img.lightbox-scroll-image[data-src]`);
+    if (img) {
+      loadDeferredImage(img);
+      state.lightboxScrollImageObserver?.unobserve?.(img);
+    }
+  }
 }
 
 function saveBlob(blob, filename) {
@@ -260,10 +372,11 @@ function renderEmptyState() {
     </article>
   `;
 
-  els.catalogGrid.innerHTML = html;
-  els.pageGrid.innerHTML = html;
-  els.catalogCount.textContent = "0";
-  els.pageCount.textContent = "0";
+  if (els.catalogGrid) els.catalogGrid.innerHTML = html;
+  if (els.pageGrid) els.pageGrid.innerHTML = html;
+  if (els.catalogCount) els.catalogCount.textContent = "0";
+  if (els.pageCount) els.pageCount.textContent = "0";
+  renderCategoryNav([]);
   showCatalogDetail();
   els.catalogTitle.textContent = "עדיין אין קטלוגים להצגה";
   els.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.";
@@ -271,58 +384,50 @@ function renderEmptyState() {
   els.catalogPages.textContent = "0 עמודים";
   els.catalogSelect.innerHTML = `<option>אין קטלוגים</option>`;
   els.catalogCoverPreview.removeAttribute("src");
-  els.openFirstCatalog.disabled = true;
   els.openViewerFromTop.disabled = true;
 }
 
-function renderHeroShots() {
-  const shots = [els.heroShot1, els.heroShot2, els.heroShot3];
-  if (!catalogs.length) return;
 
-  const covers = catalogs
-    .flatMap((catalog) => [catalog.cover || pageSrc(catalog, 1)])
-    .slice(0, 3);
+function renderCategoryNav(groups = getCatalogCategoryGroups()) {
+  if (!els.categoryNav) return;
 
-  shots.forEach((img, index) => {
-    if (!img) return;
-    img.src = covers[index] || covers[covers.length - 1] || "";
-    img.alt = "";
-  });
+  const links = [
+    `<a class="top-nav-link" href="#catalogs">כל הקטלוגים</a>`,
+    ...groups.map((group, index) => (
+      `<a class="top-nav-link category-nav-link" href="#${escapeHtml(categorySectionId(group.category, index))}">${escapeHtml(group.category)}</a>`
+    ))
+  ];
+
+  els.categoryNav.innerHTML = links.join("");
 }
 
-function renderCatalogCards() {
-  if (!catalogs.length) {
-    renderEmptyState();
-    return;
-  }
-
-  const totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
-  els.catalogCount.textContent = String(catalogs.length);
-  els.pageCount.textContent = String(totalPages);
-
-  els.catalogGrid.innerHTML = catalogs.map((catalog) => {
-    const cover = catalog.cover || pageSrc(catalog, 1);
-    return `
-      <article class="catalog-card">
-        <button class="catalog-cover-frame catalog-image-frame catalog-cover-card-button" type="button" data-open-catalog-viewer="${escapeHtml(catalog.id)}" aria-label="פתיחת ${escapeHtml(catalog.title)} במסך מלא">
-          <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${escapeHtml(catalog.title)}" loading="lazy" />
-          <span class="catalog-cover-card-cta">צפייה במסך מלא</span>
-        </button>
-        <div class="catalog-body">
-          <div class="catalog-meta">
-            <span class="pill">${escapeHtml(catalog.category || "קטלוג")}</span>
-            <span class="pill">${escapeHtml(catalog.pages)} עמודים</span>
-          </div>
-          <h3>${escapeHtml(catalog.title)}</h3>
-          <p>${escapeHtml(catalog.description || "")}</p>
-          <div class="catalog-actions">
-            <button class="button soft" type="button" data-open-catalog="${escapeHtml(catalog.id)}">צפייה בקטלוג</button>
-            <button class="button primary" type="button" data-enter-catalog="${escapeHtml(catalog.id)}">כניסה לקטלוג</button>
-          </div>
+function renderCatalogCard(catalog) {
+  const cover = coverThumbSrc(catalog);
+  const category = catalogCategoryName(catalog);
+  return `
+    <article class="catalog-card">
+      <button class="catalog-cover-frame catalog-image-frame catalog-cover-card-button" type="button" data-open-catalog-viewer="${escapeHtml(catalog.id)}" aria-label="פתיחת ${escapeHtml(catalog.title)} במסך מלא">
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${escapeHtml(catalog.title)}" loading="lazy" decoding="async" fetchpriority="low" />
+        <span class="catalog-cover-card-cta">צפייה במסך מלא</span>
+      </button>
+      <div class="catalog-body">
+        <div class="catalog-meta">
+          <span class="pill">${escapeHtml(category)}</span>
+          <span class="pill">${escapeHtml(catalog.pages)} עמודים</span>
         </div>
-      </article>
-    `;
-  }).join("");
+        <h3>${escapeHtml(catalog.title)}</h3>
+        <p>${escapeHtml(catalog.description || "")}</p>
+        <div class="catalog-actions">
+          <button class="button soft" type="button" data-open-catalog="${escapeHtml(catalog.id)}">צפייה בקטלוג</button>
+          <button class="button primary" type="button" data-enter-catalog="${escapeHtml(catalog.id)}">כניסה לקטלוג</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function bindCatalogCardEvents() {
+  if (!els.catalogGrid) return;
 
   els.catalogGrid.querySelectorAll("[data-open-catalog-viewer]").forEach((button) => {
     button.addEventListener("click", () => openCatalogInViewer(button.dataset.openCatalogViewer));
@@ -335,6 +440,44 @@ function renderCatalogCards() {
   els.catalogGrid.querySelectorAll("[data-enter-catalog]").forEach((button) => {
     button.addEventListener("click", () => openCatalogPage(button.dataset.enterCatalog));
   });
+}
+
+function renderCatalogCards() {
+  if (!catalogs.length) {
+    renderEmptyState();
+    return;
+  }
+
+  const groups = getCatalogCategoryGroups();
+  const totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
+  if (els.catalogCount) els.catalogCount.textContent = String(catalogs.length);
+  if (els.pageCount) els.pageCount.textContent = String(totalPages);
+  renderCategoryNav(groups);
+
+  els.catalogGrid.innerHTML = groups.map((group, index) => {
+    const sectionId = categorySectionId(group.category, index);
+    const catalogCountText = group.items.length === 1 ? "קטלוג אחד" : `${group.items.length} קטלוגים`;
+    const pageCount = group.items.reduce((sum, item) => sum + Number(item.pages || 0), 0);
+    return `
+      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(sectionId)}-title">
+        <div class="catalog-category-head">
+          <div>
+            <p class="eyebrow">${escapeHtml(group.category)}</p>
+            <h3 id="${escapeHtml(sectionId)}-title">קטלוגי ${escapeHtml(group.category)}</h3>
+          </div>
+          <div class="catalog-category-meta" aria-label="סיכום קטגוריה">
+            <span class="pill">${escapeHtml(catalogCountText)}</span>
+            <span class="pill">${escapeHtml(pageCount)} עמודים</span>
+          </div>
+        </div>
+        <div class="catalog-grid catalog-category-grid">
+          ${group.items.map(renderCatalogCard).join("")}
+        </div>
+      </section>
+    `;
+  }).join("");
+
+  bindCatalogCardEvents();
 }
 
 
@@ -601,18 +744,22 @@ function renderCatalogDetail() {
   els.catalogCategory.textContent = catalog.category || "קטלוג";
   els.catalogPages.textContent = `${catalog.pages} עמודים`;
   els.catalogSelect.value = catalog.id;
-  els.catalogCoverPreview.src = catalog.cover || pageSrc(catalog, 1);
+  els.catalogCoverPreview.src = catalog.cover ? withAssetVersion(catalog.cover, catalog) : pageSrc(catalog, 1);
+  els.catalogCoverPreview.loading = "lazy";
+  els.catalogCoverPreview.decoding = "async";
   els.catalogCoverPreview.alt = `שער ${catalog.title}`;
   els.openViewerFromTop.disabled = catalog.pages < 1;
   renderPageGrid();
 }
 
 function preloadNeighbors() {
-  if (!state.catalog) return;
+  if (!state.catalog || state.viewerMode !== "single") return;
   [state.page - 1, state.page + 1]
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
       const img = new Image();
+      img.decoding = "async";
+      img.fetchPriority = "low";
       img.src = pageSrc(state.catalog, page);
     });
 }
@@ -837,7 +984,7 @@ function renderLightboxThumbs() {
   const thumbs = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
     thumbs.push(`
-      <button class="lightbox-thumb catalog-image-frame ${page === state.page ? "active" : ""}" type="button" data-page="${page}" data-preview-src="${escapeHtml(pageSrc(catalog, page))}" aria-label="מעבר לעמוד ${page}">
+      <button class="lightbox-thumb catalog-image-frame ${page === state.page ? "active" : ""}" type="button" data-page="${page}" data-preview-src="${escapeHtml(thumbSrc(catalog, page))}" aria-label="מעבר לעמוד ${page}">
         <img src="${escapeHtml(thumbSrc(catalog, page))}" alt="" loading="lazy" decoding="async" />
       </button>
     `);
@@ -857,19 +1004,25 @@ function renderLightboxThumbs() {
 
 function renderLightboxScrollPages() {
   if (!state.catalog || !els.lightboxScrollPages) return;
+  disconnectLightboxScrollImageLoading();
   const catalog = state.catalog;
   const pages = [];
 
   for (let page = 1; page <= catalog.pages; page += 1) {
+    const src = escapeHtml(pageSrc(catalog, page));
     const eager = Math.abs(page - state.page) <= 1;
+    const imageAttributes = eager
+      ? `src="${src}" loading="eager" fetchpriority="${page === state.page ? "high" : "auto"}"`
+      : `src="${TRANSPARENT_PIXEL}" data-src="${src}" loading="lazy" fetchpriority="low"`;
     pages.push(`
-      <figure class="lightbox-scroll-page-frame catalog-image-frame" id="lightbox-scroll-page-${page}" data-page="${page}">
-        <img class="lightbox-scroll-image" src="${escapeHtml(pageSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="${eager ? "eager" : "lazy"}" decoding="async" />
+      <figure class="lightbox-scroll-page-frame catalog-image-frame" id="lightbox-scroll-page-${page}" data-page="${page}"${pageAspectStyle(catalog, page)}>
+        <img class="lightbox-scroll-image${eager ? " loaded" : ""}" ${imageAttributes} alt="${escapeHtml(catalog.title)} - עמוד ${page}" decoding="async" />
       </figure>
     `);
   }
 
   els.lightboxScrollPages.innerHTML = pages.join("");
+  activateLightboxScrollImageLoading();
 }
 
 function renderLightboxPageRail() {
@@ -879,7 +1032,7 @@ function renderLightboxPageRail() {
 
   for (let page = 1; page <= catalog.pages; page += 1) {
     const thumb = escapeHtml(thumbSrc(catalog, page));
-    const fullPage = escapeHtml(pageSrc(catalog, page));
+    const fullPage = thumb;
     thumbs.push(`
       <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === state.page ? " active" : ""}" type="button" data-page="${page}" data-preview-src="${fullPage}" aria-label="מעבר לעמוד ${page}"${page === state.page ? ' aria-current="page"' : ""}>
         <span class="lightbox-page-thumb-image-wrap">
@@ -955,6 +1108,31 @@ function toggleLightboxMode() {
   setLightboxMode(state.viewerMode === "scroll" ? "single" : "scroll");
 }
 
+function hasHoverPointer() {
+  if (typeof window.matchMedia !== "function") return true;
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+function isTouchLikePointer(event) {
+  return event?.pointerType === "touch" || event?.pointerType === "pen";
+}
+
+function markTouchLikeRailInput(event) {
+  if (isTouchLikePointer(event)) {
+    state.lastTouchLikeRailInputAt = Date.now();
+  }
+}
+
+function hasRecentTouchLikeRailInput(timeout = 900) {
+  return Date.now() - state.lastTouchLikeRailInputAt < timeout;
+}
+
+function shouldUsePageRailHover(event = null) {
+  if (!hasHoverPointer()) return false;
+  if (isTouchLikePointer(event) || hasRecentTouchLikeRailInput()) return false;
+  return true;
+}
+
 function showPageRailTemporarily(delay = 2600) {
   if (!els.lightbox || state.viewerMode !== "scroll") return;
   window.clearTimeout(state.pageRailHideTimer);
@@ -972,11 +1150,48 @@ function keepPageRailOpen() {
   els.lightbox?.classList.add("show-page-rail");
 }
 
-function schedulePageRailClose() {
+function schedulePageRailClose(event = null) {
+  if (!shouldUsePageRailHover(event)) return;
   window.clearTimeout(state.pageRailHideTimer);
   state.pageRailHideTimer = window.setTimeout(() => {
     els.lightbox?.classList.remove("show-page-rail");
   }, 420);
+}
+
+function openPageRailFromTouch(event) {
+  if (!isTouchLikePointer(event)) return;
+  markTouchLikeRailInput(event);
+  event.preventDefault?.();
+  keepPageRailOpen();
+}
+
+function openPageRailFromHotspot(event = null) {
+  if (hasRecentTouchLikeRailInput()) {
+    keepPageRailOpen();
+    return;
+  }
+  showPageRailTemporarily(shouldUsePageRailHover(event) ? 2600 : 0);
+}
+
+function showPageRailFromHover(event = null) {
+  if (shouldUsePageRailHover(event)) showPageRailTemporarily(0);
+}
+
+function keepPageRailOpenFromHover(event = null) {
+  if (shouldUsePageRailHover(event)) keepPageRailOpen();
+}
+
+function handlePageRailPointerOutside(event) {
+  if (!els.lightbox || state.viewerMode !== "scroll") return;
+  if (!els.lightbox.classList.contains("show-page-rail")) return;
+
+  const target = event.target;
+  if (els.lightboxPageRail?.contains(target) || els.lightboxSideHotspot?.contains(target)) return;
+  if (!isTouchLikePointer(event) && shouldUsePageRailHover(event)) return;
+
+  window.clearTimeout(state.pageRailHideTimer);
+  hideLightboxFloatingPreview();
+  els.lightbox.classList.remove("show-page-rail");
 }
 
 function scrollToLightboxScrollPage(page, options = {}) {
@@ -985,6 +1200,7 @@ function scrollToLightboxScrollPage(page, options = {}) {
   const targetPage = clampPage(page, state.catalog);
   const target = document.getElementById(`lightbox-scroll-page-${targetPage}`);
   if (!target) return;
+  ensureLightboxScrollPageLoaded(targetPage, 2);
 
   const containerTop = els.lightboxScrollView.getBoundingClientRect().top;
   const targetTop = target.getBoundingClientRect().top - containerTop + els.lightboxScrollView.scrollTop;
@@ -1054,6 +1270,7 @@ function updateLightbox() {
 
   if (state.viewerMode === "scroll") {
     setViewerLoading(false);
+    ensureLightboxScrollPageLoaded(state.page, 1);
     updateLightboxThumbs();
     updateHash();
     return;
@@ -1065,6 +1282,8 @@ function updateLightbox() {
     setViewerLoading(true);
     els.lightboxImage.removeAttribute("src");
     els.lightboxImage.alt = `${catalog.title} - עמוד ${state.page}`;
+    els.lightboxImage.decoding = "async";
+    els.lightboxImage.fetchPriority = "high";
     requestAnimationFrame(() => {
       els.lightboxImage.src = src;
     });
@@ -1112,6 +1331,7 @@ function closeLightbox() {
   window.clearTimeout(state.pageRailHideTimer);
   if (state.lightboxScrollRaf) window.cancelAnimationFrame(state.lightboxScrollRaf);
   state.lightboxScrollRaf = 0;
+  disconnectLightboxScrollImageLoading();
   document.body.classList.remove("no-scroll");
   scheduleDeferredPageThumbLoading(0);
   updateHash();
@@ -1264,8 +1484,9 @@ function endPointerInteraction(event) {
     const dx = event.clientX - startedX;
     const dy = event.clientY - startedY;
     if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) * 1.35) {
-      if (dx > 0) moveLightbox(-1);
-      else moveLightbox(1);
+      // In the RTL catalog viewer, a left-to-right swipe should advance to the next page.
+      if (dx > 0) moveLightbox(1);
+      else moveLightbox(-1);
     }
   }
 
@@ -1311,10 +1532,6 @@ function attachViewerGestures() {
 }
 
 function attachEvents() {
-  els.openFirstCatalog?.addEventListener("click", () => {
-    if (catalogs[0]) openCatalog(catalogs[0].id, { scroll: true });
-  });
-
   els.globalSearchInput?.addEventListener("input", () => renderSearchResults(els.globalSearchInput.value));
   els.globalSearchClear?.addEventListener("click", () => {
     els.globalSearchInput.value = "";
@@ -1363,14 +1580,17 @@ function attachEvents() {
     scheduleThumbsClose();
   });
 
-  els.lightboxSideHotspot?.addEventListener("mouseenter", () => showPageRailTemporarily(0));
+  els.lightboxSideHotspot?.addEventListener("pointerdown", openPageRailFromTouch, { passive: false });
+  els.lightboxSideHotspot?.addEventListener("mouseenter", showPageRailFromHover);
   els.lightboxSideHotspot?.addEventListener("mouseleave", schedulePageRailClose);
-  els.lightboxSideHotspot?.addEventListener("click", () => showPageRailTemporarily(2600));
-  els.lightboxPageRail?.addEventListener("mouseenter", keepPageRailOpen);
-  els.lightboxPageRail?.addEventListener("mouseleave", () => {
+  els.lightboxSideHotspot?.addEventListener("click", openPageRailFromHotspot);
+  els.lightboxPageRail?.addEventListener("pointerdown", markTouchLikeRailInput);
+  els.lightboxPageRail?.addEventListener("mouseenter", keepPageRailOpenFromHover);
+  els.lightboxPageRail?.addEventListener("mouseleave", (event) => {
     hideLightboxFloatingPreview();
-    schedulePageRailClose();
+    schedulePageRailClose(event);
   });
+  els.lightbox?.addEventListener("pointerdown", handlePageRailPointerOutside);
   els.lightboxPageRail?.addEventListener("focusin", keepPageRailOpen);
   els.lightboxPageRail?.addEventListener("focusout", schedulePageRailClose);
   els.lightboxScrollView?.addEventListener("scroll", scheduleLightboxScrollPageUpdate, { passive: true });
@@ -1445,7 +1665,6 @@ function init() {
     return;
   }
 
-  renderHeroShots();
   renderCatalogCards();
   fillCatalogSelect();
   initSearchStatus();

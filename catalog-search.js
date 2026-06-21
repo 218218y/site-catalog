@@ -27,12 +27,18 @@
     return catalog?.dir || `assets/pages/${catalog.id}`;
   }
 
+  function withAssetVersion(url, catalog) {
+    const version = String(catalog?.assetVersion || "").trim();
+    if (!version) return url;
+    return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+  }
+
   function pageSrc(catalog, page) {
-    return `${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`;
+    return withAssetVersion(`${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`, catalog);
   }
 
   function thumbSrc(catalog, page) {
-    return `${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`;
+    return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog);
   }
 
   function normalize(value) {

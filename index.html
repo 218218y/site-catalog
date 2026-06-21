@@ -6,8 +6,6 @@
   <meta name="theme-color" content="#8b6f5a" />
   <title>קטלוגים | רהיטי ברגיג</title>
   <meta name="description" content="גלריית קטלוגים נקייה ומהירה עבור רהיטי ברגיג - בחירת קטלוג, צפייה בכל העמודים והגדלה נוחה." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -20,8 +18,8 @@
       </span>
     </a>
 
-    <nav class="top-nav" aria-label="ניווט ראשי">
-      <a href="#catalogs">קטלוגים</a>
+    <nav class="top-nav" id="categoryNav" aria-label="ניווט קטגוריות קטלוגים">
+      <a class="top-nav-link" href="#catalogs">כל הקטלוגים</a>
     </nav>
   </header>
 
@@ -53,7 +51,7 @@
         <p class="section-note">אפשר לצפות בקטלוג בתוך האתר, או לפתוח אותו בדף נקי ונפרד.</p>
       </div>
 
-      <div class="catalog-grid" id="catalogGrid"></div>
+      <div class="catalog-category-list" id="catalogGrid"></div>
     </section>
 
     <section class="catalog-detail panel hidden reveal" id="catalogDetail" aria-labelledby="catalogDetailTitle">
@@ -79,7 +77,7 @@
         </div>
 
         <button class="catalog-cover-wrap catalog-cover-button" id="catalogCoverOpenViewer" type="button" aria-label="פתיחת הקטלוג במסך מלא">
-          <img id="catalogCoverPreview" class="catalog-cover-preview" alt="תמונת שער הקטלוג" />
+          <img id="catalogCoverPreview" class="catalog-cover-preview" alt="תמונת שער הקטלוג" loading="lazy" decoding="async" />
           <span class="catalog-cover-cta">צפייה במסך מלא</span>
         </button>
       </div>
@@ -95,55 +93,6 @@
       </div>
 
       <div class="page-grid" id="pageGrid"></div>
-    </section>
-    <section class="hero">
-      <div class="hero-copy reveal">
-        <div class="hero-brand-badge" aria-label="רהיטי ברגיג">
-          <img data-brand-logo="1" data-wp-logo="1" alt="לוגו רהיטי ברגיג" />
-          <span>קטלוגים דיגיטליים</span>
-        </div>
-        <p class="eyebrow">קטלוגים דיגיטליים</p>
-        <h1>כל הקטלוגים במקום אחד, בצפייה נקייה ונוחה.</h1>
-        <p class="hero-text">
-          בוחרים קטלוג, צופים בעמודים בצורה מסודרת, ופותחים כל עמוד לתצוגה גדולה עם דפדוף נוח.
-        </p>
-
-        <div class="hero-stats">
-          <article>
-            <strong id="catalogCount">0</strong>
-            <span>קטלוגים</span>
-          </article>
-          <article>
-            <strong id="pageCount">0</strong>
-            <span>עמודים בסך הכל</span>
-          </article>
-          <article>
-            <strong>HD</strong>
-            <span>תצוגה גדולה</span>
-          </article>
-        </div>
-
-        <div class="hero-actions">
-          <a class="button primary" href="#catalogs">לבחירת קטלוג</a>
-          <button class="button ghost" id="openFirstCatalog" type="button">צפייה בקטלוג ראשון</button>
-        </div>
-      </div>
-
-      <div class="hero-showcase reveal reveal-delay">
-        <div class="floating-page floating-page-back">
-          <img id="heroShot3" alt="" />
-        </div>
-        <div class="floating-page floating-page-mid">
-          <img id="heroShot2" alt="" />
-        </div>
-        <div class="floating-page floating-page-front">
-          <img id="heroShot1" alt="" />
-          <div class="showcase-chip">
-            <span>תצוגה מהירה</span>
-            <strong>לחיצה, הגדלה, דפדוף</strong>
-          </div>
-        </div>
-      </div>
     </section>
 
   </main>
@@ -217,7 +166,7 @@
         <div class="stage-canvas" id="stageCanvas">
           <div class="loading-pill hidden" id="viewerLoading">טוען עמוד...</div>
           <div class="lightbox-image-frame" id="lightboxImageFrame">
-            <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" />
+            <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" decoding="async" />
           </div>
         </div>
         <button class="stage-nav stage-next" id="nextPageBtn" type="button" aria-label="העמוד הבא">‹</button>

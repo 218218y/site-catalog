@@ -1,5 +1,12 @@
 [
   {
+    "id": "tbi",
+    "title": "ת.ב.י רהיטים - ארונות פתיחה 2026",
+    "description": "ארונות פתיחה בעיצובים מודרניים",
+    "category": "ארונות",
+    "pdf": "assets/pdfs/tbi-arnot-pticha-2026.pdf"
+  },
+  {
     "id": "qualita",
     "title": "קואליטה 2026",
     "description": "מיטות איכות בעיצוב נקי ועדכני",
@@ -10,15 +17,8 @@
     "id": "komotayim",
     "title": "קטלוג קומותיים נגר 2026",
     "description": "מיטות ילדים, קומותיים ופתרונות שינה",
-    "category": "מיטות ילדים",
+    "category": "מיטות",
     "pdf": "assets/pdfs/komotayim-nagar-2026.pdf"
-  },
-  {
-    "id": "tbi",
-    "title": "ת.ב.י רהיטים - ארונות פתיחה 2026",
-    "description": "ארונות פתיחה בעיצובים מודרניים",
-    "category": "ארונות",
-    "pdf": "assets/pdfs/tbi-arnot-pticha-2026.pdf"
   },
   {
     "id": "comfort",

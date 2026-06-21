@@ -20,11 +20,14 @@ const readerFloatingPreview = $("readerFloatingPreview");
 const readerFloatingPreviewImage = $("readerFloatingPreviewImage");
 const readerFloatingPreviewPage = $("readerFloatingPreviewPage");
 
+const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
 const readerUiState = {
   currentPage: 1,
   scrollRaf: 0,
   topCloseTimer: 0,
-  sideCloseTimer: 0
+  sideCloseTimer: 0,
+  pageImageObserver: null
 };
 
 function pad(num) {
@@ -48,12 +51,33 @@ function catalogDir(catalog) {
   return catalog?.dir || `assets/pages/${catalog.id}`;
 }
 
+function withAssetVersion(url, catalog) {
+  const version = String(catalog?.assetVersion || "").trim();
+  if (!version) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+}
+
 function pageSrc(catalog, page) {
-  return `${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`;
+  return withAssetVersion(`${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`, catalog);
 }
 
 function thumbSrc(catalog, page) {
-  return `${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`;
+  return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+}
+
+function pageSize(catalog, page) {
+  const sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [];
+  const size = sizes[page - 1];
+  if (!Array.isArray(size) || size.length < 2) return null;
+  const width = Number(size[0]);
+  const height = Number(size[1]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
+function pageAspectStyle(catalog, page) {
+  const size = pageSize(catalog, page);
+  return size ? ` style="aspect-ratio: ${size.width} / ${size.height}"` : "";
 }
 
 function clampPage(page, catalog) {
@@ -92,6 +116,60 @@ function loadImageElement(src) {
     img.onerror = () => reject(new Error("image-load-failed"));
     img.src = src;
   });
+}
+
+function loadDeferredReaderImage(img) {
+  const src = img?.dataset?.src;
+  if (!src || img.getAttribute("src") === src) return;
+  img.addEventListener("load", () => img.classList.add("loaded"), { once: true });
+  img.src = src;
+  img.removeAttribute("data-src");
+}
+
+function ensureReaderPageLoaded(page, radius = 1) {
+  if (!readerPages) return;
+  const catalog = getSelectedCatalog();
+  if (!catalog) return;
+  const targetPage = clampPage(page, catalog);
+  for (let nextPage = targetPage - radius; nextPage <= targetPage + radius; nextPage += 1) {
+    if (nextPage < 1 || nextPage > catalog.pages) continue;
+    const img = readerPages.querySelector(`#page-${nextPage} img.reader-image[data-src]`);
+    if (img) {
+      loadDeferredReaderImage(img);
+      readerUiState.pageImageObserver?.unobserve?.(img);
+    }
+  }
+}
+
+function activateReaderPageImageLoading() {
+  if (!readerPages) return;
+  const pendingImages = Array.from(readerPages.querySelectorAll("img.reader-image[data-src]"));
+  if (!pendingImages.length) return;
+
+  if (!("IntersectionObserver" in window)) {
+    pendingImages.forEach(loadDeferredReaderImage);
+    return;
+  }
+
+  readerUiState.pageImageObserver?.disconnect?.();
+  readerUiState.pageImageObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      loadDeferredReaderImage(entry.target);
+      observer.unobserve(entry.target);
+    });
+  }, {
+    root: null,
+    rootMargin: "1800px 0px",
+    threshold: 0.01
+  });
+
+  pendingImages.forEach((img) => readerUiState.pageImageObserver.observe(img));
+}
+
+function disconnectReaderPageImageLoading() {
+  readerUiState.pageImageObserver?.disconnect?.();
+  readerUiState.pageImageObserver = null;
 }
 
 function saveBlob(blob, filename) {
@@ -307,6 +385,7 @@ function scrollToReaderPage(page) {
   const targetPage = clampPage(page, catalog);
   const target = document.getElementById(`page-${targetPage}`);
   if (!target) return;
+  ensureReaderPageLoaded(targetPage, 2);
   updateReaderThumbs(targetPage, { scrollIntoView: true });
   target.scrollIntoView({ behavior: "smooth", block: "start" });
   target.classList.add("reader-page-frame-hit");
@@ -410,7 +489,7 @@ function renderReaderSearch(query) {
   readerSearchResults.innerHTML = results.map((result) => `
     <button class="reader-search-result" type="button" data-reader-page="${result.page}">
       <span class="reader-search-thumb-frame catalog-image-frame">
-        <img src="${escapeHtml(result.thumb)}" alt="עמוד ${result.page}" loading="lazy" />
+        <img src="${escapeHtml(result.thumb)}" alt="עמוד ${result.page}" loading="lazy" decoding="async" fetchpriority="low" />
       </span>
       <span>
         <strong>עמוד ${result.page}</strong>
@@ -437,11 +516,11 @@ function renderReaderPageRail(catalog) {
   const thumbs = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
     const thumb = escapeHtml(thumbSrc(catalog, page));
-    const pageImage = escapeHtml(pageSrc(catalog, page));
+    const pageImage = thumb;
     thumbs.push(`
       <button class="reader-page-thumb reader-page-thumb-frame catalog-image-frame${page === 1 ? " active" : ""}" type="button" data-reader-page="${page}" data-thumb-src="${thumb}" data-preview-src="${pageImage}" aria-label="מעבר לעמוד ${page}"${page === 1 ? ' aria-current="page"' : ""}>
         <span class="reader-thumb-image-wrap">
-          <img src="${thumb}" alt="" loading="lazy" />
+          <img src="${thumb}" alt="" loading="lazy" decoding="async" fetchpriority="low" />
         </span>
         <span class="reader-thumb-number">${page}</span>
       </button>
@@ -464,6 +543,7 @@ function renderReaderPageRail(catalog) {
 
 function renderReader() {
   const catalog = getSelectedCatalog();
+  disconnectReaderPageImageLoading();
 
   if (!catalog) {
     document.title = "קטלוגים | רהיטי ברגיג";
@@ -479,21 +559,28 @@ function renderReader() {
   readerTitle.textContent = catalog.title;
   readerMeta.textContent = `${catalog.pages} עמודים`;
 
+  const requestedPage = getRequestedPage();
+  const initialPage = requestedPage > 0 ? clampPage(requestedPage, catalog) : 1;
   const pages = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
+    const src = escapeHtml(pageSrc(catalog, page));
+    const eager = Math.abs(page - initialPage) <= 1;
+    const imageAttributes = eager
+      ? `src="${src}" loading="eager" fetchpriority="${page === initialPage ? "high" : "auto"}"`
+      : `src="${TRANSPARENT_PIXEL}" data-src="${src}" loading="lazy" fetchpriority="low"`;
     pages.push(`
-      <figure class="reader-page-frame" id="page-${page}">
-        <img class="reader-image" src="${escapeHtml(pageSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="${page <= 2 ? "eager" : "lazy"}" />
+      <figure class="reader-page-frame" id="page-${page}"${pageAspectStyle(catalog, page)}>
+        <img class="reader-image${eager ? " loaded" : ""}" ${imageAttributes} alt="${escapeHtml(catalog.title)} - עמוד ${page}" decoding="async" />
       </figure>
     `);
   }
   readerPages.innerHTML = pages.join("");
+  activateReaderPageImageLoading();
   renderReaderPageRail(catalog);
   initReaderSearchStatus(catalog);
   updateReaderThumbs(1, { scrollIntoView: false });
   window.requestAnimationFrame(findCurrentReaderPage);
 
-  const requestedPage = getRequestedPage();
   if (requestedPage > 0) {
     window.setTimeout(() => scrollToReaderPage(requestedPage), 250);
   }
