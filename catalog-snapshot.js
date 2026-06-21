@@ -9,8 +9,8 @@
 
   var EXPORT_MIME = 'image/jpeg';
   var EXPORT_EXTENSION = 'jpg';
-  var EXPORT_QUALITY = 0.72;
-  var MAX_EXPORT_EDGE = 1800;
+  var EXPORT_QUALITY = 0.82;
+  var MAX_EXPORT_EDGE = 2200;
   var LOGO_WIDTH_RATIO = 0.13;
   var LOGO_TOP_RATIO = 0.02;
   var LOGO_ASPECT_RATIO = 786 / 317;

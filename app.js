@@ -27,6 +27,7 @@ const state = {
   pageRailHideTimer: 0,
   lastTouchLikeRailInputAt: 0,
   lightboxScrollRaf: 0,
+  lightboxSearchScope: "catalog",
   pageThumbLoadTimer: 0,
   pageThumbObserver: null,
   lightboxScrollImageObserver: null
@@ -85,6 +86,10 @@ const els = {
   lightboxSearchResults: $("lightboxSearchResults"),
   lightboxSearchStatus: $("lightboxSearchStatus"),
   lightboxSearchClear: $("lightboxSearchClear"),
+  lightboxSearchScopeToggle: $("lightboxSearchScopeToggle"),
+  lightboxSearchScopeMenu: $("lightboxSearchScopeMenu"),
+  lightboxCatalogMenuToggle: $("lightboxCatalogMenuToggle"),
+  lightboxCatalogMenu: $("lightboxCatalogMenu"),
   lightboxFloatingPreview: $("lightboxFloatingPreview"),
   lightboxFloatingPreviewImage: $("lightboxFloatingPreviewImage"),
   lightboxFloatingPreviewPage: $("lightboxFloatingPreviewPage")
@@ -195,14 +200,28 @@ function safeFilePart(value) {
     .slice(0, 72) || "catalog";
 }
 
+function getTooltipText(button) {
+  return window.BargigTooltips?.getText?.(button) || button?.getAttribute?.("title") || "";
+}
+
+function setTooltipText(button, text, options = {}) {
+  if (!button) return;
+  if (window.BargigTooltips?.setText) {
+    window.BargigTooltips.setText(button, text, options);
+    return;
+  }
+
+  if (text) button.setAttribute("title", text);
+  else button.removeAttribute("title");
+}
+
 function flashActionButton(button, message) {
   if (!button || !message) return;
-  const originalTitle = button.getAttribute("title") || "";
-  button.setAttribute("title", message);
+  const originalTooltip = getTooltipText(button);
+  setTooltipText(button, message);
   button.classList.add("reader-icon-button-done");
   window.setTimeout(() => {
-    if (originalTitle) button.setAttribute("title", originalTitle);
-    else button.removeAttribute("title");
+    setTooltipText(button, originalTooltip);
     button.classList.remove("reader-icon-button-done");
   }, 1500);
 }
@@ -475,23 +494,100 @@ function initSearchStatus() {
   els.globalSearchStatus.textContent = `מוכן לחיפוש בתוך ${count} עמודים מאונדקסים. הקלד לפחות 2 תווים.`;
 }
 
+function getLightboxSearchScope() {
+  return state.lightboxSearchScope === "all" ? "all" : "catalog";
+}
+
+function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
+  return scope === "all" ? "בכל הקטלוגים" : "בקטלוג הזה";
+}
+
+function lightboxSearchPlaceholder() {
+  if (getLightboxSearchScope() === "all") return "חיפוש דגם בכל הקטלוגים...";
+  const title = String(state.catalog?.title || "").trim();
+  return title ? `חיפוש דגם בקטלוג הזה: ${title}` : "חיפוש דגם בקטלוג הזה...";
+}
+
+function closeLightboxSearchScopeMenu() {
+  els.lightboxSearchScopeMenu?.classList.add("hidden");
+  els.lightboxSearchScopeToggle?.setAttribute("aria-expanded", "false");
+}
+
+function closeLightboxCatalogMenu() {
+  els.lightboxCatalogMenu?.classList.add("hidden");
+  els.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
+}
+
+function syncLightboxSearchScopeUi() {
+  const scope = getLightboxSearchScope();
+  if (els.lightboxSearchScopeToggle) {
+    els.lightboxSearchScopeToggle.innerHTML = `${escapeHtml(lightboxSearchScopeLabel(scope))} <span aria-hidden="true">⌄</span>`;
+  }
+  if (els.lightboxSearchInput) {
+    els.lightboxSearchInput.placeholder = lightboxSearchPlaceholder();
+    els.lightboxSearchInput.setAttribute("aria-label", lightboxSearchPlaceholder());
+  }
+  els.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
+    const selected = button.dataset.lightboxSearchScope === scope;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-checked", selected ? "true" : "false");
+  });
+}
+
+function setLightboxSearchScope(scope, options = {}) {
+  const nextScope = scope === "all" ? "all" : "catalog";
+  if (state.lightboxSearchScope === nextScope) {
+    syncLightboxSearchScopeUi();
+    closeLightboxSearchScopeMenu();
+    return;
+  }
+
+  state.lightboxSearchScope = nextScope;
+  syncLightboxSearchScopeUi();
+  closeLightboxSearchScopeMenu();
+  initLightboxSearchStatus();
+
+  if (options.render !== false && els.lightboxSearchInput) {
+    renderLightboxSearchResults(els.lightboxSearchInput.value);
+  }
+}
+
 function resetLightboxSearch() {
   if (els.lightboxSearchInput) els.lightboxSearchInput.value = "";
   els.lightboxSearchResults?.classList.add("hidden");
   if (els.lightboxSearchResults) els.lightboxSearchResults.innerHTML = "";
   els.lightboxSearchClear?.classList.add("hidden");
+  syncLightboxSearchScopeUi();
+  closeLightboxSearchScopeMenu();
+  closeLightboxCatalogMenu();
   initLightboxSearchStatus();
 }
 
 function getLightboxSearchResults(query, limit = 24) {
   const rawQuery = String(query || "").trim();
-  if (rawQuery.length < 2 || !state.catalog || !catalogSearch?.hasIndex?.()) return [];
-  const results = catalogSearch.search(rawQuery, { catalogId: state.catalog.id, limit });
+  if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.()) return [];
+
+  const options = { limit };
+  if (getLightboxSearchScope() !== "all") {
+    if (!state.catalog) return [];
+    options.catalogId = state.catalog.id;
+  }
+
+  const results = catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 
-function goToLightboxSearchResult(result) {
-  if (!result || !state.catalog) return false;
+function openLightboxSearchResult(result) {
+  if (!result) return false;
+
+  const targetCatalogId = result.catalogId || state.catalog?.id;
+  if (!targetCatalogId) return false;
+
+  if (!state.catalog || state.catalog.id !== targetCatalogId) {
+    openCatalogInViewer(targetCatalogId, Number(result.page), state.viewerMode);
+    return true;
+  }
+
   const page = clampPage(result.page, state.catalog);
   setLightboxPage(page, { smooth: true, hit: state.viewerMode === "scroll" });
   showTopUiTemporarily(0);
@@ -503,7 +599,7 @@ function submitLightboxSearch() {
   const rawQuery = String(els.lightboxSearchInput?.value || "").trim();
   renderLightboxSearchResults(rawQuery);
   const firstResult = getLightboxSearchResults(rawQuery, 1)[0];
-  return goToLightboxSearchResult(firstResult);
+  return openLightboxSearchResult(firstResult);
 }
 
 function initLightboxSearchStatus() {
@@ -512,6 +608,7 @@ function initLightboxSearchStatus() {
   const hasCatalog = Boolean(state.catalog);
   const hasIndex = Boolean(catalogSearch?.hasIndex?.());
   if (els.lightboxSearchInput) els.lightboxSearchInput.disabled = !hasCatalog || !hasIndex;
+  syncLightboxSearchScopeUi();
 
   if (!hasCatalog) {
     els.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
@@ -523,7 +620,9 @@ function initLightboxSearchStatus() {
     return;
   }
 
-  els.lightboxSearchStatus.textContent = "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
+  els.lightboxSearchStatus.textContent = getLightboxSearchScope() === "all"
+    ? "הקלד לפחות 2 תווים לחיפוש בכל הקטלוגים."
+    : "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
 }
 
 function renderLightboxSearchResults(query) {
@@ -546,11 +645,14 @@ function renderLightboxSearchResults(query) {
     return;
   }
 
-  const results = getLightboxSearchResults(rawQuery, 24);
+  const scope = getLightboxSearchScope();
+  const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
   els.lightboxSearchResults.classList.remove("hidden");
 
   if (!results.length) {
-    els.lightboxSearchStatus.textContent = "לא נמצאו תוצאות בקטלוג הפתוח.";
+    els.lightboxSearchStatus.textContent = scope === "all"
+      ? "לא נמצאו תוצאות בכל הקטלוגים."
+      : "לא נמצאו תוצאות בקטלוג הפתוח.";
     els.lightboxSearchResults.innerHTML = `
       <article class="reader-search-empty lightbox-search-empty">
         <strong>לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”</strong>
@@ -560,18 +662,22 @@ function renderLightboxSearchResults(query) {
     return;
   }
 
-  els.lightboxSearchStatus.textContent = `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
+  els.lightboxSearchStatus.textContent = scope === "all"
+    ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.`
+    : `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
   els.lightboxSearchResults.innerHTML = results.map((result) => {
-    const page = clampPage(result.page, state.catalog);
-    const thumb = escapeHtml(result.thumb || thumbSrc(state.catalog, page));
+    const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
+    const page = clampPage(result.page, catalog);
+    const thumb = escapeHtml(result.thumb || thumbSrc(catalog, page));
+    const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
     return `
-      <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-page="${page}">
+      <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}">
         <span class="reader-search-thumb-frame catalog-image-frame">
-          <img src="${thumb}" alt="עמוד ${page}" loading="lazy" decoding="async" />
+          <img src="${thumb}" alt="${escapeHtml(catalogTitle)} - עמוד ${page}" loading="lazy" decoding="async" />
         </span>
         <span>
-          <strong>עמוד ${page}</strong>
-          <small>${escapeHtml(result.excerpt || "התאמה לפי OCR בעמוד זה")}</small>
+          <strong>${scope === "all" ? escapeHtml(catalogTitle) : `עמוד ${page}`}</strong>
+          <small>${scope === "all" ? `עמוד ${page} · ` : ""}${escapeHtml(result.excerpt || "התאמה לפי OCR בעמוד זה")}</small>
         </span>
       </button>
     `;
@@ -579,7 +685,43 @@ function renderLightboxSearchResults(query) {
 
   els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
     button.addEventListener("click", () => {
-      goToLightboxSearchResult({ page: button.dataset.lightboxSearchPage });
+      openLightboxSearchResult({
+        catalogId: button.dataset.lightboxSearchCatalog,
+        page: button.dataset.lightboxSearchPage
+      });
+    });
+  });
+}
+
+function renderLightboxCatalogMenu() {
+  if (!els.lightboxCatalogMenu) return;
+
+  if (!catalogs.length) {
+    els.lightboxCatalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
+    return;
+  }
+
+  const groups = getCatalogCategoryGroups();
+  els.lightboxCatalogMenu.innerHTML = groups.map((group) => `
+    <section class="reader-catalog-menu-section">
+      <div class="reader-catalog-menu-category">${escapeHtml(group.category)}</div>
+      <div class="reader-catalog-menu-items">
+        ${group.items.map((catalog) => `
+          <button class="reader-catalog-menu-item${state.catalog?.id === catalog.id ? " active" : ""}" type="button" role="menuitem" data-lightbox-catalog-id="${escapeHtml(catalog.id)}">
+            <strong>${escapeHtml(catalog.title)}</strong>
+            <small>${escapeHtml(catalog.pages || 0)} עמודים</small>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `).join("");
+
+  els.lightboxCatalogMenu.querySelectorAll("[data-lightbox-catalog-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const catalogId = button.dataset.lightboxCatalogId;
+      closeLightboxCatalogMenu();
+      if (!catalogId || catalogId === state.catalog?.id) return;
+      openCatalogInViewer(catalogId, 1, state.viewerMode);
     });
   });
 }
@@ -1092,7 +1234,7 @@ function syncViewerModeUi() {
     const label = isScrollMode ? "מעבר לתצוגת תמונה אחת עם חיצים בצדדים" : "מעבר לתצוגת כל העמודים בגלילה מלמעלה למטה";
     els.viewerModeToggle.dataset.viewerMode = isScrollMode ? "scroll" : "single";
     els.viewerModeToggle.setAttribute("aria-label", label);
-    els.viewerModeToggle.setAttribute("title", isScrollMode ? "תצוגה לצדדים" : "תצוגת גלילה");
+    setTooltipText(els.viewerModeToggle, isScrollMode ? "תצוגה לצדדים" : "תצוגת גלילה", { updateDefault: true });
   }
 
   if (els.lightboxModeLabel) {
@@ -1337,6 +1479,7 @@ function openLightbox(page = 1, options = {}) {
   renderLightboxThumbs();
   renderLightboxScrollPages();
   renderLightboxPageRail();
+  renderLightboxCatalogMenu();
   resetLightboxSearch();
   syncViewerModeUi();
   showTopUiTemporarily(1700);
@@ -1593,6 +1736,39 @@ function attachEvents() {
     showTopUiTemporarily(0);
   });
 
+  els.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeLightboxCatalogMenu();
+    const isOpen = !els.lightboxSearchScopeMenu?.classList.contains("hidden");
+    els.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen);
+    els.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    showTopUiTemporarily(0);
+  });
+  els.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setLightboxSearchScope(button.dataset.lightboxSearchScope);
+      showTopUiTemporarily(0);
+      els.lightboxSearchInput?.focus();
+    });
+  });
+  els.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeLightboxSearchScopeMenu();
+    renderLightboxCatalogMenu();
+    const isOpen = !els.lightboxCatalogMenu?.classList.contains("hidden");
+    els.lightboxCatalogMenu?.classList.toggle("hidden", isOpen);
+    els.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    showTopUiTemporarily(0);
+  });
+  els.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+  document.addEventListener("click", (event) => {
+    if (els.lightboxSearchScopeMenu?.contains(event.target) || els.lightboxSearchScopeToggle?.contains(event.target)) return;
+    if (els.lightboxCatalogMenu?.contains(event.target) || els.lightboxCatalogMenuToggle?.contains(event.target)) return;
+    closeLightboxSearchScopeMenu();
+    closeLightboxCatalogMenu();
+  });
+
   els.catalogSelect?.addEventListener("change", () => openCatalog(els.catalogSelect.value));
   els.openViewerFromTop?.addEventListener("click", () => openLightbox(1));
   els.catalogCoverOpenViewer?.addEventListener("click", () => openLightbox(1));
@@ -1663,6 +1839,12 @@ function attachEvents() {
 
   window.addEventListener("keydown", (event) => {
     if (!state.lightboxOpen) return;
+    if (event.key === "Escape" && ((els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) || (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden")))) {
+      event.preventDefault();
+      closeLightboxCatalogMenu();
+      closeLightboxSearchScopeMenu();
+      return;
+    }
     const target = event.target;
     const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
     if (isTyping) {

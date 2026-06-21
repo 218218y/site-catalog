@@ -11,6 +11,10 @@ const readerSearchInput = $("readerSearchInput");
 const readerSearchResults = $("readerSearchResults");
 const readerSearchStatus = $("readerSearchStatus");
 const readerSearchClear = $("readerSearchClear");
+const readerSearchScopeToggle = $("readerSearchScopeToggle");
+const readerSearchScopeMenu = $("readerSearchScopeMenu");
+const readerCatalogMenuToggle = $("readerCatalogMenuToggle");
+const readerCatalogMenu = $("readerCatalogMenu");
 const readerTopHotspot = $("readerTopHotspot");
 const readerTopShell = $("readerTopShell");
 const readerSideHotspot = $("readerSideHotspot");
@@ -24,6 +28,7 @@ const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAA
 
 const readerUiState = {
   currentPage: 1,
+  searchScope: "catalog",
   scrollRaf: 0,
   topCloseTimer: 0,
   sideCloseTimer: 0,
@@ -41,6 +46,28 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function catalogCategoryName(catalog) {
+  const category = String(catalog?.category || "").trim();
+  return category || "קטלוגים";
+}
+
+function getCatalogCategoryGroups() {
+  const groups = [];
+  const groupByCategory = new Map();
+
+  catalogs.forEach((catalog) => {
+    const category = catalogCategoryName(catalog);
+    if (!groupByCategory.has(category)) {
+      const group = { category, items: [] };
+      groupByCategory.set(category, group);
+      groups.push(group);
+    }
+    groupByCategory.get(category).items.push(catalog);
+  });
+
+  return groups;
 }
 
 function imageExt(catalog) {
@@ -97,14 +124,28 @@ function safeFilePart(value) {
     .slice(0, 72) || "catalog";
 }
 
+function getTooltipText(button) {
+  return window.BargigTooltips?.getText?.(button) || button?.getAttribute?.("title") || "";
+}
+
+function setTooltipText(button, text, options = {}) {
+  if (!button) return;
+  if (window.BargigTooltips?.setText) {
+    window.BargigTooltips.setText(button, text, options);
+    return;
+  }
+
+  if (text) button.setAttribute("title", text);
+  else button.removeAttribute("title");
+}
+
 function flashReaderAction(button, message) {
   if (!button || !message) return;
-  const originalTitle = button.getAttribute("title") || "";
-  button.setAttribute("title", message);
+  const originalTooltip = getTooltipText(button);
+  setTooltipText(button, message);
   button.classList.add("reader-icon-button-done");
   window.setTimeout(() => {
-    if (originalTitle) button.setAttribute("title", originalTitle);
-    else button.removeAttribute("title");
+    setTooltipText(button, originalTooltip);
     button.classList.remove("reader-icon-button-done");
   }, 1500);
 }
@@ -345,23 +386,132 @@ function scheduleCurrentPageUpdate() {
   });
 }
 
-function setReaderSearchPlaceholder(catalog) {
-  if (!readerSearchInput) return;
+function getReaderSearchScope() {
+  return readerUiState.searchScope === "all" ? "all" : "catalog";
+}
+
+function readerSearchScopeLabel(scope = getReaderSearchScope()) {
+  return scope === "all" ? "בכל הקטלוגים" : "בקטלוג הזה";
+}
+
+function readerSearchPlaceholder(catalog) {
+  if (getReaderSearchScope() === "all") return "חפש בכל הקטלוגים...";
   const catalogTitle = String(catalog?.title || "").trim();
-  const label = catalogTitle ? `חפש בקטלוג הזה: ${catalogTitle}` : "חפש בקטלוג הזה";
-  readerSearchInput.placeholder = label;
-  readerSearchInput.setAttribute("aria-label", label);
+  return catalogTitle ? `חפש בקטלוג הזה: ${catalogTitle}` : "חפש בקטלוג הזה...";
+}
+
+function closeReaderSearchScopeMenu() {
+  readerSearchScopeMenu?.classList.add("hidden");
+  readerSearchScopeToggle?.setAttribute("aria-expanded", "false");
+}
+
+function closeReaderCatalogMenu() {
+  readerCatalogMenu?.classList.add("hidden");
+  readerCatalogMenuToggle?.setAttribute("aria-expanded", "false");
+}
+
+function syncReaderSearchScopeUi(catalog = getSelectedCatalog()) {
+  const scope = getReaderSearchScope();
+  if (readerSearchScopeToggle) {
+    readerSearchScopeToggle.innerHTML = `${escapeHtml(readerSearchScopeLabel(scope))} <span aria-hidden="true">⌄</span>`;
+  }
+  if (readerSearchInput) {
+    const label = readerSearchPlaceholder(catalog);
+    readerSearchInput.placeholder = label;
+    readerSearchInput.setAttribute("aria-label", label);
+  }
+  readerSearchScopeMenu?.querySelectorAll("[data-reader-search-scope]").forEach((button) => {
+    const selected = button.dataset.readerSearchScope === scope;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-checked", selected ? "true" : "false");
+  });
+}
+
+function setReaderSearchScope(scope, options = {}) {
+  const nextScope = scope === "all" ? "all" : "catalog";
+  if (readerUiState.searchScope === nextScope) {
+    syncReaderSearchScopeUi();
+    closeReaderSearchScopeMenu();
+    return;
+  }
+
+  readerUiState.searchScope = nextScope;
+  syncReaderSearchScopeUi();
+  closeReaderSearchScopeMenu();
+  initReaderSearchStatus(getSelectedCatalog());
+
+  if (options.render !== false && readerSearchInput) {
+    renderReaderSearch(readerSearchInput.value);
+  }
 }
 
 function initReaderSearchStatus(catalog) {
-  setReaderSearchPlaceholder(catalog);
+  syncReaderSearchScopeUi(catalog);
   if (readerSearchInput) readerSearchInput.disabled = !catalog;
   if (!readerSearchStatus) return;
   if (!catalogSearch?.hasIndex?.()) {
     readerSearchStatus.textContent = "החיפוש יופעל אחרי הרצת ההמרה מחדש עם OCR, שמייצרת catalogs.search.js.";
     return;
   }
-  readerSearchStatus.textContent = "הקלד לפחות 2 תווים כדי למצוא עמודים בקטלוג הזה.";
+  readerSearchStatus.textContent = getReaderSearchScope() === "all"
+    ? "הקלד לפחות 2 תווים כדי למצוא עמודים בכל הקטלוגים."
+    : "הקלד לפחות 2 תווים כדי למצוא עמודים בקטלוג הזה.";
+}
+
+function openReaderCatalog(catalogId, page = 1) {
+  const catalog = catalogs.find((item) => item.id === catalogId) || null;
+  if (!catalog) return false;
+
+  const targetPage = clampPage(page, catalog);
+  const url = new URL(window.location.href);
+  url.searchParams.set("id", catalog.id);
+  url.searchParams.delete("catalog");
+  url.searchParams.set("page", String(targetPage));
+  url.hash = `page-${targetPage}`;
+  window.history.pushState({}, "", url.href);
+
+  closeReaderCatalogMenu();
+  closeReaderSearchScopeMenu();
+  readerSearchResults?.classList.add("hidden");
+  renderReader();
+  openTopControls(1700);
+  return true;
+}
+
+function renderReaderCatalogMenu() {
+  if (!readerCatalogMenu) return;
+
+  const currentCatalog = getSelectedCatalog();
+  if (!catalogs.length) {
+    readerCatalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
+    return;
+  }
+
+  const groups = getCatalogCategoryGroups();
+  readerCatalogMenu.innerHTML = groups.map((group) => `
+    <section class="reader-catalog-menu-section">
+      <div class="reader-catalog-menu-category">${escapeHtml(group.category)}</div>
+      <div class="reader-catalog-menu-items">
+        ${group.items.map((catalog) => `
+          <button class="reader-catalog-menu-item${currentCatalog?.id === catalog.id ? " active" : ""}" type="button" role="menuitem" data-reader-catalog-id="${escapeHtml(catalog.id)}">
+            <strong>${escapeHtml(catalog.title)}</strong>
+            <small>${escapeHtml(catalog.pages || 0)} עמודים</small>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `).join("");
+
+  readerCatalogMenu.querySelectorAll("[data-reader-catalog-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const catalogId = button.dataset.readerCatalogId;
+      if (!catalogId || catalogId === currentCatalog?.id) {
+        closeReaderCatalogMenu();
+        return;
+      }
+      openReaderCatalog(catalogId, 1);
+    });
+  });
 }
 
 function scrollToReaderPage(page) {
@@ -391,6 +541,12 @@ function moveReaderPage(delta) {
 }
 
 function handleReaderKeydown(event) {
+  if (event.key === "Escape" && ((readerCatalogMenu && !readerCatalogMenu.classList.contains("hidden")) || (readerSearchScopeMenu && !readerSearchScopeMenu.classList.contains("hidden")))) {
+    event.preventDefault();
+    closeReaderCatalogMenu();
+    closeReaderSearchScopeMenu();
+    return;
+  }
   if (event.altKey || event.ctrlKey || event.metaKey) return;
 
   if (isReaderTypingTarget(event.target)) {
@@ -437,14 +593,27 @@ function hideReaderFloatingPreview() {
 function getReaderSearchResults(query, limit = 36) {
   const catalog = getSelectedCatalog();
   const rawQuery = String(query || "").trim();
-  if (rawQuery.length < 2 || !catalog || !catalogSearch?.hasIndex?.()) return [];
-  const results = catalogSearch.search(rawQuery, { catalogId: catalog.id, limit });
+  if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.()) return [];
+
+  const options = { limit };
+  if (getReaderSearchScope() !== "all") {
+    if (!catalog) return [];
+    options.catalogId = catalog.id;
+  }
+
+  const results = catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 
 function goToReaderSearchResult(result) {
   const catalog = getSelectedCatalog();
   if (!result || !catalog) return false;
+
+  const targetCatalogId = result.catalogId || catalog.id;
+  if (targetCatalogId !== catalog.id) {
+    return openReaderCatalog(targetCatalogId, Number(result.page));
+  }
+
   scrollToReaderPage(clampPage(result.page, catalog));
   readerSearchResults?.classList.add("hidden");
   return true;
@@ -478,7 +647,8 @@ function renderReaderSearch(query) {
     return;
   }
 
-  const results = getReaderSearchResults(rawQuery, 36);
+  const scope = getReaderSearchScope();
+  const results = getReaderSearchResults(rawQuery, scope === "all" ? 48 : 36);
   if (!results.length) {
     readerSearchResults.classList.remove("hidden");
     readerSearchResults.innerHTML = `
@@ -487,26 +657,36 @@ function renderReaderSearch(query) {
         <span>נסה חלק קצר יותר של הדגם או מילה אחרת.</span>
       </article>
     `;
-    readerSearchStatus.textContent = "אין תוצאות מתאימות בקטלוג הזה.";
+    readerSearchStatus.textContent = scope === "all" ? "אין תוצאות מתאימות בכל הקטלוגים." : "אין תוצאות מתאימות בקטלוג הזה.";
     return;
   }
 
-  readerSearchStatus.textContent = `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
+  readerSearchStatus.textContent = scope === "all"
+    ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.`
+    : `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
   readerSearchResults.classList.remove("hidden");
-  readerSearchResults.innerHTML = results.map((result) => `
-    <button class="reader-search-result" type="button" data-reader-page="${result.page}">
-      <span class="reader-search-thumb-frame catalog-image-frame">
-        <img src="${escapeHtml(result.thumb)}" alt="עמוד ${result.page}" loading="lazy" decoding="async" fetchpriority="low" />
-      </span>
-      <span>
-        <strong>עמוד ${result.page}</strong>
-        <small>${escapeHtml(result.excerpt || "התאמה לפי OCR בעמוד זה")}</small>
-      </span>
-    </button>
-  `).join("");
+  readerSearchResults.innerHTML = results.map((result) => {
+    const resultCatalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || catalog;
+    const page = clampPage(result.page, resultCatalog);
+    const catalogTitle = result.catalogTitle || resultCatalog?.title || "קטלוג";
+    return `
+      <button class="reader-search-result" type="button" data-reader-catalog="${escapeHtml(result.catalogId || resultCatalog?.id || "")}" data-reader-page="${page}">
+        <span class="reader-search-thumb-frame catalog-image-frame">
+          <img src="${escapeHtml(result.thumb || thumbSrc(resultCatalog, page))}" alt="${escapeHtml(catalogTitle)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low" />
+        </span>
+        <span>
+          <strong>${scope === "all" ? escapeHtml(catalogTitle) : `עמוד ${page}`}</strong>
+          <small>${scope === "all" ? `עמוד ${page} · ` : ""}${escapeHtml(result.excerpt || "התאמה לפי OCR בעמוד זה")}</small>
+        </span>
+      </button>
+    `;
+  }).join("");
 
   readerSearchResults.querySelectorAll("[data-reader-page]").forEach((button) => {
-    button.addEventListener("click", () => goToReaderSearchResult({ page: button.dataset.readerPage }));
+    button.addEventListener("click", () => goToReaderSearchResult({
+      catalogId: button.dataset.readerCatalog,
+      page: button.dataset.readerPage
+    }));
   });
 }
 
@@ -584,6 +764,7 @@ function renderReader() {
   readerPages.innerHTML = pages.join("");
   activateReaderPageImageLoading();
   renderReaderPageRail(catalog);
+  renderReaderCatalogMenu();
   initReaderSearchStatus(catalog);
   updateReaderThumbs(1, { scrollIntoView: false });
   window.requestAnimationFrame(findCurrentReaderPage);
@@ -616,6 +797,39 @@ readerSearchClear?.addEventListener("click", () => {
   renderReaderSearch("");
 });
 
+readerSearchScopeToggle?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  closeReaderCatalogMenu();
+  const isOpen = !readerSearchScopeMenu?.classList.contains("hidden");
+  readerSearchScopeMenu?.classList.toggle("hidden", isOpen);
+  readerSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  openTopControls();
+});
+readerSearchScopeMenu?.querySelectorAll("[data-reader-search-scope]").forEach((button) => {
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setReaderSearchScope(button.dataset.readerSearchScope);
+    openTopControls();
+    readerSearchInput?.focus();
+  });
+});
+readerCatalogMenuToggle?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  closeReaderSearchScopeMenu();
+  renderReaderCatalogMenu();
+  const isOpen = !readerCatalogMenu?.classList.contains("hidden");
+  readerCatalogMenu?.classList.toggle("hidden", isOpen);
+  readerCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  openTopControls();
+});
+readerCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+document.addEventListener("click", (event) => {
+  if (readerSearchScopeMenu?.contains(event.target) || readerSearchScopeToggle?.contains(event.target)) return;
+  if (readerCatalogMenu?.contains(event.target) || readerCatalogMenuToggle?.contains(event.target)) return;
+  closeReaderSearchScopeMenu();
+  closeReaderCatalogMenu();
+});
+
 
 readerTopHotspot?.addEventListener("mouseenter", () => openTopControls());
 readerTopHotspot?.addEventListener("mouseleave", closeTopControlsSoon);
@@ -638,6 +852,7 @@ readerPageRail?.addEventListener("focusout", closePageRailSoon);
 
 window.addEventListener("scroll", scheduleCurrentPageUpdate, { passive: true });
 window.addEventListener("resize", scheduleCurrentPageUpdate);
+window.addEventListener("popstate", renderReader);
 window.addEventListener("keydown", handleReaderKeydown);
 
 renderReader();

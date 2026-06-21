@@ -34,6 +34,7 @@ DEPLOY_FILES = [
     "app.js",
     "catalog-viewer.js",
     "catalog-search.js",
+    "tooltip-manager.js",
     "catalog-snapshot.js",
     "brand-logo.js",
     "wp_logo_data.js",
