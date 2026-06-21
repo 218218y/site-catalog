@@ -109,15 +109,6 @@ function flashReaderAction(button, message) {
   }, 1500);
 }
 
-function loadImageElement(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("image-load-failed"));
-    img.src = src;
-  });
-}
-
 function loadDeferredReaderImage(img) {
   const src = img?.dataset?.src;
   if (!src || img.getAttribute("src") === src) return;
@@ -190,21 +181,14 @@ async function downloadCurrentReaderImage() {
   const src = pageSrc(catalog, currentPage);
 
   try {
-    const img = await loadImageElement(src);
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth || img.width;
-    canvas.height = img.naturalHeight || img.height;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if (!window.CatalogSnapshot?.buildSnapshotBlob) {
+      throw new Error("snapshot-exporter-missing");
+    }
 
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        window.alert("לא הצלחתי ליצור צילום מסך לעמוד הזה.");
-        return;
-      }
-      saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.png`);
-      flashReaderAction(readerScreenshot, "צילום המסך נשמר");
-    }, "image/png");
+    const blob = await window.CatalogSnapshot.buildSnapshotBlob(src);
+    const extension = window.CatalogSnapshot.extension || "jpg";
+    saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.${extension}`);
+    flashReaderAction(readerScreenshot, "צילום המסך נשמר");
   } catch (_error) {
     window.alert("לא הצלחתי ליצור צילום מסך לעמוד הזה. כדאי לוודא שקבצי התמונות נטענים מאותו אתר ולא מחסימה של הדפדפן.");
   }
