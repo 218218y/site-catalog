@@ -873,6 +873,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   background: #080604;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
+  touch-action: pan-y;
 }
 .lightbox.mode-scroll .lightbox-scroll-view {
   display: block;
@@ -887,6 +888,22 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   gap: clamp(12px, 2.3vw, 24px);
   justify-items: center;
   padding-block: 8px 28px;
+  transform-origin: top left;
+  will-change: transform;
+}
+.lightbox.mode-scroll.is-zoomed .lightbox-scroll-view {
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.lightbox.mode-scroll.is-zoomed .lightbox-scroll-view:active {
+  cursor: grabbing;
+}
+.lightbox.mode-scroll.is-zoomed .lightbox-scroll-pages {
+  user-select: none;
+}
+.lightbox.mode-scroll.is-zoomed .lightbox-scroll-page-frame {
+  content-visibility: visible;
 }
 .lightbox-scroll-page-frame {
   width: min(100%, 1320px);

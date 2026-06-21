@@ -3,6 +3,11 @@ const catalogSearch = window.BargigCatalogSearch || null;
 
 const $ = (id) => document.getElementById(id);
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+const MIN_VIEWER_ZOOM = 1;
+const MAX_VIEWER_ZOOM = 5;
+const DOUBLE_TAP_DELAY = 320;
+const DOUBLE_TAP_DISTANCE = 34;
+const TAP_MOVE_TOLERANCE = 14;
 
 const state = {
   catalog: null,
@@ -15,6 +20,11 @@ const state = {
   dragStartY: 0,
   dragStartPanX: 0,
   dragStartPanY: 0,
+  lastTapAt: 0,
+  lastTapX: 0,
+  lastTapY: 0,
+  lastTapSurface: "",
+  suppressNextDblClickUntil: 0,
   pinchStartDistance: 0,
   pinchStartZoom: 1,
   pinchLastMidX: 0,
@@ -961,11 +971,20 @@ function pointerMidpoint(first, second) {
   };
 }
 
-function clampPan() {
+function clampValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function clampViewerZoom(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return MIN_VIEWER_ZOOM;
+  return clampValue(numeric, MIN_VIEWER_ZOOM, MAX_VIEWER_ZOOM);
+}
+
+function clampSinglePan() {
   const image = els.lightboxImage;
-  const frame = els.lightboxImageFrame;
   const stage = els.stageCanvas;
-  if (!image?.naturalWidth || !image?.naturalHeight || !frame || !stage) return;
+  if (!image?.naturalWidth || !image?.naturalHeight || !stage) return;
 
   const imageWidth = image.naturalWidth * state.fitScale * state.zoom;
   const imageHeight = image.naturalHeight * state.fitScale * state.zoom;
@@ -973,10 +992,55 @@ function clampPan() {
   const overflowY = Math.max(0, (imageHeight - stage.clientHeight) / 2);
 
   if (overflowX <= 1) state.panX = 0;
-  else state.panX = Math.min(overflowX, Math.max(-overflowX, state.panX));
+  else state.panX = clampValue(state.panX, -overflowX, overflowX);
 
   if (overflowY <= 1) state.panY = 0;
-  else state.panY = Math.min(overflowY, Math.max(-overflowY, state.panY));
+  else state.panY = clampValue(state.panY, -overflowY, overflowY);
+}
+
+function getScrollZoomMetrics() {
+  const container = els.lightboxScrollView;
+  const content = els.lightboxScrollPages;
+  if (!container || !content) return null;
+
+  return {
+    container,
+    content,
+    viewportWidth: container.clientWidth,
+    viewportHeight: container.clientHeight,
+    contentWidth: content.offsetWidth || content.scrollWidth || 0,
+    contentHeight: content.offsetHeight || content.scrollHeight || 0,
+    baseLeft: content.offsetLeft - container.scrollLeft,
+    baseTop: content.offsetTop - container.scrollTop
+  };
+}
+
+function clampScrollPan() {
+  const metrics = getScrollZoomMetrics();
+  if (!metrics || !metrics.contentWidth || !metrics.contentHeight) return;
+
+  const scaledWidth = metrics.contentWidth * state.zoom;
+  const scaledHeight = metrics.contentHeight * state.zoom;
+
+  if (scaledWidth <= metrics.viewportWidth) {
+    state.panX = -metrics.baseLeft + (metrics.viewportWidth - scaledWidth) / 2;
+  } else {
+    state.panX = clampValue(
+      state.panX,
+      metrics.viewportWidth - metrics.baseLeft - scaledWidth,
+      -metrics.baseLeft
+    );
+  }
+
+  if (scaledHeight <= metrics.viewportHeight) {
+    state.panY = -metrics.baseTop + (metrics.viewportHeight - scaledHeight) / 2;
+  } else {
+    state.panY = clampValue(
+      state.panY,
+      metrics.viewportHeight - metrics.baseTop - scaledHeight,
+      -metrics.baseTop
+    );
+  }
 }
 
 function resetImagePosition() {
@@ -984,7 +1048,7 @@ function resetImagePosition() {
   state.panY = 0;
 }
 
-function applyZoom() {
+function applySingleZoom() {
   const image = els.lightboxImage;
   const frame = els.lightboxImageFrame;
   const stage = els.stageCanvas;
@@ -1004,8 +1068,28 @@ function applyZoom() {
   image.style.height = "auto";
 
   if (state.zoom <= 1.001) resetImagePosition();
-  clampPan();
+  clampSinglePan();
   frame.style.transform = `translate(-50%, -50%) translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+}
+
+function applyScrollZoom() {
+  const content = els.lightboxScrollPages;
+  if (!content) return;
+
+  if (state.zoom <= 1.001) {
+    resetImagePosition();
+    content.style.transform = "";
+    return;
+  }
+
+  clampScrollPan();
+  content.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+}
+
+function applyZoom() {
+  if (state.viewerMode === "scroll") applyScrollZoom();
+  else applySingleZoom();
+
   els.lightbox?.classList.toggle("is-zoomed", state.zoom > 1.01);
 }
 
@@ -1439,6 +1523,7 @@ function updateLightbox() {
   if (state.viewerMode === "scroll") {
     setViewerLoading(false);
     ensureLightboxScrollPageLoaded(state.page, 1);
+    applyZoom();
     updateLightboxThumbs();
     updateHash();
     return;
@@ -1531,13 +1616,80 @@ function moveLightbox(delta) {
   setLightboxPage(state.page + delta, { smooth: true, hit: state.viewerMode === "scroll" });
 }
 
+function getDefaultZoomFocalPoint() {
+  const surface = state.viewerMode === "scroll" ? els.lightboxScrollView : els.stageCanvas;
+  const rect = surface?.getBoundingClientRect?.();
+  if (!rect) return null;
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2
+  };
+}
+
+function adjustSinglePanForZoom(nextZoom, focal) {
+  const stage = els.stageCanvas;
+  const rect = stage?.getBoundingClientRect?.();
+  if (!rect || !focal) return;
+
+  const currentZoom = Math.max(MIN_VIEWER_ZOOM, state.zoom || MIN_VIEWER_ZOOM);
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const contentX = (focal.x - centerX - state.panX) / currentZoom;
+  const contentY = (focal.y - centerY - state.panY) / currentZoom;
+
+  state.panX = focal.x - centerX - contentX * nextZoom;
+  state.panY = focal.y - centerY - contentY * nextZoom;
+}
+
+function adjustScrollPanForZoom(nextZoom, focal) {
+  const metrics = getScrollZoomMetrics();
+  const rect = metrics?.container.getBoundingClientRect?.();
+  if (!metrics || !rect || !focal) return;
+
+  const currentZoom = Math.max(MIN_VIEWER_ZOOM, state.zoom || MIN_VIEWER_ZOOM);
+  const focalX = focal.x - rect.left;
+  const focalY = focal.y - rect.top;
+  const contentX = (focalX - metrics.baseLeft - state.panX) / currentZoom;
+  const contentY = (focalY - metrics.baseTop - state.panY) / currentZoom;
+
+  state.panX = focalX - metrics.baseLeft - contentX * nextZoom;
+  state.panY = focalY - metrics.baseTop - contentY * nextZoom;
+}
+
+function adjustPanForZoom(nextZoom, focal) {
+  if (state.viewerMode === "scroll") adjustScrollPanForZoom(nextZoom, focal);
+  else adjustSinglePanForZoom(nextZoom, focal);
+}
+
 function setZoom(nextZoom, options = {}) {
-  if (state.viewerMode === "scroll") return;
-  const { showUi = true } = options;
-  state.zoom = Math.min(5, Math.max(1, nextZoom));
-  if (state.zoom <= 1.001) resetImagePosition();
+  const { showUi = true, focalClientX = null, focalClientY = null } = options;
+  const previousZoom = state.zoom;
+  const zoom = clampViewerZoom(nextZoom);
+  const hasFocal = Number.isFinite(focalClientX) && Number.isFinite(focalClientY);
+  const focal = hasFocal
+    ? { x: focalClientX, y: focalClientY }
+    : getDefaultZoomFocalPoint();
+
+  if (zoom <= 1.001) {
+    state.zoom = MIN_VIEWER_ZOOM;
+    resetImagePosition();
+  } else {
+    if (focal && Math.abs(zoom - previousZoom) > 0.001) {
+      adjustPanForZoom(zoom, focal);
+    }
+    state.zoom = zoom;
+  }
+
   applyZoom();
   if (showUi) showTopUiTemporarily(1600);
+}
+
+function toggleZoomAtPoint(clientX, clientY) {
+  if (state.zoom > 1.01) {
+    setZoom(1, { showUi: false });
+  } else {
+    setZoom(2, { showUi: false, focalClientX: clientX, focalClientY: clientY });
+  }
 }
 
 
@@ -1596,10 +1748,23 @@ function parseHash() {
 }
 
 
+function getZoomSurfaceName(surface) {
+  if (surface === els.lightboxScrollView) return "scroll";
+  if (surface === els.stageCanvas) return "single";
+  return "";
+}
+
+function isActiveZoomSurface(surface) {
+  return state.viewerMode === getZoomSurfaceName(surface);
+}
+
 function startPointerInteraction(event) {
-  if (!state.lightboxOpen || !els.stageCanvas) return;
-  els.stageCanvas.setPointerCapture?.(event.pointerId);
+  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
+
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (state.zoom > 1.01 || state.pointers.size >= 2 || state.viewerMode === "single") {
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
 
   const pointers = getPointerList();
   if (pointers.length === 1) {
@@ -1614,11 +1779,12 @@ function startPointerInteraction(event) {
     state.pinchStartZoom = state.zoom;
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
+    event.preventDefault();
   }
 }
 
 function movePointerInteraction(event) {
-  if (!state.lightboxOpen || !state.pointers.has(event.pointerId)) return;
+  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   const pointers = getPointerList();
 
@@ -1631,7 +1797,11 @@ function movePointerInteraction(event) {
     state.panY += mid.y - state.pinchLastMidY;
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
-    setZoom(state.pinchStartZoom * (distance / state.pinchStartDistance), { showUi: false });
+    setZoom(state.pinchStartZoom * (distance / state.pinchStartDistance), {
+      showUi: false,
+      focalClientX: mid.x,
+      focalClientY: mid.y
+    });
     return;
   }
 
@@ -1640,16 +1810,51 @@ function movePointerInteraction(event) {
     state.panX = state.dragStartPanX + (event.clientX - state.dragStartX);
     state.panY = state.dragStartPanY + (event.clientY - state.dragStartY);
     applyZoom();
+    if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
   }
 }
 
+function handlePotentialDoubleTap(event, startedX, startedY) {
+  if (event.pointerType !== "touch" && event.pointerType !== "pen") return false;
+  if (state.pointers.size > 0) return false;
+
+  const moved = Math.hypot(event.clientX - startedX, event.clientY - startedY);
+  if (moved > TAP_MOVE_TOLERANCE) {
+    state.lastTapAt = 0;
+    return false;
+  }
+
+  const now = Date.now();
+  const surface = getZoomSurfaceName(event.currentTarget);
+  const closeToLastTap = Math.hypot(event.clientX - state.lastTapX, event.clientY - state.lastTapY) <= DOUBLE_TAP_DISTANCE;
+  const isDoubleTap =
+    surface === state.lastTapSurface &&
+    now - state.lastTapAt <= DOUBLE_TAP_DELAY &&
+    closeToLastTap;
+
+  state.lastTapAt = now;
+  state.lastTapX = event.clientX;
+  state.lastTapY = event.clientY;
+  state.lastTapSurface = surface;
+
+  if (!isDoubleTap) return false;
+
+  event.preventDefault();
+  state.lastTapAt = 0;
+  state.suppressNextDblClickUntil = now + 550;
+  toggleZoomAtPoint(event.clientX, event.clientY);
+  return true;
+}
+
 function endPointerInteraction(event) {
-  if (!state.lightboxOpen || !state.pointers.has(event.pointerId)) return;
+  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
   const startedX = state.dragStartX;
   const startedY = state.dragStartY;
   state.pointers.delete(event.pointerId);
 
-  if (state.pointers.size === 0 && state.zoom <= 1.01) {
+  const handledDoubleTap = handlePotentialDoubleTap(event, startedX, startedY);
+
+  if (!handledDoubleTap && state.viewerMode === "single" && state.pointers.size === 0 && state.zoom <= 1.01) {
     const dx = event.clientX - startedX;
     const dy = event.clientY - startedY;
     if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) * 1.35) {
@@ -1669,35 +1874,56 @@ function endPointerInteraction(event) {
   }
 }
 
-function handleStageWheel(event) {
-  if (!state.lightboxOpen) return;
+function cancelPointerInteraction(event) {
+  if (!state.pointers.has(event.pointerId)) return;
+  state.pointers.delete(event.pointerId);
+}
+
+function handleZoomSurfaceWheel(event) {
+  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
 
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
-    const factor = event.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(state.zoom * factor, { showUi: false });
+    const delta = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
+    const factor = Math.exp(-delta * 0.002);
+    setZoom(state.zoom * factor, {
+      showUi: false,
+      focalClientX: event.clientX,
+      focalClientY: event.clientY
+    });
     return;
   }
 
   if (state.zoom > 1.01) {
     event.preventDefault();
-    state.panX -= event.deltaX;
-    state.panY -= event.deltaY;
+    state.panX -= normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
+    state.panY -= normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
     applyZoom();
+    if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
   }
 }
 
+function handleZoomSurfaceDoubleClick(event) {
+  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
+  if (Date.now() < state.suppressNextDblClickUntil) return;
+
+  event.preventDefault();
+  toggleZoomAtPoint(event.clientX, event.clientY);
+}
+
+function attachZoomSurfaceGestures(surface) {
+  if (!surface) return;
+  surface.addEventListener("pointerdown", startPointerInteraction);
+  surface.addEventListener("pointermove", movePointerInteraction);
+  surface.addEventListener("pointerup", endPointerInteraction);
+  surface.addEventListener("pointercancel", cancelPointerInteraction);
+  surface.addEventListener("wheel", handleZoomSurfaceWheel, { passive: false });
+  surface.addEventListener("dblclick", handleZoomSurfaceDoubleClick);
+}
+
 function attachViewerGestures() {
-  const stage = els.stageCanvas;
-  if (!stage) return;
-  stage.addEventListener("pointerdown", startPointerInteraction);
-  stage.addEventListener("pointermove", movePointerInteraction);
-  stage.addEventListener("pointerup", endPointerInteraction);
-  stage.addEventListener("pointercancel", endPointerInteraction);
-  stage.addEventListener("wheel", handleStageWheel, { passive: false });
-  stage.addEventListener("dblclick", () => {
-    setZoom(state.zoom > 1.01 ? 1 : 2, { showUi: false });
-  });
+  attachZoomSurfaceGestures(els.stageCanvas);
+  attachZoomSurfaceGestures(els.lightboxScrollView);
 }
 
 function attachEvents() {
@@ -1832,8 +2058,8 @@ function attachEvents() {
   window.addEventListener("resize", () => {
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
+      applyZoom();
       if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
-      else applyZoom();
     }
   });
 
