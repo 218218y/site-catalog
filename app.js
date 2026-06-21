@@ -1661,6 +1661,82 @@ function adjustPanForZoom(nextZoom, focal) {
   else adjustSinglePanForZoom(nextZoom, focal);
 }
 
+function getSingleContentPointFromClientPoint(clientX, clientY) {
+  const stage = els.stageCanvas;
+  const rect = stage?.getBoundingClientRect?.();
+  if (!rect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+
+  const currentZoom = Math.max(MIN_VIEWER_ZOOM, state.zoom || MIN_VIEWER_ZOOM);
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  return {
+    x: (clientX - centerX - state.panX) / currentZoom,
+    y: (clientY - centerY - state.panY) / currentZoom
+  };
+}
+
+function getScrollContentPointFromClientPoint(clientX, clientY) {
+  const metrics = getScrollZoomMetrics();
+  const rect = metrics?.container.getBoundingClientRect?.();
+  if (!metrics || !rect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+
+  const currentZoom = Math.max(MIN_VIEWER_ZOOM, state.zoom || MIN_VIEWER_ZOOM);
+  const focalX = clientX - rect.left;
+  const focalY = clientY - rect.top;
+
+  return {
+    x: (focalX - metrics.baseLeft - state.panX) / currentZoom,
+    y: (focalY - metrics.baseTop - state.panY) / currentZoom
+  };
+}
+
+function zoomSingleContentPointToViewportCenter(point, nextZoom) {
+  if (!point) return false;
+  const zoom = clampViewerZoom(nextZoom);
+  if (zoom <= 1.001) {
+    setZoom(1, { showUi: false });
+    return true;
+  }
+
+  state.zoom = zoom;
+  state.panX = -point.x * zoom;
+  state.panY = -point.y * zoom;
+  applyZoom();
+  return true;
+}
+
+function zoomScrollContentPointToViewportCenter(point, nextZoom) {
+  const metrics = getScrollZoomMetrics();
+  if (!metrics || !point) return false;
+  const zoom = clampViewerZoom(nextZoom);
+  if (zoom <= 1.001) {
+    setZoom(1, { showUi: false });
+    return true;
+  }
+
+  state.zoom = zoom;
+  state.panX = metrics.viewportWidth / 2 - metrics.baseLeft - point.x * zoom;
+  state.panY = metrics.viewportHeight / 2 - metrics.baseTop - point.y * zoom;
+  applyZoom();
+  scheduleLightboxScrollPageUpdate();
+  return true;
+}
+
+function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
+  if (state.viewerMode === "scroll") {
+    return zoomScrollContentPointToViewportCenter(
+      getScrollContentPointFromClientPoint(clientX, clientY),
+      nextZoom
+    );
+  }
+
+  return zoomSingleContentPointToViewportCenter(
+    getSingleContentPointFromClientPoint(clientX, clientY),
+    nextZoom
+  );
+}
+
 function setZoom(nextZoom, options = {}) {
   const { showUi = true, focalClientX = null, focalClientY = null } = options;
   const previousZoom = state.zoom;
@@ -1681,13 +1757,17 @@ function setZoom(nextZoom, options = {}) {
   }
 
   applyZoom();
+  if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
   if (showUi) showTopUiTemporarily(1600);
 }
 
 function toggleZoomAtPoint(clientX, clientY) {
   if (state.zoom > 1.01) {
     setZoom(1, { showUi: false });
-  } else {
+    return;
+  }
+
+  if (!zoomClientPointToViewportCenter(2, clientX, clientY)) {
     setZoom(2, { showUi: false, focalClientX: clientX, focalClientY: clientY });
   }
 }
@@ -1879,13 +1959,28 @@ function cancelPointerInteraction(event) {
   state.pointers.delete(event.pointerId);
 }
 
+function getWheelZoomFactor(event) {
+  const lineMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_LINE : 1;
+  const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
+  const delta = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget?.clientHeight || 0);
+  if (!Number.isFinite(delta) || Math.abs(delta) < 0.01) return 1;
+
+  // Trackpad pinch is delivered by Chromium/Edge as a high-frequency ctrl+wheel
+  // stream with pixel deltas. Use a gesture-like curve so it reacts closer to
+  // a real two-finger touch pinch, while capping one event so a mouse wheel
+  // cannot jump wildly across the whole zoom range.
+  const speed = event.deltaMode === lineMode ? 0.0065 : event.deltaMode === pageMode ? 0.0035 : 0.011;
+  const maxStep = Math.log(2.35);
+  return Math.exp(clampValue(-delta * speed, -maxStep, maxStep));
+}
+
 function handleZoomSurfaceWheel(event) {
   if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
 
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
-    const delta = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
-    const factor = Math.exp(-delta * 0.002);
+    const factor = getWheelZoomFactor(event);
+    if (factor === 1) return;
     setZoom(state.zoom * factor, {
       showUi: false,
       focalClientX: event.clientX,
