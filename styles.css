@@ -1186,6 +1186,10 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .reader-brand-lockup {
   cursor: default;
 }
+a.reader-brand-lockup,
+button.reader-brand-lockup {
+  cursor: pointer;
+}
 .reader-button { cursor: pointer; }
 .reader-home:hover {
   background: transparent;
@@ -1203,6 +1207,10 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .reader-brand-lockup:hover {
   transform: none;
   opacity: 1;
+}
+a.reader-home:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.88);
+  outline-offset: 4px;
 }
 .reader-home:active,
 .reader-button:active {
