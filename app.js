@@ -75,6 +75,7 @@ const els = {
   viewerModeToggle: $("viewerModeToggle"),
   lightboxTitle: $("lightboxTitle"),
   lightboxMeta: $("lightboxMeta"),
+  lightboxProgress: $("lightboxProgress"),
   lightboxImage: $("lightboxImage"),
   lightboxImageFrame: $("lightboxImageFrame"),
   lightboxThumbs: $("lightboxThumbs"),
@@ -1508,6 +1509,20 @@ function scheduleLightboxScrollPageUpdate() {
   });
 }
 
+function syncLightboxProgress(page = state.page, catalog = state.catalog) {
+  if (!els.lightboxProgress || !catalog) return;
+  const totalPages = Math.max(1, Number(catalog.pages || 1));
+  const currentPage = clampPage(page, catalog);
+  const ratio = totalPages <= 1 ? 1 : currentPage / totalPages;
+  const clampedRatio = Math.min(1, Math.max(0, ratio));
+
+  els.lightboxProgress.style.setProperty("--catalog-progress-ratio", String(clampedRatio));
+  els.lightboxProgress.setAttribute("aria-valuemin", "1");
+  els.lightboxProgress.setAttribute("aria-valuemax", String(totalPages));
+  els.lightboxProgress.setAttribute("aria-valuenow", String(currentPage));
+  els.lightboxProgress.setAttribute("title", `עמוד ${currentPage} מתוך ${totalPages}`);
+}
+
 function updateLightbox() {
   if (!state.catalog) return;
   const catalog = state.catalog;
@@ -1516,6 +1531,7 @@ function updateLightbox() {
 
   els.lightboxTitle.textContent = catalog.title;
   els.lightboxMeta.textContent = `עמוד ${state.page} מתוך ${catalog.pages}`;
+  syncLightboxProgress(state.page, catalog);
   initLightboxSearchStatus();
   els.prevPageBtn.disabled = state.page <= 1;
   els.nextPageBtn.disabled = state.page >= catalog.pages;

@@ -575,6 +575,34 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   overflow: hidden;
 }
 /* The unified viewer uses the same top chrome as catalog.html. */
+.catalog-progress {
+  --catalog-progress-ratio: 0;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 36;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(255,255,255,0.13);
+  box-shadow: 0 1px 10px rgba(0,0,0,0.18);
+}
+.catalog-progress-value {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(var(--catalog-progress-ratio));
+  transform-origin: right center;
+  background: linear-gradient(270deg, rgba(255,255,255,0.94), rgba(217,186,163,0.78));
+  transition: transform .22s ease;
+}
+.lightbox-progress {
+  z-index: 36;
+}
+.reader-progress {
+  z-index: 36;
+}
 .lightbox-top-hotspot {
   z-index: 35;
 }
@@ -2027,6 +2055,20 @@ a.reader-home:focus-visible {
   clip-path: inset(0 round 15px);
   filter: drop-shadow(0 6px 14px rgba(0,0,0,0.18));
 }
+.reader-header .reader-home {
+  padding: 5px 8px;
+  border-radius: 17px;
+  background: rgba(255,255,255,0.94);
+  border: 1px solid rgba(255,255,255,0.72);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.92);
+}
+.reader-header .reader-home:hover,
+.reader-header .reader-home:focus-visible {
+  background: #fff;
+}
+.reader-header .reader-logo {
+  filter: brightness(1.08) contrast(.94) drop-shadow(0 3px 8px rgba(0,0,0,0.10));
+}
 .reader-home {
   gap: 9px;
 }
@@ -2193,13 +2235,39 @@ a.reader-home:focus-visible {
   .reader-top-shell { max-height: calc(100vh - 8px); }
   .reader-header,
   .reader-header.lightbox-reader-header {
-    min-height: 54px;
-    grid-template-columns: auto minmax(120px, 1fr) auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand actions"
+      "search search";
     gap: 7px;
     padding-inline: 8px;
   }
-  .reader-brand-actions { gap: 5px; }
-  .reader-home { padding-inline: 0; }
+  .reader-brand-actions {
+    grid-area: brand;
+    min-width: 0;
+    gap: 5px;
+    justify-self: start;
+  }
+  .reader-header-search {
+    grid-area: search;
+    max-width: none;
+    justify-self: stretch;
+  }
+  .reader-header-spacer,
+  .lightbox-actions {
+    grid-area: actions;
+    justify-self: end;
+  }
+  .reader-header-spacer { display: none; }
+  .lightbox-actions {
+    max-width: min(62vw, 230px);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .lightbox-actions::-webkit-scrollbar { display: none; }
+  .reader-header .reader-home { padding: 4px 6px; border-radius: 14px; }
   .reader-logo,
   .lightbox-brand-lockup .reader-logo { width: 84px; border-radius: 12px; clip-path: inset(0 round 12px); }
   .reader-icon-button { width: 36px; min-width: 36px; min-height: 36px; }
@@ -2299,11 +2367,13 @@ a.reader-home:focus-visible {
 @media (max-width: 520px) {
   .reader-header,
   .reader-header.lightbox-reader-header {
-    grid-template-columns: auto minmax(92px, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 5px;
   }
   .reader-logo,
   .lightbox-brand-lockup .reader-logo { width: 72px; }
+  .reader-header .reader-home { padding: 3px 5px; border-radius: 13px; }
+  .lightbox-actions { max-width: min(52vw, 130px); }
   .reader-quick-actions { gap: 4px; }
   .reader-icon-button,
   .reader-control-icon-button { width: 34px; min-width: 34px; min-height: 34px; border-radius: 12px; }
@@ -2313,6 +2383,12 @@ a.reader-home:focus-visible {
   .lightbox-actions .viewer-zoom-control { display: none; }
 }
 
+@media (max-width: 420px) {
+  .reader-quick-actions { display: none; }
+  .reader-search-input { padding-inline: 9px 96px; font-size: .9rem; }
+  .reader-search-scope-toggle { max-width: 94px; overflow: hidden; text-overflow: ellipsis; }
+  .lightbox-actions { max-width: 118px; }
+}
 
 /* Performance: keep long catalog galleries cheap to render while preserving stable page space. */
 .page-card,

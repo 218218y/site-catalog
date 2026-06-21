@@ -4,6 +4,7 @@ const catalogSearch = window.BargigCatalogSearch || null;
 const $ = (id) => document.getElementById(id);
 const readerTitle = $("readerTitle");
 const readerMeta = $("readerMeta");
+const readerProgress = $("readerProgress");
 const readerPages = $("readerPages");
 const readerScreenshot = $("readerScreenshot");
 const readerCopyLink = $("readerCopyLink");
@@ -323,8 +324,23 @@ function closePageRailSoon() {
   }, 180);
 }
 
+function syncReaderProgress(page = readerUiState.currentPage, catalog = getSelectedCatalog()) {
+  if (!readerProgress || !catalog) return;
+  const totalPages = Math.max(1, Number(catalog.pages || 1));
+  const currentPage = clampPage(page, catalog);
+  const ratio = totalPages <= 1 ? 1 : currentPage / totalPages;
+  const clampedRatio = Math.min(1, Math.max(0, ratio));
+
+  readerProgress.style.setProperty("--catalog-progress-ratio", String(clampedRatio));
+  readerProgress.setAttribute("aria-valuemin", "1");
+  readerProgress.setAttribute("aria-valuemax", String(totalPages));
+  readerProgress.setAttribute("aria-valuenow", String(currentPage));
+  readerProgress.setAttribute("title", `עמוד ${currentPage} מתוך ${totalPages}`);
+}
+
 function updateReaderThumbs(page, options = {}) {
   readerUiState.currentPage = page;
+  syncReaderProgress(page);
   if (!readerPageThumbs) return;
 
   let activeButton = null;
@@ -736,6 +752,7 @@ function renderReader() {
     document.title = "קטלוגים | רהיטי ברגיג";
     readerTitle.textContent = "אין קטלוגים להצגה";
     readerMeta.textContent = "";
+    readerProgress?.style.setProperty("--catalog-progress-ratio", "0");
     readerPages.innerHTML = `<div class="reader-empty">עדיין אין קטלוגים זמינים לצפייה.</div>`;
     renderReaderPageRail(null);
     initReaderSearchStatus(null);
@@ -766,7 +783,7 @@ function renderReader() {
   renderReaderPageRail(catalog);
   renderReaderCatalogMenu();
   initReaderSearchStatus(catalog);
-  updateReaderThumbs(1, { scrollIntoView: false });
+  updateReaderThumbs(initialPage, { scrollIntoView: false });
   window.requestAnimationFrame(findCurrentReaderPage);
 
   if (requestedPage > 0) {
