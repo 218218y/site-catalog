@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from build_catalogs import RenderOptions, render_pdf
+from build_catalogs import RenderOptions, load_manual_search_overrides, project_root, render_pdf
 
 
 def main() -> int:
@@ -36,6 +36,7 @@ def main() -> int:
     parser.add_argument("--require-ocr", action="store_true")
     parser.add_argument("--no-clean", action="store_true")
     parser.add_argument("--skip-existing", action="store_true")
+    parser.add_argument("--catalog-id", help="Catalog id for optional catalogs.search-overrides.json manual search text")
     args = parser.parse_args()
 
     options = RenderOptions(
@@ -56,7 +57,11 @@ def main() -> int:
         tesseract_cmd=args.tesseract_cmd,
         require_ocr=args.require_ocr,
     )
-    pages, search_pages = render_pdf(args.pdf.resolve(), args.out_dir.resolve(), options)
+    manual_pages = {}
+    if args.catalog_id:
+        manual_pages = load_manual_search_overrides(project_root()).get(str(args.catalog_id), {})
+
+    pages, search_pages, _page_sizes = render_pdf(args.pdf.resolve(), args.out_dir.resolve(), options, manual_pages)
     print(f"Done. Pages: {pages}. Searchable pages: {len(search_pages)}")
     return 0
 

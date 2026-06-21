@@ -36,6 +36,10 @@ from PIL import Image, ImageFilter
 
 SUPPORTED_FORMATS = {"webp", "jpg", "png"}
 PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
+BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+MANUAL_SEARCH_FILE = "catalogs.search-overrides.json"
+OCR_MAX_SIDE = 4600
+
 
 
 @dataclass(frozen=True)
@@ -258,8 +262,18 @@ def render_page_image(page: fitz.Page, dpi: int) -> Image.Image:
     return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
 
 
+def render_ocr_page_image(page: fitz.Page, dpi: int) -> Image.Image:
+    """Render an OCR input image, capped to avoid very large slow Tesseract jobs."""
+    image = render_page_image(page, dpi)
+    if max(image.size) > OCR_MAX_SIDE:
+        image.thumbnail((OCR_MAX_SIDE, OCR_MAX_SIDE), Image.Resampling.LANCZOS)
+    return image
+
+
 def normalize_search_text(value: str) -> str:
-    return " ".join(str(value or "").replace("\u00ad", "").split())
+    """Normalize text before it is written to the client-side search index."""
+    cleaned = BIDI_CONTROL_RE.sub("", str(value or "").replace("\u00ad", ""))
+    return " ".join(cleaned.split())
 
 
 def extract_embedded_text(page: fitz.Page) -> str:
@@ -313,16 +327,19 @@ class OcrRunner:
             tmp_path = Path(tmp.name)
         try:
             image.save(tmp_path, "PNG")
+            command = [
+                self.options.tesseract_cmd,
+                str(tmp_path),
+                "stdout",
+                "-l",
+                self.options.ocr_lang,
+                "--psm",
+                str(max(0, int(psm))),
+                "-c",
+                "preserve_interword_spaces=1",
+            ]
             completed = subprocess.run(
-                [
-                    self.options.tesseract_cmd,
-                    str(tmp_path),
-                    "stdout",
-                    "-l",
-                    self.options.ocr_lang,
-                    "--psm",
-                    str(max(0, int(psm))),
-                ],
+                command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -499,12 +516,17 @@ def _boxes_overlap_ratio(a: tuple[int, int, int, int], b: tuple[int, int, int, i
     return intersection / min(area_a, area_b)
 
 
-def _prepare_ocr_crop(crop: Image.Image, *, scale: int = 3) -> Image.Image:
-    """Upscale small title ribbons before OCR without changing the site images."""
-    if scale <= 1:
+def _prepare_ocr_crop(crop: Image.Image, *, scale: float = 3.0, max_side: int = 1800) -> Image.Image:
+    """Upscale small text regions before OCR without changing the site images."""
+    if crop.width <= 0 or crop.height <= 0:
         return crop.convert("RGB")
-    width, height = crop.size
-    return crop.convert("RGB").resize((width * scale, height * scale), Image.Resampling.LANCZOS)
+    scale = max(1.0, float(scale))
+    scale = min(scale, max_side / max(1, crop.width), max_side / max(1, crop.height))
+    if scale <= 1.05:
+        return crop.convert("RGB")
+    width = max(1, int(crop.width * scale))
+    height = max(1, int(crop.height * scale))
+    return crop.convert("RGB").resize((width, height), Image.Resampling.LANCZOS)
 
 
 def _stack_ocr_crops(crops: list[Image.Image]) -> Image.Image | None:
@@ -519,6 +541,66 @@ def _stack_ocr_crops(crops: list[Image.Image]) -> Image.Image | None:
         canvas.paste(crop, (0, y))
         y += crop.height + separator
     return canvas
+
+
+def _relative_crop(image: Image.Image, box: tuple[float, float, float, float]) -> Image.Image | None:
+    width, height = image.size
+    x0 = max(0, min(width, int(width * box[0])))
+    y0 = max(0, min(height, int(height * box[1])))
+    x1 = max(0, min(width, int(width * box[2])))
+    y1 = max(0, min(height, int(height * box[3])))
+    if x1 - x0 < 16 or y1 - y0 < 16:
+        return None
+    return image.crop((x0, y0, x1, y1))
+
+
+def _has_ocr_signal(crop: Image.Image) -> bool:
+    """Return true when a crop has enough contrast to justify a focused OCR pass."""
+    if crop.width <= 0 or crop.height <= 0:
+        return False
+    sample_width = max(24, min(180, crop.width // 8 or crop.width))
+    sample_height = max(24, min(180, round(crop.height * sample_width / max(1, crop.width))))
+    sample = crop.resize((sample_width, sample_height), Image.Resampling.BILINEAR).convert("L")
+    pixels = list(sample.getdata())
+    total = max(1, len(pixels))
+    dark_ratio = sum(1 for value in pixels if value < 95) / total
+    bright_ratio = sum(1 for value in pixels if value > 215) / total
+    very_dark_ratio = sum(1 for value in pixels if value < 45) / total
+
+    # Dark letters on a light background, or white letters inside a dark name plate.
+    if 0.002 <= dark_ratio <= 0.55 and bright_ratio >= 0.08:
+        return True
+    if very_dark_ratio >= 0.12 and bright_ratio >= 0.004:
+        return True
+    return False
+
+
+def _focused_page_ocr_crops(image: Image.Image) -> list[Image.Image]:
+    """Create a compact OCR sheet from regions where catalog model names usually live.
+
+    Full-page OCR has a hard time with photo catalogs because furniture, curtains,
+    shadows and decorative lines look like text. These crops keep the search
+    index focused on title/metadata zones while leaving the rendered page images
+    untouched.
+    """
+    relative_boxes = (
+        (0.78, 0.00, 1.00, 0.42),  # right title / details column
+        (0.00, 0.00, 0.45, 0.38),  # top-left model labels
+        (0.00, 0.76, 0.36, 1.00),  # bottom-left name plates
+        (0.64, 0.76, 1.00, 1.00),  # bottom-right name plates
+        (0.28, 0.76, 0.78, 1.00),  # bottom-center tables / labels
+    )
+
+    crops: list[Image.Image] = []
+    for box in relative_boxes:
+        crop = _relative_crop(image, box)
+        if crop is None or not _has_ocr_signal(crop):
+            continue
+        crops.append(_prepare_ocr_crop(crop, scale=1.8, max_side=1200))
+
+    if len(crops) > 5:
+        return crops[:5]
+    return crops
 
 
 def _banner_ocr_crops(image: Image.Image) -> list[Image.Image]:
@@ -556,22 +638,150 @@ def _combine_search_texts(parts: list[str]) -> str:
     return normalize_search_text(" ".join(output))
 
 
-def build_page_search_text(page: fitz.Page, ocr: OcrRunner, options: RenderOptions, label: str) -> str:
+def build_page_search_text(
+    page: fitz.Page,
+    ocr: OcrRunner,
+    options: RenderOptions,
+    label: str,
+    manual_text: str = "",
+) -> str:
     embedded_text = extract_embedded_text(page)
-    if not ocr.should_run(embedded_text):
-        return embedded_text
+    text_parts = [embedded_text]
 
-    ocr_image = render_page_image(page, options.ocr_dpi)
-    text_parts = [embedded_text, ocr.recognize(ocr_image, label, psm=6)]
+    should_run_full_ocr = ocr.should_run(embedded_text)
+    should_run_focused_ocr = options.ocr_mode != "never" and (should_run_full_ocr or len(embedded_text) < 320)
 
-    banner_crops = _banner_ocr_crops(ocr_image)
-    for index, crop in enumerate(banner_crops, start=1):
-        text_parts.append(ocr.recognize(crop, f"{label} title ribbon {index}", psm=6))
+    if should_run_full_ocr or should_run_focused_ocr:
+        ocr_image = render_ocr_page_image(page, options.ocr_dpi)
+
+        if should_run_full_ocr:
+            text_parts.append(ocr.recognize(ocr_image, label, psm=6))
+
+        focused_crops = _focused_page_ocr_crops(ocr_image)
+        focused_sheet = _stack_ocr_crops(focused_crops)
+        if focused_sheet is not None:
+            text_parts.append(ocr.recognize(focused_sheet, f"{label} focused text zones", psm=6))
+
+        banner_crops = _banner_ocr_crops(ocr_image)
+        for index, crop in enumerate(banner_crops, start=1):
+            text_parts.append(ocr.recognize(crop, f"{label} title ribbon {index}", psm=6))
+
+    if manual_text:
+        text_parts.append(manual_text)
 
     return _combine_search_texts(text_parts)
 
 
-def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[int, list[dict[str, Any]], list[list[int]]]:
+def _manual_text_from_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return normalize_search_text(value)
+    if isinstance(value, (int, float)):
+        return normalize_search_text(str(value))
+    if isinstance(value, list):
+        return _combine_search_texts([_manual_text_from_value(item) for item in value])
+    if isinstance(value, dict):
+        parts: list[str] = []
+        for key in ("text", "search", "terms", "aliases", "model", "title"):
+            if key in value:
+                parts.append(_manual_text_from_value(value.get(key)))
+        return _combine_search_texts(parts)
+    return normalize_search_text(str(value))
+
+
+def _page_number_from_key(key: Any) -> int | None:
+    if isinstance(key, int):
+        return key
+    match = re.search(r"\d+", str(key or ""))
+    if not match:
+        return None
+    try:
+        return int(match.group(0))
+    except ValueError:
+        return None
+
+
+def load_manual_search_overrides(root: Path) -> dict[str, dict[int, str]]:
+    override_path = root / MANUAL_SEARCH_FILE
+    if not override_path.exists():
+        return {}
+
+    try:
+        payload = json.loads(override_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[warn] Could not read {MANUAL_SEARCH_FILE}: {exc}", file=sys.stderr)
+        return {}
+
+    if not isinstance(payload, dict):
+        print(f"[warn] {MANUAL_SEARCH_FILE} must contain an object keyed by catalog id.", file=sys.stderr)
+        return {}
+
+    result: dict[str, dict[int, str]] = {}
+    for catalog_id, catalog_value in payload.items():
+        catalog_key = str(catalog_id).strip()
+        if not catalog_key:
+            continue
+
+        page_map: dict[int, str] = {}
+        if isinstance(catalog_value, list):
+            iterable = []
+            for item in catalog_value:
+                if not isinstance(item, dict):
+                    continue
+                page = _page_number_from_key(item.get("page"))
+                iterable.append((page, item))
+        elif isinstance(catalog_value, dict):
+            iterable = [(_page_number_from_key(page_key), page_value) for page_key, page_value in catalog_value.items()]
+        else:
+            print(f"[warn] Ignoring {MANUAL_SEARCH_FILE} entry for {catalog_key}: expected object or list.", file=sys.stderr)
+            continue
+
+        for page_number, value in iterable:
+            if not page_number or page_number < 1:
+                continue
+            manual_text = _manual_text_from_value(value)
+            if not manual_text:
+                continue
+            page_map[page_number] = _combine_search_texts([page_map.get(page_number, ""), manual_text])
+
+        if page_map:
+            result[catalog_key] = page_map
+
+    return result
+
+
+def merge_manual_search_pages(
+    search_pages: list[dict[str, Any]],
+    manual_pages: dict[int, str] | None,
+    page_count: int | None = None,
+) -> list[dict[str, Any]]:
+    if not manual_pages:
+        return search_pages
+
+    merged: dict[int, str] = {}
+    for page in search_pages:
+        if not isinstance(page, dict):
+            continue
+        page_number = _page_number_from_key(page.get("page"))
+        if not page_number:
+            continue
+        text = normalize_search_text(str(page.get("text", "")))
+        if text:
+            merged[page_number] = _combine_search_texts([merged.get(page_number, ""), text])
+
+    for page_number, manual_text in sorted(manual_pages.items()):
+        if page_number < 1:
+            continue
+        if page_count is not None and page_number > page_count:
+            print(f"[warn] Ignoring manual search text for page {page_number}; catalog has only {page_count} pages.", file=sys.stderr)
+            continue
+        merged[page_number] = _combine_search_texts([merged.get(page_number, ""), manual_text])
+
+    return [{"page": page_number, "text": text} for page_number, text in sorted(merged.items()) if text]
+
+
+def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pages: dict[int, str] | None = None) -> tuple[int, list[dict[str, Any]], list[list[int]]]:
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
@@ -592,7 +802,7 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions) -> tuple[i
             thumb_file = thumb_dir / f"page-{page_number:03d}.{ext}"
             label = f"{pdf_path.name} page {page_number}/{len(doc)}"
 
-            page_text = build_page_search_text(page, ocr, options, label)
+            page_text = build_page_search_text(page, ocr, options, label, (manual_pages or {}).get(page_number, ""))
             if page_text:
                 search_pages.append({"page": page_number, "text": page_text})
 
@@ -741,9 +951,11 @@ def main() -> int:
         generated: list[dict[str, Any]] = []
         search_generated: list[dict[str, Any]] = []
         previous_search_pages = load_previous_search_pages(root)
+        manual_search_overrides = load_manual_search_overrides(root)
 
         for item in config:
             catalog_id = str(item["id"])
+            manual_pages = manual_search_overrides.get(catalog_id, {})
             pdf_path = (root / str(item["pdf"])).resolve()
             out_dir = (root / "assets" / "pages" / catalog_id).resolve()
             existing_output = inspect_existing_catalog_output(out_dir, options.image_format)
@@ -753,7 +965,7 @@ def main() -> int:
                 print(f"[skip-catalog] Already converted: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
                 if not pdf_path.exists():
                     print(f"[keep] Source PDF is missing, keeping existing images: {rel_to_root(pdf_path)}")
-                search_pages = previous_search_pages.get(catalog_id, [])
+                search_pages = merge_manual_search_pages(previous_search_pages.get(catalog_id, []), manual_pages, existing_output.pages)
                 if not search_pages:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
@@ -764,7 +976,7 @@ def main() -> int:
             if not pdf_path.exists():
                 if existing_output and existing_output.is_complete:
                     print(f"[keep] Source PDF is missing, keeping existing images: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
-                    search_pages = previous_search_pages.get(catalog_id, [])
+                    search_pages = merge_manual_search_pages(previous_search_pages.get(catalog_id, []), manual_pages, existing_output.pages)
                     if not search_pages:
                         print("[warn] No previous OCR/search text found for this catalog; images will still be shown.")
                     page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
@@ -789,7 +1001,7 @@ def main() -> int:
             elif existing_output and args.force:
                 print(f"[force] Rebuilding existing output: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
 
-            pages, search_pages, page_sizes = render_pdf(pdf_path, out_dir, options)
+            pages, search_pages, page_sizes = render_pdf(pdf_path, out_dir, options, manual_pages)
             generated.append(build_generated_entry(item, pages, out_dir, options.image_format, page_sizes))
             search_generated.append(build_search_entry(item, search_pages))
 

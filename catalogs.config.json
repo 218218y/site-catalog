@@ -7,6 +7,13 @@
     "pdf": "assets/pdfs/tbi-arnot-pticha-2026.pdf"
   },
   {
+    "id": "fredi-arnot",
+    "title": "פרדי ארונות פתיחה",
+    "description": "ארונות פתיחה בעיצוב נקי ועדכני",
+    "category": "ארונות",
+    "pdf": "assets/pdfs/fredi-arnot-pticha.pdf"
+  },
+  {
     "id": "qualita",
     "title": "קואליטה 2026",
     "description": "מיטות איכות בעיצוב נקי ועדכני",
@@ -26,5 +33,12 @@
     "description": "מיטות איכות בעיצוב נקי ועדכני",
     "category": "מיטות",
     "pdf": "assets/pdfs/comfort-2026.pdf"
+  },
+  {
+    "id": "fredi-sifriot",
+    "title": "פרדי ספריות קודש",
+    "description": "ספריות קודש בעיצוב נקי ועדכני",
+    "category": "ספריות קודש",
+    "pdf": "assets/pdfs/fredi-sifriot.pdf"
   }
 ]

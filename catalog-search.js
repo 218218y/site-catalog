@@ -55,8 +55,22 @@
     return text.replace(/\s+/g, " ");
   }
 
+  function normalizeLoose(value) {
+    return normalize(value)
+      // Common OCR confusion in Hebrew catalog scans: kaf in words like כפולה
+      // is sometimes read as bet. Loose matching is only used as a fallback.
+      .replace(/[כ]/g, "ב");
+  }
+
   function tokenize(query) {
     return normalize(query).split(" ").filter((token) => token.length >= 1);
+  }
+
+  function tokenMatches(normalizedText, looseText, token) {
+    if (normalizedText.includes(token)) return true;
+    if (token.length < 3) return false;
+    const looseToken = normalizeLoose(token);
+    return Boolean(looseToken && looseToken !== token && looseText.includes(looseToken));
   }
 
   function findCatalog(catalogId) {
@@ -131,14 +145,16 @@
         const text = String(pageInfo?.text || "");
         if (!page || !text) return;
 
-        const normalizedText = normalize([
+        const searchableText = [
           catalog.title,
           catalog.description,
           catalog.category,
           text
-        ].filter(Boolean).join(" "));
+        ].filter(Boolean).join(" ");
+        const normalizedText = normalize(searchableText);
+        const looseText = normalizeLoose(searchableText);
 
-        if (!tokens.every((token) => normalizedText.includes(token))) return;
+        if (!tokens.every((token) => tokenMatches(normalizedText, looseText, token))) return;
 
         results.push({
           catalog,
@@ -162,6 +178,7 @@
   window.BargigCatalogSearch = {
     search,
     normalize,
+    normalizeLoose,
     tokenize,
     hasIndex,
     indexedPageCount,
