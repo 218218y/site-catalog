@@ -450,6 +450,29 @@ function hideReaderFloatingPreview() {
   readerFloatingPreview?.classList.remove("visible");
 }
 
+function getReaderSearchResults(query, limit = 36) {
+  const catalog = getSelectedCatalog();
+  const rawQuery = String(query || "").trim();
+  if (rawQuery.length < 2 || !catalog || !catalogSearch?.hasIndex?.()) return [];
+  const results = catalogSearch.search(rawQuery, { catalogId: catalog.id, limit });
+  return Array.isArray(results) ? results : [];
+}
+
+function goToReaderSearchResult(result) {
+  const catalog = getSelectedCatalog();
+  if (!result || !catalog) return false;
+  scrollToReaderPage(clampPage(result.page, catalog));
+  readerSearchResults?.classList.add("hidden");
+  return true;
+}
+
+function submitReaderSearch() {
+  const rawQuery = String(readerSearchInput?.value || "").trim();
+  renderReaderSearch(rawQuery);
+  const firstResult = getReaderSearchResults(rawQuery, 1)[0];
+  return goToReaderSearchResult(firstResult);
+}
+
 function renderReaderSearch(query) {
   const catalog = getSelectedCatalog();
   const rawQuery = String(query || "").trim();
@@ -471,7 +494,7 @@ function renderReaderSearch(query) {
     return;
   }
 
-  const results = catalogSearch.search(rawQuery, { catalogId: catalog.id, limit: 36 });
+  const results = getReaderSearchResults(rawQuery, 36);
   if (!results.length) {
     readerSearchResults.classList.remove("hidden");
     readerSearchResults.innerHTML = `
@@ -499,7 +522,7 @@ function renderReaderSearch(query) {
   `).join("");
 
   readerSearchResults.querySelectorAll("[data-reader-page]").forEach((button) => {
-    button.addEventListener("click", () => scrollToReaderPage(Number(button.dataset.readerPage)));
+    button.addEventListener("click", () => goToReaderSearchResult({ page: button.dataset.readerPage }));
   });
 }
 
@@ -590,6 +613,19 @@ readerScreenshot?.addEventListener("click", downloadCurrentReaderImage);
 readerCopyLink?.addEventListener("click", copyCurrentReaderLink);
 
 readerSearchInput?.addEventListener("input", () => renderReaderSearch(readerSearchInput.value));
+readerSearchInput?.addEventListener("focus", () => {
+  openTopControls();
+  renderReaderSearch(readerSearchInput.value);
+});
+readerSearchInput?.addEventListener("click", () => {
+  openTopControls();
+  renderReaderSearch(readerSearchInput.value);
+});
+readerSearchInput?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  submitReaderSearch();
+});
 readerSearchClear?.addEventListener("click", () => {
   readerSearchInput.value = "";
   readerSearchInput.focus();

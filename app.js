@@ -499,6 +499,29 @@ function resetLightboxSearch() {
   initLightboxSearchStatus();
 }
 
+function getLightboxSearchResults(query, limit = 24) {
+  const rawQuery = String(query || "").trim();
+  if (rawQuery.length < 2 || !state.catalog || !catalogSearch?.hasIndex?.()) return [];
+  const results = catalogSearch.search(rawQuery, { catalogId: state.catalog.id, limit });
+  return Array.isArray(results) ? results : [];
+}
+
+function goToLightboxSearchResult(result) {
+  if (!result || !state.catalog) return false;
+  const page = clampPage(result.page, state.catalog);
+  setLightboxPage(page, { smooth: true, hit: state.viewerMode === "scroll" });
+  showTopUiTemporarily(0);
+  els.lightboxSearchResults?.classList.add("hidden");
+  return true;
+}
+
+function submitLightboxSearch() {
+  const rawQuery = String(els.lightboxSearchInput?.value || "").trim();
+  renderLightboxSearchResults(rawQuery);
+  const firstResult = getLightboxSearchResults(rawQuery, 1)[0];
+  return goToLightboxSearchResult(firstResult);
+}
+
 function initLightboxSearchStatus() {
   if (!els.lightboxSearchStatus) return;
 
@@ -539,7 +562,7 @@ function renderLightboxSearchResults(query) {
     return;
   }
 
-  const results = catalogSearch.search(rawQuery, { catalogId: state.catalog.id, limit: 24 });
+  const results = getLightboxSearchResults(rawQuery, 24);
   els.lightboxSearchResults.classList.remove("hidden");
 
   if (!results.length) {
@@ -572,11 +595,30 @@ function renderLightboxSearchResults(query) {
 
   els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
     button.addEventListener("click", () => {
-      setLightboxPage(Number(button.dataset.lightboxSearchPage));
-      showTopUiTemporarily(0);
-      els.lightboxSearchResults.classList.add("hidden");
+      goToLightboxSearchResult({ page: button.dataset.lightboxSearchPage });
     });
   });
+}
+
+function getGlobalSearchResults(query, limit = 72) {
+  const rawQuery = String(query || "").trim();
+  if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.()) return [];
+  const results = catalogSearch.search(rawQuery, { limit });
+  return Array.isArray(results) ? results : [];
+}
+
+function openGlobalSearchResult(result) {
+  if (!result) return false;
+  openCatalog(result.catalogId, { openPage: Number(result.page) });
+  els.globalSearchResults?.classList.add("hidden");
+  return true;
+}
+
+function submitGlobalSearch() {
+  const rawQuery = String(els.globalSearchInput?.value || "").trim();
+  renderSearchResults(rawQuery);
+  const firstResult = getGlobalSearchResults(rawQuery, 1)[0];
+  return openGlobalSearchResult(firstResult);
 }
 
 function renderSearchResults(query) {
@@ -599,7 +641,7 @@ function renderSearchResults(query) {
     return;
   }
 
-  const results = catalogSearch.search(rawQuery, { limit: 72 });
+  const results = getGlobalSearchResults(rawQuery, 72);
   if (!results.length) {
     els.globalSearchResults.classList.remove("hidden");
     els.globalSearchResults.innerHTML = `
@@ -631,7 +673,7 @@ function renderSearchResults(query) {
 
   els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
     button.addEventListener("click", () => {
-      openCatalog(button.dataset.searchCatalog, { openPage: Number(button.dataset.searchPage) });
+      openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
     });
   });
 }
@@ -1533,6 +1575,13 @@ function attachViewerGestures() {
 
 function attachEvents() {
   els.globalSearchInput?.addEventListener("input", () => renderSearchResults(els.globalSearchInput.value));
+  els.globalSearchInput?.addEventListener("focus", () => renderSearchResults(els.globalSearchInput.value));
+  els.globalSearchInput?.addEventListener("click", () => renderSearchResults(els.globalSearchInput.value));
+  els.globalSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    submitGlobalSearch();
+  });
   els.globalSearchClear?.addEventListener("click", () => {
     els.globalSearchInput.value = "";
     els.globalSearchInput.focus();
@@ -1540,7 +1589,19 @@ function attachEvents() {
   });
 
   els.lightboxSearchInput?.addEventListener("input", () => renderLightboxSearchResults(els.lightboxSearchInput.value));
-  els.lightboxSearchInput?.addEventListener("focus", () => showTopUiTemporarily(0));
+  els.lightboxSearchInput?.addEventListener("focus", () => {
+    showTopUiTemporarily(0);
+    renderLightboxSearchResults(els.lightboxSearchInput.value);
+  });
+  els.lightboxSearchInput?.addEventListener("click", () => {
+    showTopUiTemporarily(0);
+    renderLightboxSearchResults(els.lightboxSearchInput.value);
+  });
+  els.lightboxSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    submitLightboxSearch();
+  });
   els.lightboxSearchClear?.addEventListener("click", () => {
     els.lightboxSearchInput.value = "";
     els.lightboxSearchInput.focus();
