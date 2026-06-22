@@ -2180,6 +2180,14 @@ function validateContactPayload(payload) {
   return "";
 }
 
+function prepareContactFormForNetlify() {
+  if (!els.contactForm) return;
+  const sourceUrlInput = els.contactForm.querySelector('[name="source_url"]');
+  if (sourceUrlInput) {
+    sourceUrlInput.value = window.location.href;
+  }
+}
+
 async function submitContactForm(event) {
   event?.preventDefault();
   if (!els.contactForm) return;
@@ -2191,28 +2199,27 @@ async function submitContactForm(event) {
     return;
   }
 
+  prepareContactFormForNetlify();
   setContactSubmitting(true);
   setContactStatus("שולח את ההודעה...", "pending");
 
   try {
-    const response = await fetch(els.contactForm.action || "/api/contact", {
-      method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    let result = null;
-    try {
-      result = await response.json();
-    } catch (_) {
-      result = null;
+    const formData = new FormData(els.contactForm);
+    if (!formData.get("form-name")) {
+      formData.set("form-name", els.contactForm.getAttribute("name") || "store-contact");
     }
 
-    if (!response.ok || result?.ok === false) {
-      throw new Error(result?.message || "לא הצלחתי לשלוח את ההודעה כרגע.");
+    const response = await fetch(els.contactForm.getAttribute("action") || "/", {
+      method: "POST",
+      headers: {
+        "Accept": "text/html,application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams(formData).toString()
+    });
+
+    if (!response.ok) {
+      throw new Error("לא הצלחתי לשלוח את ההודעה כרגע.");
     }
 
     els.contactForm.reset();

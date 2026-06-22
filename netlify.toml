@@ -1,7 +1,3 @@
-[functions]
-  directory = "netlify/functions"
-
-[[redirects]]
-  from = "/api/contact"
-  to = "/.netlify/functions/contact"
-  status = 200
+# טופס יצירת הקשר עובד עם Netlify Forms בלבד.
+# אין צורך ב-Resend, API key או Netlify Function.
+# חשוב: לוודא ב-Netlify ש-Form detection פעיל.

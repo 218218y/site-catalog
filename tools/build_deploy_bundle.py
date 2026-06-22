@@ -58,9 +58,7 @@ JSON_DEPLOY_FILES = [
     "catalogs.search.json",
 ]
 
-DEPLOY_DIRECTORIES = [
-    "netlify/functions",
-]
+DEPLOY_DIRECTORIES = []
 
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s*;\s*$", re.DOTALL)
@@ -309,8 +307,7 @@ def main() -> int:
         print(f"Upload folder: {rel_to_root(out_dir)}")
         print(f"Copied: {stats.files} files, {format_bytes(stats.bytes)}")
         print("Excluded: PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
-        if DEPLOY_DIRECTORIES:
-            print("Included: Netlify Functions for server-side contact form handling.")
+        print("Contact form: Netlify Forms only; no serverless function is required.")
 
         if args.zip:
             zip_path = out_dir.with_suffix(".zip")

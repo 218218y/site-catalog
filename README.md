@@ -448,83 +448,83 @@ assets\pages\qualita\page-001.png
 
 ---
 
-## טופס יצירת קשר ושליחת מייל
+## טופס יצירת קשר ללא API וללא דומיין פרטי
 
-בסוף הדף הראשי מוצג כפתור **צור קשר**. לחיצה עליו פותחת טופס, והטופס שולח בקשה ל־Netlify Function בנתיב:
+בסוף הדף הראשי מוצג כפתור **צור קשר**. לחיצה עליו פותחת טופס, והטופס נשלח ישירות ל־**Netlify Forms**.
 
-```text
-/api/contact
-```
+זה הפתרון הפשוט לאתר הזה:
 
-השליחה מתבצעת בצד השרת בלבד. מפתח Resend לא נמצא ב־HTML/JS של הדפדפן, ולכן לא נחשף לגולשים.
+- לא צריך Resend.
+- לא צריך API key.
+- לא צריך דומיין פרטי.
+- לא צריך `netlify/functions/contact.js`.
+- לא צריך להגדיר משתני סביבה.
 
-### מה צריך לפתוח/להגדיר ב־Resend
-
-1. לפתוח חשבון ב־Resend.
-2. ליצור API key עם הרשאה לשליחת מיילים. את המפתח רואים פעם אחת בלבד, אז לשמור אותו במקום בטוח.
-3. להוסיף ולאמת דומיין לשליחה, עדיף תת־דומיין כמו `mail.your-domain.co.il` או `send.your-domain.co.il`.
-4. אחרי אימות הדומיין, אפשר לשלוח מכל כתובת באותו דומיין, למשל `contact@your-domain.co.il`. הכתובת לא חייבת להיות תיבת מייל קיימת, אבל עדיף שתהיה כתובת שאפשר לקבל אליה תשובות.
-
-### הגדרות חובה ב־Netlify
-
-ב־Netlify נכנסים ל־Project configuration → Environment variables ומגדירים משתנים עבור Functions:
+האתר יכול להמשיך לשבת על הכתובת החינמית של Netlify, למשל:
 
 ```text
-RESEND_API_KEY=...              # מפתח API של Resend
-CONTACT_FROM_EMAIL=...          # כתובת שולח מדומיין מאומת, למשל contact@your-domain.co.il
-CONTACT_FROM_NAME=רהיטי ברגיג   # לא חובה, אבל יפה יותר במייל
-CONTACT_TO_EMAIL=bargig218@gmail.com
-CONTACT_SITE_NAME=רהיטי ברגיג
+https://bargig.netlify.app/
 ```
 
-`CONTACT_TO_EMAIL` מוגדר בקוד כברירת מחדל ל־`bargig218@gmail.com`, אבל עדיף להגדיר אותו גם ב־Netlify כדי שיהיה קל להחליף כתובת בלי לגעת בקוד. אפשר גם כמה נמענים, מופרדים בפסיקים:
+### איך זה עובד
 
-```text
-CONTACT_TO_EMAIL=first@example.com,second@example.com
+הטופס ב־`index.html` כולל:
+
+```html
+<form name="store-contact" method="POST" action="/" data-netlify="true" netlify-honeypot="bot-field">
+  <input type="hidden" name="form-name" value="store-contact" />
+</form>
 ```
 
-חשוב: `CONTACT_FROM_EMAIL` חייב להיות כתובת תחת דומיין מאומת ב־Resend. אם משתמשים בכתובת לא מאומתת, Resend יחזיר שגיאה והטופס לא ישלח.
+ב־`app.js` הטופס נשלח ב־AJAX אל Netlify כ־`application/x-www-form-urlencoded`, כמו ש־Netlify Forms דורשת. כך הגולש נשאר באותו עמוד ומקבל הודעת הצלחה במקום מעבר לעמוד אחר.
 
-קובץ `.env.example` מצורף כטמפלייט בלבד. לא להכניס אליו מפתח אמיתי אם הקוד עולה לגיט/לאינטרנט.
+### מה צריך לעשות ב־Netlify אחרי העלאה
+
+1. להעלות את האתר ל־Netlify כרגיל.
+2. להיכנס לאתר ב־Netlify.
+3. להיכנס אל **Project configuration → Forms** ולוודא ש־**Form detection** פעיל.
+4. אחרי פריסה מוצלחת, לשלוח הודעת ניסיון מהטופס באתר.
+5. להיכנס אל **Forms** בפרויקט ולראות שהופיע טופס בשם `store-contact`.
+
+### איך לקבל את הפניות גם למייל
+
+Netlify שומרת את כל הפניות בדשבורד תחת **Forms**.
+
+כדי לקבל גם אימייל בכל פנייה:
+
+1. להיכנס באתר שלך ב־Netlify אל **Project configuration**.
+2. להיכנס אל **Notifications**.
+3. לבחור **Emails and webhooks**.
+4. תחת **Form submission notifications** לבחור **Add notification**.
+5. לבחור Email notification.
+6. לבחור את הטופס `store-contact`.
+7. להכניס את כתובת המייל שאליה רוצים לקבל הודעות, למשל `bargig218@gmail.com`.
+8. לשמור.
+
+הטופס כולל שדה בשם `email`, ולכן כשמגיעה התראה מ־Netlify, בדרך כלל אפשר לעשות Reply והמייל של הגולש יופיע כ־Reply-To.
 
 ### בדיקה לפני העלאה
-
-את המראה ואת הפתיחה/סגירה של הטופס אפשר לבדוק גם כאתר סטטי רגיל. את שליחת המייל עצמה בודקים דרך Netlify CLI או אחרי פריסה ל־Netlify, כי `/api/contact` הוא Netlify Function ולא קובץ סטטי רגיל.
 
 בדיקת תחביר מהירה:
 
 ```bash
 node --check app.js
-node --check netlify/functions/contact.js
 ```
 
-בדיקה מקומית מלאה עם Netlify CLI:
+את פתיחת/סגירת הטופס אפשר לבדוק מקומית גם בלי Netlify. את השליחה עצמה כדאי לבדוק אחרי העלאה ל־Netlify, כי Netlify Forms פועלת בזמן שהאתר פרוס ב־Netlify.
 
-```bash
-npm install -g netlify-cli
-netlify dev
-```
+### קבצים שכבר לא צריך
 
-לבדיקה מקומית אמיתית צריך להגדיר משתני סביבה במחשב או דרך Netlify CLI. אפשר להשתמש ב־`.env.example` כתבנית, אבל ליצור קובץ `.env` מקומי שלא מעלים לאתר:
+הקבצים הבאים היו שייכים לפתרון הקודם של Resend ואפשר למחוק:
 
 ```text
-RESEND_API_KEY=...
-CONTACT_FROM_EMAIL=contact@your-domain.co.il
-CONTACT_FROM_NAME=רהיטי ברגיג
-CONTACT_TO_EMAIL=bargig218@gmail.com
-CONTACT_SITE_NAME=רהיטי ברגיג
-```
-
-### פריסה
-
-הטופס כולל Function תחת:
-
-```text
+.env
+.env.example
 netlify/functions/contact.js
 ```
 
-לכן לא מספיק להעלות רק `index.html`, `styles.css` ו־`app.js`. צריך לפרוס גם את `netlify.toml` ואת תיקיית `netlify/functions`.
+גם אין צורך במשתני סביבה כמו `RESEND_API_KEY`, `CONTACT_FROM_EMAIL` וכדומה.
 
-הדרך המומלצת: חיבור Git ל־Netlify או פריסה דרך Netlify CLI. פריסת Drag & Drop פשוטה מתאימה בעיקר לאתר סטטי; עבור Function עדיף CLI/Git כדי ש־Netlify יזהה ויפרסם את הפונקציה.
+### יצירת חבילת העלאה
 
-סקריפט `bundle-site.bat` מעתיק גם את `netlify.toml` וגם את `netlify/functions` לתיקיית ההעלאה.
+אפשר להמשיך להשתמש ב־`bundle-site.bat`. הסקריפט עודכן כך שהוא לא מעתיק יותר את תיקיית `netlify/functions`, כי הטופס כבר לא משתמש ב־Function.

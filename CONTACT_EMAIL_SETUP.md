@@ -1,39 +1,48 @@
-# הפעלת טופס יצירת קשר עם Resend + Netlify
+# הפעלת טופס יצירת קשר פשוט עם Netlify Forms
 
-## מה כבר מוכן בקבצים
+זה הפתרון הפשוט לאתר שנמצא על Netlify, גם בלי דומיין פרטי.
 
-- `index.html` — טופס יצירת קשר בסוף העמוד.
-- `app.js` — שליחה ל־`/api/contact`, בדיקות שדות, הודעת הצלחה/שגיאה.
-- `netlify/functions/contact.js` — פונקציית שרת ששולחת מייל דרך Resend בלי לחשוף API key בדפדפן.
-- `netlify.toml` — מפנה את `/api/contact` אל הפונקציה.
-- `.env.example` — דוגמה לשמות משתני הסביבה שצריך להגדיר.
+## מה לא צריך
 
-## מה חסר כדי שיעבוד באתר
+- לא צריך Resend.
+- לא צריך API key.
+- לא צריך דומיין פרטי.
+- לא צריך Netlify Function.
+- לא צריך להגדיר Environment Variables.
 
-1. לפתוח חשבון ב־Resend.
-2. ליצור API key.
-3. להוסיף ולאמת דומיין ב־Resend.
-4. ב־Netlify להגדיר Environment Variables:
+## הקבצים הרלוונטיים
+
+- `index.html` — כולל טופס יצירת קשר עם `data-netlify="true"`.
+- `app.js` — שולח את הטופס ל־Netlify Forms ומציג הודעת הצלחה/שגיאה.
+- `styles.css` — עיצוב הטופס.
+- `netlify.toml` — נשאר רק כקובץ תיעוד קצר; אין בו Function או Redirect.
+
+## מה לעשות אחרי העלאה ל־Netlify
+
+1. להעלות את האתר ל־Netlify.
+2. להיכנס לפרויקט ב־Netlify.
+3. לוודא ש־Form detection פעיל תחת `Project configuration → Forms`.
+4. לשלוח הודעת ניסיון מהטופס באתר.
+5. לבדוק תחת `Forms` שנוצר טופס בשם `store-contact` ושהפנייה מופיעה שם.
+
+## קבלת התראות למייל
+
+Netlify שומרת את הפניות בדשבורד. כדי לקבל מייל בכל פנייה:
+
+1. להיכנס ל־`Project configuration → Notifications`.
+2. לבחור `Emails and webhooks`.
+3. תחת `Form submission notifications` ללחוץ `Add notification`.
+4. לבחור Email notification.
+5. לבחור את הטופס `store-contact`.
+6. להכניס את המייל שאליו רוצים לקבל פניות, למשל `bargig218@gmail.com`.
+7. לשמור.
+
+## קבצים שאפשר למחוק מהפתרון הקודם
 
 ```text
-RESEND_API_KEY=המפתח_שלך_מ־Resend
-CONTACT_FROM_EMAIL=contact@your-domain.co.il
-CONTACT_FROM_NAME=רהיטי ברגיג
-CONTACT_TO_EMAIL=bargig218@gmail.com
-CONTACT_SITE_NAME=רהיטי ברגיג
-```
-
-`CONTACT_FROM_EMAIL` חייב להיות תחת דומיין שאומת ב־Resend.
-
-## פריסה נכונה
-
-צריך לפרוס גם את:
-
-```text
-netlify.toml
+.env
+.env.example
 netlify/functions/contact.js
 ```
 
-לא להעלות רק HTML/CSS/JS, כי השליחה נעשית דרך Function.
-
-מומלץ לפרוס דרך Git שמחובר ל־Netlify או דרך Netlify CLI.
+אם התיקייה `netlify/functions` נשארת ריקה — אפשר למחוק גם אותה.

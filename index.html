@@ -134,8 +134,10 @@
       </div>
 
       <div class="contact-form-wrap" id="contactFormWrap" hidden>
-        <form class="contact-form" id="storeContactForm" name="store-contact" method="POST" action="/api/contact" data-netlify="true" netlify-honeypot="bot-field" novalidate>
+        <form class="contact-form" id="storeContactForm" name="store-contact" method="POST" action="/" data-netlify="true" netlify-honeypot="bot-field" novalidate>
           <input type="hidden" name="form-name" value="store-contact" />
+          <input type="hidden" name="subject" value="פנייה חדשה מהאתר - רהיטי ברגיג (%{submissionId})" />
+          <input type="hidden" id="contactSourceUrl" name="source_url" value="" />
           <p class="contact-honeypot" aria-hidden="true">
             <label for="contactBotField">לא למלא את השדה הזה</label>
             <input id="contactBotField" name="bot-field" tabindex="-1" autocomplete="off" />
@@ -159,7 +161,7 @@
 
             <label class="contact-field" for="contactSubject">
               <span>נושא <strong aria-hidden="true">*</strong></span>
-              <input id="contactSubject" name="subject" type="text" autocomplete="off" maxlength="120" placeholder="למשל: שאלה על קטלוג חדרי שינה" required />
+              <input id="contactSubject" name="inquiry_subject" type="text" autocomplete="off" maxlength="120" placeholder="למשל: שאלה על קטלוג חדרי שינה" required />
             </label>
 
             <label class="contact-field contact-field-wide" for="contactMessage">
