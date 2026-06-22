@@ -448,83 +448,16 @@ assets\pages\qualita\page-001.png
 
 ---
 
-## טופס יצירת קשר ללא API וללא דומיין פרטי
+## יצירת קשר במייל ללא טופס באתר
 
-בסוף הדף הראשי מוצג כפתור **צור קשר**. לחיצה עליו פותחת טופס, והטופס נשלח ישירות ל־**Netlify Forms**.
+בסוף הדף הראשי מוצג אזור **יצירת קשר במייל**. אין יותר טופס באתר, אין שליחת AJAX, אין `mailto:` ואין תלות במנגנון טפסים של האחסון.
 
-זה הפתרון הפשוט לאתר הזה:
-
-- לא צריך Resend.
-- לא צריך API key.
-- לא צריך דומיין פרטי.
-- לא צריך `netlify/functions/contact.js`.
-- לא צריך להגדיר משתני סביבה.
-
-האתר יכול להמשיך לשבת על הכתובת החינמית של Netlify, למשל:
-
-```text
-https://bargig.netlify.app/
-```
-
-### איך זה עובד
-
-הטופס ב־`index.html` כולל:
+הכפתור היחיד ב־`index.html` פותח כתובת Gmail Compose ישירה עם כתובת החנות מוכנה מראש:
 
 ```html
-<form name="store-contact" method="POST" action="/" data-netlify="true" netlify-honeypot="bot-field">
-  <input type="hidden" name="form-name" value="store-contact" />
-</form>
+<a href="https://mail.google.com/mail/u/0/?to=bargig218@gmail.com&su=...&tf=cm" target="_blank" rel="noopener">פתיחת Gmail לשליחה</a>
 ```
 
-ב־`app.js` הטופס נשלח ב־AJAX אל Netlify כ־`application/x-www-form-urlencoded`, כמו ש־Netlify Forms דורשת. כך הגולש נשאר באותו עמוד ומקבל הודעת הצלחה במקום מעבר לעמוד אחר.
+הקישור הקודם השתמש ב־`view=cm&fs=1`, שמבקש מ־Gmail לפתוח מסך כתיבה מלא. הקישור הנוכחי נמנע מ־`fs=1` ומשתמש ב־`tf=cm`, כדי לפתוח את חלון הכתיבה של Gmail בצורה קרובה יותר לברירת המחדל הרגילה של Gmail. בפועל, Gmail עדיין יכול לכבד העדפות חשבון/דפדפן של המשתמש, למשל אם אצלו הוגדר שחלון כתיבה נפתח תמיד במסך מלא.
 
-### מה צריך לעשות ב־Netlify אחרי העלאה
-
-1. להעלות את האתר ל־Netlify כרגיל.
-2. להיכנס לאתר ב־Netlify.
-3. להיכנס אל **Project configuration → Forms** ולוודא ש־**Form detection** פעיל.
-4. אחרי פריסה מוצלחת, לשלוח הודעת ניסיון מהטופס באתר.
-5. להיכנס אל **Forms** בפרויקט ולראות שהופיע טופס בשם `store-contact`.
-
-### איך לקבל את הפניות גם למייל
-
-Netlify שומרת את כל הפניות בדשבורד תחת **Forms**.
-
-כדי לקבל גם אימייל בכל פנייה:
-
-1. להיכנס באתר שלך ב־Netlify אל **Project configuration**.
-2. להיכנס אל **Notifications**.
-3. לבחור **Emails and webhooks**.
-4. תחת **Form submission notifications** לבחור **Add notification**.
-5. לבחור Email notification.
-6. לבחור את הטופס `store-contact`.
-7. להכניס את כתובת המייל שאליה רוצים לקבל הודעות, למשל `bargig218@gmail.com`.
-8. לשמור.
-
-הטופס כולל שדה בשם `email`, ולכן כשמגיעה התראה מ־Netlify, בדרך כלל אפשר לעשות Reply והמייל של הגולש יופיע כ־Reply-To.
-
-### בדיקה לפני העלאה
-
-בדיקת תחביר מהירה:
-
-```bash
-node --check app.js
-```
-
-את פתיחת/סגירת הטופס אפשר לבדוק מקומית גם בלי Netlify. את השליחה עצמה כדאי לבדוק אחרי העלאה ל־Netlify, כי Netlify Forms פועלת בזמן שהאתר פרוס ב־Netlify.
-
-### קבצים שכבר לא צריך
-
-הקבצים הבאים היו שייכים לפתרון הקודם של Resend ואפשר למחוק:
-
-```text
-.env
-.env.example
-netlify/functions/contact.js
-```
-
-גם אין צורך במשתני סביבה כמו `RESEND_API_KEY`, `CONTACT_FROM_EMAIL` וכדומה.
-
-### יצירת חבילת העלאה
-
-אפשר להמשיך להשתמש ב־`bundle-site.bat`. הסקריפט עודכן כך שהוא לא מעתיק יותר את תיקיית `netlify/functions`, כי הטופס כבר לא משתמש ב־Function.
+אם צריך להחליף בעתיד את כתובת המייל, משנים את הכתובת ב־`index.html` בשני מקומות: הטקסט המוצג וקישור Gmail.

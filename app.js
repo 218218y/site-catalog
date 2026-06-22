@@ -109,17 +109,7 @@ const els = {
   lightboxCatalogMenu: $("lightboxCatalogMenu"),
   lightboxFloatingPreview: $("lightboxFloatingPreview"),
   lightboxFloatingPreviewImage: $("lightboxFloatingPreviewImage"),
-  lightboxFloatingPreviewPage: $("lightboxFloatingPreviewPage"),
-  contactToggle: $("contactToggle"),
-  contactFormWrap: $("contactFormWrap"),
-  contactForm: $("storeContactForm"),
-  contactName: $("contactName"),
-  contactEmail: $("contactEmail"),
-  contactPhone: $("contactPhone"),
-  contactSubject: $("contactSubject"),
-  contactMessage: $("contactMessage"),
-  contactStatus: $("contactStatus"),
-  contactSubmit: $("contactSubmit")
+  lightboxFloatingPreviewPage: $("lightboxFloatingPreviewPage")
 };
 
 function pad(num) {
@@ -491,8 +481,7 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
     `<a class="top-nav-link" href="#catalogs">כל הקטלוגים</a>`,
     ...groups.map((group, index) => (
       `<a class="top-nav-link category-nav-link" href="#${escapeHtml(categorySectionId(group.category, index))}">${escapeHtml(group.category)}</a>`
-    )),
-    `<a class="top-nav-link" href="#contact">יצירת קשר</a>`
+    ))
   ];
 
   els.categoryNav.innerHTML = links.join("");
@@ -2118,118 +2107,6 @@ function attachZoomSurfaceGestures(surface) {
 }
 
 
-function setContactFormOpen(isOpen, { focus = false } = {}) {
-  if (!els.contactFormWrap || !els.contactToggle) return;
-
-  els.contactFormWrap.hidden = !isOpen;
-  els.contactToggle.setAttribute("aria-expanded", String(isOpen));
-  els.contactToggle.textContent = isOpen ? "סגור יצירת קשר" : "צור קשר";
-  els.contactFormWrap.classList.toggle("is-open", isOpen);
-
-  if (isOpen && focus) {
-    requestAnimationFrame(() => {
-      els.contactEmail?.focus({ preventScroll: true });
-    });
-  }
-}
-
-function toggleContactForm() {
-  const nextOpenState = !(els.contactToggle?.getAttribute("aria-expanded") === "true");
-  setContactFormOpen(nextOpenState, { focus: nextOpenState });
-}
-
-function setContactStatus(message = "", type = "") {
-  if (!els.contactStatus) return;
-  els.contactStatus.textContent = message;
-  els.contactStatus.dataset.status = type;
-}
-
-function setContactSubmitting(isSubmitting) {
-  if (els.contactSubmit) {
-    els.contactSubmit.disabled = isSubmitting;
-    els.contactSubmit.textContent = isSubmitting ? "שולח..." : "שליחת הודעה";
-  }
-  els.contactForm?.classList.toggle("is-submitting", isSubmitting);
-}
-
-function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
-}
-
-function contactPayloadFromForm() {
-  return {
-    name: els.contactName?.value.trim() || "",
-    email: els.contactEmail?.value.trim() || "",
-    phone: els.contactPhone?.value.trim() || "",
-    subject: els.contactSubject?.value.trim() || "",
-    message: els.contactMessage?.value.trim() || "",
-    sourceUrl: window.location.href,
-    botField: els.contactForm?.querySelector('[name="bot-field"]')?.value.trim() || ""
-  };
-}
-
-function validateContactPayload(payload) {
-  if (!payload.email) return "חובה למלא מייל לחזרה.";
-  if (!isValidEmail(payload.email)) return "המייל לחזרה לא נראה תקין.";
-  if (payload.name.length > 80) return "השם ארוך מדי.";
-  if (!payload.subject || payload.subject.length < 3) return "חובה למלא נושא של לפחות 3 תווים.";
-  if (!payload.message || payload.message.length < 10) return "חובה למלא הודעה של לפחות 10 תווים.";
-  if (payload.subject.length > 120) return "הנושא ארוך מדי.";
-  if (payload.message.length > 4000) return "ההודעה ארוכה מדי.";
-  if (payload.phone.length > 40) return "מספר הטלפון ארוך מדי.";
-  return "";
-}
-
-function prepareContactFormForNetlify() {
-  if (!els.contactForm) return;
-  const sourceUrlInput = els.contactForm.querySelector('[name="source_url"]');
-  if (sourceUrlInput) {
-    sourceUrlInput.value = window.location.href;
-  }
-}
-
-async function submitContactForm(event) {
-  event?.preventDefault();
-  if (!els.contactForm) return;
-
-  const payload = contactPayloadFromForm();
-  const validationMessage = validateContactPayload(payload);
-  if (validationMessage) {
-    setContactStatus(validationMessage, "error");
-    return;
-  }
-
-  prepareContactFormForNetlify();
-  setContactSubmitting(true);
-  setContactStatus("שולח את ההודעה...", "pending");
-
-  try {
-    const formData = new FormData(els.contactForm);
-    if (!formData.get("form-name")) {
-      formData.set("form-name", els.contactForm.getAttribute("name") || "store-contact");
-    }
-
-    const response = await fetch(els.contactForm.getAttribute("action") || "/", {
-      method: "POST",
-      headers: {
-        "Accept": "text/html,application/json",
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: new URLSearchParams(formData).toString()
-    });
-
-    if (!response.ok) {
-      throw new Error("לא הצלחתי לשלוח את ההודעה כרגע.");
-    }
-
-    els.contactForm.reset();
-    setContactStatus("ההודעה נשלחה בהצלחה. נחזור אליכם בהקדם.", "success");
-  } catch (error) {
-    setContactStatus(error?.message || "לא הצלחתי לשלוח את ההודעה כרגע. כדאי לנסות שוב בעוד רגע.", "error");
-  } finally {
-    setContactSubmitting(false);
-  }
-}
 
 function attachViewerGestures() {
   attachZoomSurfaceGestures(els.stageCanvas);
@@ -2237,9 +2114,6 @@ function attachViewerGestures() {
 }
 
 function attachEvents() {
-  els.contactToggle?.addEventListener("click", toggleContactForm);
-  els.contactForm?.addEventListener("submit", submitContactForm);
-
   els.globalSearchInput?.addEventListener("input", () => renderSearchResults(els.globalSearchInput.value));
   els.globalSearchInput?.addEventListener("focus", () => renderSearchResults(els.globalSearchInput.value));
   els.globalSearchInput?.addEventListener("click", () => renderSearchResults(els.globalSearchInput.value));

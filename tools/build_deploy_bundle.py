@@ -28,7 +28,6 @@ from typing import Iterable
 
 DEPLOY_FILES = [
     "_headers",
-    "netlify.toml",
     "index.html",
     "styles.css",
     "app.js",
@@ -307,7 +306,7 @@ def main() -> int:
         print(f"Upload folder: {rel_to_root(out_dir)}")
         print(f"Copied: {stats.files} files, {format_bytes(stats.bytes)}")
         print("Excluded: PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
-        print("Contact form: Netlify Forms only; no serverless function is required.")
+        print("Contact: direct Gmail compose link only; no mailto fallback, form, or serverless function is required.")
 
         if args.zip:
             zip_path = out_dir.with_suffix(".zip")
