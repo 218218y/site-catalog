@@ -55,7 +55,10 @@ const els = {
   globalSearchClear: $("globalSearchClear"),
   lastViewCard: $("lastViewCard"),
   lastViewText: $("lastViewText"),
-  continueLastViewBtn: $("continueLastViewBtn"),
+  lastViewDetails: $("lastViewDetails"),
+  lastViewCatalog: $("lastViewCatalog"),
+  lastViewPage: $("lastViewPage"),
+  lastViewTime: $("lastViewTime"),
   catalogDetail: $("catalogDetail"),
   catalogTitle: $("catalogDetailTitle"),
   catalogDescription: $("catalogDescription"),
@@ -250,29 +253,35 @@ function renderLastCatalogView() {
   const record = readLastCatalogView();
   const hasRecord = Boolean(record);
   els.lastViewCard.classList.toggle("has-last-view", hasRecord);
+  els.lastViewCard.disabled = !hasRecord;
+  els.lastViewCard.setAttribute("aria-disabled", hasRecord ? "false" : "true");
 
-  if (els.continueLastViewBtn) {
-    els.continueLastViewBtn.disabled = !hasRecord;
-    els.continueLastViewBtn.setAttribute("aria-disabled", hasRecord ? "false" : "true");
-    if (hasRecord) {
-      const locationLabel = window.BargigLastView?.formatLocation?.(record) || `${record.catalog?.title || "קטלוג"} · עמוד ${record.page}`;
-      els.continueLastViewBtn.setAttribute("aria-label", `המשך צפייה: ${locationLabel}`);
-    } else {
-      els.continueLastViewBtn.setAttribute("aria-label", "עדיין אין מיקום צפייה שמור");
-    }
-  }
-
-  if (!els.lastViewText) return;
   if (!hasRecord) {
-    els.lastViewText.textContent = "אחרי צפייה בקטלוג יופיע כאן הקטלוג והעמוד האחרון.";
+    els.lastViewCard.setAttribute("aria-label", "עדיין אין מיקום צפייה שמור");
+    if (els.lastViewText) {
+      els.lastViewText.textContent = "אחרי צפייה בקטלוג יופיע כאן הקטלוג והעמוד האחרון.";
+    }
+    if (els.lastViewCatalog) els.lastViewCatalog.textContent = "—";
+    if (els.lastViewPage) els.lastViewPage.textContent = "—";
+    if (els.lastViewTime) els.lastViewTime.textContent = "—";
     return;
   }
 
-  const locationLabel = window.BargigLastView?.formatLocation?.(record) || `${record.catalog?.title || "קטלוג"} · עמוד ${record.page}`;
-  const timeLabel = window.BargigLastView?.formatTime?.(record.updatedAt) || "";
-  els.lastViewText.textContent = timeLabel
-    ? `הצפייה האחרונה: ${locationLabel} · ${timeLabel}`
-    : `הצפייה האחרונה: ${locationLabel}`;
+  const catalogTitle = record.catalog?.title || "קטלוג";
+  const totalPages = Math.max(1, Number(record.catalog?.pages || 1));
+  const pageLabel = `עמוד ${record.page} מתוך ${totalPages}`;
+  const locationLabel = window.BargigLastView?.formatLocation?.(record) || `${catalogTitle} · ${pageLabel}`;
+  const timeLabel = window.BargigLastView?.formatTime?.(record.updatedAt) || "נשמר לאחרונה";
+
+  els.lastViewCard.setAttribute("aria-label", `המשך צפייה ממקום אחרון: ${locationLabel}. ${timeLabel}`);
+
+  if (els.lastViewText) {
+    els.lastViewText.textContent = "לחצו על הכרטיס כדי לחזור בדיוק לנקודה האחרונה.";
+  }
+  if (els.lastViewCatalog) els.lastViewCatalog.textContent = catalogTitle;
+  if (els.lastViewPage) els.lastViewPage.textContent = pageLabel;
+  if (els.lastViewTime) els.lastViewTime.textContent = timeLabel;
+
 }
 
 function rememberCurrentCatalogView() {
@@ -2117,7 +2126,7 @@ function attachEvents() {
     renderSearchResults("");
   });
 
-  els.continueLastViewBtn?.addEventListener("click", continueLastCatalogView);
+  els.lastViewCard?.addEventListener("click", continueLastCatalogView);
 
   els.lightboxSearchInput?.addEventListener("input", () => renderLightboxSearchResults(els.lightboxSearchInput.value));
   els.lightboxSearchInput?.addEventListener("focus", () => {

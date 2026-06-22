@@ -43,13 +43,27 @@
       <p class="search-status" id="globalSearchStatus">הקלד לפחות 2 תווים כדי לחפש.</p>
       <div class="search-results hidden" id="globalSearchResults" aria-live="polite"></div>
 
-      <div class="last-view-card" id="lastViewCard" aria-live="polite">
-        <div class="last-view-copy">
+      <button class="last-view-card" id="lastViewCard" type="button" disabled aria-disabled="true" aria-live="polite">
+        <span class="last-view-copy">
           <strong>המשך צפייה ממקום אחרון</strong>
           <small id="lastViewText">אחרי צפייה בקטלוג יופיע כאן הקטלוג והעמוד האחרון.</small>
-        </div>
-        <button class="small-button last-view-button" id="continueLastViewBtn" type="button" disabled aria-disabled="true">המשך צפייה</button>
-      </div>
+        </span>
+        <span class="last-view-details" id="lastViewDetails" aria-hidden="true">
+          <span class="last-view-detail">
+            <span class="last-view-label">קטלוג</span>
+            <span class="last-view-value" id="lastViewCatalog">—</span>
+          </span>
+          <span class="last-view-detail">
+            <span class="last-view-label">עמוד</span>
+            <span class="last-view-value" id="lastViewPage">—</span>
+          </span>
+          <span class="last-view-detail">
+            <span class="last-view-label">שעה</span>
+            <span class="last-view-value" id="lastViewTime">—</span>
+          </span>
+        </span>
+        <span class="last-view-action" aria-hidden="true">לחזרה למיקום האחרון</span>
+      </button>
     </section>
 
     <section class="catalogs-section panel reveal" id="catalogs" aria-labelledby="catalogsTitle">

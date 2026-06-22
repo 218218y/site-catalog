@@ -391,44 +391,112 @@ main {
 }
 
 .last-view-card {
-  display: flex;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(190px, .8fr) minmax(260px, 1.35fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  gap: 16px;
   margin-top: 16px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-radius: 24px;
-  border: 1px solid rgba(110, 86, 70, 0.14);
-  background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(239,225,213,0.54));
-  box-shadow: 0 14px 32px rgba(57, 43, 33, 0.07);
+  border: 1px solid rgba(110, 86, 70, 0.16);
+  color: var(--ink);
+  text-align: right;
+  font: inherit;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(199, 155, 112, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(239,225,213,0.62));
+  box-shadow: 0 16px 34px rgba(57, 43, 33, 0.09);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+}
+.last-view-card.has-last-view:hover,
+.last-view-card.has-last-view:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(154, 122, 98, 0.34);
+  box-shadow: 0 20px 42px rgba(57, 43, 33, 0.13);
+}
+.last-view-card:focus-visible {
+  outline: 3px solid rgba(154, 122, 98, 0.28);
+  outline-offset: 3px;
+}
+.last-view-card:disabled {
+  cursor: default;
+  color: rgba(45, 36, 30, 0.82);
+  box-shadow: 0 10px 24px rgba(57, 43, 33, 0.06);
+}
+.last-view-card:disabled:hover {
+  transform: none;
 }
 .last-view-copy {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 5px;
 }
 .last-view-copy strong {
-  font-size: 1.02rem;
+  font-size: 1.05rem;
 }
 .last-view-copy small {
   color: var(--muted);
   line-height: 1.55;
 }
-.last-view-button {
-  min-width: 220px;
+.last-view-details {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.last-view-detail {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 70px;
+  padding: 11px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(110, 86, 70, 0.12);
+  background: rgba(255,255,255,0.72);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.82);
+}
+.last-view-label {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 800;
+}
+.last-view-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--brand-dark);
+  font-size: .96rem;
+  font-weight: 900;
 }
-.last-view-button:disabled {
-  cursor: not-allowed;
-  color: rgba(111, 98, 88, 0.72);
-  background: rgba(255,255,255,0.64);
-  box-shadow: none;
-  opacity: .76;
+.last-view-action {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 900;
+  white-space: nowrap;
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  box-shadow: 0 10px 22px rgba(110, 86, 70, 0.22);
 }
-.last-view-button:disabled:hover {
-  transform: none;
+.last-view-action::before {
+  content: "↩";
+  margin-inline-end: 8px;
+  font-size: 1rem;
 }
-
+.last-view-card:not(.has-last-view) .last-view-details,
+.last-view-card:not(.has-last-view) .last-view-action {
+  display: none;
+}
 .catalog-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr);
@@ -2269,8 +2337,9 @@ a.reader-home:focus-visible {
   .catalog-category-meta { justify-content: flex-start; }
   .search-box { grid-template-columns: 1fr; border-radius: 22px; }
   .search-clear { width: 100%; }
-  .last-view-card { align-items: stretch; flex-direction: column; border-radius: 20px; }
-  .last-view-button { width: 100%; min-width: 0; }
+  .last-view-card { grid-template-columns: 1fr; align-items: stretch; border-radius: 20px; }
+  .last-view-details { grid-template-columns: 1fr; }
+  .last-view-action { width: 100%; justify-self: stretch; }
   .search-result-button { grid-template-columns: 82px minmax(0, 1fr); }
   .search-result-thumb { width: 82px; height: 106px; }
   .reader-top-shell { max-height: calc(100vh - 8px); }
