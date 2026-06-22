@@ -450,32 +450,46 @@ assets\pages\qualita\page-001.png
 
 ## טופס יצירת קשר ושליחת מייל
 
-בסוף הדף הראשי מוצג כפתור **צור קשר** בלבד. לחיצה על הכפתור פותחת את טופס יצירת הקשר, והטופס מגיש בקשה ל־Netlify Function בנתיב:
+בסוף הדף הראשי מוצג כפתור **צור קשר**. לחיצה עליו פותחת טופס, והטופס שולח בקשה ל־Netlify Function בנתיב:
 
 ```text
 /api/contact
 ```
 
-השליחה עצמה מתבצעת בצד השרת בלבד, כדי לא לחשוף בדפדפן API keys או פרטי SMTP.
+השליחה מתבצעת בצד השרת בלבד. מפתח Resend לא נמצא ב־HTML/JS של הדפדפן, ולכן לא נחשף לגולשים.
+
+### מה צריך לפתוח/להגדיר ב־Resend
+
+1. לפתוח חשבון ב־Resend.
+2. ליצור API key עם הרשאה לשליחת מיילים. את המפתח רואים פעם אחת בלבד, אז לשמור אותו במקום בטוח.
+3. להוסיף ולאמת דומיין לשליחה, עדיף תת־דומיין כמו `mail.your-domain.co.il` או `send.your-domain.co.il`.
+4. אחרי אימות הדומיין, אפשר לשלוח מכל כתובת באותו דומיין, למשל `contact@your-domain.co.il`. הכתובת לא חייבת להיות תיבת מייל קיימת, אבל עדיף שתהיה כתובת שאפשר לקבל אליה תשובות.
 
 ### הגדרות חובה ב־Netlify
 
-ב־Netlify יש להגדיר Environment Variables עבור ה־Functions:
+ב־Netlify נכנסים ל־Project configuration → Environment variables ומגדירים משתנים עבור Functions:
 
 ```text
 RESEND_API_KEY=...              # מפתח API של Resend
-CONTACT_FROM_EMAIL=...          # כתובת שולח מאומתת, למשל contact@your-domain.co.il
+CONTACT_FROM_EMAIL=...          # כתובת שולח מדומיין מאומת, למשל contact@your-domain.co.il
+CONTACT_FROM_NAME=רהיטי ברגיג   # לא חובה, אבל יפה יותר במייל
 CONTACT_TO_EMAIL=bargig218@gmail.com
 CONTACT_SITE_NAME=רהיטי ברגיג
 ```
 
-`CONTACT_TO_EMAIL` מוגדר בקוד כברירת מחדל ל־`bargig218@gmail.com`, אבל עדיף להגדיר אותו גם ב־Netlify כדי שיהיה קל להחליף כתובת בלי לגעת בקוד.
+`CONTACT_TO_EMAIL` מוגדר בקוד כברירת מחדל ל־`bargig218@gmail.com`, אבל עדיף להגדיר אותו גם ב־Netlify כדי שיהיה קל להחליף כתובת בלי לגעת בקוד. אפשר גם כמה נמענים, מופרדים בפסיקים:
 
-חשוב: `CONTACT_FROM_EMAIL` חייב להיות כתובת/דומיין שמאומתים אצל ספק המייל. אחרת ספק המייל עלול לדחות את השליחה.
+```text
+CONTACT_TO_EMAIL=first@example.com,second@example.com
+```
+
+חשוב: `CONTACT_FROM_EMAIL` חייב להיות כתובת תחת דומיין מאומת ב־Resend. אם משתמשים בכתובת לא מאומתת, Resend יחזיר שגיאה והטופס לא ישלח.
+
+קובץ `.env.example` מצורף כטמפלייט בלבד. לא להכניס אליו מפתח אמיתי אם הקוד עולה לגיט/לאינטרנט.
 
 ### בדיקה לפני העלאה
 
-את המראה ואת הפתיחה/סגירה של הטופס אפשר לבדוק גם כאתר סטטי רגיל. את שליחת המייל עצמה בודקים דרך Netlify CLI או אחרי העלאה ל־Netlify, כי `/api/contact` הוא Netlify Function ולא קובץ סטטי רגיל.
+את המראה ואת הפתיחה/סגירה של הטופס אפשר לבדוק גם כאתר סטטי רגיל. את שליחת המייל עצמה בודקים דרך Netlify CLI או אחרי פריסה ל־Netlify, כי `/api/contact` הוא Netlify Function ולא קובץ סטטי רגיל.
 
 בדיקת תחביר מהירה:
 
@@ -491,11 +505,12 @@ npm install -g netlify-cli
 netlify dev
 ```
 
-לפני בדיקת שליחת מייל אמיתית צריך להגדיר את משתני הסביבה גם בסביבה המקומית או ב־Netlify:
+לבדיקה מקומית אמיתית צריך להגדיר משתני סביבה במחשב או דרך Netlify CLI. אפשר להשתמש ב־`.env.example` כתבנית, אבל ליצור קובץ `.env` מקומי שלא מעלים לאתר:
 
 ```text
 RESEND_API_KEY=...
-CONTACT_FROM_EMAIL=...
+CONTACT_FROM_EMAIL=contact@your-domain.co.il
+CONTACT_FROM_NAME=רהיטי ברגיג
 CONTACT_TO_EMAIL=bargig218@gmail.com
 CONTACT_SITE_NAME=רהיטי ברגיג
 ```
@@ -508,4 +523,8 @@ CONTACT_SITE_NAME=רהיטי ברגיג
 netlify/functions/contact.js
 ```
 
-ולכן מומלץ לפרוס דרך Netlify CLI או דרך חיבור Git ל־Netlify, כדי שה־Function יעלה יחד עם האתר. סקריפט `bundle-site.bat` מעתיק גם את `netlify.toml` וגם את `netlify/functions` לתיקיית ההעלאה.
+לכן לא מספיק להעלות רק `index.html`, `styles.css` ו־`app.js`. צריך לפרוס גם את `netlify.toml` ואת תיקיית `netlify/functions`.
+
+הדרך המומלצת: חיבור Git ל־Netlify או פריסה דרך Netlify CLI. פריסת Drag & Drop פשוטה מתאימה בעיקר לאתר סטטי; עבור Function עדיף CLI/Git כדי ש־Netlify יזהה ויפרסם את הפונקציה.
+
+סקריפט `bundle-site.bat` מעתיק גם את `netlify.toml` וגם את `netlify/functions` לתיקיית ההעלאה.

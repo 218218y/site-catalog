@@ -2,6 +2,7 @@ dist/
 test-results/
 .artifacts/
 .venv
+.env
 assets/
 playwright-report/
 .artifacts/

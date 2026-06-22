@@ -113,6 +113,7 @@ const els = {
   contactToggle: $("contactToggle"),
   contactFormWrap: $("contactFormWrap"),
   contactForm: $("storeContactForm"),
+  contactName: $("contactName"),
   contactEmail: $("contactEmail"),
   contactPhone: $("contactPhone"),
   contactSubject: $("contactSubject"),
@@ -2157,10 +2158,12 @@ function isValidEmail(value) {
 
 function contactPayloadFromForm() {
   return {
+    name: els.contactName?.value.trim() || "",
     email: els.contactEmail?.value.trim() || "",
     phone: els.contactPhone?.value.trim() || "",
     subject: els.contactSubject?.value.trim() || "",
     message: els.contactMessage?.value.trim() || "",
+    sourceUrl: window.location.href,
     botField: els.contactForm?.querySelector('[name="bot-field"]')?.value.trim() || ""
   };
 }
@@ -2168,6 +2171,7 @@ function contactPayloadFromForm() {
 function validateContactPayload(payload) {
   if (!payload.email) return "חובה למלא מייל לחזרה.";
   if (!isValidEmail(payload.email)) return "המייל לחזרה לא נראה תקין.";
+  if (payload.name.length > 80) return "השם ארוך מדי.";
   if (!payload.subject || payload.subject.length < 3) return "חובה למלא נושא של לפחות 3 תווים.";
   if (!payload.message || payload.message.length < 10) return "חובה למלא הודעה של לפחות 10 תווים.";
   if (payload.subject.length > 120) return "הנושא ארוך מדי.";

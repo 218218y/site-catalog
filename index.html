@@ -142,6 +142,11 @@
           </p>
 
           <div class="contact-form-grid">
+            <label class="contact-field" for="contactName">
+              <span>שם <small>(לא חובה)</small></span>
+              <input id="contactName" name="name" type="text" autocomplete="name" maxlength="80" />
+            </label>
+
             <label class="contact-field" for="contactEmail">
               <span>מייל לחזרה <strong aria-hidden="true">*</strong></span>
               <input id="contactEmail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="name@example.com" required />
@@ -149,10 +154,10 @@
 
             <label class="contact-field" for="contactPhone">
               <span>טלפון <small>(לא חובה)</small></span>
-              <input id="contactPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" />
+              <input id="contactPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="40" />
             </label>
 
-            <label class="contact-field contact-field-wide" for="contactSubject">
+            <label class="contact-field" for="contactSubject">
               <span>נושא <strong aria-hidden="true">*</strong></span>
               <input id="contactSubject" name="subject" type="text" autocomplete="off" maxlength="120" placeholder="למשל: שאלה על קטלוג חדרי שינה" required />
             </label>
