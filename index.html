@@ -42,6 +42,14 @@
       </div>
       <p class="search-status" id="globalSearchStatus">הקלד לפחות 2 תווים כדי לחפש.</p>
       <div class="search-results hidden" id="globalSearchResults" aria-live="polite"></div>
+
+      <div class="last-view-card" id="lastViewCard" aria-live="polite">
+        <div class="last-view-copy">
+          <strong>המשך צפייה ממקום אחרון</strong>
+          <small id="lastViewText">אחרי צפייה בקטלוג יופיע כאן הקטלוג והעמוד האחרון.</small>
+        </div>
+        <button class="small-button last-view-button" id="continueLastViewBtn" type="button" disabled aria-disabled="true">המשך צפייה</button>
+      </div>
     </section>
 
     <section class="catalogs-section panel reveal" id="catalogs" aria-labelledby="catalogsTitle">
@@ -228,6 +236,7 @@
   <script src="catalogs.search.js"></script>
   <script src="catalog-search.js"></script>
   <script src="tooltip-manager.js"></script>
+  <script src="catalog-last-view.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
