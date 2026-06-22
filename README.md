@@ -152,7 +152,9 @@ http://localhost:8080
 
 ## תצוגת קטלוג במסך מלא
 
-בגרסה הזו, לחיצה על עמוד קטלוג פותחת אותו כמעט על כל המסך, בלי מסגרת גדולה ובלי סרגלים שתופסים מקום.
+בגרסה הזו הצפייה במסך מלא נמצאת בתוך `index.html`. אין יותר דף `catalog.html` נפרד, ולכן גם קובץ `catalog-viewer.js` הוסר מהפרויקט.
+
+לחיצה על עמוד קטלוג פותחת אותו כמעט על כל המסך, בלי מסגרת גדולה ובלי סרגלים שתופסים מקום.
 
 מה רואים כברירת מחדל:
 - התמונה עצמה במסך מלא.
@@ -277,29 +279,19 @@ assets\pages\tbi
 bundle-site.bat
 ```
 
-ב־Mac/Linux אפשר להריץ:
-
-```bash
-./bundle-site.sh
-```
-
 הסקריפט ייצור:
 
 ```text
 dist\site-upload
 ```
 
-וגם קובץ ZIP נוח להעלאה:
-
-```text
-dist\site-upload.zip
-```
-
 מה נכנס לבאנדל:
-- דפי האתר: `index.html`, `catalog.html`
-- קבצי העיצוב והפעולה: `styles.css`, `app.js`, `catalog-viewer.js`, `catalog-search.js`, `brand-logo.js`
+- דפי האתר: `index.html`
+- קבצי העיצוב והפעולה: `styles.css`, `app.js`, `catalog-search.js`, `catalog-snapshot.js`, `tooltip-manager.js`, `brand-logo.js`, `favicon-loader.js`
 - קבצי נתוני האתר: `catalogs.generated.js`, `catalogs.search.js`, `wp_logo_data.js`
 - כל התמונות שכבר הומרו מתוך `assets\pages`
+
+הערה: הפרויקט הזה מיועד כרגע להרצה ותחזוקה ב־Windows, לכן קבצי ההרצה של Mac/Linux הוסרו מהחבילה הנקייה.
 
 מה לא נכנס לבאנדל:
 - `assets\pdfs`
@@ -309,18 +301,18 @@ dist\site-upload.zip
 - `catalogs.config.json`
 - README וקבצי עבודה אחרים
 
-כלומר: את `dist\site-upload` או את `dist\site-upload.zip` מעלים לאתר. את שאר תיקיית הפרויקט משאירים אצלך במחשב לצורך עריכה, המרות עתידיות וניהול הקטלוגים.
+כלומר: את התיקייה `dist\site-upload` מעלים לאתר. את שאר תיקיית הפרויקט משאירים אצלך במחשב לצורך עריכה, המרות עתידיות וניהול הקטלוגים.
 
 אם רוצים להריץ ידנית:
 
 ```bash
-python tools/build_deploy_bundle.py --zip
+python tools/build_deploy_bundle.py
 ```
 
 אפשר לבחור יעד אחר:
 
 ```bash
-python tools/build_deploy_bundle.py --out dist/my-upload --zip
+python tools/build_deploy_bundle.py --out dist/my-upload
 ```
 
 ---

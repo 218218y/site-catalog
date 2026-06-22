@@ -14,7 +14,7 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-%PYTHON_EXE% tools\build_deploy_bundle.py --zip %*
+%PYTHON_EXE% tools\build_deploy_bundle.py %*
 if errorlevel 1 (
   echo.
   echo Bundle failed. Make sure you ran convert-catalogs.bat and assets\pages exists.
@@ -24,6 +24,5 @@ if errorlevel 1 (
 
 echo.
 echo Ready to upload: dist\site-upload
-echo ZIP file: dist\site-upload.zip
 echo.
 pause

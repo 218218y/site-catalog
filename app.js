@@ -53,6 +53,9 @@ const els = {
   globalSearchResults: $("globalSearchResults"),
   globalSearchStatus: $("globalSearchStatus"),
   globalSearchClear: $("globalSearchClear"),
+  lastViewCard: $("lastViewCard"),
+  lastViewText: $("lastViewText"),
+  continueLastViewBtn: $("continueLastViewBtn"),
   catalogDetail: $("catalogDetail"),
   catalogTitle: $("catalogDetailTitle"),
   catalogDescription: $("catalogDescription"),
@@ -235,6 +238,66 @@ function flashActionButton(button, message) {
     setTooltipText(button, originalTooltip);
     button.classList.remove("reader-icon-button-done");
   }, 1500);
+}
+
+function readLastCatalogView() {
+  return window.BargigLastView?.read?.(catalogs) || null;
+}
+
+function renderLastCatalogView() {
+  if (!els.lastViewCard) return;
+
+  const record = readLastCatalogView();
+  const hasRecord = Boolean(record);
+  els.lastViewCard.classList.toggle("has-last-view", hasRecord);
+
+  if (els.continueLastViewBtn) {
+    els.continueLastViewBtn.disabled = !hasRecord;
+    els.continueLastViewBtn.setAttribute("aria-disabled", hasRecord ? "false" : "true");
+    if (hasRecord) {
+      const locationLabel = window.BargigLastView?.formatLocation?.(record) || `${record.catalog?.title || "קטלוג"} · עמוד ${record.page}`;
+      els.continueLastViewBtn.setAttribute("aria-label", `המשך צפייה: ${locationLabel}`);
+    } else {
+      els.continueLastViewBtn.setAttribute("aria-label", "עדיין אין מיקום צפייה שמור");
+    }
+  }
+
+  if (!els.lastViewText) return;
+  if (!hasRecord) {
+    els.lastViewText.textContent = "אחרי צפייה בקטלוג יופיע כאן הקטלוג והעמוד האחרון.";
+    return;
+  }
+
+  const locationLabel = window.BargigLastView?.formatLocation?.(record) || `${record.catalog?.title || "קטלוג"} · עמוד ${record.page}`;
+  const timeLabel = window.BargigLastView?.formatTime?.(record.updatedAt) || "";
+  els.lastViewText.textContent = timeLabel
+    ? `הצפייה האחרונה: ${locationLabel} · ${timeLabel}`
+    : `הצפייה האחרונה: ${locationLabel}`;
+}
+
+function rememberCurrentCatalogView() {
+  if (!state.catalog || !state.lightboxOpen) return null;
+
+  const record = window.BargigLastView?.save?.(catalogs, {
+    catalogId: state.catalog.id,
+    page: clampPage(state.page, state.catalog),
+    viewerMode: state.viewerMode,
+    updatedAt: Date.now()
+  }) || null;
+
+  if (record) renderLastCatalogView();
+  return record;
+}
+
+function continueLastCatalogView() {
+  const record = readLastCatalogView();
+  if (!record) {
+    renderLastCatalogView();
+    return false;
+  }
+
+  openCatalogInViewer(record.catalogId, record.page, record.viewerMode);
+  return true;
 }
 
 function loadDeferredImage(img) {
@@ -1542,6 +1605,7 @@ function updateLightbox() {
     applyZoom();
     updateLightboxThumbs();
     updateHash();
+    rememberCurrentCatalogView();
     return;
   }
 
@@ -1563,6 +1627,7 @@ function updateLightbox() {
   updateLightboxThumbs();
   preloadNeighbors();
   updateHash();
+  rememberCurrentCatalogView();
 }
 
 function openLightbox(page = 1, options = {}) {
@@ -2052,6 +2117,8 @@ function attachEvents() {
     renderSearchResults("");
   });
 
+  els.continueLastViewBtn?.addEventListener("click", continueLastCatalogView);
+
   els.lightboxSearchInput?.addEventListener("input", () => renderLightboxSearchResults(els.lightboxSearchInput.value));
   els.lightboxSearchInput?.addEventListener("focus", () => {
     showTopUiTemporarily(0);
@@ -2232,6 +2299,7 @@ function init() {
   renderCatalogCards();
   fillCatalogSelect();
   initSearchStatus();
+  renderLastCatalogView();
   attachEvents();
 
   const route = parseHash();

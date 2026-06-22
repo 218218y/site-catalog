@@ -390,6 +390,45 @@ main {
   background: rgba(154, 122, 98, 0.12);
 }
 
+.last-view-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(110, 86, 70, 0.14);
+  background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(239,225,213,0.54));
+  box-shadow: 0 14px 32px rgba(57, 43, 33, 0.07);
+}
+.last-view-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.last-view-copy strong {
+  font-size: 1.02rem;
+}
+.last-view-copy small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+.last-view-button {
+  min-width: 220px;
+  white-space: nowrap;
+}
+.last-view-button:disabled {
+  cursor: not-allowed;
+  color: rgba(111, 98, 88, 0.72);
+  background: rgba(255,255,255,0.64);
+  box-shadow: none;
+  opacity: .76;
+}
+.last-view-button:disabled:hover {
+  transform: none;
+}
+
 .catalog-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr);
@@ -574,7 +613,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   display: block;
   overflow: hidden;
 }
-/* The unified viewer uses the same top chrome as catalog.html. */
+/* The unified viewer uses the same top chrome as the former standalone reader. */
 .catalog-progress {
   --catalog-progress-ratio: 0;
   position: fixed;
@@ -2185,7 +2224,7 @@ a.reader-home:focus-visible {
   text-align: inherit;
 }
 
-/* Search inside the unified viewer inherits the catalog.html reader search layout. */
+/* Search inside the unified viewer uses the reader search layout. */
 .lightbox-search {
   min-width: 0;
   width: 100%;
@@ -2230,6 +2269,8 @@ a.reader-home:focus-visible {
   .catalog-category-meta { justify-content: flex-start; }
   .search-box { grid-template-columns: 1fr; border-radius: 22px; }
   .search-clear { width: 100%; }
+  .last-view-card { align-items: stretch; flex-direction: column; border-radius: 20px; }
+  .last-view-button { width: 100%; min-width: 0; }
   .search-result-button { grid-template-columns: 82px minmax(0, 1fr); }
   .search-result-thumb { width: 82px; height: 106px; }
   .reader-top-shell { max-height: calc(100vh - 8px); }

@@ -29,14 +29,13 @@ from typing import Iterable
 DEPLOY_FILES = [
     "_headers",
     "index.html",
-    "catalog.html",
     "styles.css",
     "app.js",
-    "catalog-viewer.js",
     "catalog-search.js",
     "tooltip-manager.js",
     "catalog-snapshot.js",
     "brand-logo.js",
+    "favicon-loader.js",
     "wp_logo_data.js",
     "catalogs.generated.js",
     "catalogs.search.js",
@@ -44,6 +43,9 @@ DEPLOY_FILES = [
 
 OPTIONAL_DEPLOY_FILES = [
     "favicon.ico",
+    "favicon.svg",
+    "favicon.png",
+    "apple-touch-icon.png",
     "robots.txt",
     "site.webmanifest",
     "manifest.webmanifest",
@@ -154,7 +156,7 @@ def add_stats(left: CopyStats, right: CopyStats) -> CopyStats:
 
 def referenced_html_assets(root: Path) -> set[str]:
     references: set[str] = set()
-    for html_file in ("index.html", "catalog.html"):
+    for html_file in ("index.html",):
         path = root / html_file
         if not path.is_file():
             continue
