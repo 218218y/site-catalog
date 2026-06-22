@@ -445,3 +445,67 @@ assets\pages\qualita\page-001.png
 אם אתה רוצה ללכת עד הסוף – `convert-catalogs-png.bat`.
 
 במילים פשוטות: JPG איכותי הוא הסוס עבודה, PNG הוא הטנק.
+
+---
+
+## טופס יצירת קשר ושליחת מייל
+
+בסוף הדף הראשי מוצג כפתור **צור קשר** בלבד. לחיצה על הכפתור פותחת את טופס יצירת הקשר, והטופס מגיש בקשה ל־Netlify Function בנתיב:
+
+```text
+/api/contact
+```
+
+השליחה עצמה מתבצעת בצד השרת בלבד, כדי לא לחשוף בדפדפן API keys או פרטי SMTP.
+
+### הגדרות חובה ב־Netlify
+
+ב־Netlify יש להגדיר Environment Variables עבור ה־Functions:
+
+```text
+RESEND_API_KEY=...              # מפתח API של Resend
+CONTACT_FROM_EMAIL=...          # כתובת שולח מאומתת, למשל contact@your-domain.co.il
+CONTACT_TO_EMAIL=bargig218@gmail.com
+CONTACT_SITE_NAME=רהיטי ברגיג
+```
+
+`CONTACT_TO_EMAIL` מוגדר בקוד כברירת מחדל ל־`bargig218@gmail.com`, אבל עדיף להגדיר אותו גם ב־Netlify כדי שיהיה קל להחליף כתובת בלי לגעת בקוד.
+
+חשוב: `CONTACT_FROM_EMAIL` חייב להיות כתובת/דומיין שמאומתים אצל ספק המייל. אחרת ספק המייל עלול לדחות את השליחה.
+
+### בדיקה לפני העלאה
+
+את המראה ואת הפתיחה/סגירה של הטופס אפשר לבדוק גם כאתר סטטי רגיל. את שליחת המייל עצמה בודקים דרך Netlify CLI או אחרי העלאה ל־Netlify, כי `/api/contact` הוא Netlify Function ולא קובץ סטטי רגיל.
+
+בדיקת תחביר מהירה:
+
+```bash
+node --check app.js
+node --check netlify/functions/contact.js
+```
+
+בדיקה מקומית מלאה עם Netlify CLI:
+
+```bash
+npm install -g netlify-cli
+netlify dev
+```
+
+לפני בדיקת שליחת מייל אמיתית צריך להגדיר את משתני הסביבה גם בסביבה המקומית או ב־Netlify:
+
+```text
+RESEND_API_KEY=...
+CONTACT_FROM_EMAIL=...
+CONTACT_TO_EMAIL=bargig218@gmail.com
+CONTACT_SITE_NAME=רהיטי ברגיג
+```
+
+### פריסה
+
+הטופס כולל Function תחת:
+
+```text
+netlify/functions/contact.js
+```
+
+ולכן מומלץ לפרוס דרך Netlify CLI או דרך חיבור Git ל־Netlify, כדי שה־Function יעלה יחד עם האתר. סקריפט `bundle-site.bat` מעתיק גם את `netlify.toml` וגם את `netlify/functions` לתיקיית ההעלאה.

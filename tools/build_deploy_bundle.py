@@ -28,6 +28,7 @@ from typing import Iterable
 
 DEPLOY_FILES = [
     "_headers",
+    "netlify.toml",
     "index.html",
     "styles.css",
     "app.js",
@@ -55,6 +56,10 @@ OPTIONAL_DEPLOY_FILES = [
 JSON_DEPLOY_FILES = [
     "catalogs.generated.json",
     "catalogs.search.json",
+]
+
+DEPLOY_DIRECTORIES = [
+    "netlify/functions",
 ]
 
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
@@ -276,6 +281,12 @@ def main() -> int:
             stats = add_stats(stats, copy_file(root, out_dir, relative))
         for relative in OPTIONAL_DEPLOY_FILES:
             stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
+        for relative in DEPLOY_DIRECTORIES:
+            source_dir = root / relative
+            if source_dir.is_dir():
+                dir_stats = copy_tree(source_dir, out_dir / relative)
+                stats = add_stats(stats, dir_stats)
+                print(f"[copy] {relative} -> {rel_to_root(out_dir / relative)} ({dir_stats.files} files)")
         if args.include_json:
             for relative in JSON_DEPLOY_FILES:
                 stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
@@ -298,6 +309,8 @@ def main() -> int:
         print(f"Upload folder: {rel_to_root(out_dir)}")
         print(f"Copied: {stats.files} files, {format_bytes(stats.bytes)}")
         print("Excluded: PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
+        if DEPLOY_DIRECTORIES:
+            print("Included: Netlify Functions for server-side contact form handling.")
 
         if args.zip:
             zip_path = out_dir.with_suffix(".zip")
