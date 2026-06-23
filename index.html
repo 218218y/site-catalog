@@ -118,28 +118,6 @@
       <div class="page-grid" id="pageGrid"></div>
     </section>
 
-    <section class="contact-panel panel reveal" id="contact" aria-labelledby="contactTitle">
-      <div class="section-head contact-head">
-        <div>
-          <p class="eyebrow">יצירת קשר</p>
-          <h2 id="contactTitle">יצירת קשר במייל</h2>
-        </div>
-        <p class="section-note">יש לכם שאלה על קטלוג, דגם או הזמנה? הכפתור פותח כתיבת הודעה ב־Gmail עם כתובת החנות מוכנה מראש.</p>
-      </div>
-
-      <div class="contact-mail-card" aria-label="שליחת מייל לחנות דרך Gmail">
-        <div class="contact-mail-copy">
-          <strong>שליחת מייל לרהיטי ברגיג</strong>
-          <span class="contact-email-text">bargig218@gmail.com</span>
-        </div>
-        <div class="contact-mail-actions">
-          <a class="button primary contact-mail-link" href="https://mail.google.com/mail/u/0/?to=bargig218@gmail.com&su=%D7%A4%D7%A0%D7%99%D7%99%D7%94%20%D7%9E%D7%90%D7%AA%D7%A8%20%D7%A8%D7%94%D7%99%D7%98%D7%99%20%D7%91%D7%A8%D7%92%D7%99%D7%92&tf=cm" target="_blank" rel="noopener">
-            פתיחת Gmail לשליחה
-          </a>
-        </div>
-      </div>
-    </section>
-
   </main>
 
   <div class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
@@ -261,7 +239,19 @@
   </div>
 
   <footer class="site-footer">
-    <p>© רהיטי ברגיג · קטלוגים דיגיטליים</p>
+    <div class="site-footer-row">
+      <p>© רהיטי ברגיג · קטלוגים דיגיטליים</p>
+
+      <details class="footer-contact" id="contact">
+        <summary class="button primary footer-contact-toggle">צור קשר</summary>
+        <div class="footer-contact-mail" aria-label="שליחת מייל לחנות דרך Gmail">
+          <strong>שליחת מייל לרהיטי ברגיג</strong>
+          <a class="button primary footer-contact-mail-link" href="https://mail.google.com/mail/u/0/?to=bargig218@gmail.com&su=%D7%A4%D7%A0%D7%99%D7%99%D7%94%20%D7%9E%D7%90%D7%AA%D7%A8%20%D7%A8%D7%94%D7%99%D7%98%D7%99%20%D7%91%D7%A8%D7%92%D7%99%D7%92&tf=cm" target="_blank" rel="noopener">
+            פתיחת Gmail לשליחה
+          </a>
+        </div>
+      </details>
+    </div>
   </footer>
 
   <script src="wp_logo_data.js"></script>
