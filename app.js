@@ -114,8 +114,6 @@ const els = {
   prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"),
   closeLightbox: $("closeLightbox"),
-  zoomInBtn: $("zoomInBtn"),
-  zoomOutBtn: $("zoomOutBtn"),
   fullscreenToggle: $("fullscreenToggle"),
   fitBtn: $("fitBtn"),
   lightboxSearchInput: $("lightboxSearchInput"),
@@ -2302,8 +2300,6 @@ function attachEvents() {
   els.fullscreenToggle?.addEventListener("click", toggleBrowserFullscreen);
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
-  els.zoomInBtn?.addEventListener("click", () => setZoom(state.zoom + 0.2));
-  els.zoomOutBtn?.addEventListener("click", () => setZoom(state.zoom - 0.2));
   els.fitBtn?.addEventListener("click", () => setZoom(1));
 
   attachViewerGestures();

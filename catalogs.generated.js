@@ -10,7 +10,7 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/tbi",
     "cover": "assets/pages/tbi/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "c73bbe281427",
+    "assetVersion": "a7adab1bae36",
     "pageSizes": [
       [
         2800,
@@ -171,7 +171,7 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/fredi-arnot",
     "cover": "assets/pages/fredi-arnot/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "59175c5156e7",
+    "assetVersion": "fa7d9f5c67a7",
     "pageSizes": [
       [
         2800,
@@ -472,7 +472,7 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/qualita",
     "cover": "assets/pages/qualita/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "b88ca0ae4c94",
+    "assetVersion": "f9f8d8d11bba",
     "pageSizes": [
       [
         2252,
@@ -561,7 +561,7 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/komotayim",
     "cover": "assets/pages/komotayim/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "ad970e3fcfb7",
+    "assetVersion": "75600e33b1a2",
     "pageSizes": [
       [
         2478,
@@ -802,7 +802,7 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/comfort",
     "cover": "assets/pages/comfort/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "59b6aae1fefa",
+    "assetVersion": "50d0cefae725",
     "pageSizes": [
       [
         1819,
@@ -1055,7 +1055,7 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/fredi-sifriot",
     "cover": "assets/pages/fredi-sifriot/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "021e552a8498",
+    "assetVersion": "35dfa65069ef",
     "pageSizes": [
       [
         2800,

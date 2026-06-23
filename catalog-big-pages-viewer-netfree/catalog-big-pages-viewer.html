@@ -1,0 +1,1748 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>צפייה בכל תמונות הקטלוגים הגדולות</title>
+  <link rel="preconnect" href="https://bargig-catalog.netlify.app" crossorigin>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f2ed;
+      --panel: #fffaf4;
+      --panel-strong: #ffffff;
+      --text: #2d241d;
+      --muted: #74665a;
+      --border: #e2d5c9;
+      --brand: #8b6f5a;
+      --brand-dark: #654d3d;
+      --shadow: 0 18px 45px rgba(52, 38, 26, .14);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, "Noto Sans Hebrew", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(139, 111, 90, .16), transparent 34rem),
+        linear-gradient(180deg, #fffdf9 0%, var(--bg) 42%, #eee4da 100%);
+      color: var(--text);
+    }
+
+    a { color: inherit; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(255, 250, 244, .94);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 10px 28px rgba(52, 38, 26, .08);
+    }
+
+    .topbar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 14px 18px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .title h1 {
+      margin: 0 0 4px;
+      font-size: clamp(1.2rem, 2vw, 1.8rem);
+      line-height: 1.2;
+    }
+
+    .title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: .95rem;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    button, select, input {
+      font: inherit;
+    }
+
+    .button {
+      border: 0;
+      border-radius: 999px;
+      background: var(--brand);
+      color: #fff;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(101, 77, 61, .18);
+      transition: transform .15s ease, filter .15s ease, opacity .15s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+    }
+
+    .button:hover { transform: translateY(-1px); filter: brightness(.98); }
+    .button:active { transform: translateY(0); }
+    .button:disabled { opacity: .42; cursor: not-allowed; transform: none; }
+
+    .button.secondary {
+      background: #fff;
+      color: var(--brand-dark);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+
+    .page-select {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--text);
+      min-height: 40px;
+      padding: 8px 12px;
+      min-width: 185px;
+    }
+
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 18px 54px;
+    }
+
+    .summary {
+      margin: 0 0 22px;
+      padding: 16px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, .68);
+      box-shadow: var(--shadow);
+    }
+
+    .summary strong { color: var(--brand-dark); }
+    .summary small { color: var(--muted); display: block; margin-top: 5px; }
+
+    .catalog-separator {
+      margin: 28px 0 14px;
+      padding: 13px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: linear-gradient(90deg, rgba(139, 111, 90, .14), rgba(255,255,255,.9));
+      color: var(--brand-dark);
+      font-weight: 800;
+      box-shadow: 0 12px 24px rgba(52, 38, 26, .08);
+    }
+
+    .image-list {
+      display: grid;
+      gap: 28px;
+    }
+
+    .page-card {
+      overflow: hidden;
+      border-radius: var(--radius);
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .page-card-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #fffaf4;
+    }
+
+    .page-title {
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .page-meta {
+      color: var(--muted);
+      font-size: .93rem;
+    }
+
+    .full-link {
+      color: var(--brand-dark);
+      font-weight: 700;
+      text-decoration: none;
+      border-bottom: 1px dashed currentColor;
+    }
+
+    .image-wrap {
+      background: #efe7de;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+    }
+
+    .page-image {
+      display: block;
+      width: min(100%, 1180px);
+      height: auto;
+      background: #ddd4cc;
+      border-radius: 12px;
+    }
+
+    .bottom-nav {
+      margin: 36px 0 0;
+      padding: 20px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: rgba(255, 250, 244, .92);
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 14px;
+      text-align: center;
+    }
+
+    .bottom-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: .92rem;
+      line-height: 1.55;
+    }
+
+    .error {
+      padding: 18px;
+      border-radius: var(--radius);
+      background: #fff1ef;
+      border: 1px solid #efc4bc;
+      color: #743225;
+      font-weight: 700;
+    }
+
+    @media (max-width: 760px) {
+      .topbar-inner {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        justify-content: stretch;
+      }
+
+      .button, .page-select {
+        flex: 1 1 auto;
+      }
+
+      main { padding-inline: 10px; }
+      .page-card { border-radius: 16px; }
+      .image-wrap { padding: 4px; }
+      .page-image { border-radius: 9px; }
+    }
+
+    @media print {
+      .topbar, .bottom-nav, .full-link { display: none !important; }
+      body { background: #fff; }
+      main { max-width: none; padding: 0; }
+      .page-card { break-inside: avoid; box-shadow: none; border: 0; margin-bottom: 18px; }
+      .image-wrap { padding: 0; background: #fff; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="title">
+        <h1>צפייה בכל תמונות הקטלוגים הגדולות</h1>
+        <p id="topStatus">טוען רשימת תמונות…</p>
+      </div>
+      <div class="controls" aria-label="ניווט בין קבוצות תמונות">
+        <button class="button secondary" id="prevTop" type="button">50 הקודמות</button>
+        <select class="page-select" id="chunkSelect" aria-label="בחירת קבוצת תמונות"></select>
+        <button class="button" id="nextTop" type="button">50 הבאות</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="summary" id="summary"></section>
+    <section class="image-list" id="imageList" aria-live="polite"></section>
+    <nav class="bottom-nav" aria-label="מעבר לקבוצת התמונות הבאה">
+      <div id="bottomStatus"></div>
+      <div class="bottom-actions">
+        <button class="button secondary" id="prevBottom" type="button">חזור ל־50 הקודמות</button>
+        <button class="button" id="nextBottom" type="button">עבור ל־50 התמונות הבאות</button>
+      </div>
+      <div class="footer-note">
+        הדף טוען את התמונות הגדולות ישירות מהאתר: <strong>https://bargig-catalog.netlify.app/assets/pages/</strong><br>
+        אפשר לפתוח את הקובץ הזה גם מהמחשב בלי להעלות אותו לאתר.
+      </div>
+    </nav>
+  </main>
+
+  <script>
+    "use strict";
+
+    const BASE_URL = "https://bargig-catalog.netlify.app/";
+    const IMAGES_PER_VIEW = 50;
+    const CATALOGS = [
+  {
+    "id": "tbi",
+    "title": "ת.ב.י רהיטים - ארונות פתיחה 2026",
+    "category": "ארונות",
+    "pages": 37,
+    "dir": "assets/pages/tbi",
+    "imageExt": "webp",
+    "assetVersion": "a7adab1bae36",
+    "pageSizes": [
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ],
+      [
+        2800,
+        2008
+      ]
+    ]
+  },
+  {
+    "id": "fredi-arnot",
+    "title": "פרדי ארונות פתיחה",
+    "category": "ארונות",
+    "pages": 72,
+    "dir": "assets/pages/fredi-arnot",
+    "imageExt": "webp",
+    "assetVersion": "fa7d9f5c67a7",
+    "pageSizes": [
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1629
+      ],
+      [
+        2800,
+        1613
+      ],
+      [
+        2800,
+        1626
+      ],
+      [
+        2800,
+        1617
+      ],
+      [
+        2800,
+        1622
+      ],
+      [
+        2800,
+        1622
+      ],
+      [
+        2800,
+        1626
+      ],
+      [
+        2800,
+        1629
+      ],
+      [
+        2800,
+        1626
+      ],
+      [
+        2800,
+        1629
+      ],
+      [
+        2800,
+        1620
+      ],
+      [
+        2800,
+        1626
+      ],
+      [
+        2800,
+        1636
+      ],
+      [
+        2800,
+        1641
+      ],
+      [
+        2800,
+        1631
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1626
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1615
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ],
+      [
+        2800,
+        1624
+      ]
+    ]
+  },
+  {
+    "id": "qualita",
+    "title": "קואליטה 2026",
+    "category": "מיטות",
+    "pages": 19,
+    "dir": "assets/pages/qualita",
+    "imageExt": "webp",
+    "assetVersion": "f9f8d8d11bba",
+    "pageSizes": [
+      [
+        2252,
+        2252
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2800,
+        1400
+      ],
+      [
+        2252,
+        2252
+      ]
+    ]
+  },
+  {
+    "id": "komotayim",
+    "title": "קטלוג קומותיים נגר 2026",
+    "category": "מיטות",
+    "pages": 57,
+    "dir": "assets/pages/komotayim",
+    "imageExt": "webp",
+    "assetVersion": "75600e33b1a2",
+    "pageSizes": [
+      [
+        2478,
+        2391
+      ],
+      [
+        1940,
+        1914
+      ],
+      [
+        1930,
+        1898
+      ],
+      [
+        2439,
+        2353
+      ],
+      [
+        2800,
+        2699
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2800,
+        2740
+      ],
+      [
+        2800,
+        2740
+      ],
+      [
+        2800,
+        2740
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ],
+      [
+        2478,
+        2391
+      ]
+    ]
+  },
+  {
+    "id": "comfort",
+    "title": "קומפורט 2026",
+    "category": "מיטות",
+    "pages": 60,
+    "dir": "assets/pages/comfort",
+    "imageExt": "webp",
+    "assetVersion": "50d0cefae725",
+    "pageSizes": [
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ],
+      [
+        1819,
+        1819
+      ]
+    ]
+  },
+  {
+    "id": "fredi-sifriot",
+    "title": "פרדי ספריות קודש",
+    "category": "ספריות קודש",
+    "pages": 42,
+    "dir": "assets/pages/fredi-sifriot",
+    "imageExt": "webp",
+    "assetVersion": "35dfa65069ef",
+    "pageSizes": [
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2000,
+        2800
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2000,
+        2800
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ],
+      [
+        2800,
+        2000
+      ]
+    ]
+  }
+];
+
+    const pad = (num) => String(num).padStart(3, "0");
+    const cleanPath = (value) => String(value || "").replace(/^\/+/, "");
+
+    function withAssetVersion(url, catalog) {
+      const version = String(catalog.assetVersion || "").trim();
+      if (!version) return url;
+      return url + (url.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(version);
+    }
+
+    function imageUrl(catalog, page) {
+      const dir = cleanPath(catalog.dir || ("assets/pages/" + catalog.id));
+      const ext = catalog.imageExt || "webp";
+      return withAssetVersion(BASE_URL + dir + "/page-" + pad(page) + "." + ext, catalog);
+    }
+
+    function buildImageIndex() {
+      const items = [];
+      CATALOGS.forEach((catalog, catalogIndex) => {
+        const pages = Number(catalog.pages || 0);
+        for (let page = 1; page <= pages; page++) {
+          const size = Array.isArray(catalog.pageSizes) ? catalog.pageSizes[page - 1] : null;
+          items.push({
+            catalog,
+            catalogIndex,
+            page,
+            globalIndex: items.length + 1,
+            url: imageUrl(catalog, page),
+            width: Array.isArray(size) ? Number(size[0]) || undefined : undefined,
+            height: Array.isArray(size) ? Number(size[1]) || undefined : undefined
+          });
+        }
+      });
+      return items;
+    }
+
+    const allImages = buildImageIndex();
+    const chunkCount = Math.max(1, Math.ceil(allImages.length / IMAGES_PER_VIEW));
+
+    const els = {
+      topStatus: document.getElementById("topStatus"),
+      summary: document.getElementById("summary"),
+      imageList: document.getElementById("imageList"),
+      bottomStatus: document.getElementById("bottomStatus"),
+      prevTop: document.getElementById("prevTop"),
+      nextTop: document.getElementById("nextTop"),
+      prevBottom: document.getElementById("prevBottom"),
+      nextBottom: document.getElementById("nextBottom"),
+      chunkSelect: document.getElementById("chunkSelect")
+    };
+
+    function chunkFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const fromParam = Number(params.get("page") || params.get("chunk") || 1);
+      if (Number.isFinite(fromParam) && fromParam >= 1) return Math.min(chunkCount, Math.floor(fromParam));
+      const fromHash = Number(String(window.location.hash || "").replace(/[^0-9]/g, ""));
+      if (Number.isFinite(fromHash) && fromHash >= 1) return Math.min(chunkCount, Math.floor(fromHash));
+      return 1;
+    }
+
+    let currentChunk = chunkFromUrl();
+    let eagerImageRequests = [];
+    let eagerPreloadLinks = [];
+
+    function clearImmediateImageRequests() {
+      eagerImageRequests = [];
+      eagerPreloadLinks.forEach(link => link.remove());
+      eagerPreloadLinks = [];
+    }
+
+    function requestChunkImagesImmediately(items) {
+      clearImmediateImageRequests();
+
+      items.forEach(item => {
+        const preload = document.createElement("link");
+        preload.rel = "preload";
+        preload.as = "image";
+        preload.href = item.url;
+        document.head.appendChild(preload);
+        eagerPreloadLinks.push(preload);
+
+        const imageRequest = new Image();
+        imageRequest.decoding = "async";
+        if (item.width) imageRequest.width = item.width;
+        if (item.height) imageRequest.height = item.height;
+        imageRequest.src = item.url;
+        eagerImageRequests.push(imageRequest);
+      });
+    }
+
+    function setUrlChunk(chunk) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("page", String(chunk));
+      url.hash = "top";
+      window.history.replaceState(null, "", url);
+    }
+
+    function setChunk(chunk, shouldScroll = true) {
+      currentChunk = Math.min(chunkCount, Math.max(1, Number(chunk) || 1));
+      setUrlChunk(currentChunk);
+      render();
+      if (shouldScroll) window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function fillSelect() {
+      els.chunkSelect.innerHTML = "";
+      for (let i = 1; i <= chunkCount; i++) {
+        const start = (i - 1) * IMAGES_PER_VIEW + 1;
+        const end = Math.min(i * IMAGES_PER_VIEW, allImages.length);
+        const option = document.createElement("option");
+        option.value = String(i);
+        option.textContent = `קבוצה ${i} מתוך ${chunkCount} — תמונות ${start}–${end}`;
+        els.chunkSelect.appendChild(option);
+      }
+    }
+
+    function createSeparator(title, category) {
+      const div = document.createElement("div");
+      div.className = "catalog-separator";
+      div.textContent = category ? `${title} · ${category}` : title;
+      return div;
+    }
+
+    function createCard(item) {
+      const article = document.createElement("article");
+      article.className = "page-card";
+
+      const header = document.createElement("header");
+      header.className = "page-card-header";
+
+      const title = document.createElement("div");
+      title.className = "page-title";
+      title.textContent = `${item.catalog.title} — עמוד ${item.page}`;
+
+      const meta = document.createElement("div");
+      meta.className = "page-meta";
+      meta.textContent = `תמונה ${item.globalIndex} מתוך ${allImages.length}`;
+
+      const link = document.createElement("a");
+      link.className = "full-link";
+      link.href = item.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "פתח תמונה מלאה";
+
+      header.append(title, meta, link);
+
+      const wrap = document.createElement("div");
+      wrap.className = "image-wrap";
+
+      const img = document.createElement("img");
+      img.className = "page-image";
+      img.src = item.url;
+      img.alt = `${item.catalog.title} - עמוד ${item.page}`;
+      img.loading = "eager";
+      img.fetchPriority = "high";
+      img.decoding = "async";
+      if (item.width) img.width = item.width;
+      if (item.height) img.height = item.height;
+      img.addEventListener("error", () => {
+        img.alt = "לא הצלחתי לטעון את התמונה: " + item.url;
+        img.style.minHeight = "220px";
+        img.style.padding = "28px";
+        img.style.objectFit = "contain";
+        img.style.background = "#fff1ef";
+      });
+
+      wrap.appendChild(img);
+      article.append(header, wrap);
+      return article;
+    }
+
+    function render() {
+      const startIndex = (currentChunk - 1) * IMAGES_PER_VIEW;
+      const visible = allImages.slice(startIndex, startIndex + IMAGES_PER_VIEW);
+      const endIndex = startIndex + visible.length;
+
+      requestChunkImagesImmediately(visible);
+
+      els.chunkSelect.value = String(currentChunk);
+      const hasPrev = currentChunk > 1;
+      const hasNext = currentChunk < chunkCount;
+      [els.prevTop, els.prevBottom].forEach(btn => btn.disabled = !hasPrev);
+      [els.nextTop, els.nextBottom].forEach(btn => btn.disabled = !hasNext);
+
+      els.topStatus.textContent = `${allImages.length} תמונות גדולות · מציג ${startIndex + 1}–${endIndex} · קבוצה ${currentChunk} מתוך ${chunkCount}`;
+      els.summary.innerHTML = `
+        <strong>מציג עכשיו תמונות ${startIndex + 1}–${endIndex} מתוך ${allImages.length}</strong>
+        <small>הסדר הוא לפי סדר הקטלוגים בקובץ האתר, ובכל קטלוג לפי page-001, page-002 וכן הלאה. כל ${visible.length} התמונות בקבוצה נשלחות לטעינה מיידית בכניסה לקבוצה, בלי להמתין לגלילה. נטענות כאן התמונות הגדולות, לא תיקיית thumbs.</small>
+      `;
+      els.bottomStatus.textContent = hasNext
+        ? `סיימת את ${visible.length} התמונות האלו? אפשר לעבור לקבוצה ${currentChunk + 1} מתוך ${chunkCount}.`
+        : "זהו, הגעת לסוף כל התמונות הגדולות של הקטלוגים.";
+
+      els.imageList.innerHTML = "";
+      if (!visible.length) {
+        const error = document.createElement("div");
+        error.className = "error";
+        error.textContent = "לא נמצאו תמונות להצגה.";
+        els.imageList.appendChild(error);
+        return;
+      }
+
+      let lastCatalogId = null;
+      visible.forEach(item => {
+        if (item.catalog.id !== lastCatalogId) {
+          els.imageList.appendChild(createSeparator(item.catalog.title, item.catalog.category));
+          lastCatalogId = item.catalog.id;
+        }
+        els.imageList.appendChild(createCard(item));
+      });
+    }
+
+    fillSelect();
+    els.prevTop.addEventListener("click", () => setChunk(currentChunk - 1));
+    els.prevBottom.addEventListener("click", () => setChunk(currentChunk - 1));
+    els.nextTop.addEventListener("click", () => setChunk(currentChunk + 1));
+    els.nextBottom.addEventListener("click", () => setChunk(currentChunk + 1));
+    els.chunkSelect.addEventListener("change", () => setChunk(Number(els.chunkSelect.value)));
+    window.addEventListener("popstate", () => setChunk(chunkFromUrl(), false));
+    render();
+  </script>
+</body>
+</html>
+
+<!-- Injection By NetFree -->
+<script src="https://netfree.link/injection-script/note-in-site.js" type="text/javascript" async  id="netfree-note-site" jsondata="%7B%22noteSite%22:%22%D7%9B%D7%93%D7%99%20%D7%A9%D7%94%D7%AA%D7%9E%D7%95%D7%A0%D7%95%D7%AA%20%D7%91%D7%90%D7%AA%D7%A8%20%D7%94%D7%96%D7%94%20%D7%99%D7%97%D7%96%D7%A8%D7%95%20%D7%9E%D7%91%D7%93%D7%99%D7%A7%D7%94%2C%20%D7%99%D7%A9%20%D7%9C%D7%94%D7%92%D7%93%D7%99%D7%A8%20%5C%22%D7%90%D7%A4%D7%A9%D7%A8%20%D7%9C%D7%A1%D7%A0%D7%9F%20%D7%AA%D7%95%D7%9B%D7%9F%20%D7%A9%D7%99%D7%93%D7%95%D7%A2%20%D7%9B%D7%90%D7%99%D7%A9%D7%99%20%D7%90%D7%95%20%D7%A4%D7%A8%D7%98%D7%99%5C%22%20%D7%91%D7%94%D7%92%D7%93%D7%A8%D7%95%D7%AA%20%D7%A1%D7%99%D7%A0%D7%95%D7%9F%20%5B%5B%D7%A6%D7%90%D7%98_AI_%D7%91%D7%A0%D7%98%D7%A4%D7%A8%D7%99%7C%D7%94%D7%99%D7%9B%D7%A0%D7%A1%D7%95%20%D7%9C%D7%9B%D7%90%D7%9F%20%D7%9C%D7%94%D7%A1%D7%91%D7%A8%20%D7%9E%D7%A4%D7%95%D7%A8%D7%98%5D%5D%22%2C%22noteSiteEn%22:%22For%20images%20on%20this%20website%20to%20work%20you%20need%20to%20set%20%5C%22Filter%20content%20that%20is%20known%20as%20personal%20or%20private%5C%22%20%5B%5BAI_Chats_in_NetFree%7CClick%20here%20to%20read%20more%5D%5D%22%7D"></script><script src="//netfree.link/injection-script/go-payment.js" type="text/javascript" async ></script>
+<script src="//netfree.link/injection-script/popup-card-init.js" type="text/javascript" async ></script>

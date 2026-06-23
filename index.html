@@ -190,7 +190,6 @@
                 <path d="M8.2 5.4h7.6A2.2 2.2 0 0 1 18 7.6v8.8a2.2 2.2 0 0 1-2.2 2.2H8.2A2.2 2.2 0 0 1 6 16.4V7.6a2.2 2.2 0 0 1 2.2-2.2Zm-5 6.6 2.1-2.1m-2.1 2.1 2.1 2.1M20.8 12l-2.1-2.1m2.1 2.1-2.1 2.1" />
               </svg>
             </button>
-            <button class="reader-button reader-control-icon-button viewer-zoom-control" id="zoomOutBtn" type="button" aria-label="הקטנה" title="הקטנה">−</button>
             <button class="reader-button reader-control-icon-button viewer-fullscreen-toggle" id="fullscreenToggle" type="button" aria-label="כניסה למסך מלא" title="מסך מלא" aria-pressed="false" data-fullscreen-active="false">
               <svg class="viewer-fullscreen-icon viewer-fullscreen-icon-enter" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M8.2 4.8H5.5a.7.7 0 0 0-.7.7v2.7M15.8 4.8h2.7a.7.7 0 0 1 .7.7v2.7M8.2 19.2H5.5a.7.7 0 0 1-.7-.7v-2.7M15.8 19.2h2.7a.7.7 0 0 0 .7-.7v-2.7" />
@@ -204,7 +203,6 @@
                 <path d="M8.2 4.8H5.5a.7.7 0 0 0-.7.7v2.7M15.8 4.8h2.7a.7.7 0 0 1 .7.7v2.7M8.2 19.2H5.5a.7.7 0 0 1-.7-.7v-2.7M15.8 19.2h2.7a.7.7 0 0 0 .7-.7v-2.7M8.2 8.2h7.6v7.6H8.2z" />
               </svg>
             </button>
-            <button class="reader-button reader-control-icon-button viewer-zoom-control" id="zoomInBtn" type="button" aria-label="הגדלה" title="הגדלה">+</button>
             <button class="reader-button reader-control-icon-button close-button" id="closeLightbox" type="button" aria-label="סגירה" title="סגירה">×</button>
           </div>
         </header>
@@ -250,15 +248,14 @@
     <div class="site-footer-row">
       <p>© רהיטי ברגיג · קטלוגים דיגיטליים</p>
 
-      <details class="footer-contact" id="contact">
-        <summary class="button primary footer-contact-toggle">צור קשר</summary>
-        <div class="footer-contact-mail" aria-label="שליחת מייל לחנות דרך Gmail">
-          <strong>שליחת מייל לרהיטי ברגיג</strong>
-          <a class="button primary footer-contact-mail-link" href="https://mail.google.com/mail/u/0/?to=bargig218@gmail.com&su=%D7%A4%D7%A0%D7%99%D7%99%D7%94%20%D7%9E%D7%90%D7%AA%D7%A8%20%D7%A8%D7%94%D7%99%D7%98%D7%99%20%D7%91%D7%A8%D7%92%D7%99%D7%92&tf=cm" target="_blank" rel="noopener">
-            פתיחת Gmail לשליחה
-          </a>
-        </div>
-      </details>
+      <a
+        class="button primary footer-contact"
+        id="contact"
+        href="https://mail.google.com/mail/u/0/?to=bargig218@gmail.com&su=%D7%A4%D7%A0%D7%99%D7%99%D7%94%20%D7%9E%D7%90%D7%AA%D7%A8%20%D7%A8%D7%94%D7%99%D7%98%D7%99%20%D7%91%D7%A8%D7%92%D7%99%D7%92&tf=cm"
+        target="_blank"
+        rel="noopener"
+        aria-label="שליחת מייל לחנות דרך Gmail"
+      >צור קשר</a>
     </div>
   </footer>
 
