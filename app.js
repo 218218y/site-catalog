@@ -98,6 +98,7 @@ const els = {
   closeLightbox: $("closeLightbox"),
   zoomInBtn: $("zoomInBtn"),
   zoomOutBtn: $("zoomOutBtn"),
+  fullscreenToggle: $("fullscreenToggle"),
   fitBtn: $("fitBtn"),
   lightboxSearchInput: $("lightboxSearchInput"),
   lightboxSearchResults: $("lightboxSearchResults"),
@@ -1200,6 +1201,81 @@ function showTopUiTemporarily(delay = 2200) {
   }
 }
 
+function getBrowserFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || null;
+}
+
+function isBrowserFullscreenActive() {
+  return Boolean(getBrowserFullscreenElement());
+}
+
+function isBrowserFullscreenSupported() {
+  const root = document.documentElement;
+  return Boolean(
+    document.fullscreenEnabled ||
+    document.webkitFullscreenEnabled ||
+    document.mozFullScreenEnabled ||
+    document.msFullscreenEnabled ||
+    root?.requestFullscreen ||
+    root?.webkitRequestFullscreen ||
+    root?.mozRequestFullScreen ||
+    root?.msRequestFullscreen
+  );
+}
+
+function requestBrowserFullscreen() {
+  const root = document.documentElement;
+  const request = root?.requestFullscreen || root?.webkitRequestFullscreen || root?.mozRequestFullScreen || root?.msRequestFullscreen;
+  if (!request) return Promise.reject(new Error("fullscreen-unsupported"));
+  const result = request.call(root);
+  return result && typeof result.then === "function" ? result : Promise.resolve();
+}
+
+function exitBrowserFullscreen() {
+  const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+  if (!exit) return Promise.reject(new Error("fullscreen-exit-unsupported"));
+  const result = exit.call(document);
+  return result && typeof result.then === "function" ? result : Promise.resolve();
+}
+
+function syncFullscreenButtonUi() {
+  const button = els.fullscreenToggle;
+  if (!button) return;
+
+  const isActive = isBrowserFullscreenActive();
+  const isSupported = isBrowserFullscreenSupported();
+  const label = isActive ? "יציאה ממסך מלא" : "כניסה למסך מלא";
+
+  button.dataset.fullscreenActive = isActive ? "true" : "false";
+  button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  button.setAttribute("aria-label", label);
+  setTooltipText(button, label, { updateDefault: true });
+  button.disabled = !isSupported && !isActive;
+  button.classList.toggle("hidden", !isSupported && !isActive);
+}
+
+async function toggleBrowserFullscreen() {
+  const button = els.fullscreenToggle;
+  const wasActive = isBrowserFullscreenActive();
+
+  try {
+    if (wasActive) {
+      await exitBrowserFullscreen();
+    } else {
+      if (!isBrowserFullscreenSupported()) throw new Error("fullscreen-unsupported");
+      await requestBrowserFullscreen();
+    }
+  } catch (error) {
+    const message = wasActive ? "לא הצלחתי לצאת ממסך מלא" : "הדפדפן חסם מסך מלא";
+    console.warn("Fullscreen toggle failed", error);
+    flashActionButton(button, message);
+  } finally {
+    syncFullscreenButtonUi();
+    showTopUiTemporarily(1400);
+  }
+}
+
+
 function setViewerLoading(isLoading) {
   els.viewerLoading.classList.toggle("hidden", !isLoading);
 }
@@ -1393,6 +1469,8 @@ function syncViewerModeUi() {
     els.viewerModeToggle.setAttribute("aria-label", label);
     setTooltipText(els.viewerModeToggle, isScrollMode ? "תצוגה לצדדים" : "תצוגת גלילה", { updateDefault: true });
   }
+
+  syncFullscreenButtonUi();
 
   if (els.lightboxModeLabel) {
     els.lightboxModeLabel.textContent = isScrollMode ? "כניסה לקטלוג" : "תצוגת מסך מלא";
@@ -2194,6 +2272,7 @@ function attachEvents() {
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
   els.viewerModeToggle?.addEventListener("click", toggleLightboxMode);
+  els.fullscreenToggle?.addEventListener("click", toggleBrowserFullscreen);
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
   els.zoomInBtn?.addEventListener("click", () => setZoom(state.zoom + 0.2));
@@ -2252,12 +2331,23 @@ function attachEvents() {
     }
   });
 
+  ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"].forEach((eventName) => {
+    document.addEventListener(eventName, syncFullscreenButtonUi);
+  });
+
+  syncFullscreenButtonUi();
+
   window.addEventListener("keydown", (event) => {
     if (!state.lightboxOpen) return;
     if (event.key === "Escape" && ((els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) || (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden")))) {
       event.preventDefault();
       closeLightboxCatalogMenu();
       closeLightboxSearchScopeMenu();
+      return;
+    }
+    if (event.key === "Escape" && isBrowserFullscreenActive()) {
+      event.preventDefault();
+      exitBrowserFullscreen().catch(() => {});
       return;
     }
     const target = event.target;

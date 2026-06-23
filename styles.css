@@ -761,8 +761,22 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .viewer-mode-toggle[data-viewer-mode="scroll"] .viewer-mode-icon-single {
   display: block;
 }
+.viewer-fullscreen-toggle .viewer-fullscreen-icon-exit {
+  display: none;
+}
+.viewer-fullscreen-toggle[data-fullscreen-active="true"] {
+  background: rgba(217, 186, 163, 0.24) !important;
+  border-color: rgba(255,255,255,0.28) !important;
+}
+.viewer-fullscreen-toggle[data-fullscreen-active="true"] .viewer-fullscreen-icon-enter {
+  display: none;
+}
+.viewer-fullscreen-toggle[data-fullscreen-active="true"] .viewer-fullscreen-icon-exit {
+  display: block;
+}
 .lightbox-actions .viewer-zoom-control,
-.lightbox-actions #fitBtn {
+.lightbox-actions #fitBtn,
+.lightbox-actions #fullscreenToggle {
   min-width: 38px;
 }
 .close-button {
