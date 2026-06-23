@@ -6,7 +6,7 @@ For normal use, prefer:
 
 Manual one-file use:
     python tools/render_pdf_catalog.py assets/pdfs/catalog.pdf assets/pages/catalog-id
-    python tools/render_pdf_catalog.py assets/pdfs/catalog.pdf assets/pages/catalog-id --format webp --dpi 240
+    python tools/render_pdf_catalog.py assets/pdfs/catalog.pdf assets/pages/catalog-id --format png --dpi 240
 """
 from __future__ import annotations
 
@@ -21,13 +21,13 @@ def main() -> int:
     parser.add_argument("pdf", type=Path, help="Path to source PDF")
     parser.add_argument("out_dir", type=Path, help="Output folder, e.g. assets/pages/my-catalog")
     parser.add_argument("--dpi", type=int, default=220)
-    parser.add_argument("--max-width", type=int, default=3200)
-    parser.add_argument("--max-height", type=int, default=3200)
-    parser.add_argument("--thumb-size", type=int, default=520)
-    parser.add_argument("--quality", type=int, default=90)
-    parser.add_argument("--thumb-quality", type=int, default=80)
-    parser.add_argument("--format", choices=["webp", "jpg", "png"], default="webp")
-    parser.add_argument("--sharpen", type=float, default=0.8)
+    parser.add_argument("--max-width", type=int, default=2800)
+    parser.add_argument("--max-height", type=int, default=2800)
+    parser.add_argument("--thumb-size", type=int, default=420)
+    parser.add_argument("--quality", type=int, default=94)
+    parser.add_argument("--thumb-quality", type=int, default=88)
+    parser.add_argument("--format", choices=["webp", "jpg", "png"], default="jpg")
+    parser.add_argument("--sharpen", type=float, default=1.0)
     parser.add_argument("--ocr", choices=["auto", "always", "never"], default="auto")
     parser.add_argument("--ocr-lang", default="heb+eng")
     parser.add_argument("--ocr-dpi", type=int, default=260)

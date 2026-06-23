@@ -4,9 +4,9 @@
 The script reads catalogs.config.json, renders each PDF into high-quality page
 images and thumbnails, and writes catalogs.generated.js for the website.
 
-Defaults are tuned for sharp catalog browsing without oversized downloads:
+Defaults are tuned for fast catalog browsing:
 - WebP output by default
-- 240 DPI render, capped to 3200px on the long side
+- 220 DPI render, capped to 2800px on the long side for quick browsing
 - separate lightweight thumbnails
 - OCR prefers embedded PDF text and only falls back to full-page OCR for scanned/empty pages
 - no PDF links in the site output
@@ -15,7 +15,7 @@ Examples:
     python tools/build_catalogs.py
     python tools/build_catalogs.py --force
     python tools/build_catalogs.py --format jpg
-    python tools/build_catalogs.py --format webp --dpi 240 --quality 90
+    python tools/build_catalogs.py --format webp --dpi 220 --quality 84
 """
 from __future__ import annotations
 
@@ -638,14 +638,14 @@ def write_generated_files(entries: list[dict[str, Any]], search_entries: list[di
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert local PDF catalogs into high-quality website page images.")
     parser.add_argument("--config", default="catalogs.config.json", help="Path to config JSON, relative to project root")
-    parser.add_argument("--dpi", type=int, default=240, help="Render DPI for PDF pages before optional downscale")
-    parser.add_argument("--max-width", type=int, default=3200, help="Max rendered page width in pixels")
-    parser.add_argument("--max-height", type=int, default=3200, help="Max rendered page height in pixels")
-    parser.add_argument("--thumb-size", type=int, default=520, help="Max thumbnail width/height in pixels")
-    parser.add_argument("--quality", type=int, default=90, help="Image quality for webp/jpg, 1-100")
-    parser.add_argument("--thumb-quality", type=int, default=80, help="Thumbnail quality for webp/jpg, 1-100")
+    parser.add_argument("--dpi", type=int, default=220, help="Render DPI for PDF pages before optional downscale")
+    parser.add_argument("--max-width", type=int, default=2800, help="Max rendered page width in pixels")
+    parser.add_argument("--max-height", type=int, default=2800, help="Max rendered page height in pixels")
+    parser.add_argument("--thumb-size", type=int, default=420, help="Max thumbnail width/height in pixels")
+    parser.add_argument("--quality", type=int, default=94, help="Image quality for webp/jpg, 1-100")
+    parser.add_argument("--thumb-quality", type=int, default=88, help="Thumbnail quality for webp/jpg, 1-100")
     parser.add_argument("--format", choices=sorted(SUPPORTED_FORMATS), default="webp", help="Output image format")
-    parser.add_argument("--sharpen", type=float, default=0.8, help="Sharpen amount after resize, 0 disables")
+    parser.add_argument("--sharpen", type=float, default=1.0, help="Sharpen amount after resize, 0 disables")
     parser.add_argument(
         "--ocr",
         choices=["auto", "always", "never"],
