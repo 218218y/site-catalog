@@ -32,7 +32,8 @@ if not exist "dist\r2-assets\assets\pages" (
 )
 
 echo.
-echo Uploading to the REAL Cloudflare R2 bucket using Wrangler --remote.
+echo Fallback upload using Wrangler --remote.
+echo For large catalog uploads, use the faster sync-r2-assets-fast.bat instead.
 echo Bucket: %R2_BUCKET%
 echo.
 echo If needed, first run: npx wrangler login

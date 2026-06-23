@@ -35,6 +35,7 @@ if errorlevel 1 goto error
 echo.
 echo Ready for R2 upload: dist\r2-assets
 echo Optional ZIP: dist\r2-assets.zip
+echo For fast incremental upload, run: sync-r2-assets-fast.bat bargig-catalog
 echo.
 echo After uploading, enable an R2 Public Development URL or Custom Domain.
 echo Do NOT use the .r2.cloudflarestorage.com S3 API endpoint as the browser image URL.
