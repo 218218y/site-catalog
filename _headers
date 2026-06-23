@@ -1,5 +1,5 @@
 # Netlify / static hosting headers for fast catalog browsing.
-# HTML and code stay revalidated so updates arrive quickly.
+# HTML, runtime config and code stay revalidated so updates arrive quickly.
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
 /
@@ -9,7 +9,8 @@
 /*.css
   Cache-Control: public, max-age=0, must-revalidate
 
-# Catalog page images are referenced with ?v=<assetVersion>, so they can be cached aggressively.
+# Catalog page images are referenced with ?v=<assetVersion>, so they can be cached aggressively
+# when images are still deployed locally to Netlify. In R2 mode these files are not included here.
 /assets/pages/*
   Cache-Control: public, max-age=31536000, immutable
 

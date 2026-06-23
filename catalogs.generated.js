@@ -8,9 +8,9 @@ window.BARGIG_CATALOGS = [
     "category": "ארונות",
     "pages": 37,
     "dir": "assets/pages/tbi",
-    "cover": "assets/pages/tbi/page-001.jpg",
-    "imageExt": "jpg",
-    "assetVersion": "007b71a179c8",
+    "cover": "assets/pages/tbi/page-001.webp",
+    "imageExt": "webp",
+    "assetVersion": "c73bbe281427",
     "pageSizes": [
       [
         2800,
@@ -169,9 +169,9 @@ window.BARGIG_CATALOGS = [
     "category": "ארונות",
     "pages": 72,
     "dir": "assets/pages/fredi-arnot",
-    "cover": "assets/pages/fredi-arnot/page-001.jpg",
-    "imageExt": "jpg",
-    "assetVersion": "b624ac2d3145",
+    "cover": "assets/pages/fredi-arnot/page-001.webp",
+    "imageExt": "webp",
+    "assetVersion": "59175c5156e7",
     "pageSizes": [
       [
         2800,
@@ -470,9 +470,9 @@ window.BARGIG_CATALOGS = [
     "category": "מיטות",
     "pages": 19,
     "dir": "assets/pages/qualita",
-    "cover": "assets/pages/qualita/page-001.jpg",
-    "imageExt": "jpg",
-    "assetVersion": "a79e9fc25b85",
+    "cover": "assets/pages/qualita/page-001.webp",
+    "imageExt": "webp",
+    "assetVersion": "b88ca0ae4c94",
     "pageSizes": [
       [
         2252,
@@ -559,9 +559,9 @@ window.BARGIG_CATALOGS = [
     "category": "מיטות",
     "pages": 57,
     "dir": "assets/pages/komotayim",
-    "cover": "assets/pages/komotayim/page-001.jpg",
-    "imageExt": "jpg",
-    "assetVersion": "8791b72898d3",
+    "cover": "assets/pages/komotayim/page-001.webp",
+    "imageExt": "webp",
+    "assetVersion": "ad970e3fcfb7",
     "pageSizes": [
       [
         2478,
@@ -800,9 +800,9 @@ window.BARGIG_CATALOGS = [
     "category": "מיטות",
     "pages": 60,
     "dir": "assets/pages/comfort",
-    "cover": "assets/pages/comfort/page-001.jpg",
-    "imageExt": "jpg",
-    "assetVersion": "cc40621c77b2",
+    "cover": "assets/pages/comfort/page-001.webp",
+    "imageExt": "webp",
+    "assetVersion": "59b6aae1fefa",
     "pageSizes": [
       [
         1819,
@@ -1053,9 +1053,9 @@ window.BARGIG_CATALOGS = [
     "category": "ספריות קודש",
     "pages": 42,
     "dir": "assets/pages/fredi-sifriot",
-    "cover": "assets/pages/fredi-sifriot/page-001.jpg",
-    "imageExt": "jpg",
-    "assetVersion": "d26e6a40d3d5",
+    "cover": "assets/pages/fredi-sifriot/page-001.webp",
+    "imageExt": "webp",
+    "assetVersion": "021e552a8498",
     "pageSizes": [
       [
         2800,

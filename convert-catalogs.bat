@@ -8,10 +8,10 @@ if not exist .venv\Scripts\activate.bat (
   exit /b 1
 )
 call .venv\Scripts\activate.bat
-python tools\build_catalogs.py --format jpg --dpi 220 --max-width 2800 --max-height 2800 --thumb-size 420 --quality 94 --thumb-quality 88 --sharpen 1.0 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
+python tools\build_catalogs.py --format webp --dpi 220 --max-width 2800 --max-height 2800 --thumb-size 420 --quality 84 --thumb-quality 76 --sharpen 0.8 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
 if errorlevel 1 goto error
 echo.
-echo Conversion finished in high-quality JPG.
+echo Conversion finished in optimized WebP.
 echo Existing converted catalogs were skipped and kept.
 echo To rebuild everything, run convert-catalogs-force.bat
 echo You can now delete the PDFs if you only want to keep the images.

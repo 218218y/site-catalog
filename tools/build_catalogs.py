@@ -4,8 +4,8 @@
 The script reads catalogs.config.json, renders each PDF into high-quality page
 images and thumbnails, and writes catalogs.generated.js for the website.
 
-Defaults are tuned for quality and compatibility:
-- JPG output by default
+Defaults are tuned for fast catalog browsing:
+- WebP output by default
 - higher DPI rendering
 - larger thumbnails
 - no PDF links in the site output
@@ -13,8 +13,8 @@ Defaults are tuned for quality and compatibility:
 Examples:
     python tools/build_catalogs.py
     python tools/build_catalogs.py --force
-    python tools/build_catalogs.py --format png
-    python tools/build_catalogs.py --dpi 240 --quality 96
+    python tools/build_catalogs.py --format jpg
+    python tools/build_catalogs.py --format webp --dpi 220 --quality 84
 """
 from __future__ import annotations
 
@@ -899,7 +899,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--thumb-size", type=int, default=420, help="Max thumbnail width/height in pixels")
     parser.add_argument("--quality", type=int, default=94, help="Image quality for webp/jpg, 1-100")
     parser.add_argument("--thumb-quality", type=int, default=88, help="Thumbnail quality for webp/jpg, 1-100")
-    parser.add_argument("--format", choices=sorted(SUPPORTED_FORMATS), default="jpg", help="Output image format")
+    parser.add_argument("--format", choices=sorted(SUPPORTED_FORMATS), default="webp", help="Output image format")
     parser.add_argument("--sharpen", type=float, default=1.0, help="Sharpen amount after resize, 0 disables")
     parser.add_argument(
         "--ocr",

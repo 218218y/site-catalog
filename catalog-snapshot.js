@@ -15,9 +15,24 @@
   var LOGO_TOP_RATIO = 0.02;
   var LOGO_ASPECT_RATIO = 786 / 317;
 
+  function snapshotAssetsRuntimeConfig() {
+    var config = window.BARGIG_CATALOG_ASSETS || {};
+    return (config && typeof config === 'object') ? config : {};
+  }
+
+  function snapshotCrossOriginValue(src) {
+    if (!src || /^(?:data|blob):/i.test(String(src))) return '';
+    var value = snapshotAssetsRuntimeConfig().crossOrigin;
+    if (value === false || value === null || String(value || '').toLowerCase() === 'none') return '';
+    if (!/^(?:https?:)?\/\//i.test(String(src))) return '';
+    return String(value || 'anonymous').trim();
+  }
+
   function loadSnapshotImage(src) {
     return new Promise(function (resolve, reject) {
       var img = new Image();
+      var crossOrigin = snapshotCrossOriginValue(src);
+      if (crossOrigin) img.crossOrigin = crossOrigin;
       img.onload = function () { resolve(img); };
       img.onerror = function () { reject(new Error('image-load-failed')); };
       img.src = src;

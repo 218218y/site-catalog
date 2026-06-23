@@ -77,10 +77,10 @@ convert-catalogs.bat
 ```
 
 זאת ברירת המחדל החדשה, והיא מייצרת:
-- **JPG באיכות גבוהה**
-- תמונות עמודים גדולות
-- תמונות ממוזערות גדולות יותר
-- תוצאה טובה ונוחה לאתר
+- **WebP מהיר וקל יותר לטעינה**
+- תמונות עמודים גדולות ואיכותיות
+- תמונות ממוזערות מותאמות לגריד ולסרגלי הדפדוף
+- תוצאה חדה, קלה יותר, ומתאימה במיוחד לאחסון חיצוני כמו Cloudflare R2
 
 ההרצה הזאת עכשיו עובדת בצורה מצטברת:
 - אם לקטלוג כבר קיימת תיקייה תקינה בתוך `assets\pages`, היא לא תמיר אותו מחדש.
@@ -106,7 +106,7 @@ convert-catalogs-force.bat
 הסקריפט הזה משתמש ב־`--force`.
 גם במצב הזה, קטלוג שאין לו PDF אבל כבר יש לו תיקיית תמונות תקינה — נשמר ולא נמחק.
 
-### 5. אם אתה רוצה איכות עוד יותר גבוהה
+### 5. אם אתה חייב JPG במקום WebP
 
 לחץ על:
 
@@ -114,7 +114,7 @@ convert-catalogs-force.bat
 convert-catalogs-jpg.bat
 ```
 
-זה מייצר JPG עוד יותר חד וכבד יותר.
+זה מייצר JPG איכותי וכבד יותר. ברוב המקרים WebP עדיף לאתר קטלוגים מהיר.
 
 ### 6. אם אתה רוצה מקסימום איכות בלי להתחשב במשקל
 
@@ -149,6 +149,176 @@ http://localhost:8080
 
 ---
 
+## שדרוג לאחסון תמונות ב־Cloudflare R2
+
+הגרסה הזו תומכת בהפרדה מקצועית בין האתר לבין קבצי הקטלוגים:
+
+- **Netlify** מאחסן רק את האתר: HTML, CSS, JS, אינדקס חיפוש וקבצי הגדרה.
+- **Cloudflare R2** מאחסן את התמונות הכבדות: `assets/pages/...`.
+- האתר ממשיך להשתמש באותם שמות קבצים, אבל מוסיף להם כתובת בסיס של R2 מתוך `catalog-assets-config.js`.
+
+### 1. הכנת תמונות WebP ואריזת תיקיית העלאה ל־R2
+
+אחרי שהקטלוגים נמצאים אצלך בתיקיית `assets\pages`, לחץ על:
+
+```text
+build-r2-assets.bat
+```
+
+הפעולה עושה שלושה דברים:
+
+1. מוודאת שהקטלוגים בנויים כ־WebP.
+2. אם קיימות תמונות JPG/PNG ישנות, היא ממירה אותן ל־WebP בלי למחוק את המקור.
+3. יוצרת תיקייה להעלאה ל־R2:
+
+```text
+dist\r2-assets
+```
+
+וגם ZIP נוח:
+
+```text
+dist\r2-assets.zip
+```
+
+את התוכן של `dist\r2-assets` מעלים ל־R2 **לשורש ה־bucket**, כך שהנתיבים יישארו בדיוק כך:
+
+```text
+assets/pages/tbi/page-001.webp
+assets/pages/tbi/thumbs/page-001.webp
+```
+
+### 2. העלאה ל־R2 עם Wrangler
+
+אם מותקן Node.js, אפשר להתחבר ל־Cloudflare פעם אחת:
+
+```bash
+npx wrangler login
+```
+
+ואז להפעיל:
+
+```text
+upload-r2-assets-wrangler.bat
+```
+
+הסקריפט יבקש את שם ה־bucket, יחיל CORS מתוך `r2-cors-wrangler.json`, ואז יעלה את כל הקבצים מתוך `dist\r2-assets`, עם:
+
+```text
+Cache-Control: public, max-age=31536000, immutable
+```
+
+זה מתאים כי התמונות מקבלות גם `?v=...` בקוד, כלומר כשהתוכן משתנה הדפדפן מקבל כתובת חדשה.
+
+### 3. פתיחת גישה ציבורית / דומיין ציבורי ל־R2
+
+הכתובת הזו **לא** מתאימה לשדה `baseUrl` באתר:
+
+```text
+https://7d352c315748f2f8c6e723c5fc46f606.r2.cloudflarestorage.com
+```
+
+זו כתובת **S3 API** של Cloudflare R2. משתמשים בה לכלי העלאה/SDK עם הרשאות, לא להצגת תמונות ישירות בדפדפן של גולשים.
+
+צריך אחת משתי כתובות ציבוריות:
+
+1. מומלץ לפרודקשן: R2 Custom Domain, לדוגמה:
+
+```text
+https://catalogs.your-domain.co.il
+```
+
+2. זמני לבדיקה: Public Development URL של R2, לדוגמה:
+
+```text
+https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev
+```
+
+את הכתובת הציבורית בודקים בדפדפן מול קובץ אמיתי שהעלית, לדוגמה:
+
+```text
+https://PUBLIC-R2-URL/assets/pages/tbi/page-001.webp
+```
+
+אם התמונה נפתחת בדפדפן בלי התחברות ובלי חתימה — זו הכתובת הנכונה ל־`baseUrl`.
+
+### 4. CORS לטעינת תמונות ולכפתור צילום/הורדה
+
+כדי שהאתר יוכל להציג תמונות מ־R2 וגם ליצור צילום עמוד מתוך canvas, צריך להגדיר CORS ב־R2.
+
+נוסף קובץ:
+
+```text
+r2-cors-policy.json
+```
+
+הקובץ כבר עודכן לאתר Netlify הנוכחי:
+
+```text
+https://bargig-catalog.netlify.app
+```
+
+יש גם קובץ נוסף ל־Wrangler:
+
+```text
+r2-cors-wrangler.json
+```
+
+אם תוסיף בעתיד דומיין אמיתי לאתר במקום Netlify, צריך להוסיף גם אותו לרשימת ה־origins.
+
+### 5. חיבור האתר ב־Netlify לתמונות ב־R2
+
+אחרי שיש לך כתובת ציבורית אמיתית של R2, הכי פשוט להריץ:
+
+```text
+set-r2-public-url.bat https://PUBLIC-R2-URL
+```
+
+לדוגמה זמנית עם `r2.dev`:
+
+```text
+set-r2-public-url.bat https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev
+```
+
+או עם דומיין מותאם:
+
+```text
+set-r2-public-url.bat https://catalogs.your-domain.co.il
+```
+
+הסקריפט יעדכן את `catalog-assets-config.js`, וידחה בטעות כתובת של S3 API כמו `.r2.cloudflarestorage.com`.
+
+לא מוסיפים `/assets/pages` בסוף. האתר מוסיף את הנתיב לבד.
+
+### 6. בניית ZIP נקי ל־Netlify בלי התמונות הכבדות
+
+אחרי שה־R2 עובד וה־baseUrl מוגדר, לחץ על:
+
+```text
+bundle-site-r2.bat
+```
+
+זה יוצר אתר ל־Netlify בלי `assets/pages`:
+
+```text
+dist\site-upload
+dist\site-upload.zip
+```
+
+את זה מעלים ל־Netlify. התמונות עצמן ייטענו מ־R2.
+
+### 7. בדיקה מהירה אחרי העלאה
+
+בדפדפן פתח DevTools → Network ובדוק:
+
+- קבצי `page-001.webp` נטענים מהדומיין של R2, לא מ־Netlify.
+- התמונות הן `image/webp`.
+- אין שגיאות CORS.
+- בעמודי הקטלוג התמונות נטענות בהדרגה ולא כולן בבת אחת.
+
+אם האתר נראה תקין אבל כפתור צילום/הורדה נכשל — כמעט תמיד זו בעיית CORS ב־R2.
+
+---
 
 ## תצוגת קטלוג במסך מלא
 
@@ -238,16 +408,16 @@ catalogs.search-overrides.json
 
 ---
 
-## שיפור איכות – מה שיניתי
+## שיפור איכות ומהירות – מה שיניתי
 
 ההמרה עכשיו משופרת בכמה נקודות:
 
 - רינדור PDF ב־DPI גבוה יותר.
 - רוחב/גובה מקסימלי גדולים יותר.
-- איכות JPG גבוהה יותר.
-- תמונות ממוזערות גדולות יותר.
+- ברירת המחדל היא WebP, כדי להקטין משקל בלי לוותר על חדות.
+- תמונות ממוזערות גדולות מספיק לתצוגה יפה, אבל קלות לטעינה.
 - חידוד עדין אחרי הרינדור, כדי שהעמודים ייראו חד יותר.
-- ברירת המחדל היא JPG איכותי ולא WebP.
+- תמיכה באחסון התמונות ב־Cloudflare R2 והגשת האתר עצמו מ־Netlify.
 
 ---
 
@@ -271,7 +441,9 @@ assets\pages\tbi
 
 ## יצירת תיקיית העלאה נקייה לאתר
 
-אחרי שהקטלוגים הומרו ויש תיקיית `assets\pages`, אפשר ליצור תיקייה נקייה שמכילה רק את מה שצריך להעלות לאתר.
+אם אתה עדיין רוצה להעלות את התמונות יחד עם האתר ל־Netlify, אפשר ליצור תיקייה נקייה שמכילה גם את `assets\pages`.
+
+אם אתה עובד עם Cloudflare R2, השתמש במקום זה ב־`bundle-site-r2.bat`, שמייצר אתר בלי התמונות הכבדות.
 
 ב־Windows לחץ פעמיים על:
 
@@ -289,7 +461,7 @@ dist\site-upload
 - דפי האתר: `index.html`
 - קבצי העיצוב והפעולה: `styles.css`, `app.js`, `catalog-search.js`, `catalog-snapshot.js`, `tooltip-manager.js`, `brand-logo.js`, `favicon-loader.js`
 - קבצי נתוני האתר: `catalogs.generated.js`, `catalogs.search.js`, `wp_logo_data.js`
-- כל התמונות שכבר הומרו מתוך `assets\pages`
+- כל התמונות שכבר הומרו מתוך `assets\pages` — רק במצב המקומי הרגיל, לא בבאנדל R2
 
 הערה: הפרויקט הזה מיועד כרגע להרצה ותחזוקה ב־Windows, לכן קבצי ההרצה של Mac/Linux הוסרו מהחבילה הנקייה.
 
@@ -302,6 +474,12 @@ dist\site-upload
 - README וקבצי עבודה אחרים
 
 כלומר: את התיקייה `dist\site-upload` מעלים לאתר. את שאר תיקיית הפרויקט משאירים אצלך במחשב לצורך עריכה, המרות עתידיות וניהול הקטלוגים.
+
+לבאנדל Netlify שמסתמך על R2:
+
+```bash
+python tools/build_deploy_bundle.py --assets-mode r2 --zip --allow-missing-pages
+```
 
 אם רוצים להריץ ידנית:
 
@@ -353,7 +531,7 @@ python tools\build_catalogs.py
 python -m http.server 8080
 ```
 
-### דוגמה להמרת JPG איכותי:
+### דוגמה להמרת WebP מומלצת:
 
 ```bash
 python tools\build_catalogs.py --format jpg --dpi 220 --max-width 2800 --max-height 2800 --thumb-size 420 --quality 94 --thumb-quality 88 --sharpen 1.0 --ocr auto --ocr-lang heb+eng
@@ -365,7 +543,7 @@ python tools\build_catalogs.py --format jpg --dpi 220 --max-width 2800 --max-hei
 python tools\build_catalogs.py --force
 ```
 
-אפשר לשלב את `--force` עם כל הגדרות האיכות, למשל `--format png` או DPI גבוה יותר.
+אפשר לשלב את `--force` עם כל הגדרות האיכות, למשל `--format webp`, `--format jpg`, `--format png` או DPI גבוה יותר.
 
 ### דוגמה להמרת PNG מקסימלית:
 
@@ -383,8 +561,11 @@ styles.css
 app.js
 catalogs.config.json          <-- כאן עורכים רשימת קטלוגים
 catalogs.generated.js         <-- נוצר אוטומטית, לא לערוך ידנית
-convert-catalogs.bat          <-- המרה מצטברת: מדלג על מה שכבר הומר
+catalog-assets-config.js      <-- כתובת בסיס לתמונות ב-R2, אם משתמשים באחסון חיצוני
+convert-catalogs.bat          <-- המרה מצטברת ל-WebP: מדלג על מה שכבר הומר
 convert-catalogs-force.bat    <-- המרה מחדש בכוח לכל PDF שקיים
+build-r2-assets.bat           <-- הכנת תיקיית תמונות ל-R2
+bundle-site-r2.bat            <-- יצירת באנדל Netlify בלי התמונות הכבדות
 assets/
   brand/
     logo-placeholder.svg
@@ -425,26 +606,30 @@ setup-windows.bat
 בדוק שקיימים קבצים כמו:
 
 ```text
+assets\pages\qualita\page-001.webp
+```
+
+או, בפרויקטים ישנים יותר:
+
+```text
 assets\pages\qualita\page-001.jpg
 ```
 
-או:
+אם עובדים עם R2, בדוק גם ש־`catalog-assets-config.js` מכיל כתובת ציבורית אמיתית, לא S3 API, ושהקובץ נפתח ישירות בדפדפן בכתובת כמו:
 
 ```text
-assets\pages\qualita\page-001.png
+https://PUBLIC-R2-URL/assets/pages/qualita/page-001.webp
 ```
-
-אם יש קבצים שם – האתר אמור לעבוד.
-אם אין – ההמרה נכשלה או לא הורצה.
 
 ---
 
 ## טיפ פרקטי
 
-אם אתה רוצה יחס טוב בין איכות למשקל – תישאר עם `convert-catalogs.bat`.
-אם אתה רוצה ללכת עד הסוף – `convert-catalogs-png.bat`.
+אם אתה רוצה יחס טוב בין איכות למשקל – תישאר עם `convert-catalogs.bat`, שמייצר WebP.
+אם אתה צריך תאימות ישנה במיוחד – השתמש ב־`convert-catalogs-jpg.bat`.
+אם אתה רוצה מקסימום איכות בלי להתחשב במשקל – `convert-catalogs-png.bat`.
 
-במילים פשוטות: JPG איכותי הוא הסוס עבודה, PNG הוא הטנק.
+במילים פשוטות: WebP הוא הסוס עבודה, JPG הוא הגיבוי, PNG הוא הטנק.
 
 ---
 
@@ -457,3 +642,48 @@ assets\pages\qualita\page-001.png
 הקישור משתמש ב־`tf=cm`, כדי לפתוח את חלון הכתיבה של Gmail בצורה קרובה יותר לברירת המחדל הרגילה של Gmail. בפועל, Gmail עדיין יכול לכבד העדפות חשבון/דפדפן של המשתמש, למשל אם אצלו הוגדר שחלון כתיבה נפתח תמיד במסך מלא.
 
 אם צריך להחליף בעתיד את כתובת המייל, משנים אותה רק בתוך קישור Gmail שב־`index.html`.
+
+---
+
+## העלאה יציבה ל־R2: retry, resume ו־remote אמיתי
+
+הסקריפט `upload-r2-assets-wrangler.bat` שודרג כדי להעלות בצורה בטוחה יותר:
+
+- משתמש תמיד ב־`--remote`, כדי להעלות ל־R2 האמיתי בענן ולא לאחסון מקומי של Wrangler.
+- מנסה כל קובץ שוב במקרה של נפילת רשת זמנית.
+- שומר התקדמות בקובץ:
+
+```text
+  dist\r2-upload-state.json
+```
+
+- שומר קבצים שנכשלו בקובץ:
+
+```text
+  dist\r2-upload-failed.txt
+```
+
+אם באמצע ההעלאה יש שגיאת רשת או Wrangler קורס על קובץ מסוים, לא צריך להתחיל הכול מחדש. מריצים:
+
+```text
+retry-r2-failed-uploads.bat bargig-catalog
+```
+
+או:
+
+```text
+upload-r2-assets-wrangler.bat bargig-catalog --failed-only
+```
+
+אם רוצים להעלות הכול מחדש בכוח, גם קבצים שכבר סומנו כהועלו בהצלחה:
+
+```text
+upload-r2-assets-wrangler.bat bargig-catalog --force
+```
+
+אם כבר הגדרת CORS ידנית ב־Cloudflare, אין צורך להגדיר אותו שוב. אם בכל זאת רוצים שהסקריפט ידרוס ויגדיר CORS מתוך הקובץ `r2-cors-wrangler.json`, מריצים:
+
+```text
+upload-r2-assets-wrangler.bat bargig-catalog --set-cors
+```
+

@@ -5,6 +5,54 @@ const $ = (id) => document.getElementById(id);
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 const MIN_VIEWER_ZOOM = 1;
 const MAX_VIEWER_ZOOM = 5;
+
+function catalogAssetsRuntimeConfig() {
+  const config = window.BARGIG_CATALOG_ASSETS || {};
+  return (config && typeof config === "object") ? config : {};
+}
+
+function catalogAssetsBaseUrl() {
+  return String(catalogAssetsRuntimeConfig().baseUrl || "").trim().replace(/\/+$/, "");
+}
+
+function isSpecialAssetUrl(url) {
+  return /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(url) || /^(?:data|blob):/i.test(url);
+}
+
+function resolveCatalogAssetUrl(path) {
+  const raw = String(path || "").trim();
+  if (!raw || isSpecialAssetUrl(raw)) return raw;
+  const baseUrl = catalogAssetsBaseUrl();
+  if (!baseUrl) return raw;
+  return `${baseUrl}/${raw.replace(/^\.\//, "").replace(/^\/+/, "")}`;
+}
+
+function catalogAssetCrossOriginValue(url) {
+  if (!url || /^(?:data|blob):/i.test(String(url))) return "";
+  const config = catalogAssetsRuntimeConfig();
+  const value = config.crossOrigin;
+  if (value === false || value === null || String(value || "").toLowerCase() === "none") return "";
+  if (!catalogAssetsBaseUrl() && !/^(?:https?:)?\/\//i.test(String(url))) return "";
+  return String(value || "anonymous").trim();
+}
+
+function catalogImageCrossOriginAttribute(url) {
+  const value = catalogAssetCrossOriginValue(url);
+  return value ? ` crossorigin="${escapeHtml(value)}"` : "";
+}
+
+function applyCatalogImageCrossOrigin(img, url) {
+  if (!img) return;
+  const value = catalogAssetCrossOriginValue(url);
+  if (value) img.crossOrigin = value;
+  else img.removeAttribute("crossorigin");
+}
+
+function setCatalogImageSource(img, url) {
+  if (!img) return;
+  applyCatalogImageCrossOrigin(img, url);
+  img.src = url;
+}
 const DOUBLE_TAP_DELAY = 320;
 const DOUBLE_TAP_DISTANCE = 34;
 const TAP_MOVE_TOLERANCE = 14;
@@ -165,7 +213,7 @@ function imageExt(catalog) {
 }
 
 function catalogDir(catalog) {
-  return catalog?.dir || `assets/pages/${catalog.id}`;
+  return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
 }
 
 function withAssetVersion(url, catalog) {
@@ -180,6 +228,10 @@ function pageSrc(catalog, page) {
 
 function thumbSrc(catalog, page) {
   return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+}
+
+function catalogCoverSrc(catalog) {
+  return catalog?.cover ? withAssetVersion(resolveCatalogAssetUrl(catalog.cover), catalog) : pageSrc(catalog, 1);
 }
 
 function coverThumbSrc(catalog) {
@@ -314,7 +366,7 @@ function loadDeferredImage(img) {
   const src = img?.dataset?.src;
   if (!src || img.getAttribute("src") === src) return;
   img.addEventListener("load", () => img.classList.add("loaded"), { once: true });
-  img.src = src;
+  setCatalogImageSource(img, src);
   img.removeAttribute("data-src");
 }
 
@@ -494,7 +546,7 @@ function renderCatalogCard(catalog) {
   return `
     <article class="catalog-card">
       <button class="catalog-cover-frame catalog-image-frame catalog-cover-card-button" type="button" data-open-catalog-viewer="${escapeHtml(catalog.id)}" aria-label="פתיחת ${escapeHtml(catalog.title)} במסך מלא">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${escapeHtml(catalog.title)}" loading="lazy" decoding="async" fetchpriority="low" />
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${escapeHtml(catalog.title)}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
         <span class="catalog-cover-card-cta">צפייה במסך מלא</span>
       </button>
       <div class="catalog-body">
@@ -752,12 +804,13 @@ function renderLightboxSearchResults(query) {
   els.lightboxSearchResults.innerHTML = results.map((result) => {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
     const page = clampPage(result.page, catalog);
-    const thumb = escapeHtml(result.thumb || thumbSrc(catalog, page));
+    const rawThumb = result.thumb || thumbSrc(catalog, page);
+    const thumb = escapeHtml(rawThumb);
     const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
     return `
       <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}">
         <span class="reader-search-thumb-frame catalog-image-frame">
-          <img src="${thumb}" alt="${escapeHtml(catalogTitle)} - עמוד ${page}" loading="lazy" decoding="async" />
+          <img src="${thumb}" alt="${escapeHtml(catalogTitle)} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawThumb)} />
         </span>
         <span>
           <strong>${scope === "all" ? escapeHtml(catalogTitle) : `עמוד ${page}`}</strong>
@@ -870,7 +923,7 @@ function renderSearchResults(query) {
     <article class="search-result-card">
       <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${result.page}">
         <span class="search-result-thumb-frame catalog-image-frame">
-          <img class="search-result-thumb" src="${escapeHtml(result.thumb)}" alt="${escapeHtml(result.catalogTitle)} - עמוד ${result.page}" loading="lazy" />
+          <img class="search-result-thumb" src="${escapeHtml(result.thumb)}" alt="${escapeHtml(result.catalogTitle)} - עמוד ${result.page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(result.thumb)} />
         </span>
         <span class="search-result-body">
           <strong>${escapeHtml(result.catalogTitle)}</strong>
@@ -906,7 +959,7 @@ function clearDeferredPageThumbLoading() {
 function loadDeferredPageThumb(img) {
   const src = img?.dataset?.src;
   if (!src || img.getAttribute("src") === src) return;
-  img.src = src;
+  setCatalogImageSource(img, src);
   img.removeAttribute("data-src");
   img.classList.add("loaded");
 }
@@ -956,7 +1009,7 @@ function renderPageGrid() {
       <article class="page-card">
         <button class="page-button" type="button" data-open-page="${page}">
           <div class="page-thumb-wrap">
-            <img class="page-thumb" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" data-src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" />
+            <img class="page-thumb" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" data-src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">
@@ -996,7 +1049,7 @@ function renderCatalogDetail() {
   els.catalogCategory.textContent = catalog.category || "קטלוג";
   els.catalogPages.textContent = `${catalog.pages} עמודים`;
   els.catalogSelect.value = catalog.id;
-  els.catalogCoverPreview.src = catalog.cover ? withAssetVersion(catalog.cover, catalog) : pageSrc(catalog, 1);
+  setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
   els.catalogCoverPreview.loading = "lazy";
   els.catalogCoverPreview.decoding = "async";
   els.catalogCoverPreview.alt = `שער ${catalog.title}`;
@@ -1010,9 +1063,11 @@ function preloadNeighbors() {
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
       const img = new Image();
+      const src = pageSrc(state.catalog, page);
+      applyCatalogImageCrossOrigin(img, src);
       img.decoding = "async";
       img.fetchPriority = "low";
-      img.src = pageSrc(state.catalog, page);
+      img.src = src;
     });
 }
 
@@ -1349,7 +1404,7 @@ function showLightboxFloatingPreview(button) {
 
   const page = clampPage(button.dataset.page, state.catalog);
   const src = button.dataset.previewSrc || pageSrc(state.catalog, page);
-  els.lightboxFloatingPreviewImage.src = src;
+  setCatalogImageSource(els.lightboxFloatingPreviewImage, src);
   els.lightboxFloatingPreviewImage.alt = `${state.catalog.title} - עמוד ${page}`;
   if (els.lightboxFloatingPreviewPage) els.lightboxFloatingPreviewPage.textContent = `עמוד ${page}`;
   els.lightboxFloatingPreview.classList.add("visible");
@@ -1386,7 +1441,7 @@ function renderLightboxThumbs() {
   for (let page = 1; page <= catalog.pages; page += 1) {
     thumbs.push(`
       <button class="lightbox-thumb catalog-image-frame ${page === state.page ? "active" : ""}" type="button" data-page="${page}" data-preview-src="${escapeHtml(thumbSrc(catalog, page))}" aria-label="מעבר לעמוד ${page}">
-        <img src="${escapeHtml(thumbSrc(catalog, page))}" alt="" loading="lazy" decoding="async" />
+        <img src="${escapeHtml(thumbSrc(catalog, page))}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
       </button>
     `);
   }
@@ -1410,11 +1465,13 @@ function renderLightboxScrollPages() {
   const pages = [];
 
   for (let page = 1; page <= catalog.pages; page += 1) {
-    const src = escapeHtml(pageSrc(catalog, page));
+    const rawSrc = pageSrc(catalog, page);
+    const src = escapeHtml(rawSrc);
+    const crossOriginAttribute = catalogImageCrossOriginAttribute(rawSrc);
     const eager = Math.abs(page - state.page) <= 1;
     const imageAttributes = eager
-      ? `src="${src}" loading="eager" fetchpriority="${page === state.page ? "high" : "auto"}"`
-      : `src="${TRANSPARENT_PIXEL}" data-src="${src}" loading="lazy" fetchpriority="low"`;
+      ? `src="${src}" loading="eager" fetchpriority="${page === state.page ? "high" : "auto"}"${crossOriginAttribute}`
+      : `src="${TRANSPARENT_PIXEL}" data-src="${src}" loading="lazy" fetchpriority="low"${crossOriginAttribute}`;
     pages.push(`
       <figure class="lightbox-scroll-page-frame catalog-image-frame" id="lightbox-scroll-page-${page}" data-page="${page}"${pageAspectStyle(catalog, page)}>
         <img class="lightbox-scroll-image${eager ? " loaded" : ""}" ${imageAttributes} alt="${escapeHtml(catalog.title)} - עמוד ${page}" decoding="async" />
@@ -1437,7 +1494,7 @@ function renderLightboxPageRail() {
     thumbs.push(`
       <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === state.page ? " active" : ""}" type="button" data-page="${page}" data-preview-src="${fullPage}" aria-label="מעבר לעמוד ${page}"${page === state.page ? ' aria-current="page"' : ""}>
         <span class="lightbox-page-thumb-image-wrap">
-          <img src="${thumb}" alt="" loading="lazy" decoding="async" />
+          <img src="${thumb}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
         </span>
         <span class="lightbox-page-thumb-number">${page}</span>
       </button>
@@ -1705,7 +1762,7 @@ function updateLightbox() {
     els.lightboxImage.decoding = "async";
     els.lightboxImage.fetchPriority = "high";
     requestAnimationFrame(() => {
-      els.lightboxImage.src = src;
+      setCatalogImageSource(els.lightboxImage, src);
     });
   } else {
     applyZoom();

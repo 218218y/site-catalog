@@ -35,6 +35,7 @@ DEPLOY_FILES = [
     "tooltip-manager.js",
     "catalog-last-view.js",
     "catalog-snapshot.js",
+    "catalog-assets-config.js",
     "brand-logo.js",
     "favicon-loader.js",
     "wp_logo_data.js",
@@ -248,12 +249,48 @@ def create_zip_from_folder(folder: Path, zip_path: Path) -> CopyStats:
     return CopyStats(files=files, bytes=total_bytes)
 
 
+
+def read_r2_base_url(root: Path) -> str:
+    config_path = root / "catalog-assets-config.js"
+    if not config_path.exists():
+        return ""
+    text = config_path.read_text(encoding="utf-8", errors="replace")
+    match = re.search(r'baseUrl\s*:\s*(["\'])\s*(.*?)\s*\1', text)
+    return (match.group(2).strip() if match else "").rstrip("/")
+
+
+def validate_r2_public_base_url(root: Path) -> list[str]:
+    base_url = read_r2_base_url(root)
+    if not base_url:
+        return [
+            "catalog-assets-config.js has an empty baseUrl. Enable an R2 Public Development URL or Custom Domain, set baseUrl to that public read URL, then run bundle-site-r2.bat again."
+        ]
+    if ".r2.cloudflarestorage.com" in base_url.lower():
+        return [
+            "catalog-assets-config.js uses an R2 S3 API endpoint. That URL is for authenticated API/upload access, not public browser image loading. Use an R2 Custom Domain or Public Development URL instead."
+        ]
+    if "/assets/pages" in base_url.lower().rstrip("/"):
+        return [
+            "catalog-assets-config.js baseUrl must be only the public origin, without /assets/pages. Example: https://catalogs.example.com"
+        ]
+    if not re.match(r"^https://", base_url, re.IGNORECASE):
+        return [
+            "catalog-assets-config.js baseUrl should be an https:// public URL for production."
+        ]
+    return []
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create a clean static upload bundle for the catalog website.")
     parser.add_argument("--out", default="dist/site-upload", help="Output folder, relative to the project root by default")
     parser.add_argument("--no-clean", action="store_true", help="Do not clear the output folder before copying")
     parser.add_argument("--zip", action="store_true", help="Also create a .zip file next to the output folder")
     parser.add_argument("--include-json", action="store_true", help="Also copy catalogs.generated.json and catalogs.search.json")
+    parser.add_argument(
+        "--assets-mode",
+        choices=["local", "r2"],
+        default="local",
+        help="local copies assets/pages into the Netlify bundle; r2 skips catalog images because they are served from Cloudflare R2.",
+    )
     parser.add_argument(
         "--allow-missing-pages",
         action="store_true",
@@ -289,7 +326,9 @@ def main() -> int:
                 stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
 
         pages_dir = root / "assets" / "pages"
-        if pages_dir.is_dir():
+        if args.assets_mode == "r2":
+            print("[skip] assets/pages is not copied because --assets-mode r2 is active.")
+        elif pages_dir.is_dir():
             pages_stats = copy_tree(pages_dir, out_dir / "assets" / "pages")
             stats = add_stats(stats, pages_stats)
             print(f"[copy] assets/pages -> {rel_to_root(out_dir / 'assets' / 'pages')} ({pages_stats.files} files)")
@@ -298,14 +337,26 @@ def main() -> int:
         else:
             raise FileNotFoundError("assets/pages does not exist. Run convert-catalogs first, or use --allow-missing-pages for a skeleton bundle.")
 
-        warnings = validate_static_references(root) + validate_catalog_assets(root)
+        warnings = validate_static_references(root)
+        if args.assets_mode == "local":
+            warnings += validate_catalog_assets(root)
+        r2_errors: list[str] = []
+        if args.assets_mode == "r2":
+            r2_errors = validate_r2_public_base_url(root)
         for warning in warnings:
             print(f"[warn] {warning}", file=sys.stderr)
+        for error in r2_errors:
+            print(f"[r2-error] {error}", file=sys.stderr)
+        if r2_errors:
+            raise RuntimeError("R2 public URL is not configured correctly. See the [r2-error] message above.")
 
         print("\nDone.")
         print(f"Upload folder: {rel_to_root(out_dir)}")
         print(f"Copied: {stats.files} files, {format_bytes(stats.bytes)}")
-        print("Excluded: PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
+        if args.assets_mode == "r2":
+            print("Excluded: catalog images, PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
+        else:
+            print("Excluded: PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
         print("Contact: direct Gmail compose link only; no mailto fallback, form, or serverless function is required.")
 
         if args.zip:
