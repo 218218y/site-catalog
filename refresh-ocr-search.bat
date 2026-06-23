@@ -8,10 +8,10 @@ if not exist .venv\Scripts\activate.bat (
   exit /b 1
 )
 call .venv\Scripts\activate.bat
-python tools\build_catalogs.py --force --no-clean --skip-existing --format jpg --dpi 220 --max-width 2800 --max-height 2800 --thumb-size 420 --quality 94 --thumb-quality 88 --sharpen 1.0 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
+python tools\build_catalogs.py --force --no-clean --skip-existing --format webp --dpi 240 --max-width 3200 --max-height 3200 --thumb-size 520 --quality 90 --thumb-quality 80 --sharpen 0.8 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
 if errorlevel 1 goto error
 echo.
-echo OCR/search index was refreshed. Existing page images were kept when possible.
+echo OCR/search index was refreshed with conservative OCR. Existing WebP page images were kept when possible.
 echo Generated: catalogs.search.js
 echo.
 pause

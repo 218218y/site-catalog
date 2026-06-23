@@ -6,51 +6,21 @@ const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAA
 const MIN_VIEWER_ZOOM = 1;
 const MAX_VIEWER_ZOOM = 5;
 
-function catalogAssetsRuntimeConfig() {
-  const config = window.BARGIG_CATALOG_ASSETS || {};
-  return (config && typeof config === "object") ? config : {};
-}
-
-function catalogAssetsBaseUrl() {
-  return String(catalogAssetsRuntimeConfig().baseUrl || "").trim().replace(/\/+$/, "");
-}
-
-function isSpecialAssetUrl(url) {
-  return /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(url) || /^(?:data|blob):/i.test(url);
-}
-
 function resolveCatalogAssetUrl(path) {
-  const raw = String(path || "").trim();
-  if (!raw || isSpecialAssetUrl(raw)) return raw;
-  const baseUrl = catalogAssetsBaseUrl();
-  if (!baseUrl) return raw;
-  return `${baseUrl}/${raw.replace(/^\.\//, "").replace(/^\/+/, "")}`;
+  return String(path || "").trim();
 }
 
-function catalogAssetCrossOriginValue(url) {
-  if (!url || /^(?:data|blob):/i.test(String(url))) return "";
-  const config = catalogAssetsRuntimeConfig();
-  const value = config.crossOrigin;
-  if (value === false || value === null || String(value || "").toLowerCase() === "none") return "";
-  if (!catalogAssetsBaseUrl() && !/^(?:https?:)?\/\//i.test(String(url))) return "";
-  return String(value || "anonymous").trim();
+function catalogImageCrossOriginAttribute() {
+  return "";
 }
 
-function catalogImageCrossOriginAttribute(url) {
-  const value = catalogAssetCrossOriginValue(url);
-  return value ? ` crossorigin="${escapeHtml(value)}"` : "";
-}
-
-function applyCatalogImageCrossOrigin(img, url) {
-  if (!img) return;
-  const value = catalogAssetCrossOriginValue(url);
-  if (value) img.crossOrigin = value;
-  else img.removeAttribute("crossorigin");
+function applyCatalogImageCrossOrigin(img) {
+  if (img) img.removeAttribute("crossorigin");
 }
 
 function setCatalogImageSource(img, url) {
   if (!img) return;
-  applyCatalogImageCrossOrigin(img, url);
+  applyCatalogImageCrossOrigin(img);
   img.src = url;
 }
 const DOUBLE_TAP_DELAY = 320;

@@ -19,25 +19,8 @@
     return String(num).padStart(3, "0");
   }
 
-  function catalogAssetsRuntimeConfig() {
-    const config = window.BARGIG_CATALOG_ASSETS || {};
-    return (config && typeof config === "object") ? config : {};
-  }
-
-  function catalogAssetsBaseUrl() {
-    return String(catalogAssetsRuntimeConfig().baseUrl || "").trim().replace(/\/+$/, "");
-  }
-
-  function isSpecialAssetUrl(url) {
-    return /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(url) || /^(?:data|blob):/i.test(url);
-  }
-
   function resolveCatalogAssetUrl(path) {
-    const raw = String(path || "").trim();
-    if (!raw || isSpecialAssetUrl(raw)) return raw;
-    const baseUrl = catalogAssetsBaseUrl();
-    if (!baseUrl) return raw;
-    return `${baseUrl}/${raw.replace(/^\.\//, "").replace(/^\/+/, "")}`;
+    return String(path || "").trim();
   }
 
   function imageExt(catalog) {

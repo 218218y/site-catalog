@@ -4,17 +4,18 @@
 The script reads catalogs.config.json, renders each PDF into high-quality page
 images and thumbnails, and writes catalogs.generated.js for the website.
 
-Defaults are tuned for fast catalog browsing:
+Defaults are tuned for sharp catalog browsing without oversized downloads:
 - WebP output by default
-- higher DPI rendering
-- larger thumbnails
+- 240 DPI render, capped to 3200px on the long side
+- separate lightweight thumbnails
+- OCR prefers embedded PDF text and only falls back to full-page OCR for scanned/empty pages
 - no PDF links in the site output
 
 Examples:
     python tools/build_catalogs.py
     python tools/build_catalogs.py --force
     python tools/build_catalogs.py --format jpg
-    python tools/build_catalogs.py --format webp --dpi 220 --quality 84
+    python tools/build_catalogs.py --format webp --dpi 240 --quality 90
 """
 from __future__ import annotations
 
@@ -26,7 +27,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -372,259 +372,6 @@ class OcrRunner:
                 pass
 
 
-def _looks_like_teal_banner_pixel(pixel: tuple[int, int, int]) -> bool:
-    """Return true for the semi-transparent green/teal title ribbons used in photo catalog pages.
-
-    Tesseract is good at dark text on plain paper, but it often ignores white
-    letters sitting on a tinted translucent rectangle inside a full-page photo.
-    Detecting the ribbon lets us OCR only that local text block instead of asking
-    Tesseract to understand the whole photograph as one text paragraph.
-    """
-    red, green, blue = pixel
-    luminance = (red + green + blue) / 3
-    return (
-        green - red >= 14
-        and green - blue >= -12
-        and luminance < 165
-        and 85 <= green <= 190
-        and red < 170
-        and blue < 170
-    )
-
-
-
-
-def _has_light_text_pixels(image: Image.Image, box: tuple[int, int, int, int]) -> bool:
-    """Check that a detected ribbon contains enough bright neutral pixels to be white text."""
-    x0, y0, x1, y1 = box
-    if x1 <= x0 or y1 <= y0:
-        return False
-    crop = image.crop(box)
-    sample_width = max(1, min(180, crop.width // 8 or crop.width))
-    sample_height = max(1, round(crop.height * sample_width / max(1, crop.width)))
-    sample = crop.resize((sample_width, sample_height), Image.Resampling.BILINEAR).convert("RGB")
-    total = max(1, sample_width * sample_height)
-    bright_neutral = 0
-    pixels = sample.get_flattened_data() if hasattr(sample, "get_flattened_data") else sample.getdata()
-    for pixel in pixels:
-        red, green, blue = pixel[:3]
-        if red > 210 and green > 210 and blue > 210 and max(red, green, blue) - min(red, green, blue) < 35:
-            bright_neutral += 1
-    return bright_neutral / total >= 0.015
-
-
-def _find_teal_banner_regions(image: Image.Image) -> list[tuple[int, int, int, int]]:
-    """Find large horizontal green title ribbons and return crop boxes in image pixels."""
-    source = image.convert("RGB")
-    width, height = source.size
-    if width <= 0 or height <= 0:
-        return []
-
-    sample_width = min(420, max(180, width // 5))
-    sample_height = max(1, round(height * sample_width / width))
-    sample = source.resize((sample_width, sample_height), Image.Resampling.BILINEAR)
-    pixels = sample.load()
-
-    mask = [[False] * sample_width for _ in range(sample_height)]
-    for y in range(sample_height):
-        for x in range(sample_width):
-            mask[y][x] = _looks_like_teal_banner_pixel(pixels[x, y])
-
-    visited = [[False] * sample_width for _ in range(sample_height)]
-    regions: list[tuple[int, int, int, int, int]] = []
-    min_component_pixels = max(80, int(sample_width * sample_height * 0.0015))
-
-    for start_y in range(sample_height):
-        for start_x in range(sample_width):
-            if visited[start_y][start_x] or not mask[start_y][start_x]:
-                continue
-
-            queue: deque[tuple[int, int]] = deque([(start_x, start_y)])
-            visited[start_y][start_x] = True
-            min_x = max_x = start_x
-            min_y = max_y = start_y
-            count = 0
-
-            while queue:
-                x, y = queue.popleft()
-                count += 1
-                min_x = min(min_x, x)
-                max_x = max(max_x, x)
-                min_y = min(min_y, y)
-                max_y = max(max_y, y)
-
-                for next_x, next_y in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-                    if (
-                        next_x < 0
-                        or next_x >= sample_width
-                        or next_y < 0
-                        or next_y >= sample_height
-                        or visited[next_y][next_x]
-                        or not mask[next_y][next_x]
-                    ):
-                        continue
-                    visited[next_y][next_x] = True
-                    queue.append((next_x, next_y))
-
-            if count < min_component_pixels:
-                continue
-
-            box_width = max_x - min_x + 1
-            box_height = max_y - min_y + 1
-            rel_width = box_width / sample_width
-            rel_height = box_height / sample_height
-            fill_ratio = count / max(1, box_width * box_height)
-
-            # A title ribbon is a broad, relatively shallow block. This filters out
-            # large colored walls/backgrounds and tiny decorative icons.
-            if not (0.18 <= rel_width <= 0.72 and 0.045 <= rel_height <= 0.34 and fill_ratio >= 0.25):
-                continue
-
-            pad_x = max(8, int(width * 0.015))
-            pad_y = max(8, int(height * 0.015))
-            x0 = max(0, int(min_x * width / sample_width) - pad_x)
-            y0 = max(0, int(min_y * height / sample_height) - pad_y)
-            x1 = min(width, int((max_x + 1) * width / sample_width) + pad_x)
-            y1 = min(height, int((max_y + 1) * height / sample_height) + pad_y)
-            if not _has_light_text_pixels(source, (x0, y0, x1, y1)):
-                continue
-            regions.append((count, x0, y0, x1, y1))
-
-    # Prefer the most ribbon-like regions first and avoid near-duplicate crops.
-    regions.sort(reverse=True)
-    result: list[tuple[int, int, int, int]] = []
-    for _, x0, y0, x1, y1 in regions:
-        candidate = (x0, y0, x1, y1)
-        if any(_boxes_overlap_ratio(candidate, existing) > 0.65 for existing in result):
-            continue
-        result.append(candidate)
-        if len(result) >= 4:
-            break
-    return result
-
-
-def _boxes_overlap_ratio(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
-    left = max(a[0], b[0])
-    top = max(a[1], b[1])
-    right = min(a[2], b[2])
-    bottom = min(a[3], b[3])
-    if right <= left or bottom <= top:
-        return 0.0
-    intersection = (right - left) * (bottom - top)
-    area_a = max(1, (a[2] - a[0]) * (a[3] - a[1]))
-    area_b = max(1, (b[2] - b[0]) * (b[3] - b[1]))
-    return intersection / min(area_a, area_b)
-
-
-def _prepare_ocr_crop(crop: Image.Image, *, scale: float = 3.0, max_side: int = 1800) -> Image.Image:
-    """Upscale small text regions before OCR without changing the site images."""
-    if crop.width <= 0 or crop.height <= 0:
-        return crop.convert("RGB")
-    scale = max(1.0, float(scale))
-    scale = min(scale, max_side / max(1, crop.width), max_side / max(1, crop.height))
-    if scale <= 1.05:
-        return crop.convert("RGB")
-    width = max(1, int(crop.width * scale))
-    height = max(1, int(crop.height * scale))
-    return crop.convert("RGB").resize((width, height), Image.Resampling.LANCZOS)
-
-
-def _stack_ocr_crops(crops: list[Image.Image]) -> Image.Image | None:
-    if not crops:
-        return None
-    separator = 60
-    width = max(crop.width for crop in crops)
-    height = sum(crop.height for crop in crops) + separator * (len(crops) - 1)
-    canvas = Image.new("RGB", (width, height), "white")
-    y = 0
-    for crop in crops:
-        canvas.paste(crop, (0, y))
-        y += crop.height + separator
-    return canvas
-
-
-def _relative_crop(image: Image.Image, box: tuple[float, float, float, float]) -> Image.Image | None:
-    width, height = image.size
-    x0 = max(0, min(width, int(width * box[0])))
-    y0 = max(0, min(height, int(height * box[1])))
-    x1 = max(0, min(width, int(width * box[2])))
-    y1 = max(0, min(height, int(height * box[3])))
-    if x1 - x0 < 16 or y1 - y0 < 16:
-        return None
-    return image.crop((x0, y0, x1, y1))
-
-
-def _has_ocr_signal(crop: Image.Image) -> bool:
-    """Return true when a crop has enough contrast to justify a focused OCR pass."""
-    if crop.width <= 0 or crop.height <= 0:
-        return False
-    sample_width = max(24, min(180, crop.width // 8 or crop.width))
-    sample_height = max(24, min(180, round(crop.height * sample_width / max(1, crop.width))))
-    sample = crop.resize((sample_width, sample_height), Image.Resampling.BILINEAR).convert("L")
-    pixels = list(sample.getdata())
-    total = max(1, len(pixels))
-    dark_ratio = sum(1 for value in pixels if value < 95) / total
-    bright_ratio = sum(1 for value in pixels if value > 215) / total
-    very_dark_ratio = sum(1 for value in pixels if value < 45) / total
-
-    # Dark letters on a light background, or white letters inside a dark name plate.
-    if 0.002 <= dark_ratio <= 0.55 and bright_ratio >= 0.08:
-        return True
-    if very_dark_ratio >= 0.12 and bright_ratio >= 0.004:
-        return True
-    return False
-
-
-def _focused_page_ocr_crops(image: Image.Image) -> list[Image.Image]:
-    """Create a compact OCR sheet from regions where catalog model names usually live.
-
-    Full-page OCR has a hard time with photo catalogs because furniture, curtains,
-    shadows and decorative lines look like text. These crops keep the search
-    index focused on title/metadata zones while leaving the rendered page images
-    untouched.
-    """
-    relative_boxes = (
-        (0.78, 0.00, 1.00, 0.42),  # right title / details column
-        (0.00, 0.00, 0.45, 0.38),  # top-left model labels
-        (0.00, 0.76, 0.36, 1.00),  # bottom-left name plates
-        (0.64, 0.76, 1.00, 1.00),  # bottom-right name plates
-        (0.28, 0.76, 0.78, 1.00),  # bottom-center tables / labels
-    )
-
-    crops: list[Image.Image] = []
-    for box in relative_boxes:
-        crop = _relative_crop(image, box)
-        if crop is None or not _has_ocr_signal(crop):
-            continue
-        crops.append(_prepare_ocr_crop(crop, scale=1.8, max_side=1200))
-
-    if len(crops) > 5:
-        return crops[:5]
-    return crops
-
-
-def _banner_ocr_crops(image: Image.Image) -> list[Image.Image]:
-    crops: list[Image.Image] = []
-    for box in _find_teal_banner_regions(image):
-        x0, y0, x1, y1 = box
-        box_height = y1 - y0
-
-        # The translucent rectangle can include a lot of empty background above or
-        # below the word. Several vertical trims are stacked into one OCR image so
-        # Tesseract sees clean text candidates without paying for many OCR calls.
-        vertical_windows = ((0.0, 1.0), (0.25, 0.85), (0.30, 0.75), (0.35, 0.95))
-        region_crops: list[Image.Image] = []
-        for start, end in vertical_windows:
-            crop_y0 = y0 + int(box_height * start)
-            crop_y1 = y0 + int(box_height * end)
-            if crop_y1 - crop_y0 < 24:
-                continue
-            region_crops.append(_prepare_ocr_crop(image.crop((x0, crop_y0, x1, crop_y1))))
-        stacked = _stack_ocr_crops(region_crops)
-        if stacked is not None:
-            crops.append(stacked)
-    return crops
-
 
 def _combine_search_texts(parts: list[str]) -> str:
     seen: set[str] = set()
@@ -645,26 +392,24 @@ def build_page_search_text(
     label: str,
     manual_text: str = "",
 ) -> str:
+    """Build clean searchable text for one page.
+
+    The safe order is:
+    1. use embedded PDF text when it exists;
+    2. run one regular full-page OCR pass only for scanned/empty pages;
+    3. append deliberate manual search overrides.
+
+    Older versions also OCRed guessed title/photo regions and colored ribbons.
+    That helped a few white-on-image captions, but it also interpreted furniture,
+    shadows and decorative lines as letters, so it polluted the search index with
+    false characters. The search index is now intentionally conservative again.
+    """
     embedded_text = extract_embedded_text(page)
     text_parts = [embedded_text]
 
-    should_run_full_ocr = ocr.should_run(embedded_text)
-    should_run_focused_ocr = options.ocr_mode != "never" and (should_run_full_ocr or len(embedded_text) < 320)
-
-    if should_run_full_ocr or should_run_focused_ocr:
+    if ocr.should_run(embedded_text):
         ocr_image = render_ocr_page_image(page, options.ocr_dpi)
-
-        if should_run_full_ocr:
-            text_parts.append(ocr.recognize(ocr_image, label, psm=6))
-
-        focused_crops = _focused_page_ocr_crops(ocr_image)
-        focused_sheet = _stack_ocr_crops(focused_crops)
-        if focused_sheet is not None:
-            text_parts.append(ocr.recognize(focused_sheet, f"{label} focused text zones", psm=6))
-
-        banner_crops = _banner_ocr_crops(ocr_image)
-        for index, crop in enumerate(banner_crops, start=1):
-            text_parts.append(ocr.recognize(crop, f"{label} title ribbon {index}", psm=6))
+        text_parts.append(ocr.recognize(ocr_image, label, psm=6))
 
     if manual_text:
         text_parts.append(manual_text)
@@ -893,14 +638,14 @@ def write_generated_files(entries: list[dict[str, Any]], search_entries: list[di
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert local PDF catalogs into high-quality website page images.")
     parser.add_argument("--config", default="catalogs.config.json", help="Path to config JSON, relative to project root")
-    parser.add_argument("--dpi", type=int, default=220, help="Render DPI for PDF pages before optional downscale")
-    parser.add_argument("--max-width", type=int, default=2800, help="Max rendered page width in pixels")
-    parser.add_argument("--max-height", type=int, default=2800, help="Max rendered page height in pixels")
-    parser.add_argument("--thumb-size", type=int, default=420, help="Max thumbnail width/height in pixels")
-    parser.add_argument("--quality", type=int, default=94, help="Image quality for webp/jpg, 1-100")
-    parser.add_argument("--thumb-quality", type=int, default=88, help="Thumbnail quality for webp/jpg, 1-100")
+    parser.add_argument("--dpi", type=int, default=240, help="Render DPI for PDF pages before optional downscale")
+    parser.add_argument("--max-width", type=int, default=3200, help="Max rendered page width in pixels")
+    parser.add_argument("--max-height", type=int, default=3200, help="Max rendered page height in pixels")
+    parser.add_argument("--thumb-size", type=int, default=520, help="Max thumbnail width/height in pixels")
+    parser.add_argument("--quality", type=int, default=90, help="Image quality for webp/jpg, 1-100")
+    parser.add_argument("--thumb-quality", type=int, default=80, help="Thumbnail quality for webp/jpg, 1-100")
     parser.add_argument("--format", choices=sorted(SUPPORTED_FORMATS), default="webp", help="Output image format")
-    parser.add_argument("--sharpen", type=float, default=1.0, help="Sharpen amount after resize, 0 disables")
+    parser.add_argument("--sharpen", type=float, default=0.8, help="Sharpen amount after resize, 0 disables")
     parser.add_argument(
         "--ocr",
         choices=["auto", "always", "never"],

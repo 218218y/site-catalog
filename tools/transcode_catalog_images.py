@@ -99,8 +99,8 @@ def transcode_one(source: Path, output_format: str, quality: int, skip_existing:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert existing assets/pages JPG/PNG/WebP catalog images to another format.")
     parser.add_argument("--format", choices=sorted(SUPPORTED_OUTPUT_FORMATS), default="webp", help="Output image format")
-    parser.add_argument("--quality", type=int, default=84, help="Quality for full pages when writing JPG/WebP")
-    parser.add_argument("--thumb-quality", type=int, default=76, help="Quality for files inside thumbs folders")
+    parser.add_argument("--quality", type=int, default=90, help="Quality for full pages when writing JPG/WebP")
+    parser.add_argument("--thumb-quality", type=int, default=80, help="Quality for files inside thumbs folders")
     parser.add_argument("--skip-existing", action="store_true", help="Do not overwrite existing target files")
     return parser.parse_args()
 

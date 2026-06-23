@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Create a clean upload bundle for the static catalog website.
+"""Create a clean Netlify upload folder for the static catalog website.
 
-The conversion/build project contains working files that should stay local:
-PDF files, conversion tools, virtual environments, setup scripts and temporary
-folders. This script copies only the files that the browser needs into a fresh
-folder that can be uploaded to hosting.
+The working project can contain PDFs, conversion tools, virtual environments,
+setup files and temporary folders. The Netlify upload folder should contain only
+what the browser needs:
+
+- the static site files
+- the generated catalog/search JavaScript
+- the converted catalog images under assets/pages
 
 Default output:
     dist/site-upload
 
 Examples:
     python tools/build_deploy_bundle.py
-    python tools/build_deploy_bundle.py --out dist/my-site --zip
+    python tools/build_deploy_bundle.py --out dist/my-site
+    python tools/build_deploy_bundle.py --zip
     python tools/build_deploy_bundle.py --include-json
 """
 from __future__ import annotations
@@ -35,7 +39,6 @@ DEPLOY_FILES = [
     "tooltip-manager.js",
     "catalog-last-view.js",
     "catalog-snapshot.js",
-    "catalog-assets-config.js",
     "brand-logo.js",
     "favicon-loader.js",
     "wp_logo_data.js",
@@ -57,8 +60,6 @@ JSON_DEPLOY_FILES = [
     "catalogs.generated.json",
     "catalogs.search.json",
 ]
-
-DEPLOY_DIRECTORIES = []
 
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s*;\s*$", re.DOTALL)
@@ -211,7 +212,12 @@ def validate_static_references(root: Path) -> list[str]:
 
 def validate_catalog_assets(root: Path) -> list[str]:
     warnings: list[str] = []
-    for catalog in load_generated_catalogs(root):
+    catalogs = load_generated_catalogs(root)
+    if not catalogs:
+        warnings.append("No generated catalogs were found. Run convert-catalogs.bat after adding PDFs.")
+        return warnings
+
+    for catalog in catalogs:
         catalog_id = str(catalog.get("id", "")).strip() or "unknown"
         cover = str(catalog.get("cover", "")).strip()
         catalog_dir = str(catalog.get("dir", "")).strip()
@@ -249,52 +255,16 @@ def create_zip_from_folder(folder: Path, zip_path: Path) -> CopyStats:
     return CopyStats(files=files, bytes=total_bytes)
 
 
-
-def read_r2_base_url(root: Path) -> str:
-    config_path = root / "catalog-assets-config.js"
-    if not config_path.exists():
-        return ""
-    text = config_path.read_text(encoding="utf-8", errors="replace")
-    match = re.search(r'baseUrl\s*:\s*(["\'])\s*(.*?)\s*\1', text)
-    return (match.group(2).strip() if match else "").rstrip("/")
-
-
-def validate_r2_public_base_url(root: Path) -> list[str]:
-    base_url = read_r2_base_url(root)
-    if not base_url:
-        return [
-            "catalog-assets-config.js has an empty baseUrl. Enable an R2 Public Development URL or Custom Domain, set baseUrl to that public read URL, then run bundle-site-r2.bat again."
-        ]
-    if ".r2.cloudflarestorage.com" in base_url.lower():
-        return [
-            "catalog-assets-config.js uses an R2 S3 API endpoint. That URL is for authenticated API/upload access, not public browser image loading. Use an R2 Custom Domain or Public Development URL instead."
-        ]
-    if "/assets/pages" in base_url.lower().rstrip("/"):
-        return [
-            "catalog-assets-config.js baseUrl must be only the public origin, without /assets/pages. Example: https://catalogs.example.com"
-        ]
-    if not re.match(r"^https://", base_url, re.IGNORECASE):
-        return [
-            "catalog-assets-config.js baseUrl should be an https:// public URL for production."
-        ]
-    return []
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Create a clean static upload bundle for the catalog website.")
+    parser = argparse.ArgumentParser(description="Create a clean Netlify upload folder for the catalog website.")
     parser.add_argument("--out", default="dist/site-upload", help="Output folder, relative to the project root by default")
     parser.add_argument("--no-clean", action="store_true", help="Do not clear the output folder before copying")
     parser.add_argument("--zip", action="store_true", help="Also create a .zip file next to the output folder")
     parser.add_argument("--include-json", action="store_true", help="Also copy catalogs.generated.json and catalogs.search.json")
     parser.add_argument(
-        "--assets-mode",
-        choices=["local", "r2"],
-        default="local",
-        help="local copies assets/pages into the Netlify bundle; r2 skips catalog images because they are served from Cloudflare R2.",
-    )
-    parser.add_argument(
         "--allow-missing-pages",
         action="store_true",
-        help="Create the bundle even if assets/pages does not exist yet. Usually you should run conversion first.",
+        help="Create the bundle even if assets/pages does not exist yet. The deployed viewer will need assets/pages to show catalog images.",
     )
     return parser.parse_args()
 
@@ -315,48 +285,31 @@ def main() -> int:
             stats = add_stats(stats, copy_file(root, out_dir, relative))
         for relative in OPTIONAL_DEPLOY_FILES:
             stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
-        for relative in DEPLOY_DIRECTORIES:
-            source_dir = root / relative
-            if source_dir.is_dir():
-                dir_stats = copy_tree(source_dir, out_dir / relative)
-                stats = add_stats(stats, dir_stats)
-                print(f"[copy] {relative} -> {rel_to_root(out_dir / relative)} ({dir_stats.files} files)")
         if args.include_json:
             for relative in JSON_DEPLOY_FILES:
                 stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
 
         pages_dir = root / "assets" / "pages"
-        if args.assets_mode == "r2":
-            print("[skip] assets/pages is not copied because --assets-mode r2 is active.")
-        elif pages_dir.is_dir():
+        if pages_dir.is_dir():
             pages_stats = copy_tree(pages_dir, out_dir / "assets" / "pages")
             stats = add_stats(stats, pages_stats)
             print(f"[copy] assets/pages -> {rel_to_root(out_dir / 'assets' / 'pages')} ({pages_stats.files} files)")
         elif args.allow_missing_pages:
             print("[warn] assets/pages does not exist. Bundle created without catalog images.", file=sys.stderr)
         else:
-            raise FileNotFoundError("assets/pages does not exist. Run convert-catalogs first, or use --allow-missing-pages for a skeleton bundle.")
+            raise FileNotFoundError("assets/pages does not exist. Run convert-catalogs.bat first, then run bundle-site.bat.")
 
         warnings = validate_static_references(root)
-        if args.assets_mode == "local":
+        if pages_dir.is_dir():
             warnings += validate_catalog_assets(root)
-        r2_errors: list[str] = []
-        if args.assets_mode == "r2":
-            r2_errors = validate_r2_public_base_url(root)
         for warning in warnings:
             print(f"[warn] {warning}", file=sys.stderr)
-        for error in r2_errors:
-            print(f"[r2-error] {error}", file=sys.stderr)
-        if r2_errors:
-            raise RuntimeError("R2 public URL is not configured correctly. See the [r2-error] message above.")
 
         print("\nDone.")
         print(f"Upload folder: {rel_to_root(out_dir)}")
         print(f"Copied: {stats.files} files, {format_bytes(stats.bytes)}")
-        if args.assets_mode == "r2":
-            print("Excluded: catalog images, PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
-        else:
-            print("Excluded: PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
+        print("Excluded: PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
+        print("Images: assets/pages is included in the Netlify upload folder when it exists.")
         print("Contact: direct Gmail compose link only; no mailto fallback, form, or serverless function is required.")
 
         if args.zip:
