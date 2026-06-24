@@ -170,7 +170,9 @@ const state = {
   lightboxScrollImageObserver: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
-  catalogImageLoadCache: new Map()
+  catalogImageLoadCache: new Map(),
+  catalogLayoutColumns: 0,
+  catalogLayoutResizeTimer: 0
 };
 
 const els = {
@@ -194,11 +196,14 @@ const els = {
   catalogDescription: $("catalogDescription"),
   catalogCategory: $("catalogCategory"),
   catalogPages: $("catalogPages"),
-  catalogSelect: $("catalogSelect"),
+  catalogMenuToggle: $("catalogMenuToggle"),
+  catalogMenuToggleText: $("catalogMenuToggleText"),
+  catalogMenu: $("catalogMenu"),
   catalogCoverPreview: $("catalogCoverPreview"),
   catalogCoverOpenViewer: $("catalogCoverOpenViewer"),
   pageGrid: $("pageGrid"),
-  openViewerFromTop: $("openViewerFromTop"),
+  openViewerScrollFromTop: $("openViewerScrollFromTop"),
+  openViewerSingleFromTop: $("openViewerSingleFromTop"),
   scrollToTopBtn: $("scrollToTopBtn"),
   lightbox: $("lightbox"),
   lightboxBackdrop: $("lightboxBackdrop"),
@@ -642,9 +647,11 @@ function renderEmptyState() {
   els.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.";
   els.catalogCategory.textContent = "קטלוגים";
   els.catalogPages.textContent = "0 עמודים";
-  els.catalogSelect.innerHTML = `<option>אין קטלוגים</option>`;
+  if (els.catalogMenuToggleText) els.catalogMenuToggleText.textContent = "אין קטלוגים";
+  if (els.catalogMenu) els.catalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
   els.catalogCoverPreview?.removeAttribute("src");
-  if (els.openViewerFromTop) els.openViewerFromTop.disabled = true;
+  if (els.openViewerScrollFromTop) els.openViewerScrollFromTop.disabled = true;
+  if (els.openViewerSingleFromTop) els.openViewerSingleFromTop.disabled = true;
 }
 
 
@@ -659,39 +666,77 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
 }
 
 
-function categoryGroupSpan(group, columns) {
-  const itemCount = Array.isArray(group?.items) ? group.items.length : 0;
-  return Math.min(columns, Math.max(1, itemCount));
+function catalogLayoutColumnCount() {
+  if (typeof window === "undefined" || !window.matchMedia) return 3;
+  if (window.matchMedia("(max-width: 760px)").matches) return 1;
+  if (window.matchMedia("(max-width: 1180px)").matches) return 2;
+  return 3;
 }
 
-function catalogCategoryLayout(groups) {
-  const layout = groups.map((group) => ({
-    spanDesktop: categoryGroupSpan(group, 3),
-    spanTablet: categoryGroupSpan(group, 2),
-    inlineDividerDesktop: false,
-    inlineDividerTablet: false
-  }));
+function clampCategorySpan(value, columns) {
+  return Math.min(columns, Math.max(1, Number(value || 1)));
+}
 
-  const markInlineDividers = (columns, spanKey, dividerKey) => {
-    let occupied = 0;
+function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
+  const safeColumns = clampCategorySpan(columns, 3);
+  const segments = [];
+  let occupied = 0;
 
-    layout.forEach((entry, index) => {
-      const span = Math.min(columns, Math.max(1, Number(entry[spanKey] || 1)));
-      if (occupied + span > columns) occupied = 0;
+  groups.forEach((group, groupIndex) => {
+    const items = Array.isArray(group?.items) ? group.items : [];
+    let itemOffset = 0;
+    let segmentIndex = 0;
 
-      const rowEnd = occupied + span;
-      const nextEntry = layout[index + 1];
-      const nextSpan = nextEntry ? Math.min(columns, Math.max(1, Number(nextEntry[spanKey] || 1))) : 0;
-      entry[dividerKey] = Boolean(nextEntry && rowEnd < columns && nextSpan <= columns - rowEnd);
+    while (itemOffset < items.length) {
+      if (occupied >= safeColumns) occupied = 0;
+      const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
+      const span = Math.min(availableInRow, items.length - itemOffset, safeColumns);
 
-      occupied = rowEnd >= columns ? 0 : rowEnd;
-    });
-  };
+      segments.push({
+        category: group.category,
+        groupIndex,
+        segmentIndex,
+        itemOffset,
+        span,
+        items: items.slice(itemOffset, itemOffset + span),
+        inlineDivider: false
+      });
 
-  markInlineDividers(3, "spanDesktop", "inlineDividerDesktop");
-  markInlineDividers(2, "spanTablet", "inlineDividerTablet");
+      itemOffset += span;
+      segmentIndex += 1;
+      occupied += span;
+      if (occupied >= safeColumns) occupied = 0;
+    }
+  });
 
-  return layout;
+  occupied = 0;
+  segments.forEach((segment, index) => {
+    const span = clampCategorySpan(segment.span, safeColumns);
+    if (occupied + span > safeColumns) occupied = 0;
+
+    const rowEnd = occupied + span;
+    const nextSegment = segments[index + 1];
+    const nextSpan = nextSegment ? clampCategorySpan(nextSegment.span, safeColumns) : 0;
+    segment.inlineDivider = Boolean(
+      nextSegment
+      && nextSegment.groupIndex !== segment.groupIndex
+      && rowEnd < safeColumns
+      && nextSpan <= safeColumns - rowEnd
+    );
+
+    occupied = rowEnd >= safeColumns ? 0 : rowEnd;
+  });
+
+  return segments;
+}
+
+function scheduleCatalogLayoutRefresh() {
+  if (!catalogs.length) return;
+  window.clearTimeout(state.catalogLayoutResizeTimer);
+  state.catalogLayoutResizeTimer = window.setTimeout(() => {
+    const nextColumns = catalogLayoutColumnCount();
+    if (nextColumns !== state.catalogLayoutColumns) renderCatalogCards();
+  }, 120);
 }
 
 function renderCatalogCard(catalog) {
@@ -755,19 +800,23 @@ function renderCatalogCards() {
   if (els.pageCount) els.pageCount.textContent = String(totalPages);
   renderCategoryNav(groups);
 
-  const categoryLayout = catalogCategoryLayout(groups);
+  const columns = catalogLayoutColumnCount();
+  state.catalogLayoutColumns = columns;
+  const categorySegments = catalogCategorySegments(groups, columns);
 
-  els.catalogGrid.innerHTML = groups.map((group, index) => {
-    const sectionId = categorySectionId(group.category, index);
-    const layout = categoryLayout[index] || { spanDesktop: 3, spanTablet: 2, inlineDividerDesktop: false, inlineDividerTablet: false };
-    const sectionStyle = `--category-span-desktop: ${layout.spanDesktop}; --category-span-tablet: ${layout.spanTablet};`;
+  els.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
+  els.catalogGrid.innerHTML = categorySegments.map((segment) => {
+    const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
+    const sectionId = segment.itemOffset === 0 ? baseSectionId : `${baseSectionId}-part-${segment.segmentIndex + 1}`;
+    const titleId = `${sectionId}-title`;
+    const sectionStyle = `--category-span: ${segment.span};`;
     return `
-      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(sectionId)}-title" style="${escapeHtml(sectionStyle)}" data-category-span-desktop="${escapeHtml(String(layout.spanDesktop))}" data-category-span-tablet="${escapeHtml(String(layout.spanTablet))}" data-inline-divider-desktop="${layout.inlineDividerDesktop ? "1" : "0"}" data-inline-divider-tablet="${layout.inlineDividerTablet ? "1" : "0"}">
+      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
         <div class="catalog-category-head">
-          <h3 id="${escapeHtml(sectionId)}-title">${escapeHtml(group.category)}</h3>
+          <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
         </div>
         <div class="catalog-grid catalog-category-grid">
-          ${group.items.map(renderCatalogCard).join("")}
+          ${segment.items.map(renderCatalogCard).join("")}
         </div>
       </section>
     `;
@@ -809,6 +858,11 @@ function closeLightboxSearchScopeMenu() {
 function closeLightboxCatalogMenu() {
   els.lightboxCatalogMenu?.classList.add("hidden");
   els.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
+}
+
+function closeDetailCatalogMenu() {
+  els.catalogMenu?.classList.add("hidden");
+  els.catalogMenuToggle?.setAttribute("aria-expanded", "false");
 }
 
 function syncLightboxSearchScopeUi() {
@@ -987,21 +1041,21 @@ function renderLightboxSearchResults(query) {
   });
 }
 
-function renderLightboxCatalogMenu() {
-  if (!els.lightboxCatalogMenu) return;
+function renderCatalogCategoryMenu(menu, { activeCatalogId = state.catalog?.id } = {}) {
+  if (!menu) return;
 
   if (!catalogs.length) {
-    els.lightboxCatalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
+    menu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
     return;
   }
 
   const groups = getCatalogCategoryGroups();
-  els.lightboxCatalogMenu.innerHTML = groups.map((group) => `
+  menu.innerHTML = groups.map((group) => `
     <section class="reader-catalog-menu-section">
       <div class="reader-catalog-menu-category">${escapeHtml(group.category)}</div>
       <div class="reader-catalog-menu-items">
         ${group.items.map((catalog) => `
-          <button class="reader-catalog-menu-item${state.catalog?.id === catalog.id ? " active" : ""}" type="button" role="menuitem" data-lightbox-catalog-id="${escapeHtml(catalog.id)}">
+          <button class="reader-catalog-menu-item${activeCatalogId === catalog.id ? " active" : ""}" type="button" role="menuitem" data-catalog-menu-id="${escapeHtml(catalog.id)}"${activeCatalogId === catalog.id ? ' aria-current="true"' : ""}>
             <strong>${escapeHtml(catalog.title)}</strong>
             <small>${escapeHtml(catalog.pages || 0)} עמודים</small>
           </button>
@@ -1009,13 +1063,39 @@ function renderLightboxCatalogMenu() {
       </div>
     </section>
   `).join("");
+}
 
-  els.lightboxCatalogMenu.querySelectorAll("[data-lightbox-catalog-id]").forEach((button) => {
+function renderLightboxCatalogMenu() {
+  if (!els.lightboxCatalogMenu) return;
+
+  renderCatalogCategoryMenu(els.lightboxCatalogMenu);
+
+  els.lightboxCatalogMenu.querySelectorAll("[data-catalog-menu-id]").forEach((button) => {
     button.addEventListener("click", () => {
-      const catalogId = button.dataset.lightboxCatalogId;
+      const catalogId = button.dataset.catalogMenuId;
       closeLightboxCatalogMenu();
       if (!catalogId || catalogId === state.catalog?.id) return;
       openCatalogInViewer(catalogId, 1, state.viewerMode);
+    });
+  });
+}
+
+function updateDetailCatalogMenuLabel(catalog = state.catalog) {
+  if (!els.catalogMenuToggleText) return;
+  els.catalogMenuToggleText.textContent = catalog?.title || "בחר קטלוג";
+}
+
+function renderDetailCatalogMenu() {
+  if (!els.catalogMenu) return;
+
+  renderCatalogCategoryMenu(els.catalogMenu);
+
+  els.catalogMenu.querySelectorAll("[data-catalog-menu-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const catalogId = button.dataset.catalogMenuId;
+      closeDetailCatalogMenu();
+      if (!catalogId || catalogId === state.catalog?.id) return;
+      openCatalog(catalogId);
     });
   });
 }
@@ -1099,10 +1179,7 @@ function renderSearchResults(query) {
 }
 
 function fillCatalogSelect() {
-  if (!catalogs.length) return;
-  els.catalogSelect.innerHTML = catalogs.map((catalog) => (
-    `<option value="${escapeHtml(catalog.id)}">${escapeHtml(catalog.title)}</option>`
-  )).join("");
+  updateDetailCatalogMenuLabel();
 }
 
 
@@ -1158,14 +1235,16 @@ function renderCatalogDetail() {
   els.catalogDescription.textContent = catalog.description || "";
   els.catalogCategory.textContent = catalog.category || "קטלוג";
   els.catalogPages.textContent = `${catalog.pages} עמודים`;
-  els.catalogSelect.value = catalog.id;
+  updateDetailCatalogMenuLabel(catalog);
   if (els.catalogCoverPreview) {
     setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
     els.catalogCoverPreview.loading = "lazy";
     els.catalogCoverPreview.decoding = "async";
     els.catalogCoverPreview.alt = `שער ${catalog.title}`;
   }
-  if (els.openViewerFromTop) els.openViewerFromTop.disabled = catalog.pages < 1;
+  if (els.openViewerScrollFromTop) els.openViewerScrollFromTop.disabled = catalog.pages < 1;
+  if (els.openViewerSingleFromTop) els.openViewerSingleFromTop.disabled = catalog.pages < 1;
+  if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) renderDetailCatalogMenu();
   renderPageGrid();
 }
 
@@ -2403,6 +2482,7 @@ function attachEvents() {
 
   els.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
+    closeDetailCatalogMenu();
     closeLightboxCatalogMenu();
     const isOpen = !els.lightboxSearchScopeMenu?.classList.contains("hidden");
     els.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen);
@@ -2419,6 +2499,7 @@ function attachEvents() {
   });
   els.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
+    closeDetailCatalogMenu();
     closeLightboxSearchScopeMenu();
     renderLightboxCatalogMenu();
     const isOpen = !els.lightboxCatalogMenu?.classList.contains("hidden");
@@ -2427,15 +2508,29 @@ function attachEvents() {
     showTopUiTemporarily(0);
   });
   els.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+
+  els.catalogMenuToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeLightboxCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    renderDetailCatalogMenu();
+    const isOpen = !els.catalogMenu?.classList.contains("hidden");
+    els.catalogMenu?.classList.toggle("hidden", isOpen);
+    els.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  });
+  els.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+
   document.addEventListener("click", (event) => {
     if (els.lightboxSearchScopeMenu?.contains(event.target) || els.lightboxSearchScopeToggle?.contains(event.target)) return;
     if (els.lightboxCatalogMenu?.contains(event.target) || els.lightboxCatalogMenuToggle?.contains(event.target)) return;
+    if (els.catalogMenu?.contains(event.target) || els.catalogMenuToggle?.contains(event.target)) return;
     closeLightboxSearchScopeMenu();
     closeLightboxCatalogMenu();
+    closeDetailCatalogMenu();
   });
 
-  els.catalogSelect?.addEventListener("change", () => openCatalog(els.catalogSelect.value));
-  els.openViewerFromTop?.addEventListener("click", () => openLightbox(1));
+  els.openViewerScrollFromTop?.addEventListener("click", () => openLightbox(1, { mode: "scroll" }));
+  els.openViewerSingleFromTop?.addEventListener("click", () => openLightbox(1, { mode: "single" }));
   els.catalogCoverOpenViewer?.addEventListener("click", () => openLightbox(1));
   els.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
 
@@ -2495,6 +2590,7 @@ function attachEvents() {
 
 
   window.addEventListener("resize", () => {
+    scheduleCatalogLayoutRefresh();
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
       applyZoom();
@@ -2509,6 +2605,11 @@ function attachEvents() {
   syncFullscreenButtonUi();
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
+      event.preventDefault();
+      closeDetailCatalogMenu();
+      return;
+    }
     if (!state.lightboxOpen) return;
     if (event.key === "Escape" && ((els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) || (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden")))) {
       event.preventDefault();

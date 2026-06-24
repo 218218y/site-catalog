@@ -80,11 +80,18 @@
           </div>
 
           <div class="catalog-actions-row">
-            <label class="select-wrap" for="catalogSelect">
-              <span>מעבר לקטלוג אחר</span>
-              <select id="catalogSelect"></select>
-            </label>
-            <button class="button soft" id="openViewerFromTop" type="button">צפייה במסך מלא</button>
+            <div class="detail-catalog-picker">
+              <span class="detail-catalog-picker-label">מעבר לקטלוג אחר</span>
+              <button class="button soft detail-catalog-menu-toggle" id="catalogMenuToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="catalogMenu">
+                <span id="catalogMenuToggleText">בחר קטלוג</span>
+                <span aria-hidden="true">⌄</span>
+              </button>
+              <div class="reader-catalog-menu detail-catalog-menu hidden" id="catalogMenu" role="menu" aria-label="החלפת קטלוג"></div>
+            </div>
+            <div class="catalog-view-mode-actions" role="group" aria-label="בחירת תצוגת קטלוג">
+              <button class="button soft" id="openViewerScrollFromTop" type="button">תצוגת גלילה</button>
+              <button class="button primary" id="openViewerSingleFromTop" type="button">תצוגה לצדדים</button>
+            </div>
           </div>
         </div>
 
