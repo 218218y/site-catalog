@@ -90,11 +90,77 @@
     return normalize(query).split(" ").filter((token) => token.length >= 1);
   }
 
+  function parseQuery(query) {
+    const raw = String(query || "");
+    const exactTerms = [];
+    const looseParts = [];
+    let lastIndex = 0;
+    const quotedTermPattern = /["“”״]([^"“”״]+)["“”״]/g;
+    let match;
+
+    while ((match = quotedTermPattern.exec(raw)) !== null) {
+      looseParts.push(raw.slice(lastIndex, match.index));
+      const exactTokens = tokenize(match[1]);
+      if (exactTokens.length) {
+        exactTerms.push({
+          tokens: exactTokens,
+          value: exactTokens.join(" ")
+        });
+      }
+      lastIndex = quotedTermPattern.lastIndex;
+    }
+
+    looseParts.push(raw.slice(lastIndex));
+
+    return {
+      looseTokens: tokenize(looseParts.join(" ")),
+      exactTerms
+    };
+  }
+
+  function splitWords(normalizedText) {
+    return String(normalizedText || "").split(" ").filter(Boolean);
+  }
+
+  function exactTermMatches(normalizedWords, term) {
+    const termTokens = Array.isArray(term?.tokens) ? term.tokens : [];
+    if (!termTokens.length) return false;
+
+    if (termTokens.length === 1) {
+      return normalizedWords.includes(termTokens[0]);
+    }
+
+    const lastStart = normalizedWords.length - termTokens.length;
+    for (let start = 0; start <= lastStart; start += 1) {
+      let matched = true;
+      for (let offset = 0; offset < termTokens.length; offset += 1) {
+        if (normalizedWords[start + offset] !== termTokens[offset]) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) return true;
+    }
+    return false;
+  }
+
   function tokenMatches(normalizedText, looseText, token) {
     if (normalizedText.includes(token)) return true;
     if (token.length < 3) return false;
     const looseToken = normalizeLoose(token);
     return Boolean(looseToken && looseToken !== token && looseText.includes(looseToken));
+  }
+
+  function parsedQueryMatches(normalizedText, looseText, parsedQuery) {
+    const looseTokens = Array.isArray(parsedQuery?.looseTokens) ? parsedQuery.looseTokens : [];
+    const exactTerms = Array.isArray(parsedQuery?.exactTerms) ? parsedQuery.exactTerms : [];
+
+    if (!looseTokens.length && !exactTerms.length) return false;
+    if (!looseTokens.every((token) => tokenMatches(normalizedText, looseText, token))) return false;
+
+    if (!exactTerms.length) return true;
+    const normalizedWords = splitWords(normalizedText);
+    return exactTerms.every((term) => exactTermMatches(normalizedWords, term));
   }
 
   function findCatalog(catalogId) {
@@ -109,10 +175,20 @@
     return indexedPageCount() > 0;
   }
 
-  function scoreResult(normalizedText, tokens, normalizedPhrase, page) {
+  function scoreResult(normalizedText, parsedQuery, normalizedPhrase, page) {
+    const looseTokens = Array.isArray(parsedQuery?.looseTokens) ? parsedQuery.looseTokens : [];
+    const exactTerms = Array.isArray(parsedQuery?.exactTerms) ? parsedQuery.exactTerms : [];
+    const scoringTokens = [
+      ...looseTokens,
+      ...exactTerms.flatMap((term) => Array.isArray(term.tokens) ? term.tokens : [])
+    ];
+
     let score = 0;
     if (normalizedPhrase && normalizedText.includes(normalizedPhrase)) score += 80;
-    tokens.forEach((token) => {
+    exactTerms.forEach((term) => {
+      if (term?.value && normalizedText.includes(term.value)) score += 35;
+    });
+    scoringTokens.forEach((token) => {
       const firstIndex = normalizedText.indexOf(token);
       if (firstIndex !== -1) {
         score += 14;
@@ -128,7 +204,7 @@
     const raw = String(text || "").replace(/\s+/g, " ").trim();
     if (!raw) return "";
 
-    const queryTokens = String(query || "").trim().split(/\s+/).filter(Boolean);
+    const queryTokens = String(query || "").replace(/["“”״]/g, " ").trim().split(/\s+/).filter(Boolean);
     const lowerRaw = raw.toLowerCase();
     let hit = -1;
 
@@ -149,10 +225,14 @@
   }
 
   function search(query, options = {}) {
-    const tokens = tokenize(query);
-    if (!tokens.length) return [];
+    const parsedQuery = parseQuery(query);
+    const allTokens = [
+      ...parsedQuery.looseTokens,
+      ...parsedQuery.exactTerms.flatMap((term) => term.tokens)
+    ];
+    if (!allTokens.length) return [];
 
-    const normalizedPhrase = tokens.join(" ");
+    const normalizedPhrase = allTokens.join(" ");
     const catalogId = options.catalogId || null;
     const limit = Number.isFinite(Number(options.limit)) ? Number(options.limit) : 60;
     const results = [];
@@ -178,7 +258,7 @@
         const normalizedText = normalize(searchableText);
         const looseText = normalizeLoose(searchableText);
 
-        if (!tokens.every((token) => tokenMatches(normalizedText, looseText, token))) return;
+        if (!parsedQueryMatches(normalizedText, looseText, parsedQuery)) return;
 
         results.push({
           catalog,
@@ -187,7 +267,7 @@
           page,
           text,
           excerpt: makeExcerpt(text, query),
-          score: scoreResult(normalizedText, tokens, normalizedPhrase, page),
+          score: scoreResult(normalizedText, parsedQuery, normalizedPhrase, page),
           image: pageSrc(catalog, page),
           thumb: thumbSrc(catalog, page)
         });
@@ -204,6 +284,7 @@
     normalize,
     normalizeLoose,
     tokenize,
+    parseQuery,
     hasIndex,
     indexedPageCount,
     findCatalog,
