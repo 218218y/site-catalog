@@ -1055,7 +1055,7 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/fredi-sifriot",
     "cover": "assets/pages/fredi-sifriot/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "a4c9af0cf50d",
+    "assetVersion": "453e58a74058",
     "pageSizes": [
       [
         2800,
