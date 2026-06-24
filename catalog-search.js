@@ -19,8 +19,28 @@
     return String(num).padStart(3, "0");
   }
 
+  function catalogAssetBaseUrl() {
+    const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
+    if (!rawBase) return "";
+    return rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
+  }
+
+  function isAbsoluteAssetUrl(path) {
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith("//") || path.startsWith("data:");
+  }
+
   function resolveCatalogAssetUrl(path) {
-    return String(path || "").trim();
+    const cleanPath = String(path || "").trim();
+    if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
+
+    const baseUrl = catalogAssetBaseUrl();
+    if (!baseUrl) return cleanPath;
+
+    try {
+      return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
+    } catch {
+      return `${baseUrl}${cleanPath.replace(/^\/+/, "")}`;
+    }
   }
 
   function imageExt(catalog) {

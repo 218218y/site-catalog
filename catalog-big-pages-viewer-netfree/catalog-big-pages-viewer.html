@@ -290,16 +290,21 @@
         <button class="button" id="nextBottom" type="button">עבור ל־50 התמונות הבאות</button>
       </div>
       <div class="footer-note">
-        הדף טוען את התמונות הגדולות מתוך אותה העלאה של האתר: <strong>../assets/pages/</strong><br>
-        לכן בבאנדל הפריסה צריך להעלות גם את תיקיית assets/pages לצד הדף הזה.
+        ברירת המחדל: הדף טוען את התמונות מתוך העלאת האתר: <strong>../assets/pages/</strong><br>
+        בבאנדל חיצוני, אותו דף נטען מ־Netlify אבל התמונות מגיעות מכתובת האחסון שהוגדרה ב־catalog-assets.config.js.
       </div>
     </nav>
   </main>
 
+  <script src="../catalog-assets.config.js"></script>
   <script>
     "use strict";
 
-    const BASE_URL = new URL("../", window.location.href).href;
+    const LOCAL_ASSET_BASE_URL = new URL("../", window.location.href).href;
+    const CONFIGURED_ASSET_BASE_URL = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
+    const BASE_URL = CONFIGURED_ASSET_BASE_URL
+      ? (CONFIGURED_ASSET_BASE_URL.endsWith("/") ? CONFIGURED_ASSET_BASE_URL : CONFIGURED_ASSET_BASE_URL + "/")
+      : LOCAL_ASSET_BASE_URL;
     const IMAGES_PER_VIEW = 50;
     const CATALOGS = [
   {
@@ -1519,7 +1524,18 @@
 ];
 
     const pad = (num) => String(num).padStart(3, "0");
-    const cleanPath = (value) => String(value || "").replace(/^\/+/, "");
+    const cleanPath = (value) => String(value || "").trim().replace(/^\/+/, "");
+    const isAbsoluteUrl = (value) => /^[a-z][a-z0-9+.-]*:\/\//i.test(value) || value.startsWith("//") || value.startsWith("data:");
+
+    function resolveCatalogAssetUrl(path) {
+      const clean = String(path || "").trim();
+      if (!clean || isAbsoluteUrl(clean)) return clean;
+      try {
+        return new URL(cleanPath(clean), BASE_URL).href;
+      } catch {
+        return BASE_URL + cleanPath(clean);
+      }
+    }
 
     function withAssetVersion(url, catalog) {
       const version = String(catalog.assetVersion || "").trim();
@@ -1528,9 +1544,9 @@
     }
 
     function imageUrl(catalog, page) {
-      const dir = cleanPath(catalog.dir || ("assets/pages/" + catalog.id));
+      const dir = catalog.dir || ("assets/pages/" + catalog.id);
       const ext = catalog.imageExt || "webp";
-      return withAssetVersion(BASE_URL + dir + "/page-" + pad(page) + "." + ext, catalog);
+      return withAssetVersion(resolveCatalogAssetUrl(cleanPath(dir) + "/page-" + pad(page) + "." + ext), catalog);
     }
 
     function buildImageIndex() {

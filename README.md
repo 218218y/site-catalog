@@ -78,6 +78,8 @@ refresh-ocr-search.bat
 
 ### 4. יצירת תיקיית העלאה נקייה ל-Netlify
 
+ברירת המחדל נשארה כמו קודם: האתר והתמונות נבנים יחד, וכל `assets/pages` מועתק לתיקיית ההעלאה.
+
 ```bat
 bundle-site.bat
 ```
@@ -89,6 +91,30 @@ dist\site-upload
 ```
 
 את התוכן של התיקייה הזו מעלים ל-Netlify.
+
+אפשרות נוספת: באנדל אתר בלבד, בלי להעתיק את `assets/pages`, כשהתמונות נטענות מ-Cloudflare R2:
+
+```bat
+bundle-site-r2.bat
+```
+
+תוצאה:
+
+```bat
+dist\site-upload-r2
+```
+
+את התוכן של התיקייה הזו מעלים ל-Netlify. התמונות ייטענו מתוך:
+
+```text
+https://pub-5e6c7421563f4086ba1e097bb88f3348.r2.dev/assets/pages/...
+```
+
+אם רוצים להשתמש בכתובת חיצונית אחרת במקום ה-R2 של ברגיג:
+
+```bat
+bundle-site.bat --external-assets-url https://example.r2.dev
+```
 
 אם רוצים גם ZIP של תיקיית ההעלאה:
 
@@ -104,7 +130,7 @@ dist\site-upload.zip
 
 ## בדיקת תקינות מהירה
 
-לפני העלאה, בדוק שקיימים קבצים כמו:
+בבאנדל רגיל, בדוק שקיימים קבצים כמו:
 
 ```bat
 dist\site-upload\index.html
@@ -112,7 +138,16 @@ dist\site-upload\assets\pages\<catalog-id>\page-001.webp
 dist\site-upload\assets\pages\<catalog-id>\thumbs\page-001.webp
 ```
 
-אם `bundle-site.bat` נכשל עם הודעה ש-`assets/pages` לא קיים, המשמעות היא שלא בוצעה המרה עדיין או שהתמונות לא נמצאות בפרויקט. הרץ קודם `convert-catalogs.bat`.
+בבאנדל R2, בדוק שקיים קובץ ההגדרה ושהוא מכיל את כתובת R2:
+
+```bat
+dist\site-upload-r2\index.html
+dist\site-upload-r2\catalog-assets.config.js
+```
+
+במצב R2 לא אמורה להיווצר בתוך תיקיית ההעלאה תיקיית `assets/pages`, כי התמונות כבר נמצאות באחסון החיצוני.
+
+אם `bundle-site.bat` הרגיל נכשל עם הודעה ש-`assets/pages` לא קיים, המשמעות היא שלא בוצעה המרה עדיין או שהתמונות לא נמצאות בפרויקט. הרץ קודם `convert-catalogs.bat`, או השתמש ב-`bundle-site-r2.bat` אם התמונות כבר קיימות ב-R2.
 
 ## הוספת קטלוג חדש
 
@@ -135,23 +170,31 @@ styles.css                  עיצוב האתר
 app.js                      לוגיקת הצופה והניווט
 catalog-search.js           חיפוש בתוך הקטלוגים
 catalog-snapshot.js         הורדת/צילום עמוד עם הלוגו
+catalog-assets.config.js    הגדרת בסיס חיצוני לתמונות; ריק בבאנדל רגיל, כתובת R2 בבאנדל חיצוני
 catalogs.config.json        רשימת הקטלוגים לעריכה ידנית
 catalogs.generated.js       נתוני קטלוגים שנוצרו אוטומטית
 catalogs.search.js          אינדקס חיפוש שנוצר אוטומטית
-assets/pages                תמונות הקטלוגים שמועלות עם האתר ל-Netlify
+assets/pages                תמונות הקטלוגים שמועלות עם האתר ל-Netlify בבאנדל רגיל
 assets/pdfs                 קבצי PDF מקוריים, נשארים בפרויקט ולא נדרשים בבאנדל
-bundle-site.bat             יצירת תיקיית העלאה נקייה
+bundle-site.bat             יצירת תיקיית העלאה נקייה רגילה, כולל תמונות
+bundle-site-r2.bat          יצירת תיקיית העלאה נקייה בלי תמונות; התמונות נטענות מ-R2
 convert-catalogs.bat        המרת PDF לתמונות ועדכון נתוני הקטלוגים
 ```
 
-## מה הוסר במסלול הנקי
+## מסלולי תמונות נתמכים
 
-הוסרו כל קבצי וסקריפטי R2/Cloudflare, כולל סקריפטי upload/sync, קבצי CORS, קובץ כתובת התמונות החיצונית, ובאנדל R2 שדילג על `assets/pages`.
+יש עכשיו שני מסלולים רשמיים:
 
-האתר חוזר לטעון תמונות בנתיבים יחסיים רגילים, לדוגמה:
+1. באנדל רגיל: האתר טוען תמונות בנתיבים יחסיים רגילים, לדוגמה:
 
 ```text
 assets/pages/qualita/page-001.webp
 ```
 
-כלומר: מה שנמצא בתוך `dist/site-upload` הוא מה שהאתר משתמש בו בפועל.
+2. באנדל R2: אותם נתיבים יחסיים נשארים בנתוני הקטלוגים, אבל `catalog-assets.config.js` מוסיף להם בסיס חיצוני, לדוגמה:
+
+```text
+https://pub-5e6c7421563f4086ba1e097bb88f3348.r2.dev/assets/pages/qualita/page-001.webp
+```
+
+הפתרון הזה עובד גם באתר הראשי וגם בדף `catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html`.
