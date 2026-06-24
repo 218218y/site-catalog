@@ -225,8 +225,14 @@ main {
   background: linear-gradient(180deg, transparent, rgba(110, 86, 70, 0.28) 18%, rgba(110, 86, 70, 0.16) 82%, transparent);
   pointer-events: none;
 }
-.catalog-category-section[data-category-span="2"][data-inline-divider="1"]::after {
-  inset-inline-end: calc(var(--catalog-card-gap) / -2);
+@media (min-width: 761px) {
+  .catalog-category-section[data-category-span="2"][data-inline-divider="1"]::after {
+    inset-inline-end: calc((var(--catalog-category-gap-x) - var(--catalog-card-gap)) / 4);
+  }
+  .catalog-category-section[data-category-span="2"][data-inline-divider="1"] + .catalog-category-section .catalog-category-head,
+  .catalog-category-section[data-category-span="2"][data-inline-divider="1"] + .catalog-category-section .catalog-category-grid {
+    transform: translateX(calc(var(--catalog-category-gap-x) - var(--catalog-card-gap)));
+  }
 }
 .catalog-category-head {
   display: grid;
