@@ -751,18 +751,12 @@ function renderCatalogCards() {
 
   els.catalogGrid.innerHTML = groups.map((group, index) => {
     const sectionId = categorySectionId(group.category, index);
-    const catalogCountText = group.items.length === 1 ? "קטלוג אחד" : `${group.items.length} קטלוגים`;
-    const pageCount = group.items.reduce((sum, item) => sum + Number(item.pages || 0), 0);
     const layout = categoryLayout[index] || { spanDesktop: 3, spanTablet: 2, inlineDividerDesktop: false, inlineDividerTablet: false };
     const sectionStyle = `--category-span-desktop: ${layout.spanDesktop}; --category-span-tablet: ${layout.spanTablet};`;
     return `
       <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(sectionId)}-title" style="${escapeHtml(sectionStyle)}" data-category-span-desktop="${escapeHtml(String(layout.spanDesktop))}" data-category-span-tablet="${escapeHtml(String(layout.spanTablet))}" data-inline-divider-desktop="${layout.inlineDividerDesktop ? "1" : "0"}" data-inline-divider-tablet="${layout.inlineDividerTablet ? "1" : "0"}">
         <div class="catalog-category-head">
           <h3 id="${escapeHtml(sectionId)}-title">${escapeHtml(group.category)}</h3>
-          <div class="catalog-category-meta" aria-label="סיכום קטגוריה">
-            <span class="pill">${escapeHtml(catalogCountText)}</span>
-            <span class="pill">${escapeHtml(pageCount)} עמודים</span>
-          </div>
         </div>
         <div class="catalog-grid catalog-category-grid">
           ${group.items.map(renderCatalogCard).join("")}
