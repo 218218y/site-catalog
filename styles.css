@@ -198,12 +198,12 @@ main {
 
 .catalog-category-list {
   --catalog-category-gap-x: 42px;
-  --catalog-card-gap: 14px;
+  --catalog-card-gap: var(--catalog-category-gap-x);
   --catalog-layout-columns: 3;
   display: grid;
   grid-template-columns: repeat(var(--catalog-layout-columns), minmax(0, 1fr));
   align-items: start;
-  gap: 42px var(--catalog-category-gap-x);
+  gap: var(--catalog-category-gap-x);
   margin-top: 24px;
 }
 .catalog-category-list > .empty-state {
@@ -224,15 +224,6 @@ main {
   border-radius: 999px;
   background: linear-gradient(180deg, transparent, rgba(110, 86, 70, 0.28) 18%, rgba(110, 86, 70, 0.16) 82%, transparent);
   pointer-events: none;
-}
-@media (min-width: 761px) {
-  .catalog-category-section[data-category-span="2"][data-inline-divider="1"]::after {
-    inset-inline-end: calc((var(--catalog-category-gap-x) - var(--catalog-card-gap)) / 4);
-  }
-  .catalog-category-section[data-category-span="2"][data-inline-divider="1"] + .catalog-category-section .catalog-category-head,
-  .catalog-category-section[data-category-span="2"][data-inline-divider="1"] + .catalog-category-section .catalog-category-grid {
-    transform: translateX(calc(var(--catalog-category-gap-x) - var(--catalog-card-gap)));
-  }
 }
 .catalog-category-head {
   display: grid;
@@ -269,16 +260,6 @@ main {
   grid-template-columns: repeat(var(--category-span, var(--catalog-layout-columns, 3)), minmax(0, 1fr));
   margin-inline-end: auto;
   margin-top: 16px;
-}
-@media (min-width: 761px) {
-  .catalog-category-section[data-category-span="2"] .catalog-category-head,
-  .catalog-category-section[data-category-span="2"] .catalog-category-grid {
-    width: calc(100% - var(--catalog-category-gap-x) + var(--catalog-card-gap));
-  }
-  .catalog-category-section[data-category-span="3"] .catalog-category-head,
-  .catalog-category-section[data-category-span="3"] .catalog-category-grid {
-    width: calc(100% - var(--catalog-category-gap-x) + var(--catalog-card-gap) - var(--catalog-category-gap-x) + var(--catalog-card-gap));
-  }
 }
 .catalog-card {
   display: flex;
