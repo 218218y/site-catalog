@@ -52,7 +52,7 @@ assets\pdfs
 sync-catalog-pdfs.bat
 ```
 
-הפקודה הזו רק סורקת את `assets\pdfs` ומוסיפה ל-`catalogs.config.json` קבצי PDF שלא רשומים עדיין בשום קטלוג. היא לא ממירה תמונות, לא מריצה OCR, ולא מעדכנת את `catalogs.generated.*`.
+הפקודה הזו רק סורקת את `assets\pdfs` ומוסיפה ל-`catalogs.config.json` קבצי PDF שלא רשומים עדיין בשום קטלוג. היא לא ממירה תמונות, לא מריצה OCR, ולא מעדכנת את `catalogs.generated.*`. אם שם PDF מכיל בטעות תווי כיוון נסתרים כמו `U+200F`, הסקריפט מנקה אותם משם הקובץ ומעדכן את הנתיב ב-JSON לנתיב נקי.
 
 אחרי הסריקה ערוך ב-`catalogs.config.json` את `title`, `description` ו-`category` לפי הצורך.
 
@@ -174,6 +174,8 @@ sync-catalog-pdfs.bat
    - `description`: ריק
    - `category`: ריק
    - `pdf`: הנתיב לקובץ בתוך `assets/pdfs`
+
+   אם ה-PDF הגיע עם תווי כיוון נסתרים בשם הקובץ, למשל `U+200F`, הסקריפט ינקה אותם משם הקובץ לפני הכתיבה ל-JSON כדי שהנתיב יהיה קריא ורגיל.
 4. ערוך ב-`catalogs.config.json` את הכותרת, התיאור והקטגוריה לפי הצורך.
 5. הרץ המרה:
 
