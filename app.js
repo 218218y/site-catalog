@@ -658,6 +658,42 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
   els.categoryNav.innerHTML = links.join("");
 }
 
+
+function categoryGroupSpan(group, columns) {
+  const itemCount = Array.isArray(group?.items) ? group.items.length : 0;
+  return Math.min(columns, Math.max(1, itemCount));
+}
+
+function catalogCategoryLayout(groups) {
+  const layout = groups.map((group) => ({
+    spanDesktop: categoryGroupSpan(group, 3),
+    spanTablet: categoryGroupSpan(group, 2),
+    inlineDividerDesktop: false,
+    inlineDividerTablet: false
+  }));
+
+  const markInlineDividers = (columns, spanKey, dividerKey) => {
+    let occupied = 0;
+
+    layout.forEach((entry, index) => {
+      const span = Math.min(columns, Math.max(1, Number(entry[spanKey] || 1)));
+      if (occupied + span > columns) occupied = 0;
+
+      const rowEnd = occupied + span;
+      const nextEntry = layout[index + 1];
+      const nextSpan = nextEntry ? Math.min(columns, Math.max(1, Number(nextEntry[spanKey] || 1))) : 0;
+      entry[dividerKey] = Boolean(nextEntry && rowEnd < columns && nextSpan <= columns - rowEnd);
+
+      occupied = rowEnd >= columns ? 0 : rowEnd;
+    });
+  };
+
+  markInlineDividers(3, "spanDesktop", "inlineDividerDesktop");
+  markInlineDividers(2, "spanTablet", "inlineDividerTablet");
+
+  return layout;
+}
+
 function renderCatalogCard(catalog) {
   const cover = coverThumbSrc(catalog);
   const category = catalogCategoryName(catalog);
@@ -711,17 +747,18 @@ function renderCatalogCards() {
   if (els.pageCount) els.pageCount.textContent = String(totalPages);
   renderCategoryNav(groups);
 
+  const categoryLayout = catalogCategoryLayout(groups);
+
   els.catalogGrid.innerHTML = groups.map((group, index) => {
     const sectionId = categorySectionId(group.category, index);
     const catalogCountText = group.items.length === 1 ? "קטלוג אחד" : `${group.items.length} קטלוגים`;
     const pageCount = group.items.reduce((sum, item) => sum + Number(item.pages || 0), 0);
+    const layout = categoryLayout[index] || { spanDesktop: 3, spanTablet: 2, inlineDividerDesktop: false, inlineDividerTablet: false };
+    const sectionStyle = `--category-span-desktop: ${layout.spanDesktop}; --category-span-tablet: ${layout.spanTablet};`;
     return `
-      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(sectionId)}-title">
+      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(sectionId)}-title" style="${escapeHtml(sectionStyle)}" data-inline-divider-desktop="${layout.inlineDividerDesktop ? "1" : "0"}" data-inline-divider-tablet="${layout.inlineDividerTablet ? "1" : "0"}">
         <div class="catalog-category-head">
-          <div>
-            <p class="eyebrow">${escapeHtml(group.category)}</p>
-            <h3 id="${escapeHtml(sectionId)}-title">קטלוגי ${escapeHtml(group.category)}</h3>
-          </div>
+          <h3 id="${escapeHtml(sectionId)}-title">${escapeHtml(group.category)}</h3>
           <div class="catalog-category-meta" aria-label="סיכום קטגוריה">
             <span class="pill">${escapeHtml(catalogCountText)}</span>
             <span class="pill">${escapeHtml(pageCount)} עמודים</span>
