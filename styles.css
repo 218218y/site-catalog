@@ -171,10 +171,12 @@ main {
   margin-top: 48px;
   padding: clamp(18px, 3vw, 34px);
   border-radius: var(--radius-xl);
-  background: var(--surface);
+  /* Solid panels are much cheaper to paint while scrolling than a large backdrop blur.
+     The page background is static, so this keeps the same soft card look without forcing
+     the browser to recalculate a blurred backdrop on every scroll frame. */
+  background: rgba(255, 252, 249, 0.94);
   border: 1px solid rgba(255,255,255,0.88);
   box-shadow: 0 25px 80px rgba(62, 45, 34, 0.1);
-  backdrop-filter: blur(18px);
 }
 .section-head {
   display: flex;
@@ -2557,11 +2559,22 @@ a.reader-home:focus-visible {
   .lightbox-actions { max-width: 118px; }
 }
 
-/* Keep catalog pages isolated for painting without lazy layout activation during scroll. */
+/* Keep catalog surfaces isolated for painting without lazy layout activation during scroll. */
+.catalogs-section,
+.catalog-detail {
+  isolation: isolate;
+}
+
+.catalog-card,
 .page-card,
 .reader-page-frame,
 .lightbox-scroll-page-frame {
   contain: layout paint;
+}
+
+.catalog-detail,
+.page-grid {
+  overflow-anchor: none;
 }
 
 .reader-image,
