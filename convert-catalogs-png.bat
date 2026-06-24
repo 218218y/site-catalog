@@ -13,7 +13,7 @@ if errorlevel 1 goto error
 echo.
 echo Maximum-quality PNG conversion finished.
 echo PNG files are larger, but very crisp.
-echo Existing converted catalogs were skipped and kept.
+echo Existing converted catalogs are skipped only when the source PDF and settings did not change.
 echo To rebuild everything with these settings, run this manually with --force.
 echo.
 pause

@@ -12,7 +12,7 @@ python tools\build_catalogs.py --format jpg --dpi 240 --max-width 3200 --max-hei
 if errorlevel 1 goto error
 echo.
 echo Extra-high-quality JPG conversion finished.
-echo Existing converted catalogs were skipped and kept.
+echo Existing converted catalogs are skipped only when the source PDF and settings did not change.
 echo To rebuild everything with these settings, run this manually with --force.
 echo.
 pause

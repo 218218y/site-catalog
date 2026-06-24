@@ -39,6 +39,7 @@ PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
 BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 MANUAL_SEARCH_FILE = "catalogs.search-overrides.json"
 OCR_MAX_SIDE = 4600
+MANIFEST_FILE = "catalog.render-manifest.json"
 
 
 
@@ -180,6 +181,133 @@ def catalog_asset_version(out_dir: Path, image_format: str, page_count: int) -> 
             digest.update(str(stat.st_size).encode("ascii"))
             digest.update(str(stat.st_mtime_ns).encode("ascii"))
     return digest.hexdigest()[:12]
+
+
+def source_pdf_metadata(pdf_path: Path) -> dict[str, Any]:
+    stat = pdf_path.stat()
+    return {
+        "path": rel_to_root(pdf_path),
+        "size": int(stat.st_size),
+        "mtimeNs": int(stat.st_mtime_ns),
+    }
+
+
+def render_options_metadata(options: RenderOptions) -> dict[str, Any]:
+    """Return the render settings that affect output images or OCR/search text."""
+    return {
+        "dpi": int(options.dpi),
+        "maxWidth": int(options.max_width),
+        "maxHeight": int(options.max_height),
+        "thumbSize": int(options.thumb_size),
+        "quality": int(options.quality),
+        "thumbQuality": int(options.thumb_quality),
+        "imageFormat": str(options.image_format),
+        "sharpen": float(options.sharpen),
+        "ocrMode": str(options.ocr_mode),
+        "ocrLang": str(options.ocr_lang),
+        "ocrDpi": int(options.ocr_dpi),
+        "ocrMinChars": int(options.ocr_min_chars),
+    }
+
+
+def render_manifest_path(out_dir: Path) -> Path:
+    return out_dir / MANIFEST_FILE
+
+
+def load_render_manifest(out_dir: Path) -> dict[str, Any] | None:
+    manifest_path = render_manifest_path(out_dir)
+    if not manifest_path.exists():
+        return None
+
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[warn] Could not read {rel_to_root(manifest_path)}: {exc}", file=sys.stderr)
+        return None
+
+    return payload if isinstance(payload, dict) else None
+
+
+def write_render_manifest(
+    out_dir: Path,
+    pdf_path: Path,
+    options: RenderOptions,
+    pages: int,
+    image_format: str,
+    page_sizes: list[list[int]],
+) -> None:
+    if not pdf_path.exists():
+        return
+
+    payload = {
+        "version": 1,
+        "sourcePdf": source_pdf_metadata(pdf_path),
+        "renderOptions": render_options_metadata(options),
+        "pages": int(pages),
+        "imageFormat": str(image_format),
+        "pageSizes": page_sizes[: max(0, int(pages))],
+    }
+    manifest_path = render_manifest_path(out_dir)
+    manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def output_newest_mtime_ns(out_dir: Path, image_format: str, page_count: int) -> int:
+    newest = 0
+    for page_number in range(1, max(0, int(page_count)) + 1):
+        for relative in (
+            Path(f"page-{page_number:03d}.{image_format}"),
+            Path("thumbs") / f"page-{page_number:03d}.{image_format}",
+        ):
+            file_path = out_dir / relative
+            if not file_path.is_file():
+                continue
+            try:
+                newest = max(newest, int(file_path.stat().st_mtime_ns))
+            except OSError:
+                continue
+    return newest
+
+
+def source_pdf_is_newer_than_output(pdf_path: Path, out_dir: Path, image_format: str, page_count: int) -> bool:
+    try:
+        pdf_mtime = int(pdf_path.stat().st_mtime_ns)
+    except OSError:
+        return False
+
+    newest_output = output_newest_mtime_ns(out_dir, image_format, page_count)
+    return bool(newest_output and pdf_mtime > newest_output)
+
+
+def render_manifest_mismatch_reason(
+    out_dir: Path,
+    pdf_path: Path,
+    options: RenderOptions,
+    existing_output: ExistingCatalogOutput,
+) -> str:
+    if str(existing_output.image_format).lower() != str(options.image_format).lower():
+        return "conversion settings changed since the previous conversion"
+
+    manifest = load_render_manifest(out_dir)
+    if not manifest:
+        return "missing render manifest"
+
+    source_pdf = manifest.get("sourcePdf")
+    expected_pdf = source_pdf_metadata(pdf_path)
+    if not isinstance(source_pdf, dict):
+        return "render manifest has no source PDF data"
+    if source_pdf.get("size") != expected_pdf.get("size") or source_pdf.get("mtimeNs") != expected_pdf.get("mtimeNs"):
+        return "source PDF changed since the previous conversion"
+
+    render_options = manifest.get("renderOptions")
+    if render_options != render_options_metadata(options):
+        return "conversion settings changed since the previous conversion"
+
+    if int(manifest.get("pages", 0) or 0) != int(existing_output.pages):
+        return "page count changed since the previous conversion"
+    if str(manifest.get("imageFormat", "")).lower() != str(existing_output.image_format).lower():
+        return "image format changed since the previous conversion"
+
+    return ""
 
 
 def load_previous_search_pages(root: Path) -> dict[str, list[dict[str, Any]]]:
@@ -566,8 +694,12 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pag
                 image.thumbnail((options.max_width, options.max_height), Image.Resampling.LANCZOS)
 
             image = maybe_sharpen(image, options.sharpen)
-            page_sizes.append([int(image.width), int(image.height)])
             save_image(image, page_file, ext, options.quality)
+            try:
+                with Image.open(page_file) as saved_image:
+                    page_sizes.append([int(saved_image.width), int(saved_image.height)])
+            except (OSError, ValueError):
+                page_sizes.append([int(image.width), int(image.height)])
 
             thumb = image.copy()
             thumb.thumbnail((options.thumb_size, options.thumb_size), Image.Resampling.LANCZOS)
@@ -706,17 +838,37 @@ def main() -> int:
             existing_output = inspect_existing_catalog_output(out_dir, options.image_format)
 
             print(f"\n=== {item['title']} ===")
-            if existing_output and existing_output.is_complete and not args.force:
+            rebuild_reason = ""
+            adopt_legacy_manifest = False
+
+            if existing_output and existing_output.is_complete and not args.force and pdf_path.exists():
+                mismatch_reason = render_manifest_mismatch_reason(out_dir, pdf_path, options, existing_output)
+                if mismatch_reason == "missing render manifest":
+                    if source_pdf_is_newer_than_output(pdf_path, out_dir, existing_output.image_format, existing_output.pages):
+                        rebuild_reason = "source PDF is newer than the existing converted images"
+                    else:
+                        adopt_legacy_manifest = True
+                elif mismatch_reason:
+                    rebuild_reason = mismatch_reason
+
+            if existing_output and existing_output.is_complete and not args.force and not rebuild_reason:
                 print(f"[skip-catalog] Already converted: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
                 if not pdf_path.exists():
                     print(f"[keep] Source PDF is missing, keeping existing images: {rel_to_root(pdf_path)}")
+                elif adopt_legacy_manifest:
+                    print(f"[adopt] Existing images do not have {MANIFEST_FILE}; adopting them for future change detection.")
                 search_pages = merge_manual_search_pages(previous_search_pages.get(catalog_id, []), manual_pages, existing_output.pages)
                 if not search_pages:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
+                if pdf_path.exists():
+                    write_render_manifest(out_dir, pdf_path, options, existing_output.pages, existing_output.image_format, page_sizes)
                 generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
                 search_generated.append(build_search_entry(item, search_pages))
                 continue
+
+            if rebuild_reason:
+                print(f"[rebuild] {rebuild_reason}.")
 
             if not pdf_path.exists():
                 if existing_output and existing_output.is_complete:
@@ -747,6 +899,8 @@ def main() -> int:
                 print(f"[force] Rebuilding existing output: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
 
             pages, search_pages, page_sizes = render_pdf(pdf_path, out_dir, options, manual_pages)
+            page_sizes = collect_page_sizes(out_dir, options.image_format, pages)
+            write_render_manifest(out_dir, pdf_path, options, pages, options.image_format, page_sizes)
             generated.append(build_generated_entry(item, pages, out_dir, options.image_format, page_sizes))
             search_generated.append(build_search_entry(item, search_pages))
 
@@ -759,7 +913,7 @@ def main() -> int:
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
-        print("Existing converted catalogs are kept and skipped by default. Use --force to rebuild all catalogs.")
+        print("Existing converted catalogs are skipped only when their source PDF and conversion settings did not change. Use --force to rebuild all catalogs.")
         print("You may delete the PDFs after conversion if you only want to keep the images.")
         print("Open index.html or run: python -m http.server 8080")
         return 0

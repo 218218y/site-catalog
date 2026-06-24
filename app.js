@@ -23,6 +23,97 @@ function setCatalogImageSource(img, url) {
   applyCatalogImageCrossOrigin(img);
   img.src = url;
 }
+
+function prepareCatalogImage(url, options = {}) {
+  const src = String(url || "");
+  if (!src) return Promise.reject(new Error("missing-image-src"));
+
+  const cached = state.catalogImageLoadCache.get(src);
+  if (cached) return cached;
+
+  const image = new Image();
+  applyCatalogImageCrossOrigin(image);
+  image.decoding = "async";
+  image.fetchPriority = options.priority || "auto";
+
+  const promise = new Promise((resolve, reject) => {
+    image.addEventListener("load", async () => {
+      try {
+        if (typeof image.decode === "function") await image.decode();
+      } catch (_error) {
+        // Some browsers reject decode() for images that are already usable.
+      }
+      resolve(image);
+    }, { once: true });
+
+    image.addEventListener("error", () => {
+      state.catalogImageLoadCache.delete(src);
+      reject(new Error("image-load-failed"));
+    }, { once: true });
+
+    image.src = src;
+  });
+
+  state.catalogImageLoadCache.set(src, promise);
+  return promise;
+}
+
+function runSingleImageSwapAnimation() {
+  const frame = els.lightboxImageFrame;
+  if (!frame) return;
+
+  window.clearTimeout(state.singleImageAnimationTimer);
+  frame.classList.remove("page-swap-enter");
+  void frame.offsetWidth;
+  frame.classList.add("page-swap-enter");
+  state.singleImageAnimationTimer = window.setTimeout(() => {
+    frame.classList.remove("page-swap-enter");
+  }, 240);
+}
+
+function finishSingleImageSwap(token) {
+  if (token !== state.singleImageLoadToken) return;
+  setViewerLoading(false);
+  els.lightbox?.classList.remove("is-page-loading");
+  applyZoom();
+}
+
+async function showSingleLightboxImage(catalog, page, src) {
+  if (!els.lightboxImage || !catalog || !src) return;
+
+  const token = ++state.singleImageLoadToken;
+  const image = els.lightboxImage;
+  const currentSrc = image.getAttribute("src") || "";
+  if (currentSrc === src && image.complete && image.naturalWidth) {
+    finishSingleImageSwap(token);
+    return;
+  }
+
+  setViewerLoading(true);
+  els.lightbox?.classList.add("is-page-loading");
+
+  try {
+    await prepareCatalogImage(src, { priority: "high" });
+    if (token !== state.singleImageLoadToken || !state.lightboxOpen || state.viewerMode !== "single" || state.catalog !== catalog || state.page !== page) return;
+
+    image.alt = `${catalog.title} - עמוד ${page}`;
+    image.decoding = "async";
+    image.fetchPriority = "high";
+    setCatalogImageSource(image, src);
+
+    if (image.complete && image.naturalWidth) {
+      finishSingleImageSwap(token);
+    }
+
+    runSingleImageSwapAnimation();
+  } catch (error) {
+    if (token !== state.singleImageLoadToken) return;
+    console.warn("Lightbox image preload failed", error);
+    image.alt = `${catalog.title} - עמוד ${page}`;
+    setCatalogImageSource(image, src);
+    finishSingleImageSwap(token);
+  }
+}
 const DOUBLE_TAP_DELAY = 320;
 const DOUBLE_TAP_DISTANCE = 34;
 const TAP_MOVE_TOLERANCE = 14;
@@ -58,7 +149,11 @@ const state = {
   lightboxSearchScope: "catalog",
   pageThumbLoadTimer: 0,
   pageThumbObserver: null,
-  lightboxScrollImageObserver: null
+  pageCardRevealObserver: null,
+  lightboxScrollImageObserver: null,
+  singleImageLoadToken: 0,
+  singleImageAnimationTimer: 0,
+  catalogImageLoadCache: new Map()
 };
 
 const els = {
@@ -221,6 +316,36 @@ function pageAspectStyle(catalog, page) {
   return size ? ` style="aspect-ratio: ${size.width} / ${size.height}"` : "";
 }
 
+function applyLoadedPageAspect(img) {
+  if (!img || !img.naturalWidth || !img.naturalHeight) return;
+
+  const frame = img.closest?.(".lightbox-scroll-page-frame, .reader-page-frame");
+  if (!frame) return;
+
+  const width = Number(img.naturalWidth);
+  const height = Number(img.naturalHeight);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+
+  frame.style.aspectRatio = `${width} / ${height}`;
+
+  const page = Number.parseInt(frame.dataset.page || "", 10);
+  if (!state.catalog || !Number.isFinite(page) || page < 1) return;
+
+  if (!Array.isArray(state.catalog.pageSizes)) state.catalog.pageSizes = [];
+  state.catalog.pageSizes[page - 1] = [width, height];
+}
+
+function watchLoadedPageAspect(img) {
+  if (!img) return;
+
+  if (img.complete && img.naturalWidth && img.naturalHeight) {
+    applyLoadedPageAspect(img);
+    return;
+  }
+
+  img.addEventListener("load", () => applyLoadedPageAspect(img), { once: true });
+}
+
 function clampPage(page, catalog = state.catalog) {
   const parsed = Number.parseInt(page, 10);
   if (!Number.isFinite(parsed)) return 1;
@@ -332,10 +457,21 @@ function continueLastCatalogView() {
 
 function loadDeferredImage(img) {
   const src = img?.dataset?.src;
-  if (!src || img.getAttribute("src") === src) return;
-  img.addEventListener("load", () => img.classList.add("loaded"), { once: true });
+  if (!src) return;
+
+  const markLoaded = () => {
+    applyLoadedPageAspect(img);
+    img.classList.add("loaded");
+    img.removeAttribute("data-src");
+  };
+
+  if (img.getAttribute("src") === src) {
+    if (img.complete && img.naturalWidth) markLoaded();
+    return;
+  }
+
+  img.addEventListener("load", markLoaded, { once: true });
   setCatalogImageSource(img, src);
-  img.removeAttribute("data-src");
 }
 
 function disconnectLightboxScrollImageLoading() {
@@ -926,10 +1062,21 @@ function clearDeferredPageThumbLoading() {
 
 function loadDeferredPageThumb(img) {
   const src = img?.dataset?.src;
-  if (!src || img.getAttribute("src") === src) return;
+  if (!src) return;
+
+  const markLoaded = () => {
+    applyLoadedPageAspect(img);
+    img.classList.add("loaded");
+    img.removeAttribute("data-src");
+  };
+
+  if (img.getAttribute("src") === src) {
+    if (img.complete && img.naturalWidth) markLoaded();
+    return;
+  }
+
+  img.addEventListener("load", markLoaded, { once: true });
   setCatalogImageSource(img, src);
-  img.removeAttribute("data-src");
-  img.classList.add("loaded");
 }
 
 function activateDeferredPageThumbLoading() {
@@ -966,15 +1113,50 @@ function scheduleDeferredPageThumbLoading(delay = 0) {
   }, Math.max(0, delay));
 }
 
+function disconnectPageCardReveal() {
+  state.pageCardRevealObserver?.disconnect?.();
+  state.pageCardRevealObserver = null;
+}
+
+function activatePageCardReveal() {
+  if (!els.pageGrid) return;
+  const cards = Array.from(els.pageGrid.querySelectorAll(".page-card-reveal"));
+  if (!cards.length) return;
+
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches || !("IntersectionObserver" in window)) {
+    cards.forEach((card) => card.classList.add("is-visible"));
+    return;
+  }
+
+  disconnectPageCardReveal();
+  state.pageCardRevealObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add("is-visible");
+      observer.unobserve(entry.target);
+    });
+  }, {
+    root: null,
+    rootMargin: "120px 0px",
+    threshold: 0.08
+  });
+
+  cards.forEach((card, index) => {
+    card.style.setProperty("--page-card-reveal-delay", `${Math.min(index % 8, 7) * 22}ms`);
+    state.pageCardRevealObserver.observe(card);
+  });
+}
+
 function renderPageGrid() {
   if (!state.catalog) return;
   clearDeferredPageThumbLoading();
+  disconnectPageCardReveal();
 
   const catalog = state.catalog;
   const cards = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
     cards.push(`
-      <article class="page-card">
+      <article class="page-card page-card-reveal">
         <button class="page-button" type="button" data-open-page="${page}">
           <div class="page-thumb-wrap">
             <img class="page-thumb" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" data-src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
@@ -989,6 +1171,7 @@ function renderPageGrid() {
     `);
   }
   els.pageGrid.innerHTML = cards.join("");
+  activatePageCardReveal();
 
   els.pageGrid.querySelectorAll("[data-open-page]").forEach((button) => {
     button.addEventListener("click", () => openLightbox(Number(button.dataset.openPage)));
@@ -1027,15 +1210,10 @@ function renderCatalogDetail() {
 
 function preloadNeighbors() {
   if (!state.catalog || state.viewerMode !== "single") return;
-  [state.page - 1, state.page + 1]
+  [state.page - 2, state.page - 1, state.page + 1, state.page + 2]
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
-      const img = new Image();
-      const src = pageSrc(state.catalog, page);
-      applyCatalogImageCrossOrigin(img, src);
-      img.decoding = "async";
-      img.fetchPriority = "low";
-      img.src = src;
+      prepareCatalogImage(pageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
     });
 }
 
@@ -1166,6 +1344,9 @@ function applySingleZoom() {
 
   if (state.zoom <= 1.001) resetImagePosition();
   clampSinglePan();
+  frame.style.setProperty("--single-pan-x", `${state.panX}px`);
+  frame.style.setProperty("--single-pan-y", `${state.panY}px`);
+  frame.style.setProperty("--single-zoom", String(state.zoom));
   frame.style.transform = `translate(-50%, -50%) translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
 }
 
@@ -1448,6 +1629,7 @@ function renderLightboxScrollPages() {
   }
 
   els.lightboxScrollPages.innerHTML = pages.join("");
+  els.lightboxScrollPages.querySelectorAll("img.lightbox-scroll-image").forEach(watchLoadedPageAspect);
   activateLightboxScrollImageLoading();
 }
 
@@ -1724,15 +1906,10 @@ function updateLightbox() {
   const src = pageSrc(catalog, state.page);
   const currentSrc = els.lightboxImage.getAttribute("src");
   if (currentSrc !== src) {
-    setViewerLoading(true);
-    els.lightboxImage.removeAttribute("src");
-    els.lightboxImage.alt = `${catalog.title} - עמוד ${state.page}`;
-    els.lightboxImage.decoding = "async";
-    els.lightboxImage.fetchPriority = "high";
-    requestAnimationFrame(() => {
-      setCatalogImageSource(els.lightboxImage, src);
-    });
+    showSingleLightboxImage(catalog, state.page, src);
   } else {
+    setViewerLoading(false);
+    els.lightbox?.classList.remove("is-page-loading");
     applyZoom();
   }
 
@@ -1751,6 +1928,11 @@ function openLightbox(page = 1, options = {}) {
   resetImagePosition();
   state.pointers.clear();
   state.lightboxOpen = true;
+  const initialSrc = pageSrc(state.catalog, state.page);
+  if (els.lightboxImage?.getAttribute("src") !== initialSrc) {
+    els.lightboxImage?.removeAttribute("src");
+    els.lightboxImageFrame?.classList.remove("page-swap-enter");
+  }
   els.lightbox.classList.remove("hidden");
   els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail");
   document.body.classList.add("no-scroll");
@@ -1770,8 +1952,12 @@ function openLightbox(page = 1, options = {}) {
 
 function closeLightbox() {
   state.lightboxOpen = false;
+  state.singleImageLoadToken += 1;
+  window.clearTimeout(state.singleImageAnimationTimer);
   els.lightbox.classList.add("hidden");
-  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "mode-scroll", "mode-single");
+  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "mode-scroll", "mode-single", "is-page-loading");
+  els.lightboxImageFrame?.classList.remove("page-swap-enter");
+  setViewerLoading(false);
   hideLightboxFloatingPreview();
   window.clearTimeout(state.thumbsHideTimer);
   window.clearTimeout(state.uiHideTimer);
@@ -2342,6 +2528,7 @@ function attachEvents() {
 
   els.lightboxImage?.addEventListener("load", () => {
     setViewerLoading(false);
+    els.lightbox?.classList.remove("is-page-loading");
     applyZoom();
   });
 

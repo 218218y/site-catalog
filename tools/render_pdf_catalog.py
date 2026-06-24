@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from build_catalogs import RenderOptions, load_manual_search_overrides, project_root, render_pdf
+from build_catalogs import RenderOptions, collect_page_sizes, load_manual_search_overrides, project_root, render_pdf, write_render_manifest
 
 
 def main() -> int:
@@ -61,7 +61,11 @@ def main() -> int:
     if args.catalog_id:
         manual_pages = load_manual_search_overrides(project_root()).get(str(args.catalog_id), {})
 
-    pages, search_pages, _page_sizes = render_pdf(args.pdf.resolve(), args.out_dir.resolve(), options, manual_pages)
+    pdf_path = args.pdf.resolve()
+    out_dir = args.out_dir.resolve()
+    pages, search_pages, _page_sizes = render_pdf(pdf_path, out_dir, options, manual_pages)
+    page_sizes = collect_page_sizes(out_dir, options.image_format, pages)
+    write_render_manifest(out_dir, pdf_path, options, pages, options.image_format, page_sizes)
     print(f"Done. Pages: {pages}. Searchable pages: {len(search_pages)}")
     return 0
 

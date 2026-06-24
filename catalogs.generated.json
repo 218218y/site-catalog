@@ -1053,7 +1053,7 @@
     "dir": "assets/pages/fredi-sifriot",
     "cover": "assets/pages/fredi-sifriot/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "35dfa65069ef",
+    "assetVersion": "a4c9af0cf50d",
     "pageSizes": [
       [
         2800,
@@ -1084,8 +1084,8 @@
         2000
       ],
       [
-        2000,
-        2800
+        2800,
+        2000
       ],
       [
         2800,

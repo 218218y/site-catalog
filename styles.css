@@ -564,7 +564,16 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   border-radius: 22px;
   background: rgba(255,255,255,0.92);
   box-shadow: 0 12px 28px rgba(57, 43, 33, 0.08);
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, opacity .32s ease;
+}
+.page-card-reveal {
+  opacity: 0;
+  transform: translateY(16px) scale(.992);
+  transition-delay: var(--page-card-reveal-delay, 0ms);
+}
+.page-card-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 .page-card:hover {
   transform: translateY(-3px);
@@ -590,10 +599,16 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   object-fit: cover;
   border-radius: 14px;
   background: linear-gradient(135deg, #ede2d9, #d8c1b0);
-  transition: opacity .18s ease;
+  transform: scale(1);
+  transition: opacity .28s ease, transform .28s ease;
 }
 .page-thumb[data-src] {
-  opacity: .52;
+  opacity: .38;
+  transform: scale(.985);
+}
+.page-thumb.loaded {
+  opacity: 1;
+  transform: scale(1);
 }
 .page-number-badge {
   position: absolute;
@@ -1432,6 +1447,18 @@ a.reader-home:focus-visible {
 }
 @media (prefers-reduced-motion: reduce) {
   .site-tooltip { transition: none; }
+  .page-card-reveal,
+  .page-card-reveal.is-visible,
+  .page-thumb,
+  .lightbox-image-frame.page-swap-enter {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+    transition: none !important;
+  }
+  .lightbox-image-frame.page-swap-enter {
+    transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(var(--single-zoom, 1));
+  }
 }
 .reader-header-search {
   min-width: 0;
@@ -2149,6 +2176,30 @@ a.reader-home:focus-visible {
   box-shadow: none;
 }
 .lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
+
+.lightbox-image-frame.page-swap-enter {
+  animation: lightbox-page-swap .22s cubic-bezier(.2, .72, .22, 1) both;
+}
+
+.lightbox.is-page-loading .lightbox-image-frame {
+  filter: brightness(.92);
+}
+
+.lightbox-image-frame,
+.lightbox-image-frame .lightbox-image {
+  backface-visibility: hidden;
+}
+
+@keyframes lightbox-page-swap {
+  from {
+    opacity: .42;
+    transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(calc(var(--single-zoom, 1) * .988));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(var(--single-zoom, 1));
+  }
+}
 
 .reader-logo {
   width: clamp(92px, 8.6vw, 122px);
