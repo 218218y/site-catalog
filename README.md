@@ -1,7 +1,7 @@
 # אתר קטלוגים — פריסה מלאה ב-Netlify
 
 הפרויקט הזה מוגדר עכשיו למסלול אחד בלבד: האתר והתמונות נטענים מאותה העלאה ל-Netlify.
-אין צורך ב-Cloudflare R2, אין צורך ב-AWS CLI, אין סקריפטי sync חיצוניים, ואין קובץ runtime שמחליף כתובת תמונות.
+אין צורך ב-Cloudflare R2, אין צורך ב-AWS CLI, אין סקריפטי sync חיצוניים לענן, ואין קובץ runtime שמחליף כתובת תמונות.
 
 ## מה מעלים ל-Netlify
 
@@ -44,9 +44,19 @@ setup-windows.bat
 assets\pdfs
 ```
 
-ודא שהשמות תואמים לנתיבים שמופיעים ב-`catalogs.config.json`.
+הנחת PDF בתיקייה עדיין לא ממירה אותו ולא משנה אוטומטית את האתר. כדי להוסיף קבצי PDF חדשים ל-`catalogs.config.json`, מריצים את סריקת ה-PDF הייעודית בשלב הבא.
 
-### 3. המרת הקטלוגים לתמונות
+### 3. סריקת PDF ועדכון `catalogs.config.json` בלבד
+
+```bat
+sync-catalog-pdfs.bat
+```
+
+הפקודה הזו רק סורקת את `assets\pdfs` ומוסיפה ל-`catalogs.config.json` קבצי PDF שלא רשומים עדיין בשום קטלוג. היא לא ממירה תמונות, לא מריצה OCR, ולא מעדכנת את `catalogs.generated.*`.
+
+אחרי הסריקה ערוך ב-`catalogs.config.json` את `title`, `description` ו-`category` לפי הצורך.
+
+### 4. המרת הקטלוגים לתמונות
 
 ```bat
 convert-catalogs.bat
@@ -76,7 +86,7 @@ refresh-ocr-search.bat
 
 ה-OCR במצב ברירת המחדל משתמש קודם בטקסט האמיתי שמוטמע ב-PDF, ומריץ OCR רגיל רק בעמודים סרוקים/ריקים מטקסט. הוא לא מנסה יותר לנחש כותרות, סרטים צבעוניים או טקסט לבן מתוך התמונה עצמה, כדי לא להכניס תווים שגויים לאינדקס החיפוש.
 
-### 4. יצירת תיקיית העלאה נקייה ל-Netlify
+### 5. יצירת תיקיית העלאה נקייה ל-Netlify
 
 ברירת המחדל נשארה כמו קודם: האתר והתמונות נבנים יחד, וכל `assets/pages` מועתק לתיקיית ההעלאה.
 
@@ -152,15 +162,32 @@ dist\site-upload-r2\catalog-assets.config.js
 ## הוספת קטלוג חדש
 
 1. העתק את ה-PDF לתוך `assets/pdfs`.
-2. הוסף רשומה ל-`catalogs.config.json` עם `id`, `title`, `description`, `category`, ו-`pdf`.
-3. הרץ:
+2. הרץ:
+
+```bat
+sync-catalog-pdfs.bat
+```
+
+3. אם ה-PDF עדיין לא היה רשום, הסקריפט יוסיף אותו ל-`catalogs.config.json` עם:
+   - `id`: שם הקובץ בצורה בטוחה לשימוש כתיקייה
+   - `title`: שם הקובץ בלי הסיומת `.pdf`
+   - `description`: ריק
+   - `category`: ריק
+   - `pdf`: הנתיב לקובץ בתוך `assets/pdfs`
+4. ערוך ב-`catalogs.config.json` את הכותרת, התיאור והקטגוריה לפי הצורך.
+5. הרץ המרה:
 
 ```bat
 convert-catalogs.bat
+```
+
+6. הרץ באנדל והעלה לאתר:
+
+```bat
 bundle-site.bat
 ```
 
-4. העלה את `dist/site-upload` ל-Netlify.
+7. העלה את `dist/site-upload` ל-Netlify.
 
 ## קבצים חשובים בפרויקט
 
@@ -171,13 +198,14 @@ app.js                      לוגיקת הצופה והניווט
 catalog-search.js           חיפוש בתוך הקטלוגים
 catalog-snapshot.js         הורדת/צילום עמוד עם הלוגו
 catalog-assets.config.js    הגדרת בסיס חיצוני לתמונות; ריק בבאנדל רגיל, כתובת R2 בבאנדל חיצוני
-catalogs.config.json        רשימת הקטלוגים לעריכה ידנית
+catalogs.config.json        רשימת הקטלוגים; קבצי PDF חדשים מתווספים אליו בהרצת sync-catalog-pdfs.bat
 catalogs.generated.js       נתוני קטלוגים שנוצרו אוטומטית
 catalogs.search.js          אינדקס חיפוש שנוצר אוטומטית
 assets/pages                תמונות הקטלוגים שמועלות עם האתר ל-Netlify בבאנדל רגיל
 assets/pdfs                 קבצי PDF מקוריים, נשארים בפרויקט ולא נדרשים בבאנדל
 bundle-site.bat             יצירת תיקיית העלאה נקייה רגילה, כולל תמונות
 bundle-site-r2.bat          יצירת תיקיית העלאה נקייה בלי תמונות; התמונות נטענות מ-R2
+sync-catalog-pdfs.bat       סריקת assets/pdfs והוספת PDFים חסרים ל-catalogs.config.json בלבד
 convert-catalogs.bat        המרת PDF לתמונות ועדכון נתוני הקטלוגים
 ```
 

@@ -1,6 +1,6 @@
 [
   {
-    "id": "tbi-arnot-pticha",
+    "id": "tbi",
     "title": "ת.ב.י רהיטים - ארונות פתיחה 2026",
     "description": "ארונות פתיחה בעיצובים מודרניים",
     "category": "ארונות פתיחה",
@@ -21,25 +21,11 @@
     "pdf": "assets/pdfs/tbi-azaza-2024.pdf"
   },
   {
-    "id": "comfort",
-    "title": "קומפורט 2026",
+    "id": "qualita",
+    "title": "קואליטה 2026",
     "description": "מיטות איכות בעיצוב נקי ועדכני",
     "category": "מיטות",
-    "pdf": "assets/pdfs/comfort-2026.pdf"
-  },
-  {
-    "id": "tbi-shena",
-    "title": "ת.ב.י רהיטים - חדרי שינה",
-    "description": "חדרי שינה באיכות ובעיצוב נקי ועדכני",
-    "category": "חדרי שינה",
-    "pdf": "assets/pdfs/tbi-shena-2025.pdf"
-  },
-  {
-    "id": "tbi-yeladim",
-    "title": "ת.ב.י רהיטים - חדרי ילדים",
-    "description": "חדרי ילדים באיכות ובעיצוב נקי ועדכני",
-    "category": "חדרי ילדים",
-    "pdf": "assets/pdfs/tbi-yeladim-2025.pdf"
+    "pdf": "assets/pdfs/qualita-2026.pdf"
   },
   {
     "id": "komotayim",
@@ -61,6 +47,20 @@
     "description": "מיטות איכות בעיצוב נקי ועדכני",
     "category": "מיטות",
     "pdf": "assets/pdfs/perfect-2026.pdf"
+  },
+  {
+    "id": "tbi-shena",
+    "title": "ת.ב.י רהיטים - חדרי שינה",
+    "description": "חדרי שינה באיכות ובעיצוב נקי ועדכני",
+    "category": "חדרי שינה",
+    "pdf": "assets/pdfs/tbi-shena-2025.pdf"
+  },
+  {
+    "id": "tbi-yeladim",
+    "title": "ת.ב.י רהיטים - חדרי ילדים",
+    "description": "חדרי ילדים באיכות ובעיצוב נקי ועדכני",
+    "category": "חדרי ילדים",
+    "pdf": "assets/pdfs/tbi-yeladim-2025.pdf"
   },
   {
     "id": "tbi-sifriot",

@@ -40,9 +40,6 @@ BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 MANUAL_SEARCH_FILE = "catalogs.search-overrides.json"
 OCR_MAX_SIDE = 4600
 MANIFEST_FILE = "catalog.render-manifest.json"
-
-
-
 @dataclass(frozen=True)
 class RenderOptions:
     dpi: int
@@ -336,13 +333,19 @@ def load_previous_search_pages(root: Path) -> dict[str, list[dict[str, Any]]]:
     return result
 
 
-def load_config(config_path: Path) -> list[dict[str, Any]]:
+def _read_config_payload(config_path: Path) -> list[dict[str, Any]]:
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
     data = json.loads(config_path.read_text(encoding="utf-8-sig"))
     if not isinstance(data, list):
         raise ValueError("catalogs.config.json must contain a JSON array")
+
+    return data
+
+
+def load_config(config_path: Path) -> list[dict[str, Any]]:
+    data = _read_config_payload(config_path)
 
     required = {"id", "title", "pdf"}
     for index, item in enumerate(data, start=1):
