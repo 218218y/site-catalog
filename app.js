@@ -626,8 +626,8 @@ function renderEmptyState() {
   els.catalogCategory.textContent = "קטלוגים";
   els.catalogPages.textContent = "0 עמודים";
   els.catalogSelect.innerHTML = `<option>אין קטלוגים</option>`;
-  els.catalogCoverPreview.removeAttribute("src");
-  els.openViewerFromTop.disabled = true;
+  els.catalogCoverPreview?.removeAttribute("src");
+  if (els.openViewerFromTop) els.openViewerFromTop.disabled = true;
 }
 
 
@@ -1200,11 +1200,13 @@ function renderCatalogDetail() {
   els.catalogCategory.textContent = catalog.category || "קטלוג";
   els.catalogPages.textContent = `${catalog.pages} עמודים`;
   els.catalogSelect.value = catalog.id;
-  setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
-  els.catalogCoverPreview.loading = "lazy";
-  els.catalogCoverPreview.decoding = "async";
-  els.catalogCoverPreview.alt = `שער ${catalog.title}`;
-  els.openViewerFromTop.disabled = catalog.pages < 1;
+  if (els.catalogCoverPreview) {
+    setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
+    els.catalogCoverPreview.loading = "lazy";
+    els.catalogCoverPreview.decoding = "async";
+    els.catalogCoverPreview.alt = `שער ${catalog.title}`;
+  }
+  if (els.openViewerFromTop) els.openViewerFromTop.disabled = catalog.pages < 1;
   renderPageGrid();
 }
 
