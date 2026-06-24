@@ -76,6 +76,8 @@ catalogs.search.json
 
 אם כבר קיימות תמונות תקינות ב-`assets/pages`, הסקריפט מדלג עליהן ולא ממיר מחדש בלי צורך. כדי לבנות מחדש את התמונות באיכות החדשה, הרץ `convert-catalogs-force.bat`.
 
+אם מחקת קטלוג ידנית מתוך `catalogs.config.json` ורוצה לנקות גם את תיקיית התמונות הישנה שלו מתוך `assets/pages`, הרץ `convert-catalogsdelete.bat`. הפקודה הזו עדיין מדלגת על קטלוגים קיימים שכבר הומרו, וממירה רק קטלוג חדש/חסר/שהשתנה.
+
 ### רענון OCR בלבד
 
 אם רוצים לרענן רק את אינדקס החיפוש בלי לרנדר מחדש תמונות קיימות:
@@ -209,6 +211,7 @@ bundle-site.bat             יצירת תיקיית העלאה נקייה רגי
 bundle-site-r2.bat          יצירת תיקיית העלאה נקייה בלי תמונות; התמונות נטענות מ-R2
 sync-catalog-pdfs.bat       סריקת assets/pdfs והוספת PDFים חסרים ל-catalogs.config.json בלבד
 convert-catalogs.bat        המרת PDF לתמונות ועדכון נתוני הקטלוגים
+convert-catalogsdelete.bat  המרת PDF חדשים בלבד + מחיקת תיקיות קטלוגים שלא רשומים יותר ב-catalogs.config.json
 ```
 
 ## מסלולי תמונות נתמכים

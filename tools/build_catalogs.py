@@ -348,6 +348,7 @@ def load_config(config_path: Path) -> list[dict[str, Any]]:
     data = _read_config_payload(config_path)
 
     required = {"id", "title", "pdf"}
+    seen_ids: set[str] = set()
     for index, item in enumerate(data, start=1):
         if not isinstance(item, dict):
             raise ValueError(f"Catalog #{index} must be an object")
@@ -359,7 +360,37 @@ def load_config(config_path: Path) -> list[dict[str, Any]]:
             raise ValueError(
                 f"Catalog #{index} has unsafe id: {safe_id!r}. Use english letters/numbers/dashes, e.g. qualita-2026"
             )
+        if safe_id in seen_ids:
+            raise ValueError(f"Catalog #{index} uses duplicate id: {safe_id!r}")
+        seen_ids.add(safe_id)
     return data
+
+
+def delete_unlisted_catalog_outputs(root: Path, configured_ids: set[str]) -> list[Path]:
+    """Delete converted catalog output folders that are no longer listed in the config.
+
+    Only direct subdirectories of assets/pages are considered. This keeps the
+    cleanup scoped to generated catalog folders and prevents accidental deletion
+    elsewhere in the project.
+    """
+    pages_root = root / "assets" / "pages"
+    if not pages_root.is_dir():
+        print(f"[cleanup] No converted catalog folder found: {rel_to_root(pages_root)}")
+        return []
+
+    deleted: list[Path] = []
+    for output_dir in sorted(pages_root.iterdir(), key=lambda path: path.name.lower()):
+        if not output_dir.is_dir():
+            continue
+        if output_dir.name in configured_ids:
+            continue
+        shutil.rmtree(output_dir)
+        deleted.append(output_dir)
+        print(f"[delete-unlisted] Removed converted catalog not listed in config: {rel_to_root(output_dir)}")
+
+    if not deleted:
+        print("[cleanup] No unlisted converted catalog folders were found.")
+    return deleted
 
 
 def prepare_output_dir(out_dir: Path, clean: bool) -> None:
@@ -798,6 +829,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Render every configured catalog again, even when assets/pages/<id> already exists",
     )
+    parser.add_argument(
+        "--delete-unlisted",
+        action="store_true",
+        help="Delete converted catalog folders under assets/pages whose id is not listed in the config",
+    )
     parser.add_argument("--no-clean", action="store_true", help="When rendering, do not delete the old output folder first")
     parser.add_argument("--skip-existing", action="store_true", help="Skip pages that already have image and thumbnail files")
     return parser.parse_args()
@@ -828,6 +864,10 @@ def main() -> int:
 
     try:
         config = load_config(config_path)
+        configured_ids = {str(item["id"]) for item in config}
+        if args.delete_unlisted:
+            delete_unlisted_catalog_outputs(root, configured_ids)
+
         generated: list[dict[str, Any]] = []
         search_generated: list[dict[str, Any]] = []
         previous_search_pages = load_previous_search_pages(root)
@@ -917,6 +957,8 @@ def main() -> int:
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
         print("Existing converted catalogs are skipped only when their source PDF and conversion settings did not change. Use --force to rebuild all catalogs.")
+        if args.delete_unlisted:
+            print("Unlisted converted catalog folders under assets/pages were deleted before conversion.")
         print("You may delete the PDFs after conversion if you only want to keep the images.")
         print("Open index.html or run: python -m http.server 8080")
         return 0

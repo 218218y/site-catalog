@@ -1,0 +1,39 @@
+התקנה מקומית
+setup-windows.bat
+
+אחרי הוספת קובץ pdf של קטלוג חדש לתקיית site-catalog\assets\pdfs
+אפשר לעדכן את קובץ הקטלוגים אוטומטית עם
+sync-catalog-pdfs.bat
+
+אחר כך אפשר לערוך את הקטלוג החדש עם הפרטים כולל הקטגוריות בקובץ
+catalogs.config.json
+
+אחר כך להמיר את הpdf שלא הומרו
+convert-catalogs.bat
+
+אם רוצים גם למחוק תיקיות קטלוגים שכבר נמחקו מ-catalogs.config.json בלי להמיר מחדש קטלוגים קיימים
+convert-catalogsdelete.bat
+
+אחר כך יצירת באנדל לאתר אחד כולל אחסון תמונות
+bundle-site.bat
+
+
+
+אפשרויות נוספות
+יצירת באנדל חלוק בין אתר ראשי לאחסון תמונות במיקום אחר
+bundle-site-r2.bat
+
+המרה של כל pdf מחדש בהכרח(בלי למחוק קטלוג שכבר נמחק pdf שלו)
+convert-catalogs-force.bat
+
+המרת pdf חדשים בלבד + מחיקת קטלוגים שנמחקו מתוך catalogs.config.json
+convert-catalogsdelete.bat
+
+המרה של כל pdf מחדש בהכרח + מחיקת קטלוגים שנמחקו מתוך catalogs.config.json
+convert-catalogs-deleteforce.bat
+
+המרה מחדש רק של זיהוי ocr
+refresh-ocr-search.bat
+
+שרת מקומי
+npx serve .
