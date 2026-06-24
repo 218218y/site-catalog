@@ -239,11 +239,9 @@ main {
   background: var(--surface-strong);
   border: 1px solid var(--line);
   box-shadow: 0 16px 40px rgba(58, 43, 33, 0.09);
-  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  transition: border-color .16s ease, background .16s ease;
 }
 .catalog-card:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--shadow);
   border-color: rgba(145, 114, 93, 0.26);
 }
 .catalog-cover {
@@ -564,20 +562,9 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   border-radius: 22px;
   background: rgba(255,255,255,0.92);
   box-shadow: 0 12px 28px rgba(57, 43, 33, 0.08);
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, opacity .32s ease;
-}
-.page-card-reveal {
-  opacity: 0;
-  transform: translateY(16px) scale(.992);
-  transition-delay: var(--page-card-reveal-delay, 0ms);
-}
-.page-card-reveal.is-visible {
-  opacity: 1;
-  transform: translateY(0) scale(1);
+  transition: border-color .16s ease, background .16s ease;
 }
 .page-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 24px 42px rgba(57, 43, 33, 0.12);
   border-color: rgba(145, 114, 93, 0.24);
 }
 .page-button {
@@ -601,14 +588,6 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   background: linear-gradient(135deg, #ede2d9, #d8c1b0);
   transform: scale(1);
   transition: opacity .28s ease, transform .28s ease;
-}
-.page-thumb[data-src] {
-  opacity: .38;
-  transform: scale(.985);
-}
-.page-thumb.loaded {
-  opacity: 1;
-  transform: scale(1);
 }
 .page-number-badge {
   position: absolute;
@@ -1048,9 +1027,6 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .lightbox.mode-scroll.is-zoomed .lightbox-scroll-pages {
   user-select: none;
 }
-.lightbox.mode-scroll.is-zoomed .lightbox-scroll-page-frame {
-  content-visibility: visible;
-}
 .lightbox-scroll-page-frame {
   width: min(100%, 1320px);
   margin: 0;
@@ -1447,8 +1423,6 @@ a.reader-home:focus-visible {
 }
 @media (prefers-reduced-motion: reduce) {
   .site-tooltip { transition: none; }
-  .page-card-reveal,
-  .page-card-reveal.is-visible,
   .page-thumb,
   .lightbox-image-frame.page-swap-enter {
     animation: none !important;
@@ -2345,7 +2319,6 @@ a.reader-home:focus-visible {
   transform: translateY(8px);
   transition: opacity .18s ease, transform .18s ease;
   pointer-events: none;
-  backdrop-filter: blur(10px);
 }
 
 .catalog-cover-card-button:hover .catalog-cover-card-cta,
@@ -2573,12 +2546,11 @@ a.reader-home:focus-visible {
   .lightbox-actions { max-width: 118px; }
 }
 
-/* Performance: keep long catalog galleries cheap to render while preserving stable page space. */
+/* Keep catalog pages isolated for painting without lazy layout activation during scroll. */
 .page-card,
 .reader-page-frame,
 .lightbox-scroll-page-frame {
-  content-visibility: auto;
-  contain-intrinsic-size: 900px 1200px;
+  contain: layout paint;
 }
 
 .reader-image,

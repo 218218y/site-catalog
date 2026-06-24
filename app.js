@@ -147,9 +147,6 @@ const state = {
   lastTouchLikeRailInputAt: 0,
   lightboxScrollRaf: 0,
   lightboxSearchScope: "catalog",
-  pageThumbLoadTimer: 0,
-  pageThumbObserver: null,
-  pageCardRevealObserver: null,
   lightboxScrollImageObserver: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
@@ -1053,113 +1050,20 @@ function fillCatalogSelect() {
 }
 
 
-function clearDeferredPageThumbLoading() {
-  window.clearTimeout(state.pageThumbLoadTimer);
-  state.pageThumbLoadTimer = 0;
-  state.pageThumbObserver?.disconnect?.();
-  state.pageThumbObserver = null;
-}
-
-function loadDeferredPageThumb(img) {
-  const src = img?.dataset?.src;
-  if (!src) return;
-
-  const markLoaded = () => {
-    applyLoadedPageAspect(img);
-    img.classList.add("loaded");
-    img.removeAttribute("data-src");
-  };
-
-  if (img.getAttribute("src") === src) {
-    if (img.complete && img.naturalWidth) markLoaded();
-    return;
-  }
-
-  img.addEventListener("load", markLoaded, { once: true });
-  setCatalogImageSource(img, src);
-}
-
-function activateDeferredPageThumbLoading() {
-  if (!els.pageGrid) return;
-  const pendingImages = Array.from(els.pageGrid.querySelectorAll("img.page-thumb[data-src]"));
-  if (!pendingImages.length) return;
-
-  if (!("IntersectionObserver" in window)) {
-    pendingImages.forEach(loadDeferredPageThumb);
-    return;
-  }
-
-  state.pageThumbObserver?.disconnect?.();
-  state.pageThumbObserver = new IntersectionObserver((entries, observer) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      loadDeferredPageThumb(entry.target);
-      observer.unobserve(entry.target);
-    });
-  }, {
-    root: null,
-    rootMargin: "900px 0px",
-    threshold: 0.01
-  });
-
-  pendingImages.forEach((img) => state.pageThumbObserver.observe(img));
-}
-
-function scheduleDeferredPageThumbLoading(delay = 0) {
-  clearDeferredPageThumbLoading();
-  state.pageThumbLoadTimer = window.setTimeout(() => {
-    state.pageThumbLoadTimer = 0;
-    activateDeferredPageThumbLoading();
-  }, Math.max(0, delay));
-}
-
-function disconnectPageCardReveal() {
-  state.pageCardRevealObserver?.disconnect?.();
-  state.pageCardRevealObserver = null;
-}
-
-function activatePageCardReveal() {
-  if (!els.pageGrid) return;
-  const cards = Array.from(els.pageGrid.querySelectorAll(".page-card-reveal"));
-  if (!cards.length) return;
-
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches || !("IntersectionObserver" in window)) {
-    cards.forEach((card) => card.classList.add("is-visible"));
-    return;
-  }
-
-  disconnectPageCardReveal();
-  state.pageCardRevealObserver = new IntersectionObserver((entries, observer) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      entry.target.classList.add("is-visible");
-      observer.unobserve(entry.target);
-    });
-  }, {
-    root: null,
-    rootMargin: "120px 0px",
-    threshold: 0.08
-  });
-
-  cards.forEach((card, index) => {
-    card.style.setProperty("--page-card-reveal-delay", `${Math.min(index % 8, 7) * 22}ms`);
-    state.pageCardRevealObserver.observe(card);
-  });
-}
-
 function renderPageGrid() {
   if (!state.catalog) return;
-  clearDeferredPageThumbLoading();
-  disconnectPageCardReveal();
+  // Keep generated page cards visually stable during scroll.
+  // Older versions attached scroll-time observers here for reveal animation
+  // and thumb activation; that caused work exactly when a card entered view.
 
   const catalog = state.catalog;
   const cards = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
     cards.push(`
-      <article class="page-card page-card-reveal">
+      <article class="page-card">
         <button class="page-button" type="button" data-open-page="${page}">
           <div class="page-thumb-wrap">
-            <img class="page-thumb" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" data-src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">
@@ -1171,7 +1075,6 @@ function renderPageGrid() {
     `);
   }
   els.pageGrid.innerHTML = cards.join("");
-  activatePageCardReveal();
 
   els.pageGrid.querySelectorAll("[data-open-page]").forEach((button) => {
     button.addEventListener("click", () => openLightbox(Number(button.dataset.openPage)));
@@ -1564,6 +1467,7 @@ function showLightboxFloatingPreview(button) {
 
 function updateLightboxThumbs(options = {}) {
   const { scrollIntoView = true } = options;
+  const pageRailIsVisible = Boolean(els.lightbox?.classList.contains("show-page-rail"));
 
   els.lightboxThumbs?.querySelectorAll(".lightbox-thumb").forEach((button) => {
     const active = Number(button.dataset.page) === state.page;
@@ -1579,7 +1483,7 @@ function updateLightboxThumbs(options = {}) {
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
 
-    if (active && scrollIntoView && state.viewerMode === "scroll") {
+    if (active && scrollIntoView && state.viewerMode === "scroll" && pageRailIsVisible) {
       button.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   });
@@ -1749,6 +1653,7 @@ function showPageRailTemporarily(delay = 2600) {
   if (!els.lightbox || state.viewerMode !== "scroll") return;
   window.clearTimeout(state.pageRailHideTimer);
   els.lightbox.classList.add("show-page-rail");
+  updateLightboxThumbs({ scrollIntoView: true });
   if (delay > 0) {
     state.pageRailHideTimer = window.setTimeout(() => {
       els.lightbox?.classList.remove("show-page-rail");
@@ -1760,6 +1665,7 @@ function keepPageRailOpen() {
   if (state.viewerMode !== "scroll") return;
   window.clearTimeout(state.pageRailHideTimer);
   els.lightbox?.classList.add("show-page-rail");
+  updateLightboxThumbs({ scrollIntoView: true });
 }
 
 function schedulePageRailClose(event = null) {
@@ -1968,7 +1874,6 @@ function closeLightbox() {
   state.lightboxScrollRaf = 0;
   disconnectLightboxScrollImageLoading();
   document.body.classList.remove("no-scroll");
-  scheduleDeferredPageThumbLoading(0);
   updateHash();
 }
 
@@ -2174,8 +2079,6 @@ function openCatalog(id, options = {}) {
 
   if (openPage != null) {
     openLightbox(openPage, { mode: viewerMode });
-  } else {
-    scheduleDeferredPageThumbLoading(scroll ? 520 : 0);
   }
 }
 
@@ -2595,8 +2498,6 @@ function attachEvents() {
       openLightbox(route.page, { mode: route.viewerMode });
     } else if (state.lightboxOpen) {
       closeLightbox();
-    } else {
-      scheduleDeferredPageThumbLoading(0);
     }
   });
 }
