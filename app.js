@@ -614,12 +614,12 @@ function initRevealObserver() {
 
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
-      if (entry.isIntersecting) {
+      if (entry.isIntersecting || entry.intersectionRatio > 0) {
         entry.target.classList.add("in-view");
         observer.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.14 });
+  }, { threshold: 0, rootMargin: "0px 0px -1px 0px" });
 
   nodes.forEach((node) => observer.observe(node));
 }
@@ -651,12 +651,9 @@ function renderEmptyState() {
 function renderCategoryNav(groups = getCatalogCategoryGroups()) {
   if (!els.categoryNav) return;
 
-  const links = [
-    `<a class="top-nav-link" href="#catalogs">כל הקטלוגים</a>`,
-    ...groups.map((group, index) => (
-      `<a class="top-nav-link category-nav-link" href="#${escapeHtml(categorySectionId(group.category, index))}">${escapeHtml(group.category)}</a>`
-    ))
-  ];
+  const links = groups.map((group, index) => (
+    `<a class="top-nav-link category-nav-link" href="#${escapeHtml(categorySectionId(group.category, index))}">${escapeHtml(group.category)}</a>`
+  ));
 
   els.categoryNav.innerHTML = links.join("");
 }

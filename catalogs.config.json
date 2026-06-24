@@ -1,24 +1,45 @@
 [
   {
-    "id": "tbi",
+    "id": "tbi-arnot-pticha",
     "title": "ת.ב.י רהיטים - ארונות פתיחה 2026",
     "description": "ארונות פתיחה בעיצובים מודרניים",
-    "category": "ארונות",
+    "category": "ארונות פתיחה",
     "pdf": "assets/pdfs/tbi-arnot-pticha-2026.pdf"
   },
   {
     "id": "fredi-arnot",
     "title": "פרדי ארונות פתיחה",
     "description": "ארונות פתיחה בעיצוב נקי ועדכני",
-    "category": "ארונות",
+    "category": "ארונות פתיחה",
     "pdf": "assets/pdfs/fredi-arnot-pticha.pdf"
   },
   {
-    "id": "qualita",
-    "title": "קואליטה 2026",
+    "id": "tbi-azaza",
+    "title": "ת.ב.י רהיטים - ארונות הזזה",
+    "description": "ארונות הזזה בעיצוב נקי ועדכני",
+    "category": "ארונות הזזה",
+    "pdf": "assets/pdfs/tbi-azaza-2024.pdf"
+  },
+  {
+    "id": "comfort",
+    "title": "קומפורט 2026",
     "description": "מיטות איכות בעיצוב נקי ועדכני",
     "category": "מיטות",
-    "pdf": "assets/pdfs/qualita-2026.pdf"
+    "pdf": "assets/pdfs/comfort-2026.pdf"
+  },
+  {
+    "id": "tbi-shena",
+    "title": "ת.ב.י רהיטים - חדרי שינה",
+    "description": "חדרי שינה באיכות ובעיצוב נקי ועדכני",
+    "category": "חדרי שינה",
+    "pdf": "assets/pdfs/tbi-shena-2025.pdf"
+  },
+  {
+    "id": "tbi-yeladim",
+    "title": "ת.ב.י רהיטים - חדרי ילדים",
+    "description": "חדרי ילדים באיכות ובעיצוב נקי ועדכני",
+    "category": "חדרי ילדים",
+    "pdf": "assets/pdfs/tbi-yeladim-2025.pdf"
   },
   {
     "id": "komotayim",
@@ -33,6 +54,20 @@
     "description": "מיטות איכות בעיצוב נקי ועדכני",
     "category": "מיטות",
     "pdf": "assets/pdfs/comfort-2026.pdf"
+  },
+  {
+    "id": "perfect",
+    "title": "פרפקט 2026",
+    "description": "מיטות איכות בעיצוב נקי ועדכני",
+    "category": "מיטות",
+    "pdf": "assets/pdfs/perfect-2026.pdf"
+  },
+  {
+    "id": "tbi-sifriot",
+    "title": "ת.ב.י רהיטים - ספריות קודש",
+    "description": "ספריות קודש בעיצוב נקי ועדכני",
+    "category": "ספריות קודש",
+    "pdf": "assets/pdfs/tbi-sifriot-2024.pdf"
   },
   {
     "id": "fredi-sifriot",
