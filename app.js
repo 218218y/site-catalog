@@ -756,7 +756,7 @@ function renderCatalogCards() {
     const layout = categoryLayout[index] || { spanDesktop: 3, spanTablet: 2, inlineDividerDesktop: false, inlineDividerTablet: false };
     const sectionStyle = `--category-span-desktop: ${layout.spanDesktop}; --category-span-tablet: ${layout.spanTablet};`;
     return `
-      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(sectionId)}-title" style="${escapeHtml(sectionStyle)}" data-inline-divider-desktop="${layout.inlineDividerDesktop ? "1" : "0"}" data-inline-divider-tablet="${layout.inlineDividerTablet ? "1" : "0"}">
+      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(sectionId)}-title" style="${escapeHtml(sectionStyle)}" data-category-span-desktop="${escapeHtml(String(layout.spanDesktop))}" data-category-span-tablet="${escapeHtml(String(layout.spanTablet))}" data-inline-divider-desktop="${layout.inlineDividerDesktop ? "1" : "0"}" data-inline-divider-tablet="${layout.inlineDividerTablet ? "1" : "0"}">
         <div class="catalog-category-head">
           <h3 id="${escapeHtml(sectionId)}-title">${escapeHtml(group.category)}</h3>
           <div class="catalog-category-meta" aria-label="סיכום קטגוריה">
