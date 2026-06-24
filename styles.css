@@ -2235,6 +2235,17 @@ a.reader-home:focus-visible {
   display: inline-flex;
   align-items: center;
 }
+.footer-hidden-tools-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: default;
+}
+.footer-hidden-tools-link:hover,
+.footer-hidden-tools-link:focus-visible {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
 .footer-contact {
   min-width: 132px;
   text-align: center;

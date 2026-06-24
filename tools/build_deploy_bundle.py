@@ -44,6 +44,7 @@ DEPLOY_FILES = [
     "wp_logo_data.js",
     "catalogs.generated.js",
     "catalogs.search.js",
+    "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html",
 ]
 
 OPTIONAL_DEPLOY_FILES = [

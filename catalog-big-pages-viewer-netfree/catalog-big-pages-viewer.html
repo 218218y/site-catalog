@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex,nofollow" />
   <title>צפייה בכל תמונות הקטלוגים הגדולות</title>
-  <link rel="preconnect" href="https://bargig-catalog.netlify.app" crossorigin>
   <style>
     :root {
       color-scheme: light;
@@ -291,8 +290,8 @@
         <button class="button" id="nextBottom" type="button">עבור ל־50 התמונות הבאות</button>
       </div>
       <div class="footer-note">
-        הדף טוען את התמונות הגדולות ישירות מהאתר: <strong>https://bargig-catalog.netlify.app/assets/pages/</strong><br>
-        אפשר לפתוח את הקובץ הזה גם מהמחשב בלי להעלות אותו לאתר.
+        הדף טוען את התמונות הגדולות מתוך אותה העלאה של האתר: <strong>../assets/pages/</strong><br>
+        לכן בבאנדל הפריסה צריך להעלות גם את תיקיית assets/pages לצד הדף הזה.
       </div>
     </nav>
   </main>
@@ -300,7 +299,7 @@
   <script>
     "use strict";
 
-    const BASE_URL = "https://bargig-catalog.netlify.app/";
+    const BASE_URL = new URL("../", window.location.href).href;
     const IMAGES_PER_VIEW = 50;
     const CATALOGS = [
   {
