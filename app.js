@@ -697,12 +697,17 @@ function catalogCategoryLayout(groups) {
 function renderCatalogCard(catalog) {
   const cover = coverThumbSrc(catalog);
   const category = catalogCategoryName(catalog);
+  const safeCatalogId = escapeHtml(catalog.id);
+  const safeTitle = escapeHtml(catalog.title);
   return `
     <article class="catalog-card">
-      <button class="catalog-cover-frame catalog-image-frame catalog-cover-card-button" type="button" data-open-catalog-viewer="${escapeHtml(catalog.id)}" aria-label="פתיחת ${escapeHtml(catalog.title)} במסך מלא">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${escapeHtml(catalog.title)}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
-        <span class="catalog-cover-card-cta">צפייה במסך מלא</span>
-      </button>
+      <div class="catalog-cover-frame catalog-image-frame catalog-cover-card-picker" role="group" aria-label="בחירת תצוגה עבור ${safeTitle}">
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
+        <div class="catalog-cover-card-mode-actions" role="group" aria-label="בחירת אופן צפייה">
+          <button class="catalog-cover-card-mode-button" type="button" data-open-catalog-viewer-mode="scroll" data-open-catalog-viewer="${safeCatalogId}" aria-label="פתיחת ${safeTitle} בתצוגת גלילה">תצוגת גלילה</button>
+          <button class="catalog-cover-card-mode-button" type="button" data-open-catalog-viewer-mode="single" data-open-catalog-viewer="${safeCatalogId}" aria-label="פתיחת ${safeTitle} בתצוגה לצדדים">תצוגה לצדדים</button>
+        </div>
+      </div>
       <div class="catalog-body">
         <div class="catalog-meta">
           <span class="pill">${escapeHtml(category)}</span>
@@ -723,7 +728,10 @@ function bindCatalogCardEvents() {
   if (!els.catalogGrid) return;
 
   els.catalogGrid.querySelectorAll("[data-open-catalog-viewer]").forEach((button) => {
-    button.addEventListener("click", () => openCatalogInViewer(button.dataset.openCatalogViewer));
+    button.addEventListener("click", () => {
+      const mode = button.dataset.openCatalogViewerMode === "scroll" ? "scroll" : "single";
+      openCatalogInViewer(button.dataset.openCatalogViewer, 1, mode);
+    });
   });
 
   els.catalogGrid.querySelectorAll("[data-open-catalog]").forEach((button) => {

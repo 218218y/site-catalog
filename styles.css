@@ -2320,65 +2320,97 @@ a.reader-home:focus-visible {
   margin-top: 26px;
 }
 
-.catalog-cover-card-button,
+.catalog-cover-card-picker,
 .catalog-cover-button {
   color: inherit;
   font: inherit;
+}
+
+.catalog-cover-card-picker {
+  display: block;
+}
+
+.catalog-cover-button {
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
 }
 
-.catalog-cover-card-button {
-  display: block;
-  padding: 0;
-  border: 0;
-  text-align: inherit;
-}
-
-.catalog-cover-card-button::before,
+.catalog-cover-card-picker::before,
 .catalog-cover-button::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 3;
-  background: linear-gradient(180deg, transparent 52%, rgba(0,0,0,0.38));
+  background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.46));
   opacity: 0;
   transition: opacity .18s ease;
   pointer-events: none;
 }
 
-.catalog-cover-card-button:hover::before,
-.catalog-cover-card-button:focus-visible::before,
+.catalog-cover-card-picker:hover::before,
+.catalog-cover-card-picker:focus-within::before,
 .catalog-cover-button:hover::before,
 .catalog-cover-button:focus-visible::before {
   opacity: 1;
 }
 
-.catalog-cover-card-cta,
+.catalog-cover-card-mode-actions,
 .catalog-cover-cta {
   position: absolute;
   right: 16px;
   bottom: 16px;
-  z-index: 7;
+  z-index: 8;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.catalog-cover-card-mode-actions {
+  left: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.catalog-cover-card-mode-button,
+.catalog-cover-cta {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 34px;
   padding: 0 12px;
   border-radius: 999px;
   color: #fff;
-  background: rgba(47, 37, 29, 0.74);
-  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(47, 37, 29, 0.78);
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
   font-size: .88rem;
   font-weight: 900;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity .18s ease, transform .18s ease;
-  pointer-events: none;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
-.catalog-cover-card-button:hover .catalog-cover-card-cta,
-.catalog-cover-card-button:focus-visible .catalog-cover-card-cta,
+.catalog-cover-card-mode-button {
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+  pointer-events: auto;
+}
+
+.catalog-cover-card-mode-button:hover,
+.catalog-cover-card-mode-button:focus-visible {
+  background: rgba(47, 37, 29, 0.92);
+  border-color: rgba(255,255,255,0.48);
+  transform: translateY(-1px);
+}
+
+.catalog-cover-card-picker:hover .catalog-cover-card-mode-actions,
+.catalog-cover-card-picker:focus-within .catalog-cover-card-mode-actions,
 .catalog-cover-button:hover .catalog-cover-cta,
 .catalog-cover-button:focus-visible .catalog-cover-cta {
   opacity: 1;
@@ -2587,7 +2619,8 @@ a.reader-home:focus-visible {
   .lightbox-actions { gap: 5px; }
   .reader-control-icon-button { width: 36px; min-width: 36px; min-height: 36px; border-radius: 12px; }
   .reader-control-icon-button svg { width: 18px; height: 18px; }
-  .catalog-cover-card-cta, .catalog-cover-cta { opacity: 1; transform: none; }
+  .catalog-cover-card-mode-actions, .catalog-cover-cta { opacity: 1; transform: none; }
+  .catalog-cover-card-picker::before { opacity: 1; }
   .lightbox-search-clear { width: var(--reader-clear-button-width); }
   .lightbox-top-hotspot { height: 92px; }
   .reader-main { padding: 8px; }
