@@ -172,7 +172,8 @@ const state = {
   singleImageAnimationTimer: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
-  catalogLayoutResizeTimer: 0
+  catalogLayoutResizeTimer: 0,
+  categoryFocusTimer: 0
 };
 
 const els = {
@@ -658,11 +659,86 @@ function renderEmptyState() {
 function renderCategoryNav(groups = getCatalogCategoryGroups()) {
   if (!els.categoryNav) return;
 
-  const links = groups.map((group, index) => (
-    `<a class="top-nav-link category-nav-link" href="#${escapeHtml(categorySectionId(group.category, index))}">${escapeHtml(group.category)}</a>`
-  ));
+  const links = groups.map((group, index) => {
+    const targetId = categorySectionId(group.category, index);
+    return `<a class="top-nav-link category-nav-link" href="#${escapeHtml(targetId)}" data-category-target="${escapeHtml(targetId)}">${escapeHtml(group.category)}</a>`;
+  });
 
   els.categoryNav.innerHTML = links.join("");
+  syncActiveCategoryNavLink();
+}
+
+function decodeHashTargetId(hash = location.hash) {
+  const rawHash = String(hash || "");
+  if (!rawHash.startsWith("#")) return "";
+
+  const rawId = rawHash.slice(1);
+  try {
+    return decodeURIComponent(rawId);
+  } catch {
+    return rawId;
+  }
+}
+
+function getCatalogCategorySectionById(id) {
+  const section = id ? document.getElementById(id) : null;
+  return section?.classList?.contains("catalog-category-section") ? section : null;
+}
+
+function getCatalogCategorySectionFromHash(hash = location.hash) {
+  return getCatalogCategorySectionById(decodeHashTargetId(hash));
+}
+
+function syncActiveCategoryNavLink(activeId = decodeHashTargetId()) {
+  if (!els.categoryNav) return;
+
+  els.categoryNav.querySelectorAll(".category-nav-link").forEach((link) => {
+    const isActive = Boolean(activeId && link.dataset.categoryTarget === activeId);
+    link.classList.toggle("active", isActive);
+    if (isActive) link.setAttribute("aria-current", "location");
+    else link.removeAttribute("aria-current");
+  });
+}
+
+function markCatalogCategoryFocus(section, options = {}) {
+  if (!section) return false;
+
+  const { animate = true } = options;
+  window.clearTimeout(state.categoryFocusTimer);
+
+  els.catalogGrid?.querySelectorAll(".catalog-category-section.is-category-focus").forEach((activeSection) => {
+    if (activeSection !== section) activeSection.classList.remove("is-category-focus");
+  });
+
+  section.classList.remove("is-category-focus");
+  if (animate) {
+    // Force a clean restart of the pulse when clicking the same category twice.
+    void section.offsetWidth;
+  }
+  section.classList.add("is-category-focus");
+  syncActiveCategoryNavLink(section.id);
+
+  state.categoryFocusTimer = window.setTimeout(() => {
+    section.classList.remove("is-category-focus");
+  }, 2600);
+
+  return true;
+}
+
+function markCatalogCategoryFocusById(id, options = {}) {
+  return markCatalogCategoryFocus(getCatalogCategorySectionById(id), options);
+}
+
+function syncCatalogCategoryFocusFromHash(options = {}) {
+  const section = getCatalogCategorySectionFromHash();
+  if (!section) {
+    syncActiveCategoryNavLink("");
+    return false;
+  }
+
+  const { scroll = false } = options;
+  if (scroll) section.scrollIntoView({ behavior: "smooth", block: "start" });
+  return markCatalogCategoryFocus(section, options);
 }
 
 
@@ -843,6 +919,7 @@ function renderCatalogCards() {
   }).join("");
 
   bindCatalogCardEvents();
+  syncCatalogCategoryFocusFromHash({ animate: false });
 }
 
 
@@ -2554,6 +2631,14 @@ function attachEvents() {
   els.catalogCoverOpenViewer?.addEventListener("click", () => openLightbox(1));
   els.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
 
+  els.categoryNav?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".category-nav-link");
+    if (!link || !els.categoryNav.contains(link)) return;
+
+    const targetId = link.dataset.categoryTarget || decodeHashTargetId(link.hash);
+    window.setTimeout(() => markCatalogCategoryFocusById(targetId), 80);
+  });
+
   els.closeLightbox?.addEventListener("click", closeLightbox);
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
@@ -2662,7 +2747,10 @@ function attachEvents() {
 
   window.addEventListener("hashchange", () => {
     const route = parseHash();
-    if (!route) return;
+    if (!route) {
+      syncCatalogCategoryFocusFromHash();
+      return;
+    }
     const target = catalogs.find((item) => item.id === route.id);
     if (!target) return;
 
@@ -2689,6 +2777,7 @@ function init() {
   }
 
   renderCatalogCards();
+  syncCatalogCategoryFocusFromHash({ animate: false, scroll: true });
   fillCatalogSelect();
   initSearchStatus();
   renderLastCatalogView();
