@@ -124,12 +124,13 @@ copy r2.env.example r2.env
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
+R2_PUBLIC_URL=https://cdn.bargig-furniture.com
 ```
 
 הכתובת הציבורית של התמונות כבר מוגדרת כברירת מחדל:
 
 ```text
-https://pub-5e6c7421563f4086ba1e097bb88f3348.r2.dev
+https://cdn.bargig-furniture.com
 ```
 
 בדיקת תכנון לפני שינוי אמיתי:
@@ -197,13 +198,13 @@ dist\site-upload-r2
 את התוכן של התיקייה הזו מעלים ל-Netlify. התמונות ייטענו מתוך:
 
 ```text
-https://pub-5e6c7421563f4086ba1e097bb88f3348.r2.dev/assets/pages/...
+https://cdn.bargig-furniture.com/assets/pages/...
 ```
 
 אם רוצים להשתמש בכתובת חיצונית אחרת במקום ה-R2 של ברגיג:
 
 ```bat
-bundle-site.bat --external-assets-url https://example.r2.dev
+bundle-site.bat --external-assets-url https://cdn.example.com
 ```
 
 אם רוצים גם ZIP של תיקיית ההעלאה:
@@ -309,7 +310,7 @@ assets/pages/qualita/page-001.webp
 2. באנדל R2: אותם נתיבים יחסיים נשארים בנתוני הקטלוגים, אבל `catalog-assets.config.js` מוסיף להם בסיס חיצוני, לדוגמה:
 
 ```text
-https://pub-5e6c7421563f4086ba1e097bb88f3348.r2.dev/assets/pages/qualita/page-001.webp
+https://cdn.bargig-furniture.com/assets/pages/qualita/page-001.webp
 ```
 
 הפתרון הזה עובד גם באתר הראשי וגם בדף `catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html`.

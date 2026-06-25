@@ -18,7 +18,7 @@ Examples:
     python tools/build_deploy_bundle.py --out dist/my-site
     python tools/build_deploy_bundle.py --zip
     python tools/build_deploy_bundle.py --include-json
-    python tools/build_deploy_bundle.py --external-assets-url https://example.r2.dev
+    python tools/build_deploy_bundle.py --external-assets-url https://cdn.example.com
 """
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ JSON_DEPLOY_FILES = [
 
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s*;\s*$", re.DOTALL)
-DEFAULT_R2_ASSET_BASE_URL = "https://pub-5e6c7421563f4086ba1e097bb88f3348.r2.dev"
+DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 
 
 @dataclass(frozen=True)
@@ -298,7 +298,7 @@ def parse_args() -> argparse.Namespace:
         default="",
         help=(
             "Create a site-only bundle that does not copy assets/pages, and load catalog images "
-            "from the supplied external base URL. If no URL is supplied, the Bargig R2 public URL is used."
+            "from the supplied external base URL. If no URL is supplied, the Bargig R2 custom-domain CDN URL is used."
         ),
     )
     parser.add_argument(

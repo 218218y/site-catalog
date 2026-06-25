@@ -41,7 +41,7 @@ from typing import Iterable
 
 DEFAULT_BUCKET = "bargig-catalog"
 DEFAULT_PREFIX = "assets/pages"
-DEFAULT_PUBLIC_URL = "https://pub-5e6c7421563f4086ba1e097bb88f3348.r2.dev"
+DEFAULT_PUBLIC_URL = "https://cdn.bargig-furniture.com"
 DEFAULT_REGION = "auto"
 SERVICE = "s3"
 
@@ -409,8 +409,17 @@ def build_plan(client: R2S3Client, local_objects: list[LocalObject], remote_obje
     return SyncPlan(skipped=skipped, uploads=uploads, deletes=deletes)
 
 
+def normalize_public_url(url: str) -> str:
+    value = str(url or "").strip().rstrip("/")
+    if not value:
+        return ""
+    if not re.match(r"^https?://", value, flags=re.IGNORECASE):
+        raise ValueError(f"Public URL must start with http:// or https://: {url}")
+    return value
+
+
 def public_url(public_base_url: str, key: str) -> str:
-    base = str(public_base_url or "").strip().rstrip("/")
+    base = normalize_public_url(public_base_url)
     if not base:
         return key
     return f"{base}/{urllib.parse.quote(key, safe='/-_.~')}"
@@ -457,9 +466,13 @@ def apply_plan(client: R2S3Client, plan: SyncPlan, cache_control: str, delete_ba
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync assets/pages catalog images to Cloudflare R2.")
     parser.add_argument("--local-dir", default="assets/pages", help="Local converted images folder, relative to project root by default")
-    parser.add_argument("--bucket", default=DEFAULT_BUCKET, help="R2 bucket name")
-    parser.add_argument("--prefix", default=DEFAULT_PREFIX, help="Remote key prefix inside the bucket")
-    parser.add_argument("--public-url", default=DEFAULT_PUBLIC_URL, help="Public base URL used only for display")
+    parser.add_argument("--bucket", default="", help="R2 bucket name. Defaults to R2_BUCKET from r2.env, then bargig-catalog")
+    parser.add_argument("--prefix", default="", help="Remote key prefix inside the bucket. Defaults to R2_PREFIX from r2.env, then assets/pages. Use --prefix / for the bucket root")
+    parser.add_argument(
+        "--public-url",
+        default="",
+        help="Public base URL used only for display. Defaults to R2_PUBLIC_URL from r2.env, then the Bargig CDN custom domain.",
+    )
     parser.add_argument("--endpoint-url", default="", help="R2 S3 API endpoint URL, e.g. https://ACCOUNT_ID.r2.cloudflarestorage.com")
     parser.add_argument("--account-id", default="", help="Cloudflare account ID. Used to build the endpoint URL if --endpoint-url is not supplied")
     parser.add_argument("--access-key-id", default="", help="R2 access key ID. Prefer environment variables or r2.env instead")
@@ -486,12 +499,21 @@ def main(argv: list[str] | None = None) -> int:
         local_dir = Path(args.local_dir)
         if not local_dir.is_absolute():
             local_dir = root / local_dir
-        key_prefix = normalize_prefix(args.prefix)
-        bucket = str(args.bucket or "").strip()
+        key_prefix = normalize_prefix(
+            args.prefix
+            or env_first("R2_PREFIX", "R2_KEY_PREFIX", "CLOUDFLARE_R2_PREFIX")
+            or DEFAULT_PREFIX
+        )
+        bucket = str(args.bucket or env_first("R2_BUCKET", "CLOUDFLARE_R2_BUCKET") or DEFAULT_BUCKET).strip()
         if not bucket:
             raise ValueError("Bucket name is empty.")
 
         endpoint_url = build_endpoint_url(args)
+        public_base_url = normalize_public_url(
+            args.public_url
+            or env_first("R2_PUBLIC_URL", "CLOUDFLARE_R2_PUBLIC_URL", "PUBLIC_CATALOG_ASSET_URL")
+            or DEFAULT_PUBLIC_URL
+        )
         credentials = load_credentials(args)
         client = R2S3Client(endpoint_url=endpoint_url, bucket=bucket, credentials=credentials, region=args.region)
 
@@ -499,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"R2 bucket:    {bucket}")
         print(f"R2 prefix:    {key_prefix or '(bucket root)'}")
         print(f"Endpoint:     {endpoint_url}")
+        print(f"Public URL:   {public_base_url}")
         print(f"Mode:         {'preview only, no changes' if args.dry_run else 'apply changes'}")
         print(f"Deletes:      {'disabled' if args.no_delete else 'enabled'}")
 
@@ -511,7 +534,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Found {len(remote_objects)} remote files under prefix.")
 
         plan = build_plan(client, local_objects, remote_objects, key_prefix, delete=not args.no_delete)
-        print_plan(plan, args.public_url, show_all=args.show_all)
+        print_plan(plan, public_base_url, show_all=args.show_all)
 
         if args.dry_run:
             print("\nDry run only. No upload/delete was performed.")

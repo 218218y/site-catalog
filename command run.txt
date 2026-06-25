@@ -21,6 +21,14 @@ bundle-site.bat
 
 אפשרויות נוספות
 
+
+סדר עבודה מומלץ למסלול Netlify + Cloudflare R2
+1. convert-catalogs.bat  - אם נוספו/השתנו PDF או תמונות מקומיות
+2. sync-r2-images-preview.bat  - בדיקה יבשה מול bucket bargig-catalog
+3. sync-r2-images.bat  - העלאת תמונות חדשות/שהשתנו ומחיקת ישנות
+4. bundle-site-r2.bat  - יצירת תיקיית Netlify שמפנה לתמונות דרך https://cdn.bargig-furniture.com
+
+
 בדיקת סנכרון תמונות ל-R2 בלי לבצע שינוי אמיתי
 sync-r2-images-preview.bat
 
