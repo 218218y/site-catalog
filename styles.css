@@ -240,7 +240,6 @@ main {
   position: relative;
   z-index: 1;
 }
-.catalog-category-section:target::before,
 .catalog-category-section.is-category-focus::before {
   border-color: rgba(176, 124, 64, 0.38);
   background: linear-gradient(180deg, rgba(255, 244, 222, 0.58), rgba(255, 250, 244, 0.1));
@@ -251,11 +250,9 @@ main {
 .catalog-category-section.is-category-focus::before {
   animation: categoryFocusPulse 1.55s ease-out;
 }
-.catalog-category-section:target .catalog-category-head,
 .catalog-category-section.is-category-focus .catalog-category-head {
   border-bottom-color: rgba(176, 124, 64, 0.34);
 }
-.catalog-category-section:target .catalog-category-head h3,
 .catalog-category-section.is-category-focus .catalog-category-head h3 {
   color: var(--brand-dark);
 }

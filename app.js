@@ -173,7 +173,8 @@ const state = {
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
-  categoryFocusTimer: 0
+  categoryFocusTimer: 0,
+  categoryFocusTargetId: ""
 };
 
 const els = {
@@ -689,39 +690,78 @@ function getCatalogCategorySectionFromHash(hash = location.hash) {
   return getCatalogCategorySectionById(decodeHashTargetId(hash));
 }
 
-function syncActiveCategoryNavLink(activeId = decodeHashTargetId()) {
+function getCatalogCategoryFocusTargetId(section) {
+  return section?.dataset?.categoryFocusTarget || section?.id || "";
+}
+
+function getCatalogCategorySectionsByTargetId(targetId) {
+  const normalizedTargetId = String(targetId || "");
+  if (!normalizedTargetId || !els.catalogGrid) return [];
+
+  return Array.from(els.catalogGrid.querySelectorAll(".catalog-category-section"))
+    .filter((section) => getCatalogCategoryFocusTargetId(section) === normalizedTargetId || section.id === normalizedTargetId);
+}
+
+function hasCatalogCategoryFocus(targetId) {
+  return getCatalogCategorySectionsByTargetId(targetId)
+    .some((section) => section.classList.contains("is-category-focus"));
+}
+
+function syncActiveCategoryNavLink(activeId = state.categoryFocusTargetId) {
   if (!els.categoryNav) return;
 
+  const normalizedActiveId = String(activeId || "");
   els.categoryNav.querySelectorAll(".category-nav-link").forEach((link) => {
-    const isActive = Boolean(activeId && link.dataset.categoryTarget === activeId);
+    const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
     link.classList.toggle("active", isActive);
     if (isActive) link.setAttribute("aria-current", "location");
     else link.removeAttribute("aria-current");
   });
 }
 
+function clearCatalogCategoryFocus(options = {}) {
+  const { clearHash = false } = options;
+
+  window.clearTimeout(state.categoryFocusTimer);
+  state.categoryFocusTimer = 0;
+  state.categoryFocusTargetId = "";
+  els.catalogGrid?.querySelectorAll(".catalog-category-section.is-category-focus").forEach((section) => {
+    section.classList.remove("is-category-focus");
+  });
+  syncActiveCategoryNavLink("");
+
+  const hashTargetId = decodeHashTargetId();
+  if (clearHash && hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length && window.history?.replaceState) {
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
+
+  return true;
+}
+
 function markCatalogCategoryFocus(section, options = {}) {
   if (!section) return false;
 
   const { animate = true } = options;
+  const targetId = getCatalogCategoryFocusTargetId(section);
+  const targetSections = getCatalogCategorySectionsByTargetId(targetId);
+  if (!targetId || !targetSections.length) return false;
+
   window.clearTimeout(state.categoryFocusTimer);
+  state.categoryFocusTimer = 0;
 
   els.catalogGrid?.querySelectorAll(".catalog-category-section.is-category-focus").forEach((activeSection) => {
-    if (activeSection !== section) activeSection.classList.remove("is-category-focus");
+    if (!targetSections.includes(activeSection)) activeSection.classList.remove("is-category-focus");
   });
 
-  section.classList.remove("is-category-focus");
+  targetSections.forEach((targetSection) => targetSection.classList.remove("is-category-focus"));
   if (animate) {
-    // Force a clean restart of the pulse when clicking the same category twice.
-    void section.offsetWidth;
+    // Restart the pulse cleanly across every visible segment of the selected category.
+    void targetSections[0].offsetWidth;
   }
-  section.classList.add("is-category-focus");
-  syncActiveCategoryNavLink(section.id);
+  targetSections.forEach((targetSection) => targetSection.classList.add("is-category-focus"));
 
-  state.categoryFocusTimer = window.setTimeout(() => {
-    section.classList.remove("is-category-focus");
-  }, 2600);
-
+  state.categoryFocusTargetId = targetId;
+  syncActiveCategoryNavLink(targetId);
   return true;
 }
 
@@ -732,7 +772,7 @@ function markCatalogCategoryFocusById(id, options = {}) {
 function syncCatalogCategoryFocusFromHash(options = {}) {
   const section = getCatalogCategorySectionFromHash();
   if (!section) {
-    syncActiveCategoryNavLink("");
+    clearCatalogCategoryFocus();
     return false;
   }
 
@@ -907,7 +947,7 @@ function renderCatalogCards() {
     const titleId = `${sectionId}-title`;
     const sectionStyle = `--category-span: ${segment.span};`;
     return `
-      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
+      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
         <div class="catalog-category-head">
           <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
         </div>
@@ -2636,6 +2676,14 @@ function attachEvents() {
     if (!link || !els.categoryNav.contains(link)) return;
 
     const targetId = link.dataset.categoryTarget || decodeHashTargetId(link.hash);
+    if (!targetId) return;
+
+    if (state.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
+      event.preventDefault();
+      clearCatalogCategoryFocus({ clearHash: true });
+      return;
+    }
+
     window.setTimeout(() => markCatalogCategoryFocusById(targetId), 80);
   });
 
