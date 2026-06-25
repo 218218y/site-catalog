@@ -108,6 +108,23 @@
       box-shadow: none;
     }
 
+    .button.auto-active {
+      background: var(--brand-dark);
+      box-shadow: 0 8px 18px rgba(101, 77, 61, .24);
+    }
+
+    html.auto-scrolling {
+      scroll-behavior: auto;
+    }
+
+    .auto-status {
+      flex: 1 1 100%;
+      min-height: 1.2em;
+      color: var(--muted);
+      font-size: .86rem;
+      text-align: center;
+    }
+
     .page-select {
       border: 1px solid var(--border);
       border-radius: 999px;
@@ -273,9 +290,11 @@
         <p id="topStatus">טוען רשימת תמונות…</p>
       </div>
       <div class="controls" aria-label="ניווט בין קבוצות תמונות">
+        <button class="button" id="autoScrollTop" type="button" aria-pressed="false">גלילה אוטומטית</button>
         <button class="button secondary" id="prevTop" type="button">50 הקודמות</button>
         <select class="page-select" id="chunkSelect" aria-label="בחירת קבוצת תמונות"></select>
         <button class="button" id="nextTop" type="button">50 הבאות</button>
+        <span class="auto-status" id="autoScrollStatus" aria-live="polite"></span>
       </div>
     </div>
   </header>
@@ -307,6 +326,7 @@
       ? (CONFIGURED_ASSET_BASE_URL.endsWith("/") ? CONFIGURED_ASSET_BASE_URL : CONFIGURED_ASSET_BASE_URL + "/")
       : LOCAL_ASSET_BASE_URL;
     const IMAGES_PER_VIEW = 50;
+    const AUTO_SCROLL_CHUNK_DURATION_MS = 4 * 60 * 1000;
     const CATALOGS = Array.isArray(window.BARGIG_CATALOGS)
       ? window.BARGIG_CATALOGS.filter(catalog => catalog && typeof catalog === "object")
       : [];
@@ -370,7 +390,9 @@
       nextTop: document.getElementById("nextTop"),
       prevBottom: document.getElementById("prevBottom"),
       nextBottom: document.getElementById("nextBottom"),
-      chunkSelect: document.getElementById("chunkSelect")
+      chunkSelect: document.getElementById("chunkSelect"),
+      autoScrollTop: document.getElementById("autoScrollTop"),
+      autoScrollStatus: document.getElementById("autoScrollStatus")
     };
 
     function chunkFromUrl() {
@@ -385,6 +407,15 @@
     let currentChunk = chunkFromUrl();
     let eagerImageRequests = [];
     let eagerPreloadLinks = [];
+    let autoScrollFrame = null;
+    let autoScrollToken = 0;
+    const autoScrollState = {
+      running: false,
+      paused: false,
+      startedAt: 0,
+      elapsedBeforePause: 0,
+      lastStatusSecond: -1
+    };
 
     function clearImmediateImageRequests() {
       eagerImageRequests = [];
@@ -417,6 +448,129 @@
       url.searchParams.set("page", String(chunk));
       url.hash = "top";
       window.history.replaceState(null, "", url);
+    }
+
+    function formatAutoScrollTime(ms) {
+      const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function getMaxScrollTop() {
+      const doc = document.documentElement;
+      const body = document.body;
+      const fullHeight = Math.max(
+        doc.scrollHeight,
+        body.scrollHeight,
+        doc.offsetHeight,
+        body.offsetHeight,
+        doc.clientHeight
+      );
+      return Math.max(0, fullHeight - window.innerHeight);
+    }
+
+    function updateAutoScrollControls(message = "") {
+      const canRun = allImages.length > 0;
+      els.autoScrollTop.disabled = !canRun;
+      els.autoScrollTop.classList.toggle("auto-active", autoScrollState.running);
+      els.autoScrollTop.setAttribute("aria-pressed", autoScrollState.running ? "true" : "false");
+      els.autoScrollTop.textContent = autoScrollState.running ? "עצור גלילה אוטומטית" : "גלילה אוטומטית";
+      els.autoScrollStatus.textContent = message;
+      document.documentElement.classList.toggle("auto-scrolling", autoScrollState.running);
+    }
+
+    function cancelAutoScrollFrame() {
+      if (autoScrollFrame !== null) {
+        window.cancelAnimationFrame(autoScrollFrame);
+        autoScrollFrame = null;
+      }
+    }
+
+    function setAutoScrollStatusByProgress(elapsed) {
+      const elapsedSecond = Math.floor(elapsed / 1000);
+      if (elapsedSecond === autoScrollState.lastStatusSecond) return;
+      autoScrollState.lastStatusSecond = elapsedSecond;
+      const remaining = Math.max(0, AUTO_SCROLL_CHUNK_DURATION_MS - elapsed);
+      updateAutoScrollControls(`גלילה אוטומטית פעילה · קבוצה ${currentChunk} מתוך ${chunkCount} · נותרו בערך ${formatAutoScrollTime(remaining)}`);
+    }
+
+    function stopAutoScroll(message = "") {
+      autoScrollToken += 1;
+      cancelAutoScrollFrame();
+      autoScrollState.running = false;
+      autoScrollState.paused = false;
+      autoScrollState.elapsedBeforePause = 0;
+      autoScrollState.lastStatusSecond = -1;
+      updateAutoScrollControls(message);
+    }
+
+    function finishAutoScrollChunk() {
+      if (!autoScrollState.running) return;
+      if (currentChunk < chunkCount) {
+        setChunk(currentChunk + 1, false);
+        beginAutoScrollChunk();
+        return;
+      }
+      stopAutoScroll("הגלילה האוטומטית הסתיימה — הגעת לסוף כל התמונות.");
+    }
+
+    function stepAutoScroll(timestamp, token) {
+      if (!autoScrollState.running || autoScrollState.paused || token !== autoScrollToken) return;
+      const elapsed = autoScrollState.elapsedBeforePause + Math.max(0, timestamp - autoScrollState.startedAt);
+      const progress = Math.min(1, elapsed / AUTO_SCROLL_CHUNK_DURATION_MS);
+      const targetTop = Math.round(getMaxScrollTop() * progress);
+
+      window.scrollTo({ top: targetTop, behavior: "auto" });
+      setAutoScrollStatusByProgress(elapsed);
+
+      if (progress >= 1) {
+        finishAutoScrollChunk();
+        return;
+      }
+      autoScrollFrame = window.requestAnimationFrame(nextTimestamp => stepAutoScroll(nextTimestamp, token));
+    }
+
+    function beginAutoScrollChunk() {
+      cancelAutoScrollFrame();
+      autoScrollToken += 1;
+      const token = autoScrollToken;
+      autoScrollState.paused = false;
+      autoScrollState.startedAt = 0;
+      autoScrollState.elapsedBeforePause = 0;
+      autoScrollState.lastStatusSecond = -1;
+      window.scrollTo({ top: 0, behavior: "auto" });
+      updateAutoScrollControls(`מתחיל גלילה אוטומטית בקבוצה ${currentChunk} מתוך ${chunkCount}…`);
+
+      window.requestAnimationFrame(startTimestamp => {
+        if (!autoScrollState.running || token !== autoScrollToken) return;
+        autoScrollState.startedAt = startTimestamp;
+        autoScrollFrame = window.requestAnimationFrame(nextTimestamp => stepAutoScroll(nextTimestamp, token));
+      });
+    }
+
+    function startAutoScroll() {
+      if (!allImages.length || autoScrollState.running) return;
+      autoScrollState.running = true;
+      updateAutoScrollControls();
+      beginAutoScrollChunk();
+    }
+
+    function toggleAutoScroll() {
+      if (autoScrollState.running) {
+        stopAutoScroll("הגלילה האוטומטית נעצרה.");
+        return;
+      }
+      startAutoScroll();
+    }
+
+    function stopAutoScrollForUserNavigation() {
+      if (autoScrollState.running) stopAutoScroll("הגלילה האוטומטית נעצרה בגלל ניווט ידני.");
+    }
+
+    function setChunkFromUser(chunk) {
+      stopAutoScrollForUserNavigation();
+      setChunk(chunk);
     }
 
     function setChunk(chunk, shouldScroll = true) {
@@ -515,6 +669,7 @@
       const hasNext = currentChunk < chunkCount;
       [els.prevTop, els.prevBottom].forEach(btn => btn.disabled = !hasPrev);
       [els.nextTop, els.nextBottom].forEach(btn => btn.disabled = !hasNext);
+      updateAutoScrollControls(els.autoScrollStatus.textContent);
 
       els.imageList.innerHTML = "";
       if (!allImages.length) {
@@ -551,12 +706,44 @@
     }
 
     fillSelect();
-    els.prevTop.addEventListener("click", () => setChunk(currentChunk - 1));
-    els.prevBottom.addEventListener("click", () => setChunk(currentChunk - 1));
-    els.nextTop.addEventListener("click", () => setChunk(currentChunk + 1));
-    els.nextBottom.addEventListener("click", () => setChunk(currentChunk + 1));
-    els.chunkSelect.addEventListener("change", () => setChunk(Number(els.chunkSelect.value)));
-    window.addEventListener("popstate", () => setChunk(chunkFromUrl(), false));
+    els.autoScrollTop.addEventListener("click", toggleAutoScroll);
+    els.prevTop.addEventListener("click", () => setChunkFromUser(currentChunk - 1));
+    els.prevBottom.addEventListener("click", () => setChunkFromUser(currentChunk - 1));
+    els.nextTop.addEventListener("click", () => setChunkFromUser(currentChunk + 1));
+    els.nextBottom.addEventListener("click", () => setChunkFromUser(currentChunk + 1));
+    els.chunkSelect.addEventListener("change", () => setChunkFromUser(Number(els.chunkSelect.value)));
+    window.addEventListener("popstate", () => {
+      stopAutoScrollForUserNavigation();
+      setChunk(chunkFromUrl(), false);
+    });
+    window.addEventListener("keydown", (event) => {
+      if (!autoScrollState.running) return;
+      const keysThatUsuallyScroll = new Set(["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "]);
+      if (keysThatUsuallyScroll.has(event.key)) stopAutoScroll("הגלילה האוטומטית נעצרה בגלל גלילה ידנית.");
+    });
+    window.addEventListener("wheel", () => {
+      if (autoScrollState.running) stopAutoScroll("הגלילה האוטומטית נעצרה בגלל גלילה ידנית.");
+    }, { passive: true });
+    window.addEventListener("touchstart", () => {
+      if (autoScrollState.running) stopAutoScroll("הגלילה האוטומטית נעצרה בגלל גלילה ידנית.");
+    }, { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (!autoScrollState.running) return;
+      if (document.hidden) {
+        if (autoScrollState.startedAt > 0) {
+          autoScrollState.elapsedBeforePause += Math.max(0, performance.now() - autoScrollState.startedAt);
+        }
+        autoScrollState.paused = true;
+        cancelAutoScrollFrame();
+        updateAutoScrollControls("הגלילה האוטומטית מושהית כל עוד הלשונית לא פעילה.");
+        return;
+      }
+      autoScrollState.paused = false;
+      autoScrollState.startedAt = performance.now();
+      autoScrollToken += 1;
+      const token = autoScrollToken;
+      autoScrollFrame = window.requestAnimationFrame(timestamp => stepAutoScroll(timestamp, token));
+    });
     render();
   </script>
 </body>
