@@ -2423,6 +2423,7 @@ a.reader-home:focus-visible {
 
 .catalog-cover-card-picker {
   display: block;
+  cursor: pointer;
 }
 
 .catalog-cover-button {
@@ -2444,6 +2445,7 @@ a.reader-home:focus-visible {
 }
 
 .catalog-cover-card-picker:hover::before,
+.catalog-cover-card-picker:focus-visible::before,
 .catalog-cover-card-picker:focus-within::before,
 .catalog-cover-button:hover::before,
 .catalog-cover-button:focus-visible::before {
@@ -2505,6 +2507,7 @@ a.reader-home:focus-visible {
 }
 
 .catalog-cover-card-picker:hover .catalog-cover-card-mode-actions,
+.catalog-cover-card-picker:focus-visible .catalog-cover-card-mode-actions,
 .catalog-cover-card-picker:focus-within .catalog-cover-card-mode-actions,
 .catalog-cover-button:hover .catalog-cover-cta,
 .catalog-cover-button:focus-visible .catalog-cover-cta {

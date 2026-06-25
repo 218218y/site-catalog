@@ -746,7 +746,7 @@ function renderCatalogCard(catalog) {
   const safeTitle = escapeHtml(catalog.title);
   return `
     <article class="catalog-card">
-      <div class="catalog-cover-frame catalog-image-frame catalog-cover-card-picker" role="group" aria-label="בחירת תצוגה עבור ${safeTitle}">
+      <div class="catalog-cover-frame catalog-image-frame catalog-cover-card-picker" role="group" tabindex="0" data-open-catalog-cover="${safeCatalogId}" aria-label="פתיחת ${safeTitle} בתצוגה לצדדים">
         <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
         <div class="catalog-cover-card-mode-actions" role="group" aria-label="בחירת אופן צפייה">
           <button class="catalog-cover-card-mode-button" type="button" data-open-catalog-viewer-mode="scroll" data-open-catalog-viewer="${safeCatalogId}" aria-label="פתיחת ${safeTitle} בתצוגת גלילה">תצוגת גלילה</button>
@@ -769,13 +769,33 @@ function renderCatalogCard(catalog) {
   `;
 }
 
+function openCatalogCardViewer(catalogId, mode = "single") {
+  if (!catalogId) return;
+  openCatalogInViewer(catalogId, 1, mode === "scroll" ? "scroll" : "single");
+}
+
 function bindCatalogCardEvents() {
   if (!els.catalogGrid) return;
 
+  els.catalogGrid.querySelectorAll("[data-open-catalog-cover]").forEach((cover) => {
+    cover.addEventListener("click", (event) => {
+      if (event.target.closest?.("[data-open-catalog-viewer]")) return;
+      openCatalogCardViewer(cover.dataset.openCatalogCover, "single");
+    });
+
+    cover.addEventListener("keydown", (event) => {
+      if (event.target.closest?.("[data-open-catalog-viewer]")) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openCatalogCardViewer(cover.dataset.openCatalogCover, "single");
+    });
+  });
+
   els.catalogGrid.querySelectorAll("[data-open-catalog-viewer]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
       const mode = button.dataset.openCatalogViewerMode === "scroll" ? "scroll" : "single";
-      openCatalogInViewer(button.dataset.openCatalogViewer, 1, mode);
+      openCatalogCardViewer(button.dataset.openCatalogViewer, mode);
     });
   });
 
