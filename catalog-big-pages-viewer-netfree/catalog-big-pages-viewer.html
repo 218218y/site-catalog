@@ -327,6 +327,7 @@
       : LOCAL_ASSET_BASE_URL;
     const IMAGES_PER_VIEW = 50;
     const AUTO_SCROLL_CHUNK_DURATION_MS = 4 * 60 * 1000;
+    const AUTO_SCROLL_HEARTBEAT_MS = 1000;
     const CATALOGS = Array.isArray(window.BARGIG_CATALOGS)
       ? window.BARGIG_CATALOGS.filter(catalog => catalog && typeof catalog === "object")
       : [];
@@ -408,12 +409,11 @@
     let eagerImageRequests = [];
     let eagerPreloadLinks = [];
     let autoScrollFrame = null;
+    let autoScrollTimer = null;
     let autoScrollToken = 0;
     const autoScrollState = {
       running: false,
-      paused: false,
-      startedAt: 0,
-      elapsedBeforePause: 0,
+      chunkStartedAt: 0,
       lastStatusSecond: -1
     };
 
@@ -487,6 +487,26 @@
       }
     }
 
+    function cancelAutoScrollTimer() {
+      if (autoScrollTimer !== null) {
+        window.clearTimeout(autoScrollTimer);
+        autoScrollTimer = null;
+      }
+    }
+
+    function cancelAutoScrollTimers() {
+      cancelAutoScrollFrame();
+      cancelAutoScrollTimer();
+    }
+
+    function nowMs() {
+      return Date.now();
+    }
+
+    function getAutoScrollElapsed() {
+      return Math.max(0, nowMs() - autoScrollState.chunkStartedAt);
+    }
+
     function setAutoScrollStatusByProgress(elapsed) {
       const elapsedSecond = Math.floor(elapsed / 1000);
       if (elapsedSecond === autoScrollState.lastStatusSecond) return;
@@ -497,56 +517,68 @@
 
     function stopAutoScroll(message = "") {
       autoScrollToken += 1;
-      cancelAutoScrollFrame();
+      cancelAutoScrollTimers();
       autoScrollState.running = false;
-      autoScrollState.paused = false;
-      autoScrollState.elapsedBeforePause = 0;
+      autoScrollState.chunkStartedAt = 0;
       autoScrollState.lastStatusSecond = -1;
       updateAutoScrollControls(message);
     }
 
-    function finishAutoScrollChunk() {
-      if (!autoScrollState.running) return;
-      if (currentChunk < chunkCount) {
+    function syncAutoScrollToClock() {
+      if (!autoScrollState.running) return false;
+
+      let elapsed = getAutoScrollElapsed();
+      while (elapsed >= AUTO_SCROLL_CHUNK_DURATION_MS) {
+        if (currentChunk >= chunkCount) {
+          window.scrollTo({ top: getMaxScrollTop(), behavior: "auto" });
+          stopAutoScroll("הגלילה האוטומטית הסתיימה — הגעת לסוף כל התמונות.");
+          return false;
+        }
+
         setChunk(currentChunk + 1, false);
-        beginAutoScrollChunk();
-        return;
+        autoScrollState.chunkStartedAt += AUTO_SCROLL_CHUNK_DURATION_MS;
+        autoScrollState.lastStatusSecond = -1;
+        elapsed = getAutoScrollElapsed();
       }
-      stopAutoScroll("הגלילה האוטומטית הסתיימה — הגעת לסוף כל התמונות.");
+
+      return true;
     }
 
-    function stepAutoScroll(timestamp, token) {
-      if (!autoScrollState.running || autoScrollState.paused || token !== autoScrollToken) return;
-      const elapsed = autoScrollState.elapsedBeforePause + Math.max(0, timestamp - autoScrollState.startedAt);
+    function paintAutoScrollProgress() {
+      const elapsed = getAutoScrollElapsed();
       const progress = Math.min(1, elapsed / AUTO_SCROLL_CHUNK_DURATION_MS);
       const targetTop = Math.round(getMaxScrollTop() * progress);
 
       window.scrollTo({ top: targetTop, behavior: "auto" });
       setAutoScrollStatusByProgress(elapsed);
-
-      if (progress >= 1) {
-        finishAutoScrollChunk();
-        return;
-      }
-      autoScrollFrame = window.requestAnimationFrame(nextTimestamp => stepAutoScroll(nextTimestamp, token));
     }
 
-    function beginAutoScrollChunk() {
-      cancelAutoScrollFrame();
+    function stepAutoScrollFrame(token) {
+      if (!autoScrollState.running || token !== autoScrollToken) return;
+      if (!syncAutoScrollToClock()) return;
+      if (!document.hidden) paintAutoScrollProgress();
+      autoScrollFrame = window.requestAnimationFrame(() => stepAutoScrollFrame(token));
+    }
+
+    function stepAutoScrollHeartbeat(token) {
+      if (!autoScrollState.running || token !== autoScrollToken) return;
+      if (!syncAutoScrollToClock()) return;
+      paintAutoScrollProgress();
+      autoScrollTimer = window.setTimeout(() => stepAutoScrollHeartbeat(token), AUTO_SCROLL_HEARTBEAT_MS);
+    }
+
+    function beginAutoScrollChunk(keepClock = false) {
+      cancelAutoScrollTimers();
       autoScrollToken += 1;
       const token = autoScrollToken;
-      autoScrollState.paused = false;
-      autoScrollState.startedAt = 0;
-      autoScrollState.elapsedBeforePause = 0;
+      if (!keepClock) {
+        autoScrollState.chunkStartedAt = nowMs();
+      }
       autoScrollState.lastStatusSecond = -1;
-      window.scrollTo({ top: 0, behavior: "auto" });
       updateAutoScrollControls(`מתחיל גלילה אוטומטית בקבוצה ${currentChunk} מתוך ${chunkCount}…`);
-
-      window.requestAnimationFrame(startTimestamp => {
-        if (!autoScrollState.running || token !== autoScrollToken) return;
-        autoScrollState.startedAt = startTimestamp;
-        autoScrollFrame = window.requestAnimationFrame(nextTimestamp => stepAutoScroll(nextTimestamp, token));
-      });
+      paintAutoScrollProgress();
+      autoScrollFrame = window.requestAnimationFrame(() => stepAutoScrollFrame(token));
+      autoScrollTimer = window.setTimeout(() => stepAutoScrollHeartbeat(token), AUTO_SCROLL_HEARTBEAT_MS);
     }
 
     function startAutoScroll() {
@@ -729,20 +761,10 @@
     }, { passive: true });
     document.addEventListener("visibilitychange", () => {
       if (!autoScrollState.running) return;
-      if (document.hidden) {
-        if (autoScrollState.startedAt > 0) {
-          autoScrollState.elapsedBeforePause += Math.max(0, performance.now() - autoScrollState.startedAt);
-        }
-        autoScrollState.paused = true;
-        cancelAutoScrollFrame();
-        updateAutoScrollControls("הגלילה האוטומטית מושהית כל עוד הלשונית לא פעילה.");
-        return;
+      if (!document.hidden) {
+        if (!syncAutoScrollToClock()) return;
+        beginAutoScrollChunk(true);
       }
-      autoScrollState.paused = false;
-      autoScrollState.startedAt = performance.now();
-      autoScrollToken += 1;
-      const token = autoScrollToken;
-      autoScrollFrame = window.requestAnimationFrame(timestamp => stepAutoScroll(timestamp, token));
     });
     render();
   </script>
