@@ -748,7 +748,13 @@ function getCatalogCategorySectionsByTargetId(targetId) {
   if (!normalizedTargetId) return [];
 
   return getCatalogFocusSections()
-    .filter((section) => getCatalogCategoryFocusTargetId(section) === normalizedTargetId || section.id === normalizedTargetId);
+    .filter((section) => {
+      const focusTargetId = getCatalogCategoryFocusTargetId(section);
+      const parentCategoryTargetId = section?.dataset?.parentCategoryTarget || "";
+      return focusTargetId === normalizedTargetId
+        || parentCategoryTargetId === normalizedTargetId
+        || section.id === normalizedTargetId;
+    });
 }
 
 function hasCatalogCategoryFocus(targetId) {
@@ -796,8 +802,8 @@ function clearCatalogCategoryFocus(options = {}) {
 function markCatalogCategoryFocus(section, options = {}) {
   if (!section) return false;
 
-  const { animate = true } = options;
-  const targetId = getCatalogCategoryFocusTargetId(section);
+  const { animate = true, targetId: requestedTargetId = "" } = options;
+  const targetId = String(requestedTargetId || getCatalogCategoryFocusTargetId(section) || "");
   const targetSections = getCatalogCategorySectionsByTargetId(targetId);
   if (!targetId || !targetSections.length) return false;
 
@@ -821,7 +827,7 @@ function markCatalogCategoryFocus(section, options = {}) {
 }
 
 function markCatalogCategoryFocusById(id, options = {}) {
-  return markCatalogCategoryFocus(getCatalogCategorySectionById(id), options);
+  return markCatalogCategoryFocus(getCatalogCategorySectionById(id), { ...options, targetId: id });
 }
 
 function handleCatalogFocusLinkClick(link, event) {
@@ -838,7 +844,8 @@ function handleCatalogFocusLinkClick(link, event) {
 }
 
 function syncCatalogCategoryFocusFromHash(options = {}) {
-  const section = getCatalogCategorySectionFromHash();
+  const targetId = decodeHashTargetId();
+  const section = getCatalogCategorySectionById(targetId);
   if (!section) {
     clearCatalogCategoryFocus();
     return false;
@@ -846,7 +853,7 @@ function syncCatalogCategoryFocusFromHash(options = {}) {
 
   const { scroll = false } = options;
   if (scroll) section.scrollIntoView({ behavior: "smooth", block: "start" });
-  return markCatalogCategoryFocus(section, options);
+  return markCatalogCategoryFocus(section, { ...options, targetId });
 }
 
 
@@ -861,33 +868,47 @@ function clampCategorySpan(value, columns) {
   return Math.min(columns, Math.max(1, Number(value || 1)));
 }
 
+function catalogSubcategorySourceBlocks(source) {
+  const sourceBlocks = [];
+
+  if (Array.isArray(source?.directItems) && source.directItems.length) {
+    sourceBlocks.push({
+      blockKey: "__direct__",
+      blockIndex: -1,
+      label: "קטלוגים כלליים",
+      isDirect: true,
+      items: source.directItems
+    });
+  }
+
+  (Array.isArray(source?.subcategories) ? source.subcategories : []).forEach((group, index) => {
+    const subcategory = String(group?.subcategory || "").trim();
+    const items = Array.isArray(group?.items) ? group.items : [];
+    if (!subcategory || !items.length) return;
+
+    sourceBlocks.push({
+      blockKey: subcategory,
+      blockIndex: index,
+      label: subcategory,
+      isDirect: false,
+      items
+    });
+  });
+
+  return sourceBlocks;
+}
+
 function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
   const safeColumns = clampCategorySpan(columns, 3);
   const segments = [];
   let occupied = 0;
 
-  groups.forEach((group, groupIndex) => {
-    const items = Array.isArray(group?.items) ? group.items : [];
+  const appendCardBlockSegments = (group, groupIndex, block, options = {}) => {
+    const items = Array.isArray(block?.items) ? block.items : [];
     if (!items.length) return;
 
-    if (group?.hasSubcategories) {
-      if (occupied > 0) occupied = 0;
-      segments.push({
-        category: group.category,
-        groupIndex,
-        segmentIndex: 0,
-        itemOffset: 0,
-        span: safeColumns,
-        items,
-        directItems: Array.isArray(group.directItems) ? group.directItems : [],
-        subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
-        hasSubcategories: true,
-        inlineDivider: false
-      });
-      occupied = 0;
-      return;
-    }
-
+    const segmentType = options.segmentType || "category";
+    const layoutBlockKey = options.layoutBlockKey || `${segmentType}:${groupIndex}:${block?.blockKey || "main"}`;
     let itemOffset = 0;
     let segmentIndex = 0;
 
@@ -896,22 +917,76 @@ function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
       const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
       const span = Math.min(availableInRow, items.length - itemOffset, safeColumns);
 
-      segments.push({
+      const segment = {
         category: group.category,
         groupIndex,
         segmentIndex,
         itemOffset,
         span,
         items: items.slice(itemOffset, itemOffset + span),
-        hasSubcategories: false,
+        hasSubcategories: Boolean(options.hasSubcategories),
+        segmentType,
+        layoutBlockKey,
         inlineDivider: false
-      });
+      };
 
+      if (segmentType === "subcategory") {
+        Object.assign(segment, {
+          blockKey: block.blockKey,
+          blockIndex: block.blockIndex,
+          blockOrder: options.blockOrder,
+          label: block.label,
+          isDirect: Boolean(block.isDirect)
+        });
+      }
+
+      segments.push(segment);
       itemOffset += span;
       segmentIndex += 1;
       occupied += span;
       if (occupied >= safeColumns) occupied = 0;
     }
+  };
+
+  groups.forEach((group, groupIndex) => {
+    const items = Array.isArray(group?.items) ? group.items : [];
+    if (!items.length) return;
+
+    if (group?.hasSubcategories) {
+      if (occupied > 0) occupied = 0;
+
+      segments.push({
+        category: group.category,
+        groupIndex,
+        segmentIndex: 0,
+        itemOffset: 0,
+        span: safeColumns,
+        items: [],
+        directItems: Array.isArray(group.directItems) ? group.directItems : [],
+        subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
+        hasSubcategories: true,
+        segmentType: "categoryHeader",
+        layoutBlockKey: `category-header:${groupIndex}`,
+        inlineDivider: false
+      });
+      occupied = 0;
+
+      catalogSubcategorySourceBlocks(group).forEach((block, blockOrder) => {
+        appendCardBlockSegments(group, groupIndex, block, {
+          segmentType: "subcategory",
+          hasSubcategories: true,
+          blockOrder,
+          layoutBlockKey: `subcategory:${groupIndex}:${block.blockKey}:${blockOrder}`
+        });
+      });
+      return;
+    }
+
+    appendCardBlockSegments(group, groupIndex, { blockKey: "__category__", items }, {
+      segmentType: "category",
+      hasSubcategories: false,
+      layoutBlockKey: `category:${groupIndex}`
+    });
   });
 
   occupied = 0;
@@ -922,9 +997,12 @@ function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
     const rowEnd = occupied + span;
     const nextSegment = segments[index + 1];
     const nextSpan = nextSegment ? clampCategorySpan(nextSegment.span, safeColumns) : 0;
+    const sameLayoutBlock = Boolean(nextSegment && nextSegment.layoutBlockKey === segment.layoutBlockKey);
     segment.inlineDivider = Boolean(
       nextSegment
-      && nextSegment.groupIndex !== segment.groupIndex
+      && !sameLayoutBlock
+      && segment.segmentType !== "categoryHeader"
+      && nextSegment.segmentType !== "categoryHeader"
       && rowEnd < safeColumns
       && nextSpan <= safeColumns - rowEnd
     );
@@ -1095,30 +1173,37 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
   `;
 }
 
+function renderCatalogCategoryHeaderSegment(segment, columns) {
+  const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
+  const titleId = `${baseSectionId}-title`;
+  const safeColumns = clampCategorySpan(columns, 3);
+  const sectionStyle = `--category-span: ${safeColumns}; --subcategory-layout-columns: ${safeColumns};`;
+
+  return `
+    <section class="catalog-category-section catalog-category-section-with-subcategories catalog-category-section-header-only" id="${escapeHtml(baseSectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(safeColumns))}" data-inline-divider="0" data-category-continuation="0">
+      <div class="catalog-category-head catalog-category-head-with-subcategories">
+        <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
+        ${renderCatalogSubcategoryNav(segment)}
+      </div>
+    </section>
+  `;
+}
+
 function renderCatalogCategorySegment(segment, columns) {
   const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
+  const safeColumns = clampCategorySpan(columns, 3);
+
+  if (segment.segmentType === "categoryHeader") {
+    return renderCatalogCategoryHeaderSegment(segment, safeColumns);
+  }
+
+  if (segment.segmentType === "subcategory") {
+    return renderCatalogSubcategoryBlock(segment, segment, { baseSectionId });
+  }
+
   const sectionId = segment.itemOffset === 0 ? baseSectionId : `${baseSectionId}-part-${segment.segmentIndex + 1}`;
   const titleId = `${sectionId}-title`;
-  const safeColumns = clampCategorySpan(columns, 3);
   const sectionStyle = `--category-span: ${segment.span}; --subcategory-layout-columns: ${safeColumns};`;
-
-  if (segment.hasSubcategories) {
-    const subcategoryBlocks = catalogSubcategoryLayoutSegments(segment, safeColumns)
-      .map((block) => renderCatalogSubcategoryBlock(segment, block, { baseSectionId }))
-      .join("");
-
-    return `
-      <section class="catalog-category-section catalog-category-section-with-subcategories" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="0">
-        <div class="catalog-category-head catalog-category-head-with-subcategories">
-          <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
-          ${renderCatalogSubcategoryNav(segment)}
-        </div>
-        <div class="catalog-subcategory-list">
-          ${subcategoryBlocks}
-        </div>
-      </section>
-    `;
-  }
 
   return `
     <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
