@@ -166,6 +166,7 @@ const state = {
   pageRailHideTimer: 0,
   lastTouchLikeRailInputAt: 0,
   lightboxScrollRaf: 0,
+  globalSearchCategory: "",
   lightboxSearchScope: "catalog",
   lightboxScrollImageObserver: null,
   singleImageLoadToken: 0,
@@ -187,6 +188,8 @@ const els = {
   globalSearchResults: $("globalSearchResults"),
   globalSearchStatus: $("globalSearchStatus"),
   globalSearchClear: $("globalSearchClear"),
+  globalSearchScopeToggle: $("globalSearchScopeToggle"),
+  globalSearchScopeMenu: $("globalSearchScopeMenu"),
   searchFloatingPreview: $("searchFloatingPreview"),
   searchFloatingPreviewImage: $("searchFloatingPreviewImage"),
   searchFloatingPreviewPage: $("searchFloatingPreviewPage"),
@@ -1280,14 +1283,122 @@ function renderCatalogCards() {
 }
 
 
-function initSearchStatus() {
-  if (!els.globalSearchStatus) return;
-  if (!catalogSearch?.hasIndex?.()) {
-    els.globalSearchStatus.textContent = "החיפוש יופעל אחרי הרצת ההמרה מחדש, שמייצרת גם אינדקס OCR לקובץ catalogs.search.js.";
+function getGlobalSearchCategories() {
+  return getCatalogCategoryGroups()
+    .filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length)
+    .map((group) => ({
+      category: group.category,
+      catalogs: group.items.length,
+      indexedPages: catalogSearch?.indexedPageCount?.({ category: group.category }) || 0
+    }));
+}
+
+function hasGlobalSearchCategory(category) {
+  const requestedCategory = String(category || "").trim();
+  if (!requestedCategory) return false;
+  return getCatalogCategoryGroups().some((group) => group.category === requestedCategory);
+}
+
+function getGlobalSearchCategory() {
+  const selectedCategory = String(state.globalSearchCategory || "").trim();
+  if (!selectedCategory) return "";
+  return hasGlobalSearchCategory(selectedCategory) ? selectedCategory : "";
+}
+
+function globalSearchScopeLabel(category = getGlobalSearchCategory()) {
+  return category ? category : "בכל הקטלוגים";
+}
+
+function globalSearchScopeSentence(category = getGlobalSearchCategory()) {
+  return category ? `בקטגוריית ${category}` : "בכל הקטלוגים";
+}
+
+function globalSearchPlaceholder() {
+  const category = getGlobalSearchCategory();
+  return category
+    ? `חיפוש דגם בקטגוריית ${category}...`
+    : "הקלד דגם, מספר, שם מוצר או מילה מהקטלוג...";
+}
+
+function closeGlobalSearchScopeMenu() {
+  els.globalSearchScopeMenu?.classList.add("hidden");
+  els.globalSearchScopeToggle?.setAttribute("aria-expanded", "false");
+}
+
+function renderGlobalSearchScopeMenu() {
+  if (!els.globalSearchScopeMenu) return;
+
+  const categories = getGlobalSearchCategories();
+  els.globalSearchScopeMenu.innerHTML = `
+    <button type="button" role="menuitemradio" aria-checked="true" data-global-search-category="">
+      <strong>בכל הקטלוגים</strong>
+      <small>${escapeHtml(catalogs.length)} קטלוגים</small>
+    </button>
+    ${categories.map((group) => `
+      <button type="button" role="menuitemradio" aria-checked="false" data-global-search-category="${escapeHtml(group.category)}">
+        <strong>${escapeHtml(group.category)}</strong>
+        <small>${escapeHtml(group.catalogs)} קטלוגים${group.indexedPages ? ` · ${escapeHtml(group.indexedPages)} עמודים` : ""}</small>
+      </button>
+    `).join("")}
+  `;
+  syncGlobalSearchScopeUi();
+}
+
+function syncGlobalSearchScopeUi() {
+  const category = getGlobalSearchCategory();
+  if (els.globalSearchScopeToggle) {
+    els.globalSearchScopeToggle.innerHTML = `${escapeHtml(globalSearchScopeLabel(category))} <span aria-hidden="true">⌄</span>`;
+    els.globalSearchScopeToggle.title = category ? `חיפוש רק בקטגוריית ${category}` : "חיפוש בכל הקטלוגים";
+  }
+  if (els.globalSearchInput) {
+    els.globalSearchInput.placeholder = globalSearchPlaceholder();
+    els.globalSearchInput.setAttribute("aria-label", globalSearchPlaceholder());
+  }
+  els.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]").forEach((button) => {
+    const selected = String(button.dataset.globalSearchCategory || "") === category;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-checked", selected ? "true" : "false");
+  });
+}
+
+function setGlobalSearchCategory(category, options = {}) {
+  const requestedCategory = String(category || "").trim();
+  const nextCategory = requestedCategory && hasGlobalSearchCategory(requestedCategory)
+    ? requestedCategory
+    : "";
+
+  if (state.globalSearchCategory === nextCategory) {
+    syncGlobalSearchScopeUi();
+    closeGlobalSearchScopeMenu();
     return;
   }
-  const count = catalogSearch.indexedPageCount?.() || 0;
-  els.globalSearchStatus.textContent = `מוכן לחיפוש בתוך ${count} עמודים מאונדקסים. הקלד לפחות 2 תווים.`;
+
+  state.globalSearchCategory = nextCategory;
+  syncGlobalSearchScopeUi();
+  closeGlobalSearchScopeMenu();
+  initSearchStatus();
+
+  if (options.render !== false && els.globalSearchInput) {
+    renderSearchResults(els.globalSearchInput.value);
+  }
+}
+
+function initSearchStatus() {
+  if (!els.globalSearchStatus) return;
+
+  const category = getGlobalSearchCategory();
+  const hasIndex = Boolean(catalogSearch?.hasIndex?.({ category }));
+  syncGlobalSearchScopeUi();
+
+  if (!hasIndex) {
+    els.globalSearchStatus.textContent = category
+      ? `אין עדיין אינדקס חיפוש זמין לקטגוריית ${category}.`
+      : "החיפוש יופעל אחרי הרצת ההמרה מחדש, שמייצרת גם אינדקס OCR לקובץ catalogs.search.js.";
+    return;
+  }
+
+  const count = catalogSearch.indexedPageCount?.({ category }) || 0;
+  els.globalSearchStatus.textContent = `מוכן לחיפוש ${globalSearchScopeSentence(category)} בתוך ${count} עמודים מאונדקסים. הקלד לפחות 2 תווים.`;
 }
 
 function getLightboxSearchScope() {
@@ -1633,8 +1744,13 @@ function renderDetailCatalogMenu() {
 
 function getGlobalSearchResults(query, limit = 72) {
   const rawQuery = String(query || "").trim();
-  if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.()) return [];
-  const results = catalogSearch.search(rawQuery, { limit, includeExcerpt: false });
+  const category = getGlobalSearchCategory();
+  if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.({ category })) return [];
+
+  const options = { limit, includeExcerpt: false };
+  if (category) options.category = category;
+
+  const results = catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 
@@ -1667,10 +1783,14 @@ function renderSearchResults(query) {
     return;
   }
 
-  if (!catalogSearch?.hasIndex?.()) {
+  const category = getGlobalSearchCategory();
+
+  if (!catalogSearch?.hasIndex?.({ category })) {
     els.globalSearchResults.classList.add("hidden");
     els.globalSearchResults.innerHTML = "";
-    els.globalSearchStatus.textContent = "עדיין אין אינדקס חיפוש. הרץ convert-catalogs מחדש כדי ליצור OCR בעברית וקובץ catalogs.search.js.";
+    els.globalSearchStatus.textContent = category
+      ? `אין אינדקס חיפוש פעיל לקטגוריית ${category}.`
+      : "עדיין אין אינדקס חיפוש. הרץ convert-catalogs מחדש כדי ליצור OCR בעברית וקובץ catalogs.search.js.";
     return;
   }
 
@@ -1680,14 +1800,18 @@ function renderSearchResults(query) {
     els.globalSearchResults.innerHTML = `
       <article class="search-empty">
         <strong>לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”</strong>
-        <p>נסה מספר דגם קצר יותר, חלק מהמילה, או הרץ OCR במצב <code>--ocr always</code> אם ה־PDF הוא סריקה כבדה.</p>
+        <p>${category ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים." : "נסה מספר דגם קצר יותר, חלק מהמילה, או הרץ OCR במצב <code>--ocr always</code> אם ה־PDF הוא סריקה כבדה."}</p>
       </article>
     `;
-    els.globalSearchStatus.textContent = "אין תוצאות מתאימות.";
+    els.globalSearchStatus.textContent = category
+      ? `אין תוצאות מתאימות בקטגוריית ${category}.`
+      : "אין תוצאות מתאימות.";
     return;
   }
 
-  els.globalSearchStatus.textContent = `נמצאו ${results.length} תוצאות. לחיצה פותחת את העמוד במקום הנכון בתצוגה מוגדלת.`;
+  els.globalSearchStatus.textContent = category
+    ? `נמצאו ${results.length} תוצאות בקטגוריית ${category}. לחיצה פותחת את העמוד במקום הנכון בתצוגה מוגדלת.`
+    : `נמצאו ${results.length} תוצאות. לחיצה פותחת את העמוד במקום הנכון בתצוגה מוגדלת.`;
   els.globalSearchResults.classList.remove("hidden");
   els.globalSearchResults.innerHTML = results.map((result) => {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
@@ -2998,6 +3122,24 @@ function attachEvents() {
     renderSearchResults("");
   });
 
+  els.globalSearchScopeToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeDetailCatalogMenu();
+    closeLightboxCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    renderGlobalSearchScopeMenu();
+    const isOpen = !els.globalSearchScopeMenu?.classList.contains("hidden");
+    els.globalSearchScopeMenu?.classList.toggle("hidden", isOpen);
+    els.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  });
+  els.globalSearchScopeMenu?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const button = event.target.closest?.("[data-global-search-category]");
+    if (!button || !els.globalSearchScopeMenu.contains(button)) return;
+    setGlobalSearchCategory(button.dataset.globalSearchCategory);
+    els.globalSearchInput?.focus();
+  });
+
   els.lastViewCard?.addEventListener("click", continueLastCatalogView);
 
   els.lightboxSearchInput?.addEventListener("input", () => renderLightboxSearchResults(els.lightboxSearchInput.value));
@@ -3062,9 +3204,11 @@ function attachEvents() {
   els.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
 
   document.addEventListener("click", (event) => {
+    if (els.globalSearchScopeMenu?.contains(event.target) || els.globalSearchScopeToggle?.contains(event.target)) return;
     if (els.lightboxSearchScopeMenu?.contains(event.target) || els.lightboxSearchScopeToggle?.contains(event.target)) return;
     if (els.lightboxCatalogMenu?.contains(event.target) || els.lightboxCatalogMenuToggle?.contains(event.target)) return;
     if (els.catalogMenu?.contains(event.target) || els.catalogMenuToggle?.contains(event.target)) return;
+    closeGlobalSearchScopeMenu();
     closeLightboxSearchScopeMenu();
     closeLightboxCatalogMenu();
     closeDetailCatalogMenu();
@@ -3160,6 +3304,11 @@ function attachEvents() {
   syncFullscreenButtonUi();
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
+      event.preventDefault();
+      closeGlobalSearchScopeMenu();
+      return;
+    }
     if (event.key === "Escape" && els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
       event.preventDefault();
       closeDetailCatalogMenu();
@@ -3227,6 +3376,7 @@ function init() {
   }
 
   renderCatalogCards();
+  renderGlobalSearchScopeMenu();
   syncCatalogCategoryFocusFromHash({ animate: false, scroll: true });
   fillCatalogSelect();
   initSearchStatus();

@@ -467,7 +467,12 @@ main {
 .catalog-card .button { min-height: 40px; padding-inline: 16px; flex: 1; }
 
 
+/* The search panel is a reveal card, so its transform creates a stacking context.
+   Keep it above the following catalog panel so the category picker can open over the catalog cards. */
 .search-panel {
+  position: relative;
+  z-index: 20;
+  overflow: visible;
   margin-bottom: 26px;
 }
 .search-head {
@@ -496,6 +501,131 @@ main {
   background: transparent;
 }
 .search-input::placeholder { color: rgba(111, 98, 88, 0.72); }
+.global-search-field {
+  position: relative;
+  min-width: 0;
+}
+.global-search-field .search-input {
+  padding: 0 18px 0 190px;
+}
+.global-search-field:focus-within .search-input {
+  box-shadow: 0 0 0 3px rgba(154, 122, 98, 0.13);
+  border-radius: 999px;
+}
+.global-search-scope-wrap {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 7px;
+  transform: translateY(-50%);
+}
+.global-search-scope-toggle {
+  max-width: 176px;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 13px;
+  border: 1px solid rgba(110, 86, 70, 0.16);
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246, 236, 228, 0.92));
+  box-shadow: 0 8px 20px rgba(82, 61, 46, 0.1), inset 0 1px 0 rgba(255,255,255,0.86);
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease;
+}
+.global-search-scope-toggle:hover,
+.global-search-scope-toggle[aria-expanded="true"] {
+  border-color: rgba(139, 111, 90, 0.34);
+  background: linear-gradient(180deg, #fff, rgba(232, 213, 199, 0.96));
+  box-shadow: 0 12px 28px rgba(82, 61, 46, 0.14), inset 0 1px 0 rgba(255,255,255,0.92);
+}
+.global-search-scope-toggle:hover { transform: translateY(-1px); }
+.global-search-scope-toggle[aria-expanded="true"] { transform: none; }
+.global-search-scope-toggle span {
+  flex: 0 0 auto;
+  opacity: .72;
+}
+.global-search-scope-menu {
+  position: absolute;
+  z-index: 90;
+  top: calc(100% + 10px);
+  left: 0;
+  width: min(270px, calc(100vw - 42px));
+  max-height: min(430px, calc(100vh - 130px));
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid rgba(110, 86, 70, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 252, 249, 0.98);
+  box-shadow: 0 22px 58px rgba(62, 45, 34, 0.18), inset 0 1px 0 rgba(255,255,255,0.92);
+  backdrop-filter: blur(16px);
+}
+.global-search-scope-menu::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 28px;
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  background: rgba(255, 252, 249, 0.98);
+  border-top: 1px solid rgba(110, 86, 70, 0.12);
+  border-left: 1px solid rgba(110, 86, 70, 0.12);
+}
+.global-search-scope-menu button {
+  position: relative;
+  width: 100%;
+  min-height: 46px;
+  display: grid;
+  gap: 2px;
+  padding: 8px 13px 8px 38px;
+  border: 0;
+  border-radius: 15px;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+.global-search-scope-menu button + button { margin-top: 4px; }
+.global-search-scope-menu button::after {
+  content: "✓";
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%) scale(.86);
+  opacity: 0;
+  color: var(--brand-dark);
+  font-weight: 950;
+}
+.global-search-scope-menu button:hover,
+.global-search-scope-menu button.active {
+  color: var(--brand-dark);
+  background: linear-gradient(90deg, rgba(154, 122, 98, 0.15), rgba(255,255,255,0.7));
+}
+.global-search-scope-menu button.active::after { opacity: 1; }
+.global-search-scope-menu strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 950;
+}
+.global-search-scope-menu small {
+  color: var(--muted);
+  font-weight: 750;
+}
 .search-status {
   margin: 12px 8px 0;
   color: var(--muted);
@@ -2773,6 +2903,9 @@ a.reader-home:focus-visible {
   .catalog-category-grid, .catalog-subcategory-grid { grid-template-columns: 1fr; width: 100%; }
   .catalog-category-head-with-subcategories { grid-template-columns: 1fr; }
   .search-box { grid-template-columns: 1fr; border-radius: 22px; }
+  .global-search-field .search-input { padding-left: 154px; }
+  .global-search-scope-toggle { max-width: 140px; min-height: 36px; padding-inline: 11px; font-size: .82rem; }
+  .global-search-scope-menu { left: 0; width: min(250px, calc(100vw - 34px)); }
   .search-clear { width: 100%; }
   .last-view-card { grid-template-columns: 1fr; align-items: stretch; border-radius: 20px; }
   .last-view-details { grid-template-columns: 1fr; }
@@ -2914,6 +3047,8 @@ a.reader-home:focus-visible {
 }
 
 @media (max-width: 520px) {
+  .global-search-field .search-input { padding-left: 132px; }
+  .global-search-scope-toggle { max-width: 118px; min-height: 34px; padding-inline: 9px; font-size: .76rem; }
   .reader-header,
   .reader-header.lightbox-reader-header {
     grid-template-columns: minmax(0, 1fr) auto;

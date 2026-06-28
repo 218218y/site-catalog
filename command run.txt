@@ -55,3 +55,11 @@ refresh-ocr-search.bat
 
 שרת מקומי
 npx serve .
+
+הגדרת אתר בנטפליי
+Site configuration / Domain management / Production domains
+
+bargig-furniture.com
+www.bargig-furniture.com
+
+Verify DNS configuration

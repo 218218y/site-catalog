@@ -636,7 +636,7 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/qualita",
     "cover": "assets/pages/qualita/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "f9f8d8d11bba",
+    "assetVersion": "b9e01f3d8fff",
     "pageSizes": [
       [
         2252,

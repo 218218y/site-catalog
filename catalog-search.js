@@ -167,12 +167,25 @@
     return catalogs().find((catalog) => catalog.id === catalogId) || null;
   }
 
-  function indexedPageCount() {
-    return searchIndex().reduce((sum, entry) => sum + (Array.isArray(entry.pages) ? entry.pages.length : 0), 0);
+  function catalogMatchesCategory(catalog, category) {
+    const requestedCategory = String(category || "").trim();
+    if (!requestedCategory) return true;
+    return normalize(catalog?.category || "") === normalize(requestedCategory);
   }
 
-  function hasIndex() {
-    return indexedPageCount() > 0;
+  function indexedPageCount(options = {}) {
+    const category = String(options.category || "").trim();
+    return searchIndex().reduce((sum, entry) => {
+      if (!entry || !Array.isArray(entry.pages)) return sum;
+      if (!category) return sum + entry.pages.length;
+
+      const catalog = findCatalog(entry.catalogId);
+      return catalogMatchesCategory(catalog, category) ? sum + entry.pages.length : sum;
+    }, 0);
+  }
+
+  function hasIndex(options = {}) {
+    return indexedPageCount(options) > 0;
   }
 
   function scoreResult(normalizedText, parsedQuery, normalizedPhrase, page) {
@@ -234,6 +247,7 @@
 
     const normalizedPhrase = allTokens.join(" ");
     const catalogId = options.catalogId || null;
+    const category = String(options.category || "").trim();
     const limit = Number.isFinite(Number(options.limit)) ? Number(options.limit) : 60;
     const includeExcerpt = options.includeExcerpt !== false;
     const results = [];
@@ -243,7 +257,7 @@
       if (catalogId && entry.catalogId !== catalogId) return;
 
       const catalog = findCatalog(entry.catalogId);
-      if (!catalog) return;
+      if (!catalog || !catalogMatchesCategory(catalog, category)) return;
 
       entry.pages.forEach((pageInfo) => {
         const page = Number(pageInfo?.page || 0);
@@ -291,6 +305,7 @@
     findCatalog,
     pageSrc,
     thumbSrc,
-    makeExcerpt
+    makeExcerpt,
+    catalogMatchesCategory
   };
 })();
