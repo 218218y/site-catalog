@@ -38,6 +38,9 @@ sync-r2-images.bat
 יצירת באנדל חלוק בין אתר ראשי לאחסון תמונות במיקום אחר
 bundle-site-r2.bat
 
+המרת pdf חדשים/חסרים בלי OCR לקטלוגים שאין בהם כיתוב אמיתי
+convert-catalogs-no-ocr.bat
+
 המרה של כל pdf מחדש בהכרח(בלי למחוק קטלוג שכבר נמחק pdf שלו)
 convert-catalogs-force.bat
 

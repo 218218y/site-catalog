@@ -190,7 +190,7 @@ def source_pdf_metadata(pdf_path: Path) -> dict[str, Any]:
 
 
 def render_options_metadata(options: RenderOptions) -> dict[str, Any]:
-    """Return the render settings that affect output images or OCR/search text."""
+    """Return only the settings that affect rendered page/thumbnail images."""
     return {
         "dpi": int(options.dpi),
         "maxWidth": int(options.max_width),
@@ -200,11 +200,47 @@ def render_options_metadata(options: RenderOptions) -> dict[str, Any]:
         "thumbQuality": int(options.thumb_quality),
         "imageFormat": str(options.image_format),
         "sharpen": float(options.sharpen),
+    }
+
+
+def search_options_metadata(options: RenderOptions) -> dict[str, Any]:
+    """Return settings that affect search text only and must not force image rebuilds."""
+    return {
         "ocrMode": str(options.ocr_mode),
         "ocrLang": str(options.ocr_lang),
         "ocrDpi": int(options.ocr_dpi),
         "ocrMinChars": int(options.ocr_min_chars),
     }
+
+
+def _image_render_options_from_manifest(value: Any) -> dict[str, Any] | None:
+    """Read image-affecting render options from new or legacy manifests.
+
+    Older manifests stored OCR settings inside ``renderOptions``. OCR only
+    changes the search index, not the generated page images, so those legacy
+    fields are deliberately ignored here. This keeps a catalog rendered with
+    ``--ocr never`` from being rebuilt later only because a regular conversion
+    is run with ``--ocr auto``.
+    """
+    if not isinstance(value, dict):
+        return None
+
+    keys = (
+        "dpi",
+        "maxWidth",
+        "maxHeight",
+        "thumbSize",
+        "quality",
+        "thumbQuality",
+        "imageFormat",
+        "sharpen",
+    )
+    result: dict[str, Any] = {}
+    for key in keys:
+        if key not in value:
+            return None
+        result[key] = value[key]
+    return result
 
 
 def render_manifest_path(out_dir: Path) -> Path:
@@ -240,6 +276,7 @@ def write_render_manifest(
         "version": 1,
         "sourcePdf": source_pdf_metadata(pdf_path),
         "renderOptions": render_options_metadata(options),
+        "searchOptions": search_options_metadata(options),
         "pages": int(pages),
         "imageFormat": str(image_format),
         "pageSizes": page_sizes[: max(0, int(pages))],
@@ -295,9 +332,9 @@ def render_manifest_mismatch_reason(
     if source_pdf.get("size") != expected_pdf.get("size") or source_pdf.get("mtimeNs") != expected_pdf.get("mtimeNs"):
         return "source PDF changed since the previous conversion"
 
-    render_options = manifest.get("renderOptions")
+    render_options = _image_render_options_from_manifest(manifest.get("renderOptions"))
     if render_options != render_options_metadata(options):
-        return "conversion settings changed since the previous conversion"
+        return "image conversion settings changed since the previous conversion"
 
     if int(manifest.get("pages", 0) or 0) != int(existing_output.pages):
         return "page count changed since the previous conversion"
@@ -904,7 +941,7 @@ def main() -> int:
                 if not search_pages:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
-                if pdf_path.exists():
+                if pdf_path.exists() and adopt_legacy_manifest:
                     write_render_manifest(out_dir, pdf_path, options, existing_output.pages, existing_output.image_format, page_sizes)
                 generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
                 search_generated.append(build_search_entry(item, search_pages))
@@ -956,7 +993,7 @@ def main() -> int:
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
-        print("Existing converted catalogs are skipped only when their source PDF and conversion settings did not change. Use --force to rebuild all catalogs.")
+        print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings alone do not force a rebuild. Use --force to rebuild all catalogs.")
         if args.delete_unlisted:
             print("Unlisted converted catalog folders under assets/pages were deleted before conversion.")
         print("You may delete the PDFs after conversion if you only want to keep the images.")
