@@ -205,6 +205,7 @@ main {
 
 .catalog-category-list {
   --catalog-category-gap-x: 42px;
+  --catalog-category-header-block-gap: 30px;
   --catalog-card-gap: var(--catalog-category-gap-x);
   --catalog-layout-columns: 3;
   display: grid;
@@ -227,7 +228,7 @@ main {
 }
 .catalog-category-section-header-only {
   grid-column: 1 / -1;
-  margin-bottom: calc(22px - var(--catalog-category-gap-x));
+  margin-bottom: calc(var(--catalog-category-header-block-gap) - var(--catalog-category-gap-x));
 }
 .catalog-subcategory-section {
   grid-column: span var(--subcategory-span, var(--subcategory-layout-columns, 3));
