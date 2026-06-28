@@ -715,7 +715,7 @@ window.BARGIG_CATALOGS = [
         2252
       ]
     ],
-    "subcategory": "היי רייזר"
+    "subcategory": ""
   },
   {
     "id": "komotayim",
@@ -957,7 +957,7 @@ window.BARGIG_CATALOGS = [
         2391
       ]
     ],
-    "subcategory": "מיטות נגר"
+    "subcategory": ""
   },
   {
     "id": "comfort",
@@ -1211,7 +1211,7 @@ window.BARGIG_CATALOGS = [
         1819
       ]
     ],
-    "subcategory": "מיטות נגר"
+    "subcategory": ""
   },
   {
     "id": "perfect",
@@ -1293,7 +1293,7 @@ window.BARGIG_CATALOGS = [
         1870
       ]
     ],
-    "subcategory": "היי רייזר"
+    "subcategory": ""
   },
   {
     "id": "tbi-shena",
