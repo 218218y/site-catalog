@@ -187,6 +187,9 @@ const els = {
   globalSearchResults: $("globalSearchResults"),
   globalSearchStatus: $("globalSearchStatus"),
   globalSearchClear: $("globalSearchClear"),
+  searchFloatingPreview: $("searchFloatingPreview"),
+  searchFloatingPreviewImage: $("searchFloatingPreviewImage"),
+  searchFloatingPreviewPage: $("searchFloatingPreviewPage"),
   lastViewCard: $("lastViewCard"),
   lastViewText: $("lastViewText"),
   lastViewDetails: $("lastViewDetails"),
@@ -1051,7 +1054,7 @@ function getLightboxSearchResults(query, limit = 24) {
   const rawQuery = String(query || "").trim();
   if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.()) return [];
 
-  const options = { limit };
+  const options = { limit, includeExcerpt: false };
   if (getLightboxSearchScope() !== "all") {
     if (!state.catalog) return [];
     options.catalogId = state.catalog.id;
@@ -1109,10 +1112,81 @@ function initLightboxSearchStatus() {
     : "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
 }
 
+function hideSearchFloatingPreview() {
+  els.searchFloatingPreview?.classList.remove("visible");
+}
+
+function searchPreviewPageLabel(target) {
+  const title = String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
+  const page = Number.parseInt(target?.dataset?.searchPreviewPage || "", 10);
+  return Number.isFinite(page) && page > 0 ? `${title} · עמוד ${page}` : title;
+}
+
+function positionSearchFloatingPreview(target) {
+  const preview = els.searchFloatingPreview;
+  if (!preview || !target) return;
+
+  const targetRect = target.getBoundingClientRect();
+  const gap = 16;
+  const safeMargin = 12;
+  const fallbackWidth = Math.min(430, Math.max(260, window.innerWidth * 0.34));
+  const previewWidth = Math.max(240, preview.offsetWidth || fallbackWidth);
+  const fallbackHeight = Math.min(620, Math.max(280, window.innerHeight * 0.64));
+  const previewHeight = Math.max(240, preview.offsetHeight || fallbackHeight);
+
+  let left;
+  if (targetRect.left - gap - previewWidth >= safeMargin) {
+    left = targetRect.left - gap - previewWidth;
+  } else if (targetRect.right + gap + previewWidth <= window.innerWidth - safeMargin) {
+    left = targetRect.right + gap;
+  } else {
+    left = targetRect.left + (targetRect.width / 2) - (previewWidth / 2);
+  }
+
+  const top = targetRect.top + (targetRect.height / 2) - (previewHeight / 2);
+  preview.style.left = `${clampValue(left, safeMargin, Math.max(safeMargin, window.innerWidth - previewWidth - safeMargin))}px`;
+  preview.style.top = `${clampValue(top, safeMargin, Math.max(safeMargin, window.innerHeight - previewHeight - safeMargin))}px`;
+}
+
+function showSearchFloatingPreview(target) {
+  if (!target || !els.searchFloatingPreview || !els.searchFloatingPreviewImage) return;
+
+  const src = String(target.dataset.searchPreviewSrc || "").trim();
+  if (!src) return;
+
+  const label = searchPreviewPageLabel(target);
+  els.searchFloatingPreviewImage.onload = () => positionSearchFloatingPreview(target);
+  setCatalogImageSource(els.searchFloatingPreviewImage, src);
+  els.searchFloatingPreviewImage.alt = label;
+  if (els.searchFloatingPreviewPage) els.searchFloatingPreviewPage.textContent = label;
+
+  els.searchFloatingPreview.classList.add("visible");
+  positionSearchFloatingPreview(target);
+}
+
+function bindSearchFloatingPreviewEvents(container) {
+  if (!container) return;
+
+  container.querySelectorAll("[data-search-preview-src]").forEach((target) => {
+    target.addEventListener("pointerenter", (event) => {
+      if (!hasHoverPointer() || isTouchLikePointer(event)) return;
+      showSearchFloatingPreview(target);
+    });
+    target.addEventListener("pointermove", (event) => {
+      if (!hasHoverPointer() || isTouchLikePointer(event)) return;
+      positionSearchFloatingPreview(target);
+    });
+    target.addEventListener("pointerleave", hideSearchFloatingPreview);
+    target.addEventListener("focus", () => showSearchFloatingPreview(target));
+    target.addEventListener("blur", hideSearchFloatingPreview);
+  });
+}
+
 function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!els.lightboxSearchResults || !els.lightboxSearchStatus) return;
 
+  hideSearchFloatingPreview();
   els.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
@@ -1153,23 +1227,29 @@ function renderLightboxSearchResults(query) {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
     const page = clampPage(result.page, catalog);
     const rawThumb = result.thumb || thumbSrc(catalog, page);
+    const rawPreview = result.image || pageSrc(catalog, page);
     const thumb = escapeHtml(rawThumb);
     const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+    const titleText = scope === "all" ? escapeHtml(catalogTitle) : `עמוד ${page}`;
+    const metaText = scope === "all" ? `עמוד ${page}` : "התאמת חיפוש בעמוד הזה";
     return `
-      <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}">
+      <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview)}" data-search-preview-title="${escapeHtml(catalogTitle)}" data-search-preview-page="${page}">
         <span class="reader-search-thumb-frame catalog-image-frame">
           <img src="${thumb}" alt="${escapeHtml(catalogTitle)} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawThumb)} />
         </span>
         <span>
-          <strong>${scope === "all" ? escapeHtml(catalogTitle) : `עמוד ${page}`}</strong>
-          <small>${scope === "all" ? `עמוד ${page} · ` : ""}${escapeHtml(result.excerpt || "התאמה לפי OCR בעמוד זה")}</small>
+          <strong>${titleText}</strong>
+          <small>${escapeHtml(metaText)}</small>
         </span>
       </button>
     `;
   }).join("");
 
+  bindSearchFloatingPreviewEvents(els.lightboxSearchResults);
+
   els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
     button.addEventListener("click", () => {
+      hideSearchFloatingPreview();
       openLightboxSearchResult({
         catalogId: button.dataset.lightboxSearchCatalog,
         page: button.dataset.lightboxSearchPage
@@ -1240,12 +1320,13 @@ function renderDetailCatalogMenu() {
 function getGlobalSearchResults(query, limit = 72) {
   const rawQuery = String(query || "").trim();
   if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.()) return [];
-  const results = catalogSearch.search(rawQuery, { limit });
+  const results = catalogSearch.search(rawQuery, { limit, includeExcerpt: false });
   return Array.isArray(results) ? results : [];
 }
 
 function openGlobalSearchResult(result) {
   if (!result) return false;
+  hideSearchFloatingPreview();
   openCatalog(result.catalogId, { openPage: Number(result.page) });
   els.globalSearchResults?.classList.add("hidden");
   return true;
@@ -1262,6 +1343,7 @@ function renderSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!els.globalSearchResults || !els.globalSearchStatus) return;
 
+  hideSearchFloatingPreview();
   els.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
@@ -1293,20 +1375,28 @@ function renderSearchResults(query) {
 
   els.globalSearchStatus.textContent = `נמצאו ${results.length} תוצאות. לחיצה פותחת את העמוד במקום הנכון בתצוגה מוגדלת.`;
   els.globalSearchResults.classList.remove("hidden");
-  els.globalSearchResults.innerHTML = results.map((result) => `
-    <article class="search-result-card">
-      <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${result.page}">
-        <span class="search-result-thumb-frame catalog-image-frame">
-          <img class="search-result-thumb" src="${escapeHtml(result.thumb)}" alt="${escapeHtml(result.catalogTitle)} - עמוד ${result.page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(result.thumb)} />
-        </span>
-        <span class="search-result-body">
-          <strong>${escapeHtml(result.catalogTitle)}</strong>
-          <span class="search-result-meta">עמוד ${result.page}</span>
-          <span class="search-result-excerpt">${escapeHtml(result.excerpt || "התאמה לפי טקסט OCR בעמוד זה")}</span>
-        </span>
-      </button>
-    </article>
-  `).join("");
+  els.globalSearchResults.innerHTML = results.map((result) => {
+    const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
+    const page = clampPage(result.page, catalog);
+    const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
+    const rawPreview = result.image || (catalog ? pageSrc(catalog, page) : rawThumb);
+    const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+    return `
+      <article class="search-result-card">
+        <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview)}" data-search-preview-title="${escapeHtml(catalogTitle)}" data-search-preview-page="${page}">
+          <span class="search-result-thumb-frame catalog-image-frame">
+            <img class="search-result-thumb" src="${escapeHtml(rawThumb)}" alt="${escapeHtml(catalogTitle)} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawThumb)} />
+          </span>
+          <span class="search-result-body">
+            <strong>${escapeHtml(catalogTitle)}</strong>
+            <span class="search-result-meta">עמוד ${page}</span>
+          </span>
+        </button>
+      </article>
+    `;
+  }).join("");
+
+  bindSearchFloatingPreviewEvents(els.globalSearchResults);
 
   els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2744,12 +2834,14 @@ function attachEvents() {
 
   window.addEventListener("resize", () => {
     scheduleCatalogLayoutRefresh();
+    hideSearchFloatingPreview();
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
       applyZoom();
       if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
     }
   });
+  window.addEventListener("scroll", hideSearchFloatingPreview, { passive: true });
 
   ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"].forEach((eventName) => {
     document.addEventListener(eventName, syncFullscreenButtonUi);

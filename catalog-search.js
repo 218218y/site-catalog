@@ -235,6 +235,7 @@
     const normalizedPhrase = allTokens.join(" ");
     const catalogId = options.catalogId || null;
     const limit = Number.isFinite(Number(options.limit)) ? Number(options.limit) : 60;
+    const includeExcerpt = options.includeExcerpt !== false;
     const results = [];
 
     searchIndex().forEach((entry) => {
@@ -266,7 +267,7 @@
           catalogTitle: catalog.title,
           page,
           text,
-          excerpt: makeExcerpt(text, query),
+          excerpt: includeExcerpt ? makeExcerpt(text, query) : "",
           score: scoreResult(normalizedText, parsedQuery, normalizedPhrase, page),
           image: pageSrc(catalog, page),
           thumb: thumbSrc(catalog, page)
