@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any
 
 import fitz  # PyMuPDF
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 
 SUPPORTED_FORMATS = {"webp", "jpg", "png"}
 PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
@@ -344,6 +344,21 @@ def render_manifest_mismatch_reason(
     return ""
 
 
+def search_manifest_mismatch_reason(out_dir: Path, options: RenderOptions) -> str:
+    """Return why the search/OCR text should be refreshed without re-rendering images."""
+    manifest = load_render_manifest(out_dir)
+    if not manifest:
+        return "missing render manifest"
+
+    search_options = manifest.get("searchOptions")
+    if not isinstance(search_options, dict):
+        return "render manifest has no search/OCR settings"
+    if search_options != search_options_metadata(options):
+        return "search/OCR settings changed since the previous conversion"
+
+    return ""
+
+
 def load_previous_search_pages(root: Path) -> dict[str, list[dict[str, Any]]]:
     """Load the last generated OCR/search index so skipped catalogs keep search."""
     search_json = root / "catalogs.search.json"
@@ -469,6 +484,19 @@ def render_ocr_page_image(page: fitz.Page, dpi: int) -> Image.Image:
     return image
 
 
+def prepare_ocr_input_image(image: Image.Image) -> Image.Image:
+    """Prepare catalog pages for OCR without changing the rendered site images.
+
+    Catalog model names are often white/light text on muted colored ribbons or
+    thin Hebrew letters on a beige background. Tesseract is noticeably more
+    reliable when it receives a high-contrast grayscale image instead of the
+    original full-color catalog page.
+    """
+    grayscale = ImageOps.grayscale(image)
+    grayscale = ImageOps.autocontrast(grayscale, cutoff=1)
+    return grayscale.filter(ImageFilter.UnsharpMask(radius=1.2, percent=180, threshold=2))
+
+
 def normalize_search_text(value: str) -> str:
     """Normalize text before it is written to the client-side search index."""
     cleaned = BIDI_CONTROL_RE.sub("", str(value or "").replace("\u00ad", ""))
@@ -525,7 +553,7 @@ class OcrRunner:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             tmp_path = Path(tmp.name)
         try:
-            image.save(tmp_path, "PNG")
+            prepare_ocr_input_image(image).save(tmp_path, "PNG")
             command = [
                 self.options.tesseract_cmd,
                 str(tmp_path),
@@ -601,7 +629,9 @@ def build_page_search_text(
     Older versions also OCRed guessed title/photo regions and colored ribbons.
     That helped a few white-on-image captions, but it also interpreted furniture,
     shadows and decorative lines as letters, so it polluted the search index with
-    false characters. The search index is now intentionally conservative again.
+    false characters. The OCR input itself is still contrast-enhanced before it is
+    sent to Tesseract, which improves thin Hebrew model names without adding
+    guessed crop regions.
     """
     embedded_text = extract_embedded_text(page)
     text_parts = [embedded_text]
@@ -723,6 +753,33 @@ def merge_manual_search_pages(
         merged[page_number] = _combine_search_texts([merged.get(page_number, ""), manual_text])
 
     return [{"page": page_number, "text": text} for page_number, text in sorted(merged.items()) if text]
+
+
+def build_pdf_search_pages(
+    pdf_path: Path,
+    options: RenderOptions,
+    manual_pages: dict[int, str] | None = None,
+) -> tuple[int, list[dict[str, Any]]]:
+    """Build the search index from a PDF without touching rendered page images.
+
+    This is used when the catalog images are already complete but the previous
+    OCR/search index is missing, empty, or was built with older search settings.
+    """
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+    with fitz.open(pdf_path) as doc:
+        if len(doc) == 0:
+            raise ValueError(f"PDF has no pages: {pdf_path}")
+
+        ocr = OcrRunner(options)
+        search_pages: list[dict[str, Any]] = []
+        for page_number, page in enumerate(doc, start=1):
+            label = f"{pdf_path.name} page {page_number}/{len(doc)}"
+            page_text = build_page_search_text(page, ocr, options, label, (manual_pages or {}).get(page_number, ""))
+            if page_text:
+                search_pages.append({"page": page_number, "text": page_text})
+        return len(doc), search_pages
 
 
 def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pages: dict[int, str] | None = None) -> tuple[int, list[dict[str, Any]], list[list[int]]]:
@@ -937,15 +994,34 @@ def main() -> int:
 
             if existing_output and existing_output.is_complete and not args.force and not rebuild_reason:
                 print(f"[skip-catalog] Already converted: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
+
+                previous_pages_for_catalog = previous_search_pages.get(catalog_id, [])
+                search_refresh_reason = ""
                 if not pdf_path.exists():
                     print(f"[keep] Source PDF is missing, keeping existing images: {rel_to_root(pdf_path)}")
-                elif adopt_legacy_manifest:
-                    print(f"[adopt] Existing images do not have {MANIFEST_FILE}; adopting them for future change detection.")
-                search_pages = merge_manual_search_pages(previous_search_pages.get(catalog_id, []), manual_pages, existing_output.pages)
+                else:
+                    if adopt_legacy_manifest:
+                        print(f"[adopt] Existing images do not have {MANIFEST_FILE}; adopting them for future change detection.")
+                    if not previous_pages_for_catalog:
+                        search_refresh_reason = "no previous OCR/search text found"
+                    else:
+                        search_refresh_reason = search_manifest_mismatch_reason(out_dir, options)
+
+                if search_refresh_reason and pdf_path.exists():
+                    print(f"[search-refresh] {search_refresh_reason}; rebuilding search text from PDF without re-rendering images.")
+                    search_page_count, search_pages = build_pdf_search_pages(pdf_path, options, manual_pages)
+                    if int(search_page_count) != int(existing_output.pages):
+                        print(
+                            f"[warn] Search refresh read {search_page_count} PDF pages, "
+                            f"but existing images contain {existing_output.pages} pages."
+                        )
+                else:
+                    search_pages = merge_manual_search_pages(previous_pages_for_catalog, manual_pages, existing_output.pages)
+
                 if not search_pages:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
-                if pdf_path.exists() and adopt_legacy_manifest:
+                if pdf_path.exists() and (adopt_legacy_manifest or search_refresh_reason):
                     write_render_manifest(out_dir, pdf_path, options, existing_output.pages, existing_output.image_format, page_sizes)
                 generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
                 search_generated.append(build_search_entry(item, search_pages))
@@ -997,7 +1073,7 @@ def main() -> int:
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
-        print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings alone do not force a rebuild. Use --force to rebuild all catalogs.")
+        print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings can refresh the search index without re-rendering images. Use --force to rebuild all catalogs.")
         if args.delete_unlisted:
             print("Unlisted converted catalog folders under assets/pages were deleted before conversion.")
         print("You may delete the PDFs after conversion if you only want to keep the images.")
