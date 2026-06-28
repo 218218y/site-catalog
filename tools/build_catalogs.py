@@ -804,6 +804,10 @@ def build_generated_entry(
     if page_sizes and len(page_sizes) >= pages:
         entry["pageSizes"] = page_sizes[:pages]
 
+    subcategory = item.get("subcategory", item.get("subCategory", item.get("sub_category", item.get("subcategories", ""))))
+    if "subcategory" in item or "subCategory" in item or "sub_category" in item or "subcategories" in item:
+        entry["subcategory"] = subcategory
+
     for key in ("sort", "badge"):
         if key in item:
             entry[key] = item[key]

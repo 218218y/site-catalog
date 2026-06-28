@@ -269,6 +269,13 @@ function catalogCategoryName(catalog) {
   return category || "קטלוגים";
 }
 
+function catalogSubcategoryName(catalog) {
+  const value = catalog?.subcategory ?? catalog?.subCategory ?? catalog?.sub_category ?? catalog?.subcategories ?? catalog?.["תת קטגוריה"] ?? catalog?.["תת_קטגוריה"] ?? "";
+  const rawSubcategory = Array.isArray(value) ? value.find((item) => String(item || "").trim()) : value;
+  const subcategory = String(rawSubcategory || "").trim();
+  return subcategory;
+}
+
 function categorySlug(value) {
   return String(value || "catalog")
     .trim()
@@ -281,6 +288,10 @@ function categorySectionId(category, index) {
   return `catalog-category-${categorySlug(category)}-${index + 1}`;
 }
 
+function subcategorySectionId(category, categoryIndex, subcategory, subcategoryIndex) {
+  return `${categorySectionId(category, categoryIndex)}-sub-${categorySlug(subcategory)}-${subcategoryIndex + 1}`;
+}
+
 function getCatalogCategoryGroups() {
   const groups = [];
   const groupByCategory = new Map();
@@ -288,11 +299,37 @@ function getCatalogCategoryGroups() {
   catalogs.forEach((catalog) => {
     const category = catalogCategoryName(catalog);
     if (!groupByCategory.has(category)) {
-      const group = { category, items: [] };
+      const group = {
+        category,
+        items: [],
+        directItems: [],
+        subcategories: [],
+        subcategoryMap: new Map()
+      };
       groupByCategory.set(category, group);
       groups.push(group);
     }
-    groupByCategory.get(category).items.push(catalog);
+
+    const group = groupByCategory.get(category);
+    const subcategory = catalogSubcategoryName(catalog);
+    group.items.push(catalog);
+
+    if (!subcategory) {
+      group.directItems.push(catalog);
+      return;
+    }
+
+    if (!group.subcategoryMap.has(subcategory)) {
+      const subcategoryGroup = { subcategory, items: [] };
+      group.subcategoryMap.set(subcategory, subcategoryGroup);
+      group.subcategories.push(subcategoryGroup);
+    }
+    group.subcategoryMap.get(subcategory).items.push(catalog);
+  });
+
+  groups.forEach((group) => {
+    group.hasSubcategories = group.subcategories.length > 0;
+    delete group.subcategoryMap;
   });
 
   return groups;
@@ -684,9 +721,13 @@ function decodeHashTargetId(hash = location.hash) {
   }
 }
 
+function isCatalogFocusSection(section) {
+  return Boolean(section?.classList?.contains("catalog-category-section") || section?.classList?.contains("catalog-subcategory-section"));
+}
+
 function getCatalogCategorySectionById(id) {
   const section = id ? document.getElementById(id) : null;
-  return section?.classList?.contains("catalog-category-section") ? section : null;
+  return isCatalogFocusSection(section) ? section : null;
 }
 
 function getCatalogCategorySectionFromHash(hash = location.hash) {
@@ -697,11 +738,16 @@ function getCatalogCategoryFocusTargetId(section) {
   return section?.dataset?.categoryFocusTarget || section?.id || "";
 }
 
+function getCatalogFocusSections() {
+  if (!els.catalogGrid) return [];
+  return Array.from(els.catalogGrid.querySelectorAll(".catalog-category-section, .catalog-subcategory-section"));
+}
+
 function getCatalogCategorySectionsByTargetId(targetId) {
   const normalizedTargetId = String(targetId || "");
-  if (!normalizedTargetId || !els.catalogGrid) return [];
+  if (!normalizedTargetId) return [];
 
-  return Array.from(els.catalogGrid.querySelectorAll(".catalog-category-section"))
+  return getCatalogFocusSections()
     .filter((section) => getCatalogCategoryFocusTargetId(section) === normalizedTargetId || section.id === normalizedTargetId);
 }
 
@@ -711,10 +757,16 @@ function hasCatalogCategoryFocus(targetId) {
 }
 
 function syncActiveCategoryNavLink(activeId = state.categoryFocusTargetId) {
-  if (!els.categoryNav) return;
-
   const normalizedActiveId = String(activeId || "");
-  els.categoryNav.querySelectorAll(".category-nav-link").forEach((link) => {
+
+  els.categoryNav?.querySelectorAll(".category-nav-link").forEach((link) => {
+    const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
+    link.classList.toggle("active", isActive);
+    if (isActive) link.setAttribute("aria-current", "location");
+    else link.removeAttribute("aria-current");
+  });
+
+  els.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link").forEach((link) => {
     const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
     link.classList.toggle("active", isActive);
     if (isActive) link.setAttribute("aria-current", "location");
@@ -728,7 +780,7 @@ function clearCatalogCategoryFocus(options = {}) {
   window.clearTimeout(state.categoryFocusTimer);
   state.categoryFocusTimer = 0;
   state.categoryFocusTargetId = "";
-  els.catalogGrid?.querySelectorAll(".catalog-category-section.is-category-focus").forEach((section) => {
+  getCatalogFocusSections().forEach((section) => {
     section.classList.remove("is-category-focus");
   });
   syncActiveCategoryNavLink("");
@@ -752,13 +804,13 @@ function markCatalogCategoryFocus(section, options = {}) {
   window.clearTimeout(state.categoryFocusTimer);
   state.categoryFocusTimer = 0;
 
-  els.catalogGrid?.querySelectorAll(".catalog-category-section.is-category-focus").forEach((activeSection) => {
+  getCatalogFocusSections().forEach((activeSection) => {
     if (!targetSections.includes(activeSection)) activeSection.classList.remove("is-category-focus");
   });
 
   targetSections.forEach((targetSection) => targetSection.classList.remove("is-category-focus"));
   if (animate) {
-    // Restart the pulse cleanly across every visible segment of the selected category.
+    // Restart the pulse cleanly across every visible segment of the selected category or subcategory.
     void targetSections[0].offsetWidth;
   }
   targetSections.forEach((targetSection) => targetSection.classList.add("is-category-focus"));
@@ -770,6 +822,19 @@ function markCatalogCategoryFocus(section, options = {}) {
 
 function markCatalogCategoryFocusById(id, options = {}) {
   return markCatalogCategoryFocus(getCatalogCategorySectionById(id), options);
+}
+
+function handleCatalogFocusLinkClick(link, event) {
+  const targetId = link?.dataset?.categoryTarget || decodeHashTargetId(link?.hash);
+  if (!targetId) return;
+
+  if (state.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
+    event.preventDefault();
+    clearCatalogCategoryFocus({ clearHash: true });
+    return;
+  }
+
+  window.setTimeout(() => markCatalogCategoryFocusById(targetId), 80);
 }
 
 function syncCatalogCategoryFocusFromHash(options = {}) {
@@ -803,6 +868,26 @@ function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
 
   groups.forEach((group, groupIndex) => {
     const items = Array.isArray(group?.items) ? group.items : [];
+    if (!items.length) return;
+
+    if (group?.hasSubcategories) {
+      if (occupied > 0) occupied = 0;
+      segments.push({
+        category: group.category,
+        groupIndex,
+        segmentIndex: 0,
+        itemOffset: 0,
+        span: safeColumns,
+        items,
+        directItems: Array.isArray(group.directItems) ? group.directItems : [],
+        subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
+        hasSubcategories: true,
+        inlineDivider: false
+      });
+      occupied = 0;
+      return;
+    }
+
     let itemOffset = 0;
     let segmentIndex = 0;
 
@@ -818,6 +903,7 @@ function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
         itemOffset,
         span,
         items: items.slice(itemOffset, itemOffset + span),
+        hasSubcategories: false,
         inlineDivider: false
       });
 
@@ -888,6 +974,164 @@ function renderCatalogCard(catalog) {
   `;
 }
 
+function renderCatalogSubcategoryNav(segment) {
+  if (!segment?.hasSubcategories || !Array.isArray(segment.subcategories) || !segment.subcategories.length) return "";
+
+  const buttons = segment.subcategories.map((group, index) => {
+    const targetId = subcategorySectionId(segment.category, segment.groupIndex, group.subcategory, index);
+    return `<a class="catalog-subcategory-nav-link" href="#${escapeHtml(targetId)}" data-category-target="${escapeHtml(targetId)}">${escapeHtml(group.subcategory)}</a>`;
+  }).join("");
+
+  return `
+    <nav class="catalog-subcategory-nav" aria-label="ניווט תתי קטגוריות עבור ${escapeHtml(segment.category)}">
+      ${buttons}
+    </nav>
+  `;
+}
+
+function catalogSubcategoryLayoutSegments(segment, columns = catalogLayoutColumnCount()) {
+  const safeColumns = clampCategorySpan(columns, 3);
+  const sourceBlocks = [];
+
+  if (Array.isArray(segment.directItems) && segment.directItems.length) {
+    sourceBlocks.push({
+      blockKey: "__direct__",
+      blockIndex: -1,
+      label: "קטלוגים כלליים",
+      isDirect: true,
+      items: segment.directItems
+    });
+  }
+
+  (Array.isArray(segment.subcategories) ? segment.subcategories : []).forEach((group, index) => {
+    const subcategory = String(group?.subcategory || "").trim();
+    const items = Array.isArray(group?.items) ? group.items : [];
+    if (!subcategory || !items.length) return;
+
+    sourceBlocks.push({
+      blockKey: subcategory,
+      blockIndex: index,
+      label: subcategory,
+      isDirect: false,
+      items
+    });
+  });
+
+  const layoutSegments = [];
+  let occupied = 0;
+
+  sourceBlocks.forEach((block, blockOrder) => {
+    let itemOffset = 0;
+    let segmentIndex = 0;
+
+    while (itemOffset < block.items.length) {
+      if (occupied >= safeColumns) occupied = 0;
+      const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
+      const span = Math.min(availableInRow, block.items.length - itemOffset, safeColumns);
+
+      layoutSegments.push({
+        ...block,
+        blockOrder,
+        segmentIndex,
+        itemOffset,
+        span,
+        items: block.items.slice(itemOffset, itemOffset + span),
+        inlineDivider: false
+      });
+
+      itemOffset += span;
+      segmentIndex += 1;
+      occupied += span;
+      if (occupied >= safeColumns) occupied = 0;
+    }
+  });
+
+  occupied = 0;
+  layoutSegments.forEach((block, index) => {
+    const span = clampCategorySpan(block.span, safeColumns);
+    if (occupied + span > safeColumns) occupied = 0;
+
+    const rowEnd = occupied + span;
+    const nextBlock = layoutSegments[index + 1];
+    const nextSpan = nextBlock ? clampCategorySpan(nextBlock.span, safeColumns) : 0;
+    block.inlineDivider = Boolean(
+      nextBlock
+      && nextBlock.blockOrder !== block.blockOrder
+      && rowEnd < safeColumns
+      && nextSpan <= safeColumns - rowEnd
+    );
+
+    occupied = rowEnd >= safeColumns ? 0 : rowEnd;
+  });
+
+  return layoutSegments;
+}
+
+function catalogSubcategoryBlockBaseId(segment, block, baseSectionId) {
+  if (block?.isDirect) return `${baseSectionId}-general`;
+  return subcategorySectionId(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
+}
+
+function renderCatalogSubcategoryBlock(segment, block, options = {}) {
+  const { baseSectionId = "" } = options;
+  const items = Array.isArray(block?.items) ? block.items : [];
+  if (!items.length) return "";
+
+  const blockBaseId = catalogSubcategoryBlockBaseId(segment, block, baseSectionId);
+  const sectionId = block.segmentIndex === 0 ? blockBaseId : `${blockBaseId}-part-${block.segmentIndex + 1}`;
+  const titleId = `${sectionId}-title`;
+  const title = String(block?.label || "").trim() || "קטלוגים";
+  const sectionStyle = `--subcategory-span: ${clampCategorySpan(block.span, 3)};`;
+
+  return `
+    <section class="catalog-subcategory-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(blockBaseId)}" data-parent-category-target="${escapeHtml(baseSectionId)}" data-subcategory-span="${escapeHtml(String(block.span))}" data-inline-divider="${block.inlineDivider ? "1" : "0"}" data-subcategory-continuation="${block.itemOffset > 0 ? "1" : "0"}">
+      <div class="catalog-category-head catalog-subcategory-head">
+        <h4 id="${escapeHtml(titleId)}">${escapeHtml(title)}</h4>
+      </div>
+      <div class="catalog-grid catalog-category-grid catalog-subcategory-grid">
+        ${items.map(renderCatalogCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderCatalogCategorySegment(segment, columns) {
+  const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
+  const sectionId = segment.itemOffset === 0 ? baseSectionId : `${baseSectionId}-part-${segment.segmentIndex + 1}`;
+  const titleId = `${sectionId}-title`;
+  const safeColumns = clampCategorySpan(columns, 3);
+  const sectionStyle = `--category-span: ${segment.span}; --subcategory-layout-columns: ${safeColumns};`;
+
+  if (segment.hasSubcategories) {
+    const subcategoryBlocks = catalogSubcategoryLayoutSegments(segment, safeColumns)
+      .map((block) => renderCatalogSubcategoryBlock(segment, block, { baseSectionId }))
+      .join("");
+
+    return `
+      <section class="catalog-category-section catalog-category-section-with-subcategories" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="0">
+        <div class="catalog-category-head catalog-category-head-with-subcategories">
+          <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
+          ${renderCatalogSubcategoryNav(segment)}
+        </div>
+        <div class="catalog-subcategory-list">
+          ${subcategoryBlocks}
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
+      <div class="catalog-category-head">
+        <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
+      </div>
+      <div class="catalog-grid catalog-category-grid">
+        ${segment.items.map(renderCatalogCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function openCatalogCardViewer(catalogId, mode = "single") {
   if (!catalogId) return;
   openCatalogInViewer(catalogId, 1, mode === "scroll" ? "scroll" : "single");
@@ -944,22 +1188,7 @@ function renderCatalogCards() {
   const categorySegments = catalogCategorySegments(groups, columns);
 
   els.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
-  els.catalogGrid.innerHTML = categorySegments.map((segment) => {
-    const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
-    const sectionId = segment.itemOffset === 0 ? baseSectionId : `${baseSectionId}-part-${segment.segmentIndex + 1}`;
-    const titleId = `${sectionId}-title`;
-    const sectionStyle = `--category-span: ${segment.span};`;
-    return `
-      <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
-        <div class="catalog-category-head">
-          <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
-        </div>
-        <div class="catalog-grid catalog-category-grid">
-          ${segment.items.map(renderCatalogCard).join("")}
-        </div>
-      </section>
-    `;
-  }).join("");
+  els.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
 
   bindCatalogCardEvents();
   syncCatalogCategoryFocusFromHash({ animate: false });
@@ -2764,17 +2993,13 @@ function attachEvents() {
   els.categoryNav?.addEventListener("click", (event) => {
     const link = event.target.closest?.(".category-nav-link");
     if (!link || !els.categoryNav.contains(link)) return;
+    handleCatalogFocusLinkClick(link, event);
+  });
 
-    const targetId = link.dataset.categoryTarget || decodeHashTargetId(link.hash);
-    if (!targetId) return;
-
-    if (state.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
-      event.preventDefault();
-      clearCatalogCategoryFocus({ clearHash: true });
-      return;
-    }
-
-    window.setTimeout(() => markCatalogCategoryFocusById(targetId), 80);
+  els.catalogGrid?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".catalog-subcategory-nav-link");
+    if (!link || !els.catalogGrid.contains(link)) return;
+    handleCatalogFocusLinkClick(link, event);
   });
 
   els.closeLightbox?.addEventListener("click", closeLightbox);

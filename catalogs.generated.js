@@ -160,7 +160,8 @@ window.BARGIG_CATALOGS = [
         2800,
         2008
       ]
-    ]
+    ],
+    "subcategory": ""
   },
   {
     "id": "fredi-arnot",
@@ -461,7 +462,8 @@ window.BARGIG_CATALOGS = [
         2800,
         1624
       ]
-    ]
+    ],
+    "subcategory": ""
   },
   {
     "id": "tbi-azaza",
@@ -622,7 +624,8 @@ window.BARGIG_CATALOGS = [
         2800,
         1980
       ]
-    ]
+    ],
+    "subcategory": ""
   },
   {
     "id": "qualita",
@@ -711,7 +714,8 @@ window.BARGIG_CATALOGS = [
         2252,
         2252
       ]
-    ]
+    ],
+    "subcategory": "היי רייזר"
   },
   {
     "id": "komotayim",
@@ -952,7 +956,8 @@ window.BARGIG_CATALOGS = [
         2478,
         2391
       ]
-    ]
+    ],
+    "subcategory": "מיטות נגר"
   },
   {
     "id": "comfort",
@@ -1205,7 +1210,8 @@ window.BARGIG_CATALOGS = [
         1819,
         1819
       ]
-    ]
+    ],
+    "subcategory": "מיטות נגר"
   },
   {
     "id": "perfect",
@@ -1286,7 +1292,8 @@ window.BARGIG_CATALOGS = [
         2420,
         1870
       ]
-    ]
+    ],
+    "subcategory": "היי רייזר"
   },
   {
     "id": "tbi-shena",
@@ -1387,7 +1394,8 @@ window.BARGIG_CATALOGS = [
         2800,
         1980
       ]
-    ]
+    ],
+    "subcategory": ""
   },
   {
     "id": "tbi-yeladim",
@@ -1532,7 +1540,8 @@ window.BARGIG_CATALOGS = [
         2800,
         1980
       ]
-    ]
+    ],
+    "subcategory": ""
   },
   {
     "id": "tbi-sifriot",
@@ -1653,7 +1662,8 @@ window.BARGIG_CATALOGS = [
         2800,
         1980
       ]
-    ]
+    ],
+    "subcategory": ""
   },
   {
     "id": "fredi-sifriot",
@@ -1834,6 +1844,7 @@ window.BARGIG_CATALOGS = [
         2800,
         2000
       ]
-    ]
+    ],
+    "subcategory": ""
   }
 ];

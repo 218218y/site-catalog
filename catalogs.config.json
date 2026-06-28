@@ -4,6 +4,7 @@
     "title": "ת.ב.י רהיטים - ארונות פתיחה 2026",
     "description": "ארונות פתיחה בעיצובים מודרניים",
     "category": "ארונות פתיחה",
+    "subcategory": "",
     "pdf": "assets/pdfs/tbi-arnot-pticha-2026.pdf"
   },
   {
@@ -11,6 +12,7 @@
     "title": "פרדי ארונות פתיחה",
     "description": "ארונות פתיחה בעיצוב נקי ועדכני",
     "category": "ארונות פתיחה",
+    "subcategory": "",
     "pdf": "assets/pdfs/fredi-arnot-pticha.pdf"
   },
   {
@@ -18,6 +20,7 @@
     "title": "ת.ב.י רהיטים - ארונות הזזה",
     "description": "ארונות הזזה בעיצוב נקי ועדכני",
     "category": "ארונות הזזה",
+    "subcategory": "",
     "pdf": "assets/pdfs/tbi-azaza-2024.pdf"
   },
   {
@@ -25,6 +28,7 @@
     "title": "קואליטה 2026",
     "description": "מיטות איכות בעיצוב נקי ועדכני",
     "category": "מיטות",
+    "subcategory": "היי רייזר",
     "pdf": "assets/pdfs/qualita-2026.pdf"
   },
   {
@@ -32,6 +36,7 @@
     "title": "קטלוג קומותיים נגר 2026",
     "description": "מיטות ילדים, קומותיים ופתרונות שינה",
     "category": "מיטות",
+    "subcategory": "מיטות נגר",
     "pdf": "assets/pdfs/komotayim-nagar-2026.pdf"
   },
   {
@@ -39,6 +44,7 @@
     "title": "קומפורט 2026",
     "description": "מיטות איכות בעיצוב נקי ועדכני",
     "category": "מיטות",
+    "subcategory": "מיטות נגר",
     "pdf": "assets/pdfs/comfort-2026.pdf"
   },
   {
@@ -46,6 +52,7 @@
     "title": "פרפקט 2026",
     "description": "מיטות איכות בעיצוב נקי ועדכני",
     "category": "מיטות",
+    "subcategory": "היי רייזר",
     "pdf": "assets/pdfs/perfect-2026.pdf"
   },
   {
@@ -53,6 +60,7 @@
     "title": "ת.ב.י רהיטים - חדרי שינה",
     "description": "חדרי שינה באיכות ובעיצוב נקי ועדכני",
     "category": "חדרי שינה",
+    "subcategory": "",
     "pdf": "assets/pdfs/tbi-shena-2025.pdf"
   },
   {
@@ -60,6 +68,7 @@
     "title": "ת.ב.י רהיטים - חדרי ילדים",
     "description": "חדרי ילדים באיכות ובעיצוב נקי ועדכני",
     "category": "חדרי ילדים",
+    "subcategory": "",
     "pdf": "assets/pdfs/tbi-yeladim-2025.pdf"
   },
   {
@@ -67,6 +76,7 @@
     "title": "ת.ב.י רהיטים - ספריות קודש",
     "description": "ספריות קודש בעיצוב נקי ועדכני",
     "category": "ספריות קודש",
+    "subcategory": "",
     "pdf": "assets/pdfs/tbi-sifriot-2024.pdf"
   },
   {
@@ -74,6 +84,7 @@
     "title": "פרדי ספריות קודש",
     "description": "ספריות קודש בעיצוב נקי ועדכני",
     "category": "ספריות קודש",
+    "subcategory": "",
     "pdf": "assets/pdfs/fredi-sifriot.pdf"
   }
 ]

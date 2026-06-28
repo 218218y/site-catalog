@@ -281,6 +281,7 @@ def find_missing_pdf_catalogs(
                 "title": remove_bidi_controls(pdf_path.stem).strip() or catalog_id,
                 "description": "",
                 "category": "",
+                "subcategory": "",
                 "pdf": pdf_reference_for_config(root, pdf_path),
             }
         )
@@ -361,7 +362,7 @@ def main() -> int:
     if args.dry_run:
         print("Dry run only. No files were changed.")
     elif result.additions:
-        print("Done. Edit title/description/category in catalogs.config.json, then run convert-catalogs.bat.")
+        print("Done. Edit title/description/category/subcategory in catalogs.config.json, then run convert-catalogs.bat.")
     elif result.renamed_pdfs or result.updated_pdf_refs:
         print("Done. Hidden direction markers were cleaned from PDF filenames/references.")
     return 0
