@@ -1,4 +1,9 @@
-# Netlify / static hosting headers for fast catalog browsing.
+# Cloudflare Pages / static hosting: keep this build out of search results while it is under construction.
+# Do not replace this with robots.txt Disallow; Google must be able to crawl the page to see noindex.
+/*
+  X-Robots-Tag: noindex, nofollow, noimageindex, nosnippet, noarchive
+
+# Cloudflare Pages / static hosting headers for fast catalog browsing.
 # HTML and code stay revalidated so updates arrive quickly.
 /*.html
   Cache-Control: public, max-age=0, must-revalidate

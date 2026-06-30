@@ -1,0 +1,4 @@
+# Search engines must be allowed to crawl during the private/staging period so they can see the noindex rule.
+# Indexing is blocked by X-Robots-Tag in _headers and by meta robots in the HTML pages.
+User-agent: *
+Allow: /
