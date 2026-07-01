@@ -39,6 +39,38 @@ PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
 BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 MANUAL_SEARCH_FILE = "catalogs.search-overrides.json"
 OCR_MAX_SIDE = 4600
+# Small model names in catalog pages are usually placed in fixed title areas.
+# Full-page OCR has to process furniture, shadows and decorative grooves, so it
+# often misses those names or produces noisy random characters. These bounded
+# crops give Tesseract a much easier target while keeping the extra text narrow.
+TITLE_OCR_CROPS: tuple[tuple[str, tuple[float, float, float, float], int], ...] = (
+    ("top-right-title", (0.54, 0.00, 1.00, 0.18), 7),
+    ("bottom-left-title", (0.00, 0.76, 0.40, 1.00), 6),
+    ("bottom-right-title", (0.60, 0.76, 1.00, 1.00), 6),
+)
+TITLE_OCR_WORD_RE = re.compile(r'[\u0590-\u05FFA-Za-z][\u0590-\u05FFA-Za-z0-9׳\'״".\-]*|[0-9]+')
+TITLE_OCR_STOP_WORDS = {
+    "כל",
+    "הזכויות",
+    "זכויות",
+    "שמורות",
+    "אין",
+    "להעתיק",
+    "fredI".lower(),
+    "fredi",
+    "concept",
+    "מחיר",
+    "רוחב",
+    "גובה",
+    "עומק",
+    "מידה",
+    "אספקה",
+    "ימי",
+    "עסקים",
+    "שינוי",
+    "צבעים",
+    "קטלוג",
+}
 MANIFEST_FILE = "catalog.render-manifest.json"
 @dataclass(frozen=True)
 class RenderOptions:
@@ -497,6 +529,69 @@ def prepare_ocr_input_image(image: Image.Image) -> Image.Image:
     return grayscale.filter(ImageFilter.UnsharpMask(radius=1.2, percent=180, threshold=2))
 
 
+def crop_relative_image(image: Image.Image, box: tuple[float, float, float, float]) -> Image.Image | None:
+    """Crop an image by relative coordinates, clamped to the image bounds."""
+    if image.width <= 0 or image.height <= 0:
+        return None
+
+    left, top, right, bottom = box
+    x1 = max(0, min(image.width - 1, int(round(image.width * left))))
+    y1 = max(0, min(image.height - 1, int(round(image.height * top))))
+    x2 = max(x1 + 1, min(image.width, int(round(image.width * right))))
+    y2 = max(y1 + 1, min(image.height, int(round(image.height * bottom))))
+    if x2 - x1 < 24 or y2 - y1 < 18:
+        return None
+    return image.crop((x1, y1, x2, y2))
+
+
+def prepare_title_ocr_crop(image: Image.Image) -> Image.Image:
+    """Upscale and pad a title crop before the regular OCR preprocessing step."""
+    crop = image.convert("RGB")
+    max_side = max(crop.size)
+    if max_side < 900:
+        multiplier = max(2, min(4, int(round(900 / max(1, max_side)))))
+        crop = crop.resize((crop.width * multiplier, crop.height * multiplier), Image.Resampling.LANCZOS)
+
+    # White padding gives Tesseract breathing room around right-aligned Hebrew titles.
+    return ImageOps.expand(crop, border=max(20, int(max(crop.size) * 0.02)), fill="white")
+
+
+def filter_targeted_ocr_text(value: str, *, max_words: int = 8) -> str:
+    """Keep only short, plausible title words from OCRed title regions."""
+    words: list[str] = []
+    for match in TITLE_OCR_WORD_RE.finditer(str(value or "")):
+        word = match.group(0).strip(" .,:;!?()[]{}<>|/\\\n\r\t")
+        if not word:
+            continue
+        normalized = normalize_search_text(word).lower()
+        if not normalized or normalized in TITLE_OCR_STOP_WORDS:
+            continue
+        if normalized.isdigit():
+            continue
+        if len(normalized) == 1:
+            continue
+        words.append(word)
+        if len(words) >= max_words:
+            break
+
+    return normalize_search_text(" ".join(words))
+
+
+def build_targeted_title_ocr_text(ocr_image: Image.Image, ocr: "OcrRunner", label: str) -> str:
+    """OCR likely title/model-name regions and return a compact search text."""
+    parts: list[str] = []
+    for region_name, box, psm in TITLE_OCR_CROPS:
+        crop = crop_relative_image(ocr_image, box)
+        if crop is None:
+            continue
+        prepared = prepare_title_ocr_crop(crop)
+        raw_text = ocr.recognize(prepared, f"{label} {region_name}", psm=psm)
+        filtered = filter_targeted_ocr_text(raw_text)
+        if filtered:
+            parts.append(filtered)
+    return _combine_search_texts(parts)
+
+
 def normalize_search_text(value: str) -> str:
     """Normalize text before it is written to the client-side search index."""
     cleaned = BIDI_CONTROL_RE.sub("", str(value or "").replace("\u00ad", ""))
@@ -623,21 +718,21 @@ def build_page_search_text(
 
     The safe order is:
     1. use embedded PDF text when it exists;
-    2. run one regular full-page OCR pass only for scanned/empty pages;
-    3. append deliberate manual search overrides.
+    2. for scanned/empty pages, OCR a few bounded title/model-name regions;
+    3. run one regular full-page OCR pass for the rest of the page;
+    4. append deliberate manual search overrides.
 
-    Older versions also OCRed guessed title/photo regions and colored ribbons.
-    That helped a few white-on-image captions, but it also interpreted furniture,
-    shadows and decorative lines as letters, so it polluted the search index with
-    false characters. The OCR input itself is still contrast-enhanced before it is
-    sent to Tesseract, which improves thin Hebrew model names without adding
-    guessed crop regions.
+    Full-page OCR is weak on these catalog PDFs because the model names are small,
+    low-contrast Hebrew text placed over rendered room photos. The targeted pass
+    narrows OCR to likely title zones, so future catalogs should need fewer manual
+    overrides while still avoiding broad noisy photo-region OCR.
     """
     embedded_text = extract_embedded_text(page)
     text_parts = [embedded_text]
 
     if ocr.should_run(embedded_text):
         ocr_image = render_ocr_page_image(page, options.ocr_dpi)
+        text_parts.append(build_targeted_title_ocr_text(ocr_image, ocr, label))
         text_parts.append(ocr.recognize(ocr_image, label, psm=6))
 
     if manual_text:
