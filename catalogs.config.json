@@ -1,90 +1,82 @@
 [
   {
-    "id": "tbi",
-    "title": "ת.ב.י רהיטים - ארונות פתיחה 2026",
-    "description": "ארונות פתיחה בעיצובים מודרניים",
-    "category": "ארונות פתיחה",
+    "id": "ארונות-פתיחה-ת-ב-י-רהיטים-2026",
+    "title": "ארונות פתיחה ת.ב.י רהיטים 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/tbi-arnot-pticha-2026.pdf"
+    "pdf": "assets/pdfs/ארונות פתיחה ת.ב.י רהיטים 2026.pdf"
   },
   {
-    "id": "fredi-arnot",
-    "title": "פרדי ארונות פתיחה",
-    "description": "ארונות פתיחה בעיצוב נקי ועדכני",
-    "category": "ארונות פתיחה",
+    "id": "הזזה-ת-ב-י-רהיטים-2026",
+    "title": "הזזה ת.ב.י רהיטים 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/fredi-arnot-pticha.pdf"
+    "pdf": "assets/pdfs/הזזה ת.ב.י רהיטים 2026.pdf"
   },
   {
-    "id": "tbi-azaza",
-    "title": "ת.ב.י רהיטים - ארונות הזזה",
-    "description": "ארונות הזזה בעיצוב נקי ועדכני",
-    "category": "ארונות הזזה",
+    "id": "היי-ריזר-פרפקט-2026",
+    "title": "היי ריזר פרפקט 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/tbi-azaza-2024.pdf"
+    "pdf": "assets/pdfs/היי ריזר פרפקט 2026.pdf"
   },
   {
-    "id": "qualita",
-    "title": "קואליטה 2026",
-    "description": "מיטות איכות בעיצוב נקי ועדכני",
-    "category": "מיטות",
+    "id": "היי-ריזר-קואליטה-2026",
+    "title": "היי ריזר קואליטה 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/qualita-2026.pdf"
+    "pdf": "assets/pdfs/היי ריזר קואליטה 2026.pdf"
   },
   {
-    "id": "komotayim",
-    "title": "קטלוג קומותיים נגר 2026",
-    "description": "מיטות ילדים, קומותיים ופתרונות שינה",
-    "category": "מיטות",
+    "id": "היי-ריזר-קומפורט-2026",
+    "title": "היי ריזר קומפורט 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/komotayim-nagar-2026.pdf"
+    "pdf": "assets/pdfs/היי ריזר קומפורט 2026.pdf"
   },
   {
-    "id": "comfort",
-    "title": "קומפורט 2026",
-    "description": "מיטות איכות בעיצוב נקי ועדכני",
-    "category": "מיטות",
+    "id": "חדרי-ילדים-פרדי-2026",
+    "title": "חדרי ילדים פרדי 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/comfort-2026.pdf"
+    "pdf": "assets/pdfs/חדרי ילדים פרדי 2026.pdf"
   },
   {
-    "id": "perfect",
-    "title": "פרפקט 2026",
-    "description": "מיטות איכות בעיצוב נקי ועדכני",
-    "category": "מיטות",
+    "id": "חדרי-ילדים-ת-ב-י-רהיטים-2026",
+    "title": "חדרי ילדים ת.ב.י רהיטים 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/perfect-2026.pdf"
+    "pdf": "assets/pdfs/חדרי ילדים ת.ב.י רהיטים 2026.pdf"
   },
   {
-    "id": "tbi-shena",
-    "title": "ת.ב.י רהיטים - חדרי שינה",
-    "description": "חדרי שינה באיכות ובעיצוב נקי ועדכני",
-    "category": "חדרי שינה",
+    "id": "מיטות-נגר-בירץ'-2026",
+    "title": "מיטות נגר בירץ' 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/tbi-shena-2025.pdf"
+    "pdf": "assets/pdfs/מיטות נגר בירץ' 2026.pdf"
   },
   {
-    "id": "tbi-yeladim",
-    "title": "ת.ב.י רהיטים - חדרי ילדים",
-    "description": "חדרי ילדים באיכות ובעיצוב נקי ועדכני",
-    "category": "חדרי ילדים",
+    "id": "ספריות-קודש-פרדי-2026",
+    "title": "ספריות קודש פרדי 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/tbi-yeladim-2025.pdf"
+    "pdf": "assets/pdfs/ספריות קודש פרדי 2026.pdf"
   },
   {
-    "id": "tbi-sifriot",
-    "title": "ת.ב.י רהיטים - ספריות קודש",
-    "description": "ספריות קודש בעיצוב נקי ועדכני",
-    "category": "ספריות קודש",
+    "id": "ספריות-קודש-ת-ב-י-רהיטים-2026",
+    "title": "ספריות קודש ת.ב.י רהיטים 2026",
+    "description": "",
+    "category": "",
     "subcategory": "",
-    "pdf": "assets/pdfs/tbi-sifriot-2024.pdf"
-  },
-  {
-    "id": "fredi-sifriot",
-    "title": "פרדי ספריות קודש",
-    "description": "ספריות קודש בעיצוב נקי ועדכני",
-    "category": "ספריות קודש",
-    "subcategory": "",
-    "pdf": "assets/pdfs/fredi-sifriot.pdf"
+    "pdf": "assets/pdfs/ספריות קודש ת.ב.י רהיטים 2026.pdf"
   }
 ]
