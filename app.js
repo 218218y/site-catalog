@@ -175,7 +175,8 @@ const state = {
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
   categoryFocusTimer: 0,
-  categoryFocusTargetId: ""
+  categoryFocusTargetId: "",
+  categoryNavFitRaf: 0
 };
 
 const els = {
@@ -700,16 +701,144 @@ function renderEmptyState() {
 }
 
 
+const CATEGORY_NAV_MIN_BUTTON_SCALE = 0.68;
+const CATEGORY_NAV_MIN_FONT_SIZE = 11;
+const CATEGORY_NAV_MIN_BUTTON_HEIGHT = 30;
+const CATEGORY_NAV_MIN_BUTTON_PADDING_X = 5;
+const CATEGORY_NAV_MIN_GAP = 3;
+
+function readPixelValue(value, fallback = 0) {
+  const numeric = Number.parseFloat(String(value || ""));
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function categoryNavLinkLabel(link) {
+  return String(link?.dataset?.categoryLabel || link?.textContent || "").trim();
+}
+
+function setCategoryNavLinkTooltip(link, text) {
+  if (!link) return;
+  setTooltipText(link, text || "", { updateDefault: true });
+  link.removeAttribute("title");
+}
+
+function syncCategoryNavOverflowTooltips(links, enabled = true) {
+  links.forEach((link) => {
+    if (!enabled) {
+      setCategoryNavLinkTooltip(link, "");
+      return;
+    }
+
+    const isTextClipped = link.scrollWidth > link.clientWidth + 1;
+    setCategoryNavLinkTooltip(link, isTextClipped ? categoryNavLinkLabel(link) : "");
+  });
+}
+
+function clearCategoryNavFit(header, links = []) {
+  if (!header) return;
+  header.classList.remove("is-top-nav-compressed", "is-top-nav-tight", "is-top-nav-ellipsized");
+  header.style.removeProperty("--top-nav-gap");
+  header.style.removeProperty("--top-nav-button-min-height");
+  header.style.removeProperty("--top-nav-button-padding-x");
+  header.style.removeProperty("--top-nav-button-font-size");
+  syncCategoryNavOverflowTooltips(links, false);
+}
+
+function readCategoryNavBaseMetrics(nav, firstLink) {
+  const navStyle = window.getComputedStyle(nav);
+  const linkStyle = window.getComputedStyle(firstLink);
+  const paddingStart = readPixelValue(linkStyle.paddingInlineStart, 16);
+  const paddingEnd = readPixelValue(linkStyle.paddingInlineEnd, paddingStart);
+
+  return {
+    gap: readPixelValue(navStyle.columnGap, 8),
+    minHeight: readPixelValue(linkStyle.minHeight, 42),
+    paddingX: Math.max(paddingStart, paddingEnd),
+    fontSize: readPixelValue(linkStyle.fontSize, 16)
+  };
+}
+
+function categoryNavRequiredWidth(nav, links) {
+  if (!links.length) return 0;
+  const gap = readPixelValue(window.getComputedStyle(nav).columnGap, 0);
+  const linkWidth = links.reduce((sum, link) => sum + Math.ceil(link.scrollWidth), 0);
+  return linkWidth + (gap * Math.max(0, links.length - 1));
+}
+
+function applyCategoryNavScale(header, metrics, scale) {
+  const safeScale = Math.max(CATEGORY_NAV_MIN_BUTTON_SCALE, Math.min(1, scale));
+  header.classList.add("is-top-nav-compressed");
+  header.style.setProperty("--top-nav-gap", `${Math.max(CATEGORY_NAV_MIN_GAP, metrics.gap * safeScale).toFixed(2)}px`);
+  header.style.setProperty("--top-nav-button-min-height", `${Math.max(CATEGORY_NAV_MIN_BUTTON_HEIGHT, metrics.minHeight * safeScale).toFixed(2)}px`);
+  header.style.setProperty("--top-nav-button-padding-x", `${Math.max(CATEGORY_NAV_MIN_BUTTON_PADDING_X, metrics.paddingX * safeScale).toFixed(2)}px`);
+  header.style.setProperty("--top-nav-button-font-size", `${Math.max(CATEGORY_NAV_MIN_FONT_SIZE, metrics.fontSize * safeScale).toFixed(2)}px`);
+  return safeScale;
+}
+
+function fitCategoryNavToSingleRow() {
+  state.categoryNavFitRaf = 0;
+  const nav = els.categoryNav;
+  const header = nav?.closest?.(".site-header");
+  if (!nav || !header) return;
+
+  const links = Array.from(nav.querySelectorAll(".category-nav-link"));
+  clearCategoryNavFit(header, links);
+  if (!links.length) return;
+
+  const firstLink = links[0];
+  const metrics = readCategoryNavBaseMetrics(nav, firstLink);
+  const requiredWidth = categoryNavRequiredWidth(nav, links);
+  const availableWidth = nav.clientWidth;
+
+  if (!availableWidth || requiredWidth <= availableWidth + 1) return;
+
+  const normalScale = applyCategoryNavScale(header, metrics, availableWidth / requiredWidth);
+  const stillOverflows = requiredWidth * normalScale > nav.clientWidth + 1 || nav.scrollWidth > nav.clientWidth + 1;
+  if (!stillOverflows) {
+    syncCategoryNavOverflowTooltips(links);
+    return;
+  }
+
+  header.classList.add("is-top-nav-tight");
+  const tightAvailableWidth = nav.clientWidth;
+  applyCategoryNavScale(header, metrics, tightAvailableWidth / requiredWidth);
+
+  if (requiredWidth * CATEGORY_NAV_MIN_BUTTON_SCALE > tightAvailableWidth + 1 || nav.scrollWidth > nav.clientWidth + 1) {
+    header.classList.add("is-top-nav-ellipsized");
+  }
+
+  syncCategoryNavOverflowTooltips(links);
+}
+
+function scheduleCategoryNavFit() {
+  if (!els.categoryNav) return;
+  window.cancelAnimationFrame(state.categoryNavFitRaf);
+  state.categoryNavFitRaf = window.requestAnimationFrame(fitCategoryNavToSingleRow);
+}
+
+function initCategoryNavFit() {
+  if (!els.categoryNav) return;
+  document.querySelectorAll('img[data-brand-logo="1"], img[data-wp-logo="1"]').forEach((image) => {
+    image.addEventListener("load", scheduleCategoryNavFit);
+  });
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(scheduleCategoryNavFit).catch(() => {});
+  }
+  scheduleCategoryNavFit();
+}
+
+
 function renderCategoryNav(groups = getCatalogCategoryGroups()) {
   if (!els.categoryNav) return;
 
   const links = groups.map((group, index) => {
     const targetId = categorySectionId(group.category, index);
-    return `<a class="top-nav-link category-nav-link" href="#${escapeHtml(targetId)}" data-category-target="${escapeHtml(targetId)}">${escapeHtml(group.category)}</a>`;
+    return `<a class="top-nav-link category-nav-link" href="#${escapeHtml(targetId)}" data-category-target="${escapeHtml(targetId)}" data-category-label="${escapeHtml(group.category)}">${escapeHtml(group.category)}</a>`;
   });
 
   els.categoryNav.innerHTML = links.join("");
   syncActiveCategoryNavLink();
+  scheduleCategoryNavFit();
 }
 
 function decodeHashTargetId(hash = location.hash) {
@@ -3288,6 +3417,7 @@ function attachEvents() {
 
   window.addEventListener("resize", () => {
     scheduleCatalogLayoutRefresh();
+    scheduleCategoryNavFit();
     hideSearchFloatingPreview();
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
@@ -3368,6 +3498,7 @@ function attachEvents() {
 
 function init() {
   initRevealObserver();
+  initCategoryNavFit();
   attachEvents();
 
   if (!catalogs.length) {

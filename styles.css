@@ -51,12 +51,16 @@ img { max-width: 100%; display: block; }
 }
 
 .site-header {
+  --top-nav-gap: 8px;
+  --top-nav-button-min-height: 42px;
+  --top-nav-button-padding-x: 16px;
+  --top-nav-button-font-size: 1rem;
   position: sticky;
   top: 0;
   z-index: 30;
   min-height: var(--header-h);
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
@@ -66,7 +70,9 @@ img { max-width: 100%; display: block; }
   backdrop-filter: blur(18px);
 }
 .brand {
+  min-width: 0;
   display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: 12px;
 }
@@ -82,6 +88,10 @@ img[data-wp-logo="1"],
   height: auto;
   filter: drop-shadow(0 10px 24px rgba(67, 48, 34, 0.14));
 }
+.brand-text {
+  min-width: 0;
+  white-space: nowrap;
+}
 .brand-text strong {
   display: block;
   font-size: 1.12rem;
@@ -90,32 +100,44 @@ img[data-wp-logo="1"],
   color: var(--muted);
   font-size: .88rem;
 }
+.site-header.is-top-nav-tight .brand-text {
+  display: none;
+}
 .top-nav {
   min-width: 0;
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  overflow-x: auto;
+  gap: var(--top-nav-gap);
+  overflow: hidden;
   padding-block: 2px;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
+.top-nav::-webkit-scrollbar { display: none; }
 .top-nav a {
-  flex: 0 0 auto;
-  min-height: 42px;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: var(--top-nav-button-min-height);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 16px;
+  padding: 0 var(--top-nav-button-padding-x);
   border-radius: 999px;
   color: var(--brand-dark);
   background: rgba(255,255,255,0.68);
   border: 1px solid rgba(110, 86, 70, 0.13);
   box-shadow: 0 12px 28px rgba(70, 50, 36, 0.08);
+  font-size: var(--top-nav-button-font-size);
   font-weight: 800;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.site-header.is-top-nav-ellipsized .top-nav a {
+  flex: 1 1 0;
 }
 .top-nav a:hover,
 .top-nav a:focus-visible {
@@ -2887,10 +2909,16 @@ a.reader-home:focus-visible {
 }
 
 @media (max-width: 760px) {
-  :root { --header-h: 108px; }
-  .site-header { padding-inline: 12px; gap: 8px; }
-  .top-nav { order: 3; flex-basis: 100%; justify-content: flex-start; }
-  .top-nav a { min-height: 36px; padding-inline: 12px; font-size: .9rem; }
+  :root { --header-h: 78px; }
+  .site-header {
+    --top-nav-gap: 8px;
+    --top-nav-button-min-height: 36px;
+    --top-nav-button-padding-x: 12px;
+    --top-nav-button-font-size: .9rem;
+    padding-inline: 12px;
+    gap: 8px;
+  }
+  .top-nav { order: 0; flex-basis: 0; justify-content: flex-end; }
   .brand-mark { width: 110px; height: auto; }
   .brand-text small { display: none; }
   main, .site-footer { padding-inline: 10px; }

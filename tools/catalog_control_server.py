@@ -171,6 +171,47 @@ def write_config(config: list[dict[str, Any]]) -> None:
     CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def group_value(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def group_catalogs_by_category_subcategory(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Stable grouping used before saving the control-panel edits.
+
+    The first appearance of a category determines the category-block order.
+    Inside each category, the first appearance of a subcategory determines the
+    subcategory-block order. Catalogs inside the same subcategory keep their
+    existing relative order. This matches the UI behavior: changing one catalog
+    to an earlier category appends it to that category block on save, rather
+    than alphabetically jumping around.
+    """
+    categories: list[dict[str, Any]] = []
+    category_map: dict[str, dict[str, Any]] = {}
+
+    for item in config:
+        category_key = group_value(item.get("category"))
+        category = category_map.get(category_key)
+        if category is None:
+            category = {"subcategories": [], "subcategory_map": {}}
+            category_map[category_key] = category
+            categories.append(category)
+
+        subcategory_key = group_value(item.get("subcategory", item.get("subCategory", "")))
+        subcategory_map = category["subcategory_map"]
+        subcategory = subcategory_map.get(subcategory_key)
+        if subcategory is None:
+            subcategory = []
+            subcategory_map[subcategory_key] = subcategory
+            category["subcategories"].append(subcategory)
+        subcategory.append(item)
+
+    grouped: list[dict[str, Any]] = []
+    for category in categories:
+        for subcategory in category["subcategories"]:
+            grouped.extend(subcategory)
+    return grouped
+
+
 def read_json_array(path: Path) -> list[dict[str, Any]] | None:
     if not path.is_file():
         return None
@@ -404,8 +445,8 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
         row["id"] = catalog_id
         row["title"] = title or catalog_id
         row["description"] = str(row.get("description", ""))
-        row["category"] = str(row.get("category", ""))
-        row["subcategory"] = str(row.get("subcategory", row.get("subCategory", "")))
+        row["category"] = group_value(row.get("category", ""))
+        row["subcategory"] = group_value(row.get("subcategory", row.get("subCategory", "")))
         row["pdf"] = pdf.replace("\\", "/")
         row["ocr"] = catalog_ocr_enabled(row)
         row.pop("status", None)
@@ -532,9 +573,10 @@ class ControlHandler(BaseHTTPRequestHandler):
             payload = read_json_body(self)
             if path == "/api/catalogs":
                 catalogs = validate_catalogs_for_save(payload.get("catalogs"))
+                catalogs = group_catalogs_by_category_subcategory(catalogs)
                 write_config(catalogs)
                 warnings = sync_generated_metadata_after_config_save(catalogs)
-                self.send_json({"ok": True, "state": state_payload(), "warnings": warnings})
+                self.send_json({"ok": True, "state": state_payload(), "warnings": warnings, "grouped": True})
                 return
             if path == "/api/run":
                 job = start_job(str(payload.get("action", "")).strip())
