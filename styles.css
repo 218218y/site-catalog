@@ -615,11 +615,17 @@ main {
   grid-template-rows: auto auto;
 }
 .search-panel.global-search-popover .search-result-thumb-frame {
-  aspect-ratio: 1 / 1.18;
+  /* Search result thumbnails are generated from catalog pages that are mostly
+     landscape-ish. A portrait frame forced object-fit: contain to leave a large
+     blank area under many images, so keep the rows uniform with a horizontal
+     frame that matches the real thumbnail proportions instead of stretching the
+     card vertically. */
+  aspect-ratio: 1.58 / 1;
   background: #fff;
 }
 .search-panel.global-search-popover .search-result-thumb {
   object-fit: contain;
+  object-position: center center;
   background: #fff;
 }
 .search-box {
