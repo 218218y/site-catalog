@@ -1415,9 +1415,13 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .lightbox.mode-scroll .lightbox-scroll-view {
   display: block;
 }
-.lightbox.mode-scroll .lightbox-stage,
+.lightbox.mode-scroll .lightbox-stage {
+  display: none;
+}
 .lightbox.mode-scroll .thumbs-hotspot,
-.lightbox.mode-scroll .lightbox-thumbs {
+.lightbox.mode-scroll .lightbox-thumbs,
+.lightbox.mode-single .thumbs-hotspot,
+.lightbox.mode-single .lightbox-thumbs {
   display: none;
 }
 .lightbox-scroll-pages {
@@ -1472,8 +1476,12 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-.lightbox.mode-scroll .lightbox-side-hotspot {
+.lightbox.mode-scroll .lightbox-side-hotspot,
+.lightbox.mode-single .lightbox-side-hotspot {
   display: grid;
+}
+.lightbox.mode-single .lightbox-side-hotspot {
+  z-index: 6;
 }
 .lightbox-side-hotspot span {
   display: grid;
@@ -1511,7 +1519,8 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   pointer-events: none;
   transition: transform .24s ease, opacity .2s ease;
 }
-.lightbox.mode-scroll .lightbox-page-rail {
+.lightbox.mode-scroll .lightbox-page-rail,
+.lightbox.mode-single .lightbox-page-rail {
   display: grid;
 }
 .lightbox.show-page-rail .lightbox-page-rail,
@@ -1603,14 +1612,14 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   line-height: 1;
   backdrop-filter: blur(10px);
 }
-.lightbox.mode-scroll .lightbox-floating-preview {
+.lightbox-floating-preview.from-page-rail {
   bottom: auto;
   left: auto;
   width: min(440px, 34vw);
   max-width: calc(100vw - 330px);
   transform: translateY(-50%) translateX(16px) scale(.96);
 }
-.lightbox.mode-scroll .lightbox-floating-preview.visible {
+.lightbox-floating-preview.from-page-rail.visible {
   transform: translateY(-50%) translateX(0) scale(1);
 }
 
@@ -2947,33 +2956,33 @@ a.reader-home:focus-visible {
   .lightbox-scroll-view { padding: 8px; }
   .lightbox-scroll-page-frame { border-radius: 12px; }
   .lightbox-page-rail {
-    top: auto;
+    top: 8px;
     right: 8px;
-    left: 8px;
+    left: auto;
     bottom: 8px;
-    width: auto;
-    max-height: 168px;
+    width: min(172px, 52vw);
+    max-height: none;
     grid-template-rows: auto minmax(0, 1fr);
-    transform: translateY(calc(100% + 18px));
+    transform: translateX(calc(100% + 18px));
   }
   .lightbox.show-page-rail .lightbox-page-rail,
-  .lightbox-page-rail:focus-within { transform: translateY(0); }
+  .lightbox-page-rail:focus-within { transform: translateX(0); }
   .lightbox-page-thumbs {
-    flex-direction: row;
+    flex-direction: column;
     gap: 10px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    touch-action: pan-x;
-    padding: 2px 2px 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    touch-action: pan-y;
+    padding: 2px 2px 12px 4px;
   }
   .lightbox-page-thumb {
-    flex: 0 0 116px;
-    width: 116px;
+    flex: 0 0 auto;
+    width: 100%;
   }
   .lightbox-page-thumb:hover,
-  .lightbox-page-thumb:focus-visible { transform: translateY(-2px); }
-  .lightbox-side-hotspot { top: auto; right: 0; bottom: 0; width: 100vw; height: 34px; }
-  .lightbox-side-hotspot span { width: 58px; height: 24px; border-radius: 999px 999px 0 0; transform: rotate(90deg); }
+  .lightbox-page-thumb:focus-visible { transform: translateX(-2px); }
+  .lightbox-side-hotspot { top: 0; right: 0; bottom: auto; width: 34px; height: 100vh; }
+  .lightbox-side-hotspot span { width: 24px; height: 58px; border-radius: 999px 0 0 999px; transform: none; }
   .lightbox-actions { gap: 5px; }
   .reader-control-icon-button { width: 36px; min-width: 36px; min-height: 36px; border-radius: 12px; }
   .reader-control-icon-button svg { width: 18px; height: 18px; }

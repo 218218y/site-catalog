@@ -2211,6 +2211,10 @@ function hideLightboxFloatingPreview() {
   els.lightboxFloatingPreview?.classList.remove("visible");
 }
 
+function isLightboxPageRailTrigger(button) {
+  return Boolean(button?.closest?.(".lightbox-page-rail"));
+}
+
 function normalizeWheelDeltaToPixels(delta, deltaMode, pageSize = 0) {
   const lineMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_LINE : 1;
   const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
@@ -2241,7 +2245,7 @@ function positionLightboxFloatingPreview(button) {
 
   const buttonRect = button.getBoundingClientRect();
 
-  if (state.viewerMode === "scroll") {
+  if (isLightboxPageRailTrigger(button)) {
     const previewHeight = Math.max(240, preview.offsetHeight || Math.min(620, window.innerHeight * 0.74));
     const railRect = button.closest?.(".lightbox-page-rail")?.getBoundingClientRect?.();
     const centerY = Math.min(
@@ -2278,6 +2282,7 @@ function showLightboxFloatingPreview(button) {
   setCatalogImageSource(els.lightboxFloatingPreviewImage, src);
   els.lightboxFloatingPreviewImage.alt = `${state.catalog.title} - עמוד ${page}`;
   if (els.lightboxFloatingPreviewPage) els.lightboxFloatingPreviewPage.textContent = `עמוד ${page}`;
+  els.lightboxFloatingPreview.classList.toggle("from-page-rail", isLightboxPageRailTrigger(button));
   els.lightboxFloatingPreview.classList.add("visible");
   positionLightboxFloatingPreview(button);
 }
@@ -2300,34 +2305,14 @@ function updateLightboxThumbs(options = {}) {
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
 
-    if (active && scrollIntoView && state.viewerMode === "scroll" && pageRailIsVisible) {
+    if (active && scrollIntoView && pageRailIsVisible) {
       button.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   });
 }
 
-function renderLightboxThumbs() {
-  if (!state.catalog || !els.lightboxThumbs) return;
-  const catalog = state.catalog;
-  const thumbs = [];
-  for (let page = 1; page <= catalog.pages; page += 1) {
-    thumbs.push(`
-      <button class="lightbox-thumb catalog-image-frame ${page === state.page ? "active" : ""}" type="button" data-page="${page}" data-preview-src="${escapeHtml(thumbSrc(catalog, page))}" aria-label="מעבר לעמוד ${page}">
-        <img src="${escapeHtml(thumbSrc(catalog, page))}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
-      </button>
-    `);
-  }
-  els.lightboxThumbs.innerHTML = thumbs.join("");
-  els.lightboxThumbs.querySelectorAll(".lightbox-thumb").forEach((button) => {
-    button.addEventListener("pointerenter", () => showLightboxFloatingPreview(button));
-    button.addEventListener("pointerleave", hideLightboxFloatingPreview);
-    button.addEventListener("focus", () => showLightboxFloatingPreview(button));
-    button.addEventListener("blur", hideLightboxFloatingPreview);
-    button.addEventListener("click", () => {
-      hideLightboxFloatingPreview();
-      setLightboxPage(Number(button.dataset.page));
-    });
-  });
+function clearLightboxBottomThumbs() {
+  if (els.lightboxThumbs) els.lightboxThumbs.textContent = "";
 }
 
 function renderLightboxScrollPages() {
@@ -2433,7 +2418,7 @@ function setLightboxMode(mode, options = {}) {
   if (nextMode === "scroll") {
     requestAnimationFrame(() => scrollToLightboxScrollPage(pageToKeep, { smooth: false, hit: false }));
   } else if (wasScrollMode) {
-    showThumbsTemporarily(1300);
+    showPageRailTemporarily(1300);
   }
 }
 
@@ -2467,7 +2452,7 @@ function shouldUsePageRailHover(event = null) {
 }
 
 function showPageRailTemporarily(delay = 2600) {
-  if (!els.lightbox || state.viewerMode !== "scroll") return;
+  if (!els.lightbox || !state.lightboxOpen) return;
   window.clearTimeout(state.pageRailHideTimer);
   els.lightbox.classList.add("show-page-rail");
   updateLightboxThumbs({ scrollIntoView: true });
@@ -2479,7 +2464,7 @@ function showPageRailTemporarily(delay = 2600) {
 }
 
 function keepPageRailOpen() {
-  if (state.viewerMode !== "scroll") return;
+  if (!state.lightboxOpen) return;
   window.clearTimeout(state.pageRailHideTimer);
   els.lightbox?.classList.add("show-page-rail");
   updateLightboxThumbs({ scrollIntoView: true });
@@ -2517,7 +2502,7 @@ function keepPageRailOpenFromHover(event = null) {
 }
 
 function handlePageRailPointerOutside(event) {
-  if (!els.lightbox || state.viewerMode !== "scroll") return;
+  if (!els.lightbox || !state.lightboxOpen) return;
   if (!els.lightbox.classList.contains("show-page-rail")) return;
 
   const target = event.target;
@@ -2659,7 +2644,7 @@ function openLightbox(page = 1, options = {}) {
   els.lightbox.classList.remove("hidden");
   els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail");
   document.body.classList.add("no-scroll");
-  renderLightboxThumbs();
+  clearLightboxBottomThumbs();
   renderLightboxScrollPages();
   renderLightboxPageRail();
   renderLightboxCatalogMenu();
@@ -3256,12 +3241,17 @@ function attachEvents() {
 
   attachViewerGestures();
 
-  [els.prevPageBtn, els.nextPageBtn, els.thumbsHotspot].forEach((el) => {
-    el?.addEventListener("mouseenter", () => showThumbsTemporarily(0));
-    el?.addEventListener("mouseleave", scheduleThumbsClose);
-    el?.addEventListener("focus", () => showThumbsTemporarily(0));
-    el?.addEventListener("blur", scheduleThumbsClose);
+  [els.prevPageBtn, els.nextPageBtn].forEach((el) => {
+    el?.addEventListener("mouseenter", () => showPageRailTemporarily(0));
+    el?.addEventListener("mouseleave", schedulePageRailClose);
+    el?.addEventListener("focus", () => showPageRailTemporarily(0));
+    el?.addEventListener("blur", schedulePageRailClose);
   });
+
+  els.thumbsHotspot?.addEventListener("mouseenter", () => showThumbsTemporarily(0));
+  els.thumbsHotspot?.addEventListener("mouseleave", scheduleThumbsClose);
+  els.thumbsHotspot?.addEventListener("focus", () => showThumbsTemporarily(0));
+  els.thumbsHotspot?.addEventListener("blur", scheduleThumbsClose);
 
   els.lightboxThumbs?.addEventListener("mouseenter", keepThumbsOpen);
   els.lightboxThumbs?.addEventListener("wheel", handleLightboxThumbsWheel, { passive: false });
@@ -3352,8 +3342,7 @@ function attachEvents() {
     if (event.key === "Escape") closeLightbox();
     else if (event.key === "ArrowRight") moveLightbox(-1);
     else if (event.key === "ArrowLeft") moveLightbox(1);
-    else if (event.key === "ArrowDown" && state.viewerMode === "single") showThumbsTemporarily(3000);
-    else if (event.key === "ArrowDown" && state.viewerMode === "scroll") showPageRailTemporarily(3000);
+    else if (event.key === "ArrowDown") showPageRailTemporarily(3000);
     else if (event.key === "Home") setLightboxPage(1, { smooth: true, hit: state.viewerMode === "scroll" });
     else if (event.key === "End" && state.catalog) setLightboxPage(state.catalog.pages, { smooth: true, hit: state.viewerMode === "scroll" });
   });
