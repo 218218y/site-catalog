@@ -167,6 +167,7 @@ const state = {
   lastTouchLikeRailInputAt: 0,
   lightboxScrollRaf: 0,
   globalSearchCategory: "",
+  globalSearchOpen: false,
   lightboxSearchScope: "catalog",
   lightboxScrollImageObserver: null,
   singleImageLoadToken: 0,
@@ -186,6 +187,9 @@ const els = {
   categoryNav: $("categoryNav"),
   catalogCount: $("catalogCount"),
   pageCount: $("pageCount"),
+  catalogSearch: $("catalogSearch"),
+  globalSearchOpen: $("globalSearchOpen"),
+  globalSearchClose: $("globalSearchClose"),
   globalSearchInput: $("globalSearchInput"),
   globalSearchResults: $("globalSearchResults"),
   globalSearchClear: $("globalSearchClear"),
@@ -1369,6 +1373,50 @@ function closeGlobalSearchScopeMenu() {
   els.globalSearchScopeToggle?.setAttribute("aria-expanded", "false");
 }
 
+function isGlobalSearchPanelOpen() {
+  return Boolean(state.globalSearchOpen && els.catalogSearch && !els.catalogSearch.classList.contains("hidden"));
+}
+
+function setGlobalSearchPanelOpen(open, options = {}) {
+  const shouldOpen = Boolean(open);
+  state.globalSearchOpen = shouldOpen;
+
+  if (!els.catalogSearch) return;
+
+  els.catalogSearch.classList.toggle("hidden", !shouldOpen);
+  els.catalogSearch.classList.toggle("is-open", shouldOpen);
+  els.catalogSearch.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
+
+  els.globalSearchOpen?.classList.toggle("is-active", shouldOpen);
+  els.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+
+  if (shouldOpen) {
+    renderGlobalSearchScopeMenu();
+    renderSearchResults(els.globalSearchInput?.value || "");
+    if (options.focus !== false) {
+      window.requestAnimationFrame(() => els.globalSearchInput?.focus({ preventScroll: true }));
+    }
+    return;
+  }
+
+  closeGlobalSearchScopeMenu();
+  hideSearchFloatingPreview();
+  if (options.hideResults !== false) {
+    els.globalSearchResults?.classList.add("hidden");
+  }
+  if (options.focusButton) {
+    window.requestAnimationFrame(() => els.globalSearchOpen?.focus({ preventScroll: true }));
+  }
+}
+
+function openGlobalSearchPanel(options = {}) {
+  setGlobalSearchPanelOpen(true, options);
+}
+
+function closeGlobalSearchPanel(options = {}) {
+  setGlobalSearchPanelOpen(false, options);
+}
+
 function renderGlobalSearchScopeMenu() {
   if (!els.globalSearchScopeMenu) return;
 
@@ -1810,7 +1858,7 @@ function openGlobalSearchResult(result) {
   if (!result) return false;
   hideSearchFloatingPreview();
   openCatalog(result.catalogId, { openPage: Number(result.page) });
-  els.globalSearchResults?.classList.add("hidden");
+  closeGlobalSearchPanel({ focusButton: false });
   return true;
 }
 
@@ -3194,6 +3242,20 @@ function handleLightboxSearchResultsBackgroundClick(event) {
 }
 
 function attachEvents() {
+  els.globalSearchOpen?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeDetailCatalogMenu();
+    closeLightboxCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: true, focusButton: true });
+  });
+  els.globalSearchClose?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeGlobalSearchPanel({ focusButton: true });
+  });
+
   els.globalSearchInput?.addEventListener("input", () => renderSearchResults(els.globalSearchInput.value));
   els.globalSearchInput?.addEventListener("focus", () => renderSearchResults(els.globalSearchInput.value));
   els.globalSearchInput?.addEventListener("click", () => renderSearchResults(els.globalSearchInput.value));
@@ -3289,10 +3351,22 @@ function attachEvents() {
   els.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
 
   document.addEventListener("click", (event) => {
-    if (els.globalSearchScopeMenu?.contains(event.target) || els.globalSearchScopeToggle?.contains(event.target)) return;
-    if (els.lightboxSearchScopeMenu?.contains(event.target) || els.lightboxSearchScopeToggle?.contains(event.target)) return;
-    if (els.lightboxCatalogMenu?.contains(event.target) || els.lightboxCatalogMenuToggle?.contains(event.target)) return;
-    if (els.catalogMenu?.contains(event.target) || els.catalogMenuToggle?.contains(event.target)) return;
+    const target = event.target;
+    const insideGlobalSearch = Boolean(els.catalogSearch?.contains(target) || els.globalSearchOpen?.contains(target));
+
+    if (insideGlobalSearch) {
+      if (!els.globalSearchScopeMenu?.contains(target) && !els.globalSearchScopeToggle?.contains(target)) {
+        closeGlobalSearchScopeMenu();
+      }
+      closeLightboxSearchScopeMenu();
+      closeLightboxCatalogMenu();
+      closeDetailCatalogMenu();
+      return;
+    }
+    if (els.lightboxSearchScopeMenu?.contains(target) || els.lightboxSearchScopeToggle?.contains(target)) return;
+    if (els.lightboxCatalogMenu?.contains(target) || els.lightboxCatalogMenuToggle?.contains(target)) return;
+    if (els.catalogMenu?.contains(target) || els.catalogMenuToggle?.contains(target)) return;
+    closeGlobalSearchPanel({ focusButton: false });
     closeGlobalSearchScopeMenu();
     closeLightboxSearchScopeMenu();
     closeLightboxCatalogMenu();
@@ -3401,9 +3475,13 @@ function attachEvents() {
   syncFullscreenButtonUi();
 
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
+    if (event.key === "Escape" && isGlobalSearchPanelOpen()) {
       event.preventDefault();
-      closeGlobalSearchScopeMenu();
+      if (els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
+        closeGlobalSearchScopeMenu();
+        return;
+      }
+      closeGlobalSearchPanel({ focusButton: true });
       return;
     }
     if (event.key === "Escape" && els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {

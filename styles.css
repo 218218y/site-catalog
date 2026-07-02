@@ -158,6 +158,48 @@ img[data-wp-logo="1"],
   box-shadow: 0 12px 28px rgba(94, 67, 42, 0.14);
 }
 
+.top-search-button {
+  flex: 0 0 auto;
+  width: var(--top-nav-button-min-height);
+  min-width: var(--top-nav-button-min-height);
+  min-height: var(--top-nav-button-min-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(110, 86, 70, 0.15);
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(239,225,213,0.78));
+  box-shadow: 0 12px 28px rgba(70, 50, 36, 0.1), inset 0 1px 0 rgba(255,255,255,0.88);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.top-search-button svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  fill: currentColor;
+}
+.top-search-button:hover,
+.top-search-button:focus-visible,
+.top-search-button.is-active,
+.top-search-button[aria-expanded="true"] {
+  color: var(--ink);
+  border-color: rgba(145, 114, 93, 0.28);
+  background: linear-gradient(180deg, #fff, rgba(232, 213, 199, 0.96));
+  box-shadow: 0 16px 34px rgba(70, 50, 36, 0.14), inset 0 1px 0 rgba(255,255,255,0.92);
+}
+.top-search-button:hover,
+.top-search-button:focus-visible {
+  transform: translateY(-1px);
+}
+.top-search-button[aria-expanded="true"] {
+  transform: none;
+}
+
 main {
   width: min(1480px, 100%);
   margin: 0 auto;
@@ -229,6 +271,7 @@ main {
 }
 
 .catalogs-section {
+  margin-top: 26px;
   padding-top: clamp(12px, 2vw, 22px);
 }
 .catalog-category-section,
@@ -465,13 +508,93 @@ main {
 .catalog-card .button { min-height: 40px; padding-inline: 16px; flex: 1; }
 
 
-/* The search panel is a reveal card, so its transform creates a stacking context.
-   Keep it above the following catalog panel so the category picker can open over the catalog cards. */
+/* Global search is detached from the page flow and opens as a floating panel.
+   Keep the existing search controls/results styles underneath so the search behavior stays shared. */
 .search-panel {
   position: relative;
   z-index: 20;
   overflow: visible;
   margin-bottom: 26px;
+}
+.search-panel.global-search-popover {
+  position: fixed;
+  z-index: 80;
+  top: calc(var(--header-h) + 12px);
+  left: clamp(12px, 3vw, 42px);
+  right: auto;
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(100vh - var(--header-h) - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: clamp(14px, 2vw, 22px);
+  overflow: visible;
+  background: rgba(255, 252, 249, 0.96);
+  border-color: rgba(255,255,255,0.94);
+  box-shadow: 0 30px 88px rgba(37, 25, 16, 0.22), inset 0 1px 0 rgba(255,255,255,0.9);
+  backdrop-filter: blur(18px);
+}
+.search-panel-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.search-panel-title {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.search-panel-title strong {
+  color: var(--ink);
+  font-size: 1.08rem;
+  font-weight: 950;
+}
+.search-panel-title small {
+  color: var(--muted);
+  font-size: .88rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.global-search-close {
+  flex: 0 0 auto;
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(110, 86, 70, 0.15);
+  border-radius: 999px;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--brand-dark);
+  background: rgba(255,255,255,0.88);
+  box-shadow: 0 10px 22px rgba(82, 61, 46, 0.1), inset 0 1px 0 rgba(255,255,255,0.86);
+  font: inherit;
+  font-size: 1.18rem;
+  font-weight: 950;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.global-search-close:hover,
+.global-search-close:focus-visible {
+  border-color: rgba(139, 111, 90, 0.34);
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 12px 26px rgba(82, 61, 46, 0.14), inset 0 1px 0 rgba(255,255,255,0.92);
+  transform: translateY(-1px);
+}
+.search-panel.global-search-popover .search-results {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-height: min(62vh, calc(100vh - var(--header-h) - 210px), 620px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-inline-end: 2px;
+  scrollbar-width: thin;
 }
 .search-box {
   position: relative;
@@ -2768,7 +2891,7 @@ a.reader-home:focus-visible {
 
 
 /* Catalog interaction fixes */
-.search-panel {
+.search-panel:not(.global-search-popover) {
   margin-top: 26px;
 }
 
@@ -2897,6 +3020,7 @@ a.reader-home:focus-visible {
   text-align: right;
 }
 @media (max-width: 1180px) {
+  .search-panel.global-search-popover .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .catalog-category-list { --catalog-layout-columns: 2; }
   .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .catalog-category-grid { grid-template-columns: repeat(var(--category-span, var(--catalog-layout-columns, 2)), minmax(0, 1fr)); }
@@ -2926,6 +3050,7 @@ a.reader-home:focus-visible {
     gap: 8px;
   }
   .top-nav { order: 0; flex-basis: 0; justify-content: flex-end; }
+  .top-search-button svg { width: 18px; height: 18px; }
   .brand-mark { width: 110px; height: auto; }
   .brand-text small { display: none; }
   main, .site-footer { padding-inline: 10px; }
@@ -2941,6 +3066,15 @@ a.reader-home:focus-visible {
   }
   .catalog-category-grid, .catalog-subcategory-grid { grid-template-columns: 1fr; width: 100%; }
   .catalog-category-head-with-subcategories { grid-template-columns: 1fr; }
+  .search-panel.global-search-popover {
+    top: calc(var(--header-h) + 8px);
+    left: 10px;
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - var(--header-h) - 16px);
+    border-radius: 24px;
+  }
+  .search-panel.global-search-popover .search-results { grid-template-columns: 1fr; }
+  .search-panel-title small { display: none; }
   .search-box { border-radius: 22px; }
   .global-search-field { --global-search-scope-width: 140px; --global-search-clear-size: 32px; --global-search-control-gap: 6px; }
   .global-search-scope-toggle { min-height: 36px; padding-inline: 11px; font-size: .82rem; }
