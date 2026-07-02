@@ -1904,6 +1904,21 @@ function scrollCatalogDetailIntoView() {
   });
 }
 
+function positionCatalogScrollTopButton() {
+  if (!els.scrollToTopBtn || !els.pageGrid) return;
+
+  const gridRect = els.pageGrid.getBoundingClientRect();
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const buttonWidth = Math.max(els.scrollToTopBtn.offsetWidth || 46, 46);
+  const safeInset = 12;
+  const gapFromGrid = 12;
+  const maxLeft = Math.max(safeInset, viewportWidth - buttonWidth - safeInset);
+  const preferredLeft = gridRect.left - buttonWidth - gapFromGrid;
+  const left = clampValue(preferredLeft, safeInset, maxLeft);
+
+  els.scrollToTopBtn.style.setProperty("--catalog-scroll-top-left", `${Math.round(left)}px`);
+}
+
 function setCatalogScrollTopButtonVisible(visible) {
   if (!els.scrollToTopBtn) return;
   els.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
@@ -1917,6 +1932,8 @@ function updateCatalogScrollTopButton() {
     setCatalogScrollTopButtonVisible(false);
     return;
   }
+
+  positionCatalogScrollTopButton();
 
   const detailRect = els.catalogDetail.getBoundingClientRect();
   const gridRect = els.pageGrid.getBoundingClientRect();
