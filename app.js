@@ -1494,14 +1494,33 @@ function setLightboxSearchScope(scope, options = {}) {
   }
 }
 
+function hideLightboxSearchResults(options = {}) {
+  const { blurTopUiFocus = false, hideTopUi = false } = options;
+
+  hideSearchFloatingPreview();
+  els.lightboxSearchResults?.classList.add("hidden");
+  closeLightboxSearchScopeMenu();
+  closeLightboxCatalogMenu();
+
+  if (blurTopUiFocus) {
+    const activeElement = document.activeElement;
+    if (activeElement && els.lightboxBar?.contains(activeElement) && typeof activeElement.blur === "function") {
+      activeElement.blur();
+    }
+  }
+
+  if (hideTopUi) {
+    window.clearTimeout(state.uiHideTimer);
+    els.lightbox?.classList.remove("show-ui");
+  }
+}
+
 function resetLightboxSearch() {
   if (els.lightboxSearchInput) els.lightboxSearchInput.value = "";
-  els.lightboxSearchResults?.classList.add("hidden");
+  hideLightboxSearchResults({ blurTopUiFocus: true });
   if (els.lightboxSearchResults) els.lightboxSearchResults.innerHTML = "";
   els.lightboxSearchClear?.classList.add("hidden");
   syncLightboxSearchScopeUi();
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
   initLightboxSearchStatus();
 }
 
@@ -1533,7 +1552,7 @@ function openLightboxSearchResult(result) {
   const page = clampPage(result.page, state.catalog);
   setLightboxPage(page, { smooth: true, hit: state.viewerMode === "scroll" });
   showTopUiTemporarily(0);
-  els.lightboxSearchResults?.classList.add("hidden");
+  hideLightboxSearchResults();
   return true;
 }
 
@@ -3160,6 +3179,20 @@ function attachViewerGestures() {
   attachZoomSurfaceGestures(els.lightboxScrollView);
 }
 
+function handleViewerSurfacePointerDown(event) {
+  if (event.button !== undefined && event.button !== 0) return;
+  hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi: true });
+}
+
+function handleLightboxSearchResultsBackgroundClick(event) {
+  const resultButton = event.target.closest?.("[data-lightbox-search-page]");
+  if (resultButton && els.lightboxSearchResults?.contains(resultButton)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi: true });
+}
+
 function attachEvents() {
   els.globalSearchInput?.addEventListener("input", () => renderSearchResults(els.globalSearchInput.value));
   els.globalSearchInput?.addEventListener("focus", () => renderSearchResults(els.globalSearchInput.value));
@@ -3242,6 +3275,7 @@ function attachEvents() {
     showTopUiTemporarily(0);
   });
   els.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+  els.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
 
   els.catalogMenuToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -3291,6 +3325,8 @@ function attachEvents() {
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
   els.fitBtn?.addEventListener("click", () => setZoom(1));
+  els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
+  els.lightboxScrollView?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
 
   attachViewerGestures();
 
@@ -3391,8 +3427,7 @@ function attachEvents() {
     const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
     if (isTyping) {
       if (event.key === "Escape") {
-        target.blur();
-        els.lightboxSearchResults?.classList.add("hidden");
+        hideLightboxSearchResults({ blurTopUiFocus: true });
       }
       return;
     }
