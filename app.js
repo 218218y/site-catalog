@@ -3426,13 +3426,6 @@ function attachEvents() {
 
   attachViewerGestures();
 
-  [els.prevPageBtn, els.nextPageBtn].forEach((el) => {
-    el?.addEventListener("mouseenter", () => showPageRailTemporarily(0));
-    el?.addEventListener("mouseleave", schedulePageRailClose);
-    el?.addEventListener("focus", () => showPageRailTemporarily(0));
-    el?.addEventListener("blur", schedulePageRailClose);
-  });
-
   els.thumbsHotspot?.addEventListener("mouseenter", () => showThumbsTemporarily(0));
   els.thumbsHotspot?.addEventListener("mouseleave", scheduleThumbsClose);
   els.thumbsHotspot?.addEventListener("focus", () => showThumbsTemporarily(0));
