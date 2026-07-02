@@ -566,14 +566,44 @@ function getCurrentCatalogFocusUrlTargetId() {
   return "";
 }
 
+function encodeHashRouteSegment(value) {
+  return encodeURIComponent(String(value ?? ""));
+}
+
+function decodeHashRouteSegment(value) {
+  const segment = String(value || "");
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+function buildCatalogRouteHash(catalogId, options = {}) {
+  const id = encodeHashRouteSegment(catalogId);
+  if (!id) return "";
+
+  const { lightbox = false, page = 1, viewerMode = "single" } = options;
+  let hash = `#catalog/${id}`;
+  if (lightbox) {
+    const currentPage = Math.max(1, Number.parseInt(page, 10) || 1);
+    hash += `/page/${currentPage}`;
+    if (viewerMode === "scroll") hash += "/scroll";
+  }
+
+  return hash;
+}
+
 function buildMainHeaderUrl() {
   const url = new URL(window.location.href);
   const route = parseHash();
 
   if (route?.id) {
-    url.hash = route.lightbox
-      ? `catalog/${route.id}/page/${route.page}${route.viewerMode === "scroll" ? "/scroll" : ""}`
-      : `catalog/${route.id}`;
+    url.hash = buildCatalogRouteHash(route.id, route.lightbox ? {
+      lightbox: true,
+      page: route.page,
+      viewerMode: route.viewerMode
+    } : {});
     return url.href;
   }
 
@@ -590,7 +620,11 @@ function buildMainHeaderUrl() {
 function buildLightboxPageUrl() {
   if (!state.catalog) return buildMainHeaderUrl();
   const url = new URL(window.location.href);
-  url.hash = `catalog/${state.catalog.id}/page/${clampPage(state.page, state.catalog)}${state.viewerMode === "scroll" ? "/scroll" : ""}`;
+  url.hash = buildCatalogRouteHash(state.catalog.id, {
+    lightbox: true,
+    page: clampPage(state.page, state.catalog),
+    viewerMode: state.viewerMode
+  });
   return url.href;
 }
 
@@ -2108,12 +2142,12 @@ function updateHash() {
     return;
   }
 
-  let hash = `#catalog/${state.catalog.id}`;
-  if (state.lightboxOpen) {
-    hash += `/page/${state.page}`;
-    if (state.viewerMode === "scroll") hash += "/scroll";
-  }
-  history.replaceState(null, "", hash);
+  const hash = buildCatalogRouteHash(state.catalog.id, state.lightboxOpen ? {
+    lightbox: true,
+    page: state.page,
+    viewerMode: state.viewerMode
+  } : {});
+  history.replaceState(null, "", hash || "#catalogs");
 }
 
 function getPointerList() {
@@ -3060,23 +3094,25 @@ function openCatalogInViewer(id, page = 1, mode = "single") {
   openLightbox(state.page, { mode });
 }
 
-function parseHash() {
-  const pageMatch = location.hash.match(/^#catalog\/([a-z0-9-]+)\/page\/(\d+)(?:\/(scroll|single))?$/i);
-  if (pageMatch) {
-    return {
-      id: pageMatch[1],
-      page: Number(pageMatch[2]),
-      lightbox: true,
-      viewerMode: pageMatch[3] === "scroll" ? "scroll" : "single"
-    };
+function parseHash(hash = location.hash) {
+  const rawHash = String(hash || "");
+  const rawRoute = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+  const parts = rawRoute.replace(/^\/+/, "").split("/");
+  if (parts[0] !== "catalog" || !parts[1]) return null;
+
+  const id = decodeHashRouteSegment(parts[1]);
+  if (!id) return null;
+
+  if (parts.length === 2) {
+    return { id, page: 1, lightbox: false };
   }
 
-  const catalogMatch = location.hash.match(/^#catalog\/([a-z0-9-]+)$/i);
-  if (catalogMatch) {
-    return { id: catalogMatch[1], page: 1, lightbox: false };
-  }
+  if (parts[2] !== "page" || !parts[3]) return null;
+  const page = Number.parseInt(decodeHashRouteSegment(parts[3]), 10);
+  if (!Number.isFinite(page) || page < 1) return null;
 
-  return null;
+  const viewerMode = decodeHashRouteSegment(parts[4]) === "scroll" ? "scroll" : "single";
+  return { id, page, lightbox: true, viewerMode };
 }
 
 
