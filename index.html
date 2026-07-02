@@ -56,12 +56,8 @@
     <section class="catalog-detail panel hidden reveal" id="catalogDetail" aria-labelledby="catalogDetailTitle">
       <div class="catalog-hero">
         <div class="catalog-intro">
-          <a class="back-link" href="#catalogs">← חזרה לרשימת הקטלוגים</a>
-          <div class="catalog-detail-heading-row">
-            <div class="catalog-title-block">
-              <h2 id="catalogDetailTitle">בחרו קטלוג</h2>
-              <p id="catalogDescription" class="catalog-description">כאן יופיע תיאור קצר של הקטלוג.</p>
-            </div>
+          <div class="catalog-detail-topbar">
+            <a class="back-link" href="#catalogs">← חזרה לרשימת הקטלוגים</a>
 
             <div class="catalog-switch-panel">
               <div class="detail-catalog-picker">
@@ -78,18 +74,20 @@
               </div>
             </div>
           </div>
-        </div>
 
+          <div class="catalog-title-block">
+            <h2 id="catalogDetailTitle">בחרו קטלוג</h2>
+            <p id="catalogDescription" class="catalog-description">כאן יופיע תיאור קצר של הקטלוג.</p>
+          </div>
+        </div>
       </div>
 
       <div class="gallery-toolbar">
-        <div>
-          <strong>כל עמודי הקטלוג</strong>
-          <p>לחיצה על עמוד תפתח אותו בגדול. אפשר לדפדף עם חיצים, מקלדת או מגע.</p>
-        </div>
-        <div class="gallery-toolbar-actions">
-          <button class="small-button" id="scrollToTopBtn" type="button">חזרה לראש הקטלוג</button>
-        </div>
+        <strong>כל עמודי הקטלוג</strong>
+      </div>
+
+      <div class="gallery-floating-actions" aria-label="פעולות גלילה בקטלוג">
+        <button class="small-button" id="scrollToTopBtn" type="button">חזרה לראש הקטלוג</button>
       </div>
 
       <div class="page-grid" id="pageGrid"></div>
