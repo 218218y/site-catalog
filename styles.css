@@ -757,6 +757,7 @@ main {
 
 .catalog-detail {
   padding-top: clamp(12px, 2vw, 22px);
+  padding-inline: clamp(20px, 3.2vw, 42px);
 }
 .catalog-hero {
   display: grid;
@@ -764,12 +765,22 @@ main {
   gap: 8px;
   align-items: start;
 }
+.catalog-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(18px, 3vw, 30px);
+}
+.catalog-detail-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
 .catalog-detail-topbar {
   display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: clamp(14px, 4vw, 34px);
-  margin-bottom: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 28px;
+  margin-bottom: 6px;
 }
 .back-link {
   display: inline-flex;
@@ -784,10 +795,12 @@ main {
   min-width: 0;
 }
 .catalog-switch-panel {
-  flex: 0 1 380px;
-  min-width: min(300px, 100%);
+  flex: 0 1 340px;
+  width: min(340px, 100%);
+  min-width: min(260px, 100%);
   display: grid;
   justify-items: center;
+  align-self: flex-start;
   gap: 8px;
 }
 .catalog-description {
@@ -865,7 +878,9 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 }
 .detail-catalog-menu.reader-catalog-menu {
   top: calc(100% + 10px);
-  right: 0;
+  right: auto;
+  left: 0;
+  transform: none;
   width: min(calc(100vw - 32px), 760px);
   max-height: min(480px, calc(100vh - 120px));
   border-color: rgba(110, 86, 70, 0.18);
@@ -873,6 +888,8 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   box-shadow: 0 24px 68px rgba(62, 45, 34, 0.18), inset 0 1px 0 rgba(255,255,255,0.88);
 }
 .detail-catalog-menu.reader-catalog-menu::before {
+  right: auto;
+  left: 24px;
   background: rgba(255,255,255,0.98);
   border-top-color: rgba(110, 86, 70, 0.16);
   border-left-color: rgba(110, 86, 70, 0.16);
@@ -917,28 +934,32 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   background: linear-gradient(135deg, #ebdfd3, #d8c1af);
 }
 .gallery-toolbar {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
+  position: sticky;
+  top: calc(var(--header-h) + 12px);
+  z-index: 45;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(110, 86, 70, 0.16);
+  border-radius: 18px;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+  background: rgba(255, 252, 249, 0.92);
+  box-shadow: 0 14px 36px rgba(62, 45, 34, 0.1), inset 0 1px 0 rgba(255,255,255,0.86);
+  backdrop-filter: blur(10px);
 }
 .gallery-toolbar strong { display: block; font-size: 1.1rem; }
 .gallery-floating-actions {
-  position: sticky;
-  top: calc(var(--header-h) + 14px);
-  z-index: 45;
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-start;
-  height: 0;
-  margin-top: 6px;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .gallery-floating-actions .small-button {
-  pointer-events: auto;
-  box-shadow: 0 14px 34px rgba(62, 45, 34, 0.16), inset 0 1px 0 rgba(255,255,255,0.82);
+  background: linear-gradient(135deg, rgba(154, 122, 98, 0.18), rgba(255,255,255,0.96));
+  border-color: rgba(117, 88, 68, 0.28);
+  box-shadow: 0 14px 34px rgba(62, 45, 34, 0.16), inset 0 1px 0 rgba(255,255,255,0.86);
 }
 
 .page-grid {
@@ -2019,7 +2040,9 @@ a.reader-home:focus-visible {
   position: absolute;
   z-index: 79;
   top: calc(100% + 9px);
-  right: 0;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
   width: min(calc(100vw - 32px), 780px);
   max-height: min(480px, calc(100vh - 82px));
   overflow: auto;
@@ -2035,7 +2058,8 @@ a.reader-home:focus-visible {
   content: "";
   position: absolute;
   top: -6px;
-  right: 16px;
+  right: auto;
+  left: calc(50% - 5px);
   width: 10px;
   height: 10px;
   transform: rotate(45deg);
@@ -2911,8 +2935,10 @@ a.reader-home:focus-visible {
   .reader-floating-preview { display: none; }
   .reader-side-hotspot { top: auto; right: 0; bottom: 0; width: 100vw; height: 34px; }
   .reader-side-hotspot span { width: 58px; height: 24px; border-radius: 999px 999px 0 0; transform: rotate(90deg); }
-  .catalog-detail-topbar { flex-direction: column; align-items: stretch; }
-  .catalog-switch-panel { flex: 0 1 auto; min-width: 0; }
+  .catalog-detail { padding-inline: 16px; }
+  .catalog-detail-head { flex-direction: column; gap: 14px; }
+  .catalog-detail-topbar { align-items: flex-start; }
+  .catalog-switch-panel { flex: 0 1 auto; width: 100%; min-width: 0; }
   .select-wrap, select, .detail-catalog-picker, .detail-catalog-menu-toggle, .catalog-view-mode-actions { width: 100%; min-width: 0; }
   .catalog-view-mode-actions .button { flex: 1 1 140px; }
   .stage-nav { width: 44px; height: 62px; font-size: 2.2rem; }
