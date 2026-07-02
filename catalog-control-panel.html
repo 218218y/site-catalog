@@ -115,7 +115,7 @@
     input:focus, textarea:focus { border-color: #93b4ff; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
     textarea { resize: vertical; line-height: 1.45; }
     .catalog-table-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--line); border-radius: 18px; }
-    table { width: 100%; border-collapse: collapse; min-width: 1720px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; min-width: 1860px; background: #fff; }
     th, td { padding: 10px 10px; border-bottom: 1px solid #edf1f7; text-align: right; vertical-align: middle; }
     th { position: sticky; top: 0; z-index: 2; background: #f8fbff; color: #344054; font-size: .9rem; }
     td input[type="text"] { padding: 8px 10px; border-radius: 10px; }
@@ -168,6 +168,7 @@
     .description-input { min-width: 450px; min-height: 76px; }
     .category-input { min-width: 190px; }
     .subcategory-input { min-width: 190px; }
+    .id-input { min-width: 300px; direction: ltr; text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .88rem; }
     .id-cell { direction: ltr; text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; color: #475467; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pdf-cell { direction: ltr; text-align: left; font-size: .82rem; color: #667085; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 9px; font-size: .82rem; font-weight: 700; white-space: nowrap; }
@@ -352,7 +353,7 @@
     async function loadState() {
       const data = await api('/api/state');
       setServerAlert('');
-      state.catalogs = data.catalogs || [];
+      state.catalogs = (data.catalogs || []).map(catalog => ({ ...catalog, originalId: catalog.originalId || catalog.id }));
       state.actions = data.actions || [];
       state.counts = data.counts || {};
       renderStats(state.counts);
@@ -504,7 +505,7 @@
         <td><input class="category-input" type="text" data-field="category" value="${escapeHtml(catalog.category || '')}" /></td>
         <td><input class="subcategory-input" type="text" data-field="subcategory" value="${escapeHtml(catalog.subcategory || '')}" /></td>
         <td><span class="badge ${escapeHtml(status.state)}">${escapeHtml(status.label)}</span></td>
-        <td class="id-cell" title="${escapeHtml(catalog.id)}">${escapeHtml(catalog.id)}</td>
+        <td><input class="id-input" type="text" data-field="id" value="${escapeHtml(catalog.id || '')}" title="ID מקורי: ${escapeHtml(catalog.originalId || catalog.id || '')}" /></td>
         <td class="pdf-cell" title="${escapeHtml(catalog.pdf)}">${escapeHtml(catalog.pdf)}</td>
         <td><button class="icon-btn delete-btn" type="button" data-delete="catalog" title="הסר את הקטלוג מהרשימה">מחק</button></td>
       </tr>`;
@@ -551,9 +552,13 @@
       } else {
         state.catalogs[index][field] = input.value;
       }
-      markUnsaved(field === 'category' || field === 'subcategory'
-        ? 'יש שינוי קטגוריה/תת־קטגוריה. בשמירה הקטלוגים יקובצו מחדש לפי הסדר המעודכן.'
-        : 'יש שינויים שלא נשמרו.');
+      if (field === 'id') {
+        markUnsaved('יש שינוי ID. בשמירה תתבצע החלפת שם לתיקיית assets/pages ועדכון search-overrides אם צריך.');
+      } else if (field === 'category' || field === 'subcategory') {
+        markUnsaved('יש שינוי קטגוריה/תת־קטגוריה. בשמירה הקטלוגים יקובצו מחדש לפי הסדר המעודכן.');
+      } else {
+        markUnsaved('יש שינויים שלא נשמרו.');
+      }
     }
 
     function moveCatalog(index, direction) {
@@ -651,7 +656,7 @@
     }
 
     async function saveCatalogs() {
-      setSaveStatus('מסדר לפי קטגוריה ותת־קטגוריה ושומר...', '');
+      setSaveStatus('מסדר לפי קטגוריה/תת־קטגוריה, בודק שינויי ID ושומר...', '');
       els.save.disabled = true;
       try {
         state.catalogs = groupCatalogsByCategorySubcategory(state.catalogs);

@@ -30,6 +30,7 @@ GENERATED_JSON_FILE = PROJECT_ROOT / "catalogs.generated.json"
 GENERATED_JS_FILE = PROJECT_ROOT / "catalogs.generated.js"
 SEARCH_JSON_FILE = PROJECT_ROOT / "catalogs.search.json"
 SEARCH_JS_FILE = PROJECT_ROOT / "catalogs.search.js"
+SEARCH_OVERRIDES_FILE = PROJECT_ROOT / "catalogs.search-overrides.json"
 PDF_DIR = PROJECT_ROOT / "assets" / "pdfs"
 PAGES_DIR = PROJECT_ROOT / "assets" / "pages"
 DEFAULT_HOST = "127.0.0.1"
@@ -212,6 +213,148 @@ def group_catalogs_by_category_subcategory(config: list[dict[str, Any]]) -> list
     return grouped
 
 
+def is_safe_catalog_id(catalog_id: str) -> bool:
+    return bool(catalog_id) and not any(ch in catalog_id for ch in '\\/.:?*<>|" ')
+
+
+def strip_control_panel_fields(item: dict[str, Any]) -> dict[str, Any]:
+    row = dict(item)
+    row.pop("status", None)
+    row.pop("originalId", None)
+    row.pop("_originalId", None)
+    row.pop("__original_id", None)
+    return row
+
+
+def catalog_asset_path_for_renamed_id(value: Any, old_id: str, new_id: str) -> Any:
+    if not isinstance(value, str) or old_id == new_id:
+        return value
+    normalized = value.replace("\\", "/")
+    old_prefix = f"assets/pages/{old_id}"
+    new_prefix = f"assets/pages/{new_id}"
+    if normalized == old_prefix:
+        return new_prefix
+    if normalized.startswith(old_prefix + "/"):
+        return new_prefix + normalized[len(old_prefix):]
+    return value
+
+
+def build_catalog_rename_map(config: list[dict[str, Any]]) -> dict[str, str]:
+    rename_map: dict[str, str] = {}
+    for item in config:
+        original_id = str(item.get("__original_id", item.get("id", ""))).strip()
+        catalog_id = str(item.get("id", "")).strip()
+        if original_id and catalog_id and original_id != catalog_id:
+            rename_map[original_id] = catalog_id
+    return rename_map
+
+
+def config_for_file(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [strip_control_panel_fields(item) for item in config]
+
+
+def apply_pages_dir_renames(rename_map: dict[str, str]) -> list[str]:
+    warnings: list[str] = []
+    if not rename_map:
+        return warnings
+
+    source_dirs = {old_id: PAGES_DIR / old_id for old_id in rename_map}
+    target_dirs = {old_id: PAGES_DIR / new_id for old_id, new_id in rename_map.items()}
+    existing_sources = {old_id: path for old_id, path in source_dirs.items() if path.is_dir()}
+
+    if not existing_sources:
+        for old_id, new_id in rename_map.items():
+            warnings.append(f"לא נמצאה תיקיית assets/pages/{old_id}; עודכנו רק קבצי ההגדרות ל-{new_id}.")
+        return warnings
+
+    source_paths = {path.resolve(strict=False) for path in existing_sources.values()}
+    for old_id, old_dir in existing_sources.items():
+        new_id = rename_map[old_id]
+        target_dir = target_dirs[old_id]
+        if target_dir.exists() and target_dir.resolve(strict=False) not in source_paths:
+            raise ValueError(
+                f"אי אפשר לשנות id מ-{old_id} ל-{new_id}: התיקייה assets/pages/{new_id} כבר קיימת. "
+                "מחק או שנה אותה ידנית לפני השמירה כדי למנוע דריסה."
+            )
+
+    temp_root = PAGES_DIR / f".catalog-id-rename-{uuid.uuid4().hex}"
+    temp_root.mkdir(parents=True, exist_ok=False)
+    staged: list[tuple[str, str, Path, Path]] = []
+    try:
+        for old_id, old_dir in existing_sources.items():
+            temp_dir = temp_root / uuid.uuid4().hex
+            old_dir.rename(temp_dir)
+            staged.append((old_id, rename_map[old_id], temp_dir, target_dirs[old_id]))
+
+        for old_id, new_id, temp_dir, target_dir in staged:
+            if target_dir.exists():
+                raise ValueError(
+                    f"אי אפשר להשלים שינוי id מ-{old_id} ל-{new_id}: התיקייה assets/pages/{new_id} עדיין קיימת."
+                )
+            target_dir.parent.mkdir(parents=True, exist_ok=True)
+            temp_dir.rename(target_dir)
+    except Exception:
+        for old_id, _new_id, temp_dir, _target_dir in reversed(staged):
+            old_dir = source_dirs[old_id]
+            if temp_dir.exists() and not old_dir.exists():
+                try:
+                    temp_dir.rename(old_dir)
+                except Exception:
+                    pass
+        raise
+    finally:
+        try:
+            temp_root.rmdir()
+        except OSError:
+            pass
+
+    for old_id, new_id in rename_map.items():
+        if old_id not in existing_sources:
+            warnings.append(f"לא נמצאה תיקיית assets/pages/{old_id}; עודכנו רק קבצי ההגדרות ל-{new_id}.")
+    return warnings
+
+
+def merge_override_terms(existing: Any, incoming: Any) -> Any:
+    if isinstance(existing, list) and isinstance(incoming, list):
+        merged: list[Any] = []
+        for value in [*existing, *incoming]:
+            if value not in merged:
+                merged.append(value)
+        return merged
+    return existing if existing not in (None, [], {}) else incoming
+
+
+def sync_search_overrides_after_id_rename(rename_map: dict[str, str]) -> list[str]:
+    warnings: list[str] = []
+    if not rename_map or not SEARCH_OVERRIDES_FILE.is_file():
+        return warnings
+    payload = json.loads(SEARCH_OVERRIDES_FILE.read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, dict):
+        raise ValueError("catalogs.search-overrides.json must contain a JSON object")
+
+    changed = False
+    for old_id, new_id in rename_map.items():
+        if old_id not in payload:
+            continue
+        old_value = payload.pop(old_id)
+        if new_id in payload and isinstance(payload[new_id], dict) and isinstance(old_value, dict):
+            for page_key, terms in old_value.items():
+                if page_key in payload[new_id]:
+                    payload[new_id][page_key] = merge_override_terms(payload[new_id][page_key], terms)
+                else:
+                    payload[new_id][page_key] = terms
+            warnings.append(f"catalogs.search-overrides.json כבר הכיל מפתח {new_id}; המפתחות של {old_id} מוזגו לתוכו.")
+        elif new_id in payload:
+            warnings.append(f"catalogs.search-overrides.json כבר הכיל מפתח {new_id}; נשמר הערך הקיים ולא הועתק הערך של {old_id}.")
+        else:
+            payload[new_id] = old_value
+        changed = True
+
+    if changed:
+        SEARCH_OVERRIDES_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return warnings
+
+
 def read_json_array(path: Path) -> list[dict[str, Any]] | None:
     if not path.is_file():
         return None
@@ -248,15 +391,17 @@ def write_catalogs_search_files(entries: list[dict[str, Any]]) -> None:
     )
 
 
-def sync_generated_metadata_after_config_save(config: list[dict[str, Any]]) -> list[str]:
+def sync_generated_metadata_after_config_save(config: list[dict[str, Any]], rename_map: dict[str, str] | None = None) -> list[str]:
     """Keep the already-generated website metadata aligned after UI edits.
 
     Saving the control panel edits should immediately affect title,
-    description, category, subcategory, deletion and ordering for catalogs that
-    already exist in catalogs.generated.*. New PDFs still require conversion to
-    create page images and their first generated entry.
+    description, category, subcategory, deletion, ordering and catalog id
+    changes for catalogs that already exist in catalogs.generated.*. New PDFs
+    still require conversion to create page images and their first generated
+    entry.
     """
     warnings: list[str] = []
+    rename_map = rename_map or {}
     config_by_id = {str(item.get("id", "")): item for item in config}
     config_order = [str(item.get("id", "")) for item in config]
     order_index = {catalog_id: index for index, catalog_id in enumerate(config_order)}
@@ -269,13 +414,30 @@ def sync_generated_metadata_after_config_save(config: list[dict[str, Any]]) -> l
 
     if generated_entries is not None:
         updated_generated: list[dict[str, Any]] = []
-        generated_by_id = {str(item.get("id", "")): item for item in generated_entries if str(item.get("id", "")) in config_by_id}
+        generated_by_id: dict[str, dict[str, Any]] = {}
+        generated_priority: dict[str, int] = {}
+        for item in generated_entries:
+            original_id = str(item.get("id", ""))
+            effective_id = rename_map.get(original_id, original_id)
+            if effective_id not in config_by_id:
+                continue
+            updated = dict(item)
+            if effective_id != original_id:
+                updated["id"] = effective_id
+                updated["dir"] = catalog_asset_path_for_renamed_id(updated.get("dir"), original_id, effective_id)
+                updated["cover"] = catalog_asset_path_for_renamed_id(updated.get("cover"), original_id, effective_id)
+            priority = 1 if original_id in rename_map else 0
+            if effective_id not in generated_by_id or priority >= generated_priority.get(effective_id, 0):
+                generated_by_id[effective_id] = updated
+                generated_priority[effective_id] = priority
+
         for catalog_id in config_order:
             entry = generated_by_id.get(catalog_id)
             source = config_by_id.get(catalog_id)
             if not entry or not source:
                 continue
             updated = dict(entry)
+            updated["id"] = catalog_id
             updated["title"] = str(source.get("title", catalog_id))
             updated["description"] = str(source.get("description", ""))
             updated["category"] = str(source.get("category", "קטלוג")) or "קטלוג"
@@ -304,12 +466,24 @@ def sync_generated_metadata_after_config_save(config: list[dict[str, Any]]) -> l
         search_entries = None
 
     if search_entries is not None:
+        search_by_id: dict[str, dict[str, Any]] = {}
+        search_priority: dict[str, int] = {}
+        for item in search_entries:
+            original_id = str(item.get("catalogId", ""))
+            effective_id = rename_map.get(original_id, original_id)
+            if effective_id not in config_by_id:
+                continue
+            entry = dict(item)
+            entry["catalogId"] = effective_id
+            priority = 1 if original_id in rename_map else 0
+            if effective_id not in search_by_id or priority >= search_priority.get(effective_id, 0):
+                search_by_id[effective_id] = entry
+                search_priority[effective_id] = priority
+
         updated_search: list[dict[str, Any]] = []
-        for entry in sorted(
-            (dict(item) for item in search_entries if str(item.get("catalogId", "")) in config_by_id),
-            key=lambda item: order_index.get(str(item.get("catalogId", "")), 10**9),
-        ):
-            source = config_by_id[str(entry.get("catalogId", ""))]
+        for catalog_id in sorted(search_by_id, key=lambda item: order_index.get(item, 10**9)):
+            entry = search_by_id[catalog_id]
+            source = config_by_id[catalog_id]
             entry["title"] = str(source.get("title", entry.get("title", "")))
             updated_search.append(entry)
         try:
@@ -322,6 +496,7 @@ def sync_generated_metadata_after_config_save(config: list[dict[str, Any]]) -> l
 
 def normalize_catalog_for_ui(item: dict[str, Any]) -> dict[str, Any]:
     row = dict(item)
+    row["originalId"] = str(row.get("id", ""))
     row["ocr"] = catalog_ocr_enabled(row)
     row["status"] = catalog_output_status(str(row.get("id", "")))
     return row
@@ -426,23 +601,30 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         raise ValueError("catalogs must be an array")
     seen: set[str] = set()
+    seen_original: set[str] = set()
     result: list[dict[str, Any]] = []
     for index, item in enumerate(value, start=1):
         if not isinstance(item, dict):
             raise ValueError(f"Catalog #{index} must be an object")
         row = dict(item)
         catalog_id = str(row.get("id", "")).strip()
+        original_id = str(row.get("originalId", row.get("_originalId", catalog_id))).strip() or catalog_id
         pdf = str(row.get("pdf", "")).strip()
         title = str(row.get("title", "")).strip()
         if not catalog_id:
             raise ValueError(f"Catalog #{index} is missing id")
         if catalog_id in seen:
             raise ValueError(f"Duplicate catalog id: {catalog_id}")
-        if any(ch in catalog_id for ch in '\\/.:?*<>|" '):
+        if not is_safe_catalog_id(catalog_id):
             raise ValueError(f"Unsafe catalog id: {catalog_id}")
+        if original_id and not is_safe_catalog_id(original_id):
+            raise ValueError(f"Unsafe original catalog id: {original_id}")
+        if original_id in seen_original:
+            raise ValueError(f"Duplicate original catalog id: {original_id}")
         if not pdf:
             raise ValueError(f"Catalog {catalog_id} is missing pdf")
         row["id"] = catalog_id
+        row["__original_id"] = original_id
         row["title"] = title or catalog_id
         row["description"] = str(row.get("description", ""))
         row["category"] = group_value(row.get("category", ""))
@@ -451,6 +633,7 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
         row["ocr"] = catalog_ocr_enabled(row)
         row.pop("status", None)
         seen.add(catalog_id)
+        seen_original.add(original_id)
         result.append(row)
     return result
 
@@ -574,9 +757,16 @@ class ControlHandler(BaseHTTPRequestHandler):
             if path == "/api/catalogs":
                 catalogs = validate_catalogs_for_save(payload.get("catalogs"))
                 catalogs = group_catalogs_by_category_subcategory(catalogs)
-                write_config(catalogs)
-                warnings = sync_generated_metadata_after_config_save(catalogs)
-                self.send_json({"ok": True, "state": state_payload(), "warnings": warnings, "grouped": True})
+                rename_map = build_catalog_rename_map(catalogs)
+                warnings = apply_pages_dir_renames(rename_map)
+                file_catalogs = config_for_file(catalogs)
+                write_config(file_catalogs)
+                try:
+                    warnings.extend(sync_search_overrides_after_id_rename(rename_map))
+                except Exception as exc:
+                    warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search-overrides.json נכשל: {exc}")
+                warnings.extend(sync_generated_metadata_after_config_save(file_catalogs, rename_map))
+                self.send_json({"ok": True, "state": state_payload(), "warnings": warnings, "grouped": True, "renamed": rename_map})
                 return
             if path == "/api/run":
                 job = start_job(str(payload.get("action", "")).strip())
