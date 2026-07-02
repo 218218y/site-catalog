@@ -1635,11 +1635,21 @@ function bindSearchFloatingPreviewEvents(container) {
   });
 }
 
+function updateLightboxSearchResultsLayout(count = 0) {
+  if (!els.lightboxSearchResults) return;
+
+  const resultCount = Math.max(0, Number(count) || 0);
+  const columns = Math.max(1, Math.min(resultCount || 1, 3));
+  els.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns));
+  els.lightboxSearchResults.dataset.resultCount = String(resultCount);
+}
+
 function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!els.lightboxSearchResults || !els.lightboxSearchStatus) return;
 
   hideSearchFloatingPreview();
+  updateLightboxSearchResultsLayout(0);
   els.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
@@ -1658,6 +1668,7 @@ function renderLightboxSearchResults(query) {
 
   const scope = getLightboxSearchScope();
   const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+  updateLightboxSearchResultsLayout(results.length);
   els.lightboxSearchResults.classList.remove("hidden");
 
   if (!results.length) {

@@ -175,11 +175,21 @@
     .badge.ready { color: var(--ok); background: #ecfdf3; }
     .badge.partial, .badge.empty { color: var(--warn); background: #fffaeb; }
     .badge.missing { color: #475467; background: #f2f4f7; }
-    .toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; white-space: nowrap; }
-    .toggle input { position: absolute; opacity: 0; pointer-events: none; }
-    .switch { width: 46px; height: 26px; border-radius: 999px; background: #d0d5dd; position: relative; transition: background .15s ease; }
+    .toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; white-space: nowrap; position: relative; }
+    .toggle input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .switch { width: 46px; height: 26px; border-radius: 999px; background: #d0d5dd; position: relative; transition: background .15s ease, box-shadow .15s ease; }
     .switch::after { content: ""; position: absolute; inset: 3px auto 3px 3px; width: 20px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(16,24,40,.22); transition: transform .15s ease; }
     .toggle input:checked + .switch { background: #2563eb; }
+    .toggle input:focus-visible + .switch { box-shadow: 0 0 0 4px rgba(37,99,235,.18); }
     .toggle input:checked + .switch::after { transform: translateX(20px); }
     [dir="rtl"] .switch::after { right: 3px; left: auto; }
     [dir="rtl"] .toggle input:checked + .switch::after { transform: translateX(-20px); }
