@@ -189,6 +189,7 @@ const els = {
   pageCount: $("pageCount"),
   catalogSearch: $("catalogSearch"),
   globalSearchOpen: $("globalSearchOpen"),
+  headerCopyLink: $("headerCopyLink"),
   globalSearchClose: $("globalSearchClose"),
   globalSearchInput: $("globalSearchInput"),
   globalSearchResults: $("globalSearchResults"),
@@ -546,8 +547,43 @@ async function downloadCatalogPageSnapshot(catalog, page, button) {
   }
 }
 
+function getCurrentCatalogFocusUrlTargetId() {
+  const hashTargetId = decodeHashTargetId();
+  if (hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length) {
+    return hashTargetId;
+  }
+
+  const activeTargetId = String(state.categoryFocusTargetId || "");
+  if (activeTargetId && getCatalogCategorySectionsByTargetId(activeTargetId).length) {
+    return activeTargetId;
+  }
+
+  return "";
+}
+
+function buildMainHeaderUrl() {
+  const url = new URL(window.location.href);
+  const route = parseHash();
+
+  if (route?.id) {
+    url.hash = route.lightbox
+      ? `catalog/${route.id}/page/${route.page}${route.viewerMode === "scroll" ? "/scroll" : ""}`
+      : `catalog/${route.id}`;
+    return url.href;
+  }
+
+  const categoryTargetId = getCurrentCatalogFocusUrlTargetId();
+  if (categoryTargetId) {
+    url.hash = categoryTargetId;
+    return url.href;
+  }
+
+  url.hash = "";
+  return url.href;
+}
+
 function buildLightboxPageUrl() {
-  if (!state.catalog) return window.location.href;
+  if (!state.catalog) return buildMainHeaderUrl();
   const url = new URL(window.location.href);
   url.hash = `catalog/${state.catalog.id}/page/${clampPage(state.page, state.catalog)}${state.viewerMode === "scroll" ? "/scroll" : ""}`;
   return url.href;
@@ -573,6 +609,16 @@ async function copyTextToClipboard(value) {
 function downloadCurrentLightboxImage() {
   if (!state.catalog) return;
   downloadCatalogPageSnapshot(state.catalog, state.page, els.lightboxScreenshot);
+}
+
+async function copyCurrentMainHeaderLink() {
+  const link = state.lightboxOpen ? buildLightboxPageUrl() : buildMainHeaderUrl();
+  try {
+    await copyTextToClipboard(link);
+    flashActionButton(els.headerCopyLink, "הקישור הועתק");
+  } catch (_error) {
+    window.prompt("אפשר להעתיק את הקישור מכאן:", link);
+  }
 }
 
 async function copyCurrentLightboxLink() {
@@ -3412,6 +3458,7 @@ function attachEvents() {
   });
 
   els.closeLightbox?.addEventListener("click", closeLightbox);
+  els.headerCopyLink?.addEventListener("click", () => copyCurrentMainHeaderLink());
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
