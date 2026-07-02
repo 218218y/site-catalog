@@ -91,7 +91,7 @@
     .action strong { font-size: 1.02rem; }
     .action p { margin: 0; color: var(--muted); line-height: 1.55; font-size: .92rem; }
     .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    input[type="search"], input[type="text"] {
+    input[type="search"], input[type="text"], textarea {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -101,14 +101,36 @@
       background: #fff;
       outline: none;
     }
-    input:focus { border-color: #93b4ff; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
-    .catalog-table-wrap { overflow: auto; max-height: 68vh; border: 1px solid var(--line); border-radius: 18px; }
-    table { width: 100%; border-collapse: collapse; min-width: 980px; background: #fff; }
+    input:focus, textarea:focus { border-color: #93b4ff; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+    textarea { resize: vertical; line-height: 1.45; }
+    .catalog-table-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--line); border-radius: 18px; }
+    table { width: 100%; border-collapse: collapse; min-width: 1720px; background: #fff; }
     th, td { padding: 10px 10px; border-bottom: 1px solid #edf1f7; text-align: right; vertical-align: middle; }
     th { position: sticky; top: 0; z-index: 2; background: #f8fbff; color: #344054; font-size: .9rem; }
-    td input[type="text"] { padding: 8px 10px; border-radius: 10px; min-width: 150px; }
+    td input[type="text"] { padding: 8px 10px; border-radius: 10px; }
+    .order-cell { min-width: 145px; }
+    .order-controls { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .order-number { min-width: 2.5em; color: var(--muted); font-weight: 800; text-align: center; }
+    .icon-btn {
+      min-width: 34px;
+      padding: 7px 9px;
+      border-radius: 10px;
+      box-shadow: none;
+      border: 1px solid #c7d7fe;
+      background: #eef4ff;
+      color: #1d4ed8;
+      font-weight: 850;
+    }
+    .icon-btn:hover { background: #dbe8ff; }
+    .icon-btn:disabled { opacity: .38; }
+    .delete-btn { background: #fff1f0; color: var(--danger); border-color: #ffccc7; }
+    .delete-btn:hover { background: #ffe4e0; }
+    .title-input { min-width: 320px; }
+    .description-input { min-width: 450px; min-height: 76px; }
+    .category-input { min-width: 190px; }
+    .subcategory-input { min-width: 190px; }
     .id-cell { direction: ltr; text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; color: #475467; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pdf-cell { direction: ltr; text-align: left; font-size: .82rem; color: #667085; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-cell { direction: ltr; text-align: left; font-size: .82rem; color: #667085; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 9px; font-size: .82rem; font-weight: 700; white-space: nowrap; }
     .badge.ready { color: var(--ok); background: #ecfdf3; }
     .badge.partial, .badge.empty { color: var(--warn); background: #fffaeb; }
@@ -173,15 +195,15 @@
       <section class="card">
         <div class="card-header">
           <div>
-            <h2>קטלוגים ו־OCR פר־קטלוג</h2>
-            <p>כיבוי OCR כאן נשמר ב־catalogs.config.json כ־<span dir="ltr">"ocr": false</span>, ולכן גם בהרצת המרה רגילה על כולם הקטלוג הזה לא יריץ OCR.</p>
+            <h2>ניהול קטלוגים</h2>
+            <p>כאן עורכים כותרת, תיאור, קטגוריות, OCR, מחיקה וסדר הופעה. הסדר כאן נשמר ישירות ב־catalogs.config.json ומשפיע על סדר הקטלוגים באתר.</p>
           </div>
           <div class="toolbar">
             <button class="secondary" id="saveCatalogs" type="button">שמור שינויים</button>
           </div>
         </div>
         <div class="card-body">
-          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. אחרי שינוי OCR לקטלוג שכבר הומר, הרץ “המרה רגילה” או “רענון אינדקס חיפוש/OCR בלבד” כדי לעדכן את קובצי החיפוש.</div>
+          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. שינויי כותרת/תיאור/קטגוריה/סדר/מחיקה נשמרים גם לקבצי האתר שכבר נוצרו, כדי שתראה אותם באתר בלי רינדור מחדש. קטלוג חדש שעדיין לא הומר עדיין צריך “המרה רגילה”. מחיקה כאן מסירה מהרשימה ומהאתר, אבל לא מוחקת את ה־PDF או את תיקיית התמונות — לזה יש פעולת ניקוי נפרדת.</div>
           <div class="toolbar" style="margin-bottom: 12px;">
             <input id="catalogFilter" type="search" placeholder="חיפוש לפי שם, קטגוריה, id או PDF..." />
             <span class="toast" id="saveStatus"></span>
@@ -190,13 +212,16 @@
             <table>
               <thead>
                 <tr>
+                  <th>סדר</th>
                   <th>OCR</th>
                   <th>כותרת</th>
+                  <th>תיאור באתר</th>
                   <th>קטגוריה</th>
                   <th>תת־קטגוריה</th>
                   <th>סטטוס</th>
                   <th>ID</th>
                   <th>PDF</th>
+                  <th>מחיקה</th>
                 </tr>
               </thead>
               <tbody id="catalogRows"></tbody>
@@ -234,7 +259,7 @@
   </main>
 
   <script>
-    const state = { catalogs: [], actions: [], activeJobId: null, polling: null };
+    const state = { catalogs: [], actions: [], counts: {}, activeJobId: null, polling: null };
     const els = {
       stats: document.getElementById('stats'),
       rows: document.getElementById('catalogRows'),
@@ -288,7 +313,8 @@
       setServerAlert('');
       state.catalogs = data.catalogs || [];
       state.actions = data.actions || [];
-      renderStats(data.counts || {});
+      state.counts = data.counts || {};
+      renderStats(state.counts);
       renderCatalogs();
       renderActions();
       renderJobHistory(data.jobs || []);
@@ -305,17 +331,33 @@
       els.stats.innerHTML = items.map(([label, value]) => `<div class="stat"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
     }
 
+    function isFilterActive() {
+      return Boolean(els.filter.value.trim());
+    }
+
+    function markUnsaved(message = 'יש שינויים שלא נשמרו.') {
+      setSaveStatus(message, '');
+    }
+
     function renderCatalogs() {
       const query = els.filter.value.trim().toLowerCase();
       const rows = state.catalogs
         .map((catalog, index) => ({ catalog, index }))
         .filter(({catalog}) => {
           if (!query) return true;
-          return [catalog.id, catalog.title, catalog.category, catalog.subcategory, catalog.pdf].join(' ').toLowerCase().includes(query);
+          return [catalog.id, catalog.title, catalog.description, catalog.category, catalog.subcategory, catalog.pdf].join(' ').toLowerCase().includes(query);
         })
         .map(({catalog, index}) => {
           const status = catalog.status || { state: 'missing', label: 'לא הומר' };
+          const filterActive = isFilterActive();
           return `<tr data-index="${index}">
+            <td class="order-cell">
+              <div class="order-controls">
+                <span class="order-number">${index + 1}</span>
+                <button class="icon-btn" type="button" data-move="up" title="העבר קטלוג אחד למעלה בקובץ" ${index === 0 || filterActive ? 'disabled' : ''}>↑</button>
+                <button class="icon-btn" type="button" data-move="down" title="העבר קטלוג אחד למטה בקובץ" ${index === state.catalogs.length - 1 || filterActive ? 'disabled' : ''}>↓</button>
+              </div>
+            </td>
             <td>
               <label class="toggle" title="האם להריץ OCR בקטלוג הזה">
                 <input type="checkbox" data-field="ocr" ${catalog.ocr !== false ? 'checked' : ''} />
@@ -323,15 +365,17 @@
                 <span>${catalog.ocr !== false ? 'כן' : 'לא'}</span>
               </label>
             </td>
-            <td><input type="text" data-field="title" value="${escapeHtml(catalog.title || '')}" /></td>
-            <td><input type="text" data-field="category" value="${escapeHtml(catalog.category || '')}" /></td>
-            <td><input type="text" data-field="subcategory" value="${escapeHtml(catalog.subcategory || '')}" /></td>
+            <td><input class="title-input" type="text" data-field="title" value="${escapeHtml(catalog.title || '')}" /></td>
+            <td><textarea class="description-input" data-field="description" placeholder="תיאור קצר שיופיע באתר">${escapeHtml(catalog.description || '')}</textarea></td>
+            <td><input class="category-input" type="text" data-field="category" value="${escapeHtml(catalog.category || '')}" /></td>
+            <td><input class="subcategory-input" type="text" data-field="subcategory" value="${escapeHtml(catalog.subcategory || '')}" /></td>
             <td><span class="badge ${escapeHtml(status.state)}">${escapeHtml(status.label)}</span></td>
             <td class="id-cell" title="${escapeHtml(catalog.id)}">${escapeHtml(catalog.id)}</td>
             <td class="pdf-cell" title="${escapeHtml(catalog.pdf)}">${escapeHtml(catalog.pdf)}</td>
+            <td><button class="icon-btn delete-btn" type="button" data-delete="catalog" title="הסר את הקטלוג מהרשימה">מחק</button></td>
           </tr>`;
         }).join('');
-      els.rows.innerHTML = rows || '<tr><td colspan="7">לא נמצאו קטלוגים.</td></tr>';
+      els.rows.innerHTML = rows || '<tr><td colspan="10">לא נמצאו קטלוגים.</td></tr>';
     }
 
     function syncCatalogFromInput(input) {
@@ -346,7 +390,38 @@
       } else {
         state.catalogs[index][field] = input.value;
       }
-      setSaveStatus('יש שינויים שלא נשמרו.', '');
+      markUnsaved();
+    }
+
+    function moveCatalog(index, direction) {
+      if (isFilterActive()) {
+        setSaveStatus('כדי לשנות סדר בלי הפתעות, נקה קודם את שדה החיפוש.', 'err');
+        return;
+      }
+      const target = direction === 'up' ? index - 1 : index + 1;
+      if (target < 0 || target >= state.catalogs.length) return;
+      [state.catalogs[index], state.catalogs[target]] = [state.catalogs[target], state.catalogs[index]];
+      renderCatalogs();
+      markUnsaved('הסדר השתנה. לחץ שמור שינויים כדי לעדכן את הקובץ והאתר.');
+    }
+
+    function deleteCatalog(index) {
+      const catalog = state.catalogs[index];
+      if (!catalog) return;
+      const label = catalog.title || catalog.id || `קטלוג #${index + 1}`;
+      if (!confirm(`למחוק את "${label}" מהרשימה?
+
+הפעולה מסירה אותו מ-catalogs.config.json ומהאתר שנוצר. היא לא מוחקת את קובץ ה-PDF או את תיקיית התמונות.`)) return;
+      state.catalogs.splice(index, 1);
+      renderCatalogs();
+      state.counts = {
+        ...state.counts,
+        catalogs: state.catalogs.length,
+        converted: state.catalogs.filter(item => item.status && item.status.state === 'ready').length,
+        ocrDisabled: state.catalogs.filter(item => item.ocr === false).length
+      };
+      renderStats(state.counts);
+      markUnsaved('הקטלוג הוסר מהרשימה. לחץ שמור שינויים כדי לעדכן את הקובץ והאתר.');
     }
 
     function renderActions() {
@@ -366,9 +441,11 @@
           body: JSON.stringify({ catalogs: state.catalogs })
         });
         state.catalogs = payload.state.catalogs || state.catalogs;
-        renderStats((payload.state && payload.state.counts) || {});
+        state.counts = (payload.state && payload.state.counts) || {};
+        renderStats(state.counts);
         renderCatalogs();
-        setSaveStatus('נשמר בהצלחה.', 'ok');
+        const warnings = payload.warnings || [];
+        setSaveStatus(warnings.length ? `נשמר, אבל: ${warnings.join(' | ')}` : 'נשמר בהצלחה.', warnings.length ? 'err' : 'ok');
       } catch (error) {
         setSaveStatus(error.message, 'err');
       } finally {
@@ -434,12 +511,21 @@
     }
 
     els.rows.addEventListener('input', event => {
-      const input = event.target.closest('input');
+      const input = event.target.closest('input, textarea');
       if (input) syncCatalogFromInput(input);
     });
     els.rows.addEventListener('change', event => {
-      const input = event.target.closest('input');
+      const input = event.target.closest('input, textarea');
       if (input) syncCatalogFromInput(input);
+    });
+    els.rows.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      const row = button.closest('tr');
+      const index = Number(row && row.dataset.index);
+      if (!Number.isInteger(index)) return;
+      if (button.dataset.move) moveCatalog(index, button.dataset.move);
+      if (button.dataset.delete) deleteCatalog(index);
     });
     els.actions.addEventListener('click', event => {
       const button = event.target.closest('[data-action]');
@@ -455,7 +541,7 @@
       const message = error.message || 'שגיאה בטעינת מצב';
       setServerAlert(message);
       els.stats.innerHTML = '';
-      els.rows.innerHTML = '<tr><td colspan="7">לא ניתן לטעון קטלוגים כי שרת ה־API של לוח השליטה לא פעיל.</td></tr>';
+      els.rows.innerHTML = '<tr><td colspan="10">לא ניתן לטעון קטלוגים כי שרת ה־API של לוח השליטה לא פעיל.</td></tr>';
       els.actions.innerHTML = '<div class="notice">הפעל <span dir="ltr">catalog-control-panel.bat</span> מתוך תיקיית הפרויקט, ואז הדף ייטען עם כל הקטלוגים והכפתורים.</div>';
       els.jobLog.textContent = message;
       els.jobStatus.textContent = 'שגיאה בטעינת מצב';

@@ -26,6 +26,10 @@ from urllib.parse import unquote, urlparse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "catalogs.config.json"
+GENERATED_JSON_FILE = PROJECT_ROOT / "catalogs.generated.json"
+GENERATED_JS_FILE = PROJECT_ROOT / "catalogs.generated.js"
+SEARCH_JSON_FILE = PROJECT_ROOT / "catalogs.search.json"
+SEARCH_JS_FILE = PROJECT_ROOT / "catalogs.search.js"
 PDF_DIR = PROJECT_ROOT / "assets" / "pdfs"
 PAGES_DIR = PROJECT_ROOT / "assets" / "pages"
 DEFAULT_HOST = "127.0.0.1"
@@ -165,6 +169,114 @@ def read_config() -> list[dict[str, Any]]:
 
 def write_config(config: list[dict[str, Any]]) -> None:
     CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def read_json_array(path: Path) -> list[dict[str, Any]] | None:
+    if not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, list):
+        raise ValueError(f"{rel_to_root(path)} must contain a JSON array")
+    result: list[dict[str, Any]] = []
+    for index, item in enumerate(payload, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"{rel_to_root(path)} item #{index} must be an object")
+        result.append(dict(item))
+    return result
+
+
+def write_catalogs_generated_files(entries: list[dict[str, Any]]) -> None:
+    payload = json.dumps(entries, ensure_ascii=False, indent=2)
+    GENERATED_JSON_FILE.write_text(payload + "\n", encoding="utf-8")
+    GENERATED_JS_FILE.write_text(
+        "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
+        "// לא מומלץ לערוך אותו ידנית. עריכה עושים בקובץ catalogs.config.json ואז מריצים שוב המרה.\n"
+        f"window.BARGIG_CATALOGS = {payload};\n",
+        encoding="utf-8",
+    )
+
+
+def write_catalogs_search_files(entries: list[dict[str, Any]]) -> None:
+    payload = json.dumps(entries, ensure_ascii=False, indent=2)
+    SEARCH_JSON_FILE.write_text(payload + "\n", encoding="utf-8")
+    SEARCH_JS_FILE.write_text(
+        "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
+        "// כאן נמצא אינדקס החיפוש שנוצר מטקסט ה-PDF ומ-OCR.\n"
+        f"window.BARGIG_CATALOG_SEARCH = {payload};\n",
+        encoding="utf-8",
+    )
+
+
+def sync_generated_metadata_after_config_save(config: list[dict[str, Any]]) -> list[str]:
+    """Keep the already-generated website metadata aligned after UI edits.
+
+    Saving the control panel edits should immediately affect title,
+    description, category, subcategory, deletion and ordering for catalogs that
+    already exist in catalogs.generated.*. New PDFs still require conversion to
+    create page images and their first generated entry.
+    """
+    warnings: list[str] = []
+    config_by_id = {str(item.get("id", "")): item for item in config}
+    config_order = [str(item.get("id", "")) for item in config]
+    order_index = {catalog_id: index for index, catalog_id in enumerate(config_order)}
+
+    try:
+        generated_entries = read_json_array(GENERATED_JSON_FILE)
+    except Exception as exc:
+        warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.generated.* נכשל: {exc}")
+        generated_entries = None
+
+    if generated_entries is not None:
+        updated_generated: list[dict[str, Any]] = []
+        generated_by_id = {str(item.get("id", "")): item for item in generated_entries if str(item.get("id", "")) in config_by_id}
+        for catalog_id in config_order:
+            entry = generated_by_id.get(catalog_id)
+            source = config_by_id.get(catalog_id)
+            if not entry or not source:
+                continue
+            updated = dict(entry)
+            updated["title"] = str(source.get("title", catalog_id))
+            updated["description"] = str(source.get("description", ""))
+            updated["category"] = str(source.get("category", "קטלוג")) or "קטלוג"
+
+            subcategory = str(source.get("subcategory", source.get("subCategory", "")))
+            if subcategory or "subcategory" in updated:
+                updated["subcategory"] = subcategory
+
+            for key in ("sort", "badge"):
+                if key in source:
+                    updated[key] = source[key]
+                elif key in updated and key not in source:
+                    updated.pop(key, None)
+
+            updated_generated.append(updated)
+
+        try:
+            write_catalogs_generated_files(updated_generated)
+        except Exception as exc:
+            warnings.append(f"catalogs.config.json נשמר, אבל כתיבת catalogs.generated.* נכשלה: {exc}")
+
+    try:
+        search_entries = read_json_array(SEARCH_JSON_FILE)
+    except Exception as exc:
+        warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search.* נכשל: {exc}")
+        search_entries = None
+
+    if search_entries is not None:
+        updated_search: list[dict[str, Any]] = []
+        for entry in sorted(
+            (dict(item) for item in search_entries if str(item.get("catalogId", "")) in config_by_id),
+            key=lambda item: order_index.get(str(item.get("catalogId", "")), 10**9),
+        ):
+            source = config_by_id[str(entry.get("catalogId", ""))]
+            entry["title"] = str(source.get("title", entry.get("title", "")))
+            updated_search.append(entry)
+        try:
+            write_catalogs_search_files(updated_search)
+        except Exception as exc:
+            warnings.append(f"catalogs.config.json נשמר, אבל כתיבת catalogs.search.* נכשלה: {exc}")
+
+    return warnings
 
 
 def normalize_catalog_for_ui(item: dict[str, Any]) -> dict[str, Any]:
@@ -421,7 +533,8 @@ class ControlHandler(BaseHTTPRequestHandler):
             if path == "/api/catalogs":
                 catalogs = validate_catalogs_for_save(payload.get("catalogs"))
                 write_config(catalogs)
-                self.send_json({"ok": True, "state": state_payload()})
+                warnings = sync_generated_metadata_after_config_save(catalogs)
+                self.send_json({"ok": True, "state": state_payload(), "warnings": warnings})
                 return
             if path == "/api/run":
                 job = start_job(str(payload.get("action", "")).strip())

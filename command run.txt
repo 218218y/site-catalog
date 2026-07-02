@@ -15,6 +15,8 @@ sync-catalog-pdfs.bat
 catalogs.config.json
 
 אפשר גם לערוך את זה דרך לוח השליטה: catalog-control-panel.bat
+בלוח השליטה אפשר לערוך title / description / category / subcategory / OCR, למחוק קטלוג מהרשימה, ולשנות סדר עם כפתורי למעלה/למטה.
+שמירה בלוח השליטה מעדכנת גם catalogs.generated.* עבור קטלוגים שכבר הומרו, לכן שינויי תיאור/שם/סדר/מחיקה נראים באתר בלי רינדור מחדש. קטלוג חדש עדיין צריך convert.
 
 אחר כך להמיר את הpdf שלא הומרו
 convert-catalogs.bat
@@ -67,6 +69,7 @@ start-server.bat
 npx serve .
 
 לוח השליטה אינו עובד דרך שרת האתר הראשי. בשבילו מריצים catalog-control-panel.bat.
+מחיקה דרך לוח השליטה מסירה רק מהרשימה ומהאתר שנוצר, לא מוחקת PDF ולא מוחקת assets/pages. לניקוי תיקיות ישנות מריצים convert-catalogsdelete.bat.
 
 הגדרת אתר בנטפליי
 Site configuration / Domain management / Production domains
