@@ -3227,9 +3227,30 @@ function attachViewerGestures() {
   attachZoomSurfaceGestures(els.lightboxScrollView);
 }
 
-function handleViewerSurfacePointerDown(event) {
-  if (event.button !== undefined && event.button !== 0) return;
+function isLightboxTopInteractiveTarget(target) {
+  if (!target || typeof target.closest !== "function") return false;
+
+  const interactiveTarget = target.closest(
+    ".lightbox-reader-header, .lightbox-search-results, .reader-catalog-menu, .reader-search-scope-menu"
+  );
+  return Boolean(interactiveTarget && els.lightboxBar?.contains(interactiveTarget));
+}
+
+function hideLightboxTopSearchFromViewerInteraction(event) {
+  if (!state.lightboxOpen) return false;
+  if (event?.button !== undefined && event.button !== 0) return false;
+  if (isLightboxTopInteractiveTarget(event?.target)) return false;
+
   hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi: true });
+  return true;
+}
+
+function handleViewerSurfacePointerDown(event) {
+  hideLightboxTopSearchFromViewerInteraction(event);
+}
+
+function handleLightboxPointerDownCapture(event) {
+  hideLightboxTopSearchFromViewerInteraction(event);
 }
 
 function handleLightboxSearchResultsBackgroundClick(event) {
@@ -3394,6 +3415,7 @@ function attachEvents() {
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
+  els.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
   els.viewerModeToggle?.addEventListener("click", toggleLightboxMode);
   els.fullscreenToggle?.addEventListener("click", toggleBrowserFullscreen);
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
