@@ -381,6 +381,11 @@ function pageAspectStyle(catalog, page) {
   return size ? ` style="aspect-ratio: ${size.width} / ${size.height}"` : "";
 }
 
+function pageAspectVariableStyle(catalog, page, variableName = "--page-aspect-ratio") {
+  const size = pageSize(catalog, page);
+  return size ? ` style="${variableName}: ${size.width} / ${size.height}"` : "";
+}
+
 function applyLoadedPageAspect(img) {
   if (!img || !img.naturalWidth || !img.naturalHeight) return;
 
@@ -1995,7 +2000,7 @@ function renderPageGrid() {
     cards.push(`
       <article class="page-card">
         <button class="page-button" type="button" data-open-page="${page}">
-          <div class="page-thumb-wrap">
+          <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
             <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
           </div>

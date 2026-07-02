@@ -1256,10 +1256,10 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .page-thumb {
   display: block;
   width: 100%;
-  aspect-ratio: 0.8 / 1;
-  object-fit: cover;
+  aspect-ratio: var(--page-thumb-aspect-ratio, 1.42 / 1);
+  object-fit: contain;
   border-radius: 14px;
-  background: linear-gradient(135deg, #ede2d9, #d8c1b0);
+  background: #fff;
   transform: scale(1);
   transition: opacity .28s ease, transform .28s ease;
 }
