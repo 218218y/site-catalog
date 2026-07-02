@@ -133,5 +133,14 @@
     "subcategory": "",
     "pdf": "assets/pdfs/ספריות קודש פרדי 2026.pdf",
     "ocr": true
+  },
+  {
+    "id": "123t-tr",
+    "title": "123t-tr",
+    "description": "",
+    "category": "",
+    "subcategory": "",
+    "pdf": "assets/pdfs/123t-tr.pdf",
+    "ocr": true
   }
 ]
