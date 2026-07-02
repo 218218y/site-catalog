@@ -1389,11 +1389,7 @@ function renderCatalogCards() {
 function getGlobalSearchCategories() {
   return getCatalogCategoryGroups()
     .filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length)
-    .map((group) => ({
-      category: group.category,
-      catalogs: group.items.length,
-      indexedPages: catalogSearch?.indexedPageCount?.({ category: group.category }) || 0
-    }));
+    .map((group) => ({ category: group.category }));
 }
 
 function hasGlobalSearchCategory(category) {
@@ -1475,12 +1471,10 @@ function renderGlobalSearchScopeMenu() {
   els.globalSearchScopeMenu.innerHTML = `
     <button type="button" role="menuitemradio" aria-checked="true" data-global-search-category="">
       <strong>בכל הקטלוגים</strong>
-      <small>${escapeHtml(catalogs.length)} קטלוגים</small>
     </button>
     ${categories.map((group) => `
       <button type="button" role="menuitemradio" aria-checked="false" data-global-search-category="${escapeHtml(group.category)}">
         <strong>${escapeHtml(group.category)}</strong>
-        <small>${escapeHtml(group.catalogs)} קטלוגים${group.indexedPages ? ` · ${escapeHtml(group.indexedPages)} עמודים` : ""}</small>
       </button>
     `).join("")}
   `;
