@@ -196,8 +196,6 @@ const els = {
   catalogDetail: $("catalogDetail"),
   catalogTitle: $("catalogDetailTitle"),
   catalogDescription: $("catalogDescription"),
-  catalogCategory: $("catalogCategory"),
-  catalogPages: $("catalogPages"),
   catalogMenuToggle: $("catalogMenuToggle"),
   catalogMenuToggleText: $("catalogMenuToggleText"),
   catalogMenu: $("catalogMenu"),
@@ -618,8 +616,6 @@ function renderEmptyState() {
   showCatalogDetail();
   els.catalogTitle.textContent = "עדיין אין קטלוגים להצגה";
   els.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.";
-  els.catalogCategory.textContent = "קטלוגים";
-  els.catalogPages.textContent = "0 עמודים";
   if (els.catalogMenuToggleText) els.catalogMenuToggleText.textContent = "אין קטלוגים";
   if (els.catalogMenu) els.catalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
   els.catalogCoverPreview?.removeAttribute("src");
@@ -1732,7 +1728,6 @@ function renderCatalogCategoryMenu(menu, { activeCatalogId = state.catalog?.id }
         ${group.items.map((catalog) => `
           <button class="reader-catalog-menu-item${activeCatalogId === catalog.id ? " active" : ""}" type="button" role="menuitem" data-catalog-menu-id="${escapeHtml(catalog.id)}"${activeCatalogId === catalog.id ? ' aria-current="true"' : ""}>
             <strong>${escapeHtml(catalog.title)}</strong>
-            <small>${escapeHtml(catalog.pages || 0)} עמודים</small>
           </button>
         `).join("")}
       </div>
@@ -1922,8 +1917,6 @@ function renderCatalogDetail() {
   showCatalogDetail();
   els.catalogTitle.textContent = catalog.title;
   els.catalogDescription.textContent = catalog.description || "";
-  els.catalogCategory.textContent = catalog.category || "קטלוג";
-  els.catalogPages.textContent = `${catalog.pages} עמודים`;
   updateDetailCatalogMenuLabel(catalog);
   if (els.catalogCoverPreview) {
     setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
