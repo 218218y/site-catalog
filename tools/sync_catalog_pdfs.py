@@ -283,6 +283,7 @@ def find_missing_pdf_catalogs(
                 "category": "",
                 "subcategory": "",
                 "pdf": pdf_reference_for_config(root, pdf_path),
+                "ocr": True,
             }
         )
         known_pdf_paths.add(normalized_pdf)
@@ -362,7 +363,7 @@ def main() -> int:
     if args.dry_run:
         print("Dry run only. No files were changed.")
     elif result.additions:
-        print("Done. Edit title/description/category/subcategory in catalogs.config.json, then run convert-catalogs.bat.")
+        print("Done. Edit title/description/category/subcategory/ocr in catalogs.config.json, then run convert-catalogs.bat.")
     elif result.renamed_pdfs or result.updated_pdf_refs:
         print("Done. Hidden direction markers were cleaned from PDF filenames/references.")
     return 0

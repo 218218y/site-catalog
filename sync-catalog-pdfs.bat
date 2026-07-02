@@ -12,7 +12,8 @@ python tools\sync_catalog_pdfs.py
 if errorlevel 1 goto error
 echo.
 echo PDF scan finished. New PDFs were added only to catalogs.config.json.
-echo Edit the catalog details, then run convert-catalogs.bat to convert images.
+echo Edit the catalog details and OCR setting, then run convert-catalogs.bat to convert images.
+echo You can also use catalog-control-panel.bat for this.
 echo.
 pause
 exit /b 0

@@ -27,7 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -44,9 +44,15 @@ OCR_MAX_SIDE = 4600
 # often misses those names or produces noisy random characters. These bounded
 # crops give Tesseract a much easier target while keeping the extra text narrow.
 TITLE_OCR_CROPS: tuple[tuple[str, tuple[float, float, float, float], int], ...] = (
-    ("top-right-title", (0.54, 0.00, 1.00, 0.18), 7),
-    ("bottom-left-title", (0.00, 0.76, 0.40, 1.00), 6),
-    ("bottom-right-title", (0.60, 0.76, 1.00, 1.00), 6),
+    # The page/model name is usually the large heading above the details box.
+    # Keeping this crop tight avoids the noisy room render and the smaller
+    # specification text that made Hebrew OCR drift into random Latin letters.
+    ("right-title-line", (0.68, 0.035, 0.99, 0.145), 7),
+    ("right-title-line-sparse", (0.68, 0.035, 0.99, 0.145), 11),
+    # Fallbacks for catalogs whose title is not in the standard right heading.
+    ("top-right-title", (0.54, 0.00, 1.00, 0.22), 6),
+    ("bottom-left-title", (0.00, 0.74, 0.42, 1.00), 6),
+    ("bottom-right-title", (0.58, 0.74, 1.00, 1.00), 6),
 )
 TITLE_OCR_WORD_RE = re.compile(r'[\u0590-\u05FFA-Za-z][\u0590-\u05FFA-Za-z0-9׳\'״".\-]*|[0-9]+')
 TITLE_OCR_STOP_WORDS = {
@@ -59,6 +65,19 @@ TITLE_OCR_STOP_WORDS = {
     "fredI".lower(),
     "fredi",
     "concept",
+    "בתמונה",
+    "תמונה",
+    "צבע",
+    "בד",
+    "שידה",
+    "בשילוב",
+    "שילוב",
+    "חריטה",
+    "ריפוד",
+    "רגיל",
+    "התאמת",
+    "מתמונה",
+    "בלבד",
     "מחיר",
     "רוחב",
     "גובה",
@@ -391,6 +410,35 @@ def search_manifest_mismatch_reason(out_dir: Path, options: RenderOptions) -> st
     return ""
 
 
+
+
+def catalog_ocr_enabled(item: dict[str, Any]) -> bool:
+    """Return whether this catalog is allowed to use OCR during search indexing.
+
+    Missing values default to True so older catalogs keep their existing behavior.
+    Use ``"ocr": false`` in catalogs.config.json for catalogs that should never
+    run OCR even when the global conversion command uses ``--ocr auto``.
+    """
+    value = item.get("ocr", True)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    normalized = str(value).strip().lower()
+    if normalized in {"0", "false", "no", "off", "never", "none", "לא", "בלי", "ללא"}:
+        return False
+    return True
+
+
+def effective_catalog_options(item: dict[str, Any], base_options: RenderOptions) -> RenderOptions:
+    """Apply catalog-level conversion policy on top of the command-line options."""
+    if catalog_ocr_enabled(item):
+        return base_options
+    if base_options.ocr_mode == "never":
+        return base_options
+    return replace(base_options, ocr_mode="never")
+
+
 def load_previous_search_pages(root: Path) -> dict[str, list[dict[str, Any]]]:
     """Load the last generated OCR/search index so skipped catalogs keep search."""
     search_json = root / "catalogs.search.json"
@@ -556,9 +604,22 @@ def prepare_title_ocr_crop(image: Image.Image) -> Image.Image:
     return ImageOps.expand(crop, border=max(20, int(max(crop.size) * 0.02)), fill="white")
 
 
+def _has_hebrew(value: str) -> bool:
+    return any("\u0590" <= char <= "\u05ff" for char in str(value or ""))
+
+
 def filter_targeted_ocr_text(value: str, *, max_words: int = 8) -> str:
-    """Keep only short, plausible title words from OCRed title regions."""
-    words: list[str] = []
+    """Keep only short, plausible title words from OCRed title regions.
+
+    Hebrew catalog headings are more valuable than Latin OCR guesses here. When
+    Tesseract sees decorative grooves or room shadows it can emit convincing but
+    useless Latin fragments (``SE``/``ETA``/``SSS``). Prefer Hebrew tokens when
+    any were found, and only fall back to Latin when a catalog title is actually
+    Latin-only.
+    """
+    hebrew_words: list[str] = []
+    fallback_words: list[str] = []
+
     for match in TITLE_OCR_WORD_RE.finditer(str(value or "")):
         word = match.group(0).strip(" .,:;!?()[]{}<>|/\\\n\r\t")
         if not word:
@@ -570,26 +631,40 @@ def filter_targeted_ocr_text(value: str, *, max_words: int = 8) -> str:
             continue
         if len(normalized) == 1:
             continue
-        words.append(word)
-        if len(words) >= max_words:
-            break
 
-    return normalize_search_text(" ".join(words))
+        if _has_hebrew(normalized):
+            hebrew_words.append(word)
+            if len(hebrew_words) >= max_words:
+                break
+        elif len(normalized) >= 3:
+            fallback_words.append(word)
+
+    selected = hebrew_words or fallback_words[:max_words]
+    return normalize_search_text(" ".join(selected))
 
 
 def build_targeted_title_ocr_text(ocr_image: Image.Image, ocr: "OcrRunner", label: str) -> str:
     """OCR likely title/model-name regions and return a compact search text."""
-    parts: list[str] = []
+    title_line_parts: list[str] = []
+    fallback_parts: list[str] = []
+
     for region_name, box, psm in TITLE_OCR_CROPS:
         crop = crop_relative_image(ocr_image, box)
         if crop is None:
             continue
-        prepared = prepare_title_ocr_crop(crop)
-        raw_text = ocr.recognize(prepared, f"{label} {region_name}", psm=psm)
-        filtered = filter_targeted_ocr_text(raw_text)
-        if filtered:
-            parts.append(filtered)
-    return _combine_search_texts(parts)
+        is_title_line = "title-line" in region_name
+        prepared = crop.convert("RGB") if is_title_line else prepare_title_ocr_crop(crop)
+        raw_text = ocr.recognize(prepared, f"{label} {region_name}", psm=psm, preprocess=not is_title_line)
+        filtered = filter_targeted_ocr_text(raw_text, max_words=4 if is_title_line else 8)
+        if not filtered:
+            continue
+        if is_title_line:
+            title_line_parts.append(filtered)
+        else:
+            fallback_parts.append(filtered)
+
+    # Do not mix noisy fallback crop results into a clean heading result.
+    return _combine_search_texts(title_line_parts or fallback_parts)
 
 
 def normalize_search_text(value: str) -> str:
@@ -632,7 +707,7 @@ class OcrRunner:
             self._available = False
         return self._available
 
-    def recognize(self, image: Image.Image, label: str, *, psm: int = 6) -> str:
+    def recognize(self, image: Image.Image, label: str, *, psm: int = 6, preprocess: bool = True) -> str:
         if not self._is_available():
             message = (
                 f"Tesseract OCR was not found by command {self.options.tesseract_cmd!r}. "
@@ -648,7 +723,8 @@ class OcrRunner:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             tmp_path = Path(tmp.name)
         try:
-            prepare_ocr_input_image(image).save(tmp_path, "PNG")
+            ocr_input = prepare_ocr_input_image(image) if preprocess else image
+            ocr_input.save(tmp_path, "PNG")
             command = [
                 self.options.tesseract_cmd,
                 str(tmp_path),
@@ -732,7 +808,13 @@ def build_page_search_text(
 
     if ocr.should_run(embedded_text):
         ocr_image = render_ocr_page_image(page, options.ocr_dpi)
-        text_parts.append(build_targeted_title_ocr_text(ocr_image, ocr, label))
+        title_ocr_image = ocr_image
+        if options.ocr_dpi < 340:
+            # A tighter high-DPI pass for headings is much cheaper than running
+            # full-page OCR at that resolution, and it improves small Hebrew
+            # model names that are printed in low-contrast gold/white text.
+            title_ocr_image = render_ocr_page_image(page, 340)
+        text_parts.append(build_targeted_title_ocr_text(title_ocr_image, ocr, label))
         text_parts.append(ocr.recognize(ocr_image, label, psm=6))
 
     if manual_text:
@@ -1068,17 +1150,20 @@ def main() -> int:
 
         for item in config:
             catalog_id = str(item["id"])
+            catalog_options = effective_catalog_options(item, options)
             manual_pages = manual_search_overrides.get(catalog_id, {})
             pdf_path = (root / str(item["pdf"])).resolve()
             out_dir = (root / "assets" / "pages" / catalog_id).resolve()
-            existing_output = inspect_existing_catalog_output(out_dir, options.image_format)
+            existing_output = inspect_existing_catalog_output(out_dir, catalog_options.image_format)
 
             print(f"\n=== {item['title']} ===")
+            if catalog_options.ocr_mode == "never" and options.ocr_mode != "never":
+                print("[ocr] Disabled for this catalog by catalogs.config.json (ocr=false).")
             rebuild_reason = ""
             adopt_legacy_manifest = False
 
             if existing_output and existing_output.is_complete and not args.force and pdf_path.exists():
-                mismatch_reason = render_manifest_mismatch_reason(out_dir, pdf_path, options, existing_output)
+                mismatch_reason = render_manifest_mismatch_reason(out_dir, pdf_path, catalog_options, existing_output)
                 if mismatch_reason == "missing render manifest":
                     if source_pdf_is_newer_than_output(pdf_path, out_dir, existing_output.image_format, existing_output.pages):
                         rebuild_reason = "source PDF is newer than the existing converted images"
@@ -1092,32 +1177,36 @@ def main() -> int:
 
                 previous_pages_for_catalog = previous_search_pages.get(catalog_id, [])
                 search_refresh_reason = ""
+                reuse_previous_search = True
                 if not pdf_path.exists():
                     print(f"[keep] Source PDF is missing, keeping existing images: {rel_to_root(pdf_path)}")
+                    if catalog_options.ocr_mode == "never":
+                        reuse_previous_search = False
+                        print("[ocr] OCR is disabled and the source PDF is missing; previous search text is not reused because it may contain old OCR text.")
                 else:
                     if adopt_legacy_manifest:
                         print(f"[adopt] Existing images do not have {MANIFEST_FILE}; adopting them for future change detection.")
                     if not previous_pages_for_catalog:
                         search_refresh_reason = "no previous OCR/search text found"
                     else:
-                        search_refresh_reason = search_manifest_mismatch_reason(out_dir, options)
+                        search_refresh_reason = search_manifest_mismatch_reason(out_dir, catalog_options)
 
                 if search_refresh_reason and pdf_path.exists():
                     print(f"[search-refresh] {search_refresh_reason}; rebuilding search text from PDF without re-rendering images.")
-                    search_page_count, search_pages = build_pdf_search_pages(pdf_path, options, manual_pages)
+                    search_page_count, search_pages = build_pdf_search_pages(pdf_path, catalog_options, manual_pages)
                     if int(search_page_count) != int(existing_output.pages):
                         print(
                             f"[warn] Search refresh read {search_page_count} PDF pages, "
                             f"but existing images contain {existing_output.pages} pages."
                         )
                 else:
-                    search_pages = merge_manual_search_pages(previous_pages_for_catalog, manual_pages, existing_output.pages)
+                    search_pages = merge_manual_search_pages(previous_pages_for_catalog if reuse_previous_search else [], manual_pages, existing_output.pages)
 
                 if not search_pages:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
                 if pdf_path.exists() and (adopt_legacy_manifest or search_refresh_reason):
-                    write_render_manifest(out_dir, pdf_path, options, existing_output.pages, existing_output.image_format, page_sizes)
+                    write_render_manifest(out_dir, pdf_path, catalog_options, existing_output.pages, existing_output.image_format, page_sizes)
                 generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
                 search_generated.append(build_search_entry(item, search_pages))
                 continue
@@ -1128,7 +1217,11 @@ def main() -> int:
             if not pdf_path.exists():
                 if existing_output and existing_output.is_complete:
                     print(f"[keep] Source PDF is missing, keeping existing images: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
-                    search_pages = merge_manual_search_pages(previous_search_pages.get(catalog_id, []), manual_pages, existing_output.pages)
+                    previous_pages_for_catalog = previous_search_pages.get(catalog_id, [])
+                    if catalog_options.ocr_mode == "never":
+                        previous_pages_for_catalog = []
+                        print("[ocr] OCR is disabled and the source PDF is missing; previous search text is not reused because it may contain old OCR text.")
+                    search_pages = merge_manual_search_pages(previous_pages_for_catalog, manual_pages, existing_output.pages)
                     if not search_pages:
                         print("[warn] No previous OCR/search text found for this catalog; images will still be shown.")
                     page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
@@ -1153,10 +1246,10 @@ def main() -> int:
             elif existing_output and args.force:
                 print(f"[force] Rebuilding existing output: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
 
-            pages, search_pages, page_sizes = render_pdf(pdf_path, out_dir, options, manual_pages)
-            page_sizes = collect_page_sizes(out_dir, options.image_format, pages)
-            write_render_manifest(out_dir, pdf_path, options, pages, options.image_format, page_sizes)
-            generated.append(build_generated_entry(item, pages, out_dir, options.image_format, page_sizes))
+            pages, search_pages, page_sizes = render_pdf(pdf_path, out_dir, catalog_options, manual_pages)
+            page_sizes = collect_page_sizes(out_dir, catalog_options.image_format, pages)
+            write_render_manifest(out_dir, pdf_path, catalog_options, pages, catalog_options.image_format, page_sizes)
+            generated.append(build_generated_entry(item, pages, out_dir, catalog_options.image_format, page_sizes))
             search_generated.append(build_search_entry(item, search_pages))
 
         generated.sort(key=lambda row: row.get("sort", 9999))

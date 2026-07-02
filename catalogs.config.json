@@ -3,88 +3,135 @@
     "id": "ארונות-פתיחה-ת-ב-י-רהיטים-2026",
     "title": "ארונות פתיחה ת.ב.י רהיטים 2026",
     "description": "",
-    "category": "",
+    "category": "ארונות פתיחה",
     "subcategory": "",
-    "pdf": "assets/pdfs/ארונות פתיחה ת.ב.י רהיטים 2026.pdf"
-  },
-  {
-    "id": "הזזה-ת-ב-י-רהיטים-2026",
-    "title": "הזזה ת.ב.י רהיטים 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/הזזה ת.ב.י רהיטים 2026.pdf"
-  },
-  {
-    "id": "היי-ריזר-פרפקט-2026",
-    "title": "היי ריזר פרפקט 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/היי ריזר פרפקט 2026.pdf"
-  },
-  {
-    "id": "היי-ריזר-קואליטה-2026",
-    "title": "היי ריזר קואליטה 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/היי ריזר קואליטה 2026.pdf"
-  },
-  {
-    "id": "היי-ריזר-קומפורט-2026",
-    "title": "היי ריזר קומפורט 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/היי ריזר קומפורט 2026.pdf"
-  },
-  {
-    "id": "חדרי-ילדים-פרדי-2026",
-    "title": "חדרי ילדים פרדי 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/חדרי ילדים פרדי 2026.pdf"
-  },
-  {
-    "id": "חדרי-ילדים-ת-ב-י-רהיטים-2026",
-    "title": "חדרי ילדים ת.ב.י רהיטים 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/חדרי ילדים ת.ב.י רהיטים 2026.pdf"
-  },
-  {
-    "id": "מיטות-נגר-בירץ'-2026",
-    "title": "מיטות נגר בירץ' 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/מיטות נגר בירץ' 2026.pdf"
-  },
-  {
-    "id": "ספריות-קודש-פרדי-2026",
-    "title": "ספריות קודש פרדי 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/ספריות קודש פרדי 2026.pdf"
-  },
-  {
-    "id": "ספריות-קודש-ת-ב-י-רהיטים-2026",
-    "title": "ספריות קודש ת.ב.י רהיטים 2026",
-    "description": "",
-    "category": "",
-    "subcategory": "",
-    "pdf": "assets/pdfs/ספריות קודש ת.ב.י רהיטים 2026.pdf"
+    "pdf": "assets/pdfs/ארונות פתיחה ת.ב.י רהיטים 2026.pdf",
+    "ocr": true
   },
   {
     "id": "ארונות-פתיחה-פרדי-2026",
     "title": "ארונות פתיחה פרדי 2026",
     "description": "",
-    "category": "",
+    "category": "ארונות פתיחה",
     "subcategory": "",
-    "pdf": "assets/pdfs/ארונות פתיחה פרדי 2026.pdf"
+    "pdf": "assets/pdfs/ארונות פתיחה פרדי 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "הזזה-ת-ב-י-רהיטים-2026",
+    "title": "ארונות הזזה ת.ב.י רהיטים 2026",
+    "description": "",
+    "category": "ארונות הזזה",
+    "subcategory": "",
+    "pdf": "assets/pdfs/הזזה ת.ב.י רהיטים 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "היי-ריזר-קואליטה-2026",
+    "title": "היי ריזר קואליטה 2026",
+    "description": "",
+    "category": "מיטות",
+    "subcategory": "היי ריזר",
+    "pdf": "assets/pdfs/היי ריזר קואליטה 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "היי-ריזר-פרפקט-2026",
+    "title": "היי ריזר פרפקט 2026",
+    "description": "",
+    "category": "מיטות",
+    "subcategory": "היי ריזר",
+    "pdf": "assets/pdfs/היי ריזר פרפקט 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "היי-ריזר-קומפורט-2026",
+    "title": "היי ריזר קומפורט 2026",
+    "description": "",
+    "category": "מיטות",
+    "subcategory": "היי ריזר",
+    "pdf": "assets/pdfs/היי ריזר קומפורט 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "מיטות-נגר-בירץ'-2026",
+    "title": "מיטות נגר בירץ' 2026",
+    "description": "",
+    "category": "מיטות",
+    "subcategory": "נגר בירץ'",
+    "pdf": "assets/pdfs/מיטות נגר בירץ' 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "חדרי-ילדים-ת-ב-י-רהיטים-2026",
+    "title": "חדרי ילדים ת.ב.י רהיטים 2026",
+    "description": "",
+    "category": "חדרי ילדים",
+    "subcategory": "",
+    "pdf": "assets/pdfs/חדרי ילדים ת.ב.י רהיטים 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "חדרי-ילדים-פרדי-2026",
+    "title": "חדרי ילדים פרדי 2026",
+    "description": "",
+    "category": "חדרי ילדים",
+    "subcategory": "",
+    "pdf": "assets/pdfs/חדרי ילדים פרדי 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "חדרי-שינה-ת-ב-י-רהיטים-2026",
+    "title": "חדרי שינה ת.ב.י. רהיטים 2026",
+    "description": "",
+    "category": "חדרי שינה",
+    "subcategory": "חדרי שינה",
+    "pdf": "assets/pdfs/חדרי שינה ת.ב.י. רהיטים 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "חדרי-שינה-גובר-גלרי",
+    "title": "חדרי שינה גובר גלרי",
+    "description": "",
+    "category": "חדרי שינה",
+    "subcategory": "חדרי שינה",
+    "pdf": "assets/pdfs/חדרי שינה גובר גלרי.pdf",
+    "ocr": true
+  },
+  {
+    "id": "חדרי-שינה-מרופדים-פרדי",
+    "title": "חדרי שינה מרופדים פרדי",
+    "description": "",
+    "category": "חדרי שינה",
+    "subcategory": "מרופדים",
+    "pdf": "assets/pdfs/חדרי שינה מרופדים פרדי.pdf",
+    "ocr": true
+  },
+  {
+    "id": "ספריות-קודש-ת-ב-י-רהיטים-2026",
+    "title": "ספריות קודש ת.ב.י רהיטים 2026",
+    "description": "",
+    "category": "ספריות קודש",
+    "subcategory": "",
+    "pdf": "assets/pdfs/ספריות קודש ת.ב.י רהיטים 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "ספריות-קודש-פרדי-2026",
+    "title": "ספריות קודש פרדי 2026",
+    "description": "",
+    "category": "ספריות קודש",
+    "subcategory": "",
+    "pdf": "assets/pdfs/ספריות קודש פרדי 2026.pdf",
+    "ocr": true
+  },
+  {
+    "id": "מרופדים-עבודת-יד-מבית-לקוח",
+    "title": "מרופדים עבודת יד מבית לקוח",
+    "description": "",
+    "category": "מבית לקוח",
+    "subcategory": "חדרי שינה מרופדים",
+    "pdf": "assets/pdfs/מרופדים עבודת יד מבית לקוח.pdf",
+    "ocr": true
   }
 ]

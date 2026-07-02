@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>לוח שליטה לקטלוגים</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #162235;
+      --muted: #667085;
+      --line: #d8e0ee;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --danger: #b42318;
+      --ok: #047857;
+      --warn: #b54708;
+      --shadow: 0 16px 48px rgba(15, 23, 42, 0.09);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top right, #e6f0ff 0, #f7f9fc 42%, #f4f7fb 100%);
+      min-height: 100vh;
+    }
+    .shell { width: min(1500px, calc(100% - 28px)); margin: 0 auto; padding: 24px 0 46px; }
+    .hero {
+      background: linear-gradient(135deg, #102a56, #1e63db);
+      color: #fff;
+      border-radius: 28px;
+      padding: 26px;
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 18px;
+    }
+    .hero h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 3vw, 2.5rem); }
+    .hero p { margin: 0; color: rgba(255,255,255,.82); line-height: 1.7; max-width: 980px; }
+    .topbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+    .refresh-btn, button {
+      border: 0;
+      border-radius: 14px;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 750;
+      cursor: pointer;
+      padding: 11px 16px;
+      transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+      box-shadow: 0 9px 18px rgba(37, 99, 235, .18);
+    }
+    button:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    button:disabled { opacity: .52; cursor: not-allowed; transform: none; }
+    button.secondary { background: #eef4ff; color: #1d4ed8; box-shadow: none; border: 1px solid #c7d7fe; }
+    button.secondary:hover { background: #dbe8ff; }
+    button.danger { background: #fff1f0; color: var(--danger); border: 1px solid #ffccc7; box-shadow: none; }
+    button.danger:hover { background: #ffe4e0; }
+    .stats { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 12px; }
+    .stat {
+      background: rgba(255,255,255,.13);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 18px;
+      padding: 14px;
+      backdrop-filter: blur(8px);
+    }
+    .stat strong { display: block; font-size: 1.55rem; line-height: 1; }
+    .stat span { color: rgba(255,255,255,.72); font-size: .92rem; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(340px, .7fr); gap: 18px; margin-top: 18px; align-items: start; }
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(216, 224, 238, .85);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-header { padding: 20px 22px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .card-header h2 { margin: 0; font-size: 1.2rem; }
+    .card-header p { margin: 4px 0 0; color: var(--muted); line-height: 1.5; }
+    .card-body { padding: 18px 22px 22px; }
+    .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+    .action {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 15px;
+      display: grid;
+      gap: 10px;
+      background: #fbfcff;
+      min-height: 148px;
+    }
+    .action strong { font-size: 1.02rem; }
+    .action p { margin: 0; color: var(--muted); line-height: 1.55; font-size: .92rem; }
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    input[type="search"], input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font: inherit;
+      color: var(--text);
+      background: #fff;
+      outline: none;
+    }
+    input:focus { border-color: #93b4ff; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+    .catalog-table-wrap { overflow: auto; max-height: 68vh; border: 1px solid var(--line); border-radius: 18px; }
+    table { width: 100%; border-collapse: collapse; min-width: 980px; background: #fff; }
+    th, td { padding: 10px 10px; border-bottom: 1px solid #edf1f7; text-align: right; vertical-align: middle; }
+    th { position: sticky; top: 0; z-index: 2; background: #f8fbff; color: #344054; font-size: .9rem; }
+    td input[type="text"] { padding: 8px 10px; border-radius: 10px; min-width: 150px; }
+    .id-cell { direction: ltr; text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; color: #475467; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-cell { direction: ltr; text-align: left; font-size: .82rem; color: #667085; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 9px; font-size: .82rem; font-weight: 700; white-space: nowrap; }
+    .badge.ready { color: var(--ok); background: #ecfdf3; }
+    .badge.partial, .badge.empty { color: var(--warn); background: #fffaeb; }
+    .badge.missing { color: #475467; background: #f2f4f7; }
+    .toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; white-space: nowrap; }
+    .toggle input { position: absolute; opacity: 0; pointer-events: none; }
+    .switch { width: 46px; height: 26px; border-radius: 999px; background: #d0d5dd; position: relative; transition: background .15s ease; }
+    .switch::after { content: ""; position: absolute; inset: 3px auto 3px 3px; width: 20px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(16,24,40,.22); transition: transform .15s ease; }
+    .toggle input:checked + .switch { background: #2563eb; }
+    .toggle input:checked + .switch::after { transform: translateX(20px); }
+    [dir="rtl"] .switch::after { right: 3px; left: auto; }
+    [dir="rtl"] .toggle input:checked + .switch::after { transform: translateX(-20px); }
+    .notice { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; padding: 12px 14px; border-radius: 16px; line-height: 1.6; margin-bottom: 14px; }
+    .server-alert { display: none; border: 1px solid #fecdca; background: #fff4f3; color: #912018; padding: 14px 16px; border-radius: 18px; line-height: 1.65; margin-top: 14px; font-weight: 650; }
+    .server-alert.show { display: block; }
+    .server-alert code { direction: ltr; display: inline-block; background: #fff; border: 1px solid #fecdca; border-radius: 8px; padding: 1px 6px; color: #7a271a; }
+    .toast { min-height: 24px; color: var(--muted); font-weight: 650; }
+    .toast.ok { color: var(--ok); }
+    .toast.err { color: var(--danger); }
+    pre {
+      direction: ltr;
+      text-align: left;
+      margin: 0;
+      background: #0f172a;
+      color: #dbeafe;
+      border-radius: 18px;
+      padding: 14px;
+      min-height: 280px;
+      max-height: 58vh;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+    .job-line { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid #edf1f7; color: var(--muted); }
+    .job-line strong { color: var(--text); }
+    .status-running { color: #1d4ed8; }
+    .status-success { color: var(--ok); }
+    .status-failed { color: var(--danger); }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .hero, .card { border-radius: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="topbar">
+        <div>
+          <h1>לוח שליטה מקומי לקטלוגים</h1>
+          <p>מקום אחד להוספת PDFים לרשימה, המרה, OCR, ניקוי קטלוגים ישנים, R2 ובאנדל. הדף הזה עובד רק דרך השרת המקומי שמופעל מהמחשב.</p>
+        </div>
+        <button class="refresh-btn" id="refreshState" type="button">רענן מצב</button>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="server-alert" id="serverAlert"></div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>קטלוגים ו־OCR פר־קטלוג</h2>
+            <p>כיבוי OCR כאן נשמר ב־catalogs.config.json כ־<span dir="ltr">"ocr": false</span>, ולכן גם בהרצת המרה רגילה על כולם הקטלוג הזה לא יריץ OCR.</p>
+          </div>
+          <div class="toolbar">
+            <button class="secondary" id="saveCatalogs" type="button">שמור שינויים</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. אחרי שינוי OCR לקטלוג שכבר הומר, הרץ “המרה רגילה” או “רענון אינדקס חיפוש/OCR בלבד” כדי לעדכן את קובצי החיפוש.</div>
+          <div class="toolbar" style="margin-bottom: 12px;">
+            <input id="catalogFilter" type="search" placeholder="חיפוש לפי שם, קטגוריה, id או PDF..." />
+            <span class="toast" id="saveStatus"></span>
+          </div>
+          <div class="catalog-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>OCR</th>
+                  <th>כותרת</th>
+                  <th>קטגוריה</th>
+                  <th>תת־קטגוריה</th>
+                  <th>סטטוס</th>
+                  <th>ID</th>
+                  <th>PDF</th>
+                </tr>
+              </thead>
+              <tbody id="catalogRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <aside class="card">
+        <div class="card-header">
+          <div>
+            <h2>פעולות</h2>
+            <p>הכפתורים מפעילים את אותם סקריפטים קבועים, בלי להריץ פקודות חופשיות מהדפדפן.</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="actions" id="actions"></div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="card" style="margin-top: 18px;">
+      <div class="card-header">
+        <div>
+          <h2>יומן הרצה</h2>
+          <p>כאן תראה את הפלט של ההמרה/סנכרון/באנדל. לא צריך לנחש מה קרה מאחורי הקלעים — הקלעים באים לפה.</p>
+        </div>
+        <span class="toast" id="jobStatus">אין הרצה פעילה.</span>
+      </div>
+      <div class="card-body">
+        <pre id="jobLog">בחר פעולה כדי להתחיל.</pre>
+        <div id="jobHistory" style="margin-top: 14px;"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = { catalogs: [], actions: [], activeJobId: null, polling: null };
+    const els = {
+      stats: document.getElementById('stats'),
+      rows: document.getElementById('catalogRows'),
+      actions: document.getElementById('actions'),
+      filter: document.getElementById('catalogFilter'),
+      save: document.getElementById('saveCatalogs'),
+      saveStatus: document.getElementById('saveStatus'),
+      jobStatus: document.getElementById('jobStatus'),
+      jobLog: document.getElementById('jobLog'),
+      jobHistory: document.getElementById('jobHistory'),
+      refresh: document.getElementById('refreshState'),
+      serverAlert: document.getElementById('serverAlert')
+    };
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    }
+
+    function controlServerHelp() {
+      return 'הדף הזה נפתח בלי שרת לוח השליטה. אל תפתח אותו דרך start-server.bat, npx serve או שרת האתר הראשי. הפעל את הקובץ catalog-control-panel.bat, או פתח ישירות: http://127.0.0.1:8765/catalog-control-panel.html';
+    }
+
+    function setServerAlert(message) {
+      els.serverAlert.innerHTML = message ? `${escapeHtml(message)}<br><span>הפקודה הנכונה: <code>catalog-control-panel.bat</code></span>` : '';
+      els.serverAlert.classList.toggle('show', Boolean(message));
+    }
+
+    async function api(path, options = {}) {
+      let response;
+      try {
+        response = await fetch(path, {
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          ...options
+        });
+      } catch (error) {
+        throw new Error(`${controlServerHelp()} (${error.message})`);
+      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) {
+        if (path.startsWith('/api/') && (response.status === 404 || response.status === 405)) {
+          throw new Error(controlServerHelp());
+        }
+        throw new Error(data.error || 'בקשה נכשלה');
+      }
+      return data;
+    }
+
+    async function loadState() {
+      const data = await api('/api/state');
+      setServerAlert('');
+      state.catalogs = data.catalogs || [];
+      state.actions = data.actions || [];
+      renderStats(data.counts || {});
+      renderCatalogs();
+      renderActions();
+      renderJobHistory(data.jobs || []);
+    }
+
+    function renderStats(counts) {
+      const items = [
+        ['קטלוגים', counts.catalogs ?? 0],
+        ['PDFים בתיקייה', counts.pdfs ?? 0],
+        ['PDFים חסרים ברשימה', counts.missingPdfs ?? 0],
+        ['מומרים', counts.converted ?? 0],
+        ['OCR כבוי', counts.ocrDisabled ?? 0]
+      ];
+      els.stats.innerHTML = items.map(([label, value]) => `<div class="stat"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+    }
+
+    function renderCatalogs() {
+      const query = els.filter.value.trim().toLowerCase();
+      const rows = state.catalogs
+        .map((catalog, index) => ({ catalog, index }))
+        .filter(({catalog}) => {
+          if (!query) return true;
+          return [catalog.id, catalog.title, catalog.category, catalog.subcategory, catalog.pdf].join(' ').toLowerCase().includes(query);
+        })
+        .map(({catalog, index}) => {
+          const status = catalog.status || { state: 'missing', label: 'לא הומר' };
+          return `<tr data-index="${index}">
+            <td>
+              <label class="toggle" title="האם להריץ OCR בקטלוג הזה">
+                <input type="checkbox" data-field="ocr" ${catalog.ocr !== false ? 'checked' : ''} />
+                <span class="switch" aria-hidden="true"></span>
+                <span>${catalog.ocr !== false ? 'כן' : 'לא'}</span>
+              </label>
+            </td>
+            <td><input type="text" data-field="title" value="${escapeHtml(catalog.title || '')}" /></td>
+            <td><input type="text" data-field="category" value="${escapeHtml(catalog.category || '')}" /></td>
+            <td><input type="text" data-field="subcategory" value="${escapeHtml(catalog.subcategory || '')}" /></td>
+            <td><span class="badge ${escapeHtml(status.state)}">${escapeHtml(status.label)}</span></td>
+            <td class="id-cell" title="${escapeHtml(catalog.id)}">${escapeHtml(catalog.id)}</td>
+            <td class="pdf-cell" title="${escapeHtml(catalog.pdf)}">${escapeHtml(catalog.pdf)}</td>
+          </tr>`;
+        }).join('');
+      els.rows.innerHTML = rows || '<tr><td colspan="7">לא נמצאו קטלוגים.</td></tr>';
+    }
+
+    function syncCatalogFromInput(input) {
+      const row = input.closest('tr');
+      if (!row) return;
+      const index = Number(row.dataset.index);
+      const field = input.dataset.field;
+      if (!Number.isInteger(index) || !state.catalogs[index] || !field) return;
+      if (field === 'ocr') {
+        state.catalogs[index].ocr = input.checked;
+        input.parentElement.querySelector('span:last-child').textContent = input.checked ? 'כן' : 'לא';
+      } else {
+        state.catalogs[index][field] = input.value;
+      }
+      setSaveStatus('יש שינויים שלא נשמרו.', '');
+    }
+
+    function renderActions() {
+      els.actions.innerHTML = state.actions.map(action => `<div class="action">
+        <strong>${escapeHtml(action.label)}</strong>
+        <p>${escapeHtml(action.description)}</p>
+        <button type="button" data-action="${escapeHtml(action.key)}">הפעל</button>
+      </div>`).join('');
+    }
+
+    async function saveCatalogs() {
+      setSaveStatus('שומר...', '');
+      els.save.disabled = true;
+      try {
+        const payload = await api('/api/catalogs', {
+          method: 'POST',
+          body: JSON.stringify({ catalogs: state.catalogs })
+        });
+        state.catalogs = payload.state.catalogs || state.catalogs;
+        renderStats((payload.state && payload.state.counts) || {});
+        renderCatalogs();
+        setSaveStatus('נשמר בהצלחה.', 'ok');
+      } catch (error) {
+        setSaveStatus(error.message, 'err');
+      } finally {
+        els.save.disabled = false;
+      }
+    }
+
+    function setSaveStatus(text, kind) {
+      els.saveStatus.textContent = text;
+      els.saveStatus.className = `toast ${kind || ''}`;
+    }
+
+    async function runAction(actionKey) {
+      const action = state.actions.find(item => item.key === actionKey);
+      if (!action) return;
+      if (!confirm(`להפעיל: ${action.label}?`)) return;
+      els.jobLog.textContent = 'מתחיל הרצה...';
+      els.jobStatus.textContent = 'רץ...';
+      els.jobStatus.className = 'toast status-running';
+      try {
+        const payload = await api('/api/run', { method: 'POST', body: JSON.stringify({ action: actionKey }) });
+        state.activeJobId = payload.job.id;
+        pollJob();
+      } catch (error) {
+        els.jobLog.textContent = error.message;
+        els.jobStatus.textContent = 'נכשל בהתחלה';
+        els.jobStatus.className = 'toast err';
+      }
+    }
+
+    async function pollJob() {
+      if (!state.activeJobId) return;
+      clearTimeout(state.polling);
+      try {
+        const job = await api(`/api/jobs/${state.activeJobId}`);
+        els.jobLog.textContent = (job.log || []).join('\n') || 'אין עדיין פלט.';
+        els.jobLog.scrollTop = els.jobLog.scrollHeight;
+        els.jobStatus.textContent = `${job.label} · ${statusText(job.status)}`;
+        els.jobStatus.className = `toast status-${job.status}`;
+        if (job.status === 'running') {
+          state.polling = setTimeout(pollJob, 900);
+        } else {
+          await loadState();
+        }
+      } catch (error) {
+        els.jobStatus.textContent = error.message;
+        els.jobStatus.className = 'toast err';
+      }
+    }
+
+    function statusText(status) {
+      if (status === 'running') return 'רץ';
+      if (status === 'success') return 'הסתיים בהצלחה';
+      if (status === 'failed') return 'נכשל';
+      return status;
+    }
+
+    function renderJobHistory(jobs) {
+      els.jobHistory.innerHTML = (jobs || []).slice(0, 5).map(job => `<div class="job-line">
+        <strong>${escapeHtml(job.label)}</strong>
+        <span class="status-${escapeHtml(job.status)}">${escapeHtml(statusText(job.status))}</span>
+      </div>`).join('');
+    }
+
+    els.rows.addEventListener('input', event => {
+      const input = event.target.closest('input');
+      if (input) syncCatalogFromInput(input);
+    });
+    els.rows.addEventListener('change', event => {
+      const input = event.target.closest('input');
+      if (input) syncCatalogFromInput(input);
+    });
+    els.actions.addEventListener('click', event => {
+      const button = event.target.closest('[data-action]');
+      if (button) runAction(button.dataset.action);
+    });
+    els.filter.addEventListener('input', renderCatalogs);
+    els.save.addEventListener('click', saveCatalogs);
+    els.refresh.addEventListener('click', () => {
+      loadState().catch(showLoadError);
+    });
+
+    function showLoadError(error) {
+      const message = error.message || 'שגיאה בטעינת מצב';
+      setServerAlert(message);
+      els.stats.innerHTML = '';
+      els.rows.innerHTML = '<tr><td colspan="7">לא ניתן לטעון קטלוגים כי שרת ה־API של לוח השליטה לא פעיל.</td></tr>';
+      els.actions.innerHTML = '<div class="notice">הפעל <span dir="ltr">catalog-control-panel.bat</span> מתוך תיקיית הפרויקט, ואז הדף ייטען עם כל הקטלוגים והכפתורים.</div>';
+      els.jobLog.textContent = message;
+      els.jobStatus.textContent = 'שגיאה בטעינת מצב';
+      els.jobStatus.className = 'toast err';
+    }
+
+    loadState().catch(showLoadError);
+  </script>
+</body>
+</html>

@@ -3,12 +3,18 @@
 התקנה מקומית
 setup-windows.bat
 
+לוח שליטה נוח בדפדפן לכל פעולות הקטלוגים
+catalog-control-panel.bat
+חשוב: לא לפתוח את catalog-control-panel.html דרך start-server.bat או npx serve, כי שם אין API ולכן /api/state יחזיר 404.
+
 אחרי הוספת קובץ pdf של קטלוג חדש לתקיית site-catalog\assets\pdfs
 אפשר לעדכן את קובץ הקטלוגים אוטומטית עם
 sync-catalog-pdfs.bat
 
-אחר כך אפשר לערוך את הקטלוג החדש עם הפרטים כולל הקטגוריות בקובץ
+אחר כך אפשר לערוך את הקטלוג החדש עם הפרטים כולל הקטגוריות והאם להריץ OCR בקובץ
 catalogs.config.json
+
+אפשר גם לערוך את זה דרך לוח השליטה: catalog-control-panel.bat
 
 אחר כך להמיר את הpdf שלא הומרו
 convert-catalogs.bat
@@ -55,8 +61,12 @@ convert-catalogs-deleteforce.bat
 המרה מחדש רק של זיהוי ocr
 refresh-ocr-search.bat
 
-שרת מקומי
+שרת מקומי לאתר הראשי בלבד
+start-server.bat
+או
 npx serve .
+
+לוח השליטה אינו עובד דרך שרת האתר הראשי. בשבילו מריצים catalog-control-panel.bat.
 
 הגדרת אתר בנטפליי
 Site configuration / Domain management / Production domains
@@ -65,3 +75,8 @@ bargig-furniture.com
 www.bargig-furniture.com
 
 Verify DNS configuration
+
+הגדרת OCR פר קטלוג
+בקובץ catalogs.config.json אפשר להוסיף לכל קטלוג שדה:
+"ocr": false
+ואז גם אם מריצים המרה רגילה על כל הקטלוגים, הקטלוג הזה לא יריץ OCR. ברירת המחדל היא true.
