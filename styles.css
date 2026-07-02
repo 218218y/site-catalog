@@ -475,10 +475,7 @@ main {
 }
 .search-box {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
+  display: block;
   margin-top: 0;
   padding: 8px;
   border: 1px solid rgba(110, 86, 70, 0.15);
@@ -497,11 +494,26 @@ main {
 }
 .search-input::placeholder { color: rgba(111, 98, 88, 0.72); }
 .global-search-field {
+  --global-search-scope-width: 176px;
+  --global-search-clear-size: 34px;
+  --global-search-control-gap: 7px;
+  --global-search-control-inset: 7px;
   position: relative;
   min-width: 0;
 }
 .global-search-field .search-input {
-  padding: 0 18px 0 190px;
+  padding: 0 18px 0 calc(
+    var(--global-search-control-inset) +
+    var(--global-search-scope-width) +
+    var(--global-search-control-gap) +
+    var(--global-search-clear-size) +
+    12px
+  );
+}
+.global-search-field .search-input::-webkit-search-cancel-button,
+.global-search-field .search-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
 }
 .global-search-field:focus-within .search-input {
   box-shadow: 0 0 0 3px rgba(154, 122, 98, 0.13);
@@ -511,11 +523,13 @@ main {
   position: absolute;
   z-index: 4;
   top: 50%;
-  left: 7px;
+  left: var(--global-search-control-inset);
+  width: var(--global-search-scope-width);
   transform: translateY(-50%);
 }
 .global-search-scope-toggle {
-  max-width: 176px;
+  width: 100%;
+  max-width: none;
   min-height: 38px;
   display: inline-flex;
   align-items: center;
@@ -547,6 +561,47 @@ main {
 .global-search-scope-toggle span {
   flex: 0 0 auto;
   opacity: .72;
+}
+.global-search-clear {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  left: calc(
+    var(--global-search-control-inset) +
+    var(--global-search-scope-width) +
+    var(--global-search-control-gap)
+  );
+  width: var(--global-search-clear-size);
+  height: var(--global-search-clear-size);
+  min-width: var(--global-search-clear-size);
+  min-height: var(--global-search-clear-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(110, 86, 70, 0.15);
+  border-radius: 999px;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--brand-dark);
+  background: rgba(255,255,255,0.86);
+  box-shadow: 0 8px 18px rgba(82, 61, 46, 0.1), inset 0 1px 0 rgba(255,255,255,0.86);
+  font: inherit;
+  font-size: 1.14rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.global-search-clear:hover,
+.global-search-clear:focus-visible {
+  border-color: rgba(139, 111, 90, 0.34);
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 10px 22px rgba(82, 61, 46, 0.14), inset 0 1px 0 rgba(255,255,255,0.92);
+}
+.global-search-clear span {
+  transform: translateY(-1px);
 }
 .global-search-scope-menu {
   position: absolute;
@@ -2870,11 +2925,10 @@ a.reader-home:focus-visible {
   .catalog-grid, .page-grid, .search-results, .reader-search-results { grid-template-columns: 1fr; }
   .catalog-category-grid, .catalog-subcategory-grid { grid-template-columns: 1fr; width: 100%; }
   .catalog-category-head-with-subcategories { grid-template-columns: 1fr; }
-  .search-box { grid-template-columns: 1fr; border-radius: 22px; }
-  .global-search-field .search-input { padding-left: 154px; }
-  .global-search-scope-toggle { max-width: 140px; min-height: 36px; padding-inline: 11px; font-size: .82rem; }
+  .search-box { border-radius: 22px; }
+  .global-search-field { --global-search-scope-width: 140px; --global-search-clear-size: 32px; --global-search-control-gap: 6px; }
+  .global-search-scope-toggle { min-height: 36px; padding-inline: 11px; font-size: .82rem; }
   .global-search-scope-menu { left: 0; width: min(250px, calc(100vw - 34px)); }
-  .search-clear { width: 100%; }
   .search-result-button { grid-template-columns: 82px minmax(0, 1fr); }
   .search-result-thumb { width: 82px; height: 106px; }
   .reader-top-shell { max-height: calc(100vh - 8px); }
@@ -3017,8 +3071,8 @@ a.reader-home:focus-visible {
 }
 
 @media (max-width: 520px) {
-  .global-search-field .search-input { padding-left: 132px; }
-  .global-search-scope-toggle { max-width: 118px; min-height: 34px; padding-inline: 9px; font-size: .76rem; }
+  .global-search-field { --global-search-scope-width: 118px; --global-search-clear-size: 30px; --global-search-control-gap: 5px; }
+  .global-search-scope-toggle { min-height: 34px; padding-inline: 9px; font-size: .76rem; }
   .reader-header,
   .reader-header.lightbox-reader-header {
     grid-template-columns: minmax(0, 1fr) auto;

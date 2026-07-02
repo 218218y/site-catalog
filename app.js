@@ -1826,7 +1826,7 @@ function renderSearchResults(query) {
     els.globalSearchResults.innerHTML = `
       <article class="search-empty">
         <strong>לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”</strong>
-        <p>${category ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים." : "נסה מספר דגם קצר יותר, חלק מהמילה, או הרץ OCR במצב <code>--ocr always</code> אם ה־PDF הוא סריקה כבדה."}</p>
+        <p>${category ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים." : "נסה מספר דגם קצר יותר, או חלק מהמילה"}</p>
       </article>
     `;
     return;

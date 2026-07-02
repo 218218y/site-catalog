@@ -39,12 +39,12 @@
         <label class="visually-hidden" for="globalSearchInput">חיפוש דגם בקטלוגים</label>
         <div class="global-search-field">
           <input id="globalSearchInput" class="search-input" type="search" autocomplete="off" placeholder="הקלד דגם, מספר, שם מוצר או מילה מהקטלוג..." />
+          <button class="global-search-clear hidden" id="globalSearchClear" type="button" aria-label="ניקוי החיפוש" title="ניקוי החיפוש"><span aria-hidden="true">×</span></button>
           <div class="global-search-scope-wrap">
             <button class="global-search-scope-toggle" id="globalSearchScopeToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="globalSearchScopeMenu">בכל הקטלוגים <span aria-hidden="true">⌄</span></button>
             <div class="global-search-scope-menu hidden" id="globalSearchScopeMenu" role="menu" aria-label="בחירת קטגוריית חיפוש"></div>
           </div>
         </div>
-        <button class="small-button search-clear hidden" id="globalSearchClear" type="button">נקה</button>
       </div>
       <div class="search-results hidden" id="globalSearchResults" aria-live="polite"></div>
     </section>
