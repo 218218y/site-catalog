@@ -517,6 +517,7 @@ main {
   margin-bottom: 26px;
 }
 .search-panel.global-search-popover {
+  --global-search-results-max-height: max(220px, min(62vh, calc(100vh - var(--header-h) - 210px), 620px));
   position: fixed;
   z-index: 80;
   top: calc(var(--header-h) + 12px);
@@ -524,8 +525,10 @@ main {
   right: auto;
   width: min(760px, calc(100vw - 24px));
   max-height: calc(100vh - var(--header-h) - 24px);
-  display: flex;
-  flex-direction: column;
+  max-height: calc(100dvh - var(--header-h) - 24px);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, auto);
+  align-content: start;
   gap: 12px;
   margin: 0;
   padding: clamp(14px, 2vw, 22px);
@@ -590,11 +593,34 @@ main {
 }
 .search-panel.global-search-popover .search-results {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  max-height: min(62vh, calc(100vh - var(--header-h) - 210px), 620px);
-  overflow: auto;
+  grid-auto-rows: max-content;
+  align-content: start;
+  max-height: var(--global-search-results-max-height);
+  max-height: max(220px, min(62dvh, calc(100dvh - var(--header-h) - 210px), 620px));
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
-  padding-inline-end: 2px;
+  padding: 2px 4px 8px 2px;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
+}
+.search-panel.global-search-popover .search-result-card {
+  height: auto;
+  min-height: 0;
+}
+.search-panel.global-search-popover .search-result-button {
+  height: auto;
+  min-height: 0;
+  grid-template-rows: auto auto;
+}
+.search-panel.global-search-popover .search-result-thumb-frame {
+  aspect-ratio: 1 / 1.18;
+  background: #fff;
+}
+.search-panel.global-search-popover .search-result-thumb {
+  object-fit: contain;
+  background: #fff;
 }
 .search-box {
   position: relative;
