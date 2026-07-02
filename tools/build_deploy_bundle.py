@@ -32,8 +32,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+BIG_PAGES_VIEWER_FILE = "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
+
 DEPLOY_FILES = [
     "_headers",
+    "_redirects",
     "index.html",
     "styles.css",
     "app.js",
@@ -47,7 +50,6 @@ DEPLOY_FILES = [
     "wp_logo_data.js",
     "catalogs.generated.js",
     "catalogs.search.js",
-    "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html",
 ]
 
 OPTIONAL_DEPLOY_FILES = [
@@ -306,6 +308,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Create a local-images bundle even if assets/pages does not exist yet. The deployed viewer will need assets/pages to show catalog images.",
     )
+    parser.add_argument(
+        "--include-big-pages-viewer",
+        action="store_true",
+        help=(
+            "Also copy the local diagnostic big-pages viewer into the deploy bundle. "
+            "Do not use this for the public site unless you intentionally want that helper exposed."
+        ),
+    )
     args = parser.parse_args()
     args.external_assets_url = normalize_base_url(args.external_assets_url) if args.external_assets_url else ""
     if args.out is None:
@@ -324,8 +334,16 @@ def main() -> int:
         else:
             out_dir.mkdir(parents=True, exist_ok=True)
 
+        deploy_files = list(DEPLOY_FILES)
+        if args.include_big_pages_viewer:
+            deploy_files.append(BIG_PAGES_VIEWER_FILE)
+            print(
+                f"[warn] Including local-only diagnostic page in deploy bundle: {BIG_PAGES_VIEWER_FILE}",
+                file=sys.stderr,
+            )
+
         stats = CopyStats(files=0, bytes=0)
-        for relative in DEPLOY_FILES:
+        for relative in deploy_files:
             if relative == "catalog-assets.config.js":
                 continue
             stats = add_stats(stats, copy_file(root, out_dir, relative))
@@ -362,7 +380,10 @@ def main() -> int:
         print("\nDone.")
         print(f"Upload folder: {rel_to_root(out_dir)}")
         print(f"Copied: {stats.files} files, {format_bytes(stats.bytes)}")
-        print("Excluded: PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files.")
+        excluded_note = "PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files"
+        if not args.include_big_pages_viewer:
+            excluded_note += ", including the local diagnostic big-pages viewer"
+        print(f"Excluded: {excluded_note}.")
         if args.external_assets_url:
             print(f"Images: external mode, loaded from {args.external_assets_url}")
         else:

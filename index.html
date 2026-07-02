@@ -3,6 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (() => {
+      const hostname = window.location.hostname;
+      const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+      if (window.location.protocol === "http:" && !isLocalHost) {
+        window.location.replace("https:" + window.location.href.slice(window.location.protocol.length));
+      }
+    })();
+  </script>
   <meta name="robots" content="noindex, nofollow, noimageindex, nosnippet, noarchive" />
   <meta name="theme-color" content="#8b6f5a" />
   <link rel="icon" href="favicon.ico" sizes="any" data-site-favicon="1" />
@@ -250,7 +259,7 @@
 
   <footer class="site-footer">
     <div class="site-footer-row">
-      <p><a class="footer-hidden-tools-link" href="catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html" target="_blank" rel="noopener">© רהיטי ברגיג</a> · קטלוגים דיגיטליים</p>
+      <p>© רהיטי ברגיג · קטלוגים דיגיטליים</p>
 
       <a
         class="button primary footer-contact"

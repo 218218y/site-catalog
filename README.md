@@ -26,9 +26,9 @@ bundle-site.bat
 - קבצי האתר: `index.html`, `styles.css`, `app.js` ושאר קבצי JavaScript הנדרשים.
 - נתוני הקטלוגים שנוצרו: `catalogs.generated.js`, `catalogs.search.js`.
 - התמונות המומרות של הקטלוגים: `assets/pages/...`.
-- `_headers` בשביל cache תקין ב-Netlify.
+- `_headers` ו־`_redirects` בשביל cache, HSTS והפניה מסודרת של נתיבים שאינם מיועדים לפרסום.
 
-הבאנדל לא כולל קבצי עבודה שאינם נדרשים לצפייה באתר: PDF מקוריים, כלי המרה, README, virtualenv, קבצי הגדרות וסקריפטים פנימיים.
+הבאנדל לא כולל קבצי עבודה שאינם נדרשים לצפייה באתר: PDF מקוריים, כלי המרה, README, virtualenv, קבצי הגדרות, סקריפטים פנימיים, וגם את כלי הצפייה המקומי בכל התמונות הגדולות.
 
 
 ## לוח שליטה מקומי בדפדפן
@@ -358,4 +358,4 @@ assets/pages/qualita/page-001.webp
 https://cdn.bargig-furniture.com/assets/pages/qualita/page-001.webp
 ```
 
-הפתרון הזה עובד גם באתר הראשי וגם בדף `catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html`.
+הפתרון הזה עובד באתר הראשי. הדף `catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html` נשאר כלי בדיקה מקומי בלבד ואינו מועלה בבאנדל הרגיל.

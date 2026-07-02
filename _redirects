@@ -1,0 +1,3 @@
+# Netlify / Cloudflare Pages redirects for the deployed catalog site.
+# The big-pages viewer is a local diagnostic/NetFree helper and is intentionally not deployed.
+/catalog-big-pages-viewer-netfree/* / 301

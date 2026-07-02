@@ -2,6 +2,7 @@
 # Do not replace this with robots.txt Disallow; Google must be able to crawl the page to see noindex.
 /*
   X-Robots-Tag: noindex, nofollow, noimageindex, nosnippet, noarchive
+  Strict-Transport-Security: max-age=31536000
 
 # Cloudflare Pages / static hosting headers for fast catalog browsing.
 # HTML and code stay revalidated so updates arrive quickly.
