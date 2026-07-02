@@ -187,19 +187,12 @@ const els = {
   pageCount: $("pageCount"),
   globalSearchInput: $("globalSearchInput"),
   globalSearchResults: $("globalSearchResults"),
-  globalSearchStatus: $("globalSearchStatus"),
   globalSearchClear: $("globalSearchClear"),
   globalSearchScopeToggle: $("globalSearchScopeToggle"),
   globalSearchScopeMenu: $("globalSearchScopeMenu"),
   searchFloatingPreview: $("searchFloatingPreview"),
   searchFloatingPreviewImage: $("searchFloatingPreviewImage"),
   searchFloatingPreviewPage: $("searchFloatingPreviewPage"),
-  lastViewCard: $("lastViewCard"),
-  lastViewText: $("lastViewText"),
-  lastViewDetails: $("lastViewDetails"),
-  lastViewCatalog: $("lastViewCatalog"),
-  lastViewPage: $("lastViewPage"),
-  lastViewTime: $("lastViewTime"),
   catalogDetail: $("catalogDetail"),
   catalogTitle: $("catalogDetailTitle"),
   catalogDescription: $("catalogDescription"),
@@ -455,72 +448,6 @@ function flashActionButton(button, message) {
     setTooltipText(button, originalTooltip);
     button.classList.remove("reader-icon-button-done");
   }, 1500);
-}
-
-function readLastCatalogView() {
-  return window.BargigLastView?.read?.(catalogs) || null;
-}
-
-function renderLastCatalogView() {
-  if (!els.lastViewCard) return;
-
-  const record = readLastCatalogView();
-  const hasRecord = Boolean(record);
-  els.lastViewCard.classList.toggle("has-last-view", hasRecord);
-  els.lastViewCard.disabled = !hasRecord;
-  els.lastViewCard.setAttribute("aria-disabled", hasRecord ? "false" : "true");
-
-  if (!hasRecord) {
-    els.lastViewCard.setAttribute("aria-label", "עדיין אין מיקום צפייה שמור");
-    if (els.lastViewText) {
-      els.lastViewText.textContent = "אחרי צפייה בקטלוג יופיע כאן הקטלוג והעמוד האחרון.";
-    }
-    if (els.lastViewCatalog) els.lastViewCatalog.textContent = "—";
-    if (els.lastViewPage) els.lastViewPage.textContent = "—";
-    if (els.lastViewTime) els.lastViewTime.textContent = "—";
-    return;
-  }
-
-  const catalogTitle = record.catalog?.title || "קטלוג";
-  const totalPages = Math.max(1, Number(record.catalog?.pages || 1));
-  const pageLabel = `עמוד ${record.page} מתוך ${totalPages}`;
-  const locationLabel = window.BargigLastView?.formatLocation?.(record) || `${catalogTitle} · ${pageLabel}`;
-  const timeLabel = window.BargigLastView?.formatTime?.(record.updatedAt) || "נשמר לאחרונה";
-
-  els.lastViewCard.setAttribute("aria-label", `המשך צפייה ממקום אחרון: ${locationLabel}. ${timeLabel}`);
-
-  if (els.lastViewText) {
-    els.lastViewText.textContent = "לחצו על הכרטיס כדי לחזור בדיוק לנקודה האחרונה.";
-  }
-  if (els.lastViewCatalog) els.lastViewCatalog.textContent = catalogTitle;
-  if (els.lastViewPage) els.lastViewPage.textContent = pageLabel;
-  if (els.lastViewTime) els.lastViewTime.textContent = timeLabel;
-
-}
-
-function rememberCurrentCatalogView() {
-  if (!state.catalog || !state.lightboxOpen) return null;
-
-  const record = window.BargigLastView?.save?.(catalogs, {
-    catalogId: state.catalog.id,
-    page: clampPage(state.page, state.catalog),
-    viewerMode: state.viewerMode,
-    updatedAt: Date.now()
-  }) || null;
-
-  if (record) renderLastCatalogView();
-  return record;
-}
-
-function continueLastCatalogView() {
-  const record = readLastCatalogView();
-  if (!record) {
-    renderLastCatalogView();
-    return false;
-  }
-
-  openCatalogInViewer(record.catalogId, record.page, record.viewerMode);
-  return true;
 }
 
 function loadDeferredImage(img) {
@@ -1156,7 +1083,6 @@ function scheduleCatalogLayoutRefresh() {
 
 function renderCatalogCard(catalog) {
   const cover = coverThumbSrc(catalog);
-  const category = catalogCategoryName(catalog);
   const safeCatalogId = escapeHtml(catalog.id);
   const safeTitle = escapeHtml(catalog.title);
   return `
@@ -1169,10 +1095,6 @@ function renderCatalogCard(catalog) {
         </div>
       </div>
       <div class="catalog-body">
-        <div class="catalog-meta">
-          <span class="pill">${escapeHtml(category)}</span>
-          <span class="pill">${escapeHtml(catalog.pages)} עמודים</span>
-        </div>
         <h3>${escapeHtml(catalog.title)}</h3>
         <p>${escapeHtml(catalog.description || "")}</p>
         <div class="catalog-actions">
@@ -1438,10 +1360,6 @@ function globalSearchScopeLabel(category = getGlobalSearchCategory()) {
   return category ? category : "בכל הקטלוגים";
 }
 
-function globalSearchScopeSentence(category = getGlobalSearchCategory()) {
-  return category ? `בקטגוריית ${category}` : "בכל הקטלוגים";
-}
-
 function globalSearchPlaceholder() {
   const category = getGlobalSearchCategory();
   return category
@@ -1513,21 +1431,7 @@ function setGlobalSearchCategory(category, options = {}) {
 }
 
 function initSearchStatus() {
-  if (!els.globalSearchStatus) return;
-
-  const category = getGlobalSearchCategory();
-  const hasIndex = Boolean(catalogSearch?.hasIndex?.({ category }));
   syncGlobalSearchScopeUi();
-
-  if (!hasIndex) {
-    els.globalSearchStatus.textContent = category
-      ? `אין עדיין אינדקס חיפוש זמין לקטגוריית ${category}.`
-      : "החיפוש יופעל אחרי הרצת ההמרה מחדש, שמייצרת גם אינדקס OCR לקובץ catalogs.search.js.";
-    return;
-  }
-
-  const count = catalogSearch.indexedPageCount?.({ category }) || 0;
-  els.globalSearchStatus.textContent = `מוכן לחיפוש ${globalSearchScopeSentence(category)} בתוך ${count} עמודים מאונדקסים. הקלד לפחות 2 תווים.`;
 }
 
 function getLightboxSearchScope() {
@@ -1900,7 +1804,7 @@ function submitGlobalSearch() {
 
 function renderSearchResults(query) {
   const rawQuery = String(query || "").trim();
-  if (!els.globalSearchResults || !els.globalSearchStatus) return;
+  if (!els.globalSearchResults) return;
 
   hideSearchFloatingPreview();
   els.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
@@ -1917,9 +1821,6 @@ function renderSearchResults(query) {
   if (!catalogSearch?.hasIndex?.({ category })) {
     els.globalSearchResults.classList.add("hidden");
     els.globalSearchResults.innerHTML = "";
-    els.globalSearchStatus.textContent = category
-      ? `אין אינדקס חיפוש פעיל לקטגוריית ${category}.`
-      : "עדיין אין אינדקס חיפוש. הרץ convert-catalogs מחדש כדי ליצור OCR בעברית וקובץ catalogs.search.js.";
     return;
   }
 
@@ -1932,15 +1833,9 @@ function renderSearchResults(query) {
         <p>${category ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים." : "נסה מספר דגם קצר יותר, חלק מהמילה, או הרץ OCR במצב <code>--ocr always</code> אם ה־PDF הוא סריקה כבדה."}</p>
       </article>
     `;
-    els.globalSearchStatus.textContent = category
-      ? `אין תוצאות מתאימות בקטגוריית ${category}.`
-      : "אין תוצאות מתאימות.";
     return;
   }
 
-  els.globalSearchStatus.textContent = category
-    ? `נמצאו ${results.length} תוצאות בקטגוריית ${category}. לחיצה פותחת את העמוד במקום הנכון בתצוגה מוגדלת.`
-    : `נמצאו ${results.length} תוצאות. לחיצה פותחת את העמוד במקום הנכון בתצוגה מוגדלת.`;
   els.globalSearchResults.classList.remove("hidden");
   els.globalSearchResults.innerHTML = results.map((result) => {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
@@ -2736,7 +2631,6 @@ function updateLightbox() {
     applyZoom();
     updateLightboxThumbs();
     updateHash();
-    rememberCurrentCatalogView();
     return;
   }
 
@@ -2753,7 +2647,6 @@ function updateLightbox() {
   updateLightboxThumbs();
   preloadNeighbors();
   updateHash();
-  rememberCurrentCatalogView();
 }
 
 function openLightbox(page = 1, options = {}) {
@@ -3269,8 +3162,6 @@ function attachEvents() {
     els.globalSearchInput?.focus();
   });
 
-  els.lastViewCard?.addEventListener("click", continueLastCatalogView);
-
   els.lightboxSearchInput?.addEventListener("input", () => renderLightboxSearchResults(els.lightboxSearchInput.value));
   els.lightboxSearchInput?.addEventListener("focus", () => {
     showTopUiTemporarily(0);
@@ -3511,8 +3402,6 @@ function init() {
   syncCatalogCategoryFocusFromHash({ animate: false, scroll: true });
   fillCatalogSelect();
   initSearchStatus();
-  renderLastCatalogView();
-
   const route = parseHash();
   if (route && catalogs.some((item) => item.id === route.id)) {
     openCatalog(route.id, route.lightbox ? { openPage: route.page, viewerMode: route.viewerMode } : {});

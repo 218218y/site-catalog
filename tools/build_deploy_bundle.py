@@ -42,7 +42,6 @@ DEPLOY_FILES = [
     "app.js",
     "catalog-search.js",
     "tooltip-manager.js",
-    "catalog-last-view.js",
     "catalog-snapshot.js",
     "catalog-assets.config.js",
     "brand-logo.js",

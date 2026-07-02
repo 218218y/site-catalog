@@ -1866,8 +1866,12 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/חדרי-שינה-מרופדים-פרדי",
     "cover": "assets/pages/חדרי-שינה-מרופדים-פרדי/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "636dadee29dc",
+    "assetVersion": "437258b13f75",
     "pageSizes": [
+      [
+        2573,
+        1484
+      ],
       [
         2573,
         1504
@@ -1907,10 +1911,6 @@ window.BARGIG_CATALOGS = [
       [
         2573,
         1486
-      ],
-      [
-        2573,
-        1484
       ],
       [
         2573,

@@ -34,19 +34,11 @@
   </header>
 
   <main id="top">
-    <section class="search-panel panel reveal" id="catalogSearch" aria-labelledby="catalogSearchTitle">
-      <div class="section-head search-head">
-        <div>
-          <p class="eyebrow">חיפוש דגמים</p>
-          <h2 id="catalogSearchTitle">חיפוש בתוך כל הקטלוגים</h2>
-        </div>
-        <p class="section-note">החיפוש מתבסס על טקסט שחולץ מה־PDF ועל OCR בעברית בזמן ההמרה.</p>
-      </div>
-
+    <section class="search-panel panel reveal" id="catalogSearch" aria-label="חיפוש קטלוגים">
       <div class="search-box" role="search">
         <label class="visually-hidden" for="globalSearchInput">חיפוש דגם בקטלוגים</label>
         <div class="global-search-field">
-          <input id="globalSearchInput" class="search-input" type="search" autocomplete="off" placeholder="הקלד דגם, מספר, שם מוצר או מילה מהקטלוג..." aria-describedby="globalSearchStatus" />
+          <input id="globalSearchInput" class="search-input" type="search" autocomplete="off" placeholder="הקלד דגם, מספר, שם מוצר או מילה מהקטלוג..." />
           <div class="global-search-scope-wrap">
             <button class="global-search-scope-toggle" id="globalSearchScopeToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="globalSearchScopeMenu">בכל הקטלוגים <span aria-hidden="true">⌄</span></button>
             <div class="global-search-scope-menu hidden" id="globalSearchScopeMenu" role="menu" aria-label="בחירת קטגוריית חיפוש"></div>
@@ -54,29 +46,7 @@
         </div>
         <button class="small-button search-clear hidden" id="globalSearchClear" type="button">נקה</button>
       </div>
-      <p class="search-status" id="globalSearchStatus">הקלד לפחות 2 תווים כדי לחפש.</p>
       <div class="search-results hidden" id="globalSearchResults" aria-live="polite"></div>
-
-      <button class="last-view-card" id="lastViewCard" type="button" disabled aria-disabled="true" aria-live="polite">
-        <span class="last-view-copy">
-          <strong>המשך צפייה ממקום אחרון</strong>
-          <small id="lastViewText">אחרי צפייה בקטלוג יופיע כאן הקטלוג והעמוד האחרון.</small>
-        </span>
-        <span class="last-view-details" id="lastViewDetails" aria-hidden="true">
-          <span class="last-view-detail">
-            <span class="last-view-label">קטלוג</span>
-            <span class="last-view-value" id="lastViewCatalog">—</span>
-          </span>
-          <span class="last-view-detail">
-            <span class="last-view-label">עמוד</span>
-            <span class="last-view-value" id="lastViewPage">—</span>
-          </span>
-          <span class="last-view-detail">
-            <span class="last-view-label">שעה</span>
-            <span class="last-view-value" id="lastViewTime">—</span>
-          </span>
-        </span>
-      </button>
     </section>
 
     <section class="catalogs-section panel reveal" id="catalogs" aria-label="קטלוגים">
@@ -280,7 +250,6 @@
   <script src="catalogs.search.js"></script>
   <script src="catalog-search.js"></script>
   <script src="tooltip-manager.js"></script>
-  <script src="catalog-last-view.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
