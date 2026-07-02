@@ -1572,9 +1572,7 @@ function hideSearchFloatingPreview() {
 }
 
 function searchPreviewPageLabel(target) {
-  const title = String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
-  const page = Number.parseInt(target?.dataset?.searchPreviewPage || "", 10);
-  return Number.isFinite(page) && page > 0 ? `${title} · עמוד ${page}` : title;
+  return String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
 }
 
 function positionSearchFloatingPreview(target) {
@@ -1681,20 +1679,15 @@ function renderLightboxSearchResults(query) {
   els.lightboxSearchResults.innerHTML = results.map((result) => {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
     const page = clampPage(result.page, catalog);
-    const rawThumb = result.thumb || thumbSrc(catalog, page);
     const rawPreview = result.image || pageSrc(catalog, page);
-    const thumb = escapeHtml(rawThumb);
+    const rawThumb = result.thumb || thumbSrc(catalog, page);
+    const rawImage = rawPreview || rawThumb;
     const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
-    const titleText = scope === "all" ? escapeHtml(catalogTitle) : `עמוד ${page}`;
-    const metaText = scope === "all" ? `עמוד ${page}` : "התאמת חיפוש בעמוד הזה";
     return `
-      <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview)}" data-search-preview-title="${escapeHtml(catalogTitle)}" data-search-preview-page="${page}">
+      <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+        <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
         <span class="reader-search-thumb-frame catalog-image-frame">
-          <img src="${thumb}" alt="${escapeHtml(catalogTitle)} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawThumb)} />
-        </span>
-        <span>
-          <strong>${titleText}</strong>
-          <small>${escapeHtml(metaText)}</small>
+          <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
         </span>
       </button>
     `;
@@ -1838,16 +1831,14 @@ function renderSearchResults(query) {
     const page = clampPage(result.page, catalog);
     const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
     const rawPreview = result.image || (catalog ? pageSrc(catalog, page) : rawThumb);
+    const rawImage = rawPreview || rawThumb;
     const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
     return `
       <article class="search-result-card">
-        <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview)}" data-search-preview-title="${escapeHtml(catalogTitle)}" data-search-preview-page="${page}">
+        <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+          <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
           <span class="search-result-thumb-frame catalog-image-frame">
-            <img class="search-result-thumb" src="${escapeHtml(rawThumb)}" alt="${escapeHtml(catalogTitle)} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawThumb)} />
-          </span>
-          <span class="search-result-body">
-            <strong>${escapeHtml(catalogTitle)}</strong>
-            <span class="search-result-meta">עמוד ${page}</span>
+            <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
           </span>
         </button>
       </article>
