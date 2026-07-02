@@ -2528,10 +2528,11 @@ function renderLightboxPageRail() {
     button.addEventListener("pointerleave", hideLightboxFloatingPreview);
     button.addEventListener("focus", () => showLightboxFloatingPreview(button));
     button.addEventListener("blur", hideLightboxFloatingPreview);
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
       hideLightboxFloatingPreview();
-      showPageRailTemporarily(1800);
       setLightboxPage(Number(button.dataset.page), { smooth: true, hit: true });
+      showPageRailTemporarily(1800, { scrollIntoView: false });
     });
   });
 }
@@ -2614,11 +2615,12 @@ function shouldUsePageRailHover(event = null) {
   return true;
 }
 
-function showPageRailTemporarily(delay = 2600) {
+function showPageRailTemporarily(delay = 2600, options = {}) {
+  const { scrollIntoView = true } = options;
   if (!els.lightbox || !state.lightboxOpen) return;
   window.clearTimeout(state.pageRailHideTimer);
   els.lightbox.classList.add("show-page-rail");
-  updateLightboxThumbs({ scrollIntoView: true });
+  updateLightboxThumbs({ scrollIntoView });
   if (delay > 0) {
     state.pageRailHideTimer = window.setTimeout(() => {
       els.lightbox?.classList.remove("show-page-rail");
@@ -2626,11 +2628,12 @@ function showPageRailTemporarily(delay = 2600) {
   }
 }
 
-function keepPageRailOpen() {
+function keepPageRailOpen(options = {}) {
+  const { scrollIntoView = true } = options;
   if (!state.lightboxOpen) return;
   window.clearTimeout(state.pageRailHideTimer);
   els.lightbox?.classList.add("show-page-rail");
-  updateLightboxThumbs({ scrollIntoView: true });
+  updateLightboxThumbs({ scrollIntoView });
 }
 
 function schedulePageRailClose(event = null) {
@@ -3495,7 +3498,7 @@ function attachEvents() {
     schedulePageRailClose(event);
   });
   els.lightbox?.addEventListener("pointerdown", handlePageRailPointerOutside);
-  els.lightboxPageRail?.addEventListener("focusin", keepPageRailOpen);
+  els.lightboxPageRail?.addEventListener("focusin", () => keepPageRailOpen({ scrollIntoView: false }));
   els.lightboxPageRail?.addEventListener("focusout", schedulePageRailClose);
   els.lightboxScrollView?.addEventListener("scroll", scheduleLightboxScrollPageUpdate, { passive: true });
 
