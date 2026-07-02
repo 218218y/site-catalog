@@ -126,8 +126,10 @@
     .group-strip {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      direction: rtl;
+      gap: 10px;
       border-radius: 16px;
       margin: 9px 10px 5px;
       padding: 11px 13px;
@@ -144,10 +146,10 @@
       color: #475467;
       font-weight: 780;
     }
-    .group-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .group-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 0 1 auto; min-width: 0; }
     .group-kicker { color: var(--muted); font-size: .82rem; font-weight: 750; }
     .group-count { color: var(--muted); font-size: .85rem; font-weight: 700; }
-    .group-actions { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .group-actions { display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: 0 0 auto; }
     .icon-btn {
       min-width: 34px;
       padding: 7px 9px;
