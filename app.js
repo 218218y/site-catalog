@@ -176,7 +176,8 @@ const state = {
   catalogLayoutResizeTimer: 0,
   categoryFocusTimer: 0,
   categoryFocusTargetId: "",
-  categoryNavFitRaf: 0
+  categoryNavFitRaf: 0,
+  catalogScrollTopButtonRaf: 0
 };
 
 const els = {
@@ -1908,7 +1909,37 @@ function scrollCatalogDetailIntoView() {
   if (!els.catalogDetail) return;
   requestAnimationFrame(() => {
     els.catalogDetail.scrollIntoView({ behavior: "smooth", block: "start" });
+    scheduleCatalogScrollTopButtonUpdate();
   });
+}
+
+function setCatalogScrollTopButtonVisible(visible) {
+  if (!els.scrollToTopBtn) return;
+  els.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
+  els.scrollToTopBtn.setAttribute("aria-hidden", visible ? "false" : "true");
+  els.scrollToTopBtn.tabIndex = visible ? 0 : -1;
+}
+
+function updateCatalogScrollTopButton() {
+  state.catalogScrollTopButtonRaf = 0;
+  if (!els.scrollToTopBtn || !els.catalogDetail || !els.pageGrid || els.catalogDetail.classList.contains("hidden") || !state.catalog || state.lightboxOpen) {
+    setCatalogScrollTopButtonVisible(false);
+    return;
+  }
+
+  const detailRect = els.catalogDetail.getBoundingClientRect();
+  const gridRect = els.pageGrid.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 90;
+  const startedScrollingInsideGrid = gridRect.top < Math.min(headerHeight + 28, viewportHeight * 0.28);
+  const stillNearGrid = gridRect.bottom > Math.min(180, viewportHeight * 0.35);
+  const detailVisible = detailRect.bottom > 80 && detailRect.top < viewportHeight;
+  setCatalogScrollTopButtonVisible(startedScrollingInsideGrid && stillNearGrid && detailVisible);
+}
+
+function scheduleCatalogScrollTopButtonUpdate() {
+  if (state.catalogScrollTopButtonRaf) return;
+  state.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton);
 }
 
 function renderCatalogDetail() {
@@ -1928,6 +1959,7 @@ function renderCatalogDetail() {
   if (els.openViewerSingleFromTop) els.openViewerSingleFromTop.disabled = catalog.pages < 1;
   if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) renderDetailCatalogMenu();
   renderPageGrid();
+  scheduleCatalogScrollTopButtonUpdate();
 }
 
 function preloadNeighbors() {
@@ -2652,6 +2684,7 @@ function openLightbox(page = 1, options = {}) {
   syncViewerModeUi();
   showTopUiTemporarily(1700);
   updateLightbox();
+  scheduleCatalogScrollTopButtonUpdate();
 
   if (state.viewerMode === "scroll") {
     requestAnimationFrame(() => scrollToLightboxScrollPage(state.page, { smooth: false, hit: false }));
@@ -2674,6 +2707,7 @@ function closeLightbox() {
   state.lightboxScrollRaf = 0;
   disconnectLightboxScrollImageLoading();
   document.body.classList.remove("no-scroll");
+  scheduleCatalogScrollTopButtonUpdate();
   updateHash();
 }
 
@@ -3293,13 +3327,17 @@ function attachEvents() {
     scheduleCatalogLayoutRefresh();
     scheduleCategoryNavFit();
     hideSearchFloatingPreview();
+    scheduleCatalogScrollTopButtonUpdate();
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
       applyZoom();
       if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
     }
   });
-  window.addEventListener("scroll", hideSearchFloatingPreview, { passive: true });
+  window.addEventListener("scroll", () => {
+    hideSearchFloatingPreview();
+    scheduleCatalogScrollTopButtonUpdate();
+  }, { passive: true });
 
   ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"].forEach((eventName) => {
     document.addEventListener(eventName, syncFullscreenButtonUi);
