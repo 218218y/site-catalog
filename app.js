@@ -165,6 +165,7 @@ const state = {
   thumbsHideTimer: 0,
   uiHideTimer: 0,
   pageRailHideTimer: 0,
+  lastTouchLikeViewportInputAt: 0,
   lastTouchLikeRailInputAt: 0,
   lightboxScrollRaf: 0,
   globalSearchCategory: "",
@@ -2422,7 +2423,7 @@ function shouldKeepPageRailOpenForPointer(event = null) {
 }
 
 function handleLightboxHoverHoldPointerMove(event) {
-  if (!state.lightboxOpen || isTouchLikePointer(event)) return;
+  if (!shouldUseLightboxHoverPointer(event)) return;
 
   if (els.lightbox?.classList.contains("show-ui") && !shouldKeepTopUiOpenForPointer(event)) {
     scheduleTopUiClose(event);
@@ -2430,6 +2431,65 @@ function handleLightboxHoverHoldPointerMove(event) {
 
   if (els.lightbox?.classList.contains("show-page-rail") && !shouldKeepPageRailOpenForPointer(event)) {
     schedulePageRailClose(event);
+  }
+}
+
+function getViewportSize() {
+  return {
+    width: window.innerWidth || document.documentElement.clientWidth || 0,
+    height: window.innerHeight || document.documentElement.clientHeight || 0
+  };
+}
+
+function isPointInTopEdgeActivationZone(point) {
+  if (!point || state.topUiPinned) return false;
+  const { width } = getViewportSize();
+  const hotspotRect = els.topHotspot?.getBoundingClientRect?.();
+  const hotspotHeight = Math.max(2, Math.round(hotspotRect?.height || 34));
+  const activationBottom = Math.max(hotspotRect?.bottom || 0, hotspotHeight);
+  return point.x >= 0 && point.x <= width && point.y >= 0 && point.y <= activationBottom;
+}
+
+function isPointInPageRailEdgeActivationZone(point) {
+  if (!point || !els.lightboxSideHotspot || !els.lightboxPageRail) return false;
+  const { width, height } = getViewportSize();
+  const hotspotRect = els.lightboxSideHotspot.getBoundingClientRect();
+  const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 34));
+  const activationLeft = Math.max(0, Math.min(hotspotRect?.left ?? width, width - hotspotWidth));
+  return point.x >= activationLeft && point.x <= width && point.y >= 0 && point.y <= height;
+}
+
+function openLightboxEdgeUiForPointer(point) {
+  if (isPointInTopEdgeActivationZone(point)) {
+    showTopUiTemporarily(0);
+  }
+
+  if (isPointInPageRailEdgeActivationZone(point)) {
+    showPageRailTemporarily(0);
+  }
+}
+
+function handleLightboxEdgeHoverMove(event) {
+  if (!shouldUseLightboxHoverPointer(event)) return;
+  const point = getViewportPointer(event);
+  openLightboxEdgeUiForPointer(point);
+  handleLightboxHoverHoldPointerMove(event);
+}
+
+function handleLightboxEdgeHoverViewportExit(event) {
+  if (!shouldUseLightboxHoverPointer(event)) return;
+  if (event.relatedTarget || event.toElement) return;
+
+  const point = getViewportPointer(event);
+  if (!point) return;
+
+  const { width, height } = getViewportSize();
+  if (point.y <= 0 && point.x >= 0 && point.x <= width) {
+    showTopUiTemporarily(0);
+  }
+
+  if (point.x >= width - 1 && point.y >= 0 && point.y <= height) {
+    showPageRailTemporarily(0);
   }
 }
 
@@ -2735,26 +2795,45 @@ function toggleLightboxMode() {
 
 function hasHoverPointer() {
   if (typeof window.matchMedia !== "function") return true;
-  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const primaryFineHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const anyFineHover = window.matchMedia("(any-hover: hover) and (any-pointer: fine)").matches;
+  return primaryFineHover || anyFineHover;
 }
 
 function isTouchLikePointer(event) {
   return event?.pointerType === "touch" || event?.pointerType === "pen";
 }
 
+function markTouchLikeViewportInput(event) {
+  if (isTouchLikePointer(event) || event?.type === "touchstart") {
+    state.lastTouchLikeViewportInputAt = Date.now();
+  }
+}
+
+function hasRecentTouchLikeViewportInput(timeout = 900) {
+  return Date.now() - state.lastTouchLikeViewportInputAt < timeout;
+}
+
 function markTouchLikeRailInput(event) {
   if (isTouchLikePointer(event)) {
     state.lastTouchLikeRailInputAt = Date.now();
   }
+  markTouchLikeViewportInput(event);
 }
 
 function hasRecentTouchLikeRailInput(timeout = 900) {
   return Date.now() - state.lastTouchLikeRailInputAt < timeout;
 }
 
+function shouldUseLightboxHoverPointer(event = null) {
+  if (!state.lightboxOpen || !hasHoverPointer()) return false;
+  if (isTouchLikePointer(event) || hasRecentTouchLikeViewportInput()) return false;
+  return true;
+}
+
 function shouldUsePageRailHover(event = null) {
-  if (!hasHoverPointer()) return false;
-  if (isTouchLikePointer(event) || hasRecentTouchLikeRailInput()) return false;
+  if (!shouldUseLightboxHoverPointer(event)) return false;
+  if (hasRecentTouchLikeRailInput()) return false;
   return true;
 }
 
@@ -3653,7 +3732,11 @@ function attachEvents() {
   els.topHotspot?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseleave", scheduleTopUiClose);
-  document.addEventListener("mousemove", handleLightboxHoverHoldPointerMove, { passive: true });
+  document.addEventListener("pointerdown", markTouchLikeViewportInput, { passive: true });
+  document.addEventListener("touchstart", markTouchLikeViewportInput, { passive: true });
+  document.addEventListener("mousemove", handleLightboxEdgeHoverMove, { passive: true });
+  document.addEventListener("mouseout", handleLightboxEdgeHoverViewportExit, { passive: true });
+  document.documentElement?.addEventListener("mouseleave", handleLightboxEdgeHoverViewportExit, { passive: true });
 
   els.lightboxImage?.addEventListener("load", () => {
     setViewerLoading(false);
