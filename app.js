@@ -3805,7 +3805,6 @@ function attachEvents() {
     if (event.key === "Escape") closeLightbox();
     else if (event.key === "ArrowRight") moveLightbox(-1);
     else if (event.key === "ArrowLeft") moveLightbox(1);
-    else if (event.key === "ArrowDown") showPageRailTemporarily(3000);
     else if (event.key === "Home") setLightboxPage(1, { smooth: true, hit: state.viewerMode === "scroll" });
     else if (event.key === "End" && state.catalog) setLightboxPage(state.catalog.pages, { smooth: true, hit: state.viewerMode === "scroll" });
   });
