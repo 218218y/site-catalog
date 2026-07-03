@@ -2401,9 +2401,21 @@ function shouldKeepPageRailOpenForPointer(event = null) {
   const hotspotRect = els.lightboxSideHotspot?.getBoundingClientRect?.();
   if (pointInRect(point, railRect, 1) || pointInRect(point, hotspotRect, 1)) return true;
 
+  // During the slide-in animation the rail can still be geometrically outside
+  // the viewport, while the pointer is already on the right activation strip or
+  // in the tiny edge gap. Keep the rail open for that whole right-edge region
+  // instead of requiring the user to wait until the transition finishes.
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 34));
+  const rightHoldLeft = Math.max(0, Math.min(hotspotRect?.left ?? viewportWidth, viewportWidth - hotspotWidth));
+  const isInRightHoldRegion = point.x >= rightHoldLeft - 1 && point.x <= viewportWidth + 1 && point.y >= 0 && point.y <= viewportHeight;
+  if (isInRightHoldRegion) return true;
+
   // The rail is intentionally offset a few pixels from the right viewport edge.
-  // Moving from the rail into that narrow edge/gap should keep it open.
-  const reachedRightEdgeFromRail = point.x >= railRect.right - 1 && point.x <= window.innerWidth + 1 && point.y >= 0 && point.y <= window.innerHeight;
+  // Moving from the rail into that narrow edge/gap should keep it open after the
+  // rail has finished opening as well.
+  const reachedRightEdgeFromRail = point.x >= railRect.right - 1 && point.x <= viewportWidth + 1 && point.y >= 0 && point.y <= viewportHeight;
   if (reachedRightEdgeFromRail) return true;
 
   return false;
