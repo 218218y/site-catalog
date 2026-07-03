@@ -296,6 +296,58 @@ function subcategorySectionId(category, categoryIndex, subcategory, subcategoryI
   return `${categorySectionId(category, categoryIndex)}-sub-${categorySlug(subcategory)}-${subcategoryIndex + 1}`;
 }
 
+const CATALOG_CATEGORY_SHARE_SLUGS = new Map([
+  ["ארונות פתיחה", "opening-wardrobes"],
+  ["ארונות הזזה", "sliding-wardrobes"],
+  ["חדרי ילדים", "kids"],
+  ["חדרי שינה", "bedrooms"],
+  ["ספריות קודש", "libraries"]
+]);
+
+const CATALOG_SUBCATEGORY_SHARE_SLUGS = new Map([
+  ["חדרי ילדים קומפלט", "kids-rooms"],
+  ["מיטות נגר", "wood-beds"],
+  ["היי ריזר", "hi-riser"],
+  ["מרופדים עיצוב אישי", "custom-upholstered"],
+  ["מרופדים", "upholstered"],
+  ["חדרי שינה", "bedrooms"]
+]);
+
+function normalizeShareRouteToken(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/['"`]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeShareRoutePath(value) {
+  return String(value || "")
+    .split("/")
+    .map(normalizeShareRouteToken)
+    .filter(Boolean)
+    .join("/");
+}
+
+function categoryShareSlug(category, index) {
+  const mapped = CATALOG_CATEGORY_SHARE_SLUGS.get(String(category || "").trim());
+  return normalizeShareRouteToken(mapped) || normalizeShareRouteToken(category) || `category-${index + 1}`;
+}
+
+function subcategoryShareSlug(subcategory, index) {
+  const mapped = CATALOG_SUBCATEGORY_SHARE_SLUGS.get(String(subcategory || "").trim());
+  return normalizeShareRouteToken(mapped) || normalizeShareRouteToken(subcategory) || `sub-${index + 1}`;
+}
+
+function catalogCategorySharePath(category, index) {
+  return categoryShareSlug(category, index);
+}
+
+function catalogSubcategorySharePath(category, categoryIndex, subcategory, subcategoryIndex) {
+  return `${categoryShareSlug(category, categoryIndex)}/${subcategoryShareSlug(subcategory, subcategoryIndex)}`;
+}
+
 function getCatalogCategoryGroups() {
   const groups = [];
   const groupByCategory = new Map();
@@ -556,7 +608,7 @@ async function downloadCatalogPageSnapshot(catalog, page, button) {
 }
 
 function getCurrentCatalogFocusUrlTargetId() {
-  const hashTargetId = decodeHashTargetId();
+  const hashTargetId = resolveCatalogCategoryTargetIdFromHash();
   if (hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length) {
     return hashTargetId;
   }
@@ -582,16 +634,41 @@ function decodeHashRouteSegment(value) {
   }
 }
 
+function encodeShareRoutePath(path) {
+  const normalizedPath = normalizeShareRoutePath(path);
+  if (!normalizedPath) return "";
+  return normalizedPath.split("/").map(encodeHashRouteSegment).join("/");
+}
+
+function buildCategoryShareRouteHash(path) {
+  const encodedPath = encodeShareRoutePath(path);
+  return encodedPath ? `#cat/${encodedPath}` : "";
+}
+
+function findCatalogById(id) {
+  const catalogId = String(id || "");
+  return catalogs.find((item) => String(item.id || "") === catalogId) || null;
+}
+
+function catalogShareRouteId(catalogId) {
+  const catalog = findCatalogById(catalogId);
+  return String(catalog?.id || catalogId || "");
+}
+
+function resolveCatalogRouteId(value) {
+  return decodeHashRouteSegment(value);
+}
+
 function buildCatalogRouteHash(catalogId, options = {}) {
-  const id = encodeHashRouteSegment(catalogId);
+  const id = encodeHashRouteSegment(catalogShareRouteId(catalogId));
   if (!id) return "";
 
   const { lightbox = false, page = 1, viewerMode = "single" } = options;
-  let hash = `#catalog/${id}`;
+  let hash = `#c/${id}`;
   if (lightbox) {
     const currentPage = Math.max(1, Number.parseInt(page, 10) || 1);
-    hash += `/page/${currentPage}`;
-    if (viewerMode === "scroll") hash += "/scroll";
+    hash += `/p/${currentPage}`;
+    if (viewerMode === "scroll") hash += "/s";
   }
 
   return hash;
@@ -612,7 +689,7 @@ function buildMainHeaderUrl() {
 
   const categoryTargetId = getCurrentCatalogFocusUrlTargetId();
   if (categoryTargetId) {
-    url.hash = categoryTargetId;
+    url.hash = buildCatalogFocusRouteHash(categoryTargetId);
     return url.href;
   }
 
@@ -849,7 +926,8 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
 
   const links = groups.map((group, index) => {
     const targetId = categorySectionId(group.category, index);
-    return `<a class="top-nav-link category-nav-link" href="#${escapeHtml(targetId)}" data-category-target="${escapeHtml(targetId)}" data-category-label="${escapeHtml(group.category)}">${escapeHtml(group.category)}</a>`;
+    const sharePath = catalogCategorySharePath(group.category, index);
+    return `<a class="top-nav-link category-nav-link" href="${escapeHtml(buildCategoryShareRouteHash(sharePath))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-label="${escapeHtml(group.category)}">${escapeHtml(group.category)}</a>`;
   });
 
   els.categoryNav.innerHTML = links.join("");
@@ -905,6 +983,40 @@ function getCatalogCategorySectionsByTargetId(targetId) {
     });
 }
 
+function catalogCategorySharePathFromHash(hash = location.hash) {
+  const rawHash = String(hash || "");
+  if (!rawHash.startsWith("#")) return "";
+
+  const rawRoute = rawHash.slice(1).replace(/^\/+/, "");
+  const parts = rawRoute.split("/");
+  if (parts[0] !== "cat" || !parts[1]) return "";
+
+  return normalizeShareRoutePath(parts.slice(1).map(decodeHashRouteSegment).join("/"));
+}
+
+function getCatalogCategorySectionBySharePath(path) {
+  const normalizedPath = normalizeShareRoutePath(path);
+  if (!normalizedPath) return null;
+
+  return getCatalogFocusSections().find((section) => normalizeShareRoutePath(section?.dataset?.categorySharePath) === normalizedPath) || null;
+}
+
+function resolveCatalogCategoryTargetIdFromHash(hash = location.hash) {
+  const sharePath = catalogCategorySharePathFromHash(hash);
+  if (sharePath) {
+    const section = getCatalogCategorySectionBySharePath(sharePath);
+    return getCatalogCategoryFocusTargetId(section);
+  }
+
+  return decodeHashTargetId(hash);
+}
+
+function buildCatalogFocusRouteHash(targetId) {
+  const section = getCatalogCategorySectionsByTargetId(targetId)[0] || getCatalogCategorySectionById(targetId);
+  const sharePath = normalizeShareRoutePath(section?.dataset?.categorySharePath);
+  return buildCategoryShareRouteHash(sharePath) || (targetId ? `#${encodeHashRouteSegment(targetId)}` : "");
+}
+
 function hasCatalogCategoryFocus(targetId) {
   return getCatalogCategorySectionsByTargetId(targetId)
     .some((section) => section.classList.contains("is-category-focus"));
@@ -939,7 +1051,7 @@ function clearCatalogCategoryFocus(options = {}) {
   });
   syncActiveCategoryNavLink("");
 
-  const hashTargetId = decodeHashTargetId();
+  const hashTargetId = resolveCatalogCategoryTargetIdFromHash();
   if (clearHash && hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length && window.history?.replaceState) {
     history.replaceState(null, "", `${location.pathname}${location.search}`);
   }
@@ -979,20 +1091,28 @@ function markCatalogCategoryFocusById(id, options = {}) {
 }
 
 function handleCatalogFocusLinkClick(link, event) {
-  const targetId = link?.dataset?.categoryTarget || decodeHashTargetId(link?.hash);
+  const targetId = link?.dataset?.categoryTarget || resolveCatalogCategoryTargetIdFromHash(link?.hash);
   if (!targetId) return;
 
+  event.preventDefault();
+
   if (state.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
-    event.preventDefault();
     clearCatalogCategoryFocus({ clearHash: true });
     return;
   }
 
-  window.setTimeout(() => markCatalogCategoryFocusById(targetId), 80);
+  const section = getCatalogCategorySectionById(targetId) || getCatalogCategorySectionsByTargetId(targetId)[0];
+  markCatalogCategoryFocus(section, { targetId });
+  section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+
+  const hash = buildCatalogFocusRouteHash(targetId);
+  if (hash) {
+    location.hash = hash;
+  }
 }
 
 function syncCatalogCategoryFocusFromHash(options = {}) {
-  const targetId = decodeHashTargetId();
+  const targetId = resolveCatalogCategoryTargetIdFromHash();
   const section = getCatalogCategorySectionById(targetId);
   if (!section) {
     clearCatalogCategoryFocus();
@@ -1200,7 +1320,8 @@ function renderCatalogSubcategoryNav(segment) {
 
   const buttons = segment.subcategories.map((group, index) => {
     const targetId = subcategorySectionId(segment.category, segment.groupIndex, group.subcategory, index);
-    return `<a class="catalog-subcategory-nav-link" href="#${escapeHtml(targetId)}" data-category-target="${escapeHtml(targetId)}">${escapeHtml(group.subcategory)}</a>`;
+    const sharePath = catalogSubcategorySharePath(segment.category, segment.groupIndex, group.subcategory, index);
+    return `<a class="catalog-subcategory-nav-link" href="${escapeHtml(buildCategoryShareRouteHash(sharePath))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}">${escapeHtml(group.subcategory)}</a>`;
   }).join("");
 
   return `
@@ -1299,13 +1420,16 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
   if (!items.length) return "";
 
   const blockBaseId = catalogSubcategoryBlockBaseId(segment, block, baseSectionId);
+  const sharePath = block?.isDirect
+    ? catalogCategorySharePath(segment.category, segment.groupIndex)
+    : catalogSubcategorySharePath(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
   const sectionId = block.segmentIndex === 0 ? blockBaseId : `${blockBaseId}-part-${block.segmentIndex + 1}`;
   const titleId = `${sectionId}-title`;
   const title = String(block?.label || "").trim() || "קטלוגים";
   const sectionStyle = `--subcategory-span: ${clampCategorySpan(block.span, 3)};`;
 
   return `
-    <section class="catalog-subcategory-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(blockBaseId)}" data-parent-category-target="${escapeHtml(baseSectionId)}" data-subcategory-span="${escapeHtml(String(block.span))}" data-inline-divider="${block.inlineDivider ? "1" : "0"}" data-subcategory-continuation="${block.itemOffset > 0 ? "1" : "0"}">
+    <section class="catalog-subcategory-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(blockBaseId)}" data-parent-category-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-subcategory-span="${escapeHtml(String(block.span))}" data-inline-divider="${block.inlineDivider ? "1" : "0"}" data-subcategory-continuation="${block.itemOffset > 0 ? "1" : "0"}">
       <div class="catalog-category-head catalog-subcategory-head">
         <h4 id="${escapeHtml(titleId)}">${escapeHtml(title)}</h4>
       </div>
@@ -1321,9 +1445,10 @@ function renderCatalogCategoryHeaderSegment(segment, columns) {
   const titleId = `${baseSectionId}-title`;
   const safeColumns = clampCategorySpan(columns, 3);
   const sectionStyle = `--category-span: ${safeColumns}; --subcategory-layout-columns: ${safeColumns};`;
+  const sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
 
   return `
-    <section class="catalog-category-section catalog-category-section-with-subcategories catalog-category-section-header-only" id="${escapeHtml(baseSectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(safeColumns))}" data-inline-divider="0" data-category-continuation="0">
+    <section class="catalog-category-section catalog-category-section-with-subcategories catalog-category-section-header-only" id="${escapeHtml(baseSectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-span="${escapeHtml(String(safeColumns))}" data-inline-divider="0" data-category-continuation="0">
       <div class="catalog-category-head catalog-category-head-with-subcategories">
         <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
         ${renderCatalogSubcategoryNav(segment)}
@@ -1347,9 +1472,10 @@ function renderCatalogCategorySegment(segment, columns) {
   const sectionId = segment.itemOffset === 0 ? baseSectionId : `${baseSectionId}-part-${segment.segmentIndex + 1}`;
   const titleId = `${sectionId}-title`;
   const sectionStyle = `--category-span: ${segment.span}; --subcategory-layout-columns: ${safeColumns};`;
+  const sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
 
   return `
-    <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
+    <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
       <div class="catalog-category-head">
         <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
       </div>
@@ -3302,20 +3428,20 @@ function parseHash(hash = location.hash) {
   const rawHash = String(hash || "");
   const rawRoute = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
   const parts = rawRoute.replace(/^\/+/, "").split("/");
-  if (parts[0] !== "catalog" || !parts[1]) return null;
+  if (parts[0] !== "c" || !parts[1]) return null;
 
-  const id = decodeHashRouteSegment(parts[1]);
+  const id = resolveCatalogRouteId(parts[1]);
   if (!id) return null;
 
   if (parts.length === 2) {
     return { id, page: 1, lightbox: false };
   }
 
-  if (parts[2] !== "page" || !parts[3]) return null;
+  if (parts[2] !== "p" || !parts[3]) return null;
   const page = Number.parseInt(decodeHashRouteSegment(parts[3]), 10);
   if (!Number.isFinite(page) || page < 1) return null;
 
-  const viewerMode = decodeHashRouteSegment(parts[4]) === "scroll" ? "scroll" : "single";
+  const viewerMode = decodeHashRouteSegment(parts[4]) === "s" ? "scroll" : "single";
   return { id, page, lightbox: true, viewerMode };
 }
 

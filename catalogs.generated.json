@@ -1,12 +1,12 @@
 [
   {
-    "id": "ארונות-פתיחה-ת-ב-י-רהיטים-2026",
+    "id": "opening-tbi-2026",
     "title": "ארונות פתיחה ת.ב.י רהיטים 2026",
     "description": "ארונות פתיחה סנדביץ' בעיצוב מודרני",
     "category": "ארונות פתיחה",
     "pages": 37,
-    "dir": "assets/pages/ארונות-פתיחה-ת-ב-י-רהיטים-2026",
-    "cover": "assets/pages/ארונות-פתיחה-ת-ב-י-רהיטים-2026/page-001.webp",
+    "dir": "assets/pages/opening-tbi-2026",
+    "cover": "assets/pages/opening-tbi-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "7fd4b8e73fe3",
     "pageSizes": [
@@ -162,13 +162,13 @@
     "subcategory": ""
   },
   {
-    "id": "ארונות-פתיחה-פרדי-2026",
+    "id": "opening-fredi-2026",
     "title": "ארונות פתיחה פרדי 2026",
     "description": "ארונות פתיחה סנדביץ'/MDF בעיצוב מודרני",
     "category": "ארונות פתיחה",
     "pages": 106,
-    "dir": "assets/pages/ארונות-פתיחה-פרדי-2026",
-    "cover": "assets/pages/ארונות-פתיחה-פרדי-2026/page-001.webp",
+    "dir": "assets/pages/opening-fredi-2026",
+    "cover": "assets/pages/opening-fredi-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "3a39d6bd7b4b",
     "pageSizes": [
@@ -600,13 +600,13 @@
     "subcategory": ""
   },
   {
-    "id": "הזזה-ת-ב-י-רהיטים-2026",
+    "id": "sliding-tbi-2026",
     "title": "ארונות הזזה ת.ב.י רהיטים 2026",
     "description": "ארונות הזזה סנדביץ'/מלמין, בעיצוב מודרני",
     "category": "ארונות הזזה",
     "pages": 37,
-    "dir": "assets/pages/הזזה-ת-ב-י-רהיטים-2026",
-    "cover": "assets/pages/הזזה-ת-ב-י-רהיטים-2026/page-001.webp",
+    "dir": "assets/pages/sliding-tbi-2026",
+    "cover": "assets/pages/sliding-tbi-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "91cef0ad4469",
     "pageSizes": [
@@ -762,13 +762,13 @@
     "subcategory": ""
   },
   {
-    "id": "חדרי-ילדים-ת-ב-י-רהיטים-2026",
+    "id": "kids-tbi-2026",
     "title": "חדרי ילדים ת.ב.י רהיטים 2026",
     "description": "ריהוט מושלם לחדרי ילדים",
     "category": "חדרי ילדים",
     "pages": 33,
-    "dir": "assets/pages/חדרי-ילדים-ת-ב-י-רהיטים-2026",
-    "cover": "assets/pages/חדרי-ילדים-ת-ב-י-רהיטים-2026/page-001.webp",
+    "dir": "assets/pages/kids-tbi-2026",
+    "cover": "assets/pages/kids-tbi-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "aef6972066fd",
     "pageSizes": [
@@ -908,13 +908,13 @@
     "subcategory": "חדרי ילדים קומפלט"
   },
   {
-    "id": "חדרי-ילדים-פרדי-2026",
+    "id": "kids-fredi-2026",
     "title": "חדרי ילדים פרדי 2026",
     "description": "ריהוט מושלם לחדרי ילדים",
     "category": "חדרי ילדים",
     "pages": 38,
-    "dir": "assets/pages/חדרי-ילדים-פרדי-2026",
-    "cover": "assets/pages/חדרי-ילדים-פרדי-2026/page-001.webp",
+    "dir": "assets/pages/kids-fredi-2026",
+    "cover": "assets/pages/kids-fredi-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "973ef2fa32ea",
     "pageSizes": [
@@ -1074,13 +1074,13 @@
     "subcategory": "חדרי ילדים קומפלט"
   },
   {
-    "id": "מיטות-נגר-בירץ'-2026",
+    "id": "beds-birch-2026",
     "title": "מיטות נגר בירץ' 2026",
     "description": "מיטות נוער סנדביץ' בירץ' באיכות גבוהה",
     "category": "חדרי ילדים",
     "pages": 57,
-    "dir": "assets/pages/מיטות-נגר-בירץ'-2026",
-    "cover": "assets/pages/מיטות-נגר-בירץ'-2026/page-001.webp",
+    "dir": "assets/pages/beds-birch-2026",
+    "cover": "assets/pages/beds-birch-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "865a243d1c0e",
     "pageSizes": [
@@ -1316,13 +1316,13 @@
     "subcategory": "מיטות נגר"
   },
   {
-    "id": "היי-ריזר-קואליטה-2026",
+    "id": "hi-riser-qualita-2026",
     "title": "היי ריזר קואליטה 2026",
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "pages": 19,
-    "dir": "assets/pages/היי-ריזר-קואליטה-2026",
-    "cover": "assets/pages/היי-ריזר-קואליטה-2026/page-001.webp",
+    "dir": "assets/pages/hi-riser-qualita-2026",
+    "cover": "assets/pages/hi-riser-qualita-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "2ea6d51eae53",
     "pageSizes": [
@@ -1406,13 +1406,13 @@
     "subcategory": "היי ריזר"
   },
   {
-    "id": "היי-ריזר-קומפורט-2026",
+    "id": "hi-riser-comfort-2026",
     "title": "היי ריזר קומפורט 2026",
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "pages": 60,
-    "dir": "assets/pages/היי-ריזר-קומפורט-2026",
-    "cover": "assets/pages/היי-ריזר-קומפורט-2026/page-001.webp",
+    "dir": "assets/pages/hi-riser-comfort-2026",
+    "cover": "assets/pages/hi-riser-comfort-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "f52f4b4fc0f5",
     "pageSizes": [
@@ -1660,13 +1660,13 @@
     "subcategory": "היי ריזר"
   },
   {
-    "id": "היי-ריזר-פרפקט-2026",
+    "id": "hi-riser-perfect-2026",
     "title": "היי ריזר פרפקט 2026",
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "pages": 17,
-    "dir": "assets/pages/היי-ריזר-פרפקט-2026",
-    "cover": "assets/pages/היי-ריזר-פרפקט-2026/page-001.webp",
+    "dir": "assets/pages/hi-riser-perfect-2026",
+    "cover": "assets/pages/hi-riser-perfect-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "94eb1f4bad5d",
     "pageSizes": [
@@ -1742,13 +1742,13 @@
     "subcategory": "היי ריזר"
   },
   {
-    "id": "מרופדים-עבודת-יד-מבית-לקוח",
+    "id": "custom-upholstered",
     "title": "מרופדים עבודת יד מבית לקוח",
     "description": "מיטות מרופדות בעיצוב אישי בעבודת נגר",
     "category": "חדרי שינה",
     "pages": 25,
-    "dir": "assets/pages/מרופדים-עבודת-יד-מבית-לקוח",
-    "cover": "assets/pages/מרופדים-עבודת-יד-מבית-לקוח/page-001.webp",
+    "dir": "assets/pages/custom-upholstered",
+    "cover": "assets/pages/custom-upholstered/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "1e35fc4dee28",
     "pageSizes": [
@@ -1856,13 +1856,13 @@
     "subcategory": "מרופדים עיצוב אישי"
   },
   {
-    "id": "חדרי-שינה-מרופדים-פרדי",
+    "id": "bedrooms-upholstered-fredi",
     "title": "חדרי שינה מרופדים פרדי",
     "description": "מיטות מרופדות בעיצוב חדשני",
     "category": "חדרי שינה",
     "pages": 55,
-    "dir": "assets/pages/חדרי-שינה-מרופדים-פרדי",
-    "cover": "assets/pages/חדרי-שינה-מרופדים-פרדי/page-001.webp",
+    "dir": "assets/pages/bedrooms-upholstered-fredi",
+    "cover": "assets/pages/bedrooms-upholstered-fredi/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "437258b13f75",
     "pageSizes": [
@@ -2090,13 +2090,13 @@
     "subcategory": "מרופדים"
   },
   {
-    "id": "חדרי-שינה-ת-ב-י-רהיטים-2026",
+    "id": "bedrooms-tbi-2026",
     "title": "חדרי שינה ת.ב.י. רהיטים 2026",
     "description": "חדרי שינה סנדביץ' בקו נקי ועדכני",
     "category": "חדרי שינה",
     "pages": 25,
-    "dir": "assets/pages/חדרי-שינה-ת-ב-י-רהיטים-2026",
-    "cover": "assets/pages/חדרי-שינה-ת-ב-י-רהיטים-2026/page-001.webp",
+    "dir": "assets/pages/bedrooms-tbi-2026",
+    "cover": "assets/pages/bedrooms-tbi-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "3262fd9d8d9d",
     "pageSizes": [
@@ -2204,13 +2204,13 @@
     "subcategory": "חדרי שינה"
   },
   {
-    "id": "חדרי-שינה-גובר-גלרי",
+    "id": "bedrooms-gober-gallery",
     "title": "חדרי שינה גובר גלרי",
     "description": "חדרי שינה מגוונים קומפלט",
     "category": "חדרי שינה",
     "pages": 40,
-    "dir": "assets/pages/חדרי-שינה-גובר-גלרי",
-    "cover": "assets/pages/חדרי-שינה-גובר-גלרי/page-001.webp",
+    "dir": "assets/pages/bedrooms-gober-gallery",
+    "cover": "assets/pages/bedrooms-gober-gallery/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "6365305f76dc",
     "pageSizes": [
@@ -2378,13 +2378,13 @@
     "subcategory": "חדרי שינה"
   },
   {
-    "id": "ספריות-קודש-ת-ב-י-רהיטים-2026",
+    "id": "libraries-tbi-2026",
     "title": "ספריות קודש ת.ב.י רהיטים 2026",
     "description": "ספריות קודש בעיצוב נקי ועדכני",
     "category": "ספריות קודש",
     "pages": 27,
-    "dir": "assets/pages/ספריות-קודש-ת-ב-י-רהיטים-2026",
-    "cover": "assets/pages/ספריות-קודש-ת-ב-י-רהיטים-2026/page-001.webp",
+    "dir": "assets/pages/libraries-tbi-2026",
+    "cover": "assets/pages/libraries-tbi-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "2124294dfb87",
     "pageSizes": [
@@ -2500,13 +2500,13 @@
     "subcategory": ""
   },
   {
-    "id": "ספריות-קודש-פרדי-2026",
+    "id": "libraries-fredi-2026",
     "title": "ספריות קודש פרדי 2026",
     "description": "ספריות קודש בעיצוב נקי ועדכני",
     "category": "ספריות קודש",
     "pages": 76,
-    "dir": "assets/pages/ספריות-קודש-פרדי-2026",
-    "cover": "assets/pages/ספריות-קודש-פרדי-2026/page-001.webp",
+    "dir": "assets/pages/libraries-fredi-2026",
+    "cover": "assets/pages/libraries-fredi-2026/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "90e24fb6b317",
     "pageSizes": [

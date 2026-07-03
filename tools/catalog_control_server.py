@@ -33,6 +33,7 @@ SEARCH_JS_FILE = PROJECT_ROOT / "catalogs.search.js"
 SEARCH_OVERRIDES_FILE = PROJECT_ROOT / "catalogs.search-overrides.json"
 PDF_DIR = PROJECT_ROOT / "assets" / "pdfs"
 PAGES_DIR = PROJECT_ROOT / "assets" / "pages"
+CATALOG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 PAGE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
@@ -214,7 +215,7 @@ def group_catalogs_by_category_subcategory(config: list[dict[str, Any]]) -> list
 
 
 def is_safe_catalog_id(catalog_id: str) -> bool:
-    return bool(catalog_id) and not any(ch in catalog_id for ch in '\\/.:?*<>|" ')
+    return bool(CATALOG_ID_RE.fullmatch(str(catalog_id or "")))
 
 
 def strip_control_panel_fields(item: dict[str, Any]) -> dict[str, Any]:
@@ -607,8 +608,8 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
         if not isinstance(item, dict):
             raise ValueError(f"Catalog #{index} must be an object")
         row = dict(item)
-        catalog_id = str(row.get("id", "")).strip()
-        original_id = str(row.get("originalId", row.get("_originalId", catalog_id))).strip() or catalog_id
+        catalog_id = str(row.get("id", "")).strip().lower()
+        original_id = str(row.get("originalId", row.get("_originalId", catalog_id))).strip().lower() or catalog_id
         pdf = str(row.get("pdf", "")).strip()
         title = str(row.get("title", "")).strip()
         if not catalog_id:
@@ -631,6 +632,7 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
         row["subcategory"] = group_value(row.get("subcategory", row.get("subCategory", "")))
         row["pdf"] = pdf.replace("\\", "/")
         row["ocr"] = catalog_ocr_enabled(row)
+        row.pop("shareSlug", None)
         row.pop("status", None)
         seen.add(catalog_id)
         seen_original.add(original_id)

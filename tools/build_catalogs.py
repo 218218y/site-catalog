@@ -38,6 +38,7 @@ SUPPORTED_FORMATS = {"webp", "jpg", "png"}
 PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
 BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 MANUAL_SEARCH_FILE = "catalogs.search-overrides.json"
+CATALOG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 OCR_MAX_SIDE = 4600
 # Small model names in catalog pages are usually placed in fixed title areas.
 # Full-page OCR has to process furniture, shadows and decorative grooves, so it
@@ -487,13 +488,16 @@ def load_config(config_path: Path) -> list[dict[str, Any]]:
         missing = required - set(item)
         if missing:
             raise ValueError(f"Catalog #{index} is missing: {', '.join(sorted(missing))}")
-        safe_id = str(item["id"])
-        if not safe_id or any(ch in safe_id for ch in "\\/.:?*<>|\" "):
+        safe_id = str(item["id"]).strip().lower()
+        if not CATALOG_ID_RE.fullmatch(safe_id):
             raise ValueError(
-                f"Catalog #{index} has unsafe id: {safe_id!r}. Use english letters/numbers/dashes, e.g. qualita-2026"
+                f"Catalog #{index} has unsafe id: {safe_id!r}. "
+                "Use lowercase english letters, numbers and dashes only, e.g. qualita-2026"
             )
         if safe_id in seen_ids:
             raise ValueError(f"Catalog #{index} uses duplicate id: {safe_id!r}")
+        item["id"] = safe_id
+        item.pop("shareSlug", None)
         seen_ids.add(safe_id)
     return data
 

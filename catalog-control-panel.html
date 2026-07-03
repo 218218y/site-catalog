@@ -271,7 +271,7 @@
                   <th>קטגוריה</th>
                   <th>תת־קטגוריה</th>
                   <th>סטטוס</th>
-                  <th>ID</th>
+                  <th>ID<br><small>אנגלית קטנה ומקפים</small></th>
                   <th>PDF</th>
                   <th>מחיקה</th>
                 </tr>
@@ -515,7 +515,7 @@
         <td><input class="category-input" type="text" data-field="category" value="${escapeHtml(catalog.category || '')}" /></td>
         <td><input class="subcategory-input" type="text" data-field="subcategory" value="${escapeHtml(catalog.subcategory || '')}" /></td>
         <td><span class="badge ${escapeHtml(status.state)}">${escapeHtml(status.label)}</span></td>
-        <td><input class="id-input" type="text" data-field="id" value="${escapeHtml(catalog.id || '')}" title="ID מקורי: ${escapeHtml(catalog.originalId || catalog.id || '')}" /></td>
+        <td><input class="id-input" type="text" data-field="id" value="${escapeHtml(catalog.id || '')}" pattern="[a-z0-9][a-z0-9-]*" title="ID חייב להיות באנגלית קטנה, מספרים ומקפים בלבד. ID מקורי: ${escapeHtml(catalog.originalId || catalog.id || '')}" /></td>
         <td class="pdf-cell" title="${escapeHtml(catalog.pdf)}">${escapeHtml(catalog.pdf)}</td>
         <td><button class="icon-btn delete-btn" type="button" data-delete="catalog" title="הסר את הקטלוג מהרשימה">מחק</button></td>
       </tr>`;
@@ -563,7 +563,7 @@
         state.catalogs[index][field] = input.value;
       }
       if (field === 'id') {
-        markUnsaved('יש שינוי ID. בשמירה תתבצע החלפת שם לתיקיית assets/pages ועדכון search-overrides אם צריך.');
+        markUnsaved('יש שינוי ID. בשמירה תתבצע החלפת שם לתיקיית assets/pages ועדכון search-overrides אם צריך. ה-ID חייב להיות באנגלית קטנה, מספרים ומקפים.');
       } else if (field === 'category' || field === 'subcategory') {
         markUnsaved('יש שינוי קטגוריה/תת־קטגוריה. בשמירה הקטלוגים יקובצו מחדש לפי הסדר המעודכן.');
       } else {
