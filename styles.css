@@ -1825,9 +1825,18 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  padding: 2px 2px 14px 6px;
+  /* The page rail inherits the site's RTL direction, which puts the native
+     scrollbar on the left in Chromium/Firefox. Keep only the scrolling layer
+     LTR so the scrollbar sits on the rail's right edge, then restore RTL on
+     each thumbnail card below. */
+  direction: ltr;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.34) rgba(255,255,255,0.07);
+  padding: 2px 6px 14px 2px;
 }
 .lightbox-page-thumb {
+  direction: rtl;
   position: relative;
   flex: 0 0 auto;
   display: block;
@@ -2576,9 +2585,41 @@ a.reader-home:focus-visible {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2px 2px 14px 6px;
+  direction: ltr;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.34) rgba(255,255,255,0.07);
+  padding: 2px 6px 14px 2px;
 }
+.lightbox-page-thumbs::-webkit-scrollbar,
+.reader-page-thumbs::-webkit-scrollbar {
+  width: 8px;
+}
+.lightbox-page-thumbs::-webkit-scrollbar-track,
+.reader-page-thumbs::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+}
+.lightbox-page-thumbs::-webkit-scrollbar-thumb,
+.reader-page-thumbs::-webkit-scrollbar-thumb {
+  min-height: 36px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.34);
+  background-clip: content-box;
+}
+.lightbox-page-thumbs::-webkit-scrollbar-thumb:hover,
+.reader-page-thumbs::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.48);
+  background-clip: content-box;
+}
+.lightbox-page-thumbs::-webkit-scrollbar-corner,
+.reader-page-thumbs::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .reader-page-thumb {
+  direction: rtl;
   position: relative;
   flex: 0 0 auto;
   display: block;
@@ -3251,6 +3292,7 @@ a.reader-home:focus-visible {
     gap: 10px;
     overflow-x: auto;
     overflow-y: hidden;
+    direction: rtl;
     padding: 2px 2px 8px;
   }
   .reader-page-thumb {
@@ -3291,7 +3333,7 @@ a.reader-home:focus-visible {
     overflow-x: hidden;
     overflow-y: auto;
     touch-action: pan-y;
-    padding: 2px 2px 12px 4px;
+    padding: 2px 6px 12px 2px;
   }
   .lightbox-page-thumb {
     flex: 0 0 auto;
