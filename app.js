@@ -2371,11 +2371,15 @@ function shouldKeepTopUiOpenForPointer(event = null) {
   if (!point || !els.lightboxBar) return false;
 
   const barRect = els.lightboxBar.getBoundingClientRect();
-  if (pointInRect(point, barRect, 1)) return true;
+  const hotspotRect = els.topHotspot?.getBoundingClientRect?.();
+  if (pointInRect(point, barRect, 1) || pointInRect(point, hotspotRect, 1)) return true;
 
-  // Leaving upward into the browser chrome has no DOM target. Treat that as a
-  // continuation of the top toolbar instead of a real leave toward the page.
-  if (point.y <= Math.max(2, barRect.top + 2)) return true;
+  // During the slide-in animation the toolbar may still be above the viewport,
+  // so the pointer can be in the top trigger strip before it is geometrically
+  // inside the toolbar. Keep the toolbar open for that whole top-edge region
+  // instead of requiring the user to wait until the transition finishes.
+  const topHoldBottom = Math.max(2, hotspotRect?.bottom || 0, barRect.top + 2);
+  if (point.y <= topHoldBottom) return true;
 
   return false;
 }
