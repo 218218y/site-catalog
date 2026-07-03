@@ -999,6 +999,7 @@ main {
 .catalog-detail {
   padding-top: clamp(12px, 2vw, 22px);
   padding-inline: clamp(20px, 3.2vw, 42px);
+  scroll-margin-top: calc(var(--header-h) + 24px);
 }
 .catalog-hero {
   display: grid;

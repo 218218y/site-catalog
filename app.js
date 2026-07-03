@@ -2053,10 +2053,11 @@ function showCatalogDetail() {
   els.catalogDetail.classList.add("in-view");
 }
 
-function scrollCatalogDetailIntoView() {
+function scrollCatalogDetailIntoView(options = {}) {
   if (!els.catalogDetail) return;
+  const { behavior = "smooth" } = options;
   requestAnimationFrame(() => {
-    els.catalogDetail.scrollIntoView({ behavior: "smooth", block: "start" });
+    els.catalogDetail.scrollIntoView({ behavior, block: "start" });
     scheduleCatalogScrollTopButtonUpdate();
   });
 }
@@ -3066,7 +3067,7 @@ function openCatalogPage(id, page = 1) {
 }
 
 function openCatalog(id, options = {}) {
-  const { scroll = false, openPage = null, viewerMode = "single" } = options;
+  const { scroll = false, openPage = null, viewerMode = "single", scrollBehavior = "smooth" } = options;
   const catalog = catalogs.find((item) => item.id === id) || catalogs[0] || null;
   if (!catalog) return;
 
@@ -3076,7 +3077,7 @@ function openCatalog(id, options = {}) {
   updateHash();
 
   if (scroll) {
-    scrollCatalogDetailIntoView();
+    scrollCatalogDetailIntoView({ behavior: scrollBehavior });
   }
 
   if (openPage != null) {
@@ -3627,14 +3628,17 @@ function attachEvents() {
     if (!target) return;
 
     if (!state.catalog || state.catalog.id !== target.id) {
-      openCatalog(target.id, route.lightbox ? { openPage: route.page, viewerMode: route.viewerMode } : {});
+      openCatalog(target.id, route.lightbox
+        ? { openPage: route.page, viewerMode: route.viewerMode }
+        : { scroll: true });
       return;
     }
 
     if (route.lightbox) {
       openLightbox(route.page, { mode: route.viewerMode });
-    } else if (state.lightboxOpen) {
-      closeLightbox();
+    } else {
+      if (state.lightboxOpen) closeLightbox();
+      scrollCatalogDetailIntoView();
     }
   });
 }
@@ -3656,7 +3660,9 @@ function init() {
   initSearchStatus();
   const route = parseHash();
   if (route && catalogs.some((item) => item.id === route.id)) {
-    openCatalog(route.id, route.lightbox ? { openPage: route.page, viewerMode: route.viewerMode } : {});
+    openCatalog(route.id, route.lightbox
+      ? { openPage: route.page, viewerMode: route.viewerMode }
+      : { scroll: true, scrollBehavior: "auto" });
   }
 }
 
