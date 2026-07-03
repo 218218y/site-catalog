@@ -2394,10 +2394,6 @@ function scheduleTopUiClose(event = null) {
   }, 420);
 }
 
-function shouldReserveScrollModeScrollbarEdge() {
-  return state.viewerMode === "scroll" && state.zoom <= 1.01;
-}
-
 function shouldKeepPageRailOpenForPointer(event = null) {
   const point = getViewportPointer(event);
   if (!point || !els.lightboxPageRail) return false;
@@ -2412,21 +2408,19 @@ function shouldKeepPageRailOpenForPointer(event = null) {
   // instead of requiring the user to wait until the transition finishes.
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-  const reserveScrollbarEdge = shouldReserveScrollModeScrollbarEdge();
   const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 34));
   const rightHoldLeft = Math.max(0, Math.min(hotspotRect?.left ?? viewportWidth, viewportWidth - hotspotWidth));
-  const rightHoldRight = reserveScrollbarEdge ? Math.max(rightHoldLeft, hotspotRect?.right ?? rightHoldLeft + hotspotWidth) : viewportWidth + 1;
+  const rightHoldRight = viewportWidth + 1;
   const isInRightHoldRegion = point.x >= rightHoldLeft - 1 && point.x <= rightHoldRight + 1 && point.y >= 0 && point.y <= viewportHeight;
   if (isInRightHoldRegion) return true;
 
   // The rail is intentionally offset a few pixels from the right viewport edge.
-  // Moving from the rail into that narrow edge/gap should keep it open after the
-  // rail has finished opening as well. In scroll mode, that same edge belongs to
-  // the native large-page scroller, so do not let the thumbnail rail claim it.
-  if (!reserveScrollbarEdge) {
-    const reachedRightEdgeFromRail = point.x >= railRect.right - 1 && point.x <= viewportWidth + 1 && point.y >= 0 && point.y <= viewportHeight;
-    if (reachedRightEdgeFromRail) return true;
-  }
+  // In scroll mode the DOM hotspot stays left of the native large-page scrollbar
+  // so it does not block scrolling, but mouse movement can still land on that
+  // scrollbar edge. Treat that physical edge as a hover hold zone so a fast move
+  // to the right edge does not start the rail animation and immediately close it.
+  const reachedRightEdgeFromRail = point.x >= railRect.right - 1 && point.x <= viewportWidth + 1 && point.y >= 0 && point.y <= viewportHeight;
+  if (reachedRightEdgeFromRail) return true;
 
   return false;
 }
@@ -2465,9 +2459,11 @@ function isPointInPageRailEdgeActivationZone(point) {
   const hotspotRect = els.lightboxSideHotspot.getBoundingClientRect();
   const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 34));
   const activationLeft = Math.max(0, Math.min(hotspotRect?.left ?? width, width - hotspotWidth));
-  const activationRight = shouldReserveScrollModeScrollbarEdge()
-    ? Math.max(activationLeft, hotspotRect?.right ?? activationLeft + hotspotWidth)
-    : width;
+  // In scroll mode the visible hotspot is shifted left so it will not sit on top
+  // of the native big-page scrollbar. Coordinate-based hover activation is still
+  // allowed up to the physical viewport edge, because a fast mouse move often
+  // lands directly on that scrollbar strip and would otherwise miss the hotspot.
+  const activationRight = width;
   return point.x >= activationLeft && point.x <= activationRight && point.y >= 0 && point.y <= height;
 }
 
@@ -2500,7 +2496,7 @@ function handleLightboxEdgeHoverViewportExit(event) {
     showTopUiTemporarily(0);
   }
 
-  if (!shouldReserveScrollModeScrollbarEdge() && point.x >= width - 1 && point.y >= 0 && point.y <= height) {
+  if (point.x >= width - 1 && point.y >= 0 && point.y <= height) {
     showPageRailTemporarily(0);
   }
 }
