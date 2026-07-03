@@ -17,11 +17,49 @@
   --radius-md: 18px;
   --header-h: 78px;
   --bargig-logo-url: none;
+  --site-scrollbar-size: 8px;
+  --site-scrollbar-track: rgba(154, 122, 98, 0.10);
+  --site-scrollbar-thumb: rgba(117, 88, 68, 0.34);
+  --site-scrollbar-thumb-hover: rgba(117, 88, 68, 0.52);
+  --site-scrollbar-dark-track: rgba(255,255,255,0.07);
+  --site-scrollbar-dark-thumb: rgba(255,255,255,0.34);
+  --site-scrollbar-dark-thumb-hover: rgba(255,255,255,0.48);
 }
 
 
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--site-scrollbar-thumb) var(--site-scrollbar-track);
+}
+html {
+  scroll-behavior: smooth;
+  /* Keep the browser/page scrollbar on the physical right edge while the page
+     content itself remains RTL on body. */
+  direction: ltr;
+  scrollbar-gutter: stable;
+}
+*::-webkit-scrollbar {
+  width: var(--site-scrollbar-size);
+  height: var(--site-scrollbar-size);
+}
+*::-webkit-scrollbar-track {
+  background: var(--site-scrollbar-track);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb {
+  min-width: 36px;
+  min-height: 36px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--site-scrollbar-thumb);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--site-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
 body {
   margin: 0;
   direction: rtl;
@@ -33,6 +71,49 @@ body {
     linear-gradient(180deg, var(--bg-2), var(--bg));
 }
 body.no-scroll { overflow: hidden; }
+:where(
+  .global-search-scope-menu,
+  .search-panel.global-search-popover .search-results,
+  .lightbox-scroll-view,
+  .lightbox-page-thumbs,
+  .reader-catalog-menu,
+  .reader-search-results,
+  .reader-page-thumbs
+) {
+  /* RTL scroll containers render their native vertical scrollbar on the left.
+     Use LTR only on the scrolling box so every vertical scrollbar stays on
+     the physical right edge. Content direction is restored below. */
+  direction: ltr;
+  scrollbar-gutter: stable;
+}
+:where(
+  .global-search-scope-menu,
+  .search-panel.global-search-popover .search-results,
+  .lightbox-scroll-view,
+  .lightbox-page-thumbs,
+  .reader-catalog-menu,
+  .reader-search-results,
+  .reader-page-thumbs
+) > * {
+  direction: rtl;
+}
+:where(.lightbox, .reader-shell, .reader-catalog-menu, .reader-search-results, .lightbox-page-rail, .reader-page-rail) {
+  scrollbar-color: var(--site-scrollbar-dark-thumb) var(--site-scrollbar-dark-track);
+}
+:where(.lightbox, .reader-shell, .reader-catalog-menu, .reader-search-results, .lightbox-page-rail, .reader-page-rail)::-webkit-scrollbar-track,
+:where(.lightbox, .reader-shell, .reader-catalog-menu, .reader-search-results, .lightbox-page-rail, .reader-page-rail) ::-webkit-scrollbar-track {
+  background: var(--site-scrollbar-dark-track);
+}
+:where(.lightbox, .reader-shell, .reader-catalog-menu, .reader-search-results, .lightbox-page-rail, .reader-page-rail)::-webkit-scrollbar-thumb,
+:where(.lightbox, .reader-shell, .reader-catalog-menu, .reader-search-results, .lightbox-page-rail, .reader-page-rail) ::-webkit-scrollbar-thumb {
+  background: var(--site-scrollbar-dark-thumb);
+  background-clip: content-box;
+}
+:where(.lightbox, .reader-shell, .reader-catalog-menu, .reader-search-results, .lightbox-page-rail, .reader-page-rail)::-webkit-scrollbar-thumb:hover,
+:where(.lightbox, .reader-shell, .reader-catalog-menu, .reader-search-results, .lightbox-page-rail, .reader-page-rail) ::-webkit-scrollbar-thumb:hover {
+  background: var(--site-scrollbar-dark-thumb-hover);
+  background-clip: content-box;
+}
 a { color: inherit; text-decoration: none; }
 button, select, input, textarea { font: inherit; }
 button { cursor: pointer; }
@@ -1825,14 +1906,10 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  /* The page rail inherits the site's RTL direction, which puts the native
-     scrollbar on the left in Chromium/Firefox. Keep only the scrolling layer
-     LTR so the scrollbar sits on the rail's right edge, then restore RTL on
-     each thumbnail card below. */
   direction: ltr;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.34) rgba(255,255,255,0.07);
+  scrollbar-color: var(--site-scrollbar-dark-thumb) var(--site-scrollbar-dark-track);
   padding: 2px 6px 14px 2px;
 }
 .lightbox-page-thumb {
@@ -2588,34 +2665,8 @@ a.reader-home:focus-visible {
   direction: ltr;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.34) rgba(255,255,255,0.07);
+  scrollbar-color: var(--site-scrollbar-dark-thumb) var(--site-scrollbar-dark-track);
   padding: 2px 6px 14px 2px;
-}
-.lightbox-page-thumbs::-webkit-scrollbar,
-.reader-page-thumbs::-webkit-scrollbar {
-  width: 8px;
-}
-.lightbox-page-thumbs::-webkit-scrollbar-track,
-.reader-page-thumbs::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.06);
-  border-radius: 999px;
-}
-.lightbox-page-thumbs::-webkit-scrollbar-thumb,
-.reader-page-thumbs::-webkit-scrollbar-thumb {
-  min-height: 36px;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.34);
-  background-clip: content-box;
-}
-.lightbox-page-thumbs::-webkit-scrollbar-thumb:hover,
-.reader-page-thumbs::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.48);
-  background-clip: content-box;
-}
-.lightbox-page-thumbs::-webkit-scrollbar-corner,
-.reader-page-thumbs::-webkit-scrollbar-corner {
-  background: transparent;
 }
 
 .reader-page-thumb {
