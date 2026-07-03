@@ -161,6 +161,7 @@ const state = {
   pointers: new Map(),
   lightboxOpen: false,
   viewerMode: "single",
+  topUiPinned: false,
   thumbsHideTimer: 0,
   uiHideTimer: 0,
   pageRailHideTimer: 0,
@@ -218,6 +219,7 @@ const els = {
   thumbsHotspot: $("thumbsHotspot"),
   lightboxScreenshot: $("lightboxScreenshot"),
   lightboxCopyLink: $("lightboxCopyLink"),
+  lightboxPinTopBar: $("lightboxPinTopBar"),
   lightboxModeLabel: $("lightboxModeLabel"),
   viewerModeToggle: $("viewerModeToggle"),
   lightboxTitle: $("lightboxTitle"),
@@ -1636,7 +1638,7 @@ function hideLightboxSearchResults(options = {}) {
     }
   }
 
-  if (hideTopUi) {
+  if (hideTopUi && !state.topUiPinned) {
     window.clearTimeout(state.uiHideTimer);
     els.lightbox?.classList.remove("show-ui");
   }
@@ -2318,10 +2320,100 @@ function showTopUiTemporarily(delay = 2200) {
   if (!els.lightbox) return;
   window.clearTimeout(state.uiHideTimer);
   els.lightbox.classList.add("show-ui");
+  if (state.topUiPinned) return;
   if (delay > 0) {
     state.uiHideTimer = window.setTimeout(() => {
-      els.lightbox.classList.remove("show-ui");
+      if (!state.topUiPinned) els.lightbox.classList.remove("show-ui");
     }, delay);
+  }
+}
+
+function syncTopUiPinnedUi() {
+  const pinned = Boolean(state.topUiPinned);
+  const label = pinned ? "ביטול נעיצת הסרגל העליון" : "נעיצת הסרגל העליון";
+
+  window.clearTimeout(state.uiHideTimer);
+  els.lightbox?.classList.toggle("top-ui-pinned", pinned);
+  if (pinned) els.lightbox?.classList.add("show-ui");
+
+  if (!els.lightboxPinTopBar) return;
+  els.lightboxPinTopBar.dataset.pinned = pinned ? "true" : "false";
+  els.lightboxPinTopBar.setAttribute("aria-pressed", pinned ? "true" : "false");
+  els.lightboxPinTopBar.setAttribute("aria-label", label);
+  setTooltipText(els.lightboxPinTopBar, label, { updateDefault: true });
+}
+
+function setTopUiPinned(pinned) {
+  state.topUiPinned = Boolean(pinned);
+  syncTopUiPinnedUi();
+  if (!state.topUiPinned) showTopUiTemporarily(1400);
+}
+
+function toggleTopUiPinned() {
+  setTopUiPinned(!state.topUiPinned);
+}
+
+function getViewportPointer(event) {
+  const x = Number(event?.clientX);
+  const y = Number(event?.clientY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function pointInRect(point, rect, padding = 0) {
+  if (!point || !rect) return false;
+  return point.x >= rect.left - padding && point.x <= rect.right + padding && point.y >= rect.top - padding && point.y <= rect.bottom + padding;
+}
+
+function shouldKeepTopUiOpenForPointer(event = null) {
+  if (state.topUiPinned) return true;
+  const point = getViewportPointer(event);
+  if (!point || !els.lightboxBar) return false;
+
+  const barRect = els.lightboxBar.getBoundingClientRect();
+  if (pointInRect(point, barRect, 1)) return true;
+
+  // Leaving upward into the browser chrome has no DOM target. Treat that as a
+  // continuation of the top toolbar instead of a real leave toward the page.
+  if (point.y <= Math.max(2, barRect.top + 2)) return true;
+
+  return false;
+}
+
+function scheduleTopUiClose(event = null) {
+  if (!els.lightbox || !state.lightboxOpen || state.topUiPinned) return;
+  if (shouldKeepTopUiOpenForPointer(event)) return;
+  window.clearTimeout(state.uiHideTimer);
+  state.uiHideTimer = window.setTimeout(() => {
+    if (!state.topUiPinned) els.lightbox?.classList.remove("show-ui");
+  }, 420);
+}
+
+function shouldKeepPageRailOpenForPointer(event = null) {
+  const point = getViewportPointer(event);
+  if (!point || !els.lightboxPageRail) return false;
+
+  const railRect = els.lightboxPageRail.getBoundingClientRect();
+  const hotspotRect = els.lightboxSideHotspot?.getBoundingClientRect?.();
+  if (pointInRect(point, railRect, 1) || pointInRect(point, hotspotRect, 1)) return true;
+
+  // The rail is intentionally offset a few pixels from the right viewport edge.
+  // Moving from the rail into that narrow edge/gap should keep it open.
+  const reachedRightEdgeFromRail = point.x >= railRect.right - 1 && point.x <= window.innerWidth + 1 && point.y >= 0 && point.y <= window.innerHeight;
+  if (reachedRightEdgeFromRail) return true;
+
+  return false;
+}
+
+function handleLightboxHoverHoldPointerMove(event) {
+  if (!state.lightboxOpen || isTouchLikePointer(event)) return;
+
+  if (els.lightbox?.classList.contains("show-ui") && !shouldKeepTopUiOpenForPointer(event)) {
+    scheduleTopUiClose(event);
+  }
+
+  if (els.lightbox?.classList.contains("show-page-rail") && !shouldKeepPageRailOpenForPointer(event)) {
+    schedulePageRailClose(event);
   }
 }
 
@@ -2673,6 +2765,7 @@ function keepPageRailOpen(options = {}) {
 
 function schedulePageRailClose(event = null) {
   if (!shouldUsePageRailHover(event)) return;
+  if (shouldKeepPageRailOpenForPointer(event)) return;
   window.clearTimeout(state.pageRailHideTimer);
   state.pageRailHideTimer = window.setTimeout(() => {
     els.lightbox?.classList.remove("show-page-rail");
@@ -2844,6 +2937,7 @@ function openLightbox(page = 1, options = {}) {
   }
   els.lightbox.classList.remove("hidden");
   els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail");
+  syncTopUiPinnedUi();
   document.body.classList.add("no-scroll");
   clearLightboxBottomThumbs();
   renderLightboxScrollPages();
@@ -3500,6 +3594,7 @@ function attachEvents() {
   els.headerCopyLink?.addEventListener("click", () => copyCurrentMainHeaderLink());
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
+  els.lightboxPinTopBar?.addEventListener("click", toggleTopUiPinned);
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
   els.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
   els.viewerModeToggle?.addEventListener("click", toggleLightboxMode);
@@ -3541,10 +3636,8 @@ function attachEvents() {
 
   els.topHotspot?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
-  els.lightboxBar?.addEventListener("mouseleave", () => {
-    window.clearTimeout(state.uiHideTimer);
-    state.uiHideTimer = window.setTimeout(() => els.lightbox?.classList.remove("show-ui"), 420);
-  });
+  els.lightboxBar?.addEventListener("mouseleave", scheduleTopUiClose);
+  document.addEventListener("mousemove", handleLightboxHoverHoldPointerMove, { passive: true });
 
   els.lightboxImage?.addEventListener("load", () => {
     setViewerLoading(false);

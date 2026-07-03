@@ -1443,6 +1443,19 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .viewer-fullscreen-toggle[data-fullscreen-active="true"] .viewer-fullscreen-icon-exit {
   display: block;
 }
+.top-ui-pin-button svg {
+  fill: currentColor;
+}
+.top-ui-pin-button[data-pinned="true"] {
+  color: #fff;
+  background: rgba(217, 186, 163, 0.34) !important;
+  border-color: rgba(255,255,255,0.34) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 12px 30px rgba(0,0,0,0.28);
+}
+.lightbox.top-ui-pinned .lightbox-top-hotspot {
+  opacity: 0;
+  pointer-events: none;
+}
 .lightbox-actions .viewer-zoom-control,
 .lightbox-actions #fitBtn,
 .lightbox-actions #fullscreenToggle {
