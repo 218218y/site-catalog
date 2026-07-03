@@ -24,6 +24,7 @@
   --site-scrollbar-dark-track: rgba(255,255,255,0.07);
   --site-scrollbar-dark-thumb: rgba(255,255,255,0.34);
   --site-scrollbar-dark-thumb-hover: rgba(255,255,255,0.48);
+  --viewer-scrollbar-edge-gap: calc(var(--site-scrollbar-size) + 4px);
 }
 
 
@@ -71,6 +72,24 @@ body {
     linear-gradient(180deg, var(--bg-2), var(--bg));
 }
 body.no-scroll { overflow: hidden; }
+
+/*
+  The page normally reserves a stable root scrollbar gutter so the catalog list
+  does not jump when the document starts/stops overflowing. The fullscreen
+  catalog viewer is different: while it is open, the document itself is locked
+  and the modal must own the whole viewport. Leaving the root gutter active in
+  that state creates a thin, non-scrollable strip on the physical right edge
+  and pushes the real scroll area inward.
+*/
+html.viewer-open {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+html.viewer-open body {
+  overflow: hidden;
+}
+
 :where(
   .global-search-scope-menu,
   .search-panel.global-search-popover .search-results,
@@ -1839,6 +1858,9 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 }
 .lightbox.mode-single .lightbox-side-hotspot {
   z-index: 6;
+}
+.lightbox.mode-scroll .lightbox-side-hotspot {
+  right: var(--viewer-scrollbar-edge-gap);
 }
 .lightbox-side-hotspot span {
   display: grid;

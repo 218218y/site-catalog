@@ -2394,6 +2394,10 @@ function scheduleTopUiClose(event = null) {
   }, 420);
 }
 
+function shouldReserveScrollModeScrollbarEdge() {
+  return state.viewerMode === "scroll" && state.zoom <= 1.01;
+}
+
 function shouldKeepPageRailOpenForPointer(event = null) {
   const point = getViewportPointer(event);
   if (!point || !els.lightboxPageRail) return false;
@@ -2408,16 +2412,21 @@ function shouldKeepPageRailOpenForPointer(event = null) {
   // instead of requiring the user to wait until the transition finishes.
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const reserveScrollbarEdge = shouldReserveScrollModeScrollbarEdge();
   const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 34));
   const rightHoldLeft = Math.max(0, Math.min(hotspotRect?.left ?? viewportWidth, viewportWidth - hotspotWidth));
-  const isInRightHoldRegion = point.x >= rightHoldLeft - 1 && point.x <= viewportWidth + 1 && point.y >= 0 && point.y <= viewportHeight;
+  const rightHoldRight = reserveScrollbarEdge ? Math.max(rightHoldLeft, hotspotRect?.right ?? rightHoldLeft + hotspotWidth) : viewportWidth + 1;
+  const isInRightHoldRegion = point.x >= rightHoldLeft - 1 && point.x <= rightHoldRight + 1 && point.y >= 0 && point.y <= viewportHeight;
   if (isInRightHoldRegion) return true;
 
   // The rail is intentionally offset a few pixels from the right viewport edge.
   // Moving from the rail into that narrow edge/gap should keep it open after the
-  // rail has finished opening as well.
-  const reachedRightEdgeFromRail = point.x >= railRect.right - 1 && point.x <= viewportWidth + 1 && point.y >= 0 && point.y <= viewportHeight;
-  if (reachedRightEdgeFromRail) return true;
+  // rail has finished opening as well. In scroll mode, that same edge belongs to
+  // the native large-page scroller, so do not let the thumbnail rail claim it.
+  if (!reserveScrollbarEdge) {
+    const reachedRightEdgeFromRail = point.x >= railRect.right - 1 && point.x <= viewportWidth + 1 && point.y >= 0 && point.y <= viewportHeight;
+    if (reachedRightEdgeFromRail) return true;
+  }
 
   return false;
 }
@@ -2456,7 +2465,10 @@ function isPointInPageRailEdgeActivationZone(point) {
   const hotspotRect = els.lightboxSideHotspot.getBoundingClientRect();
   const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 34));
   const activationLeft = Math.max(0, Math.min(hotspotRect?.left ?? width, width - hotspotWidth));
-  return point.x >= activationLeft && point.x <= width && point.y >= 0 && point.y <= height;
+  const activationRight = shouldReserveScrollModeScrollbarEdge()
+    ? Math.max(activationLeft, hotspotRect?.right ?? activationLeft + hotspotWidth)
+    : width;
+  return point.x >= activationLeft && point.x <= activationRight && point.y >= 0 && point.y <= height;
 }
 
 function openLightboxEdgeUiForPointer(point) {
@@ -2488,7 +2500,7 @@ function handleLightboxEdgeHoverViewportExit(event) {
     showTopUiTemporarily(0);
   }
 
-  if (point.x >= width - 1 && point.y >= 0 && point.y <= height) {
+  if (!shouldReserveScrollModeScrollbarEdge() && point.x >= width - 1 && point.y >= 0 && point.y <= height) {
     showPageRailTemporarily(0);
   }
 }
@@ -3016,6 +3028,12 @@ function updateLightbox() {
   updateHash();
 }
 
+function setViewerDocumentLock(locked) {
+  const isLocked = Boolean(locked);
+  document.body.classList.toggle("no-scroll", isLocked);
+  document.documentElement.classList.toggle("viewer-open", isLocked);
+}
+
 function openLightbox(page = 1, options = {}) {
   if (!state.catalog) return;
   const mode = typeof options === "string" ? options : options.mode;
@@ -3033,7 +3051,7 @@ function openLightbox(page = 1, options = {}) {
   els.lightbox.classList.remove("hidden");
   els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail");
   syncTopUiPinnedUi();
-  document.body.classList.add("no-scroll");
+  setViewerDocumentLock(true);
   clearLightboxBottomThumbs();
   renderLightboxScrollPages();
   renderLightboxPageRail();
@@ -3064,7 +3082,7 @@ function closeLightbox() {
   if (state.lightboxScrollRaf) window.cancelAnimationFrame(state.lightboxScrollRaf);
   state.lightboxScrollRaf = 0;
   disconnectLightboxScrollImageLoading();
-  document.body.classList.remove("no-scroll");
+  setViewerDocumentLock(false);
   scheduleCatalogScrollTopButtonUpdate();
   updateHash();
 }
