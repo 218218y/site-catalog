@@ -1533,6 +1533,12 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .viewer-fullscreen-toggle .viewer-fullscreen-icon-exit {
   display: none;
 }
+.viewer-fit-control[aria-pressed="true"] {
+  color: #fff;
+  background: rgba(217, 186, 163, 0.34) !important;
+  border-color: rgba(255,255,255,0.34) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 12px 30px rgba(0,0,0,0.26);
+}
 .viewer-fullscreen-toggle[data-fullscreen-active="true"] {
   background: rgba(217, 186, 163, 0.24) !important;
   border-color: rgba(255,255,255,0.28) !important;
@@ -1556,8 +1562,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   opacity: 0;
   pointer-events: none;
 }
-.lightbox-actions .viewer-zoom-control,
-.lightbox-actions #fitBtn,
+.lightbox-actions .viewer-fit-control,
 .lightbox-actions #fullscreenToggle {
   min-width: 38px;
 }
@@ -1770,9 +1775,6 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .viewer-mode-toggle {
   background: rgba(217, 186, 163, 0.24) !important;
   border-color: rgba(255,255,255,0.28) !important;
-}
-.lightbox.mode-scroll .viewer-zoom-control {
-  display: none;
 }
 .lightbox-scroll-view {
   position: fixed;
@@ -3445,7 +3447,6 @@ a.reader-home:focus-visible {
   .reader-search-input { padding-inline: 10px 108px; }
   .reader-search-scope-toggle { padding-inline: 7px; font-size: .7rem; }
   .reader-catalog-menu-toggle { width: 36px; min-width: 36px; min-height: 36px; }
-  .lightbox-actions .viewer-zoom-control { display: none; }
 }
 
 @media (max-width: 420px) {
