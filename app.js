@@ -3,7 +3,9 @@ const catalogSearch = window.BargigCatalogSearch || null;
 
 const $ = (id) => document.getElementById(id);
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+const AUTO_VIEWER_ZOOM = 1;
 const MIN_VIEWER_ZOOM = 1;
+const MIN_FIT_WIDTH_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
 const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
@@ -250,6 +252,7 @@ const els = {
   fullscreenToggle: $("fullscreenToggle"),
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
+  viewerAutoZoomBtn: $("viewerAutoZoomBtn"),
   lightboxSearchInput: $("lightboxSearchInput"),
   lightboxSearchResults: $("lightboxSearchResults"),
   lightboxSearchStatus: $("lightboxSearchStatus"),
@@ -2309,10 +2312,26 @@ function clampValue(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function clampViewerZoom(value) {
+function getMinimumViewerZoom() {
+  // Fit-width can intentionally shrink below the automatic page width.
+  // Fit-height keeps the automatic size as the lower bound, but still allows
+  // manual zoom-in and a clean return to that automatic size.
+  return state.imageFitMode === VIEWER_FIT_WIDTH ? MIN_FIT_WIDTH_VIEWER_ZOOM : MIN_VIEWER_ZOOM;
+}
+
+function isAutoViewerZoom(value = state.zoom) {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return MIN_VIEWER_ZOOM;
-  return clampValue(numeric, MIN_VIEWER_ZOOM, MAX_VIEWER_ZOOM);
+  return Number.isFinite(numeric) && Math.abs(numeric - AUTO_VIEWER_ZOOM) <= 0.001;
+}
+
+function getSafeViewerZoom(value = state.zoom) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return AUTO_VIEWER_ZOOM;
+  return clampValue(numeric, getMinimumViewerZoom(), MAX_VIEWER_ZOOM);
+}
+
+function clampViewerZoom(value) {
+  return getSafeViewerZoom(value);
 }
 
 function getDefaultFitModeForViewerMode(mode = state.viewerMode) {
@@ -2332,8 +2351,9 @@ function getSingleImageDisplayMetrics() {
   const stage = els.stageCanvas;
   if (!image?.naturalWidth || !image?.naturalHeight || !stage) return null;
 
-  const width = image.naturalWidth * state.fitScale * state.zoom;
-  const height = image.naturalHeight * state.fitScale * state.zoom;
+  const safeZoom = getSafeViewerZoom();
+  const width = image.naturalWidth * state.fitScale * safeZoom;
+  const height = image.naturalHeight * state.fitScale * safeZoom;
   return {
     width,
     height,
@@ -2348,8 +2368,9 @@ function singleImageCanPan() {
 }
 
 function viewerCanPan() {
-  if (state.zoom > 1.01) return true;
-  return state.viewerMode === "single" && singleImageCanPan();
+  if (state.viewerMode === "scroll") return !isAutoViewerZoom();
+  if (!isAutoViewerZoom()) return singleImageCanPan();
+  return singleImageCanPan();
 }
 
 function clampSinglePan() {
@@ -2514,9 +2535,9 @@ function applySingleZoom() {
   image.style.width = "100%";
   image.style.height = "auto";
 
-  if (state.zoom <= 1.001 && state.singleImageFitOriginPending) {
+  if (isAutoViewerZoom() && state.singleImageFitOriginPending) {
     applyPendingSingleImageFitOrigin();
-  } else if (state.zoom <= 1.001 && !singleImageCanPan()) {
+  } else if (isAutoViewerZoom() && !singleImageCanPan()) {
     resetImagePosition();
   }
   clampSinglePan();
@@ -2532,7 +2553,7 @@ function applyScrollZoom() {
 
   applyScrollFitMode();
 
-  if (state.zoom <= 1.001) {
+  if (isAutoViewerZoom()) {
     resetImagePosition();
     content.style.transform = "";
     return;
@@ -2546,8 +2567,10 @@ function applyZoom() {
   if (state.viewerMode === "scroll") applyScrollZoom();
   else applySingleZoom();
 
-  const isZoomedOrPannable = state.viewerMode === "scroll" ? state.zoom > 1.01 : viewerCanPan();
+  const isManualZoom = !isAutoViewerZoom();
+  const isZoomedOrPannable = state.viewerMode === "scroll" ? isManualZoom : (isManualZoom || viewerCanPan());
   els.lightbox?.classList.toggle("is-zoomed", isZoomedOrPannable);
+  syncViewerAutoZoomButtonUi();
 }
 
 function showThumbsTemporarily(delay = 2600) {
@@ -2585,6 +2608,46 @@ function showTopUiTemporarily(delay = 2200) {
   }
 }
 
+
+function getLightboxPinnedTopOffset() {
+  if (!state.topUiPinned || !els.lightboxBar) return 0;
+
+  const rect = els.lightboxBar.getBoundingClientRect?.();
+  const measuredHeight = rect ? Math.max(rect.height || 0, rect.bottom > 0 ? rect.bottom : 0) : 0;
+  const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+  const maxReasonableOffset = Math.max(0, viewportHeight * 0.42);
+  return Math.round(clampValue(measuredHeight, 0, maxReasonableOffset));
+}
+
+function syncLightboxTopSafeArea() {
+  if (!els.lightbox) return 0;
+
+  const offset = getLightboxPinnedTopOffset();
+  els.lightbox.style.setProperty("--lightbox-top-safe-offset", `${offset}px`);
+  return offset;
+}
+
+function refreshLightboxLayoutForTopUiChange(options = {}) {
+  if (!state.lightboxOpen) {
+    syncLightboxTopSafeArea();
+    return;
+  }
+
+  const { resetAutoSingleOrigin = true, scrollToPage = true } = options;
+  syncLightboxTopSafeArea();
+
+  if (resetAutoSingleOrigin && state.viewerMode === "single" && isAutoViewerZoom()) {
+    resetImagePosition({ queueSingleFitOrigin: true });
+  }
+
+  applyZoom();
+
+  if (state.viewerMode === "scroll") {
+    if (scrollToPage) scrollToLightboxScrollPage(state.page, { smooth: false, hit: false });
+    scheduleLightboxScrollPageUpdate();
+  }
+}
+
 function syncTopUiPinnedUi() {
   const pinned = Boolean(state.topUiPinned);
   const label = pinned ? "ביטול נעיצת הסרגל העליון" : "נעיצת הסרגל העליון";
@@ -2592,6 +2655,7 @@ function syncTopUiPinnedUi() {
   window.clearTimeout(state.uiHideTimer);
   els.lightbox?.classList.toggle("top-ui-pinned", pinned);
   if (pinned) els.lightbox?.classList.add("show-ui");
+  syncLightboxTopSafeArea();
 
   if (!els.lightboxPinTopBar) return;
   els.lightboxPinTopBar.dataset.pinned = pinned ? "true" : "false";
@@ -2603,6 +2667,7 @@ function syncTopUiPinnedUi() {
 function setTopUiPinned(pinned) {
   state.topUiPinned = Boolean(pinned);
   syncTopUiPinnedUi();
+  refreshLightboxLayoutForTopUiChange();
   if (!state.topUiPinned) showTopUiTemporarily(1400);
 }
 
@@ -3024,6 +3089,23 @@ function syncViewerFitModeUi() {
     els.fitWidthBtn.setAttribute("aria-label", "התאמת התמונה לרוחב");
     setTooltipText(els.fitWidthBtn, "התאמה לרוחב", { updateDefault: true });
   }
+
+  syncViewerAutoZoomButtonUi();
+}
+
+
+function syncViewerAutoZoomButtonUi() {
+  if (!els.viewerAutoZoomBtn) return;
+
+  const showButton = Boolean(state.lightboxOpen && !isAutoViewerZoom());
+
+  els.viewerAutoZoomBtn.classList.toggle("hidden", !showButton);
+  els.viewerAutoZoomBtn.setAttribute("aria-hidden", showButton ? "false" : "true");
+  els.viewerAutoZoomBtn.setAttribute("aria-label", "חזור לזום אוטומטי");
+
+  // This floating control should stay quiet and stationary: no native title and
+  // no custom tooltip bubble when hovering over it.
+  setTooltipText(els.viewerAutoZoomBtn, "", { updateDefault: true });
 }
 
 function setViewerFitMode(fitMode, options = {}) {
@@ -3033,7 +3115,7 @@ function setViewerFitMode(fitMode, options = {}) {
 
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
-    state.zoom = 1;
+    state.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
     state.pointers.clear();
   }
@@ -3084,7 +3166,7 @@ function setLightboxMode(mode, options = {}) {
   hideLightboxFloatingPreview();
   state.viewerMode = nextMode;
   setDefaultFitModeForViewerMode(nextMode);
-  state.zoom = 1;
+  state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: nextMode === "single" });
   state.pointers.clear();
   els.lightbox?.classList.remove("show-thumbs", "show-page-rail");
@@ -3337,7 +3419,7 @@ function openLightbox(page = 1, options = {}) {
   state.viewerMode = mode === "scroll" ? "scroll" : "single";
   setDefaultFitModeForViewerMode(state.viewerMode);
   state.page = clampPage(page, state.catalog);
-  state.zoom = 1;
+  state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
   state.pointers.clear();
   state.lightboxOpen = true;
@@ -3370,7 +3452,8 @@ function closeLightbox() {
   state.singleImageLoadToken += 1;
   window.clearTimeout(state.singleImageAnimationTimer);
   els.lightbox.classList.add("hidden");
-  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "mode-scroll", "mode-single", "is-page-loading");
+  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "mode-scroll", "mode-single", "is-page-loading", "is-zoomed");
+  syncViewerAutoZoomButtonUi();
   els.lightboxImageFrame?.classList.remove("page-swap-enter");
   setViewerLoading(false);
   hideLightboxFloatingPreview();
@@ -3392,7 +3475,7 @@ function setLightboxPage(page, options = {}) {
   if (nextPage !== state.page) {
     hideLightboxFloatingPreview();
     if (!keepZoom) {
-      state.zoom = 1;
+      state.zoom = AUTO_VIEWER_ZOOM;
       resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
       state.pointers.clear();
     }
@@ -3447,7 +3530,7 @@ function adjustSinglePanForZoom(nextZoom, focal) {
   const rect = stage?.getBoundingClientRect?.();
   if (!rect || !focal) return;
 
-  const currentZoom = Math.max(MIN_VIEWER_ZOOM, state.zoom || MIN_VIEWER_ZOOM);
+  const currentZoom = getSafeViewerZoom();
   const centerX = rect.left + rect.width / 2;
   const centerY = rect.top + rect.height / 2;
   const contentX = (focal.x - centerX - state.panX) / currentZoom;
@@ -3462,7 +3545,7 @@ function adjustScrollPanForZoom(nextZoom, focal) {
   const rect = metrics?.container.getBoundingClientRect?.();
   if (!metrics || !rect || !focal) return;
 
-  const currentZoom = Math.max(MIN_VIEWER_ZOOM, state.zoom || MIN_VIEWER_ZOOM);
+  const currentZoom = getSafeViewerZoom();
   const focalX = focal.x - rect.left;
   const focalY = focal.y - rect.top;
   const contentX = (focalX - metrics.baseLeft - state.panX) / currentZoom;
@@ -3482,7 +3565,7 @@ function getSingleContentPointFromClientPoint(clientX, clientY) {
   const rect = stage?.getBoundingClientRect?.();
   if (!rect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
 
-  const currentZoom = Math.max(MIN_VIEWER_ZOOM, state.zoom || MIN_VIEWER_ZOOM);
+  const currentZoom = getSafeViewerZoom();
   const centerX = rect.left + rect.width / 2;
   const centerY = rect.top + rect.height / 2;
 
@@ -3497,7 +3580,7 @@ function getScrollContentPointFromClientPoint(clientX, clientY) {
   const rect = metrics?.container.getBoundingClientRect?.();
   if (!metrics || !rect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
 
-  const currentZoom = Math.max(MIN_VIEWER_ZOOM, state.zoom || MIN_VIEWER_ZOOM);
+  const currentZoom = getSafeViewerZoom();
   const focalX = clientX - rect.left;
   const focalY = clientY - rect.top;
 
@@ -3510,8 +3593,8 @@ function getScrollContentPointFromClientPoint(clientX, clientY) {
 function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   if (!point) return false;
   const zoom = clampViewerZoom(nextZoom);
-  if (zoom <= 1.001) {
-    setZoom(1, { showUi: false });
+  if (isAutoViewerZoom(zoom)) {
+    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
     return true;
   }
 
@@ -3526,8 +3609,8 @@ function zoomScrollContentPointToViewportCenter(point, nextZoom) {
   const metrics = getScrollZoomMetrics();
   if (!metrics || !point) return false;
   const zoom = clampViewerZoom(nextZoom);
-  if (zoom <= 1.001) {
-    setZoom(1, { showUi: false });
+  if (isAutoViewerZoom(zoom)) {
+    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
     return true;
   }
 
@@ -3562,8 +3645,8 @@ function setZoom(nextZoom, options = {}) {
     ? { x: focalClientX, y: focalClientY }
     : getDefaultZoomFocalPoint();
 
-  if (zoom <= 1.001) {
-    state.zoom = MIN_VIEWER_ZOOM;
+  if (isAutoViewerZoom(zoom)) {
+    state.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
   } else {
     if (focal && Math.abs(zoom - previousZoom) > 0.001) {
@@ -3579,7 +3662,7 @@ function setZoom(nextZoom, options = {}) {
 
 function toggleZoomAtPoint(clientX, clientY) {
   if (state.zoom > 1.01) {
-    setZoom(1, { showUi: false });
+    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
     return;
   }
 
@@ -4036,6 +4119,12 @@ function attachEvents() {
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
   els.fitHeightBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_HEIGHT));
   els.fitWidthBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_WIDTH));
+  els.viewerAutoZoomBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
+  });
+  els.viewerAutoZoomBtn?.addEventListener("pointerdown", (event) => event.stopPropagation());
   els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
   els.lightboxScrollView?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
 
@@ -4091,8 +4180,7 @@ function attachEvents() {
     scheduleCatalogScrollTopButtonUpdate();
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
-      applyZoom();
-      if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
+      refreshLightboxLayoutForTopUiChange({ scrollToPage: false });
     }
   });
   window.addEventListener("scroll", () => {

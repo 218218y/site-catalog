@@ -3490,3 +3490,66 @@ a.reader-home:focus-visible {
   height: 100%;
   object-fit: contain;
 }
+
+.lightbox {
+  --lightbox-top-safe-offset: 0px;
+}
+
+.lightbox.top-ui-pinned .lightbox-stage,
+.lightbox.top-ui-pinned .lightbox-scroll-view {
+  top: var(--lightbox-top-safe-offset, 0px);
+}
+
+.viewer-auto-zoom-button {
+  position: fixed;
+  z-index: 12;
+  top: 50%;
+  left: clamp(12px, 2.4vw, 26px);
+  transform: translateY(-50%);
+  min-height: 44px;
+  padding: 0 14px !important;
+  gap: 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(11, 9, 8, 0.72) !important;
+  border-color: rgba(255,255,255,0.24) !important;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
+  backdrop-filter: blur(14px);
+}
+
+.viewer-auto-zoom-button:hover,
+.viewer-auto-zoom-button:focus-visible {
+  transform: translateY(-50%) !important;
+  background: rgba(217, 186, 163, 0.32) !important;
+  border-color: rgba(255,255,255,0.36) !important;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+.viewer-auto-zoom-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viewer-auto-zoom-button span {
+  font-weight: 800;
+  font-size: .9rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .viewer-auto-zoom-button {
+    min-width: 44px;
+    width: 44px;
+    padding: 0 !important;
+  }
+
+  .viewer-auto-zoom-button span {
+    display: none;
+  }
+}
