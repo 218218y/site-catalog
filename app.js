@@ -2535,7 +2535,7 @@ function applySingleZoom() {
   image.style.width = "100%";
   image.style.height = "auto";
 
-  if (isAutoViewerZoom() && state.singleImageFitOriginPending) {
+  if (state.singleImageFitOriginPending) {
     applyPendingSingleImageFitOrigin();
   } else if (isAutoViewerZoom() && !singleImageCanPan()) {
     resetImagePosition();
@@ -3470,15 +3470,26 @@ function closeLightbox() {
 
 function setLightboxPage(page, options = {}) {
   if (!state.catalog) return;
-  const { syncScroll = state.viewerMode === "scroll", smooth = true, hit = false, keepZoom = false } = options;
+  const {
+    syncScroll = state.viewerMode === "scroll",
+    smooth = true,
+    hit = false,
+    keepZoom = true,
+    resetZoom = false
+  } = options;
   const nextPage = clampPage(page, state.catalog);
+  const shouldResetZoom = resetZoom || keepZoom === false;
+
   if (nextPage !== state.page) {
     hideLightboxFloatingPreview();
-    if (!keepZoom) {
+    if (shouldResetZoom) {
       state.zoom = AUTO_VIEWER_ZOOM;
-      resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
-      state.pointers.clear();
     }
+
+    // Page changes should reset the page position, not the user's chosen zoom.
+    // The zoom stays manual until the user explicitly returns to automatic zoom.
+    resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
+    state.pointers.clear();
   }
   state.page = nextPage;
   updateLightbox();
