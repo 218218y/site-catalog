@@ -6,7 +6,7 @@ setup-windows.bat
 לוח שליטה נוח בדפדפן לכל פעולות הקטלוגים
 catalog-control-panel.bat
 
-סדר עבודה מומלץ למסלול Netlify + Cloudflare R2
+סדר עבודה מומלץ למסלול שרת אתר + Cloudflare R2
 1. אחרי הוספת PDF חדש לתיקיית assets\pdfs מריצים:
    sync-catalog-pdfs.bat
 
@@ -19,19 +19,19 @@ catalog-control-panel.bat
 4. בודקים מראש מה ישתנה ב-R2 בלי לבצע שינוי אמיתי:
    sync-r2-images-preview.bat
 
-5. מסנכרנים תמונות ל-R2 בפועל:
+5. מסנכרנים תמונות ל-R2 בפועל: מעלה חדשות/שהשתנו ומוחק מה-bucket מה שכבר לא קיים מקומית
    sync-r2-images.bat
 
-6. יוצרים תיקיית העלאה ל-Netlify במסלול R2:
+6. יוצרים תיקיית העלאה לשרת אתר באנדל:
    bundle-site-r2.bat
 
-7. מעלים ל-Netlify את תוכן התיקייה:
-   dist\site-upload-r2
+7. מעלים לשרת אתר את תוכן התיקייה    dist\site-upload-r2
+פקודה להעלות לקלאוד
+npx wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog --branch main
+
+
 
 פקודות שימושיות נוספות
-
-בדיקת סנכרון תמונות ל-R2 בלי שינוי אמיתי
-sync-r2-images-preview.bat
 
 סנכרון תמונות ל-R2 בפועל: מעלה חדשות/שהשתנו ומוחק מה-bucket מה שכבר לא קיים מקומית
 sync-r2-images.bat
@@ -39,14 +39,6 @@ sync-r2-images.bat
 סנכרון R2 בלי מחיקות
 sync-r2-images.bat --no-delete
 
-יצירת באנדל R2: האתר ב-Netlify והתמונות נטענות מ-Cloudflare R2
-bundle-site-r2.bat
-
-יצירת באנדל R2 עם ZIP נוסף
-bundle-site-r2.bat --zip
-
-המרת PDF חדשים/חסרים בלי OCR לקטלוגים שאין בהם כיתוב אמיתי
-convert-catalogs-no-ocr.bat
 
 המרה של כל PDF מחדש בהכרח, בלי למחוק קטלוג שכבר נמחק PDF שלו
 convert-catalogs-force.bat
@@ -80,10 +72,9 @@ www.bargig-furniture.com
 
 Verify DNS configuration
 
-הגדרת OCR פר קטלוג
-בקובץ catalogs.config.json אפשר להוסיף לכל קטלוג שדה:
+הגדרת OCR פר קטלוג או על ידי לוח השליטה או בקובץ catalogs.config.json אפשר להוסיף לכל קטלוג שדה:
 "ocr": false
-ואז גם אם מריצים המרה רגילה, הקטלוג הזה לא יריץ OCR. ברירת המחדל היא true.
+ואז גם אם מריצים המרה רגילה, הקטלוג הזה לא יריץ OCR. ברירת המחדל היא true. אין צורך בפקודת המרה גלובלית בלי OCR.
 
 הערת R2 חשובה
 קובץ r2.env נשאר מקומי בלבד ומכיל מפתחות גישה. לא מעלים אותו ל-Netlify ולא ל-GitHub.

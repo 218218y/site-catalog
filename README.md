@@ -93,7 +93,7 @@ catalogs.config.json
 "ocr": false
 ```
 
-ברירת המחדל היא `true`.
+ברירת המחדל היא `true`. אחרי כיבוי OCR לקטלוג מסוים מריצים את ההמרה הרגילה; אין צורך בפקודת המרה גלובלית בלי OCR.
 
 ### 4. המרת PDFים לתמונות ולאינדקס חיפוש
 
@@ -119,7 +119,6 @@ catalogs.search.json
 convert-catalogsdelete.bat
 convert-catalogs-force.bat
 convert-catalogs-deleteforce.bat
-convert-catalogs-no-ocr.bat
 refresh-ocr-search.bat
 ```
 
@@ -260,7 +259,6 @@ tools/build_deploy_bundle.py       בניית תיקיית ההעלאה ל-Netli
 tools/sync_r2_catalog_images.py    כלי הסנכרון מול Cloudflare R2 ללא תלות ב-AWS CLI
 sync-catalog-pdfs.bat              סריקת assets/pdfs והוספת PDFים חסרים לרשימה
 convert-catalogs.bat               המרת PDF לתמונות ועדכון נתוני קטלוגים
-convert-catalogs-no-ocr.bat        המרה בלי OCR גלובלי
 convert-catalogsdelete.bat         המרה + מחיקת תיקיות קטלוגים לא רשומים
 refresh-ocr-search.bat             רענון אינדקס חיפוש/OCR בלי רינדור תמונות מחדש ככל האפשר
 ```

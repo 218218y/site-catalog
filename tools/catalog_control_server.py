@@ -86,11 +86,6 @@ ACTIONS: dict[str, Action] = {
         "מרנדר הכל מחדש ומנקה תיקיות קטלוגים שאינן רשומות בקובץ ההגדרות.",
         ["tools/build_catalogs.py", "--force", "--delete-unlisted", *BASE_CONVERT_ARGS[1:], "--ocr", "auto"],
     ),
-    "convert_no_ocr": Action(
-        "המרה גלובלית בלי OCR",
-        "ממיר חסרים/שהשתנו בלי OCR בכלל. שימושי לבדיקה או לקטלוגים סרוקים בעייתיים.",
-        [*BASE_CONVERT_ARGS, "--ocr", "never"],
-    ),
     "refresh_ocr": Action(
         "רענון אינדקס חיפוש/OCR בלבד",
         "בונה מחדש את catalogs.search.* בלי לרנדר מחדש תמונות קיימות, ככל האפשר.",
