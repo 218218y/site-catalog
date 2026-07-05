@@ -404,6 +404,12 @@ main {
      first subcategory row. 28px makes the focus outlines touch; 30px gives
      ~2px air; 32px gives ~4px air. */
   --catalog-category-header-block-gap: 32px;
+  /* Horizontal gap between the main category title and its subcategory buttons.
+     This is the number to tune when you want the buttons closer/farther. */
+  --catalog-category-title-to-subnav-gap: 12px;
+  /* Safety cap for very long category titles so the subcategory buttons still
+     keep usable space on the left. Short titles keep their natural width. */
+  --catalog-category-header-title-max-width: 320px;
   --catalog-card-gap: var(--catalog-category-gap-x);
   --catalog-layout-columns: 3;
   display: grid;
@@ -474,14 +480,6 @@ main {
   color: var(--brand-dark);
 }
 
-.catalog-category-head-with-subcategories {
-  grid-template-columns: minmax(160px, max-content) minmax(0, 1fr);
-  gap: 12px 18px;
-  align-items: center;
-}
-.catalog-category-section-header-only .catalog-category-head-with-subcategories {
-  margin-inline-end: 0;
-}
 .catalog-subcategory-nav {
   display: flex;
   flex-wrap: wrap;
@@ -584,6 +582,20 @@ main {
   line-height: 1.12;
   font-size: clamp(1.28rem, 1.85vw, 2rem);
   letter-spacing: -0.025em;
+}
+.catalog-category-head-with-subcategories {
+  width: 100%;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  row-gap: 12px;
+  column-gap: var(--catalog-category-title-to-subnav-gap);
+  align-items: center;
+}
+.catalog-category-head-with-subcategories > h3,
+.catalog-category-head-with-subcategories > h4 {
+  max-width: var(--catalog-category-header-title-max-width);
+}
+.catalog-category-section-header-only .catalog-category-head-with-subcategories {
+  margin-inline-end: 0;
 }
 .catalog-grid {
   display: grid;
@@ -3277,7 +3289,13 @@ a.reader-home:focus-visible {
   .brand-text small { display: none; }
   main, .site-footer { padding-inline: 10px; }
   .panel { border-radius: 24px; padding: 16px; }
-  .catalog-category-list { --catalog-layout-columns: 1; grid-template-columns: 1fr; column-gap: 0; row-gap: 32px; }
+  .catalog-category-list {
+    --catalog-layout-columns: 1;
+    --catalog-category-header-title-max-width: 42vw;
+    grid-template-columns: 1fr;
+    column-gap: 0;
+    row-gap: 32px;
+  }
   .catalog-category-section { grid-column: span 1; }
   .catalog-category-section[data-inline-divider="1"]::after,
   .catalog-subcategory-section[data-inline-divider="1"]::after { content: none; }
@@ -3288,8 +3306,9 @@ a.reader-home:focus-visible {
   }
   .catalog-category-grid, .catalog-subcategory-grid { grid-template-columns: 1fr; width: 100%; }
   .catalog-category-head-with-subcategories {
-    grid-template-columns: minmax(104px, clamp(104px, 34%, 150px)) minmax(0, 1fr);
-    gap: 10px 12px;
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+    row-gap: 10px;
+    column-gap: var(--catalog-category-title-to-subnav-gap);
     align-items: start;
   }
   .search-panel.global-search-popover {
