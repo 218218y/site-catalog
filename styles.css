@@ -406,10 +406,16 @@ main {
   --catalog-category-header-block-gap: 32px;
   /* Horizontal gap between the main category title and its subcategory buttons.
      This is the number to tune when you want the buttons closer/farther. */
-  --catalog-category-title-to-subnav-gap: 12px;
+  --catalog-category-title-to-subnav-gap: 16px;
   /* Safety cap for very long category titles so the subcategory buttons still
      keep usable space on the left. Short titles keep their natural width. */
   --catalog-category-header-title-max-width: 320px;
+  /* Main category title style inside a header that also has subcategory buttons. */
+  --catalog-category-inline-title-color: #111111;
+  --catalog-category-inline-title-size: clamp(1.42rem, 2.05vw, 2.18rem);
+  /* Vertical fine-tune for the subcategory button row: positive = lower,
+     negative = higher. This is visual only and does not affect the horizontal gap. */
+  --catalog-subcategory-nav-y-offset: 4px;
   --catalog-card-gap: var(--catalog-category-gap-x);
   --catalog-layout-columns: 3;
   display: grid;
@@ -585,14 +591,30 @@ main {
 }
 .catalog-category-head-with-subcategories {
   width: 100%;
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
-  row-gap: 12px;
-  column-gap: var(--catalog-category-title-to-subnav-gap);
-  align-items: center;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: var(--catalog-category-title-to-subnav-gap);
 }
 .catalog-category-head-with-subcategories > h3,
 .catalog-category-head-with-subcategories > h4 {
-  max-width: var(--catalog-category-header-title-max-width);
+  flex: 0 1 auto;
+  max-inline-size: var(--catalog-category-header-title-max-width);
+}
+.catalog-category-head-with-subcategories > h3 {
+  color: var(--catalog-category-inline-title-color);
+  font-size: var(--catalog-category-inline-title-size);
+}
+.catalog-category-section.is-category-focus > .catalog-category-head-with-subcategories > h3 {
+  color: var(--catalog-category-inline-title-color);
+}
+.catalog-category-head-with-subcategories > .catalog-subcategory-nav {
+  flex: 1 1 auto;
+  align-self: flex-end;
+  min-width: 0;
+  position: relative;
+  top: var(--catalog-subcategory-nav-y-offset);
 }
 .catalog-category-section-header-only .catalog-category-head-with-subcategories {
   margin-inline-end: 0;
@@ -3306,10 +3328,7 @@ a.reader-home:focus-visible {
   }
   .catalog-category-grid, .catalog-subcategory-grid { grid-template-columns: 1fr; width: 100%; }
   .catalog-category-head-with-subcategories {
-    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
-    row-gap: 10px;
-    column-gap: var(--catalog-category-title-to-subnav-gap);
-    align-items: start;
+    gap: var(--catalog-category-title-to-subnav-gap);
   }
   .search-panel.global-search-popover {
     top: calc(var(--header-h) + 8px);
