@@ -3564,12 +3564,29 @@ a.reader-home:focus-visible {
   overflow: visible;
 }
 
+/* Highlight only the auto-zoom control while it is available after manual zoom.
+   The side arrows keep using the shared neutral side-control variables. */
+.viewer-auto-zoom-button:not(.hidden) {
+  color: #fff;
+  background: rgba(217, 186, 163, 0.46) !important;
+  border-color: rgba(255,255,255,0.46) !important;
+  box-shadow:
+    0 16px 38px rgba(0,0,0,0.34),
+    0 0 0 1px rgba(255,255,255,0.08),
+    0 0 20px rgba(217,186,163,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.20);
+}
+
 .viewer-auto-zoom-button:hover,
 .viewer-auto-zoom-button:focus-visible {
   transform: translateY(-50%) !important;
-  background: var(--viewer-side-control-hover-bg) !important;
-  border-color: var(--viewer-side-control-hover-border) !important;
-  box-shadow: var(--viewer-side-control-shadow);
+  background: rgba(236, 207, 184, 0.56) !important;
+  border-color: rgba(255,255,255,0.54) !important;
+  box-shadow:
+    0 18px 42px rgba(0,0,0,0.36),
+    0 0 0 1px rgba(255,255,255,0.10),
+    0 0 24px rgba(217,186,163,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.24);
 }
 
 .viewer-auto-zoom-button:active {
