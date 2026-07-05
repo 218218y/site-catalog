@@ -144,6 +144,7 @@ const TAP_MOVE_TOLERANCE = 14;
 const SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO = 0.06;
 const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
 const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
+const LIGHTBOX_SCROLL_PAGE_SYNC_LOCK_MS = 520;
 
 const state = {
   catalog: null,
@@ -177,6 +178,7 @@ const state = {
   lastTouchLikeViewportInputAt: 0,
   lastTouchLikeRailInputAt: 0,
   lightboxScrollRaf: 0,
+  lightboxScrollPageSyncLockedUntil: 0,
   globalSearchCategory: "",
   globalSearchOpen: false,
   lightboxSearchScope: "catalog",
@@ -3156,7 +3158,12 @@ function setLightboxMode(mode, options = {}) {
   if (!state.catalog) return;
   const nextMode = mode === "scroll" ? "scroll" : "single";
   const wasScrollMode = state.viewerMode === "scroll";
-  const pageToKeep = wasScrollMode ? syncCurrentLightboxScrollPageFromViewport() : state.page;
+  const pageToKeep = wasScrollMode ? getLightboxPageForModeSwitch() : state.page;
+
+  if (state.lightboxScrollRaf) {
+    window.cancelAnimationFrame(state.lightboxScrollRaf);
+    state.lightboxScrollRaf = 0;
+  }
 
   if (nextMode === state.viewerMode) {
     syncViewerModeUi();
@@ -3178,7 +3185,19 @@ function setLightboxMode(mode, options = {}) {
   updateLightbox();
 
   if (nextMode === "scroll") {
-    requestAnimationFrame(() => scrollToLightboxScrollPage(pageToKeep, { smooth: false, hit: false }));
+    // Switching from single-page mode already has an exact page identity. Do
+    // not let a stale scroll event or an old scrollTop recalculate it during
+    // the mode change; first pin the native scroller to that page immediately,
+    // then repeat once after layout has painted.
+    lockLightboxScrollPageSync();
+    scrollToLightboxScrollPage(pageToKeep, { smooth: false, hit: false });
+    requestAnimationFrame(() => {
+      if (!state.lightboxOpen || state.viewerMode !== "scroll") return;
+      state.page = clampPage(pageToKeep, state.catalog);
+      scrollToLightboxScrollPage(state.page, { smooth: false, hit: false });
+      updateLightboxThumbs({ scrollIntoView: true });
+      updateHash();
+    });
   } else if (wasScrollMode) {
     showPageRailTemporarily(1300);
   }
@@ -3298,6 +3317,20 @@ function handlePageRailPointerOutside(event) {
   els.lightbox.classList.remove("show-page-rail");
 }
 
+function lockLightboxScrollPageSync(duration = LIGHTBOX_SCROLL_PAGE_SYNC_LOCK_MS) {
+  const now = Date.now();
+  const safeDuration = Math.max(0, Number(duration) || 0);
+  state.lightboxScrollPageSyncLockedUntil = Math.max(state.lightboxScrollPageSyncLockedUntil || 0, now + safeDuration);
+  if (state.lightboxScrollRaf) {
+    window.cancelAnimationFrame(state.lightboxScrollRaf);
+    state.lightboxScrollRaf = 0;
+  }
+}
+
+function isLightboxScrollPageSyncLocked() {
+  return Date.now() < (state.lightboxScrollPageSyncLockedUntil || 0);
+}
+
 function isManualScrollZoom() {
   return state.viewerMode === "scroll" && !isAutoViewerZoom();
 }
@@ -3315,11 +3348,12 @@ function alignManualZoomScrollPage(target) {
 
 function scrollToLightboxScrollPage(page, options = {}) {
   if (!state.catalog || !els.lightboxScrollView) return;
-  const { smooth = true } = options;
+  const { smooth = true, lockPage = true } = options;
   const targetPage = clampPage(page, state.catalog);
   const target = document.getElementById(`lightbox-scroll-page-${targetPage}`);
   if (!target) return;
   ensureLightboxScrollPageLoaded(targetPage, 2);
+  if (lockPage) lockLightboxScrollPageSync(smooth ? 820 : LIGHTBOX_SCROLL_PAGE_SYNC_LOCK_MS);
 
   if (isManualScrollZoom()) {
     // In manual zoom the visual movement is controlled by pan/transform, not by
@@ -3329,12 +3363,11 @@ function scrollToLightboxScrollPage(page, options = {}) {
     applyScrollFitMode();
     alignManualZoomScrollPage(target);
     updateLightboxThumbs({ scrollIntoView: true });
-    scheduleLightboxScrollPageUpdate();
     return;
   }
 
-  const containerTop = els.lightboxScrollView.getBoundingClientRect().top;
-  const targetTop = target.getBoundingClientRect().top - containerTop + els.lightboxScrollView.scrollTop;
+  applyScrollFitMode();
+  const targetTop = Number(target.offsetTop || 0);
   els.lightboxScrollView.scrollTo({ top: Math.max(0, targetTop), behavior: smooth ? "smooth" : "auto" });
   updateLightboxThumbs({ scrollIntoView: true });
 }
@@ -3378,6 +3411,8 @@ function syncCurrentLightboxScrollPageFromViewport() {
     state.lightboxScrollRaf = 0;
   }
 
+  if (isLightboxScrollPageSyncLocked()) return clampPage(state.page, state.catalog);
+
   const closestPage = getCurrentLightboxScrollPageFromViewport();
   if (closestPage !== state.page) {
     setLightboxPage(closestPage, {
@@ -3389,16 +3424,32 @@ function syncCurrentLightboxScrollPageFromViewport() {
   return closestPage;
 }
 
+function getLightboxPageForModeSwitch() {
+  if (!state.catalog) return 1;
+
+  // Auto scroll mode uses the real native viewport position, so sync it once
+  // before switching. Manual scroll zoom is different: the user is looking at a
+  // transformed stack whose visual anchor can fall on a later page after a
+  // zoom-out even when the active page/link is still the original page. In that
+  // case keep the selected page identity instead of recalculating from the
+  // scaled viewport.
+  if (state.viewerMode === "scroll" && !isManualScrollZoom()) {
+    return syncCurrentLightboxScrollPageFromViewport();
+  }
+
+  return clampPage(state.page, state.catalog);
+}
+
 function findCurrentLightboxScrollPage() {
   if (!state.catalog || !els.lightboxScrollView || state.viewerMode !== "scroll") return;
   syncCurrentLightboxScrollPageFromViewport();
 }
 
 function scheduleLightboxScrollPageUpdate() {
-  if (state.lightboxScrollRaf || state.viewerMode !== "scroll") return;
+  if (state.lightboxScrollRaf || state.viewerMode !== "scroll" || isLightboxScrollPageSyncLocked()) return;
   state.lightboxScrollRaf = window.requestAnimationFrame(() => {
     state.lightboxScrollRaf = 0;
-    findCurrentLightboxScrollPage();
+    if (!isLightboxScrollPageSyncLocked()) findCurrentLightboxScrollPage();
   });
 }
 
@@ -3508,6 +3559,7 @@ function closeLightbox() {
   window.clearTimeout(state.pageRailHideTimer);
   if (state.lightboxScrollRaf) window.cancelAnimationFrame(state.lightboxScrollRaf);
   state.lightboxScrollRaf = 0;
+  state.lightboxScrollPageSyncLockedUntil = 0;
   disconnectLightboxScrollImageLoading();
   setViewerDocumentLock(false);
   scheduleCatalogScrollTopButtonUpdate();
@@ -3682,7 +3734,6 @@ function zoomScrollContentPointToViewportCenter(point, nextZoom) {
   state.panX = metrics.viewportWidth / 2 - metrics.baseLeft - point.x * zoom;
   state.panY = metrics.viewportHeight / 2 - metrics.baseTop - point.y * zoom;
   applyZoom();
-  scheduleLightboxScrollPageUpdate();
   return true;
 }
 
@@ -3701,7 +3752,12 @@ function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
 }
 
 function setZoom(nextZoom, options = {}) {
-  const { showUi = true, focalClientX = null, focalClientY = null } = options;
+  const {
+    showUi = true,
+    focalClientX = null,
+    focalClientY = null,
+    syncPageFromViewport = false
+  } = options;
   const previousZoom = state.zoom;
   const zoom = clampViewerZoom(nextZoom);
   const hasFocal = Number.isFinite(focalClientX) && Number.isFinite(focalClientY);
@@ -3720,7 +3776,13 @@ function setZoom(nextZoom, options = {}) {
   }
 
   applyZoom();
-  if (state.viewerMode === "scroll") scheduleLightboxScrollPageUpdate();
+  if (state.viewerMode === "scroll") {
+    if (isAutoViewerZoom()) {
+      scrollToLightboxScrollPage(state.page, { smooth: false, hit: false });
+    } else if (syncPageFromViewport) {
+      scheduleLightboxScrollPageUpdate();
+    }
+  }
   if (showUi) showTopUiTemporarily(1600);
 }
 
