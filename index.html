@@ -217,7 +217,6 @@
                 <path d="M9.2 5.4v2.9a.9.9 0 0 1-.9.9H5.4M14.8 5.4v2.9a.9.9 0 0 0 .9.9h2.9M9.2 18.6v-2.9a.9.9 0 0 0-.9-.9H5.4M14.8 18.6v-2.9a.9.9 0 0 1 .9-.9h2.9" />
               </svg>
             </button>
-            <button class="reader-button reader-control-icon-button close-button" id="closeLightbox" type="button" aria-label="סגירה" title="סגירה">×</button>
           </div>
         </header>
 
@@ -235,8 +234,16 @@
             <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" decoding="async" />
           </div>
         </div>
-        <button class="stage-nav stage-next" id="nextPageBtn" type="button" aria-label="העמוד הבא">‹</button>
-        <button class="stage-nav stage-prev" id="prevPageBtn" type="button" aria-label="העמוד הקודם">›</button>
+        <button class="stage-nav stage-next" id="nextPageBtn" type="button" aria-label="העמוד הבא">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M14.5 6.5 9 12l5.5 5.5" />
+          </svg>
+        </button>
+        <button class="stage-nav stage-prev" id="prevPageBtn" type="button" aria-label="העמוד הקודם">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M9.5 6.5 15 12l-5.5 5.5" />
+          </svg>
+        </button>
       </div>
 
       <div class="lightbox-scroll-view" id="lightboxScrollView" aria-label="עמודי הקטלוג בתצוגת גלילה">

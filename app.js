@@ -254,7 +254,6 @@ const els = {
   viewerLoading: $("viewerLoading"),
   prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"),
-  closeLightbox: $("closeLightbox"),
   fullscreenToggle: $("fullscreenToggle"),
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
@@ -4348,7 +4347,6 @@ function attachEvents() {
     handleCatalogFocusLinkClick(link, event);
   });
 
-  els.closeLightbox?.addEventListener("click", closeLightbox);
   els.headerCopyLink?.addEventListener("click", () => copyCurrentMainHeaderLink());
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());

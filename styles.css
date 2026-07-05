@@ -1413,6 +1413,13 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 50;
+  --viewer-side-control-size: 46px;
+  --viewer-side-control-edge: clamp(12px, 2.4vw, 26px);
+  --viewer-side-control-bg: rgba(11, 9, 8, 0.72);
+  --viewer-side-control-border: rgba(255,255,255,0.24);
+  --viewer-side-control-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
+  --viewer-side-control-hover-bg: rgba(217, 186, 163, 0.32);
+  --viewer-side-control-hover-border: rgba(255,255,255,0.36);
   background: #080604;
 }
 .lightbox-backdrop {
@@ -1566,13 +1573,6 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .lightbox-actions #fullscreenToggle {
   min-width: 38px;
 }
-.close-button {
-  color: #fff;
-  background: rgba(154, 122, 98, 0.82) !important;
-  border-color: rgba(255,255,255,0.18) !important;
-  font-size: 1.35rem;
-  line-height: 1;
-}
 .lightbox-meta { margin: 0; color: rgba(255,255,255,0.78); }
 .lightbox-stage {
   position: fixed;
@@ -1629,23 +1629,26 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   z-index: 7;
   top: 50%;
   translate: 0 -50%;
-  width: clamp(48px, 5vw, 76px);
-  height: clamp(74px, 9vh, 118px);
-  border: 0;
+  display: grid;
+  place-items: center;
+  width: var(--viewer-side-control-size);
+  height: var(--viewer-side-control-size);
+  padding: 0;
+  border: 1px solid var(--viewer-side-control-border);
   border-radius: 999px;
   color: #fff;
-  background: rgba(0,0,0,0.34);
-  font-size: clamp(2.5rem, 5vw, 4.5rem);
-  line-height: 1;
+  background: var(--viewer-side-control-bg);
+  cursor: pointer;
   direction: ltr;
   unicode-bidi: isolate;
-  box-shadow: none;
-  backdrop-filter: blur(10px);
-  transition: background .18s ease, opacity .18s ease, transform .18s ease;
+  box-shadow: var(--viewer-side-control-shadow);
+  backdrop-filter: blur(14px);
+  transition: background .18s ease, border-color .18s ease, opacity .18s ease, transform .18s ease;
 }
 .stage-nav:hover,
 .stage-nav:focus-visible {
-  background: rgba(0,0,0,0.62);
+  background: var(--viewer-side-control-hover-bg);
+  border-color: var(--viewer-side-control-hover-border);
   transform: scale(1.04);
 }
 .stage-nav:disabled {
@@ -1653,8 +1656,18 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   cursor: default;
   transform: none;
 }
-.stage-next { left: clamp(8px, 2vw, 28px); }
-.stage-prev { right: clamp(8px, 2vw, 28px); }
+.stage-nav svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.stage-next { left: var(--viewer-side-control-edge); }
+.stage-prev { right: var(--viewer-side-control-edge); }
 .thumbs-hotspot {
   position: fixed;
   z-index: 6;
@@ -3383,7 +3396,6 @@ a.reader-home:focus-visible {
   .catalog-switch-panel { flex: 0 1 auto; width: 100%; min-width: 0; }
   .select-wrap, select, .detail-catalog-picker, .detail-catalog-menu-toggle, .catalog-view-mode-actions { width: 100%; min-width: 0; }
   .catalog-view-mode-actions .button { flex: 1 1 140px; }
-  .stage-nav { width: 44px; height: 62px; font-size: 2.2rem; }
   .lightbox-thumb { flex-basis: 116px; }
   .lightbox-floating-preview { display: none; }
   .lightbox-scroll-view { padding: 0; }
@@ -3534,17 +3546,17 @@ a.reader-home:focus-visible {
   position: fixed;
   z-index: 12;
   top: calc(50% - clamp(78px, 11vh, 126px));
-  left: clamp(12px, 2.4vw, 26px);
-  width: 46px;
-  min-width: 46px;
-  min-height: 46px;
+  left: var(--viewer-side-control-edge);
+  width: var(--viewer-side-control-size);
+  min-width: var(--viewer-side-control-size);
+  min-height: var(--viewer-side-control-size);
   padding: 0 !important;
   transform: translateY(-50%);
   border-radius: 999px;
   color: #fff;
-  background: rgba(11, 9, 8, 0.72) !important;
-  border-color: rgba(255,255,255,0.24) !important;
-  box-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
+  background: var(--viewer-side-control-bg) !important;
+  border-color: var(--viewer-side-control-border) !important;
+  box-shadow: var(--viewer-side-control-shadow);
   backdrop-filter: blur(14px);
 }
 
@@ -3555,9 +3567,9 @@ a.reader-home:focus-visible {
 .viewer-auto-zoom-button:hover,
 .viewer-auto-zoom-button:focus-visible {
   transform: translateY(-50%) !important;
-  background: rgba(217, 186, 163, 0.32) !important;
-  border-color: rgba(255,255,255,0.36) !important;
-  box-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
+  background: var(--viewer-side-control-hover-bg) !important;
+  border-color: var(--viewer-side-control-hover-border) !important;
+  box-shadow: var(--viewer-side-control-shadow);
 }
 
 .viewer-auto-zoom-button:active {
@@ -3582,10 +3594,10 @@ a.reader-home:focus-visible {
 }
 
 @media (max-width: 640px) {
+  .lightbox {
+    --viewer-side-control-size: 44px;
+  }
   .viewer-auto-zoom-button {
     top: calc(50% - 82px);
-    width: 44px;
-    min-width: 44px;
-    min-height: 44px;
   }
 }
