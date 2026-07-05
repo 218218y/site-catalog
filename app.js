@@ -3111,11 +3111,11 @@ function syncViewerAutoZoomButtonUi() {
 
   els.viewerAutoZoomBtn.classList.toggle("hidden", !showButton);
   els.viewerAutoZoomBtn.setAttribute("aria-hidden", showButton ? "false" : "true");
-  els.viewerAutoZoomBtn.setAttribute("aria-label", "חזור לזום אוטומטי");
+  els.viewerAutoZoomBtn.setAttribute("aria-label", "חזרה לזום אוטומטי");
 
-  // This floating control should stay quiet and stationary: no native title and
-  // no custom tooltip bubble when hovering over it.
-  setTooltipText(els.viewerAutoZoomBtn, "", { updateDefault: true });
+  // Keep the button itself icon-only and stationary; the clear explanation lives
+  // in the shared floating tooltip so hover/focus never changes the button size.
+  setTooltipText(els.viewerAutoZoomBtn, "חזרה לזום אוטומטי", { updateDefault: true });
 }
 
 function formatViewerZoomPercent(value = state.zoom) {

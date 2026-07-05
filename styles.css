@@ -3504,14 +3504,14 @@ a.reader-home:focus-visible {
   z-index: 15;
   top: 50%;
   left: 50%;
-  min-width: 112px;
-  padding: 13px 22px;
+  min-width: 104px;
+  padding: 12px 20px;
   border-radius: 18px;
-  color: rgba(255,255,255,0.94);
-  background: rgba(11,9,8,0.54);
-  border: 1px solid rgba(255,255,255,0.18);
-  box-shadow: 0 18px 56px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.12);
-  backdrop-filter: blur(14px);
+  color: rgba(255,255,255,0.78);
+  background: rgba(11,9,8,0.34);
+  border: 1px solid rgba(255,255,255,0.105);
+  box-shadow: 0 18px 56px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.07);
+  backdrop-filter: blur(10px);
   font-size: clamp(1.15rem, 3.2vw, 2rem);
   font-weight: 900;
   line-height: 1;
@@ -3533,18 +3533,23 @@ a.reader-home:focus-visible {
 .viewer-auto-zoom-button {
   position: fixed;
   z-index: 12;
-  top: 50%;
+  top: calc(50% - clamp(78px, 11vh, 126px));
   left: clamp(12px, 2.4vw, 26px);
+  width: 46px;
+  min-width: 46px;
+  min-height: 46px;
+  padding: 0 !important;
   transform: translateY(-50%);
-  min-height: 44px;
-  padding: 0 14px !important;
-  gap: 8px;
   border-radius: 999px;
   color: #fff;
   background: rgba(11, 9, 8, 0.72) !important;
   border-color: rgba(255,255,255,0.24) !important;
   box-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
   backdrop-filter: blur(14px);
+}
+
+.viewer-auto-zoom-button[data-tooltip] {
+  overflow: visible;
 }
 
 .viewer-auto-zoom-button:hover,
@@ -3555,12 +3560,16 @@ a.reader-home:focus-visible {
   box-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
 }
 
+.viewer-auto-zoom-button:active {
+  transform: translateY(-50%) !important;
+}
+
 .viewer-auto-zoom-button svg {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.9;
+  stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -3574,12 +3583,9 @@ a.reader-home:focus-visible {
 
 @media (max-width: 640px) {
   .viewer-auto-zoom-button {
-    min-width: 44px;
+    top: calc(50% - 82px);
     width: 44px;
-    padding: 0 !important;
-  }
-
-  .viewer-auto-zoom-button span {
-    display: none;
+    min-width: 44px;
+    min-height: 44px;
   }
 }
