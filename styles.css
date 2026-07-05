@@ -1783,7 +1783,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   display: none;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: clamp(10px, 2.5vw, 26px);
+  padding: 0;
   color: #fff;
   background: #080604;
   overscroll-behavior: contain;
@@ -1804,9 +1804,9 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 }
 .lightbox-scroll-pages {
   display: grid;
-  gap: clamp(12px, 2.3vw, 24px);
+  gap: clamp(10px, 2vw, 22px);
   justify-items: center;
-  padding-block: 8px 28px;
+  padding-block: 0;
   transform-origin: top left;
   will-change: transform;
 }
@@ -1836,10 +1836,6 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   height: auto;
   max-width: none;
   background: #fff;
-}
-.lightbox-scroll-page-hit {
-  outline: 4px solid rgba(217, 186, 163, 0.78);
-  outline-offset: 5px;
 }
 .lightbox-side-hotspot {
   position: fixed;
@@ -2968,6 +2964,8 @@ a.reader-home:focus-visible {
   transform-origin: center center;
   will-change: transform;
   background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
   box-shadow: 0 20px 80px rgba(0,0,0,0.45);
   user-select: none;
   cursor: grab;
@@ -2979,7 +2977,7 @@ a.reader-home:focus-visible {
   max-width: none;
   max-height: none;
   transform: none;
-  border-radius: 0;
+  border-radius: inherit;
   background: #fff;
   box-shadow: none;
 }
@@ -3388,7 +3386,8 @@ a.reader-home:focus-visible {
   .stage-nav { width: 44px; height: 62px; font-size: 2.2rem; }
   .lightbox-thumb { flex-basis: 116px; }
   .lightbox-floating-preview { display: none; }
-  .lightbox-scroll-view { padding: 8px; }
+  .lightbox-scroll-view { padding: 0; }
+  .lightbox-image-frame,
   .lightbox-scroll-page-frame { border-radius: 12px; }
   .lightbox-page-rail {
     top: 8px;

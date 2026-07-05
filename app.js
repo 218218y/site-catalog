@@ -2422,20 +2422,13 @@ function applyScrollFitMode() {
   }
 
   const style = window.getComputedStyle?.(container);
-  const paddingX = (Number.parseFloat(style?.paddingLeft) || 0) + (Number.parseFloat(style?.paddingRight) || 0);
   const paddingY = (Number.parseFloat(style?.paddingTop) || 0) + (Number.parseFloat(style?.paddingBottom) || 0);
-  const availableWidth = Math.max(220, container.clientWidth - paddingX);
-  const availableHeight = Math.max(220, container.clientHeight - paddingY - 16);
+  const availableHeight = Math.max(220, container.clientHeight - paddingY);
 
   frames.forEach((frame) => {
     const aspect = Math.max(0.1, getLightboxScrollFrameAspect(frame));
-    let height = availableHeight;
-    let width = height * aspect;
-
-    if (width > availableWidth) {
-      width = availableWidth;
-      height = width / aspect;
-    }
+    const height = availableHeight;
+    const width = height * aspect;
 
     frame.style.width = `${Math.round(width)}px`;
     frame.style.height = `${Math.round(height)}px`;
@@ -3294,23 +3287,45 @@ function handlePageRailPointerOutside(event) {
   els.lightbox.classList.remove("show-page-rail");
 }
 
+function isManualScrollZoom() {
+  return state.viewerMode === "scroll" && !isAutoViewerZoom();
+}
+
+function alignManualZoomScrollPage(target) {
+  const metrics = getScrollZoomMetrics();
+  if (!metrics || !target) return false;
+
+  const targetTop = Number(target.offsetTop || 0);
+  state.panY = -metrics.baseTop - (targetTop * state.zoom);
+  clampScrollPan();
+  applyScrollZoom();
+  return true;
+}
+
 function scrollToLightboxScrollPage(page, options = {}) {
   if (!state.catalog || !els.lightboxScrollView) return;
-  const { smooth = true, hit = false } = options;
+  const { smooth = true } = options;
   const targetPage = clampPage(page, state.catalog);
   const target = document.getElementById(`lightbox-scroll-page-${targetPage}`);
   if (!target) return;
   ensureLightboxScrollPageLoaded(targetPage, 2);
 
+  if (isManualScrollZoom()) {
+    // In manual zoom the visual movement is controlled by pan/transform, not by
+    // the native scroller. Mixing scrollTop with transform is what caused page
+    // jumps and sideways drift after zooming. Keep the user's horizontal pan and
+    // only move the transformed content vertically to the requested page.
+    applyScrollFitMode();
+    alignManualZoomScrollPage(target);
+    updateLightboxThumbs({ scrollIntoView: true });
+    scheduleLightboxScrollPageUpdate();
+    return;
+  }
+
   const containerTop = els.lightboxScrollView.getBoundingClientRect().top;
   const targetTop = target.getBoundingClientRect().top - containerTop + els.lightboxScrollView.scrollTop;
-  els.lightboxScrollView.scrollTo({ top: Math.max(0, targetTop - 10), behavior: smooth ? "smooth" : "auto" });
+  els.lightboxScrollView.scrollTo({ top: Math.max(0, targetTop), behavior: smooth ? "smooth" : "auto" });
   updateLightboxThumbs({ scrollIntoView: true });
-
-  if (hit) {
-    target.classList.add("lightbox-scroll-page-hit");
-    window.setTimeout(() => target.classList.remove("lightbox-scroll-page-hit"), 1500);
-  }
 }
 
 function findCurrentLightboxScrollPage() {
@@ -3344,7 +3359,11 @@ function findCurrentLightboxScrollPage() {
   });
 
   if (closestPage !== state.page) {
-    setLightboxPage(closestPage, { syncScroll: false, keepZoom: true });
+    setLightboxPage(closestPage, {
+      syncScroll: false,
+      keepZoom: true,
+      resetPosition: false
+    });
   }
 }
 
@@ -3475,10 +3494,12 @@ function setLightboxPage(page, options = {}) {
     smooth = true,
     hit = false,
     keepZoom = true,
-    resetZoom = false
+    resetZoom = false,
+    resetPosition = state.viewerMode !== "scroll"
   } = options;
   const nextPage = clampPage(page, state.catalog);
   const shouldResetZoom = resetZoom || keepZoom === false;
+  const shouldResetPosition = shouldResetZoom || resetPosition || (state.viewerMode === "scroll" && isAutoViewerZoom());
 
   if (nextPage !== state.page) {
     hideLightboxFloatingPreview();
@@ -3486,9 +3507,12 @@ function setLightboxPage(page, options = {}) {
       state.zoom = AUTO_VIEWER_ZOOM;
     }
 
-    // Page changes should reset the page position, not the user's chosen zoom.
-    // The zoom stays manual until the user explicitly returns to automatic zoom.
-    resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
+    // Single-page mode needs a clean page origin. Scroll mode must not reset
+    // pan during manual zoom: the current page detector runs while the user is
+    // dragging/wheeling, and resetting pan there caused the visible jump.
+    if (shouldResetPosition) {
+      resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
+    }
     state.pointers.clear();
   }
   state.page = nextPage;
