@@ -1,4 +1,4 @@
 // Runtime catalog image storage configuration.
-// Empty by default: images are loaded from the site upload folder (assets/pages).
-// tools/build_deploy_bundle.py rewrites this file in external-assets bundles.
+// The public deploy bundle is R2/CDN-based and rewrites this file with the CDN URL.
+// An empty value here keeps local development compatible when assets/pages exists next to the site files.
 window.BARGIG_CATALOG_ASSET_BASE_URL = "";

@@ -106,11 +106,6 @@ ACTIONS: dict[str, Action] = {
         "מסנכרן assets/pages מול ה-bucket לפי r2.env.",
         ["tools/sync_r2_catalog_images.py"],
     ),
-    "bundle": Action(
-        "יצירת באנדל רגיל",
-        "יוצר dist/site-upload כולל תמונות מקומיות.",
-        ["tools/build_deploy_bundle.py"],
-    ),
     "bundle_r2": Action(
         "יצירת באנדל R2",
         "יוצר dist/site-upload-r2 כשהתמונות נטענות מה-CDN הקבוע.",

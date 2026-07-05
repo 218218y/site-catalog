@@ -1,67 +1,63 @@
 נכון לעכשיו האתר מוגדר להיות מוסתר מחיפוש גוגל
 
-התקנה מקומית
+התקנה מקומית ראשונה
 setup-windows.bat
 
 לוח שליטה נוח בדפדפן לכל פעולות הקטלוגים
 catalog-control-panel.bat
-חשוב: לא לפתוח את catalog-control-panel.html דרך start-server.bat או npx serve, כי שם אין API ולכן /api/state יחזיר 404.
-
-אחרי הוספת קובץ pdf של קטלוג חדש לתקיית site-catalog\assets\pdfs
-אפשר לעדכן את קובץ הקטלוגים אוטומטית עם
-sync-catalog-pdfs.bat
-
-אחר כך אפשר לערוך את הקטלוג החדש עם הפרטים כולל הקטגוריות והאם להריץ OCR בקובץ
-catalogs.config.json
-
-אפשר גם לערוך את זה דרך לוח השליטה: catalog-control-panel.bat
-בלוח השליטה אפשר לערוך id / title / description / category / subcategory / OCR, למחוק קטלוג מהרשימה, ולשנות סדר עם כפתורי למעלה/למטה.
-בשמירה הלוח מקבץ אוטומטית לפי category ואז subcategory, לפי הסדר הנוכחי ולא לפי א״ב. חצי ההפרדה של קטגוריה מזיזים קטגוריה שלמה, וחצי ההפרדה של תת־קטגוריה מזיזים תת־קטגוריה שלמה.
-שמירה בלוח השליטה מעדכנת גם catalogs.generated.* עבור קטלוגים שכבר הומרו, לכן שינויי תיאור/שם/סדר/מחיקה נראים באתר בלי רינדור מחדש. שינוי id גם מחליף את שם התיקייה תחת assets/pages ומעדכן catalogs.search-overrides.json אם קיים שם מפתח של ה-id הישן. קטלוג חדש עדיין צריך convert.
-
-אחר כך להמיר את הpdf שלא הומרו
-convert-catalogs.bat
-
-אם רוצים גם למחוק תיקיות קטלוגים שכבר נמחקו מ-catalogs.config.json בלי להמיר מחדש קטלוגים קיימים
-convert-catalogsdelete.bat
-
-אחר כך יצירת באנדל לאתר אחד כולל אחסון תמונות
-bundle-site.bat
-
-
-
-אפשרויות נוספות
-
 
 סדר עבודה מומלץ למסלול Netlify + Cloudflare R2
-1. convert-catalogs.bat  - אם נוספו/השתנו PDF או תמונות מקומיות
-2. sync-r2-images-preview.bat  - בדיקה יבשה מול bucket bargig-catalog
-3. sync-r2-images.bat  - העלאת תמונות חדשות/שהשתנו ומחיקת ישנות
-4. bundle-site-r2.bat  - יצירת תיקיית Netlify שמפנה לתמונות דרך https://cdn.bargig-furniture.com
+1. אחרי הוספת PDF חדש לתיקיית assets\pdfs מריצים:
+   sync-catalog-pdfs.bat
 
+2. עורכים את פרטי הקטלוג בלוח השליטה או בקובץ:
+   catalogs.config.json
 
-בדיקת סנכרון תמונות ל-R2 בלי לבצע שינוי אמיתי
+3. ממירים PDFים חדשים/שהשתנו לתמונות ואינדקס חיפוש:
+   convert-catalogs.bat
+
+4. בודקים מראש מה ישתנה ב-R2 בלי לבצע שינוי אמיתי:
+   sync-r2-images-preview.bat
+
+5. מסנכרנים תמונות ל-R2 בפועל:
+   sync-r2-images.bat
+
+6. יוצרים תיקיית העלאה ל-Netlify במסלול R2:
+   bundle-site-r2.bat
+
+7. מעלים ל-Netlify את תוכן התיקייה:
+   dist\site-upload-r2
+
+פקודות שימושיות נוספות
+
+בדיקת סנכרון תמונות ל-R2 בלי שינוי אמיתי
 sync-r2-images-preview.bat
 
-סנכרון תמונות ל-R2 בפועל: מעלה רק חדשות/שהשתנו ומוחק מה-bucket מה שכבר לא קיים מקומית
+סנכרון תמונות ל-R2 בפועל: מעלה חדשות/שהשתנו ומוחק מה-bucket מה שכבר לא קיים מקומית
 sync-r2-images.bat
 
-יצירת באנדל חלוק בין אתר ראשי לאחסון תמונות במיקום אחר
+סנכרון R2 בלי מחיקות
+sync-r2-images.bat --no-delete
+
+יצירת באנדל R2: האתר ב-Netlify והתמונות נטענות מ-Cloudflare R2
 bundle-site-r2.bat
 
-המרת pdf חדשים/חסרים בלי OCR לקטלוגים שאין בהם כיתוב אמיתי
+יצירת באנדל R2 עם ZIP נוסף
+bundle-site-r2.bat --zip
+
+המרת PDF חדשים/חסרים בלי OCR לקטלוגים שאין בהם כיתוב אמיתי
 convert-catalogs-no-ocr.bat
 
-המרה של כל pdf מחדש בהכרח(בלי למחוק קטלוג שכבר נמחק pdf שלו)
+המרה של כל PDF מחדש בהכרח, בלי למחוק קטלוג שכבר נמחק PDF שלו
 convert-catalogs-force.bat
 
-המרת pdf חדשים בלבד + מחיקת קטלוגים שנמחקו מתוך catalogs.config.json
+המרת PDF חדשים בלבד + מחיקת קטלוגים שנמחקו מתוך catalogs.config.json
 convert-catalogsdelete.bat
 
-המרה של כל pdf מחדש בהכרח + מחיקת קטלוגים שנמחקו מתוך catalogs.config.json
+המרה של כל PDF מחדש בהכרח + מחיקת קטלוגים שנמחקו מתוך catalogs.config.json
 convert-catalogs-deleteforce.bat
 
-המרה מחדש רק של זיהוי ocr
+רענון מחדש רק של זיהוי OCR/חיפוש
 refresh-ocr-search.bat
 
 שרת מקומי לאתר הראשי בלבד
@@ -69,10 +65,14 @@ start-server.bat
 או
 npx serve .
 
-לוח השליטה אינו עובד דרך שרת האתר הראשי. בשבילו מריצים catalog-control-panel.bat.
-מחיקה דרך לוח השליטה מסירה רק מהרשימה ומהאתר שנוצר, לא מוחקת PDF ולא מוחקת assets/pages. לניקוי תיקיות ישנות מריצים convert-catalogsdelete.bat.
+לוח השליטה אינו עובד דרך שרת האתר הראשי. בשבילו מריצים:
+catalog-control-panel.bat
 
-הגדרת אתר בנטפליי
+מחיקה דרך לוח השליטה מסירה רק מהרשימה ומהאתר שנוצר, לא מוחקת PDF ולא מוחקת assets/pages.
+לניקוי תיקיות תמונות ישנות מריצים:
+convert-catalogsdelete.bat
+
+הגדרת אתר ב-Netlify
 Site configuration / Domain management / Production domains
 
 bargig-furniture.com
@@ -83,4 +83,7 @@ Verify DNS configuration
 הגדרת OCR פר קטלוג
 בקובץ catalogs.config.json אפשר להוסיף לכל קטלוג שדה:
 "ocr": false
-ואז גם אם מריצים המרה רגילה על כל הקטלוגים, הקטלוג הזה לא יריץ OCR. ברירת המחדל היא true.
+ואז גם אם מריצים המרה רגילה, הקטלוג הזה לא יריץ OCR. ברירת המחדל היא true.
+
+הערת R2 חשובה
+קובץ r2.env נשאר מקומי בלבד ומכיל מפתחות גישה. לא מעלים אותו ל-Netlify ולא ל-GitHub.

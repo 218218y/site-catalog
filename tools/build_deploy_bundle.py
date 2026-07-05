@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-"""Create a clean Netlify upload folder for the static catalog website.
+"""Create a clean Netlify upload folder for the R2-backed static catalog website.
 
-The working project can contain PDFs, conversion tools, virtual environments,
-setup files and temporary folders. The Netlify upload folder should contain only
-what the browser needs:
-
-- the static site files
-- the generated catalog/search JavaScript
-- the catalog image storage runtime config
-- the converted catalog images under assets/pages, unless an external asset URL is supplied
+The project keeps PDFs, conversion tools, virtual environments, setup files and
+other work files locally. The Netlify upload folder should contain only what the
+browser needs for the public site. Catalog page images are not copied into the
+Netlify upload folder; they are served from Cloudflare R2/CDN through
+catalog-assets.config.js.
 
 Default output:
-    dist/site-upload
+    dist/site-upload-r2
 
 Examples:
     python tools/build_deploy_bundle.py
-    python tools/build_deploy_bundle.py --out dist/my-site
+    python tools/build_deploy_bundle.py --out dist/my-site-r2
     python tools/build_deploy_bundle.py --zip
     python tools/build_deploy_bundle.py --include-json
     python tools/build_deploy_bundle.py --external-assets-url https://cdn.example.com
@@ -103,17 +100,17 @@ def format_bytes(size: int) -> str:
 def normalize_base_url(url: str) -> str:
     value = str(url or "").strip()
     if not value:
-        return ""
+        raise ValueError("R2/CDN asset URL is required.")
     if not re.match(r"^[a-z][a-z0-9+.-]*://", value, flags=re.IGNORECASE):
-        raise ValueError(f"External asset URL must start with http:// or https://: {url}")
+        raise ValueError(f"R2/CDN asset URL must start with http:// or https://: {url}")
     return value if value.endswith("/") else f"{value}/"
 
 
 def asset_config_content(base_url: str) -> str:
     return (
         "// Runtime catalog image storage configuration.\n"
-        "// Empty value means: load images from the Netlify site upload folder.\n"
-        "// Non-empty value means: load relative catalog image paths from this external base URL.\n"
+        "// R2 deployment mode: catalog page images stay outside the Netlify upload folder.\n"
+        "// Relative image paths from catalogs.generated.* are resolved against this CDN/R2 base URL.\n"
         f"window.BARGIG_CATALOG_ASSET_BASE_URL = {json.dumps(base_url, ensure_ascii=False)};\n"
     )
 
@@ -172,20 +169,6 @@ def iter_files(directory: Path) -> Iterable[Path]:
             yield path
 
 
-def copy_tree(source: Path, target: Path) -> CopyStats:
-    files = 0
-    total_bytes = 0
-    target.mkdir(parents=True, exist_ok=True)
-    for source_file in iter_files(source):
-        relative = source_file.relative_to(source)
-        target_file = target / relative
-        target_file.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_file, target_file)
-        files += 1
-        total_bytes += source_file.stat().st_size
-    return CopyStats(files=files, bytes=total_bytes)
-
-
 def add_stats(left: CopyStats, right: CopyStats) -> CopyStats:
     return CopyStats(files=left.files + right.files, bytes=left.bytes + right.bytes)
 
@@ -242,6 +225,12 @@ def validate_static_references(root: Path) -> list[str]:
 
 
 def validate_catalog_assets(root: Path) -> list[str]:
+    """Validate local generated images before syncing them to R2, when present.
+
+    The R2 bundle never copies assets/pages into Netlify. This validation only
+    helps catch a stale or incomplete local assets/pages folder before the user
+    syncs it to Cloudflare R2.
+    """
     warnings: list[str] = []
     catalogs = load_generated_catalogs(root)
     if not catalogs:
@@ -287,25 +276,18 @@ def create_zip_from_folder(folder: Path, zip_path: Path) -> CopyStats:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Create a clean Netlify upload folder for the catalog website.")
-    parser.add_argument("--out", default=None, help="Output folder, relative to the project root by default")
+    parser = argparse.ArgumentParser(description="Create a clean Netlify upload folder for the R2-backed catalog website.")
+    parser.add_argument("--out", default="dist/site-upload-r2", help="Output folder, relative to the project root by default")
     parser.add_argument("--no-clean", action="store_true", help="Do not clear the output folder before copying")
     parser.add_argument("--zip", action="store_true", help="Also create a .zip file next to the output folder")
     parser.add_argument("--include-json", action="store_true", help="Also copy catalogs.generated.json and catalogs.search.json")
     parser.add_argument(
         "--external-assets-url",
-        nargs="?",
-        const=DEFAULT_R2_ASSET_BASE_URL,
-        default="",
+        default=DEFAULT_R2_ASSET_BASE_URL,
         help=(
-            "Create a site-only bundle that does not copy assets/pages, and load catalog images "
-            "from the supplied external base URL. If no URL is supplied, the Bargig R2 custom-domain CDN URL is used."
+            "Public CDN/R2 base URL for catalog images. The Netlify bundle is site-only and does not copy assets/pages. "
+            f"Default: {DEFAULT_R2_ASSET_BASE_URL}"
         ),
-    )
-    parser.add_argument(
-        "--allow-missing-pages",
-        action="store_true",
-        help="Create a local-images bundle even if assets/pages does not exist yet. The deployed viewer will need assets/pages to show catalog images.",
     )
     parser.add_argument(
         "--include-big-pages-viewer",
@@ -316,9 +298,10 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     args = parser.parse_args()
-    args.external_assets_url = normalize_base_url(args.external_assets_url) if args.external_assets_url else ""
-    if args.out is None:
-        args.out = "dist/site-upload-r2" if args.external_assets_url else "dist/site-upload"
+    try:
+        args.external_assets_url = normalize_base_url(args.external_assets_url)
+    except ValueError as exc:
+        parser.error(str(exc))
     return args
 
 
@@ -353,40 +336,32 @@ def main() -> int:
                 stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
 
         stats = add_stats(stats, write_asset_config(out_dir, args.external_assets_url))
-
-        pages_dir = root / "assets" / "pages"
-        using_external_assets = bool(args.external_assets_url)
-        if using_external_assets:
-            print(f"[assets] External catalog images: {args.external_assets_url}")
-            print("[assets] assets/pages was not copied into the Netlify upload folder.")
-        elif pages_dir.is_dir():
-            pages_stats = copy_tree(pages_dir, out_dir / "assets" / "pages")
-            stats = add_stats(stats, pages_stats)
-            print(f"[copy] assets/pages -> {rel_to_root(out_dir / 'assets' / 'pages')} ({pages_stats.files} files)")
-        elif args.allow_missing_pages:
-            print("[warn] assets/pages does not exist. Bundle created without catalog images.", file=sys.stderr)
-        else:
-            raise FileNotFoundError("assets/pages does not exist. Run convert-catalogs.bat first, then run bundle-site.bat.")
+        print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
+        print("[assets] assets/pages was intentionally not copied into the Netlify upload folder.")
 
         warnings = validate_static_references(root)
+        pages_dir = root / "assets" / "pages"
         if pages_dir.is_dir():
             warnings += validate_catalog_assets(root)
-        elif using_external_assets:
-            warnings.append("Local assets/pages does not exist, so the script could not verify that the R2 bucket contains every generated image.")
+        else:
+            warnings.append(
+                "Local assets/pages does not exist, so the script could not verify local images before R2 sync. "
+                "This is OK if the R2 bucket already contains the generated catalog images."
+            )
         for warning in warnings:
             print(f"[warn] {warning}", file=sys.stderr)
 
         print("\nDone.")
         print(f"Upload folder: {rel_to_root(out_dir)}")
         print(f"Copied: {stats.files} files, {format_bytes(stats.bytes)}")
-        excluded_note = "PDFs, conversion tools, setup scripts, virtualenv, README, config, and other project-only files"
+        excluded_note = (
+            "assets/pages catalog images stored in R2, PDFs, conversion tools, setup scripts, "
+            "virtualenv, README, config, and other project-only files"
+        )
         if not args.include_big_pages_viewer:
             excluded_note += ", including the local diagnostic big-pages viewer"
         print(f"Excluded: {excluded_note}.")
-        if args.external_assets_url:
-            print(f"Images: external mode, loaded from {args.external_assets_url}")
-        else:
-            print("Images: local mode, assets/pages is included in the Netlify upload folder when it exists.")
+        print(f"Images: R2/CDN mode, loaded from {args.external_assets_url}")
         print("Contact: direct Gmail compose link only; no mailto fallback, form, or serverless function is required.")
 
         if args.zip:
