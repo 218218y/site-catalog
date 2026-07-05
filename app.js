@@ -2384,6 +2384,16 @@ function clampSinglePan() {
   else state.panY = clampValue(state.panY, -metrics.overflowY, metrics.overflowY);
 }
 
+function shouldPreserveSingleManualPosition(options = {}) {
+  return (
+    state.viewerMode === "single" &&
+    options.keepZoom !== false &&
+    options.resetZoom !== true &&
+    options.resetPosition !== true &&
+    !isAutoViewerZoom()
+  );
+}
+
 function getLightboxScrollFrameAspect(frame) {
   if (!frame) return 1;
 
@@ -3146,7 +3156,7 @@ function setLightboxMode(mode, options = {}) {
   if (!state.catalog) return;
   const nextMode = mode === "scroll" ? "scroll" : "single";
   const wasScrollMode = state.viewerMode === "scroll";
-  const pageToKeep = state.page;
+  const pageToKeep = wasScrollMode ? syncCurrentLightboxScrollPageFromViewport() : state.page;
 
   if (nextMode === state.viewerMode) {
     syncViewerModeUi();
@@ -3158,6 +3168,7 @@ function setLightboxMode(mode, options = {}) {
 
   hideLightboxFloatingPreview();
   state.viewerMode = nextMode;
+  state.page = pageToKeep;
   setDefaultFitModeForViewerMode(nextMode);
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: nextMode === "single" });
@@ -3328,10 +3339,10 @@ function scrollToLightboxScrollPage(page, options = {}) {
   updateLightboxThumbs({ scrollIntoView: true });
 }
 
-function findCurrentLightboxScrollPage() {
-  if (!state.catalog || !els.lightboxScrollView || state.viewerMode !== "scroll") return;
+function getCurrentLightboxScrollPageFromViewport() {
+  if (!state.catalog || !els.lightboxScrollView || state.viewerMode !== "scroll") return state.page || 1;
   const frames = Array.from(els.lightboxScrollPages?.querySelectorAll(".lightbox-scroll-page-frame") || []);
-  if (!frames.length) return;
+  if (!frames.length) return state.page || 1;
 
   const containerRect = els.lightboxScrollView.getBoundingClientRect();
   const anchorY = containerRect.top + Math.max(110, els.lightboxScrollView.clientHeight * 0.32);
@@ -3358,6 +3369,16 @@ function findCurrentLightboxScrollPage() {
     }
   });
 
+  return clampPage(closestPage, state.catalog);
+}
+
+function syncCurrentLightboxScrollPageFromViewport() {
+  if (state.lightboxScrollRaf) {
+    window.cancelAnimationFrame(state.lightboxScrollRaf);
+    state.lightboxScrollRaf = 0;
+  }
+
+  const closestPage = getCurrentLightboxScrollPageFromViewport();
   if (closestPage !== state.page) {
     setLightboxPage(closestPage, {
       syncScroll: false,
@@ -3365,6 +3386,12 @@ function findCurrentLightboxScrollPage() {
       resetPosition: false
     });
   }
+  return closestPage;
+}
+
+function findCurrentLightboxScrollPage() {
+  if (!state.catalog || !els.lightboxScrollView || state.viewerMode !== "scroll") return;
+  syncCurrentLightboxScrollPageFromViewport();
 }
 
 function scheduleLightboxScrollPageUpdate() {
@@ -3495,7 +3522,7 @@ function setLightboxPage(page, options = {}) {
     hit = false,
     keepZoom = true,
     resetZoom = false,
-    resetPosition = state.viewerMode !== "scroll"
+    resetPosition = state.viewerMode === "single" ? isAutoViewerZoom() : false
   } = options;
   const nextPage = clampPage(page, state.catalog);
   const shouldResetZoom = resetZoom || keepZoom === false;
@@ -3507,11 +3534,13 @@ function setLightboxPage(page, options = {}) {
       state.zoom = AUTO_VIEWER_ZOOM;
     }
 
-    // Single-page mode needs a clean page origin. Scroll mode must not reset
-    // pan during manual zoom: the current page detector runs while the user is
-    // dragging/wheeling, and resetting pan there caused the visible jump.
+    // Auto zoom gets a clean page origin. Manual zoom keeps the same pan between
+    // pages, so moving with arrows or selecting a page does not reopen the next
+    // image unexpectedly higher/lower after the user already positioned it.
     if (shouldResetPosition) {
       resetImagePosition({ queueSingleFitOrigin: state.viewerMode === "single" });
+    } else if (shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition })) {
+      state.singleImageFitOriginPending = false;
     }
     state.pointers.clear();
   }
