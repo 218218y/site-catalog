@@ -400,7 +400,10 @@ main {
 
 .catalog-category-list {
   --catalog-category-gap-x: 42px;
-  --catalog-category-header-block-gap: 22px;
+  /* Gap between a category header that contains subcategory buttons and the
+     first subcategory row. 28px makes the focus outlines touch; 30px gives
+     ~2px air; 32px gives ~4px air. */
+  --catalog-category-header-block-gap: 32px;
   --catalog-card-gap: var(--catalog-category-gap-x);
   --catalog-layout-columns: 3;
   display: grid;
@@ -3284,7 +3287,11 @@ a.reader-home:focus-visible {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
   }
   .catalog-category-grid, .catalog-subcategory-grid { grid-template-columns: 1fr; width: 100%; }
-  .catalog-category-head-with-subcategories { grid-template-columns: 1fr; }
+  .catalog-category-head-with-subcategories {
+    grid-template-columns: minmax(104px, clamp(104px, 34%, 150px)) minmax(0, 1fr);
+    gap: 10px 12px;
+    align-items: start;
+  }
   .search-panel.global-search-popover {
     top: calc(var(--header-h) + 8px);
     left: 10px;
