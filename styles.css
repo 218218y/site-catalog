@@ -3499,6 +3499,37 @@ a.reader-home:focus-visible {
   top: var(--lightbox-top-safe-offset, 0px);
 }
 
+.viewer-zoom-indicator {
+  position: fixed;
+  z-index: 15;
+  top: 50%;
+  left: 50%;
+  min-width: 112px;
+  padding: 13px 22px;
+  border-radius: 18px;
+  color: rgba(255,255,255,0.94);
+  background: rgba(11,9,8,0.54);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 18px 56px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.12);
+  backdrop-filter: blur(14px);
+  font-size: clamp(1.15rem, 3.2vw, 2rem);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  direction: ltr;
+  unicode-bidi: isolate;
+  transform: translate(-50%, -50%) scale(.96);
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity .14s ease, transform .14s ease;
+}
+
+.viewer-zoom-indicator.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
 .viewer-auto-zoom-button {
   position: fixed;
   z-index: 12;
