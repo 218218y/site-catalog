@@ -183,7 +183,8 @@ img { max-width: 100%; display: block; }
   align-items: center;
   gap: 12px;
 }
-.brand-copy-link {
+.brand-copy-link,
+.brand-fullscreen-link {
   flex: 0 0 auto;
   width: 38px;
   min-width: 38px;
@@ -202,22 +203,42 @@ img { max-width: 100%; display: block; }
   cursor: pointer;
   transition: background .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.brand-copy-link svg {
+.brand-copy-link svg,
+.brand-fullscreen-link svg {
   width: 18px;
   height: 18px;
   display: block;
   fill: currentColor;
 }
 .brand-copy-link:hover,
-.brand-copy-link:focus-visible {
+.brand-copy-link:focus-visible,
+.brand-fullscreen-link:hover,
+.brand-fullscreen-link:focus-visible {
   color: var(--ink);
   border-color: rgba(145, 114, 93, 0.26);
   background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(232,213,199,0.86));
   box-shadow: 0 14px 30px rgba(70, 50, 36, 0.12), inset 0 1px 0 rgba(255,255,255,0.88);
   transform: translateY(-1px);
 }
-.brand-copy-link:active {
+.brand-copy-link:active,
+.brand-fullscreen-link:active {
   transform: translateY(0);
+}
+
+.brand-fullscreen-link .viewer-fullscreen-icon-exit {
+  display: none;
+}
+.brand-fullscreen-link[data-fullscreen-active="true"] {
+  color: #fff;
+  border-color: rgba(117, 88, 68, 0.30);
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  box-shadow: 0 12px 28px rgba(70, 50, 36, 0.16), inset 0 1px 0 rgba(255,255,255,0.16);
+}
+.brand-fullscreen-link[data-fullscreen-active="true"] .viewer-fullscreen-icon-enter {
+  display: none;
+}
+.brand-fullscreen-link[data-fullscreen-active="true"] .viewer-fullscreen-icon-exit {
+  display: block;
 }
 img[data-brand-logo="1"],
 img[data-wp-logo="1"],
@@ -3309,8 +3330,10 @@ a.reader-home:focus-visible {
   .top-nav { order: 0; flex-basis: 0; justify-content: flex-end; }
   .top-search-button svg { width: 18px; height: 18px; }
   .brand-lockup { gap: 7px; }
-  .brand-copy-link { width: 34px; min-width: 34px; min-height: 34px; }
-  .brand-copy-link svg { width: 17px; height: 17px; }
+  .brand-copy-link,
+  .brand-fullscreen-link { width: 34px; min-width: 34px; min-height: 34px; }
+  .brand-copy-link svg,
+  .brand-fullscreen-link svg { width: 17px; height: 17px; }
   .brand-mark { width: 110px; height: auto; }
   .brand-text small { display: none; }
   main, .site-footer { padding-inline: 10px; }

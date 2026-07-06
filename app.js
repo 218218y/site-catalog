@@ -212,6 +212,7 @@ const els = {
   catalogSearch: $("catalogSearch"),
   globalSearchOpen: $("globalSearchOpen"),
   headerCopyLink: $("headerCopyLink"),
+  headerFullscreenToggle: $("headerFullscreenToggle"),
   globalSearchClose: $("globalSearchClose"),
   globalSearchInput: $("globalSearchInput"),
   globalSearchResults: $("globalSearchResults"),
@@ -240,6 +241,7 @@ const els = {
   thumbsHotspot: $("thumbsHotspot"),
   lightboxScreenshot: $("lightboxScreenshot"),
   lightboxCopyLink: $("lightboxCopyLink"),
+  lightboxHomeLink: $("lightboxHomeLink"),
   lightboxPinTopBar: $("lightboxPinTopBar"),
   lightboxModeLabel: $("lightboxModeLabel"),
   viewerModeToggle: $("viewerModeToggle"),
@@ -3023,24 +3025,30 @@ function exitBrowserFullscreen() {
   return result && typeof result.then === "function" ? result : Promise.resolve();
 }
 
+function getFullscreenToggleButtons() {
+  return [els.headerFullscreenToggle, els.fullscreenToggle].filter(Boolean);
+}
+
 function syncFullscreenButtonUi() {
-  const button = els.fullscreenToggle;
-  if (!button) return;
+  const buttons = getFullscreenToggleButtons();
+  if (!buttons.length) return;
 
   const isActive = isBrowserFullscreenActive();
   const isSupported = isBrowserFullscreenSupported();
   const label = isActive ? "יציאה ממסך מלא" : "כניסה למסך מלא";
 
-  button.dataset.fullscreenActive = isActive ? "true" : "false";
-  button.setAttribute("aria-pressed", isActive ? "true" : "false");
-  button.setAttribute("aria-label", label);
-  setTooltipText(button, label, { updateDefault: true });
-  button.disabled = !isSupported && !isActive;
-  button.classList.toggle("hidden", !isSupported && !isActive);
+  buttons.forEach((button) => {
+    button.dataset.fullscreenActive = isActive ? "true" : "false";
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    button.setAttribute("aria-label", label);
+    setTooltipText(button, label, { updateDefault: true });
+    button.disabled = !isSupported && !isActive;
+    button.classList.toggle("hidden", !isSupported && !isActive);
+  });
 }
 
-async function toggleBrowserFullscreen() {
-  const button = els.fullscreenToggle;
+async function toggleBrowserFullscreen(sourceButton = null) {
+  const button = sourceButton || els.fullscreenToggle || els.headerFullscreenToggle;
   const wasActive = isBrowserFullscreenActive();
 
   try {
@@ -3056,8 +3064,24 @@ async function toggleBrowserFullscreen() {
     flashActionButton(button, message);
   } finally {
     syncFullscreenButtonUi();
-    showTopUiTemporarily(1400);
+    if (state.lightboxOpen) showTopUiTemporarily(1400);
   }
+}
+
+function returnToMainSiteFromLightbox(event = null) {
+  event?.preventDefault?.();
+  closeLightboxSearchScopeMenu();
+  closeLightboxCatalogMenu();
+
+  if (state.lightboxOpen) closeLightbox();
+
+  state.catalog = null;
+  state.page = 1;
+  els.catalogDetail?.classList.add("hidden");
+  els.catalogDetail?.classList.remove("in-view");
+  updateHash();
+  document.getElementById("catalogs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  syncFullscreenButtonUi();
 }
 
 
@@ -4512,13 +4536,15 @@ function attachEvents() {
   });
 
   els.headerCopyLink?.addEventListener("click", () => copyCurrentMainHeaderLink());
+  els.headerFullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.headerFullscreenToggle));
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
+  els.lightboxHomeLink?.addEventListener("click", returnToMainSiteFromLightbox);
   els.lightboxPinTopBar?.addEventListener("click", toggleTopUiPinned);
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
   els.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
   els.viewerModeToggle?.addEventListener("click", toggleLightboxMode);
-  els.fullscreenToggle?.addEventListener("click", toggleBrowserFullscreen);
+  els.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.fullscreenToggle));
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
   els.fitHeightBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_HEIGHT));
