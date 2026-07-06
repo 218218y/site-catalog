@@ -526,6 +526,47 @@ def iter_pdf_files() -> list[Path]:
     )
 
 
+def normalize_pdf_for_config(path_value: Any) -> str:
+    raw = str(path_value or "").strip().replace("\\", "/")
+    if not raw:
+        return ""
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = PROJECT_ROOT / candidate
+
+    project_root = PROJECT_ROOT.resolve(strict=False)
+    pdf_dir = PDF_DIR.resolve(strict=False)
+    resolved = candidate.resolve(strict=False)
+
+    try:
+        resolved.relative_to(pdf_dir)
+    except ValueError as exc:
+        raise ValueError(f"PDF must be inside {rel_to_root(PDF_DIR)}: {raw}") from exc
+
+    if resolved.suffix.lower() != ".pdf":
+        raise ValueError(f"PDF source must be a .pdf file: {raw}")
+
+    return resolved.relative_to(project_root).as_posix()
+
+
+def pdf_file_payload(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    relative_to_pdfs = path.relative_to(PDF_DIR).as_posix()
+    folder = path.parent.relative_to(PDF_DIR).as_posix()
+    return {
+        "path": rel_to_root(path),
+        "name": path.name,
+        "folder": "" if folder == "." else folder,
+        "label": relative_to_pdfs,
+        "size": stat.st_size,
+        "modifiedAt": stat.st_mtime,
+    }
+
+
+def pdf_files_payload() -> list[dict[str, Any]]:
+    return [pdf_file_payload(path) for path in iter_pdf_files()]
+
+
 def missing_pdf_count(config: list[dict[str, Any]]) -> int:
     configured = {normalized_project_path(item.get("pdf")) for item in config if item.get("pdf")}
     return sum(1 for path in iter_pdf_files() if normalized_project_path(path) not in configured)
@@ -585,6 +626,7 @@ def state_payload() -> dict[str, Any]:
             "pdfDir": rel_to_root(PDF_DIR),
             "pagesDir": rel_to_root(PAGES_DIR),
         },
+        "pdfFiles": pdf_files_payload(),
         "actions": [
             {"key": key, "label": action.label, "description": action.description}
             for key, action in ACTIONS.items()
@@ -619,13 +661,14 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
             raise ValueError(f"Duplicate original catalog id: {original_id}")
         if not pdf:
             raise ValueError(f"Catalog {catalog_id} is missing pdf")
+        normalized_pdf = normalize_pdf_for_config(pdf)
         row["id"] = catalog_id
         row["__original_id"] = original_id
         row["title"] = title or catalog_id
         row["description"] = str(row.get("description", ""))
         row["category"] = group_value(row.get("category", ""))
         row["subcategory"] = group_value(row.get("subcategory", row.get("subCategory", "")))
-        row["pdf"] = pdf.replace("\\", "/")
+        row["pdf"] = normalized_pdf
         row["ocr"] = catalog_ocr_enabled(row)
         row.pop("shareSlug", None)
         row.pop("status", None)
@@ -726,6 +769,9 @@ class ControlHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/state":
                 self.send_json(state_payload())
+                return
+            if path == "/api/pdfs":
+                self.send_json({"pdfs": pdf_files_payload(), "pdfDir": rel_to_root(PDF_DIR)})
                 return
             if path == "/api/jobs":
                 with jobs_lock:

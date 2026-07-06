@@ -115,7 +115,7 @@
     input:focus, textarea:focus { border-color: #93b4ff; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
     textarea { resize: vertical; line-height: 1.45; }
     .catalog-table-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--line); border-radius: 18px; }
-    table { width: 100%; border-collapse: collapse; min-width: 1860px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; min-width: 2020px; background: #fff; }
     th, td { padding: 10px 10px; border-bottom: 1px solid #edf1f7; text-align: right; vertical-align: middle; }
     th { position: sticky; top: 0; z-index: 2; background: #f8fbff; color: #344054; font-size: .9rem; }
     td input[type="text"] { padding: 8px 10px; border-radius: 10px; }
@@ -170,7 +170,25 @@
     .subcategory-input { min-width: 190px; }
     .id-input { min-width: 300px; direction: ltr; text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .88rem; }
     .id-cell { direction: ltr; text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; color: #475467; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pdf-cell { direction: ltr; text-align: left; font-size: .82rem; color: #667085; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-cell { direction: ltr; text-align: left; font-size: .82rem; color: #667085; max-width: 420px; }
+    .pdf-control { display: flex; align-items: center; gap: 8px; direction: ltr; min-width: 360px; }
+    .pdf-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-select-btn { flex: 0 0 auto; padding: 7px 10px; border-radius: 10px; font-size: .82rem; }
+    [hidden] { display: none !important; }
+    .modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 18px; background: rgba(15, 23, 42, .48); }
+    .pdf-picker { width: min(760px, 100%); max-height: min(760px, calc(100vh - 36px)); display: grid; grid-template-rows: auto auto auto 1fr auto; gap: 14px; padding: 20px; border-radius: 24px; background: #fff; box-shadow: 0 24px 80px rgba(15, 23, 42, .28); direction: rtl; }
+    .pdf-picker-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+    .pdf-picker-header h3 { margin: 0 0 5px; font-size: 1.18rem; }
+    .pdf-picker-header p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .pdf-picker-current { direction: ltr; text-align: left; color: #475467; background: #f8fbff; border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-list { border: 1px solid var(--line); border-radius: 16px; overflow: auto; min-height: 220px; max-height: 420px; background: #fbfcff; }
+    .pdf-option { width: 100%; display: grid; gap: 3px; padding: 12px 14px; border-radius: 0; border: 0; border-bottom: 1px solid #edf1f7; box-shadow: none; background: #fff; color: var(--text); text-align: left; direction: ltr; }
+    .pdf-option:hover { background: #eef4ff; transform: none; }
+    .pdf-option.selected { background: #dbe8ff; color: #1e3a8a; }
+    .pdf-option-name { font-weight: 800; white-space: normal; overflow-wrap: anywhere; }
+    .pdf-option-folder { color: var(--muted); font-size: .82rem; white-space: normal; overflow-wrap: anywhere; }
+    .pdf-picker-empty { padding: 22px; color: var(--muted); line-height: 1.65; text-align: right; direction: rtl; }
+    .pdf-picker-footer { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
     .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 9px; font-size: .82rem; font-weight: 700; white-space: nowrap; }
     .badge.ready { color: var(--ok); background: #ecfdf3; }
     .badge.partial, .badge.empty { color: var(--warn); background: #fffaeb; }
@@ -246,11 +264,11 @@
         <div class="card-header">
           <div>
             <h2>ניהול קטלוגים</h2>
-            <p>כאן עורכים כותרת, תיאור, קטגוריות, OCR, מחיקה וסדר הופעה. הסדר כאן נשמר ישירות ב־catalogs.config.json ומשפיע על סדר הקטלוגים באתר.</p>
+            <p>כאן עורכים כותרת, תיאור, קטגוריות, מקור PDF, OCR, מחיקה וסדר הופעה. הסדר כאן נשמר ישירות ב־catalogs.config.json ומשפיע על סדר הקטלוגים באתר.</p>
           </div>
         </div>
         <div class="card-body">
-          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. בעת שמירה הקטלוגים מקובצים לפי קטגוריה ואז לפי תת־קטגוריה, תוך שמירת הסדר היחסי הקיים בתוך כל קבוצה. אפשר להזיז קטגוריות שלמות ותתי־קטגוריות שלמות עם החצים בשורות ההפרדה, ואת סדר הקטלוגים בתוך אותה קבוצה עם החצים של הקטלוג עצמו. שינויי כותרת/תיאור/קטגוריה/סדר/מחיקה נשמרים גם לקבצי האתר שכבר נוצרו, כדי שתראה אותם באתר בלי רינדור מחדש. קטלוג חדש שעדיין לא הומר עדיין צריך “המרה רגילה”. לקטלוג שאין בו כיתוב אמיתי או ש־OCR מזיק לו, כבה OCR בשורת הקטלוג ושמור; ההמרה הרגילה תדלג על OCR רק עבורו. מחיקה כאן מסירה מהרשימה ומהאתר, אבל לא מוחקת את ה־PDF או את תיקיית התמונות — לזה יש פעולת ניקוי נפרדת.</div>
+          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. בעת שמירה הקטלוגים מקובצים לפי קטגוריה ואז לפי תת־קטגוריה, תוך שמירת הסדר היחסי הקיים בתוך כל קבוצה. אפשר להזיז קטגוריות שלמות ותתי־קטגוריות שלמות עם החצים בשורות ההפרדה, ואת סדר הקטלוגים בתוך אותה קבוצה עם החצים של הקטלוג עצמו. שינויי כותרת/תיאור/קטגוריה/סדר/מחיקה נשמרים גם לקבצי האתר שכבר נוצרו, כדי שתראה אותם באתר בלי רינדור מחדש. שינוי מקור PDF נשמר ל־catalogs.config.json, ואחריו צריך להריץ המרה רגילה כדי לרנדר את הקטלוג מהקובץ החדש. קטלוג חדש שעדיין לא הומר עדיין צריך “המרה רגילה”. לקטלוג שאין בו כיתוב אמיתי או ש־OCR מזיק לו, כבה OCR בשורת הקטלוג ושמור; ההמרה הרגילה תדלג על OCR רק עבורו. מחיקה כאן מסירה מהרשימה ומהאתר, אבל לא מוחקת את ה־PDF או את תיקיית התמונות — לזה יש פעולת ניקוי נפרדת.</div>
           <div class="catalog-controls">
             <div class="catalog-search-row">
               <input id="catalogFilter" type="search" placeholder="חיפוש לפי שם, תיאור, קטגוריה, id או PDF..." />
@@ -272,7 +290,7 @@
                   <th>תת־קטגוריה</th>
                   <th>סטטוס</th>
                   <th>ID<br><small>אנגלית קטנה ומקפים</small></th>
-                  <th>PDF</th>
+                  <th>מקור PDF</th>
                   <th>מחיקה</th>
                 </tr>
               </thead>
@@ -310,8 +328,27 @@
     </section>
   </main>
 
+  <div class="modal-backdrop" id="pdfPickerBackdrop" hidden>
+    <section class="pdf-picker" role="dialog" aria-modal="true" aria-labelledby="pdfPickerTitle">
+      <div class="pdf-picker-header">
+        <div>
+          <h3 id="pdfPickerTitle">בחירת מקור PDF</h3>
+          <p>בחר קובץ מתוך <span dir="ltr">assets/pdfs</span>. השינוי יישמר בפועל רק אחרי לחיצה על “שמור שינויים”.</p>
+        </div>
+        <button class="secondary" id="pdfPickerClose" type="button">סגור</button>
+      </div>
+      <div class="pdf-picker-current" id="pdfPickerCurrent"></div>
+      <input id="pdfPickerFilter" type="search" placeholder="חיפוש PDF לפי שם או תיקיית משנה..." />
+      <div class="pdf-list" id="pdfPickerList"></div>
+      <div class="pdf-picker-footer">
+        <button class="secondary" id="pdfPickerRefresh" type="button">רענן רשימת PDFים</button>
+        <span class="toast" id="pdfPickerStatus"></span>
+      </div>
+    </section>
+  </div>
+
   <script>
-    const state = { catalogs: [], actions: [], counts: {}, activeJobId: null, polling: null };
+    const state = { catalogs: [], actions: [], counts: {}, pdfFiles: [], pdfPickerCatalogIndex: null, activeJobId: null, polling: null };
     const els = {
       stats: document.getElementById('stats'),
       rows: document.getElementById('catalogRows'),
@@ -323,7 +360,15 @@
       jobLog: document.getElementById('jobLog'),
       jobHistory: document.getElementById('jobHistory'),
       refresh: document.getElementById('refreshState'),
-      serverAlert: document.getElementById('serverAlert')
+      serverAlert: document.getElementById('serverAlert'),
+      pdfPickerBackdrop: document.getElementById('pdfPickerBackdrop'),
+      pdfPickerTitle: document.getElementById('pdfPickerTitle'),
+      pdfPickerCurrent: document.getElementById('pdfPickerCurrent'),
+      pdfPickerFilter: document.getElementById('pdfPickerFilter'),
+      pdfPickerList: document.getElementById('pdfPickerList'),
+      pdfPickerClose: document.getElementById('pdfPickerClose'),
+      pdfPickerRefresh: document.getElementById('pdfPickerRefresh'),
+      pdfPickerStatus: document.getElementById('pdfPickerStatus')
     };
 
     function escapeHtml(value) {
@@ -366,6 +411,7 @@
       state.catalogs = (data.catalogs || []).map(catalog => ({ ...catalog, originalId: catalog.originalId || catalog.id }));
       state.actions = data.actions || [];
       state.counts = data.counts || {};
+      state.pdfFiles = data.pdfFiles || [];
       renderStats(state.counts);
       renderCatalogs();
       renderActions();
@@ -516,7 +562,12 @@
         <td><input class="subcategory-input" type="text" data-field="subcategory" value="${escapeHtml(catalog.subcategory || '')}" /></td>
         <td><span class="badge ${escapeHtml(status.state)}">${escapeHtml(status.label)}</span></td>
         <td><input class="id-input" type="text" data-field="id" value="${escapeHtml(catalog.id || '')}" pattern="[a-z0-9][a-z0-9-]*" title="ID חייב להיות באנגלית קטנה, מספרים ומקפים בלבד. ID מקורי: ${escapeHtml(catalog.originalId || catalog.id || '')}" /></td>
-        <td class="pdf-cell" title="${escapeHtml(catalog.pdf)}">${escapeHtml(catalog.pdf)}</td>
+        <td class="pdf-cell">
+          <div class="pdf-control">
+            <button class="pdf-select-btn secondary" type="button" data-pdf-select="catalog" title="בחר מקור PDF מתוך assets/pdfs">בחר PDF</button>
+            <span class="pdf-path" title="${escapeHtml(catalog.pdf)}">${escapeHtml(catalog.pdf)}</span>
+          </div>
+        </td>
         <td><button class="icon-btn delete-btn" type="button" data-delete="catalog" title="הסר את הקטלוג מהרשימה">מחק</button></td>
       </tr>`;
     }
@@ -548,6 +599,73 @@
         });
       });
       els.rows.innerHTML = rows.join('') || '<tr><td colspan="10">לא נמצאו קטלוגים.</td></tr>';
+    }
+
+    function pdfMatchesQuery(file, query) {
+      if (!query) return true;
+      return [file.path, file.name, file.folder, file.label].join(' ').toLowerCase().includes(query);
+    }
+
+    async function refreshPdfFiles() {
+      els.pdfPickerStatus.className = 'toast';
+      els.pdfPickerStatus.textContent = 'טוען PDFים מתוך assets/pdfs...';
+      try {
+        const data = await api('/api/pdfs');
+        state.pdfFiles = data.pdfs || [];
+        els.pdfPickerStatus.textContent = state.pdfFiles.length ? `${state.pdfFiles.length} PDFים נמצאו.` : 'לא נמצאו PDFים בתיקייה.';
+      } catch (error) {
+        els.pdfPickerStatus.textContent = error.message;
+        els.pdfPickerStatus.className = 'toast err';
+      }
+      renderPdfPickerList();
+    }
+
+    function openPdfPicker(index) {
+      const catalog = state.catalogs[index];
+      if (!catalog) return;
+      state.pdfPickerCatalogIndex = index;
+      els.pdfPickerTitle.textContent = `בחירת מקור PDF · ${catalog.title || catalog.id || `קטלוג #${index + 1}`}`;
+      els.pdfPickerCurrent.textContent = catalog.pdf ? `נוכחי: ${catalog.pdf}` : 'לא נבחר מקור PDF';
+      els.pdfPickerFilter.value = '';
+      els.pdfPickerStatus.className = 'toast';
+      els.pdfPickerStatus.textContent = '';
+      els.pdfPickerBackdrop.hidden = false;
+      renderPdfPickerList();
+      refreshPdfFiles();
+      setTimeout(() => els.pdfPickerFilter.focus(), 0);
+    }
+
+    function closePdfPicker() {
+      els.pdfPickerBackdrop.hidden = true;
+      state.pdfPickerCatalogIndex = null;
+    }
+
+    function renderPdfPickerList() {
+      const query = els.pdfPickerFilter.value.trim().toLowerCase();
+      const catalog = state.catalogs[state.pdfPickerCatalogIndex];
+      const currentPath = catalog && catalog.pdf;
+      const files = state.pdfFiles.filter(file => pdfMatchesQuery(file, query));
+      if (!files.length) {
+        els.pdfPickerList.innerHTML = `<div class="pdf-picker-empty">${state.pdfFiles.length ? 'לא נמצאו PDFים שמתאימים לחיפוש.' : 'לא נמצאו קבצי PDF בתוך assets/pdfs. הוסף לשם PDFים ואז לחץ “רענן רשימת PDFים”.'}</div>`;
+        return;
+      }
+      els.pdfPickerList.innerHTML = files.map(file => {
+        const selected = file.path === currentPath;
+        const folder = file.folder ? `assets/pdfs/${file.folder}` : 'assets/pdfs';
+        return `<button class="pdf-option ${selected ? 'selected' : ''}" type="button" data-pdf-path="${escapeHtml(file.path)}" aria-selected="${selected ? 'true' : 'false'}">
+          <span class="pdf-option-name">${escapeHtml(file.name)}</span>
+          <span class="pdf-option-folder">${escapeHtml(folder)}</span>
+        </button>`;
+      }).join('');
+    }
+
+    function choosePdf(path) {
+      const index = state.pdfPickerCatalogIndex;
+      if (!Number.isInteger(index) || !state.catalogs[index] || !path) return;
+      state.catalogs[index].pdf = path;
+      renderCatalogs();
+      closePdfPicker();
+      markUnsaved('מקור ה־PDF שונה. לחץ שמור שינויים כדי לעדכן את catalogs.config.json; אחר כך הרץ המרה רגילה כדי לבנות תמונות מה־PDF החדש.');
     }
 
     function syncCatalogFromInput(input) {
@@ -766,6 +884,10 @@
       const row = button.closest('tr');
       const index = Number(row && row.dataset.index);
       if (!Number.isInteger(index)) return;
+      if (button.dataset.pdfSelect) {
+        openPdfPicker(index);
+        return;
+      }
       if (button.dataset.move) moveCatalog(index, button.dataset.move);
       if (button.dataset.delete) deleteCatalog(index);
     });
@@ -777,6 +899,19 @@
     els.save.addEventListener('click', saveCatalogs);
     els.refresh.addEventListener('click', () => {
       loadState().catch(showLoadError);
+    });
+    els.pdfPickerFilter.addEventListener('input', renderPdfPickerList);
+    els.pdfPickerRefresh.addEventListener('click', refreshPdfFiles);
+    els.pdfPickerClose.addEventListener('click', closePdfPicker);
+    els.pdfPickerBackdrop.addEventListener('click', event => {
+      if (event.target === els.pdfPickerBackdrop) closePdfPicker();
+    });
+    els.pdfPickerList.addEventListener('click', event => {
+      const option = event.target.closest('[data-pdf-path]');
+      if (option) choosePdf(option.dataset.pdfPath);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !els.pdfPickerBackdrop.hidden) closePdfPicker();
     });
 
     function showLoadError(error) {
