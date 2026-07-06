@@ -195,7 +195,7 @@ dist\site-upload-r2.zip
 אחרי שהבאנדל נוצר, אפשר להעלות אותו ידנית עם:
 
 ```bat
-deploy-cloudflare-pages.bat
+bundle-site-r2-upload cloudflare.bat
 ```
 
 הקובץ מריץ בפועל את Wrangler על תיקיית הבאנדל הקבועה:
@@ -207,7 +207,7 @@ npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catl
 אם רוצים ליצור באנדל חדש ומיד להעלות באותה פעולה:
 
 ```bat
-deploy-cloudflare-pages.bat --build-first
+bundle-site-r2-upload cloudflare.bat --build-first
 ```
 
 אותה העלאה זמינה גם בלוח השליטה בכפתור “העלאת באנדל ל-Cloudflare”.
@@ -270,7 +270,7 @@ catalogs.generated.js              נתוני קטלוגים שנוצרו אוט
 catalogs.search.js                 אינדקס חיפוש שנוצר אוטומטית
 catalog-control-panel.bat          פתיחת לוח השליטה המקומי
 catalog-control-panel.html         ממשק לוח השליטה המקומי
-deploy-cloudflare-pages.bat       העלאת dist/site-upload-r2 ל-Cloudflare Pages
+bundle-site-r2-upload cloudflare.bat      העלאת dist/site-upload-r2 ל-Cloudflare Pages
 tools/catalog_control_server.py    שרת מקומי שמפעיל פעולות קבועות ומעדכן קבצי קטלוגים
 assets/pages                       תמונות מקומיות לסנכרון אל R2; לא מועתקות לבאנדל ההעלאה
 assets/pdfs                        קבצי PDF מקוריים; נשארים בפרויקט העבודה

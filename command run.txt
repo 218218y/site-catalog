@@ -26,14 +26,13 @@ catalog-control-panel.bat
    bundle-site-r2.bat
 
 7. מעלים ל-Cloudflare Pages את הבאנדל:
-   deploy-cloudflare-pages.bat
+bundle-site-r2-upload cloudflare.bat
 
 הפקודה שהקובץ מריץ בפועל:
 npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog --branch main
 
 אם רוצים ליצור באנדל חדש ומיד להעלות:
-deploy-cloudflare-pages.bat --build-first
-
+bundle-site-r2-upload cloudflare.bat --build-first
 
 
 פקודות שימושיות נוספות
