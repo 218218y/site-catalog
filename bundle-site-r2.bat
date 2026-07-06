@@ -24,6 +24,6 @@ if errorlevel 1 (
 
 echo.
 echo Ready to upload: dist\site-upload-r2
-echo Images are loaded from Cloudflare R2, not from the Netlify upload folder.
+echo Images are loaded from Cloudflare R2, not from the Cloudflare Pages upload folder.
 echo.
 pause

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Create a clean Netlify upload folder for the R2-backed static catalog website.
+"""Create a clean Cloudflare Pages upload folder for the R2-backed static catalog website.
 
 The project keeps PDFs, conversion tools, virtual environments, setup files and
-other work files locally. The Netlify upload folder should contain only what the
+other work files locally. The Cloudflare Pages upload folder should contain only what the
 browser needs for the public site. Catalog page images are not copied into the
-Netlify upload folder; they are served from Cloudflare R2/CDN through
+Cloudflare Pages upload folder; they are served from Cloudflare R2/CDN through
 catalog-assets.config.js.
 
 Default output:
@@ -109,7 +109,7 @@ def normalize_base_url(url: str) -> str:
 def asset_config_content(base_url: str) -> str:
     return (
         "// Runtime catalog image storage configuration.\n"
-        "// R2 deployment mode: catalog page images stay outside the Netlify upload folder.\n"
+        "// R2 deployment mode: catalog page images stay outside the Cloudflare Pages upload folder.\n"
         "// Relative image paths from catalogs.generated.* are resolved against this CDN/R2 base URL.\n"
         f"window.BARGIG_CATALOG_ASSET_BASE_URL = {json.dumps(base_url, ensure_ascii=False)};\n"
     )
@@ -227,7 +227,7 @@ def validate_static_references(root: Path) -> list[str]:
 def validate_catalog_assets(root: Path) -> list[str]:
     """Validate local generated images before syncing them to R2, when present.
 
-    The R2 bundle never copies assets/pages into Netlify. This validation only
+    The R2 bundle never copies assets/pages into the Cloudflare Pages upload folder. This validation only
     helps catch a stale or incomplete local assets/pages folder before the user
     syncs it to Cloudflare R2.
     """
@@ -276,7 +276,7 @@ def create_zip_from_folder(folder: Path, zip_path: Path) -> CopyStats:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Create a clean Netlify upload folder for the R2-backed catalog website.")
+    parser = argparse.ArgumentParser(description="Create a clean Cloudflare Pages upload folder for the R2-backed catalog website.")
     parser.add_argument("--out", default="dist/site-upload-r2", help="Output folder, relative to the project root by default")
     parser.add_argument("--no-clean", action="store_true", help="Do not clear the output folder before copying")
     parser.add_argument("--zip", action="store_true", help="Also create a .zip file next to the output folder")
@@ -285,7 +285,7 @@ def parse_args() -> argparse.Namespace:
         "--external-assets-url",
         default=DEFAULT_R2_ASSET_BASE_URL,
         help=(
-            "Public CDN/R2 base URL for catalog images. The Netlify bundle is site-only and does not copy assets/pages. "
+            "Public CDN/R2 base URL for catalog images. The Cloudflare Pages bundle is site-only and does not copy assets/pages. "
             f"Default: {DEFAULT_R2_ASSET_BASE_URL}"
         ),
     )
@@ -337,7 +337,7 @@ def main() -> int:
 
         stats = add_stats(stats, write_asset_config(out_dir, args.external_assets_url))
         print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
-        print("[assets] assets/pages was intentionally not copied into the Netlify upload folder.")
+        print("[assets] assets/pages was intentionally not copied into the Cloudflare Pages upload folder.")
 
         warnings = validate_static_references(root)
         pages_dir = root / "assets" / "pages"

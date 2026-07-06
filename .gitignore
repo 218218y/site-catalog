@@ -18,3 +18,4 @@ coverage/
 *.log
 r2.env
 favicon.ico
+*.png

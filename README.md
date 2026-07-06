@@ -1,14 +1,14 @@
-# אתר קטלוגים — Netlify + Cloudflare R2
+# אתר קטלוגים — Cloudflare Pages + Cloudflare R2
 
 הפרויקט מוגדר למסלול עבודה אחד וברור:
 
-- האתר הסטטי עצמו עולה ל-Netlify.
+- האתר הסטטי עצמו עולה ל-Cloudflare Pages דרך Wrangler.
 - תמונות עמודי הקטלוגים נשמרות ומוגשות דרך Cloudflare R2 / CDN.
-- תיקיית `assets/pages` נשארת תיקיית עבודה מקומית וסנכרון ל-R2; היא לא מועתקת לתיקיית ההעלאה ל-Netlify.
+- תיקיית `assets/pages` נשארת תיקיית עבודה מקומית וסנכרון ל-R2; היא לא מועתקת לתיקיית ההעלאה ל-Cloudflare Pages.
 
-## מה מעלים ל-Netlify
+## מה מעלים ל-Cloudflare Pages
 
-אחרי יצירת הבאנדל מעלים ל-Netlify רק את תוכן התיקייה:
+אחרי יצירת הבאנדל מעלים ל-Cloudflare Pages את תיקיית הבאנדל:
 
 ```bat
 dist\site-upload-r2
@@ -38,7 +38,7 @@ catalog-control-panel.bat
 - להריץ המרות, ניקוי קטלוגים לא רשומים ורענון OCR/חיפוש.
 - לבדוק סנכרון R2 בלי שינוי אמיתי.
 - לבצע סנכרון R2 בפועל.
-- ליצור באנדל R2 נקי להעלאה ל-Netlify.
+- ליצור באנדל R2 נקי ולהעלות אותו ל-Cloudflare Pages.
 
 הלוח הוא כלי עבודה מקומי בלבד ולא מיועד לעלות לאתר.
 
@@ -154,7 +154,7 @@ sync-r2-images.bat --no-delete
 sync-r2-images-preview.bat --show-all
 ```
 
-### 7. יצירת באנדל R2 ל-Netlify
+### 7. יצירת באנדל R2 ל-Cloudflare Pages
 
 ```bat
 bundle-site-r2.bat
@@ -166,7 +166,7 @@ bundle-site-r2.bat
 dist\site-upload-r2
 ```
 
-את תוכן התיקייה הזו מעלים ל-Netlify. הבאנדל לא מעתיק את `assets/pages`; התמונות נטענות מ-R2 דרך:
+את התיקייה הזו מעלים ל-Cloudflare Pages. הבאנדל לא מעתיק את `assets/pages`; התמונות נטענות מ-R2 דרך:
 
 ```text
 https://cdn.bargig-furniture.com/assets/pages/...
@@ -190,6 +190,28 @@ bundle-site-r2.bat --zip
 dist\site-upload-r2.zip
 ```
 
+### 8. העלאת הבאנדל ל-Cloudflare Pages
+
+אחרי שהבאנדל נוצר, אפשר להעלות אותו ידנית עם:
+
+```bat
+deploy-cloudflare-pages.bat
+```
+
+הקובץ מריץ בפועל את Wrangler על תיקיית הבאנדל הקבועה:
+
+```bat
+npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog --branch main
+```
+
+אם רוצים ליצור באנדל חדש ומיד להעלות באותה פעולה:
+
+```bat
+deploy-cloudflare-pages.bat --build-first
+```
+
+אותה העלאה זמינה גם בלוח השליטה בכפתור “העלאת באנדל ל-Cloudflare”.
+
 ## הגדרת R2
 
 בפעם הראשונה צור קובץ פרטי בשם `r2.env` לפי הדוגמה:
@@ -209,7 +231,7 @@ R2_PREFIX=assets/pages
 R2_PUBLIC_URL=https://cdn.bargig-furniture.com
 ```
 
-`r2.env` מכיל מפתחות גישה. לא מעלים אותו ל-Netlify ולא ל-GitHub.
+`r2.env` מכיל מפתחות גישה. לא מעלים אותו ל-Cloudflare Pages ולא ל-GitHub.
 
 ## בדיקת תקינות לפני העלאה
 
@@ -248,14 +270,16 @@ catalogs.generated.js              נתוני קטלוגים שנוצרו אוט
 catalogs.search.js                 אינדקס חיפוש שנוצר אוטומטית
 catalog-control-panel.bat          פתיחת לוח השליטה המקומי
 catalog-control-panel.html         ממשק לוח השליטה המקומי
+deploy-cloudflare-pages.bat       העלאת dist/site-upload-r2 ל-Cloudflare Pages
 tools/catalog_control_server.py    שרת מקומי שמפעיל פעולות קבועות ומעדכן קבצי קטלוגים
-assets/pages                       תמונות מקומיות לסנכרון אל R2; לא מועתקות ל-Netlify
+assets/pages                       תמונות מקומיות לסנכרון אל R2; לא מועתקות לבאנדל ההעלאה
 assets/pdfs                        קבצי PDF מקוריים; נשארים בפרויקט העבודה
-bundle-site-r2.bat                 יצירת תיקיית העלאה נקייה ל-Netlify עם תמונות מ-R2
+bundle-site-r2.bat                 יצירת תיקיית העלאה נקייה ל-Cloudflare Pages עם תמונות מ-R2
 sync-r2-images-preview.bat         בדיקת תכנון סנכרון R2 בלי שינוי אמיתי
 sync-r2-images.bat                 סנכרון R2 בפועל
 r2.env.example                     תבנית להגדרת Cloudflare R2 מקומית
-tools/build_deploy_bundle.py       בניית תיקיית ההעלאה ל-Netlify במסלול R2 בלבד
+tools/build_deploy_bundle.py       בניית תיקיית ההעלאה ל-Cloudflare Pages במסלול R2 בלבד
+tools/deploy_cloudflare_pages.py  כלי העלאה קבוע ל-Cloudflare Pages דרך Wrangler
 tools/sync_r2_catalog_images.py    כלי הסנכרון מול Cloudflare R2 ללא תלות ב-AWS CLI
 sync-catalog-pdfs.bat              סריקת assets/pdfs והוספת PDFים חסרים לרשימה
 convert-catalogs.bat               המרת PDF לתמונות ועדכון נתוני קטלוגים

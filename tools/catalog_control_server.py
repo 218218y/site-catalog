@@ -106,6 +106,11 @@ ACTIONS: dict[str, Action] = {
         "יוצר dist/site-upload-r2 כשהתמונות נטענות מה-CDN הקבוע.",
         ["tools/build_deploy_bundle.py", "--external-assets-url", "https://cdn.bargig-furniture.com"],
     ),
+    "cloudflare_pages_deploy": Action(
+        "העלאת באנדל ל-Cloudflare",
+        "מעלה את dist/site-upload-r2 ל-Cloudflare Pages בפרויקט bargig-catlog בענף main. צור באנדל R2 לפני ההעלאה אם שינית את האתר.",
+        ["tools/deploy_cloudflare_pages.py"],
+    ),
 }
 
 

@@ -25,9 +25,14 @@ catalog-control-panel.bat
 6. יוצרים תיקיית העלאה לשרת אתר באנדל:
    bundle-site-r2.bat
 
-7. מעלים לשרת אתר את תוכן התיקייה    dist\site-upload-r2
-פקודה להעלות לקלאוד
-npx wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog --branch main
+7. מעלים ל-Cloudflare Pages את הבאנדל:
+   deploy-cloudflare-pages.bat
+
+הפקודה שהקובץ מריץ בפועל:
+npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog --branch main
+
+אם רוצים ליצור באנדל חדש ומיד להעלות:
+deploy-cloudflare-pages.bat --build-first
 
 
 
@@ -64,7 +69,7 @@ catalog-control-panel.bat
 לניקוי תיקיות תמונות ישנות מריצים:
 convert-catalogsdelete.bat
 
-הגדרת אתר ב-Netlify
+הגדרת אתר ב-Cloudflare Pages
 Site configuration / Domain management / Production domains
 
 bargig-furniture.com
@@ -77,4 +82,4 @@ Verify DNS configuration
 ואז גם אם מריצים המרה רגילה, הקטלוג הזה לא יריץ OCR. ברירת המחדל היא true. אין צורך בפקודת המרה גלובלית בלי OCR.
 
 הערת R2 חשובה
-קובץ r2.env נשאר מקומי בלבד ומכיל מפתחות גישה. לא מעלים אותו ל-Netlify ולא ל-GitHub.
+קובץ r2.env נשאר מקומי בלבד ומכיל מפתחות גישה. לא מעלים אותו ל-Cloudflare Pages ולא ל-GitHub.
