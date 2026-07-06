@@ -15,6 +15,10 @@
   let tooltip = null;
   let activeTarget = null;
   let hideTimer = 0;
+  let suppressTimer = 0;
+  let suppressUntil = 0;
+  let lastPointerClientX = null;
+  let lastPointerClientY = null;
   let observer = null;
   let initialized = false;
 
@@ -118,7 +122,12 @@
     tooltip.style.setProperty("--site-tooltip-arrow-x", `${Math.round(arrowLeft)}px`);
   }
 
+  function isTooltipSuppressed() {
+    return Date.now() < suppressUntil;
+  }
+
   function showTooltip(target) {
+    if (isTooltipSuppressed()) return;
     if (!shouldUseTooltip(target)) return;
 
     window.clearTimeout(hideTimer);
@@ -152,6 +161,10 @@
   }
 
   function refreshActiveTooltip() {
+    if (isTooltipSuppressed()) {
+      hideTooltip();
+      return;
+    }
     if (!activeTarget || !tooltip) return;
     const text = getTooltipText(activeTarget);
     if (!text) {
@@ -194,14 +207,57 @@
     setTooltipText(element, defaultText, { updateDefault: true });
   }
 
+  function rememberPointerPosition(event) {
+    const clientX = Number(event?.clientX);
+    const clientY = Number(event?.clientY);
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+
+    lastPointerClientX = clientX;
+    lastPointerClientY = clientY;
+  }
+
+  function tooltipTargetAtLastPointer() {
+    const clientX = Number(lastPointerClientX);
+    const clientY = Number(lastPointerClientY);
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+    if (clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) return null;
+
+    return closestTooltipTarget(document.elementFromPoint(clientX, clientY));
+  }
+
+  function restoreTooltipAfterSuppression() {
+    if (isTooltipSuppressed()) return;
+    const target = tooltipTargetAtLastPointer();
+    if (target) showTooltip(target);
+  }
+
+  function suppressTooltips(duration = 250, options = {}) {
+    const { restoreAfter = true } = options;
+    const delay = Math.max(0, Number(duration) || 0);
+    suppressUntil = Math.max(suppressUntil || 0, Date.now() + delay);
+    hideTooltip();
+
+    window.clearTimeout(suppressTimer);
+    suppressTimer = window.setTimeout(() => {
+      suppressTimer = 0;
+      if (restoreAfter) restoreTooltipAfterSuppression();
+    }, delay + 20);
+  }
+
   function handlePointerOver(event) {
-    if (event.pointerType === "touch") return;
+    rememberPointerPosition(event);
+    if (event.pointerType === "touch" || isTooltipSuppressed()) return;
     const target = closestTooltipTarget(event.target);
     if (!target || target === activeTarget) return;
     showTooltip(target);
   }
 
+  function handlePointerMove(event) {
+    rememberPointerPosition(event);
+  }
+
   function handlePointerOut(event) {
+    rememberPointerPosition(event);
     if (!activeTarget) return;
     const related = asElement(event.relatedTarget);
     if (related && activeTarget.contains(related)) return;
@@ -263,6 +319,7 @@
     observeTooltipChanges();
 
     document.addEventListener("pointerover", handlePointerOver, true);
+    document.addEventListener("pointermove", handlePointerMove, true);
     document.addEventListener("pointerout", handlePointerOut, true);
     document.addEventListener("focusin", handleFocusIn, true);
     document.addEventListener("focusout", handleFocusOut, true);
@@ -277,7 +334,9 @@
     getText: getTooltipText,
     getDefaultText: getDefaultTooltipText,
     setText: setTooltipText,
-    restoreDefault: restoreDefaultTooltip
+    restoreDefault: restoreDefaultTooltip,
+    hide: hideTooltip,
+    suppress: suppressTooltips
   };
 
   if (document.body) {

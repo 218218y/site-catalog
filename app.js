@@ -1931,9 +1931,14 @@ function restoreSearchFloatingPreviewAfterSuppression() {
   showSearchFloatingPreview(target);
 }
 
+function suppressSearchFloatingTooltip(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
+  window.BargigTooltips?.suppress?.(duration, options);
+}
+
 function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
   const { restoreAfter = true } = options;
   const delay = Math.max(0, Number(duration) || 0);
+  suppressSearchFloatingTooltip(delay, { restoreAfter });
   state.searchPreviewSuppressUntil = Math.max(
     state.searchPreviewSuppressUntil || 0,
     Date.now() + delay
