@@ -713,6 +713,8 @@ main {
   margin: 0;
   padding: clamp(14px, 2vw, 22px);
   overflow: visible;
+  overscroll-behavior: contain;
+  isolation: isolate;
   background: rgba(255, 252, 249, 0.96);
   border-color: rgba(255,255,255,0.94);
   box-shadow: 0 30px 88px rgba(37, 25, 16, 0.22), inset 0 1px 0 rgba(255,255,255,0.9);
@@ -856,7 +858,7 @@ main {
 }
 .global-search-scope-wrap {
   position: absolute;
-  z-index: 4;
+  z-index: 70;
   top: 50%;
   left: var(--global-search-control-inset);
   width: var(--global-search-scope-width);
@@ -940,12 +942,13 @@ main {
 }
 .global-search-scope-menu {
   position: absolute;
-  z-index: 90;
+  z-index: 120;
   top: calc(100% + 10px);
   left: 0;
   width: min(270px, calc(100vw - 42px));
   max-height: min(430px, calc(100vh - 130px));
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 8px;
   border: 1px solid rgba(110, 86, 70, 0.16);
   border-radius: 22px;
@@ -2616,6 +2619,7 @@ a.reader-home:focus-visible {
   gap: var(--reader-search-result-gap);
   max-height: min(520px, calc(100vh - 78px));
   overflow: auto;
+  overscroll-behavior: contain;
   margin: 8px auto 12px;
   padding: 10px;
   border: 1px solid rgba(255,255,255,0.1);

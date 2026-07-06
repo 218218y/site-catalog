@@ -146,6 +146,7 @@ const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
 const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const LIGHTBOX_SCROLL_PAGE_SYNC_LOCK_MS = 520;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
+const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 
 const state = {
   catalog: null,
@@ -195,7 +196,11 @@ const state = {
   categoryFocusTimer: 0,
   categoryFocusTargetId: "",
   categoryNavFitRaf: 0,
-  catalogScrollTopButtonRaf: 0
+  catalogScrollTopButtonRaf: 0,
+  searchPreviewSuppressUntil: 0,
+  searchPreviewSuppressTimer: 0,
+  searchPreviewPointerClientX: null,
+  searchPreviewPointerClientY: null
 };
 
 const els = {
@@ -1865,6 +1870,83 @@ function hideSearchFloatingPreview() {
   els.searchFloatingPreview?.classList.remove("visible");
 }
 
+function isGlobalSearchScopeMenuOpen() {
+  return Boolean(els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden"));
+}
+
+function isLightboxSearchScopeMenuOpen() {
+  return Boolean(els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden"));
+}
+
+function rememberSearchPreviewPointer(event) {
+  const clientX = Number(event?.clientX);
+  const clientY = Number(event?.clientY);
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+
+  state.searchPreviewPointerClientX = clientX;
+  state.searchPreviewPointerClientY = clientY;
+}
+
+function searchPreviewTargetBelongsToOpenResults(target) {
+  if (!target || !target.isConnected) return false;
+
+  if (els.globalSearchResults?.contains(target)) {
+    return isGlobalSearchPanelOpen() && !els.globalSearchResults.classList.contains("hidden");
+  }
+
+  if (els.lightboxSearchResults?.contains(target)) {
+    return state.lightboxOpen && !els.lightboxSearchResults.classList.contains("hidden");
+  }
+
+  return false;
+}
+
+function isSearchPreviewBlockedByOpenMenu(target) {
+  if (els.globalSearchResults?.contains(target) && isGlobalSearchScopeMenuOpen()) return true;
+  if (els.lightboxSearchResults?.contains(target) && isLightboxSearchScopeMenuOpen()) return true;
+  return false;
+}
+
+function getSearchPreviewTargetAtLastPointer() {
+  const clientX = Number(state.searchPreviewPointerClientX);
+  const clientY = Number(state.searchPreviewPointerClientY);
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+  if (clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) return null;
+
+  const element = document.elementFromPoint(clientX, clientY);
+  const target = element?.closest?.("[data-search-preview-src]");
+  return searchPreviewTargetBelongsToOpenResults(target) ? target : null;
+}
+
+function isSearchPreviewSuppressed() {
+  return Date.now() < (state.searchPreviewSuppressUntil || 0);
+}
+
+function restoreSearchFloatingPreviewAfterSuppression() {
+  if (isSearchPreviewSuppressed() || !hasHoverPointer()) return;
+
+  const target = getSearchPreviewTargetAtLastPointer();
+  if (!target || isSearchPreviewBlockedByOpenMenu(target)) return;
+
+  showSearchFloatingPreview(target);
+}
+
+function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
+  const { restoreAfter = true } = options;
+  const delay = Math.max(0, Number(duration) || 0);
+  state.searchPreviewSuppressUntil = Math.max(
+    state.searchPreviewSuppressUntil || 0,
+    Date.now() + delay
+  );
+  hideSearchFloatingPreview();
+
+  window.clearTimeout(state.searchPreviewSuppressTimer);
+  state.searchPreviewSuppressTimer = window.setTimeout(() => {
+    state.searchPreviewSuppressTimer = 0;
+    if (restoreAfter) restoreSearchFloatingPreviewAfterSuppression();
+  }, delay + 20);
+}
+
 function searchPreviewPageLabel(target) {
   return String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
 }
@@ -1897,6 +1979,9 @@ function positionSearchFloatingPreview(target) {
 
 function showSearchFloatingPreview(target) {
   if (!target || !els.searchFloatingPreview || !els.searchFloatingPreviewImage) return;
+  if (!searchPreviewTargetBelongsToOpenResults(target)) return;
+  if (isSearchPreviewSuppressed()) return;
+  if (isSearchPreviewBlockedByOpenMenu(target)) return;
 
   const src = String(target.dataset.searchPreviewSrc || "").trim();
   if (!src) return;
@@ -1916,17 +2001,82 @@ function bindSearchFloatingPreviewEvents(container) {
 
   container.querySelectorAll("[data-search-preview-src]").forEach((target) => {
     target.addEventListener("pointerenter", (event) => {
-      if (!hasHoverPointer() || isTouchLikePointer(event)) return;
+      rememberSearchPreviewPointer(event);
+      if (!hasHoverPointer() || isTouchLikePointer(event) || isSearchPreviewSuppressed()) return;
       showSearchFloatingPreview(target);
     });
     target.addEventListener("pointermove", (event) => {
+      rememberSearchPreviewPointer(event);
       if (!hasHoverPointer() || isTouchLikePointer(event)) return;
+      if (isSearchPreviewSuppressed()) {
+        hideSearchFloatingPreview();
+        return;
+      }
       positionSearchFloatingPreview(target);
     });
-    target.addEventListener("pointerleave", hideSearchFloatingPreview);
+    target.addEventListener("pointerleave", (event) => {
+      rememberSearchPreviewPointer(event);
+      hideSearchFloatingPreview();
+    });
     target.addEventListener("focus", () => showSearchFloatingPreview(target));
     target.addEventListener("blur", hideSearchFloatingPreview);
   });
+}
+
+function handleSearchPreviewScrollIntent(event) {
+  rememberSearchPreviewPointer(event);
+  suppressSearchFloatingPreview();
+}
+
+function normalizedWheelDeltaY(event, scrollTarget) {
+  const rawDelta = Number(event?.deltaY) || 0;
+  if (!rawDelta) return 0;
+  if (event.deltaMode === 1) return rawDelta * 16;
+  if (event.deltaMode === 2) return rawDelta * Math.max(1, scrollTarget?.clientHeight || window.innerHeight || 1);
+  return rawDelta;
+}
+
+function globalSearchWheelTarget(eventTarget) {
+  if (isGlobalSearchScopeMenuOpen() && els.globalSearchScopeMenu?.contains(eventTarget)) {
+    return els.globalSearchScopeMenu;
+  }
+
+  if (els.globalSearchResults && !els.globalSearchResults.classList.contains("hidden")) {
+    return els.globalSearchResults;
+  }
+
+  return null;
+}
+
+function scrollElementByWheel(element, event) {
+  if (!element) return false;
+
+  const deltaY = normalizedWheelDeltaY(event, element);
+  if (!deltaY) return false;
+
+  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
+  const nextScrollTop = clampValue(element.scrollTop + deltaY, 0, maxScrollTop);
+  const didMove = Math.abs(nextScrollTop - element.scrollTop) > 0.5;
+
+  if (didMove) element.scrollTop = nextScrollTop;
+  return true;
+}
+
+function handleGlobalSearchPanelWheel(event) {
+  if (!isGlobalSearchPanelOpen() || !els.catalogSearch?.contains(event.target)) return;
+
+  handleSearchPreviewScrollIntent(event);
+
+  const scrollTarget = globalSearchWheelTarget(event.target);
+  if (scrollTarget) {
+    scrollElementByWheel(scrollTarget, event);
+  }
+
+  // The search panel floats above the site. Wheel gestures inside its frame should
+  // never leak to the page behind it, including when the inner results list is at
+  // its top/bottom edge or the pointer is over the panel padding/header.
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 function updateLightboxSearchResultsLayout(count = 0) {
@@ -4229,6 +4379,7 @@ function attachEvents() {
 
   els.globalSearchScopeToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
+    hideSearchFloatingPreview();
     closeDetailCatalogMenu();
     closeLightboxCatalogMenu();
     closeLightboxSearchScopeMenu();
@@ -4244,6 +4395,13 @@ function attachEvents() {
     setGlobalSearchCategory(button.dataset.globalSearchCategory);
     els.globalSearchInput?.focus();
   });
+  els.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: false });
+  els.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  els.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  els.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
+  els.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  els.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
+  els.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
 
   els.lightboxSearchInput?.addEventListener("input", () => renderLightboxSearchResults(els.lightboxSearchInput.value));
   els.lightboxSearchInput?.addEventListener("focus", () => {
@@ -4268,6 +4426,7 @@ function attachEvents() {
 
   els.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
+    hideSearchFloatingPreview();
     closeDetailCatalogMenu();
     closeLightboxCatalogMenu();
     const isOpen = !els.lightboxSearchScopeMenu?.classList.contains("hidden");
