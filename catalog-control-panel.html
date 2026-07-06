@@ -280,7 +280,7 @@
           </div>
         </div>
         <div class="card-body">
-          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. בעת שמירה הקטלוגים מקובצים לפי קטגוריה ואז לפי תת־קטגוריה, תוך שמירת הסדר היחסי הקיים בתוך כל קבוצה. אפשר להזיז קטגוריות שלמות ותתי־קטגוריות שלמות עם החצים בשורות ההפרדה, ואת סדר הקטלוגים בתוך אותה קבוצה עם החצים של הקטלוג עצמו. שינויי כותרת/תיאור/קטגוריה/סדר/מחיקה נשמרים גם לקבצי האתר שכבר נוצרו, כדי שתראה אותם באתר בלי רינדור מחדש. שינוי מקור PDF נעשה דרך חלון בחירת קובץ רגיל של Windows: בחר PDF, ואם צריך אפשר לשנות לו שם בחלון לפני הבחירה. השרת שומר את הקובץ בצורה מבוקרת בתוך assets/pdfs, והשינוי ל־catalogs.config.json נשמר בפועל רק אחרי “שמור שינויים”. אחרי שינוי מקור PDF צריך להריץ המרה רגילה כדי לרנדר את הקטלוג מהקובץ החדש. קטלוג חדש שעדיין לא הומר עדיין צריך “המרה רגילה”. לקטלוג שאין בו כיתוב אמיתי או ש־OCR מזיק לו, כבה OCR בשורת הקטלוג ושמור; ההמרה הרגילה תדלג על OCR רק עבורו. מחיקה יכולה להסיר רק מהרשימה, או גם למחוק פיזית את ה־PDF ותיקיית התמונות שלו מתוך assets/pages — הבחירה נעשית בחלון המחיקה.</div>
+          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. בעת שמירה הקטלוגים מקובצים לפי קטגוריה ואז לפי תת־קטגוריה, תוך שמירת הסדר היחסי הקיים בתוך כל קבוצה. אפשר להזיז קטגוריות שלמות ותתי־קטגוריות שלמות עם החצים בשורות ההפרדה, ואת סדר הקטלוגים בתוך אותה קבוצה עם החצים של הקטלוג עצמו. שינויי כותרת/תיאור/קטגוריה/סדר/מחיקה נשמרים גם לקבצי האתר שכבר נוצרו, כדי שתראה אותם באתר בלי רינדור מחדש. שינוי מקור PDF נעשה דרך חלון בחירת קובץ מקומי שנפתח כברירת מחדל בתוך assets/pdfs. אפשר לבחור PDF שכבר נמצא שם גם אם הוא עדיין לא משויך לקטלוג, ואפשר לשנות שם לקובץ בחלון ואז לבחור אותו. קובץ חיצוני מועתק בצורה מבוקרת לתוך assets/pdfs, והשינוי ל־catalogs.config.json נשמר בפועל רק אחרי “שמור שינויים”. אחרי שינוי מקור PDF צריך להריץ המרה רגילה כדי לרנדר את הקטלוג מהקובץ החדש. קטלוג חדש שעדיין לא הומר עדיין צריך “המרה רגילה”. לקטלוג שאין בו כיתוב אמיתי או ש־OCR מזיק לו, כבה OCR בשורת הקטלוג ושמור; ההמרה הרגילה תדלג על OCR רק עבורו. מחיקה יכולה להסיר רק מהרשימה, או גם למחוק פיזית את ה־PDF ותיקיית התמונות שלו מתוך assets/pages — הבחירה נעשית בחלון המחיקה.</div>
           <div class="catalog-controls">
             <div class="catalog-search-row">
               <input id="catalogFilter" type="search" placeholder="חיפוש לפי שם, תיאור, קטגוריה, id או PDF..." />
@@ -577,7 +577,7 @@
         <td><input class="id-input" type="text" data-field="id" value="${escapeHtml(catalog.id || '')}" pattern="[a-z0-9][a-z0-9-]*" title="ID חייב להיות באנגלית קטנה, מספרים ומקפים בלבד. ID מקורי: ${escapeHtml(catalog.originalId || catalog.id || '')}" /></td>
         <td class="pdf-cell">
           <div class="pdf-control">
-            <button class="pdf-select-btn secondary" type="button" data-pdf-select="catalog" title="בחר PDF בחלון קובץ רגיל ושמור אותו בתוך assets/pdfs">בחר PDF</button>
+            <button class="pdf-select-btn secondary" type="button" data-pdf-select="catalog" title="בחר PDF בחלון מקומי שנפתח כברירת מחדל בתוך assets/pdfs">בחר PDF</button>
             <span class="pdf-path" title="${escapeHtml(catalog.pdf)}">${escapeHtml(catalog.pdf)}</span>
           </div>
         </td>
@@ -634,12 +634,50 @@
       return data;
     }
 
-    function openPdfFileDialog(index) {
+    function applyPdfSelectionPayload(payload, index) {
+      const pdfPath = payload.pdf && payload.pdf.path;
+      if (!pdfPath) throw new Error('השרת לא החזיר נתיב PDF תקין');
+      state.catalogs[index].pdf = pdfPath;
+      state.pdfFiles = payload.pdfFiles || state.pdfFiles;
+      if (payload.state && payload.state.counts) {
+        state.counts = payload.state.counts;
+        renderStats(state.counts);
+      }
+      renderCatalogs();
+      const statusLabels = {
+        selected: 'נבחר PDF מתוך assets/pdfs.',
+        existing: 'נבחר PDF שכבר נמצא בתוך assets/pdfs.',
+        copied: 'ה־PDF הועתק אל assets/pdfs.',
+        created: 'ה־PDF נשמר בתוך assets/pdfs.'
+      };
+      const statusText = statusLabels[payload.pdf.status] || 'מקור ה־PDF עודכן.';
+      markUnsaved(`${statusText} לחץ שמור שינויים כדי לעדכן את catalogs.config.json; אחר כך הרץ המרה רגילה כדי לבנות תמונות מה־PDF החדש.`);
+    }
+
+    async function pickPdfWithNativeDialog(index) {
+      setSaveStatus('פותח חלון בחירת PDF בתוך assets/pdfs...', '');
+      const payload = await api('/api/pdf-pick-native', {
+        method: 'POST',
+        body: JSON.stringify({ currentPdf: state.catalogs[index].pdf || '' })
+      });
+      if (payload.canceled) {
+        setSaveStatus('בחירת PDF בוטלה.', '');
+        return;
+      }
+      applyPdfSelectionPayload(payload, index);
+    }
+
+    async function openPdfFileDialog(index) {
       const catalog = state.catalogs[index];
       if (!catalog) return;
-      state.pdfUploadCatalogIndex = index;
-      els.pdfFileInput.value = '';
-      els.pdfFileInput.click();
+      try {
+        await pickPdfWithNativeDialog(index);
+      } catch (error) {
+        state.pdfUploadCatalogIndex = index;
+        els.pdfFileInput.value = '';
+        setSaveStatus(`לא הצלחתי לפתוח חלון בחירה מקומי (${error.message}). נפתח חלון בחירת קובץ רגיל של הדפדפן כגיבוי.`, 'err');
+        els.pdfFileInput.click();
+      }
     }
 
     async function uploadSelectedPdf() {
@@ -654,17 +692,7 @@
       setSaveStatus(`שומר את ${file.name} בתוך assets/pdfs...`, '');
       try {
         const payload = await postPdfFile(file);
-        const pdfPath = payload.pdf && payload.pdf.path;
-        if (!pdfPath) throw new Error('השרת לא החזיר נתיב PDF תקין');
-        state.catalogs[index].pdf = pdfPath;
-        state.pdfFiles = payload.pdfFiles || state.pdfFiles;
-        if (payload.state && payload.state.counts) {
-          state.counts = payload.state.counts;
-          renderStats(state.counts);
-        }
-        renderCatalogs();
-        const statusText = payload.pdf.status === 'existing' ? 'נבחר PDF שכבר נמצא בתיקייה.' : 'ה־PDF הועתק לתיקייה.';
-        markUnsaved(`${statusText} לחץ שמור שינויים כדי לעדכן את catalogs.config.json; אחר כך הרץ המרה רגילה כדי לבנות תמונות מה־PDF החדש.`);
+        applyPdfSelectionPayload(payload, index);
       } catch (error) {
         setSaveStatus(error.message, 'err');
       }

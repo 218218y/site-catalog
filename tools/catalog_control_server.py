@@ -8,6 +8,8 @@ commands without giving the browser arbitrary shell access.
 from __future__ import annotations
 
 import argparse
+import base64
+import filecmp
 import json
 import os
 import re
@@ -144,6 +146,7 @@ class StagedAssetDelete:
 
 jobs: dict[str, Job] = {}
 jobs_lock = threading.Lock()
+native_dialog_lock = threading.Lock()
 
 
 def rel_to_root(path: Path) -> str:
@@ -639,12 +642,18 @@ def read_multipart_pdf_upload(handler: BaseHTTPRequestHandler) -> tuple[str, byt
     raw = handler.rfile.read(length)
     delimiter = ("--" + boundary).encode("utf-8")
 
+    # Do not use strip() here: binary PDFs can legitimately start or end with
+    # CR/LF bytes. Multipart framing adds exactly one CRLF before the next
+    # boundary, so remove only that framing CRLF and keep the file bytes intact.
     for part in raw.split(delimiter):
-        part = part.strip(b"\r\n")
-        if not part or part == b"--":
+        if not part:
             continue
-        if part.endswith(b"--"):
-            part = part[:-2].rstrip(b"\r\n")
+        if part.startswith(b"--"):
+            continue
+        if part.startswith(b"\r\n"):
+            part = part[2:]
+        if part.endswith(b"\r\n"):
+            part = part[:-2]
         if b"\r\n\r\n" not in part:
             continue
         header_bytes, body = part.split(b"\r\n\r\n", 1)
@@ -655,8 +664,6 @@ def read_multipart_pdf_upload(handler: BaseHTTPRequestHandler) -> tuple[str, byt
         filename = multipart_disposition_param(disposition, "filename")
         if not filename:
             raise ValueError("לא התקבל שם קובץ PDF")
-        if body.endswith(b"\r\n"):
-            body = body[:-2]
         if not body:
             raise ValueError("קובץ ה-PDF ריק")
         return filename, body
@@ -664,7 +671,7 @@ def read_multipart_pdf_upload(handler: BaseHTTPRequestHandler) -> tuple[str, byt
     raise ValueError("לא נמצא שדה קובץ בשם pdf בבקשה")
 
 
-def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, Any]:
+def target_pdf_path_for_filename(filename: str) -> tuple[str, Path]:
     safe_name = sanitize_uploaded_pdf_filename(filename)
     PDF_DIR.mkdir(parents=True, exist_ok=True)
     target = (PDF_DIR / safe_name).resolve(strict=False)
@@ -673,13 +680,19 @@ def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, Any]:
         target.relative_to(pdf_dir)
     except ValueError as exc:
         raise ValueError("שם קובץ ה-PDF יוצר נתיב לא בטוח") from exc
+    return safe_name, target
+
+
+def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, Any]:
+    safe_name, target = target_pdf_path_for_filename(filename)
 
     if target.exists():
         existing = target.read_bytes()
         if existing != content:
             raise ValueError(
                 f"כבר קיים PDF בשם {safe_name} בתוך {rel_to_root(PDF_DIR)}. "
-                "שנה שם בחלון בחירת הקובץ או מחק/החלף את הקובץ ידנית כדי למנוע דריסה שקטה."
+                "אם הקובץ כבר נמצא שם — בחר אותו דרך חלון הבחירה המקומי. "
+                "אם זה קובץ אחר מחוץ לתיקייה — שנה לו שם כדי למנוע דריסה שקטה."
             )
         return {"path": rel_to_root(target), "name": safe_name, "status": "existing"}
 
@@ -694,6 +707,141 @@ def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, Any]:
             except OSError:
                 pass
     return {"path": rel_to_root(target), "name": safe_name, "status": "created"}
+
+
+def selected_pdf_payload(source_path: Path) -> dict[str, Any]:
+    source = source_path.resolve(strict=False)
+    if not source.is_file():
+        raise ValueError(f"קובץ ה-PDF לא נמצא: {source_path}")
+    if source.suffix.lower() != ".pdf":
+        raise ValueError("אפשר לבחור רק קובץ PDF")
+
+    pdf_dir = PDF_DIR.resolve(strict=False)
+    try:
+        source.relative_to(pdf_dir)
+    except ValueError:
+        pass
+    else:
+        return {"path": rel_to_root(source), "name": source.name, "status": "selected"}
+
+    safe_name, target = target_pdf_path_for_filename(source.name)
+    try:
+        if target.exists() and source.samefile(target):
+            return {"path": rel_to_root(target), "name": safe_name, "status": "selected"}
+    except OSError:
+        pass
+
+    if target.exists():
+        try:
+            identical = filecmp.cmp(source, target, shallow=False)
+        except OSError:
+            identical = False
+        if identical:
+            return {"path": rel_to_root(target), "name": safe_name, "status": "existing"}
+        raise ValueError(
+            f"כבר קיים PDF בשם {safe_name} בתוך {rel_to_root(PDF_DIR)}, אבל זה לא אותו קובץ. "
+            "בחר את הקובץ הקיים מתוך assets/pdfs, או שנה שם לקובץ החיצוני כדי למנוע דריסה."
+        )
+
+    temp_path = target.with_name(f".copy-{uuid.uuid4().hex}-{safe_name}")
+    try:
+        shutil.copy2(source, temp_path)
+        temp_path.replace(target)
+    finally:
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+    return {"path": rel_to_root(target), "name": safe_name, "status": "copied"}
+
+
+def pick_pdf_with_powershell() -> str:
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell") or shutil.which("pwsh")
+    if not powershell:
+        raise RuntimeError("PowerShell is not available")
+    PDF_DIR.mkdir(parents=True, exist_ok=True)
+    initial_dir = str(PDF_DIR.resolve(strict=False)).replace("'", "''")
+    script = f"""
+Add-Type -AssemblyName System.Windows.Forms
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$dialog = New-Object System.Windows.Forms.OpenFileDialog
+$dialog.Title = 'בחר קובץ PDF לקטלוג'
+$dialog.InitialDirectory = '{initial_dir}'
+$dialog.Filter = 'PDF files (*.pdf)|*.pdf|All files (*.*)|*.*'
+$dialog.CheckFileExists = $true
+$dialog.Multiselect = $false
+$result = $dialog.ShowDialog()
+if ($result -eq [System.Windows.Forms.DialogResult]::OK) {{
+    Write-Output $dialog.FileName
+}}
+"""
+    command = [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass"]
+    if Path(powershell).name.lower() != "pwsh":
+        command.append("-STA")
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    command.extend(["-EncodedCommand", encoded])
+    completed = subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or "פתיחת חלון הבחירה נכשלה")
+    return completed.stdout.strip().splitlines()[-1].strip() if completed.stdout.strip() else ""
+
+
+def pick_pdf_with_tkinter() -> str:
+    PDF_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:
+        raise RuntimeError("Tkinter is not available") from exc
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        try:
+            root.attributes("-topmost", True)
+            root.update()
+        except Exception:
+            pass
+        selected = filedialog.askopenfilename(
+            parent=root,
+            title="בחר קובץ PDF לקטלוג",
+            initialdir=str(PDF_DIR.resolve(strict=False)),
+            filetypes=(("PDF files", "*.pdf"), ("All files", "*.*")),
+        )
+        return str(selected or "")
+    finally:
+        root.destroy()
+
+
+def pick_native_pdf_file() -> dict[str, Any]:
+    if not native_dialog_lock.acquire(blocking=False):
+        raise ValueError("חלון בחירת PDF כבר פתוח. סגור אותו לפני פתיחת חלון נוסף.")
+    try:
+        selected = ""
+        errors: list[str] = []
+        if sys.platform.startswith("win"):
+            try:
+                selected = pick_pdf_with_powershell()
+            except Exception as exc:
+                errors.append(str(exc))
+        if not selected:
+            try:
+                selected = pick_pdf_with_tkinter()
+            except Exception as exc:
+                errors.append(str(exc))
+        if not selected:
+            return {"canceled": True, "errors": errors}
+        return {"canceled": False, "pdf": selected_pdf_payload(Path(selected))}
+    finally:
+        native_dialog_lock.release()
 
 
 def validate_asset_delete_requests(value: Any, remaining_config: list[dict[str, Any]]) -> tuple[list[AssetDeleteTarget], list[str]]:
@@ -1039,6 +1187,14 @@ class ControlHandler(BaseHTTPRequestHandler):
         try:
             parsed = urlparse(self.path)
             path = unquote(parsed.path)
+            if path == "/api/pdf-pick-native":
+                read_json_body(self)
+                picked = pick_native_pdf_file()
+                if picked.get("canceled"):
+                    self.send_json({"ok": True, "canceled": True, "errors": picked.get("errors", [])})
+                    return
+                self.send_json({"ok": True, "pdf": picked["pdf"], "pdfFiles": pdf_files_payload(), "state": state_payload()})
+                return
             if path == "/api/pdf-upload":
                 filename, content = read_multipart_pdf_upload(self)
                 upload = save_uploaded_pdf(filename, content)

@@ -5,7 +5,7 @@
     "description": "ארונות פתיחה סנדביץ' בעיצוב מודרני",
     "category": "ארונות פתיחה",
     "subcategory": "",
-    "pdf": "assets/pdfs/ארונות פתיחה ת.ב.י רהיטים 2026.pdf",
+    "pdf": "assets/pdfs/opening-tbi-2026.pdf",
     "ocr": true
   },
   {
@@ -14,7 +14,7 @@
     "description": "ארונות פתיחה סנדביץ'/MDF בעיצוב מודרני",
     "category": "ארונות פתיחה",
     "subcategory": "",
-    "pdf": "assets/pdfs/ארונות פתיחה פרדי 2026.pdf",
+    "pdf": "assets/pdfs/opening-fredi-2026.pdf",
     "ocr": true
   },
   {
@@ -23,7 +23,7 @@
     "description": "ארונות הזזה סנדביץ'/מלמין, בעיצוב מודרני",
     "category": "ארונות הזזה",
     "subcategory": "",
-    "pdf": "assets/pdfs/הזזה ת.ב.י רהיטים 2026.pdf",
+    "pdf": "assets/pdfs/sliding-tbi-2026.pdf",
     "ocr": true
   },
   {
@@ -32,7 +32,7 @@
     "description": "ריהוט מושלם לחדרי ילדים",
     "category": "חדרי ילדים",
     "subcategory": "חדרי ילדים קומפלט",
-    "pdf": "assets/pdfs/חדרי ילדים ת.ב.י רהיטים 2026.pdf",
+    "pdf": "assets/pdfs/kids-tbi-2026.pdf",
     "ocr": true
   },
   {
@@ -41,7 +41,7 @@
     "description": "ריהוט מושלם לחדרי ילדים",
     "category": "חדרי ילדים",
     "subcategory": "חדרי ילדים קומפלט",
-    "pdf": "assets/pdfs/חדרי ילדים פרדי 2026.pdf",
+    "pdf": "assets/pdfs/kids-fredi-2026.pdf",
     "ocr": true
   },
   {
@@ -50,7 +50,7 @@
     "description": "מיטות נוער סנדביץ' בירץ' באיכות גבוהה",
     "category": "חדרי ילדים",
     "subcategory": "מיטות נגר",
-    "pdf": "assets/pdfs/מיטות נגר בירץ' 2026.pdf",
+    "pdf": "assets/pdfs/beds-birch-2026.pdf",
     "ocr": true
   },
   {
@@ -59,7 +59,7 @@
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "subcategory": "היי ריזר",
-    "pdf": "assets/pdfs/היי ריזר קואליטה 2026.pdf",
+    "pdf": "assets/pdfs/hi-riser-qualita-2026.pdf",
     "ocr": true
   },
   {
@@ -68,7 +68,7 @@
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "subcategory": "היי ריזר",
-    "pdf": "assets/pdfs/היי ריזר קומפורט 2026.pdf",
+    "pdf": "assets/pdfs/hi-riser-comfort-2026.pdf",
     "ocr": true
   },
   {
@@ -77,7 +77,7 @@
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "subcategory": "היי ריזר",
-    "pdf": "assets/pdfs/היי ריזר פרפקט 2026.pdf",
+    "pdf": "assets/pdfs/hi-riser-perfect-2026.pdf",
     "ocr": true
   },
   {
@@ -86,7 +86,7 @@
     "description": "מיטות מרופדות בעיצוב אישי בעבודת נגר",
     "category": "חדרי שינה",
     "subcategory": "מרופדים עיצוב אישי",
-    "pdf": "assets/pdfs/מרופדים עבודת יד מבית לקוח.pdf",
+    "pdf": "assets/pdfs/custom-upholstered.pdf",
     "ocr": false
   },
   {
@@ -95,7 +95,7 @@
     "description": "מיטות מרופדות בעיצוב חדשני",
     "category": "חדרי שינה",
     "subcategory": "מרופדים",
-    "pdf": "assets/pdfs/חדרי שינה מרופדים פרדי.pdf",
+    "pdf": "assets/pdfs/bedrooms-upholstered-fredi.pdf",
     "ocr": true
   },
   {
@@ -104,7 +104,7 @@
     "description": "חדרי שינה סנדביץ' בקו נקי ועדכני",
     "category": "חדרי שינה",
     "subcategory": "חדרי שינה",
-    "pdf": "assets/pdfs/חדרי שינה ת.ב.י. רהיטים 2026.pdf",
+    "pdf": "assets/pdfs/bedrooms-tbi-2026.pdf",
     "ocr": true
   },
   {
@@ -113,7 +113,7 @@
     "description": "חדרי שינה מגוונים קומפלט",
     "category": "חדרי שינה",
     "subcategory": "חדרי שינה",
-    "pdf": "assets/pdfs/חדרי שינה גובר גלרי.pdf",
+    "pdf": "assets/pdfs/bedrooms-gober-gallery.pdf",
     "ocr": true
   },
   {
@@ -122,7 +122,7 @@
     "description": "ספריות קודש בעיצוב נקי ועדכני",
     "category": "ספריות קודש",
     "subcategory": "",
-    "pdf": "assets/pdfs/ספריות קודש ת.ב.י רהיטים 2026.pdf",
+    "pdf": "assets/pdfs/libraries-tbi-2026.pdf",
     "ocr": true
   },
   {
@@ -131,7 +131,7 @@
     "description": "ספריות קודש בעיצוב נקי ועדכני",
     "category": "ספריות קודש",
     "subcategory": "",
-    "pdf": "assets/pdfs/ספריות קודש פרדי 2026.pdf",
+    "pdf": "assets/pdfs/libraries-fredi-2026.pdf",
     "ocr": true
   }
 ]
