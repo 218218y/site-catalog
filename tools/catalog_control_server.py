@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import shutil
 import sys
 import threading
 import time
@@ -124,6 +125,21 @@ class Job:
     returncode: int | None = None
     finished_at: float | None = None
     log: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class AssetDeleteTarget:
+    path: Path
+    label: str
+    kind: str
+
+
+@dataclass(frozen=True)
+class StagedAssetDelete:
+    original_path: Path
+    staged_path: Path
+    label: str
+    kind: str
 
 
 jobs: dict[str, Job] = {}
@@ -567,6 +583,233 @@ def pdf_files_payload() -> list[dict[str, Any]]:
     return [pdf_file_payload(path) for path in iter_pdf_files()]
 
 
+WINDOWS_INVALID_FILENAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def sanitize_uploaded_pdf_filename(filename: str) -> str:
+    name = Path(str(filename or "").replace("\\", "/")).name.strip()
+    name = WINDOWS_INVALID_FILENAME_RE.sub("_", name)
+    name = re.sub(r"\s+", " ", name).strip(" .")
+    if not name:
+        raise ValueError("לא התקבל שם קובץ תקין")
+    if Path(name).suffix.lower() != ".pdf":
+        raise ValueError("אפשר לבחור רק קובץ PDF")
+    if name in {".", ".."} or not Path(name).stem.strip(" ."):
+        raise ValueError("שם קובץ ה-PDF אינו תקין")
+    return name
+
+
+def multipart_header_value(headers: str, name: str) -> str:
+    for line in headers.splitlines():
+        if line.lower().startswith(name.lower() + ":"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+def multipart_disposition_param(disposition: str, key: str) -> str:
+    starred_key = key + "*"
+    for part in disposition.split(";"):
+        part = part.strip()
+        if part.lower().startswith(starred_key.lower() + "="):
+            value = part.split("=", 1)[1].strip().strip('"')
+            if "''" in value:
+                _encoding, encoded = value.split("''", 1)
+                from urllib.parse import unquote
+                return unquote(encoded)
+            return value
+    for part in disposition.split(";"):
+        part = part.strip()
+        if part.lower().startswith(key.lower() + "="):
+            return part.split("=", 1)[1].strip().strip('"')
+    return ""
+
+
+def read_multipart_pdf_upload(handler: BaseHTTPRequestHandler) -> tuple[str, bytes]:
+    content_type = handler.headers.get("Content-Type", "")
+    boundary_match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', content_type)
+    if not boundary_match:
+        raise ValueError("בקשת העלאת PDF חסרה boundary")
+    boundary = (boundary_match.group(1) or boundary_match.group(2)).strip()
+    if not boundary:
+        raise ValueError("בקשת העלאת PDF חסרה boundary תקין")
+
+    length = int(handler.headers.get("Content-Length", "0") or "0")
+    if length <= 0:
+        raise ValueError("לא התקבל קובץ PDF")
+    raw = handler.rfile.read(length)
+    delimiter = ("--" + boundary).encode("utf-8")
+
+    for part in raw.split(delimiter):
+        part = part.strip(b"\r\n")
+        if not part or part == b"--":
+            continue
+        if part.endswith(b"--"):
+            part = part[:-2].rstrip(b"\r\n")
+        if b"\r\n\r\n" not in part:
+            continue
+        header_bytes, body = part.split(b"\r\n\r\n", 1)
+        headers = header_bytes.decode("utf-8", errors="replace")
+        disposition = multipart_header_value(headers, "Content-Disposition")
+        if 'name="pdf"' not in disposition and "name=pdf" not in disposition:
+            continue
+        filename = multipart_disposition_param(disposition, "filename")
+        if not filename:
+            raise ValueError("לא התקבל שם קובץ PDF")
+        if body.endswith(b"\r\n"):
+            body = body[:-2]
+        if not body:
+            raise ValueError("קובץ ה-PDF ריק")
+        return filename, body
+
+    raise ValueError("לא נמצא שדה קובץ בשם pdf בבקשה")
+
+
+def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, Any]:
+    safe_name = sanitize_uploaded_pdf_filename(filename)
+    PDF_DIR.mkdir(parents=True, exist_ok=True)
+    target = (PDF_DIR / safe_name).resolve(strict=False)
+    pdf_dir = PDF_DIR.resolve(strict=False)
+    try:
+        target.relative_to(pdf_dir)
+    except ValueError as exc:
+        raise ValueError("שם קובץ ה-PDF יוצר נתיב לא בטוח") from exc
+
+    if target.exists():
+        existing = target.read_bytes()
+        if existing != content:
+            raise ValueError(
+                f"כבר קיים PDF בשם {safe_name} בתוך {rel_to_root(PDF_DIR)}. "
+                "שנה שם בחלון בחירת הקובץ או מחק/החלף את הקובץ ידנית כדי למנוע דריסה שקטה."
+            )
+        return {"path": rel_to_root(target), "name": safe_name, "status": "existing"}
+
+    temp_path = target.with_name(f".upload-{uuid.uuid4().hex}-{safe_name}")
+    try:
+        temp_path.write_bytes(content)
+        temp_path.replace(target)
+    finally:
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+    return {"path": rel_to_root(target), "name": safe_name, "status": "created"}
+
+
+def validate_asset_delete_requests(value: Any, remaining_config: list[dict[str, Any]]) -> tuple[list[AssetDeleteTarget], list[str]]:
+    if value in (None, ""):
+        return [], []
+    if not isinstance(value, list):
+        raise ValueError("assetDeletes must be an array")
+
+    remaining_ids = {str(item.get("id", "")).strip().lower() for item in remaining_config}
+    remaining_pdfs = {normalize_pdf_for_config(item.get("pdf")) for item in remaining_config if item.get("pdf")}
+    targets: dict[str, AssetDeleteTarget] = {}
+    warnings: list[str] = []
+
+    for index, item in enumerate(value, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"assetDeletes #{index} must be an object")
+        delete_pdf = bool(item.get("deletePdf"))
+        delete_pages = bool(item.get("deletePages"))
+        if not delete_pdf and not delete_pages:
+            continue
+
+        catalog_id = str(item.get("id", "")).strip().lower()
+        original_id = str(item.get("originalId", catalog_id)).strip().lower() or catalog_id
+        for value_id, label in ((catalog_id, "id"), (original_id, "originalId")):
+            if value_id and not is_safe_catalog_id(value_id):
+                raise ValueError(f"Unsafe {label} in delete request: {value_id}")
+        if catalog_id and catalog_id in remaining_ids:
+            raise ValueError(f"אי אפשר למחוק נכסים של {catalog_id}: הקטלוג עדיין קיים ברשימה שנשמרת")
+        if original_id and original_id in remaining_ids:
+            raise ValueError(f"אי אפשר למחוק נכסים של {original_id}: הקטלוג עדיין קיים ברשימה שנשמרת")
+
+        if delete_pdf:
+            normalized_pdf = normalize_pdf_for_config(item.get("pdf"))
+            if not normalized_pdf:
+                warnings.append(f"בקשת מחיקה #{index}: לא נמצא נתיב PDF למחיקה.")
+            elif normalized_pdf in remaining_pdfs:
+                raise ValueError(f"אי אפשר למחוק {normalized_pdf}: PDF זה עדיין משויך לקטלוג אחר שנשאר ברשימה")
+            else:
+                path = (PROJECT_ROOT / normalized_pdf).resolve(strict=False)
+                key = path.as_posix().casefold()
+                targets[key] = AssetDeleteTarget(path=path, label=normalized_pdf, kind="pdf")
+
+        if delete_pages:
+            for pages_id in dict.fromkeys([original_id, catalog_id]):
+                if not pages_id:
+                    continue
+                if pages_id in remaining_ids:
+                    raise ValueError(f"אי אפשר למחוק assets/pages/{pages_id}: ID זה עדיין קיים ברשימה שנשמרת")
+                path = (PAGES_DIR / pages_id).resolve(strict=False)
+                pages_dir = PAGES_DIR.resolve(strict=False)
+                try:
+                    path.relative_to(pages_dir)
+                except ValueError as exc:
+                    raise ValueError(f"נתיב תיקיית תמונות לא בטוח: {pages_id}") from exc
+                key = path.as_posix().casefold()
+                targets[key] = AssetDeleteTarget(path=path, label=rel_to_root(path), kind="pages")
+
+    return list(targets.values()), warnings
+
+
+def stage_asset_deletions(targets: list[AssetDeleteTarget]) -> tuple[list[StagedAssetDelete], list[str], Path | None]:
+    staged: list[StagedAssetDelete] = []
+    warnings: list[str] = []
+    existing_targets = [target for target in targets if target.path.exists()]
+    for target in targets:
+        if not target.path.exists():
+            warnings.append(f"לא נמצא למחיקה: {target.label}")
+    if not existing_targets:
+        return staged, warnings, None
+
+    temp_root = PROJECT_ROOT / f".catalog-asset-delete-{uuid.uuid4().hex}"
+    temp_root.mkdir(parents=True, exist_ok=False)
+    try:
+        for target in existing_targets:
+            staged_path = temp_root / uuid.uuid4().hex
+            target.path.rename(staged_path)
+            staged.append(StagedAssetDelete(target.path, staged_path, target.label, target.kind))
+    except Exception:
+        restore_staged_deletions(staged, temp_root)
+        raise
+    return staged, warnings, temp_root
+
+
+def restore_staged_deletions(staged: list[StagedAssetDelete], temp_root: Path | None) -> None:
+    for item in reversed(staged):
+        if item.staged_path.exists() and not item.original_path.exists():
+            try:
+                item.original_path.parent.mkdir(parents=True, exist_ok=True)
+                item.staged_path.rename(item.original_path)
+            except Exception:
+                pass
+    if temp_root and temp_root.exists():
+        try:
+            temp_root.rmdir()
+        except OSError:
+            pass
+
+
+def finalize_staged_deletions(staged: list[StagedAssetDelete], temp_root: Path | None) -> list[str]:
+    warnings: list[str] = []
+    for item in staged:
+        try:
+            if item.staged_path.is_dir():
+                shutil.rmtree(item.staged_path)
+            elif item.staged_path.exists():
+                item.staged_path.unlink()
+        except Exception as exc:
+            warnings.append(f"נכשל ניקוי סופי של {item.label}: {exc}")
+    if temp_root and temp_root.exists():
+        try:
+            temp_root.rmdir()
+        except OSError as exc:
+            warnings.append(f"נכשל ניקוי תיקיית מחיקה זמנית {rel_to_root(temp_root)}: {exc}")
+    return warnings
+
+
 def missing_pdf_count(config: list[dict[str, Any]]) -> int:
     configured = {normalized_project_path(item.get("pdf")) for item in config if item.get("pdf")}
     return sum(1 for path in iter_pdf_files() if normalized_project_path(path) not in configured)
@@ -796,20 +1039,38 @@ class ControlHandler(BaseHTTPRequestHandler):
         try:
             parsed = urlparse(self.path)
             path = unquote(parsed.path)
+            if path == "/api/pdf-upload":
+                filename, content = read_multipart_pdf_upload(self)
+                upload = save_uploaded_pdf(filename, content)
+                self.send_json({"ok": True, "pdf": upload, "pdfFiles": pdf_files_payload(), "state": state_payload()})
+                return
+
             payload = read_json_body(self)
             if path == "/api/catalogs":
                 catalogs = validate_catalogs_for_save(payload.get("catalogs"))
                 catalogs = group_catalogs_by_category_subcategory(catalogs)
-                rename_map = build_catalog_rename_map(catalogs)
-                warnings = apply_pages_dir_renames(rename_map)
-                file_catalogs = config_for_file(catalogs)
-                write_config(file_catalogs)
+                delete_targets, delete_warnings = validate_asset_delete_requests(payload.get("assetDeletes"), catalogs)
+                staged_deletes: list[StagedAssetDelete] = []
+                delete_temp_root: Path | None = None
+                warnings: list[str] = []
                 try:
-                    warnings.extend(sync_search_overrides_after_id_rename(rename_map))
-                except Exception as exc:
-                    warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search-overrides.json נכשל: {exc}")
-                warnings.extend(sync_generated_metadata_after_config_save(file_catalogs, rename_map))
-                self.send_json({"ok": True, "state": state_payload(), "warnings": warnings, "grouped": True, "renamed": rename_map})
+                    staged_deletes, stage_warnings, delete_temp_root = stage_asset_deletions(delete_targets)
+                    warnings.extend(delete_warnings)
+                    warnings.extend(stage_warnings)
+                    rename_map = build_catalog_rename_map(catalogs)
+                    warnings.extend(apply_pages_dir_renames(rename_map))
+                    file_catalogs = config_for_file(catalogs)
+                    write_config(file_catalogs)
+                    try:
+                        warnings.extend(sync_search_overrides_after_id_rename(rename_map))
+                    except Exception as exc:
+                        warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search-overrides.json נכשל: {exc}")
+                    warnings.extend(sync_generated_metadata_after_config_save(file_catalogs, rename_map))
+                except Exception:
+                    restore_staged_deletions(staged_deletes, delete_temp_root)
+                    raise
+                warnings.extend(finalize_staged_deletions(staged_deletes, delete_temp_root))
+                self.send_json({"ok": True, "state": state_payload(), "warnings": warnings, "grouped": True, "deletedAssets": [item.label for item in staged_deletes]})
                 return
             if path == "/api/run":
                 job = start_job(str(payload.get("action", "")).strip())

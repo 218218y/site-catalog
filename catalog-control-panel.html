@@ -189,6 +189,18 @@
     .pdf-option-folder { color: var(--muted); font-size: .82rem; white-space: normal; overflow-wrap: anywhere; }
     .pdf-picker-empty { padding: 22px; color: var(--muted); line-height: 1.65; text-align: right; direction: rtl; }
     .pdf-picker-footer { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .hidden-file-input { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .delete-dialog { width: min(620px, 100%); display: grid; gap: 14px; padding: 20px; border-radius: 24px; background: #fff; box-shadow: 0 24px 80px rgba(15, 23, 42, .28); direction: rtl; }
+    .delete-dialog h3 { margin: 0 0 6px; font-size: 1.18rem; }
+    .delete-dialog p { margin: 0; color: var(--muted); line-height: 1.6; }
+    .delete-summary { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: #f8fbff; }
+    .delete-summary strong { overflow-wrap: anywhere; }
+    .delete-summary code { direction: ltr; text-align: left; display: block; color: #475467; white-space: normal; overflow-wrap: anywhere; }
+    .delete-warning { border: 1px solid #fedf89; background: #fffaeb; color: #93370d; padding: 11px 13px; border-radius: 14px; line-height: 1.55; }
+    .delete-dialog-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .delete-choice-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+    .danger-action { background: #d92d20; color: #fff; border-color: #d92d20; }
+    .danger-action:hover { background: #b42318; }
     .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 9px; font-size: .82rem; font-weight: 700; white-space: nowrap; }
     .badge.ready { color: var(--ok); background: #ecfdf3; }
     .badge.partial, .badge.empty { color: var(--warn); background: #fffaeb; }
@@ -268,7 +280,7 @@
           </div>
         </div>
         <div class="card-body">
-          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. בעת שמירה הקטלוגים מקובצים לפי קטגוריה ואז לפי תת־קטגוריה, תוך שמירת הסדר היחסי הקיים בתוך כל קבוצה. אפשר להזיז קטגוריות שלמות ותתי־קטגוריות שלמות עם החצים בשורות ההפרדה, ואת סדר הקטלוגים בתוך אותה קבוצה עם החצים של הקטלוג עצמו. שינויי כותרת/תיאור/קטגוריה/סדר/מחיקה נשמרים גם לקבצי האתר שכבר נוצרו, כדי שתראה אותם באתר בלי רינדור מחדש. שינוי מקור PDF נשמר ל־catalogs.config.json, ואחריו צריך להריץ המרה רגילה כדי לרנדר את הקטלוג מהקובץ החדש. קטלוג חדש שעדיין לא הומר עדיין צריך “המרה רגילה”. לקטלוג שאין בו כיתוב אמיתי או ש־OCR מזיק לו, כבה OCR בשורת הקטלוג ושמור; ההמרה הרגילה תדלג על OCR רק עבורו. מחיקה כאן מסירה מהרשימה ומהאתר, אבל לא מוחקת את ה־PDF או את תיקיית התמונות — לזה יש פעולת ניקוי נפרדת.</div>
+          <div class="notice">ברירת המחדל היא OCR פעיל. קטלוג בלי השדה <span dir="ltr">ocr</span> נחשב כאילו הוא <span dir="ltr">true</span>. בעת שמירה הקטלוגים מקובצים לפי קטגוריה ואז לפי תת־קטגוריה, תוך שמירת הסדר היחסי הקיים בתוך כל קבוצה. אפשר להזיז קטגוריות שלמות ותתי־קטגוריות שלמות עם החצים בשורות ההפרדה, ואת סדר הקטלוגים בתוך אותה קבוצה עם החצים של הקטלוג עצמו. שינויי כותרת/תיאור/קטגוריה/סדר/מחיקה נשמרים גם לקבצי האתר שכבר נוצרו, כדי שתראה אותם באתר בלי רינדור מחדש. שינוי מקור PDF נעשה דרך חלון בחירת קובץ רגיל של Windows: בחר PDF, ואם צריך אפשר לשנות לו שם בחלון לפני הבחירה. השרת שומר את הקובץ בצורה מבוקרת בתוך assets/pdfs, והשינוי ל־catalogs.config.json נשמר בפועל רק אחרי “שמור שינויים”. אחרי שינוי מקור PDF צריך להריץ המרה רגילה כדי לרנדר את הקטלוג מהקובץ החדש. קטלוג חדש שעדיין לא הומר עדיין צריך “המרה רגילה”. לקטלוג שאין בו כיתוב אמיתי או ש־OCR מזיק לו, כבה OCR בשורת הקטלוג ושמור; ההמרה הרגילה תדלג על OCR רק עבורו. מחיקה יכולה להסיר רק מהרשימה, או גם למחוק פיזית את ה־PDF ותיקיית התמונות שלו מתוך assets/pages — הבחירה נעשית בחלון המחיקה.</div>
           <div class="catalog-controls">
             <div class="catalog-search-row">
               <input id="catalogFilter" type="search" placeholder="חיפוש לפי שם, תיאור, קטגוריה, id או PDF..." />
@@ -328,27 +340,28 @@
     </section>
   </main>
 
-  <div class="modal-backdrop" id="pdfPickerBackdrop" hidden>
-    <section class="pdf-picker" role="dialog" aria-modal="true" aria-labelledby="pdfPickerTitle">
-      <div class="pdf-picker-header">
-        <div>
-          <h3 id="pdfPickerTitle">בחירת מקור PDF</h3>
-          <p>בחר קובץ מתוך <span dir="ltr">assets/pdfs</span>. השינוי יישמר בפועל רק אחרי לחיצה על “שמור שינויים”.</p>
-        </div>
-        <button class="secondary" id="pdfPickerClose" type="button">סגור</button>
+  <input class="hidden-file-input" id="pdfFileInput" type="file" accept="application/pdf,.pdf" />
+
+  <div class="modal-backdrop" id="deleteCatalogBackdrop" hidden>
+    <section class="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteCatalogTitle">
+      <div>
+        <h3 id="deleteCatalogTitle">מחיקת קטלוג</h3>
+        <p>בחר מה למחוק. ברירת המחדל היא מחיקה רק מקובץ הקטלוגים ומהאתר שנוצר.</p>
       </div>
-      <div class="pdf-picker-current" id="pdfPickerCurrent"></div>
-      <input id="pdfPickerFilter" type="search" placeholder="חיפוש PDF לפי שם או תיקיית משנה..." />
-      <div class="pdf-list" id="pdfPickerList"></div>
-      <div class="pdf-picker-footer">
-        <button class="secondary" id="pdfPickerRefresh" type="button">רענן רשימת PDFים</button>
-        <span class="toast" id="pdfPickerStatus"></span>
+      <div class="delete-summary" id="deleteCatalogSummary"></div>
+      <div class="delete-warning">מחיקת PDF ותיקיית תמונות היא פעולה פיזית מהמחשב. היא תתבצע בפועל רק אחרי לחיצה על “שמור שינויים”.</div>
+      <div class="delete-dialog-actions">
+        <button class="secondary" id="deleteCatalogCancel" type="button">ביטול</button>
+        <div class="delete-choice-buttons">
+          <button id="deleteCatalogListOnly" type="button">מחק רק מהרשימה</button>
+          <button class="danger-action" id="deleteCatalogWithAssets" type="button">מחק גם PDF ותמונות</button>
+        </div>
       </div>
     </section>
   </div>
 
   <script>
-    const state = { catalogs: [], actions: [], counts: {}, pdfFiles: [], pdfPickerCatalogIndex: null, activeJobId: null, polling: null };
+    const state = { catalogs: [], actions: [], counts: {}, pdfFiles: [], pdfUploadCatalogIndex: null, deleteDialogIndex: null, pendingAssetDeletes: [], activeJobId: null, polling: null };
     const els = {
       stats: document.getElementById('stats'),
       rows: document.getElementById('catalogRows'),
@@ -361,14 +374,13 @@
       jobHistory: document.getElementById('jobHistory'),
       refresh: document.getElementById('refreshState'),
       serverAlert: document.getElementById('serverAlert'),
-      pdfPickerBackdrop: document.getElementById('pdfPickerBackdrop'),
-      pdfPickerTitle: document.getElementById('pdfPickerTitle'),
-      pdfPickerCurrent: document.getElementById('pdfPickerCurrent'),
-      pdfPickerFilter: document.getElementById('pdfPickerFilter'),
-      pdfPickerList: document.getElementById('pdfPickerList'),
-      pdfPickerClose: document.getElementById('pdfPickerClose'),
-      pdfPickerRefresh: document.getElementById('pdfPickerRefresh'),
-      pdfPickerStatus: document.getElementById('pdfPickerStatus')
+      pdfFileInput: document.getElementById('pdfFileInput'),
+      deleteCatalogBackdrop: document.getElementById('deleteCatalogBackdrop'),
+      deleteCatalogTitle: document.getElementById('deleteCatalogTitle'),
+      deleteCatalogSummary: document.getElementById('deleteCatalogSummary'),
+      deleteCatalogCancel: document.getElementById('deleteCatalogCancel'),
+      deleteCatalogListOnly: document.getElementById('deleteCatalogListOnly'),
+      deleteCatalogWithAssets: document.getElementById('deleteCatalogWithAssets')
     };
 
     function escapeHtml(value) {
@@ -412,6 +424,7 @@
       state.actions = data.actions || [];
       state.counts = data.counts || {};
       state.pdfFiles = data.pdfFiles || [];
+      state.pendingAssetDeletes = [];
       renderStats(state.counts);
       renderCatalogs();
       renderActions();
@@ -564,7 +577,7 @@
         <td><input class="id-input" type="text" data-field="id" value="${escapeHtml(catalog.id || '')}" pattern="[a-z0-9][a-z0-9-]*" title="ID חייב להיות באנגלית קטנה, מספרים ומקפים בלבד. ID מקורי: ${escapeHtml(catalog.originalId || catalog.id || '')}" /></td>
         <td class="pdf-cell">
           <div class="pdf-control">
-            <button class="pdf-select-btn secondary" type="button" data-pdf-select="catalog" title="בחר מקור PDF מתוך assets/pdfs">בחר PDF</button>
+            <button class="pdf-select-btn secondary" type="button" data-pdf-select="catalog" title="בחר PDF בחלון קובץ רגיל ושמור אותו בתוך assets/pdfs">בחר PDF</button>
             <span class="pdf-path" title="${escapeHtml(catalog.pdf)}">${escapeHtml(catalog.pdf)}</span>
           </div>
         </td>
@@ -601,71 +614,60 @@
       els.rows.innerHTML = rows.join('') || '<tr><td colspan="10">לא נמצאו קטלוגים.</td></tr>';
     }
 
-    function pdfMatchesQuery(file, query) {
-      if (!query) return true;
-      return [file.path, file.name, file.folder, file.label].join(' ').toLowerCase().includes(query);
-    }
-
-    async function refreshPdfFiles() {
-      els.pdfPickerStatus.className = 'toast';
-      els.pdfPickerStatus.textContent = 'טוען PDFים מתוך assets/pdfs...';
+    async function postPdfFile(file) {
+      const formData = new FormData();
+      formData.append('pdf', file, file.name);
+      let response;
       try {
-        const data = await api('/api/pdfs');
-        state.pdfFiles = data.pdfs || [];
-        els.pdfPickerStatus.textContent = state.pdfFiles.length ? `${state.pdfFiles.length} PDFים נמצאו.` : 'לא נמצאו PDFים בתיקייה.';
+        response = await fetch('/api/pdf-upload', {
+          method: 'POST',
+          body: formData,
+          cache: 'no-store'
+        });
       } catch (error) {
-        els.pdfPickerStatus.textContent = error.message;
-        els.pdfPickerStatus.className = 'toast err';
+        throw new Error(`${controlServerHelp()} (${error.message})`);
       }
-      renderPdfPickerList();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || 'העלאת PDF נכשלה');
+      }
+      return data;
     }
 
-    function openPdfPicker(index) {
+    function openPdfFileDialog(index) {
       const catalog = state.catalogs[index];
       if (!catalog) return;
-      state.pdfPickerCatalogIndex = index;
-      els.pdfPickerTitle.textContent = `בחירת מקור PDF · ${catalog.title || catalog.id || `קטלוג #${index + 1}`}`;
-      els.pdfPickerCurrent.textContent = catalog.pdf ? `נוכחי: ${catalog.pdf}` : 'לא נבחר מקור PDF';
-      els.pdfPickerFilter.value = '';
-      els.pdfPickerStatus.className = 'toast';
-      els.pdfPickerStatus.textContent = '';
-      els.pdfPickerBackdrop.hidden = false;
-      renderPdfPickerList();
-      refreshPdfFiles();
-      setTimeout(() => els.pdfPickerFilter.focus(), 0);
+      state.pdfUploadCatalogIndex = index;
+      els.pdfFileInput.value = '';
+      els.pdfFileInput.click();
     }
 
-    function closePdfPicker() {
-      els.pdfPickerBackdrop.hidden = true;
-      state.pdfPickerCatalogIndex = null;
-    }
-
-    function renderPdfPickerList() {
-      const query = els.pdfPickerFilter.value.trim().toLowerCase();
-      const catalog = state.catalogs[state.pdfPickerCatalogIndex];
-      const currentPath = catalog && catalog.pdf;
-      const files = state.pdfFiles.filter(file => pdfMatchesQuery(file, query));
-      if (!files.length) {
-        els.pdfPickerList.innerHTML = `<div class="pdf-picker-empty">${state.pdfFiles.length ? 'לא נמצאו PDFים שמתאימים לחיפוש.' : 'לא נמצאו קבצי PDF בתוך assets/pdfs. הוסף לשם PDFים ואז לחץ “רענן רשימת PDFים”.'}</div>`;
+    async function uploadSelectedPdf() {
+      const file = els.pdfFileInput.files && els.pdfFileInput.files[0];
+      const index = state.pdfUploadCatalogIndex;
+      state.pdfUploadCatalogIndex = null;
+      if (!file || !Number.isInteger(index) || !state.catalogs[index]) return;
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        setSaveStatus('אפשר לבחור רק קובץ PDF.', 'err');
         return;
       }
-      els.pdfPickerList.innerHTML = files.map(file => {
-        const selected = file.path === currentPath;
-        const folder = file.folder ? `assets/pdfs/${file.folder}` : 'assets/pdfs';
-        return `<button class="pdf-option ${selected ? 'selected' : ''}" type="button" data-pdf-path="${escapeHtml(file.path)}" aria-selected="${selected ? 'true' : 'false'}">
-          <span class="pdf-option-name">${escapeHtml(file.name)}</span>
-          <span class="pdf-option-folder">${escapeHtml(folder)}</span>
-        </button>`;
-      }).join('');
-    }
-
-    function choosePdf(path) {
-      const index = state.pdfPickerCatalogIndex;
-      if (!Number.isInteger(index) || !state.catalogs[index] || !path) return;
-      state.catalogs[index].pdf = path;
-      renderCatalogs();
-      closePdfPicker();
-      markUnsaved('מקור ה־PDF שונה. לחץ שמור שינויים כדי לעדכן את catalogs.config.json; אחר כך הרץ המרה רגילה כדי לבנות תמונות מה־PDF החדש.');
+      setSaveStatus(`שומר את ${file.name} בתוך assets/pdfs...`, '');
+      try {
+        const payload = await postPdfFile(file);
+        const pdfPath = payload.pdf && payload.pdf.path;
+        if (!pdfPath) throw new Error('השרת לא החזיר נתיב PDF תקין');
+        state.catalogs[index].pdf = pdfPath;
+        state.pdfFiles = payload.pdfFiles || state.pdfFiles;
+        if (payload.state && payload.state.counts) {
+          state.counts = payload.state.counts;
+          renderStats(state.counts);
+        }
+        renderCatalogs();
+        const statusText = payload.pdf.status === 'existing' ? 'נבחר PDF שכבר נמצא בתיקייה.' : 'ה־PDF הועתק לתיקייה.';
+        markUnsaved(`${statusText} לחץ שמור שינויים כדי לעדכן את catalogs.config.json; אחר כך הרץ המרה רגילה כדי לבנות תמונות מה־PDF החדש.`);
+      } catch (error) {
+        setSaveStatus(error.message, 'err');
+      }
     }
 
     function syncCatalogFromInput(input) {
@@ -756,14 +758,50 @@
       markUnsaved('סדר תתי־הקטגוריות השתנה. לחץ שמור שינויים כדי לעדכן את הקובץ והאתר.');
     }
 
-    function deleteCatalog(index) {
+    function catalogDeleteRequest(catalog, deleteAssets) {
+      return {
+        id: catalog.id || '',
+        originalId: catalog.originalId || catalog.id || '',
+        pdf: catalog.pdf || '',
+        deletePdf: Boolean(deleteAssets),
+        deletePages: Boolean(deleteAssets)
+      };
+    }
+
+    function openDeleteCatalogDialog(index) {
       const catalog = state.catalogs[index];
       if (!catalog) return;
+      state.deleteDialogIndex = index;
       const label = catalog.title || catalog.id || `קטלוג #${index + 1}`;
-      if (!confirm(`למחוק את "${label}" מהרשימה?
+      const id = catalog.id || '';
+      const originalId = catalog.originalId || id;
+      const pages = originalId ? `assets/pages/${originalId}` : 'assets/pages/[ללא ID]';
+      els.deleteCatalogTitle.textContent = `מחיקת קטלוג · ${label}`;
+      els.deleteCatalogSummary.innerHTML = `
+        <strong>${escapeHtml(label)}</strong>
+        <code>ID: ${escapeHtml(id || '—')}</code>
+        <code>PDF: ${escapeHtml(catalog.pdf || '—')}</code>
+        <code>תמונות: ${escapeHtml(pages)}</code>
+      `;
+      els.deleteCatalogBackdrop.hidden = false;
+      setTimeout(() => els.deleteCatalogListOnly.focus(), 0);
+    }
 
-הפעולה מסירה אותו מ-catalogs.config.json ומהאתר שנוצר. היא לא מוחקת את קובץ ה-PDF או את תיקיית התמונות.`)) return;
+    function closeDeleteCatalogDialog() {
+      els.deleteCatalogBackdrop.hidden = true;
+      state.deleteDialogIndex = null;
+    }
+
+    function confirmDeleteCatalog(deleteAssets) {
+      const index = state.deleteDialogIndex;
+      const catalog = state.catalogs[index];
+      if (!Number.isInteger(index) || !catalog) {
+        closeDeleteCatalogDialog();
+        return;
+      }
+      state.pendingAssetDeletes.push(catalogDeleteRequest(catalog, deleteAssets));
       state.catalogs.splice(index, 1);
+      closeDeleteCatalogDialog();
       renderCatalogs();
       state.counts = {
         ...state.counts,
@@ -772,7 +810,9 @@
         ocrDisabled: state.catalogs.filter(item => item.ocr === false).length
       };
       renderStats(state.counts);
-      markUnsaved('הקטלוג הוסר מהרשימה. לחץ שמור שינויים כדי לעדכן את הקובץ והאתר.');
+      markUnsaved(deleteAssets
+        ? 'הקטלוג הוסר מהרשימה וסומנה מחיקה של ה־PDF ותיקיית התמונות. הפעולה הפיזית תתבצע בלחיצה על שמור שינויים.'
+        : 'הקטלוג הוסר מהרשימה בלבד. לחץ שמור שינויים כדי לעדכן את הקובץ והאתר.');
     }
 
     function renderActions() {
@@ -784,20 +824,25 @@
     }
 
     async function saveCatalogs() {
-      setSaveStatus('מסדר לפי קטגוריה/תת־קטגוריה, בודק שינויי ID ושומר...', '');
+      setSaveStatus('מסדר לפי קטגוריה/תת־קטגוריה, בודק שינויי ID, מחיקות נכסים ושומר...', '');
       els.save.disabled = true;
       try {
         state.catalogs = groupCatalogsByCategorySubcategory(state.catalogs);
         const payload = await api('/api/catalogs', {
           method: 'POST',
-          body: JSON.stringify({ catalogs: state.catalogs })
+          body: JSON.stringify({ catalogs: state.catalogs, assetDeletes: state.pendingAssetDeletes })
         });
+        state.pendingAssetDeletes = [];
         state.catalogs = payload.state.catalogs || state.catalogs;
         state.counts = (payload.state && payload.state.counts) || {};
         renderStats(state.counts);
         renderCatalogs();
         const warnings = payload.warnings || [];
-        setSaveStatus(warnings.length ? `נשמר, אבל: ${warnings.join(' | ')}` : 'נשמר בהצלחה.', warnings.length ? 'err' : 'ok');
+        const deletedAssets = payload.deletedAssets || [];
+        const successText = deletedAssets.length
+          ? `נשמר בהצלחה. נמחקו נכסים פיזיים: ${deletedAssets.join(' | ')}`
+          : 'נשמר בהצלחה.';
+        setSaveStatus(warnings.length ? `נשמר, אבל: ${warnings.join(' | ')}` : successText, warnings.length ? 'err' : 'ok');
       } catch (error) {
         setSaveStatus(error.message, 'err');
       } finally {
@@ -885,11 +930,11 @@
       const index = Number(row && row.dataset.index);
       if (!Number.isInteger(index)) return;
       if (button.dataset.pdfSelect) {
-        openPdfPicker(index);
+        openPdfFileDialog(index);
         return;
       }
       if (button.dataset.move) moveCatalog(index, button.dataset.move);
-      if (button.dataset.delete) deleteCatalog(index);
+      if (button.dataset.delete) openDeleteCatalogDialog(index);
     });
     els.actions.addEventListener('click', event => {
       const button = event.target.closest('[data-action]');
@@ -900,18 +945,15 @@
     els.refresh.addEventListener('click', () => {
       loadState().catch(showLoadError);
     });
-    els.pdfPickerFilter.addEventListener('input', renderPdfPickerList);
-    els.pdfPickerRefresh.addEventListener('click', refreshPdfFiles);
-    els.pdfPickerClose.addEventListener('click', closePdfPicker);
-    els.pdfPickerBackdrop.addEventListener('click', event => {
-      if (event.target === els.pdfPickerBackdrop) closePdfPicker();
-    });
-    els.pdfPickerList.addEventListener('click', event => {
-      const option = event.target.closest('[data-pdf-path]');
-      if (option) choosePdf(option.dataset.pdfPath);
+    els.pdfFileInput.addEventListener('change', uploadSelectedPdf);
+    els.deleteCatalogCancel.addEventListener('click', closeDeleteCatalogDialog);
+    els.deleteCatalogListOnly.addEventListener('click', () => confirmDeleteCatalog(false));
+    els.deleteCatalogWithAssets.addEventListener('click', () => confirmDeleteCatalog(true));
+    els.deleteCatalogBackdrop.addEventListener('click', event => {
+      if (event.target === els.deleteCatalogBackdrop) closeDeleteCatalogDialog();
     });
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !els.pdfPickerBackdrop.hidden) closePdfPicker();
+      if (event.key === 'Escape' && !els.deleteCatalogBackdrop.hidden) closeDeleteCatalogDialog();
     });
 
     function showLoadError(error) {
