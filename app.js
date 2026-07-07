@@ -3,8 +3,7 @@ const catalogSearch = window.BargigCatalogSearch || null;
 
 const $ = (id) => document.getElementById(id);
 const AUTO_VIEWER_ZOOM = 1;
-const MIN_VIEWER_ZOOM = 1;
-const MIN_FIT_WIDTH_VIEWER_ZOOM = 0.35;
+const MIN_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
 const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
@@ -2417,10 +2416,10 @@ function clampValue(value, min, max) {
 }
 
 function getMinimumViewerZoom() {
-  // Fit-width can intentionally shrink below the automatic page width.
-  // Fit-height keeps the automatic size as the lower bound, but still allows
-  // manual zoom-in and a clean return to that automatic size.
-  return state.imageFitMode === VIEWER_FIT_WIDTH ? MIN_FIT_WIDTH_VIEWER_ZOOM : MIN_VIEWER_ZOOM;
+  // Manual zoom-out must be available in both fit modes. The fit mode defines
+  // the automatic base size; the manual zoom layer should use one shared lower
+  // bound so fit-height can shrink just like fit-width.
+  return MIN_VIEWER_ZOOM;
 }
 
 function isAutoViewerZoom(value = state.zoom) {

@@ -1500,7 +1500,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   inset: 0;
   z-index: 50;
   --viewer-side-control-size: 46px;
-  --viewer-side-control-edge: clamp(12px, 2.4vw, 26px);
+  --viewer-side-control-edge: clamp(22px, 3.2vw, 40px);
   --viewer-side-control-bg: rgba(11, 9, 8, 0.72);
   --viewer-side-control-border: rgba(255,255,255,0.24);
   --viewer-side-control-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
