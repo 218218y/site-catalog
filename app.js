@@ -575,7 +575,7 @@ async function downloadCatalogPageSnapshot(catalog, page, button) {
     saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.${extension}`);
     flashActionButton(button, "צילום המסך נשמר");
   } catch (_error) {
-    window.alert("לא הצלחתי ליצור צילום מסך לעמוד הזה. כדאי לוודא שקבצי התמונות נטענים מאותו אתר ולא מחסימה של הדפדפן.");
+    window.alert("לא הצלחתי ליצור תמונה לעמוד הזה. כדאי לוודא שקבצי התמונות נטענים מאותו אתר ולא מחסימה של הדפדפן.");
   }
 }
 
@@ -1264,9 +1264,9 @@ function renderCatalogCard(catalog) {
   const safeTitle = escapeHtml(catalog.title);
   return `
     <article class="catalog-card">
-      <div class="catalog-cover-frame catalog-image-frame catalog-cover-card-picker" role="button" tabindex="0" data-open-catalog-cover="${safeCatalogId}" aria-label="כניסה לקטלוג ${safeTitle} במסך מלא">
+      <div class="catalog-cover-frame catalog-image-frame catalog-cover-card-picker" role="button" tabindex="0" data-open-catalog-cover="${safeCatalogId}" aria-label="כניסה לקטלוג ${safeTitle}">
         <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
-        <div class="catalog-cover-card-entry-hint" aria-hidden="true">כניסה לקטלוג במסך מלא</div>
+        <div class="catalog-cover-card-entry-hint" aria-hidden="true">כניסה לקטלוג</div>
       </div>
       <div class="catalog-body">
         <h3>${escapeHtml(catalog.title)}</h3>

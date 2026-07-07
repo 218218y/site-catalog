@@ -3113,11 +3113,16 @@ a.reader-home:focus-visible {
 }
 
 .catalog-cover-card-entry-hint {
-  left: 16px;
+  right: auto;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 32px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  text-align: center;
+  transform: translate(-50%, 8px);
 }
 
 .catalog-cover-card-entry-hint,
@@ -3138,9 +3143,20 @@ a.reader-home:focus-visible {
   white-space: nowrap;
 }
 
+.catalog-cover-card-entry-hint {
+  padding: 0 14px;
+  background: rgba(47, 37, 29, 0.18);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
 .catalog-cover-card-picker:hover .catalog-cover-card-entry-hint,
 .catalog-cover-card-picker:focus-visible .catalog-cover-card-entry-hint,
-.catalog-cover-card-picker:focus-within .catalog-cover-card-entry-hint,
+.catalog-cover-card-picker:focus-within .catalog-cover-card-entry-hint {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .catalog-cover-button:hover .catalog-cover-cta,
 .catalog-cover-button:focus-visible .catalog-cover-cta {
   opacity: 1;
@@ -3382,7 +3398,8 @@ a.reader-home:focus-visible {
   .lightbox-actions { gap: 5px; }
   .reader-control-icon-button { width: 36px; min-width: 36px; min-height: 36px; border-radius: 12px; }
   .reader-control-icon-button svg { width: 18px; height: 18px; }
-  .catalog-cover-card-entry-hint, .catalog-cover-cta { opacity: 1; transform: none; }
+  .catalog-cover-card-entry-hint { opacity: 1; transform: translate(-50%, 0); }
+  .catalog-cover-cta { opacity: 1; transform: none; }
   .catalog-cover-card-picker::before { opacity: 1; }
   .lightbox-search-clear { width: var(--reader-clear-button-width); }
   .lightbox-top-hotspot { height: 92px; }
