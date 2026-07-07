@@ -2660,8 +2660,16 @@ a.reader-home:focus-visible {
   --reader-search-result-columns: 3;
   --reader-search-result-card-width: clamp(174px, 13.6vw, 210px);
   --reader-search-result-gap: 10px;
-  width: min(calc(100% - 24px), 670px);
-  max-width: 670px;
+  --reader-search-results-width: calc(
+    var(--reader-search-result-card-width) +
+    var(--reader-search-result-card-width) +
+    var(--reader-search-result-card-width) +
+    var(--reader-search-result-gap) +
+    var(--reader-search-result-gap) +
+    20px
+  );
+  width: min(calc(100% - 24px), var(--reader-search-results-width));
+  max-width: min(calc(100% - 24px), 670px);
   display: grid;
   grid-template-columns: repeat(var(--reader-search-result-columns), minmax(0, var(--reader-search-result-card-width)));
   justify-content: start;
@@ -2676,6 +2684,29 @@ a.reader-home:focus-visible {
   background: rgba(11,9,8,0.9);
   box-shadow: 0 18px 55px rgba(0,0,0,0.34);
   backdrop-filter: blur(16px);
+  scrollbar-gutter: auto;
+}
+
+.reader-search-results[data-result-columns="1"] {
+  --reader-search-results-width: calc(var(--reader-search-result-card-width) + 20px);
+}
+.reader-search-results[data-result-columns="2"] {
+  --reader-search-results-width: calc(
+    var(--reader-search-result-card-width) +
+    var(--reader-search-result-card-width) +
+    var(--reader-search-result-gap) +
+    20px
+  );
+}
+.reader-search-results[data-result-columns="3"] {
+  --reader-search-results-width: calc(
+    var(--reader-search-result-card-width) +
+    var(--reader-search-result-card-width) +
+    var(--reader-search-result-card-width) +
+    var(--reader-search-result-gap) +
+    var(--reader-search-result-gap) +
+    20px
+  );
 }
 .reader-search-result,
 .reader-search-empty {
@@ -2711,8 +2742,8 @@ a.reader-home:focus-visible {
   width: 100%;
   height: 100%;
   border-radius: 10px;
-  object-fit: cover;
-  object-position: center top;
+  object-fit: contain;
+  object-position: center center;
   background: #fff;
 }
 .reader-search-result span { min-width: 0; }
@@ -3044,7 +3075,10 @@ a.reader-home:focus-visible {
 .reader-search-thumb-frame {
   display: block;
   width: 100%;
-  aspect-ratio: 1.34 / 1;
+  /* Match the main search popover thumbnail behavior: catalog page previews are
+     landscape images, so the frame should be rectangular and the image must fit
+     inside it instead of being cropped into a fixed square-like crop. */
+  aspect-ratio: 1.58 / 1;
   border-radius: 10px;
   overflow: hidden;
   background: #fff;
@@ -3052,6 +3086,9 @@ a.reader-home:focus-visible {
 .reader-search-thumb-frame .reader-search-thumb {
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
 }
 
 .page-number-badge {
@@ -3139,7 +3176,7 @@ a.reader-home:focus-visible {
 .reader-search-thumb-frame {
   display: block;
   width: 100%;
-  aspect-ratio: 1.34 / 1;
+  aspect-ratio: 1.58 / 1;
   height: auto;
   border-radius: 10px;
   overflow: hidden;
@@ -3148,8 +3185,9 @@ a.reader-home:focus-visible {
 .reader-search-thumb-frame img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center top;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
 }
 
 .site-footer {
@@ -3378,8 +3416,9 @@ a.reader-home:focus-visible {
   .catalog-subcategory-section[data-inline-divider="1"]::after { content: none; }
   .catalog-grid, .page-grid, .search-results { grid-template-columns: 1fr; }
   .reader-search-results {
-    width: min(calc(100% - 16px), 460px);
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+    width: min(calc(100% - 16px), var(--reader-search-results-width), 460px);
+    max-width: min(calc(100% - 16px), 460px);
+    grid-template-columns: repeat(var(--reader-search-result-columns), minmax(0, var(--reader-search-result-card-width)));
   }
   .catalog-category-grid, .catalog-subcategory-grid { grid-template-columns: 1fr; width: 100%; }
   .catalog-category-head-with-subcategories {
@@ -3459,7 +3498,11 @@ a.reader-home:focus-visible {
   }
   .reader-search-input { min-height: 38px; }
   .reader-search-results,
-  .reader-catalog-menu { width: calc(100% - 16px); max-height: calc(100vh - 70px); }
+  .reader-catalog-menu { max-height: calc(100vh - 70px); }
+  .reader-catalog-menu { width: calc(100% - 16px); }
+  .reader-search-results {
+    width: min(calc(100% - 16px), var(--reader-search-results-width), 460px);
+  }
   .reader-catalog-menu-items { grid-template-columns: 1fr; }
   .reader-page-rail {
     top: auto;

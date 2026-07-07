@@ -2098,6 +2098,7 @@ function updateLightboxSearchResultsLayout(count = 0) {
   const resultCount = Math.max(0, Number(count) || 0);
   const columns = Math.max(1, Math.min(resultCount || 1, 3));
   els.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns));
+  els.lightboxSearchResults.dataset.resultColumns = String(columns);
   els.lightboxSearchResults.dataset.resultCount = String(resultCount);
 }
 
