@@ -105,9 +105,8 @@
                 </button>
                 <div class="reader-catalog-menu detail-catalog-menu hidden" id="catalogMenu" role="menu" aria-label="החלפת קטלוג"></div>
               </div>
-              <div class="catalog-view-mode-actions" role="group" aria-label="בחירת תצוגת קטלוג">
-                <button class="button soft" id="openViewerScrollFromTop" type="button">תצוגת גלילה</button>
-                <button class="button primary" id="openViewerSingleFromTop" type="button">תצוגה לצדדים</button>
+              <div class="catalog-entry-actions">
+                <button class="button primary" id="openCatalogEntryFromDetail" type="button">כניסה לקטלוג</button>
               </div>
             </div>
           </div>
@@ -199,14 +198,6 @@
           </div>
 
           <div class="lightbox-actions">
-            <button class="reader-button reader-control-icon-button viewer-mode-toggle" id="viewerModeToggle" type="button" data-viewer-mode="single" aria-label="מעבר לתצוגת כל העמודים בגלילה מלמעלה למטה" title="תצוגת גלילה">
-              <svg class="viewer-mode-icon viewer-mode-icon-scroll" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v2A1.5 1.5 0 0 1 17 9.5H7A1.5 1.5 0 0 1 5.5 8V6A1.5 1.5 0 0 1 7 4.5Zm0 5h10a1.5 1.5 0 0 1 1.5 1.5v2A1.5 1.5 0 0 1 17 14.5H7A1.5 1.5 0 0 1 5.5 13v-2A1.5 1.5 0 0 1 7 9.5Zm0 5h10a1.5 1.5 0 0 1 1.5 1.5v2A1.5 1.5 0 0 1 17 19.5H7A1.5 1.5 0 0 1 5.5 18v-2A1.5 1.5 0 0 1 7 14.5Z" />
-              </svg>
-              <svg class="viewer-mode-icon viewer-mode-icon-single" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M8.2 5.4h7.6A2.2 2.2 0 0 1 18 7.6v8.8a2.2 2.2 0 0 1-2.2 2.2H8.2A2.2 2.2 0 0 1 6 16.4V7.6a2.2 2.2 0 0 1 2.2-2.2Zm-5 6.6 2.1-2.1m-2.1 2.1 2.1 2.1M20.8 12l-2.1-2.1m2.1 2.1-2.1 2.1" />
-              </svg>
-            </button>
             <button class="reader-button reader-control-icon-button viewer-fit-control" id="fitHeightBtn" type="button" aria-label="התאמת התמונה לגובה" aria-pressed="false" title="התאמה לגובה">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M12 3.8 9.8 6h4.4L12 3.8Zm0 16.4 2.2-2.2H9.8l2.2 2.2ZM12 6v12M7.4 7.7h9.2a1.4 1.4 0 0 1 1.4 1.4v5.8a1.4 1.4 0 0 1-1.4 1.4H7.4A1.4 1.4 0 0 1 6 14.9V9.1a1.4 1.4 0 0 1 1.4-1.4Z" />
@@ -252,10 +243,6 @@
             <path d="M9.5 6.5 15 12l-5.5 5.5" />
           </svg>
         </button>
-      </div>
-
-      <div class="lightbox-scroll-view" id="lightboxScrollView" aria-label="עמודי הקטלוג בתצוגת גלילה">
-        <div class="lightbox-scroll-pages" id="lightboxScrollPages"></div>
       </div>
 
       <div class="viewer-zoom-indicator" id="viewerZoomIndicator" aria-hidden="true">100%</div>
