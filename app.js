@@ -95,6 +95,26 @@ function runSingleImageSwapAnimation() {
   }, 240);
 }
 
+function runScrollPageJumpAnimation(page = state.page) {
+  if (!state.lightboxOpen || state.viewerMode !== "scroll" || !state.catalog) return;
+
+  const targetPage = clampPage(page, state.catalog);
+  const frame = document.getElementById(`lightbox-scroll-page-${targetPage}`);
+  if (!frame) return;
+
+  window.clearTimeout(state.scrollPageJumpAnimationTimer);
+  els.lightboxScrollPages?.querySelectorAll(".scroll-page-swap-enter").forEach((item) => {
+    item.classList.remove("scroll-page-swap-enter");
+  });
+
+  frame.classList.remove("scroll-page-swap-enter");
+  void frame.offsetWidth;
+  frame.classList.add("scroll-page-swap-enter");
+  state.scrollPageJumpAnimationTimer = window.setTimeout(() => {
+    frame.classList.remove("scroll-page-swap-enter");
+  }, LIGHTBOX_SCROLL_PAGE_JUMP_ANIMATION_MS);
+}
+
 function finishSingleImageSwap(token) {
   if (token !== state.singleImageLoadToken) return;
   setViewerLoading(false);
@@ -146,6 +166,7 @@ const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
 const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const LIGHTBOX_SCROLL_PAGE_SYNC_LOCK_MS = 520;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
+const LIGHTBOX_SCROLL_PAGE_JUMP_ANIMATION_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 
 const state = {
@@ -190,6 +211,7 @@ const state = {
   lightboxScrollImageObserver: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
+  scrollPageJumpAnimationTimer: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
@@ -3237,6 +3259,26 @@ function renderLightboxScrollPages() {
   activateLightboxScrollImageLoading();
 }
 
+function handleLightboxPageRailSelection(page) {
+  const targetPage = Number(page);
+  if (!Number.isFinite(targetPage)) return;
+
+  hideLightboxFloatingPreview();
+
+  if (state.viewerMode === "scroll") {
+    setLightboxPage(targetPage, {
+      smooth: false,
+      hit: true,
+      thumbScrollIntoView: false
+    });
+    runScrollPageJumpAnimation(targetPage);
+  } else {
+    setLightboxPage(targetPage, { smooth: true, hit: false });
+  }
+
+  showPageRailTemporarily(1800, { scrollIntoView: false });
+}
+
 function renderLightboxPageRail() {
   if (!state.catalog || !els.lightboxPageThumbs) return;
   const catalog = state.catalog;
@@ -3263,9 +3305,7 @@ function renderLightboxPageRail() {
     button.addEventListener("blur", hideLightboxFloatingPreview);
     button.addEventListener("click", (event) => {
       event.preventDefault();
-      hideLightboxFloatingPreview();
-      setLightboxPage(Number(button.dataset.page), { smooth: true, hit: true });
-      showPageRailTemporarily(1800, { scrollIntoView: false });
+      handleLightboxPageRailSelection(button.dataset.page);
     });
   });
 }
@@ -3640,7 +3680,7 @@ function alignManualZoomScrollPage(target) {
 
 function scrollToLightboxScrollPage(page, options = {}) {
   if (!state.catalog || !els.lightboxScrollView) return;
-  const { smooth = true, lockPage = true } = options;
+  const { smooth = true, lockPage = true, thumbScrollIntoView = true } = options;
   const targetPage = clampPage(page, state.catalog);
   const target = document.getElementById(`lightbox-scroll-page-${targetPage}`);
   if (!target) return;
@@ -3654,7 +3694,7 @@ function scrollToLightboxScrollPage(page, options = {}) {
     // only move the transformed content vertically to the requested page.
     applyScrollFitMode();
     alignManualZoomScrollPage(target);
-    updateLightboxThumbs({ scrollIntoView: true });
+    updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
     return;
   }
 
@@ -3666,7 +3706,7 @@ function scrollToLightboxScrollPage(page, options = {}) {
   } else {
     setLightboxScrollTopInstantly(safeTop);
   }
-  updateLightboxThumbs({ scrollIntoView: true });
+  updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
 }
 
 function getCurrentLightboxScrollPageFromViewport() {
@@ -3764,8 +3804,9 @@ function syncLightboxProgress(page = state.page, catalog = state.catalog) {
   els.lightboxProgress.setAttribute("title", `עמוד ${currentPage} מתוך ${totalPages}`);
 }
 
-function updateLightbox() {
+function updateLightbox(options = {}) {
   if (!state.catalog) return;
+  const { thumbScrollIntoView = true } = options;
   const catalog = state.catalog;
   state.page = clampPage(state.page, catalog);
   syncViewerModeUi();
@@ -3781,7 +3822,7 @@ function updateLightbox() {
     setViewerLoading(false);
     ensureLightboxScrollPageLoaded(state.page, 1);
     applyZoom();
-    updateLightboxThumbs();
+    updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
     updateHash();
     return;
   }
@@ -3796,7 +3837,7 @@ function updateLightbox() {
     applyZoom();
   }
 
-  updateLightboxThumbs();
+  updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
   preloadNeighbors();
   updateHash();
 }
@@ -3848,11 +3889,13 @@ function closeLightbox() {
   state.lightboxOpen = false;
   state.singleImageLoadToken += 1;
   window.clearTimeout(state.singleImageAnimationTimer);
+  window.clearTimeout(state.scrollPageJumpAnimationTimer);
   els.lightbox.classList.add("hidden");
   els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "mode-scroll", "mode-single", "is-page-loading", "is-zoomed");
   syncViewerAutoZoomButtonUi();
   hideViewerZoomIndicator();
   els.lightboxImageFrame?.classList.remove("page-swap-enter");
+  els.lightboxScrollPages?.querySelectorAll(".scroll-page-swap-enter").forEach((item) => item.classList.remove("scroll-page-swap-enter"));
   setViewerLoading(false);
   hideLightboxFloatingPreview();
   window.clearTimeout(state.thumbsHideTimer);
@@ -3874,6 +3917,7 @@ function setLightboxPage(page, options = {}) {
     syncScroll = state.viewerMode === "scroll",
     smooth = true,
     hit = false,
+    thumbScrollIntoView = true,
     keepZoom = true,
     resetZoom = false,
     resetPosition = state.viewerMode === "single" ? isAutoViewerZoom() : false
@@ -3899,10 +3943,10 @@ function setLightboxPage(page, options = {}) {
     state.pointers.clear();
   }
   state.page = nextPage;
-  updateLightbox();
+  updateLightbox({ thumbScrollIntoView });
 
   if (syncScroll && state.viewerMode === "scroll") {
-    scrollToLightboxScrollPage(nextPage, { smooth, hit });
+    scrollToLightboxScrollPage(nextPage, { smooth, hit, thumbScrollIntoView });
   }
 }
 

@@ -1941,6 +1941,9 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   max-width: none;
   background: #fff;
 }
+.lightbox-scroll-page-frame.scroll-page-swap-enter {
+  animation: lightbox-scroll-page-jump .22s cubic-bezier(.2, .72, .22, 1) both;
+}
 .lightbox-side-hotspot {
   position: fixed;
   z-index: 12;
@@ -2331,9 +2334,11 @@ a.reader-home:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .site-tooltip { transition: none; }
   .page-thumb,
-  .lightbox-image-frame.page-swap-enter {
+  .lightbox-image-frame.page-swap-enter,
+  .lightbox-scroll-page-frame.scroll-page-swap-enter {
     animation: none !important;
     opacity: 1;
+    filter: none;
     transform: none;
     transition: none !important;
   }
@@ -3146,6 +3151,17 @@ a.reader-home:focus-visible {
   to {
     opacity: 1;
     transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(var(--single-zoom, 1));
+  }
+}
+
+@keyframes lightbox-scroll-page-jump {
+  from {
+    opacity: .48;
+    filter: brightness(.92);
+  }
+  to {
+    opacity: 1;
+    filter: brightness(1);
   }
 }
 
