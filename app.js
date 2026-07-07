@@ -2086,8 +2086,14 @@ function handleGlobalSearchPanelWheel(event) {
   event.stopPropagation();
 }
 
+function normalizeSearchResultsDirection(container) {
+  if (!container) return;
+  container.setAttribute("dir", "rtl");
+}
+
 function updateLightboxSearchResultsLayout(count = 0) {
   if (!els.lightboxSearchResults) return;
+  normalizeSearchResultsDirection(els.lightboxSearchResults);
 
   const resultCount = Math.max(0, Number(count) || 0);
   const columns = Math.max(1, Math.min(resultCount || 1, 3));
@@ -2099,6 +2105,7 @@ function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!els.lightboxSearchResults || !els.lightboxSearchStatus) return;
 
+  normalizeSearchResultsDirection(els.lightboxSearchResults);
   hideSearchFloatingPreview();
   updateLightboxSearchResultsLayout(0);
   els.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
@@ -2257,6 +2264,7 @@ function renderSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!els.globalSearchResults) return;
 
+  normalizeSearchResultsDirection(els.globalSearchResults);
   hideSearchFloatingPreview();
   els.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 

@@ -35,9 +35,9 @@
 }
 html {
   scroll-behavior: smooth;
-  /* Keep the browser/page scrollbar on the physical right edge while the page
-     content itself remains RTL on body. */
-  direction: ltr;
+  /* The site is RTL at the root as well, so native page scrolling follows the
+     Hebrew layout instead of forcing the browser scrollbar to the right. */
+  direction: rtl;
   scrollbar-gutter: stable;
 }
 *::-webkit-scrollbar {
@@ -78,8 +78,8 @@ body.no-scroll { overflow: hidden; }
   does not jump when the document starts/stops overflowing. The fullscreen
   catalog viewer is different: while it is open, the document itself is locked
   and the modal must own the whole viewport. Leaving the root gutter active in
-  that state creates a thin, non-scrollable strip on the physical right edge
-  and pushes the real scroll area inward.
+  that state creates a thin, non-scrollable strip on the scrollbar edge and
+  pushes the real scroll area inward.
 */
 html.viewer-open {
   overflow: hidden;
@@ -94,24 +94,52 @@ html.viewer-open body {
   .global-search-scope-menu,
   .search-panel.global-search-popover .search-results,
   .lightbox-scroll-view,
-  .lightbox-page-thumbs,
   .reader-catalog-menu,
-  .reader-search-results,
-  .reader-page-thumbs
+  .reader-search-results
 ) {
-  /* RTL scroll containers render their native vertical scrollbar on the left.
-     Use LTR only on the scrolling box so every vertical scrollbar stays on
-     the physical right edge. Content direction is restored below. */
-  direction: ltr;
+  /* Keep ordinary Hebrew scrollable surfaces RTL. Grid auto-placement then
+     starts from the right, and native RTL scrollbars can sit on the left. */
+  direction: rtl;
   scrollbar-gutter: stable;
 }
 :where(
   .global-search-scope-menu,
   .search-panel.global-search-popover .search-results,
   .lightbox-scroll-view,
-  .lightbox-page-thumbs,
   .reader-catalog-menu,
-  .reader-search-results,
+  .reader-search-results
+) > * {
+  direction: rtl;
+}
+
+#globalSearchResults,
+#lightboxSearchResults {
+  /* Search result order is a content-flow concern, not a scrollbar hack.
+     Keep the result grids explicitly RTL even if an outer scroll container is
+     forced LTR to move its scrollbar. */
+  direction: rtl;
+  unicode-bidi: isolate;
+  text-align: right;
+  grid-auto-flow: row;
+  justify-content: start;
+}
+
+#globalSearchResults > *,
+#lightboxSearchResults > * {
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+:where(
+  .lightbox-page-thumbs,
+  .reader-page-thumbs
+) {
+  /* The opened page rails live on the physical right edge; keep their vertical
+     scrollbar on that same edge without letting the thumbnails become LTR. */
+  direction: ltr;
+  scrollbar-gutter: stable;
+}
+:where(
+  .lightbox-page-thumbs,
   .reader-page-thumbs
 ) > * {
   direction: rtl;
@@ -2632,11 +2660,11 @@ a.reader-home:focus-visible {
   --reader-search-result-columns: 3;
   --reader-search-result-card-width: clamp(174px, 13.6vw, 210px);
   --reader-search-result-gap: 10px;
-  width: fit-content;
-  max-width: min(calc(100% - 24px), 670px);
+  width: min(calc(100% - 24px), 670px);
+  max-width: 670px;
   display: grid;
   grid-template-columns: repeat(var(--reader-search-result-columns), minmax(0, var(--reader-search-result-card-width)));
-  justify-content: center;
+  justify-content: start;
   gap: var(--reader-search-result-gap);
   max-height: min(520px, calc(100vh - 78px));
   overflow: auto;
