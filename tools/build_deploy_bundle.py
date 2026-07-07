@@ -16,10 +16,17 @@ Examples:
     python tools/build_deploy_bundle.py --zip
     python tools/build_deploy_bundle.py --include-json
     python tools/build_deploy_bundle.py --external-assets-url https://cdn.example.com
+
+The deploy bundle intentionally fingerprints browser-loaded CSS/JS files and
+rewrites index.html to reference the hashed filenames. This makes each new site
+version a new URL in the browser cache, so users get updates without clearing
+cookies, manually purging Cloudflare, or relying on every browser to revalidate
+same-name files correctly.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -64,8 +71,14 @@ JSON_DEPLOY_FILES = [
 ]
 
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
+HTML_ASSET_ATTR_RE = re.compile(
+    r"(?P<prefix><(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*[\"'])(?P<url>[^\"']+)(?P<suffix>[\"'])",
+    re.IGNORECASE,
+)
 GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s*;\s*$", re.DOTALL)
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
+FINGERPRINTED_ASSET_DIR = "static"
+FINGERPRINTED_EXTENSIONS = {".css", ".js"}
 
 
 @dataclass(frozen=True)
@@ -120,6 +133,80 @@ def write_asset_config(out_dir: Path, base_url: str) -> CopyStats:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(asset_config_content(base_url), encoding="utf-8")
     return CopyStats(files=1, bytes=target.stat().st_size)
+
+
+def content_hash(path: Path, length: int = 12) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:length]
+
+
+def split_url_reference(reference: str) -> tuple[str, str]:
+    """Return (path, suffix) while preserving query/hash when rewriting HTML."""
+
+    for index, character in enumerate(reference):
+        if character in "?#":
+            return reference[:index], reference[index:]
+    return reference, ""
+
+
+def hashed_asset_name(path: Path) -> str:
+    digest = content_hash(path)
+    return f"{path.stem}.{digest}{path.suffix}"
+
+
+def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
+    """Move referenced CSS/JS bundle assets into static/<name>.<hash>.<ext>.
+
+    Source files keep their simple names for local development. Only the Cloudflare
+    Pages upload bundle is fingerprinted.
+    """
+
+    index_path = out_dir / "index.html"
+    if not index_path.is_file():
+        raise FileNotFoundError("Cannot fingerprint bundle assets because index.html is missing from the output folder.")
+
+    html = index_path.read_text(encoding="utf-8", errors="replace")
+    references: list[str] = []
+    for match in HTML_ASSET_ATTR_RE.finditer(html):
+        raw_reference = match.group("url").strip()
+        reference_path, _suffix = split_url_reference(raw_reference)
+        if (
+            not reference_path
+            or reference_path.startswith(("http://", "https://", "//", "#", "mailto:"))
+            or Path(reference_path).suffix.lower() not in FINGERPRINTED_EXTENSIONS
+        ):
+            continue
+        if reference_path not in references:
+            references.append(reference_path)
+
+    static_dir = out_dir / FINGERPRINTED_ASSET_DIR
+    rewrite_map: dict[str, str] = {}
+    for reference in references:
+        source = out_dir / reference
+        if not source.is_file():
+            raise FileNotFoundError(f"Cannot fingerprint missing referenced asset in bundle: {reference}")
+        target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(source)
+        target = out_dir / target_relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            target.unlink()
+        shutil.move(str(source), str(target))
+        rewrite_map[Path(reference).as_posix()] = target_relative.as_posix()
+
+    if rewrite_map:
+        def replace_reference(match: re.Match[str]) -> str:
+            raw_reference = match.group("url")
+            reference_path, suffix = split_url_reference(raw_reference)
+            replacement = rewrite_map.get(reference_path)
+            if not replacement:
+                return match.group(0)
+            return f"{match.group('prefix')}{replacement}{suffix}{match.group('suffix')}"
+
+        index_path.write_text(HTML_ASSET_ATTR_RE.sub(replace_reference, html), encoding="utf-8")
+
+    # Keep the directory absent in unusual HTML-only bundles.
+    if static_dir.exists() and not any(static_dir.iterdir()):
+        static_dir.rmdir()
+    return rewrite_map
 
 
 def ensure_safe_output_dir(root: Path, out_dir: Path) -> Path:
@@ -336,8 +423,11 @@ def main() -> int:
                 stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
 
         stats = add_stats(stats, write_asset_config(out_dir, args.external_assets_url))
+        fingerprinted_assets = fingerprint_bundle_assets(out_dir)
         print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
         print("[assets] assets/pages was intentionally not copied into the Cloudflare Pages upload folder.")
+        if fingerprinted_assets:
+            print(f"[cache] Fingerprinted browser assets: {len(fingerprinted_assets)} files under {FINGERPRINTED_ASSET_DIR}/")
 
         warnings = validate_static_references(root)
         pages_dir = root / "assets" / "pages"
@@ -362,6 +452,8 @@ def main() -> int:
             excluded_note += ", including the local diagnostic big-pages viewer"
         print(f"Excluded: {excluded_note}.")
         print(f"Images: R2/CDN mode, loaded from {args.external_assets_url}")
+        if fingerprinted_assets:
+            print("Cache: HTML is revalidated; CSS/JS use content-hashed URLs and can be cached immutably.")
         print("Contact: direct Gmail compose link only; no mailto fallback, form, or serverless function is required.")
 
         if args.zip:

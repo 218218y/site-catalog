@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,10 +25,9 @@ DEFAULT_BRANCH = "main"
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 REQUIRED_BUNDLE_FILES = (
     "index.html",
-    "catalog-assets.config.js",
-    "catalogs.generated.js",
-    "catalogs.search.js",
+    "_headers",
 )
+HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 
 
 def project_root() -> Path:
@@ -73,6 +73,24 @@ def validate_bundle(bundle_dir: Path) -> None:
     if missing:
         raise FileNotFoundError(
             f"Bundle folder is incomplete: {rel_to_root(bundle_dir)}. Missing: {', '.join(missing)}. "
+            "Create a fresh R2 bundle before deploying."
+        )
+
+    index_html = (bundle_dir / "index.html").read_text(encoding="utf-8", errors="replace")
+    missing_assets: list[str] = []
+    for match in HTML_ASSET_RE.finditer(index_html):
+        reference = match.group(1).strip()
+        if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:")):
+            continue
+        reference_path = reference.split("?", 1)[0].split("#", 1)[0]
+        if Path(reference_path).suffix.lower() not in {".css", ".js"}:
+            continue
+        if not (bundle_dir / reference_path).is_file():
+            missing_assets.append(reference_path)
+    if missing_assets:
+        raise FileNotFoundError(
+            f"Bundle folder is incomplete: {rel_to_root(bundle_dir)}. "
+            f"index.html references missing CSS/JS assets: {', '.join(sorted(set(missing_assets)))}. "
             "Create a fresh R2 bundle before deploying."
         )
 

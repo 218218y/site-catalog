@@ -4,19 +4,34 @@
   X-Robots-Tag: noindex, nofollow, noimageindex, nosnippet, noarchive
   Strict-Transport-Security: max-age=31536000
 
-# Cloudflare Pages / static hosting headers for fast catalog browsing.
-# HTML and code stay revalidated so updates arrive quickly.
-/*.html
-  Cache-Control: public, max-age=0, must-revalidate
+# Cloudflare Pages cache strategy:
+# - HTML/app shell must revalidate on every visit so a new deploy is discovered immediately.
+# - CSS/JS in the deploy bundle are rewritten by tools/build_deploy_bundle.py to static/*.<hash>.*,
+#   so they are safe to cache aggressively: every content change creates a new URL.
 /
-  Cache-Control: public, max-age=0, must-revalidate
-/*.js
-  Cache-Control: public, max-age=0, must-revalidate
-/*.css
-  Cache-Control: public, max-age=0, must-revalidate
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
+/*.html
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
+/site.webmanifest
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
+/manifest.webmanifest
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
+/robots.txt
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
+/favicon.ico
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
+/favicon.svg
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
+/favicon.png
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
+/apple-touch-icon.png
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
 
-# Catalog page images are referenced with ?v=<assetVersion>, so they can be cached aggressively
-# after each conversion/build.
+/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Legacy/local Pages image path. The public R2 bundle normally does not copy assets/pages into Pages;
+# live catalog images are served from the configured R2/CDN domain with their own cache policy.
 /assets/pages/*
   Cache-Control: public, max-age=31536000, immutable
 

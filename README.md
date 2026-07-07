@@ -239,10 +239,15 @@ R2_PUBLIC_URL=https://cdn.bargig-furniture.com
 
 ```bat
 dist\site-upload-r2\index.html
-dist\site-upload-r2\catalog-assets.config.js
+dist\site-upload-r2\_headers
+dist\site-upload-r2\static\*.js
+dist\site-upload-r2\static\*.css
 ```
 
-בדוק שבתוך `dist\site-upload-r2\catalog-assets.config.js` מופיעה כתובת ה-CDN הנכונה.
+קבצי ה־CSS/JS בבאנדל ההעלאה מקבלים שם עם hash לפי תוכן, לדוגמה
+`static\app.abc123def456.js`. לכן אחרי עדכון אתר הדפדפן מבקש URL חדש ולא נתקע על
+`app.js` ישן מה־cache. כתובת ה־CDN של R2 נכתבת לתוך קובץ ההגדרה לפני ה־hash,
+ולכן גם שינוי כתובת CDN מקבל שם קובץ חדש בבאנדל.
 
 בתיקיית ההעלאה לא אמורה להיות תיקיית:
 
@@ -253,7 +258,7 @@ assets\pages
 אם התמונות לא מופיעות באתר אחרי העלאה, בדוק קודם את שלושת הדברים האלה:
 
 1. `sync-r2-images.bat` הסתיים בלי שגיאה.
-2. כתובת ה-CDN בקובץ `catalog-assets.config.js` נכונה.
+2. הרצת `bundle-site-r2.bat` מחדש אחרי שינוי כתובת CDN או שינוי קוד.
 3. הקבצים קיימים ב-R2 תחת הנתיב `assets/pages/...`.
 
 ## קבצים חשובים בפרויקט
