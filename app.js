@@ -2091,12 +2091,16 @@ function normalizeSearchResultsDirection(container) {
   container.setAttribute("dir", "rtl");
 }
 
+function lightboxSearchLayoutColumnLimit() {
+  return Math.max(1, Math.min(catalogLayoutColumnCount(), 3));
+}
+
 function updateLightboxSearchResultsLayout(count = 0) {
   if (!els.lightboxSearchResults) return;
   normalizeSearchResultsDirection(els.lightboxSearchResults);
 
   const resultCount = Math.max(0, Number(count) || 0);
-  const columns = Math.max(1, Math.min(resultCount || 1, 3));
+  const columns = Math.max(1, Math.min(resultCount || 1, lightboxSearchLayoutColumnLimit()));
   els.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns));
   els.lightboxSearchResults.dataset.resultColumns = String(columns);
   els.lightboxSearchResults.dataset.resultCount = String(resultCount);
@@ -4617,6 +4621,7 @@ function attachEvents() {
     scheduleCategoryNavFit();
     hideSearchFloatingPreview();
     scheduleCatalogScrollTopButtonUpdate();
+    updateLightboxSearchResultsLayout(els.lightboxSearchResults?.dataset.resultCount || 0);
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
       refreshLightboxLayoutForTopUiChange({ scrollToPage: false });
