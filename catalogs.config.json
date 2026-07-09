@@ -51,7 +51,7 @@
     "category": "חדרי ילדים",
     "subcategory": "מיטות נגר",
     "pdf": "assets/pdfs/beds-birch-2026.pdf",
-    "ocr": true
+    "ocr": false
   },
   {
     "id": "hi-riser-qualita-2026",
