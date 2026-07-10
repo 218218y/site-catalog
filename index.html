@@ -14,6 +14,7 @@
   </script>
   <meta name="robots" content="noindex, nofollow, noimageindex, nosnippet, noarchive" />
   <meta name="theme-color" content="#8b6f5a" />
+  <link rel="manifest" href="site.webmanifest" />
   <link rel="icon" href="favicon.ico" sizes="any" data-site-favicon="1" />
   <script src="favicon-loader.js" defer></script>
   <title>קטלוגים | רהיטי ברגיג</title>
@@ -52,6 +53,15 @@
         <path d="M10.7 18.1a7.4 7.4 0 1 1 5.2-2.16l3.58 3.58a1.18 1.18 0 0 1-1.67 1.67l-3.58-3.58a7.36 7.36 0 0 1-3.53.49Zm0-2.36a5.04 5.04 0 1 0 0-10.08 5.04 5.04 0 0 0 0 10.08Z" />
       </svg>
     </button>
+    <div class="mobile-category-nav">
+      <button class="mobile-category-menu-toggle" id="mobileCategoryMenuToggle" type="button" aria-label="פתיחת תפריט קטגוריות" aria-haspopup="menu" aria-expanded="false" aria-controls="mobileCategoryMenu">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5 6.5h14M5 12h14M5 17.5h14" />
+        </svg>
+        <span>קטגוריות</span>
+      </button>
+      <div class="mobile-category-menu hidden" id="mobileCategoryMenu" role="menu" aria-label="קטגוריות קטלוגים"></div>
+    </div>
   </header>
 
   <main id="top">
@@ -296,7 +306,6 @@
   <script src="catalog-snapshot.js"></script>
   <script src="catalog-assets.config.js"></script>
   <script src="catalogs.generated.js"></script>
-  <script src="catalogs.search.js"></script>
   <script src="catalog-search.js"></script>
   <script src="tooltip-manager.js"></script>
   <script src="app.js"></script>

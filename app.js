@@ -7,6 +7,8 @@ const MIN_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
 const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
+const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
+const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
 
 function catalogAssetBaseUrl() {
   const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
@@ -188,6 +190,9 @@ const state = {
   categoryFocusTimer: 0,
   categoryFocusTargetId: "",
   categoryNavFitRaf: 0,
+  searchIndexLoadState: Array.isArray(window.BARGIG_CATALOG_SEARCH) ? "ready" : "idle",
+  searchIndexLoadPromise: null,
+  searchIndexPreloadTimer: 0,
   catalogScrollTopButtonRaf: 0,
   searchPreviewSuppressUntil: 0,
   searchPreviewSuppressTimer: 0,
@@ -199,6 +204,8 @@ const els = {
   splash: $("splashScreen"),
   catalogGrid: $("catalogGrid"),
   categoryNav: $("categoryNav"),
+  mobileCategoryMenuToggle: $("mobileCategoryMenuToggle"),
+  mobileCategoryMenu: $("mobileCategoryMenu"),
   catalogCount: $("catalogCount"),
   pageCount: $("pageCount"),
   catalogSearch: $("catalogSearch"),
@@ -889,17 +896,61 @@ function initCategoryNavFit() {
 
 
 function renderCategoryNav(groups = getCatalogCategoryGroups()) {
-  if (!els.categoryNav) return;
-
   const links = groups.map((group, index) => {
     const targetId = categorySectionId(group.category, index);
     const sharePath = catalogCategorySharePath(group.category, index);
-    return `<a class="top-nav-link category-nav-link" href="${escapeHtml(buildCategoryShareRouteHash(sharePath))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-label="${escapeHtml(group.category)}">${escapeHtml(group.category)}</a>`;
+    return {
+      href: buildCategoryShareRouteHash(sharePath),
+      targetId,
+      sharePath,
+      label: group.category
+    };
   });
 
-  els.categoryNav.innerHTML = links.join("");
+  if (els.categoryNav) {
+    els.categoryNav.innerHTML = links.map((link) => `
+      <a class="top-nav-link category-nav-link" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">${escapeHtml(link.label)}</a>
+    `).join("");
+  }
+
+  if (els.mobileCategoryMenu) {
+    els.mobileCategoryMenu.innerHTML = links.length
+      ? links.map((link) => `
+          <a class="mobile-category-menu-link category-nav-link" role="menuitem" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">
+            <span>${escapeHtml(link.label)}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6" /></svg>
+          </a>
+        `).join("")
+      : '<div class="mobile-category-menu-empty">אין קטגוריות להצגה</div>';
+  }
+
   syncActiveCategoryNavLink();
   scheduleCategoryNavFit();
+}
+
+function isMobileCategoryMenuOpen() {
+  return Boolean(els.mobileCategoryMenu && !els.mobileCategoryMenu.classList.contains("hidden"));
+}
+
+function setMobileCategoryMenuOpen(open, options = {}) {
+  const shouldOpen = Boolean(open);
+  if (!els.mobileCategoryMenu || !els.mobileCategoryMenuToggle) return;
+
+  els.mobileCategoryMenu.classList.toggle("hidden", !shouldOpen);
+  els.mobileCategoryMenu.classList.toggle("is-open", shouldOpen);
+  els.mobileCategoryMenuToggle.classList.toggle("is-active", shouldOpen);
+  els.mobileCategoryMenuToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  els.mobileCategoryMenuToggle.setAttribute("aria-label", shouldOpen ? "סגירת תפריט קטגוריות" : "פתיחת תפריט קטגוריות");
+
+  if (shouldOpen && options.focusFirst) {
+    window.requestAnimationFrame(() => els.mobileCategoryMenu?.querySelector(".mobile-category-menu-link")?.focus());
+  } else if (!shouldOpen && options.focusButton) {
+    window.requestAnimationFrame(() => els.mobileCategoryMenuToggle?.focus({ preventScroll: true }));
+  }
+}
+
+function closeMobileCategoryMenu(options = {}) {
+  setMobileCategoryMenuOpen(false, options);
 }
 
 function decodeHashTargetId(hash = location.hash) {
@@ -992,11 +1043,13 @@ function hasCatalogCategoryFocus(targetId) {
 function syncActiveCategoryNavLink(activeId = state.categoryFocusTargetId) {
   const normalizedActiveId = String(activeId || "");
 
-  els.categoryNav?.querySelectorAll(".category-nav-link").forEach((link) => {
-    const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
-    link.classList.toggle("active", isActive);
-    if (isActive) link.setAttribute("aria-current", "location");
-    else link.removeAttribute("aria-current");
+  [els.categoryNav, els.mobileCategoryMenu].forEach((container) => {
+    container?.querySelectorAll(".category-nav-link").forEach((link) => {
+      const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
+      link.classList.toggle("active", isActive);
+      if (isActive) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
   });
 
   els.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link").forEach((link) => {
@@ -1257,22 +1310,22 @@ function scheduleCatalogLayoutRefresh() {
   }, 120);
 }
 
-function renderCatalogCard(catalog) {
+function renderCatalogCard(catalog, headingLevel = 3) {
   const cover = coverThumbSrc(catalog);
   const safeCatalogId = escapeHtml(catalog.id);
   const safeTitle = escapeHtml(catalog.title);
+  const safeHeadingLevel = headingLevel === 4 ? 4 : 3;
   return `
-    <article class="catalog-card">
-      <div class="catalog-cover-frame catalog-image-frame catalog-cover-card-picker" role="button" tabindex="0" data-open-catalog-cover="${safeCatalogId}" aria-label="כניסה לקטלוג ${safeTitle}">
+    <article class="catalog-card catalog-card-clickable" role="link" tabindex="0" data-enter-catalog-card="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
+      <div class="catalog-cover-frame catalog-image-frame">
         <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
-        <div class="catalog-cover-card-entry-hint" aria-hidden="true">כניסה לקטלוג</div>
+        <div class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</div>
       </div>
       <div class="catalog-body">
-        <h3>${escapeHtml(catalog.title)}</h3>
+        <h${safeHeadingLevel}>${safeTitle}</h${safeHeadingLevel}>
         <p>${escapeHtml(catalog.description || "")}</p>
         <div class="catalog-actions">
-          <button class="button soft" type="button" data-open-catalog="${escapeHtml(catalog.id)}">צפייה בקטלוג</button>
-          <button class="button primary" type="button" data-enter-catalog="${escapeHtml(catalog.id)}">כניסה לקטלוג</button>
+          <button class="button soft catalog-preview-button" type="button" data-open-catalog="${safeCatalogId}">צפייה בקטלוג מוקטן</button>
         </div>
       </div>
     </article>
@@ -1395,10 +1448,10 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
   return `
     <section class="catalog-subcategory-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(blockBaseId)}" data-parent-category-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-subcategory-span="${escapeHtml(String(block.span))}" data-inline-divider="${block.inlineDivider ? "1" : "0"}" data-subcategory-continuation="${block.itemOffset > 0 ? "1" : "0"}">
       <div class="catalog-category-head catalog-subcategory-head">
-        <h4 id="${escapeHtml(titleId)}">${escapeHtml(title)}</h4>
+        <h3 id="${escapeHtml(titleId)}">${escapeHtml(title)}</h3>
       </div>
       <div class="catalog-grid catalog-category-grid catalog-subcategory-grid">
-        ${items.map(renderCatalogCard).join("")}
+        ${items.map((catalog) => renderCatalogCard(catalog, 4)).join("")}
       </div>
     </section>
   `;
@@ -1414,7 +1467,7 @@ function renderCatalogCategoryHeaderSegment(segment, columns) {
   return `
     <section class="catalog-category-section catalog-category-section-with-subcategories catalog-category-section-header-only" id="${escapeHtml(baseSectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-span="${escapeHtml(String(safeColumns))}" data-inline-divider="0" data-category-continuation="0">
       <div class="catalog-category-head catalog-category-head-with-subcategories">
-        <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
+        <h2 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h2>
         ${renderCatalogSubcategoryNav(segment)}
       </div>
     </section>
@@ -1441,10 +1494,10 @@ function renderCatalogCategorySegment(segment, columns) {
   return `
     <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
       <div class="catalog-category-head">
-        <h3 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h3>
+        <h2 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h2>
       </div>
       <div class="catalog-grid catalog-category-grid">
-        ${segment.items.map(renderCatalogCard).join("")}
+        ${segment.items.map((catalog) => renderCatalogCard(catalog, 3)).join("")}
       </div>
     </section>
   `;
@@ -1458,25 +1511,24 @@ function openCatalogEntry(catalogId, page = 1) {
 function bindCatalogCardEvents() {
   if (!els.catalogGrid) return;
 
-  els.catalogGrid.querySelectorAll("[data-open-catalog-cover]").forEach((cover) => {
-    cover.addEventListener("click", (event) => {
-      openCatalogEntry(cover.dataset.openCatalogCover);
+  els.catalogGrid.querySelectorAll("[data-enter-catalog-card]").forEach((card) => {
+    card.addEventListener("click", (event) => {
+      if (event.target.closest?.("button, a, input, select, textarea")) return;
+      openCatalogEntry(card.dataset.enterCatalogCard);
     });
 
-    cover.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
+    card.addEventListener("keydown", (event) => {
+      if (event.target !== card || (event.key !== "Enter" && event.key !== " ")) return;
       event.preventDefault();
-      openCatalogEntry(cover.dataset.openCatalogCover);
+      openCatalogEntry(card.dataset.enterCatalogCard);
     });
   });
-
 
   els.catalogGrid.querySelectorAll("[data-open-catalog]").forEach((button) => {
-    button.addEventListener("click", () => openCatalog(button.dataset.openCatalog, { scroll: true }));
-  });
-
-  els.catalogGrid.querySelectorAll("[data-enter-catalog]").forEach((button) => {
-    button.addEventListener("click", () => openCatalogEntry(button.dataset.enterCatalog));
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openCatalog(button.dataset.openCatalog, { scroll: true });
+    });
   });
 }
 
@@ -1503,6 +1555,80 @@ function renderCatalogCards() {
   syncCatalogCategoryFocusFromHash({ animate: false });
 }
 
+
+function isSearchIndexReady() {
+  return Array.isArray(window.BARGIG_CATALOG_SEARCH);
+}
+
+function refreshSearchUiAfterIndexLoad() {
+  initSearchStatus();
+  initLightboxSearchStatus();
+
+  if (isGlobalSearchPanelOpen()) {
+    renderSearchResults(els.globalSearchInput?.value || "");
+  }
+  if (state.lightboxOpen && els.lightboxSearchInput) {
+    renderLightboxSearchResults(els.lightboxSearchInput.value);
+  }
+}
+
+function ensureSearchIndexLoaded() {
+  if (isSearchIndexReady()) {
+    state.searchIndexLoadState = "ready";
+    refreshSearchUiAfterIndexLoad();
+    return Promise.resolve(true);
+  }
+
+  if (state.searchIndexLoadPromise) return state.searchIndexLoadPromise;
+
+  state.searchIndexLoadState = "loading";
+  initLightboxSearchStatus();
+
+  state.searchIndexLoadPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
+    const script = existing || document.createElement("script");
+
+    const handleLoad = () => {
+      state.searchIndexLoadState = isSearchIndexReady() ? "ready" : "error";
+      state.searchIndexLoadPromise = null;
+      refreshSearchUiAfterIndexLoad();
+      if (state.searchIndexLoadState === "ready") resolve(true);
+      else reject(new Error("Search index loaded without data"));
+    };
+
+    const handleError = () => {
+      state.searchIndexLoadState = "error";
+      state.searchIndexLoadPromise = null;
+      script.remove();
+      initLightboxSearchStatus();
+      reject(new Error("Failed to load the catalog search index"));
+    };
+
+    script.addEventListener("load", handleLoad, { once: true });
+    script.addEventListener("error", handleError, { once: true });
+
+    if (!existing) {
+      script.src = SEARCH_INDEX_SCRIPT_SRC;
+      script.async = true;
+      script.dataset.searchIndexSrc = SEARCH_INDEX_SCRIPT_SRC;
+      document.head.appendChild(script);
+    }
+  });
+
+  return state.searchIndexLoadPromise;
+}
+
+function scheduleSearchIndexPreload() {
+  window.clearTimeout(state.searchIndexPreloadTimer);
+  state.searchIndexPreloadTimer = window.setTimeout(() => {
+    const preload = () => ensureSearchIndexLoaded().catch(() => {});
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(preload, { timeout: 2500 });
+    } else {
+      preload();
+    }
+  }, SEARCH_INDEX_PRELOAD_DELAY_MS);
+}
 
 function getGlobalSearchCategories() {
   return getCatalogCategoryGroups()
@@ -1779,7 +1905,8 @@ function initLightboxSearchStatus() {
 
   const hasCatalog = Boolean(state.catalog);
   const hasIndex = Boolean(catalogSearch?.hasIndex?.());
-  if (els.lightboxSearchInput) els.lightboxSearchInput.disabled = !hasCatalog || !hasIndex;
+  const indexPending = !hasIndex && state.searchIndexLoadState !== "error";
+  if (els.lightboxSearchInput) els.lightboxSearchInput.disabled = !hasCatalog;
   syncLightboxSearchScopeUi();
 
   if (!hasCatalog) {
@@ -1788,7 +1915,9 @@ function initLightboxSearchStatus() {
   }
 
   if (!hasIndex) {
-    els.lightboxSearchStatus.textContent = "אין אינדקס OCR זמין לחיפוש.";
+    els.lightboxSearchStatus.textContent = indexPending
+      ? "אינדקס החיפוש נטען לפי הצורך."
+      : "אינדקס החיפוש אינו זמין כרגע.";
     return;
   }
 
@@ -3812,8 +3941,23 @@ function handleLightboxSearchResultsBackgroundClick(event) {
 }
 
 function attachEvents() {
+  els.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeGlobalSearchPanel({ focusButton: false });
+    setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
+  });
+
+  els.mobileCategoryMenu?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".category-nav-link");
+    if (!link || !els.mobileCategoryMenu.contains(link)) return;
+    closeMobileCategoryMenu();
+    handleCatalogFocusLinkClick(link, event);
+  });
+
   els.globalSearchOpen?.addEventListener("click", (event) => {
     event.preventDefault();
+    ensureSearchIndexLoaded().catch(() => {});
     event.stopPropagation();
     closeDetailCatalogMenu();
     closeLightboxCatalogMenu();
@@ -3826,8 +3970,12 @@ function attachEvents() {
     closeGlobalSearchPanel({ focusButton: true });
   });
 
-  els.globalSearchInput?.addEventListener("input", () => renderSearchResults(els.globalSearchInput.value));
-  els.globalSearchInput?.addEventListener("focus", () => renderSearchResults(els.globalSearchInput.value));
+  els.globalSearchInput?.addEventListener("input", () => {
+    ensureSearchIndexLoaded().then(() => renderSearchResults(els.globalSearchInput.value)).catch(() => renderSearchResults(els.globalSearchInput.value));
+  });
+  els.globalSearchInput?.addEventListener("focus", () => {
+    ensureSearchIndexLoaded().then(() => renderSearchResults(els.globalSearchInput.value)).catch(() => renderSearchResults(els.globalSearchInput.value));
+  });
   els.globalSearchInput?.addEventListener("click", () => renderSearchResults(els.globalSearchInput.value));
   els.globalSearchInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
@@ -3866,10 +4014,12 @@ function attachEvents() {
   els.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
   els.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
 
-  els.lightboxSearchInput?.addEventListener("input", () => renderLightboxSearchResults(els.lightboxSearchInput.value));
+  els.lightboxSearchInput?.addEventListener("input", () => {
+    ensureSearchIndexLoaded().then(() => renderLightboxSearchResults(els.lightboxSearchInput.value)).catch(() => renderLightboxSearchResults(els.lightboxSearchInput.value));
+  });
   els.lightboxSearchInput?.addEventListener("focus", () => {
     showTopUiTemporarily(0);
-    renderLightboxSearchResults(els.lightboxSearchInput.value);
+    ensureSearchIndexLoaded().then(() => renderLightboxSearchResults(els.lightboxSearchInput.value)).catch(() => renderLightboxSearchResults(els.lightboxSearchInput.value));
   });
   els.lightboxSearchInput?.addEventListener("click", () => {
     showTopUiTemporarily(0);
@@ -3933,6 +4083,10 @@ function attachEvents() {
     const target = event.target;
     const insideGlobalSearch = Boolean(els.catalogSearch?.contains(target) || els.globalSearchOpen?.contains(target));
 
+    if (!els.mobileCategoryMenu?.contains(target) && !els.mobileCategoryMenuToggle?.contains(target)) {
+      closeMobileCategoryMenu();
+    }
+
     if (insideGlobalSearch) {
       if (!els.globalSearchScopeMenu?.contains(target) && !els.globalSearchScopeToggle?.contains(target)) {
         closeGlobalSearchScopeMenu();
@@ -3958,6 +4112,7 @@ function attachEvents() {
   els.categoryNav?.addEventListener("click", (event) => {
     const link = event.target.closest?.(".category-nav-link");
     if (!link || !els.categoryNav.contains(link)) return;
+    closeMobileCategoryMenu();
     handleCatalogFocusLinkClick(link, event);
   });
 
@@ -4033,6 +4188,7 @@ function attachEvents() {
 
 
   window.addEventListener("resize", () => {
+    if (!window.matchMedia("(max-width: 760px)").matches) closeMobileCategoryMenu();
     scheduleCatalogLayoutRefresh();
     scheduleCategoryNavFit();
     hideSearchFloatingPreview();
@@ -4055,6 +4211,11 @@ function attachEvents() {
   syncFullscreenButtonUi();
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && isMobileCategoryMenuOpen()) {
+      event.preventDefault();
+      closeMobileCategoryMenu({ focusButton: true });
+      return;
+    }
     if (event.key === "Escape" && isGlobalSearchPanelOpen()) {
       event.preventDefault();
       if (els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
@@ -4135,6 +4296,7 @@ function init() {
 
   renderCatalogCards();
   renderGlobalSearchScopeMenu();
+  scheduleSearchIndexPreload();
   syncCatalogCategoryFocusFromHash({ animate: false, scroll: true });
   fillCatalogSelect();
   initSearchStatus();
