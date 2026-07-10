@@ -3,7 +3,7 @@
  * Builds lightweight downloadable catalog-page screenshots that include the
  * same Bargig logo overlay shown in the browser UI.
  */
-/* global window, Image */
+/* global window, document, Image, URL */
 (function () {
   'use strict';
 
@@ -14,13 +14,46 @@
   var LOGO_WIDTH_RATIO = 0.13;
   var LOGO_TOP_RATIO = 0.02;
   var LOGO_ASPECT_RATIO = 786 / 317;
+  var SNAPSHOT_CORS_VERSION = '1';
+
+  function resolveUrl(src) {
+    try {
+      return new URL(String(src || ''), document.baseURI || window.location.href);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function isCrossOriginHttpUrl(src) {
+    var url = resolveUrl(src);
+    if (!url || !/^https?:$/.test(url.protocol)) return false;
+    return url.origin !== window.location.origin;
+  }
+
+  function withSnapshotCorsVersion(src) {
+    var url = resolveUrl(src);
+    if (!url) return src;
+    url.searchParams.set('snapshot-cors', SNAPSHOT_CORS_VERSION);
+    return url.href;
+  }
 
   function loadSnapshotImage(src) {
     return new Promise(function (resolve, reject) {
       var img = new Image();
+      var imageSrc = src;
+
+      // Canvas export requires a CORS-enabled image request whenever catalog
+      // pages are served from the external R2/CDN origin. The attribute must be
+      // set before src; otherwise the browser loads an opaque image that can be
+      // displayed but taints the canvas when drawImage() is used.
+      if (isCrossOriginHttpUrl(src)) {
+        img.crossOrigin = 'anonymous';
+        imageSrc = withSnapshotCorsVersion(src);
+      }
+
       img.onload = function () { resolve(img); };
       img.onerror = function () { reject(new Error('image-load-failed')); };
-      img.src = src;
+      img.src = imageSrc;
     });
   }
 

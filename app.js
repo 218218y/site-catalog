@@ -580,8 +580,14 @@ async function downloadCatalogPageSnapshot(catalog, page, button) {
     const extension = window.CatalogSnapshot.extension || "jpg";
     saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.${extension}`);
     flashActionButton(button, "צילום המסך נשמר");
-  } catch (_error) {
-    window.alert("לא הצלחתי ליצור תמונה לעמוד הזה. כדאי לוודא שקבצי התמונות נטענים מאותו אתר ולא מחסימה של הדפדפן.");
+  } catch (error) {
+    console.error("[CatalogSnapshot] Failed to export catalog page", {
+      catalogId: catalog.id,
+      page: currentPage,
+      src,
+      error
+    });
+    window.alert("לא הצלחתי ליצור את תמונת העמוד. יש לוודא שמדיניות CORS של מאגר התמונות מאפשרת קריאה מהאתר.");
   }
 }
 

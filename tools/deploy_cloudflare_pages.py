@@ -11,6 +11,7 @@ shell execution in the browser.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -23,6 +24,8 @@ DEFAULT_BUNDLE_DIR = "dist/site-upload-r2"
 DEFAULT_PROJECT_NAME = "bargig-catlog"
 DEFAULT_BRANCH = "main"
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
+DEFAULT_R2_BUCKET = "bargig-catalog"
+DEFAULT_R2_CORS_FILE = "r2-cors.json"
 REQUIRED_BUNDLE_FILES = (
     "index.html",
     "_headers",
@@ -61,6 +64,77 @@ def ensure_inside_project(path: Path) -> Path:
     except ValueError as exc:
         raise ValueError(f"Bundle folder must be inside the project: {path}") from exc
     return resolved
+
+
+def validate_r2_cors_file(cors_file: Path) -> None:
+    if not cors_file.is_file():
+        raise FileNotFoundError(
+            f"R2 CORS policy file does not exist: {rel_to_root(cors_file)}."
+        )
+    try:
+        payload = json.loads(cors_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"R2 CORS policy is not valid JSON: {rel_to_root(cors_file)} ({exc})") from exc
+
+    rules = payload.get("rules") if isinstance(payload, dict) else None
+    if not isinstance(rules, list) or not rules:
+        raise ValueError(f"R2 CORS policy must contain a non-empty rules array: {rel_to_root(cors_file)}")
+
+    has_browser_read_rule = False
+    for rule in rules:
+        allowed = rule.get("allowed") if isinstance(rule, dict) else None
+        if not isinstance(allowed, dict):
+            continue
+        origins = allowed.get("origins")
+        methods = allowed.get("methods")
+        if isinstance(origins, list) and origins and isinstance(methods, list) and "GET" in methods:
+            has_browser_read_rule = True
+            break
+    if not has_browser_read_rule:
+        raise ValueError(
+            f"R2 CORS policy must allow at least one origin and the GET method: {rel_to_root(cors_file)}"
+        )
+
+
+def build_r2_cors_commands(npx: str, bucket: str, cors_file: str) -> tuple[list[str], list[str]]:
+    set_command = [
+        npx,
+        "--yes",
+        "wrangler",
+        "r2",
+        "bucket",
+        "cors",
+        "set",
+        bucket,
+        "--file",
+        cors_file,
+    ]
+    list_command = [
+        npx,
+        "--yes",
+        "wrangler",
+        "r2",
+        "bucket",
+        "cors",
+        "list",
+        bucket,
+    ]
+    return set_command, list_command
+
+
+def apply_r2_cors(npx: str, bucket: str, cors_file: str, root: Path) -> int:
+    set_command, list_command = build_r2_cors_commands(npx, bucket, cors_file)
+    print("Applying Cloudflare R2 CORS policy...", flush=True)
+    returncode = run_streamed(set_command, root)
+    if returncode != 0:
+        print(f"\nERROR: R2 CORS update failed with return code {returncode}.", file=sys.stderr)
+        return returncode
+
+    print("Verifying Cloudflare R2 CORS policy...", flush=True)
+    returncode = run_streamed(list_command, root)
+    if returncode != 0:
+        print(f"\nERROR: R2 CORS verification failed with return code {returncode}.", file=sys.stderr)
+    return returncode
 
 
 def validate_bundle(bundle_dir: Path) -> None:
@@ -136,7 +210,7 @@ def build_bundle(args: argparse.Namespace) -> int:
     return run_streamed(command, project_root())
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Deploy dist/site-upload-r2 to Cloudflare Pages with Wrangler.")
     parser.add_argument("--dir", default=DEFAULT_BUNDLE_DIR, help=f"Bundle folder to deploy. Default: {DEFAULT_BUNDLE_DIR}")
     parser.add_argument("--project-name", default=DEFAULT_PROJECT_NAME, help=f"Cloudflare Pages project name. Default: {DEFAULT_PROJECT_NAME}")
@@ -151,16 +225,46 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_R2_ASSET_BASE_URL,
         help=f"R2/CDN image base URL used only with --build-first. Default: {DEFAULT_R2_ASSET_BASE_URL}",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Validate and print the Wrangler command without deploying.")
-    return parser.parse_args()
+    parser.add_argument("--r2-bucket", default=DEFAULT_R2_BUCKET, help=f"R2 bucket whose CORS policy is applied before deploy. Default: {DEFAULT_R2_BUCKET}")
+    parser.add_argument("--cors-file", default=DEFAULT_R2_CORS_FILE, help=f"Wrangler R2 CORS JSON file. Default: {DEFAULT_R2_CORS_FILE}")
+    parser.add_argument("--skip-r2-cors", action="store_true", help="Deploy without applying or verifying the R2 CORS policy")
+    parser.add_argument("--cors-only", action="store_true", help="Apply and verify only the R2 CORS policy without deploying Cloudflare Pages")
+    parser.add_argument("--dry-run", action="store_true", help="Validate and print the Wrangler command(s) without changing Cloudflare.")
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     root = project_root()
-    bundle_dir = ensure_inside_project(root / args.dir)
 
     try:
+        if args.cors_only and args.skip_r2_cors:
+            raise ValueError("--cors-only cannot be combined with --skip-r2-cors.")
+        if args.cors_only and args.build_first:
+            raise ValueError("--cors-only cannot be combined with --build-first.")
+
+        npx = find_npx()
+        cors_file = ensure_inside_project(root / args.cors_file)
+        if not args.skip_r2_cors:
+            validate_r2_cors_file(cors_file)
+        cors_set_command, cors_list_command = build_r2_cors_commands(
+            npx,
+            args.r2_bucket,
+            rel_to_root(cors_file),
+        )
+
+        if args.cors_only:
+            print("Cloudflare R2 CORS settings:", flush=True)
+            print(f"  bucket: {args.r2_bucket}", flush=True)
+            print(f"  policy: {rel_to_root(cors_file)}", flush=True)
+            if args.dry_run:
+                print("\nDry run only. Commands that would be executed:", flush=True)
+                print(quote_command(cors_set_command), flush=True)
+                print(quote_command(cors_list_command), flush=True)
+                return 0
+            return apply_r2_cors(npx, args.r2_bucket, rel_to_root(cors_file), root)
+
+        bundle_dir = ensure_inside_project(root / args.dir)
         if args.build_first:
             print("Creating a fresh R2 bundle before Cloudflare Pages deploy...", flush=True)
             build_code = build_bundle(args)
@@ -169,7 +273,6 @@ def main() -> int:
                 return build_code
 
         validate_bundle(bundle_dir)
-        npx = find_npx()
         wrangler_command = [
             npx,
             "--yes",
@@ -187,11 +290,20 @@ def main() -> int:
         print(f"  folder: {rel_to_root(bundle_dir)}", flush=True)
         print(f"  project: {args.project_name}", flush=True)
         print(f"  branch: {args.branch}", flush=True)
+        print(f"  R2 CORS: {'skipped' if args.skip_r2_cors else args.r2_bucket + ' <- ' + rel_to_root(cors_file)}", flush=True)
 
         if args.dry_run:
-            print("\nDry run only. Command that would be executed:", flush=True)
+            print("\nDry run only. Commands that would be executed:", flush=True)
+            if not args.skip_r2_cors:
+                print(quote_command(cors_set_command), flush=True)
+                print(quote_command(cors_list_command), flush=True)
             print(quote_command(wrangler_command), flush=True)
             return 0
+
+        if not args.skip_r2_cors:
+            cors_code = apply_r2_cors(npx, args.r2_bucket, rel_to_root(cors_file), root)
+            if cors_code != 0:
+                return cors_code
 
         returncode = run_streamed(wrangler_command, root)
         if returncode == 0:
