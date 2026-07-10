@@ -81,6 +81,15 @@
     "ocr": true
   },
   {
+    "id": "kachtan-2026",
+    "title": "היי רייזר קחטן 2026",
+    "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
+    "category": "חדרי ילדים",
+    "subcategory": "היי ריזר",
+    "pdf": "assets/pdfs/kachtan-2026.pdf",
+    "ocr": true
+  },
+  {
     "id": "custom-upholstered",
     "title": "מרופדים עבודת יד מבית לקוח",
     "description": "מיטות מרופדות בעיצוב אישי בעבודת נגר",
