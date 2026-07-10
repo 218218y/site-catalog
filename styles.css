@@ -3654,8 +3654,7 @@ a.reader-home:focus-visible {
   transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
 }
 .catalog-card-clickable:hover,
-.catalog-card-clickable:focus-visible,
-.catalog-card-clickable:focus-within {
+.catalog-card-clickable:focus-visible {
   border-color: rgba(145, 114, 93, 0.34);
   box-shadow: 0 20px 44px rgba(58, 43, 33, 0.14);
   transform: translateY(-2px);
@@ -3677,13 +3676,11 @@ a.reader-home:focus-visible {
   pointer-events: none;
 }
 .catalog-card-clickable:hover .catalog-cover-frame::before,
-.catalog-card-clickable:focus-visible .catalog-cover-frame::before,
-.catalog-card-clickable:focus-within .catalog-cover-frame::before {
+.catalog-card-clickable:focus-visible .catalog-cover-frame::before {
   opacity: 1;
 }
 .catalog-card-clickable:hover .catalog-cover-card-entry-hint,
-.catalog-card-clickable:focus-visible .catalog-cover-card-entry-hint,
-.catalog-card-clickable:focus-within .catalog-cover-card-entry-hint {
+.catalog-card-clickable:focus-visible .catalog-cover-card-entry-hint {
   opacity: 1;
   transform: translate(-50%, 0);
 }
@@ -3851,8 +3848,7 @@ a.reader-home:focus-visible {
 
 
   .catalog-card-clickable:hover,
-  .catalog-card-clickable:focus-visible,
-  .catalog-card-clickable:focus-within {
+  .catalog-card-clickable:focus-visible {
     transform: none;
   }
   .catalog-cover-card-entry-hint {

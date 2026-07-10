@@ -1325,7 +1325,7 @@ function renderCatalogCard(catalog, headingLevel = 3) {
         <h${safeHeadingLevel}>${safeTitle}</h${safeHeadingLevel}>
         <p>${escapeHtml(catalog.description || "")}</p>
         <div class="catalog-actions">
-          <button class="button soft catalog-preview-button" type="button" data-open-catalog="${safeCatalogId}">צפייה בקטלוג מוקטן</button>
+          <button class="button soft catalog-preview-button" type="button" data-open-catalog="${safeCatalogId}">צפייה בקטלוג קטן</button>
         </div>
       </div>
     </article>
