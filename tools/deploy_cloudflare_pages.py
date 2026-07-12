@@ -4,6 +4,10 @@
 Default command executed from the project root:
     npx --yes wrangler pages deploy dist/site-upload-r2 --project-name bargig-catlog --branch main
 
+The regular deploy path intentionally changes only Cloudflare Pages. R2 CORS
+configuration is an explicit maintenance action exposed through --cors-only,
+so repeated site uploads never rewrite a stable bucket policy.
+
 The script is intentionally small and fixed-purpose so it can be called both
 from a .bat file and from the local control panel without exposing arbitrary
 shell execution in the browser.
@@ -229,9 +233,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_R2_ASSET_BASE_URL,
         help=f"R2/CDN image base URL used only with --build-first. Default: {DEFAULT_R2_ASSET_BASE_URL}",
     )
-    parser.add_argument("--r2-bucket", default=DEFAULT_R2_BUCKET, help=f"R2 bucket whose CORS policy is applied before deploy. Default: {DEFAULT_R2_BUCKET}")
-    parser.add_argument("--cors-file", default=DEFAULT_R2_CORS_FILE, help=f"Wrangler R2 CORS JSON file. Default: {DEFAULT_R2_CORS_FILE}")
-    parser.add_argument("--skip-r2-cors", action="store_true", help="Deploy without applying or verifying the R2 CORS policy")
+    parser.add_argument(
+        "--r2-bucket",
+        default=DEFAULT_R2_BUCKET,
+        help=f"R2 bucket used only with --cors-only. Default: {DEFAULT_R2_BUCKET}",
+    )
+    parser.add_argument(
+        "--cors-file",
+        default=DEFAULT_R2_CORS_FILE,
+        help=f"Wrangler R2 CORS JSON file used only with --cors-only. Default: {DEFAULT_R2_CORS_FILE}",
+    )
     parser.add_argument("--cors-only", action="store_true", help="Apply and verify only the R2 CORS policy without deploying Cloudflare Pages")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print the Wrangler command(s) without changing Cloudflare.")
     return parser.parse_args(argv)
@@ -242,22 +253,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     root = project_root()
 
     try:
-        if args.cors_only and args.skip_r2_cors:
-            raise ValueError("--cors-only cannot be combined with --skip-r2-cors.")
         if args.cors_only and args.build_first:
             raise ValueError("--cors-only cannot be combined with --build-first.")
 
         npx = find_npx()
-        cors_file = ensure_inside_project(root / args.cors_file)
-        if not args.skip_r2_cors:
-            validate_r2_cors_file(cors_file)
-        cors_set_command, cors_list_command = build_r2_cors_commands(
-            npx,
-            args.r2_bucket,
-            rel_to_root(cors_file),
-        )
-
         if args.cors_only:
+            cors_file = ensure_inside_project(root / args.cors_file)
+            validate_r2_cors_file(cors_file)
+            cors_set_command, cors_list_command = build_r2_cors_commands(
+                npx,
+                args.r2_bucket,
+                rel_to_root(cors_file),
+            )
             print("Cloudflare R2 CORS settings:", flush=True)
             print(f"  bucket: {args.r2_bucket}", flush=True)
             print(f"  policy: {rel_to_root(cors_file)}", flush=True)
@@ -294,20 +301,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"  folder: {rel_to_root(bundle_dir)}", flush=True)
         print(f"  project: {args.project_name}", flush=True)
         print(f"  branch: {args.branch}", flush=True)
-        print(f"  R2 CORS: {'skipped' if args.skip_r2_cors else args.r2_bucket + ' <- ' + rel_to_root(cors_file)}", flush=True)
 
         if args.dry_run:
-            print("\nDry run only. Commands that would be executed:", flush=True)
-            if not args.skip_r2_cors:
-                print(quote_command(cors_set_command), flush=True)
-                print(quote_command(cors_list_command), flush=True)
+            print("\nDry run only. Command that would be executed:", flush=True)
             print(quote_command(wrangler_command), flush=True)
             return 0
-
-        if not args.skip_r2_cors:
-            cors_code = apply_r2_cors(npx, args.r2_bucket, rel_to_root(cors_file), root)
-            if cors_code != 0:
-                return cors_code
 
         returncode = run_streamed(wrangler_command, root)
         if returncode == 0:

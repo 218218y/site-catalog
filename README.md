@@ -219,13 +219,13 @@ dist\site-upload-r2.zip
 bundle-site-r2-upload cloudflare.bat
 ```
 
-לפני העלאת Pages, כלי הפריסה מחיל ומאמת אוטומטית את מדיניות ה-CORS שבקובץ `r2-cors.json` על bucket התמונות `bargig-catalog`. רק לאחר שהגדרת ה-R2 הצליחה, הוא מריץ את העלאת האתר:
+כלי ההעלאה משנה רק את אתר ה־Pages ואינו קורא או מעדכן את הגדרות ה־CORS של R2. הוא מריץ:
 
 ```bat
 npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog --branch main
 ```
 
-כדי להחיל ולאמת רק את מדיניות CORS, בלי להעלות את האתר:
+ה־CORS הוא הגדרה חד־פעמית/תחזוקתית נפרדת. רק כאשר צריך לשנות אותה במפורש, מריצים:
 
 ```bat
 configure-r2-cors.bat
@@ -287,7 +287,7 @@ assets\pages
 1. `sync-r2-images.bat` הסתיים בלי שגיאה.
 2. הרצת `bundle-site-r2.bat` מחדש אחרי שינוי כתובת CDN או שינוי קוד.
 3. הקבצים קיימים ב-R2 תחת הנתיב `assets/pages/...`.
-4. `configure-r2-cors.bat` הסתיים בהצלחה, או שהעלאת Pages החילה את `r2-cors.json` בלי שגיאה.
+4. אם זו הקמה ראשונית או ששינית את המדיניות, `configure-r2-cors.bat` הסתיים בהצלחה.
 
 ## קבצים חשובים בפרויקט
 
@@ -303,7 +303,7 @@ catalogs.generated.js              נתוני קטלוגים שנוצרו אוט
 catalogs.search.js                 אינדקס חיפוש שנוצר אוטומטית
 catalog-control-panel.bat          פתיחת לוח השליטה המקומי
 catalog-control-panel.html         ממשק לוח השליטה המקומי
-bundle-site-r2-upload cloudflare.bat      החלת CORS על R2 והעלאת dist/site-upload-r2 ל-Cloudflare Pages
+bundle-site-r2-upload cloudflare.bat      העלאת dist/site-upload-r2 ל-Cloudflare Pages בלבד
 configure-r2-cors.bat               החלה ואימות של מדיניות CORS בלבד
 r2-cors.json                        מדיניות קריאת GET/HEAD מהדפדפן עבור bucket התמונות הציבורי
 tools/catalog_control_server.py    שרת מקומי שמפעיל פעולות קבועות ומעדכן קבצי קטלוגים
@@ -314,7 +314,7 @@ sync-r2-images-preview.bat         בדיקת תכנון סנכרון R2 בלי 
 sync-r2-images.bat                 סנכרון R2 בפועל
 r2.env.example                     תבנית להגדרת Cloudflare R2 מקומית
 tools/build_deploy_bundle.py       בניית תיקיית ההעלאה ל-Cloudflare Pages במסלול R2 בלבד
-tools/deploy_cloudflare_pages.py  החלת CORS על R2 והעלאה קבועה ל-Cloudflare Pages דרך Wrangler
+tools/deploy_cloudflare_pages.py  העלאה קבועה ל-Cloudflare Pages דרך Wrangler; CORS רק במצב תחזוקה מפורש
 tools/sync_r2_catalog_images.py    כלי הסנכרון מול Cloudflare R2 ללא תלות ב-AWS CLI
 sync-catalog-pdfs.bat              סריקת assets/pdfs והוספת PDFים חסרים לרשימה
 convert-catalogs.bat               המרת PDF לתמונות ועדכון נתוני קטלוגים
