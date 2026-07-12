@@ -4138,9 +4138,12 @@ a.reader-home:focus-visible {
 }
 .favorites-grid {
   min-height: 0;
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: max-content;
   align-items: start;
+  align-content: start;
   gap: 18px;
   overflow: auto;
   padding: clamp(18px, 3vw, 30px);
