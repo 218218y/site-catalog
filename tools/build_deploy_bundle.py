@@ -60,14 +60,21 @@ DEPLOY_FILES = [
 ]
 
 OPTIONAL_DEPLOY_FILES = [
-    "favicon.ico",
-    "favicon.svg",
-    "favicon.png",
-    "apple-touch-icon.png",
     "robots.txt",
     "site.webmanifest",
     "manifest.webmanifest",
 ]
+
+WEB_APP_ICON_PATTERNS = (
+    "favicon*.ico",
+    "favicon*.png",
+    "favicon*.svg",
+    "favicon*.webp",
+    "apple-touch-icon*.png",
+    "android-chrome-*.png",
+    "mstile-*.png",
+    "safari-pinned-tab.svg",
+)
 
 JSON_DEPLOY_FILES = [
     "catalogs.generated.json",
@@ -251,6 +258,80 @@ def copy_optional_file(root: Path, out_dir: Path, relative_path: str | Path) -> 
     return copy_file(root, out_dir, relative)
 
 
+def normalize_local_public_asset(reference: str) -> Path | None:
+    """Resolve a manifest asset URL to a safe project-relative path.
+
+    Remote/data URLs are intentionally ignored. Root-relative manifest paths
+    (``/icon.png``) are normalized to the static bundle root, while path
+    traversal is rejected instead of silently copying outside the project.
+    """
+
+    raw = str(reference or "").strip()
+    if not raw or raw.startswith(("http://", "https://", "//", "data:", "blob:")):
+        return None
+
+    path_part = raw.split("?", 1)[0].split("#", 1)[0].lstrip("/")
+    if not path_part:
+        return None
+
+    relative = Path(path_part)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"Unsafe local asset reference in web app manifest: {reference}")
+    return relative
+
+
+def iter_manifest_asset_references(payload: object) -> Iterable[str]:
+    """Yield local-file candidates from all manifest ``src`` fields."""
+
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key == "src" and isinstance(value, str):
+                yield value
+            else:
+                yield from iter_manifest_asset_references(value)
+    elif isinstance(payload, list):
+        for value in payload:
+            yield from iter_manifest_asset_references(value)
+
+
+def discover_web_app_assets(root: Path) -> list[Path]:
+    """Discover custom icons plus every local asset referenced by a manifest."""
+
+    assets: set[Path] = set()
+    for pattern in WEB_APP_ICON_PATTERNS:
+        for source in root.glob(pattern):
+            if source.is_file():
+                assets.add(source.relative_to(root))
+
+    for manifest_name in ("site.webmanifest", "manifest.webmanifest"):
+        manifest_path = root / manifest_name
+        if not manifest_path.is_file():
+            continue
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Could not parse {manifest_name}: {exc}") from exc
+
+        for reference in iter_manifest_asset_references(payload):
+            relative = normalize_local_public_asset(reference)
+            if relative is not None:
+                assets.add(relative)
+
+    return sorted(assets, key=lambda path: path.as_posix())
+
+
+def copy_web_app_assets(root: Path, out_dir: Path) -> CopyStats:
+    stats = CopyStats(files=0, bytes=0)
+    for relative in discover_web_app_assets(root):
+        source = root / relative
+        if not source.is_file():
+            raise FileNotFoundError(
+                f"Web app manifest references a missing local asset: {relative.as_posix()}"
+            )
+        stats = add_stats(stats, copy_file(root, out_dir, relative))
+    return stats
+
+
 def iter_files(directory: Path) -> Iterable[Path]:
     if not directory.is_dir():
         return
@@ -426,6 +507,7 @@ def main() -> int:
             stats = add_stats(stats, copy_file(root, out_dir, relative))
         for relative in OPTIONAL_DEPLOY_FILES:
             stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
+        stats = add_stats(stats, copy_web_app_assets(root, out_dir))
         if args.include_json:
             for relative in JSON_DEPLOY_FILES:
                 stats = add_stats(stats, copy_optional_file(root, out_dir, relative))

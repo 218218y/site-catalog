@@ -2354,6 +2354,31 @@ a.reader-home:focus-visible {
   justify-self: center;
   position: relative;
 }
+.reader-mobile-search-toggle,
+.reader-mobile-search-head {
+  display: none;
+}
+.reader-mobile-search-close {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+  font: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.reader-mobile-search-close:hover,
+.reader-mobile-search-close:focus-visible {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.28);
+}
 .reader-title-wrap {
   min-width: 0;
   text-align: center;
@@ -3338,6 +3363,10 @@ a.reader-home:focus-visible {
 
 @media (max-width: 760px) {
   :root { --header-h: 78px; }
+  .lightbox {
+    --reader-mobile-toolbar-height: 58px;
+    --reader-mobile-search-panel-space: 120px;
+  }
   .site-header {
     --top-nav-gap: 8px;
     --top-nav-button-min-height: 36px;
@@ -3397,11 +3426,9 @@ a.reader-home:focus-visible {
   .reader-header.lightbox-reader-header {
     min-height: 0;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "brand actions"
-      "search search";
+    grid-template-areas: "brand actions";
     gap: 7px;
-    padding-inline: 8px;
+    padding: 7px 8px;
   }
   .reader-brand-actions {
     grid-area: brand;
@@ -3410,9 +3437,35 @@ a.reader-home:focus-visible {
     justify-self: start;
   }
   .reader-header-search {
-    grid-area: search;
+    position: absolute;
+    z-index: 42;
+    top: calc(100% + 8px);
+    right: 8px;
+    left: 8px;
+    width: auto;
     max-width: none;
-    justify-self: stretch;
+    display: none;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 19px;
+    background: linear-gradient(180deg, rgba(28,24,21,0.985), rgba(10,9,8,0.97));
+    box-shadow: 0 22px 62px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.08);
+    backdrop-filter: blur(18px);
+  }
+  .lightbox.mobile-search-open .reader-header-search { display: block; }
+  .reader-mobile-search-toggle { display: inline-flex; }
+  .reader-mobile-search-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding-inline: 2px;
+  }
+  .reader-mobile-search-head strong {
+    color: #fff;
+    font-size: .92rem;
+    font-weight: 900;
   }
   .reader-header-spacer,
   .lightbox-actions {
@@ -3421,12 +3474,9 @@ a.reader-home:focus-visible {
   }
   .reader-header-spacer { display: none; }
   .lightbox-actions {
-    max-width: min(62vw, 230px);
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
+    max-width: none;
+    overflow: visible;
   }
-  .lightbox-actions::-webkit-scrollbar { display: none; }
   .reader-header .reader-home { padding: 4px 6px; border-radius: 14px; }
   .reader-logo,
   .lightbox-brand-lockup .reader-logo { width: 84px; border-radius: 12px; clip-path: inset(0 round 12px); }
@@ -3455,6 +3505,17 @@ a.reader-home:focus-visible {
   .reader-catalog-menu { width: calc(100% - 16px); }
   .reader-search-results {
     width: min(calc(100% - 16px), var(--reader-search-results-width), 560px);
+  }
+  .lightbox:not(.mobile-search-open) .lightbox-search-results {
+    display: none !important;
+  }
+  .lightbox.mobile-search-open .lightbox-search-results {
+    position: relative;
+    z-index: 41;
+    width: min(calc(100% - 16px), var(--reader-search-results-width), 560px);
+    max-height: calc(100vh - var(--reader-mobile-toolbar-height) - var(--reader-mobile-search-panel-space) - 12px);
+    max-height: calc(100dvh - var(--reader-mobile-toolbar-height) - var(--reader-mobile-search-panel-space) - 12px);
+    margin-top: var(--reader-mobile-search-panel-space);
   }
   .reader-catalog-menu-items { grid-template-columns: 1fr; }
   .reader-page-rail {
@@ -3530,7 +3591,7 @@ a.reader-home:focus-visible {
   .catalog-cover-cta { opacity: 1; transform: none; }
   .catalog-cover-card-picker::before { opacity: 1; }
   .lightbox-search-clear { width: var(--reader-clear-button-width); }
-  .lightbox-top-hotspot { height: 92px; }
+  .lightbox-top-hotspot { height: 58px; }
   .reader-main { padding: 8px; }
   .reader-page-frame { border-radius: 12px; }
 }
@@ -3546,7 +3607,7 @@ a.reader-home:focus-visible {
   .reader-logo,
   .lightbox-brand-lockup .reader-logo { width: 72px; }
   .reader-header .reader-home { padding: 3px 5px; border-radius: 13px; }
-  .lightbox-actions { max-width: min(52vw, 130px); }
+  .lightbox-actions { max-width: none; }
   .reader-quick-actions { gap: 4px; }
   .reader-icon-button,
   .reader-control-icon-button { width: 34px; min-width: 34px; min-height: 34px; border-radius: 12px; }
@@ -3555,11 +3616,32 @@ a.reader-home:focus-visible {
   .reader-catalog-menu-toggle { width: 36px; min-width: 36px; min-height: 36px; }
 }
 
+@media (max-width: 480px) {
+  .lightbox { --reader-mobile-toolbar-height: 102px; }
+  .reader-header,
+  .reader-header.lightbox-reader-header {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "brand"
+      "actions";
+    gap: 6px;
+  }
+  .reader-brand-actions {
+    width: 100%;
+    justify-self: stretch;
+    justify-content: space-between;
+  }
+  .lightbox-actions {
+    width: 100%;
+    justify-self: stretch;
+    justify-content: center;
+  }
+  .lightbox-top-hotspot { height: 102px; }
+}
+
 @media (max-width: 420px) {
-  .reader-quick-actions { display: none; }
   .reader-search-input { padding-inline: 9px 96px; font-size: .9rem; }
   .reader-search-scope-toggle { max-width: 94px; overflow: hidden; text-overflow: ellipsis; }
-  .lightbox-actions { max-width: 118px; }
 }
 
 /* Keep catalog surfaces isolated for painting without lazy layout activation during scroll. */
@@ -3951,67 +4033,6 @@ a.reader-home:focus-visible {
     opacity: 1;
   }
 
-  /* Reader toolbar: three deliberate rows instead of cramped or hidden controls. */
-  .reader-header,
-  .reader-header.lightbox-reader-header {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "brand"
-      "search"
-      "actions";
-    gap: 7px;
-    padding: 8px;
-  }
-  .reader-brand-actions {
-    grid-area: brand;
-    width: 100%;
-    min-width: 0;
-    justify-self: stretch;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .reader-header-search {
-    grid-area: search;
-    width: 100%;
-    max-width: none;
-    justify-self: stretch;
-  }
-  .lightbox-actions {
-    grid-area: actions;
-    width: 100%;
-    max-width: none;
-    justify-self: stretch;
-    justify-content: center;
-    overflow: visible;
-    gap: 8px;
-    padding-top: 1px;
-  }
-  .reader-quick-actions {
-    display: flex;
-    gap: 6px;
-  }
-  .reader-icon-button,
-  .reader-control-icon-button {
-    width: 40px;
-    min-width: 40px;
-    min-height: 40px;
-    border-radius: 13px;
-  }
-  .reader-logo,
-  .lightbox-brand-lockup .reader-logo {
-    width: 78px;
-  }
-  .reader-search-input,
-  .reader-catalog-menu-toggle {
-    min-height: 42px;
-  }
-  .reader-search-results,
-  .reader-catalog-menu {
-    max-height: calc(100vh - 154px);
-  }
-  .lightbox-top-hotspot {
-    height: 154px;
-  }
 }
 
 @media (max-width: 380px) {

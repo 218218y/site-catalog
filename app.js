@@ -78,6 +78,7 @@ const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
 const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
+const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
 
 function getFavoritesStorage() {
   try {
@@ -266,6 +267,7 @@ const state = {
   globalSearchCategory: "",
   globalSearchOpen: false,
   lightboxSearchScope: "catalog",
+  lightboxMobileSearchOpen: false,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
   catalogImageLoadCache: new Map(),
@@ -361,6 +363,9 @@ const els = {
   viewerFavoriteButton: $("viewerFavoriteButton"),
   viewerZoomIndicator: $("viewerZoomIndicator"),
   lightboxSearchInput: $("lightboxSearchInput"),
+  lightboxSearchPanel: $("lightboxSearchPanel"),
+  lightboxMobileSearchToggle: $("lightboxMobileSearchToggle"),
+  lightboxMobileSearchClose: $("lightboxMobileSearchClose"),
   lightboxSearchResults: $("lightboxSearchResults"),
   lightboxSearchStatus: $("lightboxSearchStatus"),
   lightboxSearchClear: $("lightboxSearchClear"),
@@ -2120,6 +2125,46 @@ function closeLightboxCatalogMenu() {
   els.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
 }
 
+function isMobileReaderSearchMode() {
+  return Boolean(window.matchMedia?.(MOBILE_READER_SEARCH_MEDIA).matches);
+}
+
+function syncLightboxMobileSearchUi() {
+  const compactMode = isMobileReaderSearchMode();
+  const isOpen = compactMode && state.lightboxMobileSearchOpen;
+
+  if (!compactMode) state.lightboxMobileSearchOpen = false;
+  els.lightbox?.classList.toggle("mobile-search-open", isOpen);
+  els.lightboxMobileSearchToggle?.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  els.lightboxSearchPanel?.setAttribute("aria-hidden", compactMode && !isOpen ? "true" : "false");
+}
+
+function setLightboxMobileSearchOpen(open, options = {}) {
+  const { focusInput = false, returnFocus = false, hideResults = true, hideTopUi = false } = options;
+  const shouldOpen = Boolean(open && state.lightboxOpen && isMobileReaderSearchMode());
+
+  state.lightboxMobileSearchOpen = shouldOpen;
+  syncLightboxMobileSearchUi();
+
+  if (shouldOpen) {
+    closeLightboxCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    showTopUiTemporarily(0);
+    ensureSearchIndexLoaded().catch(() => {});
+    if (focusInput) {
+      window.requestAnimationFrame(() => els.lightboxSearchInput?.focus());
+    }
+    return;
+  }
+
+  if (hideResults) {
+    hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi });
+  }
+  if (returnFocus && isMobileReaderSearchMode()) {
+    els.lightboxMobileSearchToggle?.focus();
+  }
+}
+
 function closeDetailCatalogMenu() {
   els.catalogMenu?.classList.add("hidden");
   els.catalogMenuToggle?.setAttribute("aria-expanded", "false");
@@ -2181,6 +2226,8 @@ function hideLightboxSearchResults(options = {}) {
 }
 
 function resetLightboxSearch() {
+  state.lightboxMobileSearchOpen = false;
+  syncLightboxMobileSearchUi();
   if (els.lightboxSearchInput) els.lightboxSearchInput.value = "";
   hideLightboxSearchResults({ blurTopUiFocus: true });
   if (els.lightboxSearchResults) els.lightboxSearchResults.innerHTML = "";
@@ -2217,7 +2264,11 @@ function openLightboxSearchResult(result) {
   const page = clampPage(result.page, state.catalog);
   setLightboxPage(page);
   showTopUiTemporarily(0);
-  hideLightboxSearchResults();
+  if (state.lightboxMobileSearchOpen) {
+    setLightboxMobileSearchOpen(false, { hideResults: true });
+  } else {
+    hideLightboxSearchResults();
+  }
   return true;
 }
 
@@ -3907,6 +3958,8 @@ function closeLightbox(options = {}) {
   }
 
   state.lightboxOpen = false;
+  state.lightboxMobileSearchOpen = false;
+  syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
   window.clearTimeout(state.singleImageAnimationTimer);
   els.lightbox?.classList.add("hidden");
@@ -4398,7 +4451,11 @@ function hideLightboxTopSearchFromViewerInteraction(event) {
   if (event?.button !== undefined && event.button !== 0) return false;
   if (isLightboxTopInteractiveTarget(event?.target)) return false;
 
-  hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi: true });
+  if (state.lightboxMobileSearchOpen) {
+    setLightboxMobileSearchOpen(false, { hideResults: true, hideTopUi: true });
+  } else {
+    hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi: true });
+  }
   return true;
 }
 
@@ -4516,6 +4573,20 @@ function attachEvents() {
     showTopUiTemporarily(0);
   });
 
+  els.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setLightboxMobileSearchOpen(!state.lightboxMobileSearchOpen, {
+      focusInput: true,
+      returnFocus: state.lightboxMobileSearchOpen
+    });
+  });
+  els.lightboxMobileSearchClose?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
+  });
+
   els.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
     hideSearchFloatingPreview();
@@ -4561,6 +4632,9 @@ function attachEvents() {
   document.addEventListener("click", (event) => {
     const target = event.target;
     const insideGlobalSearch = Boolean(els.catalogSearch?.contains(target) || els.globalSearchOpen?.contains(target));
+    const insideMobileReaderSearch = Boolean(
+      els.lightboxSearchPanel?.contains(target) || els.lightboxMobileSearchToggle?.contains(target)
+    );
 
     if (!els.mobileCategoryMenu?.contains(target) && !els.mobileCategoryMenuToggle?.contains(target)) {
       closeMobileCategoryMenu();
@@ -4574,6 +4648,10 @@ function attachEvents() {
       closeLightboxCatalogMenu();
       closeDetailCatalogMenu();
       return;
+    }
+    if (insideMobileReaderSearch) return;
+    if (state.lightboxMobileSearchOpen) {
+      setLightboxMobileSearchOpen(false, { hideResults: true });
     }
     if (els.lightboxSearchScopeMenu?.contains(target) || els.lightboxSearchScopeToggle?.contains(target)) return;
     if (els.lightboxCatalogMenu?.contains(target) || els.lightboxCatalogMenuToggle?.contains(target)) return;
@@ -4687,6 +4765,7 @@ function attachEvents() {
     hideSearchFloatingPreview();
     scheduleCatalogScrollTopButtonUpdate();
     updateLightboxSearchResultsLayout(els.lightboxSearchResults?.dataset.resultCount || 0);
+    syncLightboxMobileSearchUi();
     if (state.lightboxOpen) {
       hideLightboxFloatingPreview();
       refreshLightboxLayoutForTopUiChange();
@@ -4729,6 +4808,11 @@ function attachEvents() {
       return;
     }
     if (!state.lightboxOpen) return;
+    if (event.key === "Escape" && state.lightboxMobileSearchOpen) {
+      event.preventDefault();
+      setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
+      return;
+    }
     if (event.key === "Escape" && ((els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) || (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden")))) {
       event.preventDefault();
       closeLightboxCatalogMenu();
@@ -4826,6 +4910,7 @@ function init() {
   initRevealObserver();
   initCategoryNavFit();
   attachEvents();
+  syncLightboxMobileSearchUi();
   syncFavoritesUi({ renderPanel: isAppPage("favorites") });
 
   if (!catalogs.length) {
