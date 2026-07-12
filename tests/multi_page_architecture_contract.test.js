@@ -26,6 +26,13 @@ const builder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
 assert.match(template, /data-page="\{\{PAGE_MODE\}\}"/);
+const globalSearchIndex = template.indexOf('id="catalogSearch"');
+const mainIndex = template.indexOf('<main id="top">');
+assert.ok(globalSearchIndex >= 0 && globalSearchIndex < mainIndex, 'global search must remain outside page-specific main content');
+assert.doesNotMatch(app, /parseLegacyHash/);
+assert.match(template, /class="back-link catalog-back-button"[\s\S]*?<svg/);
+assert.match(app, /els\.globalSearchOpen\?\.addEventListener\("click"[\s\S]*?setGlobalSearchPanelOpen/);
+assert.match(css, /\.catalog-back-button\s*\{[\s\S]*?border-radius:\s*999px;/);
 assert.match(pageBuilder, /PAGE_DOCUMENTS = \(/);
 assert.match(pageBuilder, /render_site_pages/);
 assert.match(builder, /from build_site_pages import PAGE_DOCUMENTS, render_site_pages/);

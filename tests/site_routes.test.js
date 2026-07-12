@@ -29,14 +29,10 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/viewer.html', search: '?catalog=abc&page=9&source=favorites' }, 'viewer'))),
   { page: 'viewer', catalogId: 'abc', currentPage: 9, source: 'favorites' }
 );
-assert.deepEqual(
-  JSON.parse(JSON.stringify(routes.parseLegacyHash('#c/abc/p/3'))),
-  { catalogId: 'abc', page: 3, viewer: true }
+assert.equal(
+  Object.prototype.hasOwnProperty.call(routes, 'parseLegacyHash'),
+  false,
+  'new installations should expose only the current multi-page URL contract'
 );
-assert.deepEqual(
-  JSON.parse(JSON.stringify(routes.parseLegacyHash('#c/abc'))),
-  { catalogId: 'abc', page: 1, viewer: false }
-);
-assert.equal(routes.parseLegacyHash('#cat/wardrobes'), null);
 
 console.log('site_routes.test.js: PASS');

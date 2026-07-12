@@ -13,6 +13,8 @@ const bundleBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bun
 assert.match(html, /<a[^>]*class="[^"]*header-favorites-button[^"]*hidden[^"]*"[^>]*id="headerFavoritesButton"[^>]*href="favorites\.html"/);
 assert.match(html, /<div[^>]*id="favoritesPanel"[^>]*role="dialog"[^>]*aria-modal="true"/);
 assert.match(html, /id="viewerFavoriteButton"[^>]*aria-pressed="false"/);
+assert.match(html, /id="favoritesDescription"><span id="favoritesCount">0<\/span> עמודים שמורים<\/p>/);
+assert.match(html, /id="favoritesCloseButton"[\s\S]*?<svg[\s\S]*?<path d="M6\.5 6\.5 17\.5 17\.5M17\.5 6\.5 6\.5 17\.5"/);
 assert.match(html, /id="favoriteOpenCatalogButton"[^>]*aria-label="פתיחת התמונה בתוך הקטלוג המלא"/);
 assert.match(html, /id="prevPageBtn"[\s\S]*?<\/button>\s*<\/div>\s*<button class="reader-button favorite-open-catalog-button[^>]*id="favoriteOpenCatalogButton"/);
 assert.match(html, /id="favoriteOpenCatalogButton"[\s\S]*?id="thumbsHotspot"/);
@@ -36,6 +38,9 @@ assert.match(favoritesClickHandler, /openFavoriteViewer\(catalogId, page\)/);
 assert.match(css, /\.viewer-favorite-button\s*\{/);
 assert.match(css, /\.viewer-favorite-button\[data-favorite-active="true"\]/);
 assert.match(css, /\.favorites-grid\s*\{/);
+assert.match(css, /\.favorite-remove-button\s*\{[\s\S]*?top:\s*12px;[\s\S]*?left:\s*12px;/);
+assert.match(css, /\.favorites-close-button svg\s*\{[\s\S]*?stroke:\s*currentColor;/);
+assert.match(css, /body\[data-page="favorites"\] \.favorites-standalone-page \.favorites-header\s*\{[\s\S]*?border-radius:\s*18px;/);
 assert.match(css, /\.favorites-grid\s*\{[\s\S]*?flex:\s*1 1 auto;/);
 assert.match(css, /\.favorites-grid\s*\{[\s\S]*?grid-auto-rows:\s*max-content;/);
 assert.match(css, /\.favorites-grid\s*\{[\s\S]*?align-content:\s*start;/);

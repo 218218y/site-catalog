@@ -2344,13 +2344,13 @@ window.BARGIG_CATALOGS = [
     "subcategory": "חדרי שינה"
   },
   {
-    "id": "bedrooms-gober-gallery",
+    "id": "bedrooms-guber-gallery",
     "title": "חדרי שינה גובר גלרי",
     "description": "חדרי שינה מגוונים קומפלט",
     "category": "חדרי שינה",
     "pages": 79,
-    "dir": "assets/pages/bedrooms-gober-gallery",
-    "cover": "assets/pages/bedrooms-gober-gallery/page-001.webp",
+    "dir": "assets/pages/bedrooms-guber-gallery",
+    "cover": "assets/pages/bedrooms-guber-gallery/page-001.webp",
     "imageExt": "webp",
     "assetVersion": "139f1fb060eb",
     "pageSizes": [

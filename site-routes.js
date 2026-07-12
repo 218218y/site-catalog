@@ -79,27 +79,6 @@
     return { page, catalogId, currentPage, source };
   }
 
-  function parseLegacyHash(hash) {
-    const rawRoute = String(hash || "").replace(/^#/, "").replace(/^\/+/, "");
-    const parts = rawRoute.split("/");
-    if (parts[0] !== "c" || !parts[1]) return null;
-
-    let catalogId = "";
-    try {
-      catalogId = decodeURIComponent(parts[1]);
-    } catch (_error) {
-      catalogId = parts[1];
-    }
-    if (!catalogId) return null;
-
-    if (parts.length === 2) return { catalogId, page: 1, viewer: false };
-    if (parts[2] !== "p" || !parts[3]) return null;
-
-    const page = positiveInteger(parts[3], 0);
-    if (!page) return null;
-    return { catalogId, page, viewer: true };
-  }
-
   global.BargigRoutes = Object.freeze({
     PAGE_HOME,
     PAGE_CATALOG,
@@ -114,7 +93,6 @@
     catalogUrl,
     favoritesUrl,
     viewerUrl,
-    parseLocation,
-    parseLegacyHash
+    parseLocation
   });
 })(typeof window !== "undefined" ? window : globalThis);

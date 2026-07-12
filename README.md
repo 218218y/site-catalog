@@ -5,7 +5,7 @@
 - האתר מחולק לארבעה מסמכי ניווט: `index.html`, `catalog.html`, `favorites.html`, `viewer.html`.
 - כל הקטלוגים משתמשים באותו `catalog.html` ובאותו `viewer.html` עם כתובת ייחודית לפי `catalog` ו-`page`; אין שכפול HTML לכל קטלוג.
 - `site.template.html` הוא מקור ה-HTML המשותף, ו-`tools/build_site_pages.py` מייצר ממנו את ארבעת הדפים.
-- `site-routes.js` מרכז את בניית הכתובות ופענוחן, כולל תאימות לקישורי `#c/...` הישנים.
+- `site-routes.js` מרכז את בניית הכתובות ופענוחן עבור מבנה הדפים הנוכחי.
 - האתר הסטטי עצמו עולה ל-Cloudflare Pages דרך Wrangler.
 - תמונות עמודי הקטלוגים נשמרות ומוגשות דרך Cloudflare R2 / CDN.
 - תיקיית `assets/pages` נשארת תיקיית עבודה מקומית וסנכרון ל-R2; היא לא מועתקת לתיקיית ההעלאה ל-Cloudflare Pages.

@@ -4749,14 +4749,6 @@ function attachEvents() {
 
   window.addEventListener("hashchange", () => {
     if (!isAppPage("home")) return;
-    const legacyRoute = siteRoutes?.parseLegacyHash?.(window.location.hash);
-    if (legacyRoute) {
-      const destination = legacyRoute.viewer
-        ? viewerDocumentUrl(legacyRoute.catalogId, legacyRoute.page)
-        : catalogDocumentUrl(legacyRoute.catalogId);
-      navigateTo(destination, { replace: true });
-      return;
-    }
     syncCatalogCategoryFocusFromHash();
   });
 
@@ -4771,13 +4763,6 @@ function initDocumentRoute() {
   };
 
   if (route.page === "home") {
-    const legacyRoute = siteRoutes?.parseLegacyHash?.(window.location.hash);
-    if (legacyRoute && findCatalogById(legacyRoute.catalogId)) {
-      navigateTo(legacyRoute.viewer
-        ? viewerDocumentUrl(legacyRoute.catalogId, legacyRoute.page)
-        : catalogDocumentUrl(legacyRoute.catalogId), { replace: true });
-      return false;
-    }
     syncCatalogCategoryFocusFromHash({ animate: false, scroll: true });
     updateDocumentMetadata();
     return true;

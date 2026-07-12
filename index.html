@@ -70,29 +70,29 @@
     </div>
   </header>
 
-  <main id="top">
-    <section class="search-panel panel global-search-popover hidden" id="catalogSearch" aria-label="חיפוש קטלוגים" aria-hidden="true">
-      <div class="search-panel-head">
-        <div class="search-panel-title">
-          <strong>חיפוש דגם</strong>
-          <small>חפש לפי דגם, מספר, שם מוצר או מילה מתוך הקטלוגים</small>
-        </div>
-        <button class="global-search-close" id="globalSearchClose" type="button" aria-label="סגירת החיפוש" title="סגירת החיפוש"><span aria-hidden="true">×</span></button>
+  <section class="search-panel panel global-search-popover hidden" id="catalogSearch" aria-label="חיפוש קטלוגים" aria-hidden="true">
+    <div class="search-panel-head">
+      <div class="search-panel-title">
+        <strong>חיפוש דגם</strong>
+        <small>חפש לפי דגם, מספר, שם מוצר או מילה מתוך הקטלוגים</small>
       </div>
-      <div class="search-box" role="search">
-        <label class="visually-hidden" for="globalSearchInput">חיפוש דגם בקטלוגים</label>
-        <div class="global-search-field">
-          <input id="globalSearchInput" class="search-input" type="search" autocomplete="off" placeholder="הקלד דגם, מספר, שם מוצר או מילה מהקטלוג..." />
-          <button class="global-search-clear hidden" id="globalSearchClear" type="button" aria-label="ניקוי החיפוש" title="ניקוי החיפוש"><span aria-hidden="true">×</span></button>
-          <div class="global-search-scope-wrap">
-            <button class="global-search-scope-toggle" id="globalSearchScopeToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="globalSearchScopeMenu">בכל הקטלוגים <span aria-hidden="true">⌄</span></button>
-            <div class="global-search-scope-menu hidden" id="globalSearchScopeMenu" role="menu" aria-label="בחירת קטגוריית חיפוש"></div>
-          </div>
+      <button class="global-search-close" id="globalSearchClose" type="button" aria-label="סגירת החיפוש" title="סגירת החיפוש"><span aria-hidden="true">×</span></button>
+    </div>
+    <div class="search-box" role="search">
+      <label class="visually-hidden" for="globalSearchInput">חיפוש דגם בקטלוגים</label>
+      <div class="global-search-field">
+        <input id="globalSearchInput" class="search-input" type="search" autocomplete="off" placeholder="הקלד דגם, מספר, שם מוצר או מילה מהקטלוג..." />
+        <button class="global-search-clear hidden" id="globalSearchClear" type="button" aria-label="ניקוי החיפוש" title="ניקוי החיפוש"><span aria-hidden="true">×</span></button>
+        <div class="global-search-scope-wrap">
+          <button class="global-search-scope-toggle" id="globalSearchScopeToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="globalSearchScopeMenu">בכל הקטלוגים <span aria-hidden="true">⌄</span></button>
+          <div class="global-search-scope-menu hidden" id="globalSearchScopeMenu" role="menu" aria-label="בחירת קטגוריית חיפוש"></div>
         </div>
       </div>
-      <div class="search-results hidden" id="globalSearchResults" aria-live="polite" dir="rtl"></div>
-    </section>
+    </div>
+    <div class="search-results hidden" id="globalSearchResults" aria-live="polite" dir="rtl"></div>
+  </section>
 
+  <main id="top">
     <section class="catalogs-section panel reveal" id="catalogs" aria-label="קטלוגים">
       <div class="catalog-category-list" id="catalogGrid"></div>
     </section>
@@ -103,7 +103,12 @@
           <div class="catalog-detail-head">
             <div class="catalog-detail-main">
               <div class="catalog-detail-topbar">
-                <a class="back-link" href="index.html">← חזרה לרשימת הקטלוגים</a>
+                <a class="back-link catalog-back-button" href="index.html">
+                  <span>חזרה לרשימת הקטלוגים</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M14.5 6.5 9 12l5.5 5.5" />
+                  </svg>
+                </a>
               </div>
 
               <div class="catalog-title-block">
@@ -153,12 +158,14 @@
       <header class="favorites-header">
         <div class="favorites-heading">
           <h2 id="favoritesTitle">המועדפים שלי</h2>
-          <p id="favoritesDescription"><span id="favoritesCount">0</span> עמודים שמורים להשוואה</p>
+          <p id="favoritesDescription"><span id="favoritesCount">0</span> עמודים שמורים</p>
         </div>
         <div class="favorites-header-actions">
           <button class="button soft favorites-clear-button" id="favoritesClearButton" type="button">מחיקת כל המועדפים</button>
           <button class="favorites-close-button" id="favoritesCloseButton" type="button" aria-label="סגירת המועדפים" title="סגירה">
-            <span aria-hidden="true">×</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" />
+            </svg>
           </button>
         </div>
       </header>
