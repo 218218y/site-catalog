@@ -286,6 +286,8 @@ img[data-brand-logo="1"],
 img[data-wp-logo="1"],
 #wpHeaderLogo {
   display: block;
+  height: auto;
+  aspect-ratio: 786 / 317;
   object-fit: contain;
   background: transparent;
 }
