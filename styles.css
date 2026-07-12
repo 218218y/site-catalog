@@ -1741,6 +1741,48 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 }
 .stage-next { left: var(--viewer-side-control-edge); }
 .stage-prev { right: var(--viewer-side-control-edge); }
+.favorite-open-catalog-button {
+  position: fixed;
+  z-index: 8;
+  left: 50%;
+  bottom: 24px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 17px !important;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(11, 9, 8, 0.78) !important;
+  border-color: rgba(255,255,255,0.28) !important;
+  box-shadow: 0 16px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.12);
+  backdrop-filter: blur(16px);
+  white-space: nowrap;
+}
+.favorite-open-catalog-button:hover,
+.favorite-open-catalog-button:focus-visible,
+.favorite-open-catalog-button:active {
+  transform: translateX(-50%) translateY(-1px) !important;
+  background: rgba(217, 186, 163, 0.3) !important;
+  border-color: rgba(255,255,255,0.42) !important;
+}
+.favorite-open-catalog-button svg {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lightbox.favorites-viewer-mode .lightbox-search > .reader-search-toolbar,
+.lightbox.favorites-viewer-mode .lightbox-search > .reader-catalog-menu,
+.lightbox.favorites-viewer-mode .lightbox-search-results {
+  display: none !important;
+}
 .thumbs-hotspot {
   position: fixed;
   z-index: 6;
@@ -4284,6 +4326,17 @@ a.reader-home:focus-visible {
   .favorite-image-frame { min-height: 180px; }
   .viewer-favorite-button {
     top: calc(50% - 142px);
+  }
+  .favorite-open-catalog-button {
+    bottom: 18px;
+    min-height: 42px;
+    max-width: calc(100vw - 128px);
+    padding-inline: 14px !important;
+    font-size: .88rem;
+  }
+  .favorite-open-catalog-button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

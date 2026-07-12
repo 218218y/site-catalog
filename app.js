@@ -7,6 +7,8 @@ const MIN_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
 const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
+const LIGHTBOX_SOURCE_CATALOG = "catalog";
+const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
 const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
 
@@ -182,6 +184,11 @@ const state = {
   pinchLastMidY: 0,
   pointers: new Map(),
   lightboxOpen: false,
+  lightboxSource: LIGHTBOX_SOURCE_CATALOG,
+  favoritesViewerIndex: 0,
+  favoritesViewerOpeningHash: "",
+  favoritesViewerPreviousCatalog: null,
+  favoritesViewerPreviousPage: 1,
   topUiPinned: false,
   thumbsHideTimer: 0,
   uiHideTimer: 0,
@@ -264,6 +271,7 @@ const els = {
   lightboxModeLabel: $("lightboxModeLabel"),
   lightboxTitle: $("lightboxTitle"),
   lightboxMeta: $("lightboxMeta"),
+  favoriteOpenCatalogButton: $("favoriteOpenCatalogButton"),
   lightboxProgress: $("lightboxProgress"),
   lightboxImage: $("lightboxImage"),
   lightboxImageFrame: $("lightboxImageFrame"),
@@ -271,6 +279,7 @@ const els = {
   lightboxStage: $("lightboxStage"),
   lightboxSideHotspot: $("lightboxSideHotspot"),
   lightboxPageRail: $("lightboxPageRail"),
+  lightboxPageRailTitle: $("lightboxPageRailTitle"),
   lightboxPageThumbs: $("lightboxPageThumbs"),
   stageCanvas: $("stageCanvas"),
   viewerLoading: $("viewerLoading"),
@@ -675,6 +684,45 @@ function getFavoriteEntries() {
   });
 }
 
+function isFavoritesLightboxMode() {
+  return state.lightboxSource === LIGHTBOX_SOURCE_FAVORITES;
+}
+
+function findFavoriteEntryIndex(entries, catalogId, page) {
+  const normalizedCatalogId = String(catalogId || "");
+  const normalizedPage = Number.parseInt(page, 10);
+  return entries.findIndex((entry) => (
+    String(entry.catalog?.id || entry.catalogId || "") === normalizedCatalogId &&
+    entry.page === normalizedPage
+  ));
+}
+
+function setFavoriteViewerEntry(entries, index) {
+  if (!entries.length) return false;
+  const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
+  const entry = entries[nextIndex];
+  state.favoritesViewerIndex = nextIndex;
+  state.catalog = entry.catalog;
+  state.page = entry.page;
+  return true;
+}
+
+function syncFavoriteViewerAfterStoreChange(options = {}) {
+  if (!state.lightboxOpen || !isFavoritesLightboxMode()) return;
+
+  const { preferredIndex = state.favoritesViewerIndex } = options;
+  const entries = getFavoriteEntries();
+  if (!entries.length) {
+    closeLightbox({ restoreFavorites: true });
+    return;
+  }
+
+  const currentIndex = findFavoriteEntryIndex(entries, state.catalog?.id, state.page);
+  setFavoriteViewerEntry(entries, currentIndex >= 0 ? currentIndex : preferredIndex);
+  renderLightboxPageRail();
+  updateLightbox({ thumbScrollIntoView: true });
+}
+
 function syncViewerFavoriteButtonUi() {
   const button = els.viewerFavoriteButton;
   if (!button) return;
@@ -737,10 +785,11 @@ function syncFavoritesUi(options = {}) {
   }
 }
 
-function openFavoritesPanel() {
+function openFavoritesPanel(options = {}) {
+  const { allowEmpty = false, captureReturnFocus = true } = options;
   const entries = getFavoriteEntries();
-  if (!els.favoritesPanel || !entries.length) return;
-  state.favoritesReturnFocus = document.activeElement;
+  if (!els.favoritesPanel || (!allowEmpty && !entries.length)) return;
+  if (captureReturnFocus) state.favoritesReturnFocus = document.activeElement;
   state.favoritesOpen = true;
   renderFavoritesPanel(entries);
   els.favoritesPanel.classList.remove("hidden");
@@ -751,7 +800,7 @@ function openFavoritesPanel() {
 }
 
 function closeFavoritesPanel(options = {}) {
-  const { restoreFocus = true } = options;
+  const { restoreFocus = true, preserveReturnFocus = false } = options;
   if (!state.favoritesOpen) return;
   state.favoritesOpen = false;
   els.favoritesPanel?.classList.add("hidden");
@@ -759,15 +808,37 @@ function closeFavoritesPanel(options = {}) {
   els.headerFavoritesButton?.setAttribute("aria-expanded", "false");
   syncDocumentLock();
   if (restoreFocus && state.favoritesReturnFocus?.focus) state.favoritesReturnFocus.focus();
-  state.favoritesReturnFocus = null;
+  if (!preserveReturnFocus) state.favoritesReturnFocus = null;
+}
+
+function openFavoriteViewer(catalogId, page) {
+  const entries = getFavoriteEntries();
+  const index = findFavoriteEntryIndex(entries, catalogId, page);
+  if (index < 0) return;
+
+  state.favoritesViewerOpeningHash = window.location.hash;
+  state.favoritesViewerPreviousCatalog = state.catalog;
+  state.favoritesViewerPreviousPage = state.page;
+  closeFavoritesPanel({ restoreFocus: false, preserveReturnFocus: true });
+  setFavoriteViewerEntry(entries, index);
+  openLightbox(state.page, {
+    source: LIGHTBOX_SOURCE_FAVORITES,
+    favoriteIndex: index
+  });
 }
 
 function toggleCurrentPageFavorite() {
   const identity = favoriteIdentity();
   if (!identity || !favoritesStore) return;
+  const previousFavoriteIndex = state.favoritesViewerIndex;
   const added = favoritesStore.toggle({ ...identity, savedAt: Date.now() });
   syncFavoritesUi({ renderPanel: true });
-  flashActionButton(els.viewerFavoriteButton, added ? "נוסף למועדפים" : "הוסר מהמועדפים");
+  if (isFavoritesLightboxMode() && !added) {
+    syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
+  }
+  if (state.lightboxOpen) {
+    flashActionButton(els.viewerFavoriteButton, added ? "נוסף למועדפים" : "הוסר מהמועדפים");
+  }
 }
 
 function removeFavorite(catalogId, page) {
@@ -793,8 +864,7 @@ function handleFavoritesGridClick(event) {
     return;
   }
   if (event.target.closest?.("[data-open-favorite]")) {
-    closeFavoritesPanel({ restoreFocus: false });
-    openCatalogInViewer(catalogId, page);
+    openFavoriteViewer(catalogId, page);
   }
 }
 
@@ -802,6 +872,7 @@ function handleFavoritesStorageChange(event) {
   if (!favoritesStore || (event.key !== null && event.key !== favoritesStore.storageKey)) return;
   favoritesStore.reload();
   syncFavoritesUi({ renderPanel: true });
+  syncFavoriteViewerAfterStoreChange();
 }
 
 function handleFavoritesPanelKeydown(event) {
@@ -2698,6 +2769,18 @@ function renderCatalogDetail() {
 
 function preloadNeighbors() {
   if (!state.catalog) return;
+
+  if (isFavoritesLightboxMode()) {
+    const entries = getFavoriteEntries();
+    [state.favoritesViewerIndex - 2, state.favoritesViewerIndex - 1, state.favoritesViewerIndex + 1, state.favoritesViewerIndex + 2]
+      .filter((index) => index >= 0 && index < entries.length)
+      .forEach((index) => {
+        const entry = entries[index];
+        prepareCatalogImage(pageSrc(entry.catalog, entry.page), { priority: "low" }).catch(() => {});
+      });
+    return;
+  }
+
   [state.page - 2, state.page - 1, state.page + 1, state.page + 2]
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
@@ -2706,6 +2789,7 @@ function preloadNeighbors() {
 }
 
 function updateHash() {
+  if (state.lightboxOpen && isFavoritesLightboxMode()) return;
   if (!state.catalog) {
     history.replaceState(null, "", "#catalogs");
     return;
@@ -3204,7 +3288,7 @@ function returnToMainSiteFromLightbox(event = null) {
   closeLightboxSearchScopeMenu();
   closeLightboxCatalogMenu();
 
-  if (state.lightboxOpen) closeLightbox();
+  if (state.lightboxOpen) closeLightbox({ restoreFavorites: false });
 
   state.catalog = null;
   state.page = 1;
@@ -3289,13 +3373,19 @@ function positionLightboxFloatingPreview(button) {
 }
 
 function showLightboxFloatingPreview(button) {
-  if (!state.catalog || !button || !els.lightboxFloatingPreview || !els.lightboxFloatingPreviewImage) return;
+  if (!button || !els.lightboxFloatingPreview || !els.lightboxFloatingPreviewImage) return;
 
-  const page = clampPage(button.dataset.page, state.catalog);
-  const src = button.dataset.previewSrc || pageSrc(state.catalog, page);
+  const previewCatalog = findCatalogById(button.dataset.previewCatalog) || state.catalog;
+  if (!previewCatalog) return;
+  const page = clampPage(button.dataset.previewPage || button.dataset.page, previewCatalog);
+  const src = button.dataset.previewSrc || pageSrc(previewCatalog, page);
   setCatalogImageSource(els.lightboxFloatingPreviewImage, src);
-  els.lightboxFloatingPreviewImage.alt = `${state.catalog.title} - עמוד ${page}`;
-  if (els.lightboxFloatingPreviewPage) els.lightboxFloatingPreviewPage.textContent = `עמוד ${page}`;
+  els.lightboxFloatingPreviewImage.alt = `${previewCatalog.title} - עמוד ${page}`;
+  if (els.lightboxFloatingPreviewPage) {
+    els.lightboxFloatingPreviewPage.textContent = isFavoritesLightboxMode()
+      ? `${previewCatalog.title} · עמוד ${page}`
+      : `עמוד ${page}`;
+  }
   els.lightboxFloatingPreview.classList.toggle("from-page-rail", isLightboxPageRailTrigger(button));
   els.lightboxFloatingPreview.classList.add("visible");
   positionLightboxFloatingPreview(button);
@@ -3314,7 +3404,9 @@ function updateLightboxThumbs(options = {}) {
   });
 
   els.lightboxPageThumbs?.querySelectorAll(".lightbox-page-thumb").forEach((button) => {
-    const active = Number(button.dataset.page) === state.page;
+    const active = isFavoritesLightboxMode()
+      ? Number(button.dataset.favoriteIndex) === state.favoritesViewerIndex
+      : Number(button.dataset.page) === state.page;
     button.classList.toggle("active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
@@ -3330,33 +3422,60 @@ function clearLightboxBottomThumbs() {
 }
 
 
-function handleLightboxPageRailSelection(page) {
-  const targetPage = Number(page);
-  if (!Number.isFinite(targetPage)) return;
+function handleLightboxPageRailSelection(button) {
+  if (!button) return;
 
   hideLightboxFloatingPreview();
 
-  setLightboxPage(targetPage, { thumbScrollIntoView: false });
+  if (isFavoritesLightboxMode()) {
+    setFavoriteViewerIndex(Number(button.dataset.favoriteIndex), { thumbScrollIntoView: false });
+  } else {
+    const targetPage = Number(button.dataset.page);
+    if (!Number.isFinite(targetPage)) return;
+    setLightboxPage(targetPage, { thumbScrollIntoView: false });
+  }
 
   showPageRailTemporarily(1800, { scrollIntoView: false });
 }
 
 function renderLightboxPageRail() {
   if (!state.catalog || !els.lightboxPageThumbs) return;
-  const catalog = state.catalog;
   const thumbs = [];
 
-  for (let page = 1; page <= catalog.pages; page += 1) {
-    const thumb = escapeHtml(thumbSrc(catalog, page));
-    const fullPage = thumb;
-    thumbs.push(`
-      <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === state.page ? " active" : ""}" type="button" data-page="${page}" data-preview-src="${fullPage}" aria-label="מעבר לעמוד ${page}"${page === state.page ? ' aria-current="page"' : ""}>
-        <span class="lightbox-page-thumb-image-wrap">
-          <img src="${thumb}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
-        </span>
-        <span class="lightbox-page-thumb-number">${page}</span>
-      </button>
-    `);
+  if (isFavoritesLightboxMode()) {
+    const entries = getFavoriteEntries();
+    if (els.lightboxPageRailTitle) els.lightboxPageRailTitle.textContent = "מועדפים";
+    els.lightboxPageRail?.setAttribute("aria-label", "מעבר מהיר בין המועדפים");
+
+    entries.forEach(({ catalog, page }, index) => {
+      const thumb = escapeHtml(thumbSrc(catalog, page));
+      const title = escapeHtml(catalog.title || "קטלוג");
+      const active = index === state.favoritesViewerIndex;
+      thumbs.push(`
+        <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${active ? " active" : ""}" type="button" data-favorite-index="${index}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר למועדף ${index + 1}: ${title}, עמוד ${page}"${active ? ' aria-current="page"' : ""}>
+          <span class="lightbox-page-thumb-image-wrap">
+            <img src="${thumb}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
+          </span>
+          <span class="lightbox-page-thumb-number">${index + 1}</span>
+        </button>
+      `);
+    });
+  } else {
+    const catalog = state.catalog;
+    if (els.lightboxPageRailTitle) els.lightboxPageRailTitle.textContent = "עמודים";
+    els.lightboxPageRail?.setAttribute("aria-label", "מעבר מהיר בין עמודי הקטלוג");
+
+    for (let page = 1; page <= catalog.pages; page += 1) {
+      const thumb = escapeHtml(thumbSrc(catalog, page));
+      thumbs.push(`
+        <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === state.page ? " active" : ""}" type="button" data-page="${page}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר לעמוד ${page}"${page === state.page ? ' aria-current="page"' : ""}>
+          <span class="lightbox-page-thumb-image-wrap">
+            <img src="${thumb}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
+          </span>
+          <span class="lightbox-page-thumb-number">${page}</span>
+        </button>
+      `);
+    }
   }
 
   els.lightboxPageThumbs.innerHTML = thumbs.join("");
@@ -3367,7 +3486,7 @@ function renderLightboxPageRail() {
     button.addEventListener("blur", hideLightboxFloatingPreview);
     button.addEventListener("click", (event) => {
       event.preventDefault();
-      handleLightboxPageRailSelection(button.dataset.page);
+      handleLightboxPageRailSelection(button);
     });
   });
 }
@@ -3452,13 +3571,19 @@ function setViewerFitMode(fitMode, options = {}) {
   if (showUi) showTopUiTemporarily(1600);
 }
 
-function syncCatalogEntryUi() {
+function syncLightboxModeUi() {
+  const favoritesMode = isFavoritesLightboxMode();
   els.lightbox?.classList.add("catalog-entry-mode");
+  els.lightbox?.classList.toggle("favorites-viewer-mode", favoritesMode);
+  els.favoriteOpenCatalogButton?.classList.toggle("hidden", !favoritesMode);
+  els.favoriteOpenCatalogButton?.setAttribute("aria-hidden", favoritesMode ? "false" : "true");
+  els.prevPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הקודם" : "העמוד הקודם");
+  els.nextPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הבא" : "העמוד הבא");
   syncViewerFitModeUi();
   syncFullscreenButtonUi();
 
   if (els.lightboxModeLabel) {
-    els.lightboxModeLabel.textContent = "כניסה לקטלוג";
+    els.lightboxModeLabel.textContent = favoritesMode ? "תצוגת מועדפים" : "כניסה לקטלוג";
   }
 }
 
@@ -3589,34 +3714,57 @@ function handlePageRailPointerOutside(event) {
 
 
 
-function syncLightboxProgress(page = state.page, catalog = state.catalog) {
-  if (!els.lightboxProgress || !catalog) return;
-  const totalPages = Math.max(1, Number(catalog.pages || 1));
-  const currentPage = clampPage(page, catalog);
-  const ratio = totalPages <= 1 ? 1 : currentPage / totalPages;
+function syncLightboxProgress(current, total, title) {
+  if (!els.lightboxProgress) return;
+  const totalItems = Math.max(1, Number.parseInt(total, 10) || 1);
+  const currentItem = clampValue(Number.parseInt(current, 10) || 1, 1, totalItems);
+  const ratio = totalItems <= 1 ? 1 : currentItem / totalItems;
   const clampedRatio = Math.min(1, Math.max(0, ratio));
 
   els.lightboxProgress.style.setProperty("--catalog-progress-ratio", String(clampedRatio));
   els.lightboxProgress.setAttribute("aria-valuemin", "1");
-  els.lightboxProgress.setAttribute("aria-valuemax", String(totalPages));
-  els.lightboxProgress.setAttribute("aria-valuenow", String(currentPage));
-  els.lightboxProgress.setAttribute("title", `עמוד ${currentPage} מתוך ${totalPages}`);
+  els.lightboxProgress.setAttribute("aria-valuemax", String(totalItems));
+  els.lightboxProgress.setAttribute("aria-valuenow", String(currentItem));
+  els.lightboxProgress.setAttribute("title", title || `${currentItem} מתוך ${totalItems}`);
 }
 
 function updateLightbox(options = {}) {
   if (!state.catalog) return;
   const { thumbScrollIntoView = true } = options;
+  let favoriteEntries = null;
+
+  if (isFavoritesLightboxMode()) {
+    favoriteEntries = getFavoriteEntries();
+    if (!favoriteEntries.length) {
+      closeLightbox({ restoreFavorites: true });
+      return;
+    }
+
+    const currentIndex = findFavoriteEntryIndex(favoriteEntries, state.catalog?.id, state.page);
+    setFavoriteViewerEntry(favoriteEntries, currentIndex >= 0 ? currentIndex : state.favoritesViewerIndex);
+  }
+
   const catalog = state.catalog;
   state.page = clampPage(state.page, catalog);
-  syncCatalogEntryUi();
+  syncLightboxModeUi();
 
   els.lightboxTitle.textContent = catalog.title;
-  els.lightboxMeta.textContent = `עמוד ${state.page} מתוך ${catalog.pages}`;
-  syncLightboxProgress(state.page, catalog);
+  if (favoriteEntries) {
+    const current = state.favoritesViewerIndex + 1;
+    const total = favoriteEntries.length;
+    els.lightboxMeta.textContent = `מועדף ${current} מתוך ${total} · עמוד ${state.page}`;
+    syncLightboxProgress(current, total, `מועדף ${current} מתוך ${total}`);
+    els.prevPageBtn.disabled = state.favoritesViewerIndex <= 0;
+    els.nextPageBtn.disabled = state.favoritesViewerIndex >= total - 1;
+  } else {
+    els.lightboxMeta.textContent = `עמוד ${state.page} מתוך ${catalog.pages}`;
+    syncLightboxProgress(state.page, catalog.pages, `עמוד ${state.page} מתוך ${catalog.pages}`);
+    els.prevPageBtn.disabled = state.page <= 1;
+    els.nextPageBtn.disabled = state.page >= catalog.pages;
+  }
+
   syncViewerFavoriteButtonUi();
-  initLightboxSearchStatus();
-  els.prevPageBtn.disabled = state.page <= 1;
-  els.nextPageBtn.disabled = state.page >= catalog.pages;
+  if (!favoriteEntries) initLightboxSearchStatus();
 
   const src = pageSrc(catalog, state.page);
   const currentSrc = els.lightboxImage.getAttribute("src");
@@ -3638,8 +3786,21 @@ function syncDocumentLock() {
   document.documentElement.classList.toggle("viewer-open", state.lightboxOpen);
 }
 
-function openLightbox(page = 1) {
+function openLightbox(page = 1, options = {}) {
   if (!state.catalog) return;
+  const source = options.source === LIGHTBOX_SOURCE_FAVORITES
+    ? LIGHTBOX_SOURCE_FAVORITES
+    : LIGHTBOX_SOURCE_CATALOG;
+  state.lightboxSource = source;
+  if (source === LIGHTBOX_SOURCE_FAVORITES) {
+    state.favoritesViewerIndex = Math.max(0, Number.parseInt(options.favoriteIndex, 10) || 0);
+  } else {
+    state.favoritesViewerIndex = 0;
+    state.favoritesViewerOpeningHash = "";
+    state.favoritesViewerPreviousCatalog = null;
+    state.favoritesViewerPreviousPage = 1;
+    state.favoritesReturnFocus = null;
+  }
   state.imageFitMode = VIEWER_FIT_HEIGHT;
   state.page = clampPage(page, state.catalog);
   state.zoom = AUTO_VIEWER_ZOOM;
@@ -3658,21 +3819,23 @@ function openLightbox(page = 1) {
   syncDocumentLock();
   clearLightboxBottomThumbs();
   renderLightboxPageRail();
-  renderLightboxCatalogMenu();
+  if (!isFavoritesLightboxMode()) renderLightboxCatalogMenu();
   resetLightboxSearch();
-  syncCatalogEntryUi();
+  syncLightboxModeUi();
   showTopUiTemporarily(1700);
   updateLightbox();
   scheduleCatalogScrollTopButtonUpdate();
 
 }
 
-function closeLightbox() {
+function closeLightbox(options = {}) {
+  const wasFavoritesViewer = isFavoritesLightboxMode();
+  const { restoreFavorites = wasFavoritesViewer } = options;
   state.lightboxOpen = false;
   state.singleImageLoadToken += 1;
   window.clearTimeout(state.singleImageAnimationTimer);
   els.lightbox.classList.add("hidden");
-  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "catalog-entry-mode", "is-page-loading", "is-zoomed");
+  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "is-page-loading", "is-zoomed");
   syncViewerAutoZoomButtonUi();
   hideViewerZoomIndicator();
   els.lightboxImageFrame?.classList.remove("page-swap-enter");
@@ -3681,8 +3844,35 @@ function closeLightbox() {
   window.clearTimeout(state.thumbsHideTimer);
   window.clearTimeout(state.uiHideTimer);
   window.clearTimeout(state.pageRailHideTimer);
-  syncDocumentLock();
   scheduleCatalogScrollTopButtonUpdate();
+
+  if (wasFavoritesViewer) {
+    const openingHash = state.favoritesViewerOpeningHash;
+    const previousCatalog = state.favoritesViewerPreviousCatalog;
+    const previousPage = state.favoritesViewerPreviousPage;
+    state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
+    state.favoritesViewerIndex = 0;
+    state.favoritesViewerOpeningHash = "";
+    state.favoritesViewerPreviousCatalog = null;
+    state.favoritesViewerPreviousPage = 1;
+    state.catalog = previousCatalog;
+    state.page = previousPage;
+
+    if (openingHash !== window.location.hash) {
+      history.replaceState(null, "", openingHash || `${window.location.pathname}${window.location.search}`);
+    }
+
+    if (restoreFavorites) {
+      openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
+    } else {
+      state.favoritesReturnFocus = null;
+      syncDocumentLock();
+    }
+    return;
+  }
+
+  state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
+  syncDocumentLock();
   updateHash();
 }
 
@@ -3719,8 +3909,47 @@ function setLightboxPage(page, options = {}) {
 
 }
 
+function setFavoriteViewerIndex(index, options = {}) {
+  if (!isFavoritesLightboxMode()) return;
+  const entries = getFavoriteEntries();
+  if (!entries.length) {
+    closeLightbox({ restoreFavorites: true });
+    return;
+  }
+
+  const {
+    thumbScrollIntoView = true,
+    keepZoom = true,
+    resetZoom = false,
+    resetPosition = isAutoViewerZoom()
+  } = options;
+  const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
+  const entry = entries[nextIndex];
+  const itemChanged = nextIndex !== state.favoritesViewerIndex || state.catalog !== entry.catalog || state.page !== entry.page;
+  const shouldResetZoom = resetZoom || keepZoom === false;
+  const shouldResetPosition = shouldResetZoom || resetPosition;
+
+  if (itemChanged) {
+    hideLightboxFloatingPreview();
+    if (shouldResetZoom) state.zoom = AUTO_VIEWER_ZOOM;
+    if (shouldResetPosition) {
+      resetImagePosition({ queueSingleFitOrigin: true });
+    } else if (shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition })) {
+      state.singleImageFitOriginPending = false;
+    }
+    state.pointers.clear();
+  }
+
+  setFavoriteViewerEntry(entries, nextIndex);
+  updateLightbox({ thumbScrollIntoView });
+}
+
 function moveLightbox(delta) {
   if (!state.catalog) return;
+  if (isFavoritesLightboxMode()) {
+    setFavoriteViewerIndex(state.favoritesViewerIndex + delta);
+    return;
+  }
   setLightboxPage(state.page + delta);
 }
 
@@ -3885,6 +4114,25 @@ function openCatalogInViewer(id, page = 1) {
   state.page = clampPage(page, catalog);
   renderCatalogDetail();
   openLightbox(state.page);
+}
+
+function openCurrentFavoriteInCatalog() {
+  if (!state.lightboxOpen || !isFavoritesLightboxMode() || !state.catalog) return;
+
+  state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
+  state.favoritesViewerIndex = 0;
+  state.favoritesViewerOpeningHash = "";
+  state.favoritesViewerPreviousCatalog = null;
+  state.favoritesViewerPreviousPage = 1;
+  state.favoritesReturnFocus = null;
+
+  renderCatalogDetail();
+  renderLightboxPageRail();
+  renderLightboxCatalogMenu();
+  resetLightboxSearch();
+  syncLightboxModeUi();
+  updateLightbox();
+  showTopUiTemporarily(1700);
 }
 
 function parseHash(hash = location.hash) {
@@ -4326,6 +4574,7 @@ function attachEvents() {
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
   els.lightboxHomeLink?.addEventListener("click", returnToMainSiteFromLightbox);
+  els.favoriteOpenCatalogButton?.addEventListener("click", openCurrentFavoriteInCatalog);
   els.lightboxPinTopBar?.addEventListener("click", toggleTopUiPinned);
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
   els.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
@@ -4467,8 +4716,13 @@ function attachEvents() {
     else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowRight") moveLightbox(-1);
     else if (event.key === "ArrowLeft") moveLightbox(1);
-    else if (event.key === "Home") setLightboxPage(1);
-    else if (event.key === "End" && state.catalog) setLightboxPage(state.catalog.pages);
+    else if (event.key === "Home") {
+      if (isFavoritesLightboxMode()) setFavoriteViewerIndex(0);
+      else setLightboxPage(1);
+    } else if (event.key === "End" && state.catalog) {
+      if (isFavoritesLightboxMode()) setFavoriteViewerIndex(getFavoriteEntries().length - 1);
+      else setLightboxPage(state.catalog.pages);
+    }
   });
 
   window.addEventListener("hashchange", () => {
