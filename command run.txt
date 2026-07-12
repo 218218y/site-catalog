@@ -82,3 +82,14 @@ Verify DNS configuration
 
 הערת R2 חשובה
 קובץ r2.env נשאר מקומי בלבד ומכיל מפתחות גישה. לא מעלים אותו ל-Cloudflare Pages ולא ל-GitHub.
+
+
+שינוי תקיות r2 קלאוד - מונע בדיקה חדשה של נטפרי
+בדיקה
+rclone copy "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" "r2:bargig-catalog/assets/pages/bedrooms-guber-gallery" --dry-run -P
+העתקת תקייה
+rclone copy "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" "r2:bargig-catalog/assets/pages/bedrooms-guber-gallery" -P
+מחיקת תקייה ישנה
+rclone delete "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" --dry-run -v
+rclone delete "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" -P
+

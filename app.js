@@ -289,6 +289,8 @@ const els = {
   globalSearchOpen: $("globalSearchOpen"),
   headerFavoritesButton: $("headerFavoritesButton"),
   headerFavoritesCount: $("headerFavoritesCount"),
+  lightboxFavoritesButton: $("lightboxFavoritesButton"),
+  lightboxFavoritesCount: $("lightboxFavoritesCount"),
   headerCopyLink: $("headerCopyLink"),
   headerFullscreenToggle: $("headerFullscreenToggle"),
   globalSearchClose: $("globalSearchClose"),
@@ -825,15 +827,19 @@ function renderFavoritesPanel(entries = getFavoriteEntries()) {
   }).join("");
 }
 
+function syncFavoritesShortcut(button, countElement, count) {
+  if (countElement) countElement.textContent = String(count);
+  if (!button) return;
+  button.classList.toggle("hidden", count === 0);
+  button.setAttribute("aria-label", `פתיחת מועדפים, ${count} עמודים שמורים`);
+}
+
 function syncFavoritesUi(options = {}) {
   const { renderPanel = state.favoritesOpen } = options;
   const entries = getFavoriteEntries();
   const count = entries.length;
-  if (els.headerFavoritesCount) els.headerFavoritesCount.textContent = String(count);
-  if (els.headerFavoritesButton) {
-    els.headerFavoritesButton.classList.toggle("hidden", count === 0);
-    els.headerFavoritesButton.setAttribute("aria-label", `פתיחת מועדפים, ${count} עמודים שמורים`);
-  }
+  syncFavoritesShortcut(els.headerFavoritesButton, els.headerFavoritesCount, count);
+  syncFavoritesShortcut(els.lightboxFavoritesButton, els.lightboxFavoritesCount, count);
   syncViewerFavoriteButtonUi();
   if (renderPanel) {
     renderFavoritesPanel(entries);

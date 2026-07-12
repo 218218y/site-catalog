@@ -1531,6 +1531,10 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   z-index: 50;
   --viewer-side-control-size: 46px;
   --viewer-side-control-edge: clamp(22px, 3.2vw, 40px);
+  --viewer-side-control-gap: clamp(12px, 1.8vh, 18px);
+  --viewer-side-control-step: calc(var(--viewer-side-control-size) + var(--viewer-side-control-gap));
+  --viewer-side-control-near-top: calc(50% - var(--viewer-side-control-step));
+  --viewer-side-control-far-top: calc(50% - var(--viewer-side-control-step) - var(--viewer-side-control-step));
   --viewer-side-control-bg: rgba(11, 9, 8, 0.72);
   --viewer-side-control-border: rgba(255,255,255,0.24);
   --viewer-side-control-shadow: 0 14px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
@@ -3612,7 +3616,7 @@ a.reader-home:focus-visible {
 .viewer-auto-zoom-button {
   position: fixed;
   z-index: 12;
-  top: calc(50% - clamp(78px, 11vh, 126px));
+  top: var(--viewer-side-control-far-top);
   left: var(--viewer-side-control-edge);
   width: var(--viewer-side-control-size);
   min-width: var(--viewer-side-control-size);
@@ -3680,9 +3684,6 @@ a.reader-home:focus-visible {
 @media (max-width: 640px) {
   .lightbox {
     --viewer-side-control-size: 44px;
-  }
-  .viewer-auto-zoom-button {
-    top: calc(50% - 82px);
   }
 }
 
@@ -4063,6 +4064,33 @@ a.reader-home:focus-visible {
   stroke: rgba(91, 59, 19, 0.38);
   stroke-width: .7;
 }
+.lightbox-favorites-button {
+  position: relative;
+  order: 10;
+  overflow: visible;
+  color: #ffd779;
+  border-color: rgba(255, 224, 157, 0.34);
+  background: rgba(143, 102, 37, 0.42);
+}
+.lightbox-favorites-button:hover,
+.lightbox-favorites-button:focus-visible {
+  color: #ffe49b;
+  border-color: rgba(255, 224, 157, 0.52);
+  background: rgba(143, 102, 37, 0.62);
+}
+.lightbox-favorites-button svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: rgba(91, 59, 19, 0.38);
+  stroke-width: .7;
+  filter: drop-shadow(0 0 7px rgba(255, 211, 113, 0.22));
+}
+.header-favorites-count.lightbox-favorites-count {
+  top: -7px;
+  left: -7px;
+  border-color: rgba(18, 14, 11, 0.94);
+}
 .header-favorites-count {
   position: absolute;
   top: -5px;
@@ -4322,7 +4350,7 @@ a.reader-home:focus-visible {
 .viewer-favorite-button {
   position: fixed;
   z-index: 12;
-  top: calc(50% - clamp(140px, 19vh, 190px));
+  top: var(--viewer-side-control-near-top);
   left: var(--viewer-side-control-edge);
   width: var(--viewer-side-control-size);
   min-width: var(--viewer-side-control-size);
@@ -4405,9 +4433,6 @@ a.reader-home:focus-visible {
     padding: 14px;
   }
   .favorite-image-frame { min-height: 180px; }
-  .viewer-favorite-button {
-    top: calc(50% - 142px);
-  }
   .favorite-open-catalog-button {
     bottom: 18px;
     min-height: 42px;
@@ -4477,11 +4502,13 @@ body[data-page="favorites"] .favorites-standalone-page .favorites-grid {
   padding-top: 12px;
 }
 
+/* Hide only the inactive document shell in the standalone viewer.
+   Shared runtime overlays (notably .search-floating-preview) must remain
+   available because the viewer search reuses them for hover previews. */
 body[data-page="viewer"] > .site-header,
 body[data-page="viewer"] > #catalogSearch,
 body[data-page="viewer"] > main,
 body[data-page="viewer"] > .catalog-scroll-top-float,
-body[data-page="viewer"] > .search-floating-preview,
 body[data-page="viewer"] > .favorites-panel,
 body[data-page="viewer"] > .site-footer {
   display: none !important;
