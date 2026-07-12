@@ -24,8 +24,11 @@
   --site-scrollbar-dark-track: rgba(255,255,255,0.07);
   --site-scrollbar-dark-thumb: rgba(255,255,255,0.34);
   --site-scrollbar-dark-thumb-hover: rgba(255,255,255,0.48);
+  --page-transition-cover-duration: 30ms;
+  --page-transition-reveal-duration: 30ms;
+  --page-transition-easing: cubic-bezier(.2, .72, .22, 1);
+  --image-swap-duration: 220ms;
 }
-
 
 * {
   box-sizing: border-box;
@@ -70,7 +73,67 @@ body {
     radial-gradient(circle at bottom left, rgba(219, 198, 180, 0.22), transparent 24%),
     linear-gradient(180deg, var(--bg-2), var(--bg));
 }
+body:not([data-page="viewer"]) {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+body:not([data-page="viewer"]) > main {
+  flex: 1 0 auto;
+}
+body:not([data-page="viewer"]) > .site-footer {
+  margin-top: auto;
+}
+body[data-page="favorites"] > .favorites-panel.favorites-standalone-page {
+  flex: 1 0 auto;
+}
 body.no-scroll { overflow: hidden; }
+
+/*
+  Cross-document blackout. The destination starts fully covered before its
+  first paint, then fades in only after app.js has mounted the requested route.
+  Link navigation waits only for the very short fade-to-black, so the footer
+  shell cannot leak through without presenting a loader or progress UI.
+*/
+.site-page-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: #080604;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--page-transition-reveal-duration) var(--page-transition-easing),
+    visibility 0s linear var(--page-transition-reveal-duration);
+  will-change: opacity;
+}
+
+html.site-transition-pending .site-page-transition {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: none;
+}
+
+html.site-transition-leaving .site-page-transition {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity var(--page-transition-cover-duration) var(--page-transition-easing),
+    visibility 0s linear 0s;
+}
+
+html.site-transition-entering .site-page-transition {
+  opacity: 0;
+  visibility: visible;
+  pointer-events: none;
+  transition:
+    opacity var(--page-transition-reveal-duration) var(--page-transition-easing),
+    visibility 0s linear var(--page-transition-reveal-duration);
+}
 
 /*
   The page normally reserves a stable root scrollbar gutter so the catalog list
@@ -2315,6 +2378,11 @@ a.reader-home:focus-visible {
   background: rgba(45, 34, 27, 0.97);
 }
 @media (prefers-reduced-motion: reduce) {
+  .site-page-transition {
+    transition-duration: 1ms !important;
+    transition-delay: 0s !important;
+  }
+
   .site-tooltip { transition: none; }
   .page-thumb,
   .lightbox-image-frame.page-swap-enter {
@@ -3110,7 +3178,7 @@ a.reader-home:focus-visible {
 .lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
 
 .lightbox-image-frame.page-swap-enter {
-  animation: lightbox-page-swap .22s cubic-bezier(.2, .72, .22, 1) both;
+  animation: lightbox-page-swap var(--image-swap-duration) var(--page-transition-easing) both;
 }
 
 .lightbox.is-page-loading .lightbox-image-frame {

@@ -49,6 +49,7 @@ DEPLOY_FILES = [
     "catalog-search.js",
     "tooltip-manager.js",
     "favorites-store.js",
+    "page-transition.js",
     "site-routes.js",
     "catalog-snapshot.js",
     "catalog-assets.config.js",

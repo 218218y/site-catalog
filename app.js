@@ -1,6 +1,7 @@
 const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
 const catalogSearch = window.BargigCatalogSearch || null;
 const siteRoutes = window.BargigRoutes || null;
+const pageTransition = window.BargigPageTransition || null;
 const APP_PAGE = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home";
 
 const $ = (id) => document.getElementById(id);
@@ -12,8 +13,35 @@ function isAppPage(page) {
 function navigateTo(relativeUrl, options = {}) {
   const target = String(relativeUrl || "").trim();
   if (!target) return;
+
+  if (pageTransition?.navigate) {
+    pageTransition.navigate(target, { replace: Boolean(options.replace) });
+    return;
+  }
+
   if (options.replace) window.location.replace(target);
   else window.location.assign(target);
+}
+
+function navigateBack() {
+  if (pageTransition?.back) {
+    pageTransition.back();
+    return;
+  }
+  window.history.back();
+}
+
+function revealReadyDocument() {
+  document.body?.setAttribute("data-app-ready", "true");
+  if (pageTransition?.ready) {
+    pageTransition.ready();
+    return;
+  }
+  document.documentElement.classList.remove(
+    "site-transition-pending",
+    "site-transition-leaving",
+    "site-transition-entering"
+  );
 }
 
 function canReturnToSameSite() {
@@ -873,7 +901,7 @@ function openFavoritesPanel(options = {}) {
 function closeFavoritesPanel(options = {}) {
   const { restoreFocus = true, preserveReturnFocus = false } = options;
   if (isAppPage("favorites")) {
-    if (canReturnToSameSite() && window.history.length > 1) window.history.back();
+    if (canReturnToSameSite() && window.history.length > 1) navigateBack();
     else navigateTo(homeDocumentUrl(), { replace: true });
     return;
   }
@@ -3887,7 +3915,7 @@ function closeLightbox(options = {}) {
 
   if (isAppPage("viewer")) {
     if (canReturnToSameSite() && window.history.length > 1) {
-      window.history.back();
+      navigateBack();
       return;
     }
     const destination = wasFavoritesViewer && restoreFavorites
@@ -4821,7 +4849,7 @@ function init() {
 
   if (!catalogs.length) {
     renderEmptyState();
-    return;
+    return true;
   }
 
   renderCatalogCards();
@@ -4829,7 +4857,12 @@ function init() {
   scheduleSearchIndexPreload();
   fillCatalogSelect();
   initSearchStatus();
-  initDocumentRoute();
+  return initDocumentRoute();
 }
 
-init();
+let initResult = true;
+try {
+  initResult = init();
+} finally {
+  if (initResult !== false) revealReadyDocument();
+}
