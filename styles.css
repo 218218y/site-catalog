@@ -27,6 +27,10 @@
   --page-transition-cover-duration: 30ms;
   --page-transition-reveal-duration: 30ms;
   --page-transition-easing: cubic-bezier(.2, .72, .22, 1);
+  /* Both document navigation and image replacement use the same visual dim.
+     A 58% dark veil leaves 42% of the previous frame visible, matching the
+     starting opacity of the fullscreen image-swap animation below. */
+  --content-transition-dim-strength: .58;
   --image-swap-duration: 220ms;
 }
 
@@ -91,16 +95,17 @@ body[data-page="favorites"] > .favorites-panel.favorites-standalone-page {
 body.no-scroll { overflow: hidden; }
 
 /*
-  Cross-document blackout. The destination starts fully covered before its
-  first paint, then fades in only after app.js has mounted the requested route.
-  Link navigation waits only for the very short fade-to-black, so the footer
-  shell cannot leak through without presenting a loader or progress UI.
+  Cross-document dim transition. The destination starts behind the same soft
+  dark veil used perceptually by the fullscreen image swap, then reveals only
+  after app.js has mounted the requested route. The stable page shell keeps the
+  footer in place, while this short translucent cover masks document boot
+  without turning navigation into a loading screen.
 */
 .site-page-transition {
   position: fixed;
   inset: 0;
   z-index: 2147483000;
-  background: #080604;
+  background: rgb(8 6 4 / var(--content-transition-dim-strength));
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -3192,7 +3197,7 @@ a.reader-home:focus-visible {
 
 @keyframes lightbox-page-swap {
   from {
-    opacity: .42;
+    opacity: calc(1 - var(--content-transition-dim-strength));
     transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(calc(var(--single-zoom, 1) * .988));
   }
   to {

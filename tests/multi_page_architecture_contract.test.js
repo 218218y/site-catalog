@@ -62,6 +62,10 @@ assert.match(css, /\.site-page-transition\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?
 assert.match(css, /html\.site-transition-pending \.site-page-transition\s*\{[\s\S]*?opacity:\s*1;[\s\S]*?transition:\s*none;/);
 assert.match(css, /html\.site-transition-leaving \.site-page-transition\s*\{[\s\S]*?var\(--page-transition-cover-duration\)/);
 assert.match(css, /html\.site-transition-entering \.site-page-transition\s*\{[\s\S]*?var\(--page-transition-reveal-duration\)/);
+assert.match(css, /--content-transition-dim-strength:\s*\.58;/);
+assert.match(css, /\.site-page-transition\s*\{[\s\S]*?background:\s*rgb\(8 6 4 \/ var\(--content-transition-dim-strength\)\);/);
+assert.match(css, /@keyframes lightbox-page-swap\s*\{[\s\S]*?opacity:\s*calc\(1 - var\(--content-transition-dim-strength\)\);/);
+assert.doesNotMatch(css, /\.site-page-transition\s*\{[^}]*background:\s*#080604;/);
 assert.doesNotMatch(css, /site-page-transition-(?:brand|logo|progress)|site-page-transition-(?:sweep|shine)/);
 assert.match(css, /body:not\(\[data-page="viewer"\]\)\s*\{[\s\S]*?display:\s*flex;[\s\S]*?flex-direction:\s*column;/);
 assert.match(css, /body:not\(\[data-page="viewer"\]\) > main\s*\{[\s\S]*?flex:\s*1 0 auto;/);

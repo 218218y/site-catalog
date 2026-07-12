@@ -1,10 +1,10 @@
 /**
- * Short blackout transitions between the site's separate HTML documents.
+ * Short dim transitions between the site's separate HTML documents.
  *
- * The destination document starts behind an opaque cover before its first
+ * The destination document starts behind a translucent cover before its first
  * paint. app.js removes that cover only after rendering the requested route.
- * Managed link navigation waits only for a brief fade-to-black, preventing the
- * empty document shell or footer from leaking through without showing a loader.
+ * Managed link navigation waits only for a brief fade, preventing the empty
+ * document shell or footer from leaking through without showing a loader.
  */
 /* global window, document, URL */
 (function (global) {
@@ -14,8 +14,8 @@
   var ROOT_LEAVING = 'site-transition-leaving';
   var ROOT_ENTERING = 'site-transition-entering';
   var MANAGED_DOCUMENTS = new Set(['index.html', 'catalog.html', 'favorites.html', 'viewer.html']);
-  var FALLBACK_COVER_DURATION_MS = 80;
-  var FALLBACK_REVEAL_DURATION_MS = 130;
+  var FALLBACK_COVER_DURATION_MS = 30;
+  var FALLBACK_REVEAL_DURATION_MS = 30;
   var root = document.documentElement;
   var navigationStarted = false;
   var navigationTimer = 0;
@@ -126,7 +126,7 @@
       return true;
     }
 
-    // Start fetching the exact destination while the short blackout runs.
+    // Start fetching the exact destination while the short dim runs.
     // Browsers may reuse this response for the following document navigation.
     prefetchDocument(url);
 

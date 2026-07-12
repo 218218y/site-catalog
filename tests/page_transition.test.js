@@ -6,6 +6,18 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'page-transition.js'), 'utf8');
+const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+
+function readCssDurationMs(customProperty) {
+  const match = css.match(new RegExp(`${customProperty}:\\s*([0-9.]+)ms;`));
+  assert.ok(match, `${customProperty} should be defined in styles.css using milliseconds`);
+  return Number.parseFloat(match[1]);
+}
+
+const coverDurationMs = readCssDurationMs('--page-transition-cover-duration');
+const revealDurationMs = readCssDurationMs('--page-transition-reveal-duration');
+assert.match(source, new RegExp(`var FALLBACK_COVER_DURATION_MS = ${coverDurationMs};`));
+assert.match(source, new RegExp(`var FALLBACK_REVEAL_DURATION_MS = ${revealDurationMs};`));
 const classNames = new Set(['site-transition-pending']);
 const attributes = new Map();
 const prefetchHints = [];
@@ -52,8 +64,8 @@ const window = {
   getComputedStyle() {
     return {
       getPropertyValue(name) {
-        if (name === '--page-transition-cover-duration') return '30ms';
-        if (name === '--page-transition-reveal-duration') return '30ms';
+        if (name === '--page-transition-cover-duration') return `${coverDurationMs}ms`;
+        if (name === '--page-transition-reveal-duration') return `${revealDurationMs}ms`;
         return '';
       }
     };
@@ -95,7 +107,7 @@ assert.equal(classNames.has('site-transition-entering'), true);
 assert.equal(attributes.has('aria-busy'), false);
 const revealTimer = [...timers.values()].find((timer) => !timer.canceled);
 assert.ok(revealTimer, 'ready should schedule removal of the entering state');
-assert.equal(revealTimer.delay, 164);
+assert.equal(revealTimer.delay, revealDurationMs + 34);
 
 for (const timer of timers.values()) {
   if (!timer.canceled) timer.callback();
@@ -111,7 +123,7 @@ assert.equal(classNames.has('site-transition-leaving'), true);
 assert.equal(attributes.get('aria-busy'), 'true');
 const navigationTimer = [...timers.values()].find((timer) => !timer.canceled);
 assert.ok(navigationTimer, 'navigation should wait for the cover animation');
-assert.equal(navigationTimer.delay, 80);
+assert.equal(navigationTimer.delay, coverDurationMs);
 navigationTimer.callback();
 assert.equal(assignedUrl, 'https://bargig-furniture.com/catalog.html?catalog=test');
 
