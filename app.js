@@ -10,6 +10,16 @@ const VIEWER_FIT_WIDTH = "width";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
 const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
 
+function getFavoritesStorage() {
+  try {
+    return window.localStorage;
+  } catch (_error) {
+    return null;
+  }
+}
+
+const favoritesStore = window.BargigFavorites?.createStore?.({ storage: getFavoritesStorage() }) || null;
+
 function catalogAssetBaseUrl() {
   const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
   if (!rawBase) return "";
@@ -197,7 +207,9 @@ const state = {
   searchPreviewSuppressUntil: 0,
   searchPreviewSuppressTimer: 0,
   searchPreviewPointerClientX: null,
-  searchPreviewPointerClientY: null
+  searchPreviewPointerClientY: null,
+  favoritesOpen: false,
+  favoritesReturnFocus: null
 };
 
 const els = {
@@ -210,6 +222,8 @@ const els = {
   pageCount: $("pageCount"),
   catalogSearch: $("catalogSearch"),
   globalSearchOpen: $("globalSearchOpen"),
+  headerFavoritesButton: $("headerFavoritesButton"),
+  headerFavoritesCount: $("headerFavoritesCount"),
   headerCopyLink: $("headerCopyLink"),
   headerFullscreenToggle: $("headerFullscreenToggle"),
   globalSearchClose: $("globalSearchClose"),
@@ -231,6 +245,13 @@ const els = {
   pageGrid: $("pageGrid"),
   openCatalogEntryFromDetail: $("openCatalogEntryFromDetail"),
   scrollToTopBtn: $("scrollToTopBtn"),
+  favoritesPanel: $("favoritesPanel"),
+  favoritesBackdrop: $("favoritesBackdrop"),
+  favoritesCloseButton: $("favoritesCloseButton"),
+  favoritesClearButton: $("favoritesClearButton"),
+  favoritesCount: $("favoritesCount"),
+  favoritesGrid: $("favoritesGrid"),
+  favoritesEmpty: $("favoritesEmpty"),
   lightbox: $("lightbox"),
   lightboxBackdrop: $("lightboxBackdrop"),
   lightboxBar: $("lightboxBar"),
@@ -259,6 +280,7 @@ const els = {
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
   viewerAutoZoomBtn: $("viewerAutoZoomBtn"),
+  viewerFavoriteButton: $("viewerFavoriteButton"),
   viewerZoomIndicator: $("viewerZoomIndicator"),
   lightboxSearchInput: $("lightboxSearchInput"),
   lightboxSearchResults: $("lightboxSearchResults"),
@@ -632,6 +654,171 @@ function buildCategoryShareRouteHash(path) {
 function findCatalogById(id) {
   const catalogId = String(id || "");
   return catalogs.find((item) => String(item.id || "") === catalogId) || null;
+}
+
+function favoriteIdentity(catalog = state.catalog, page = state.page) {
+  if (!catalog) return null;
+  return {
+    catalogId: String(catalog.id || ""),
+    page: clampPage(page, catalog)
+  };
+}
+
+function getFavoriteEntries() {
+  if (!favoritesStore) return [];
+  return favoritesStore.read().flatMap((item) => {
+    const catalog = findCatalogById(item.catalogId);
+    const page = Number.parseInt(item.page, 10);
+    const maxPage = Number.parseInt(catalog?.pages, 10);
+    if (!catalog || !Number.isFinite(page) || page < 1 || !Number.isFinite(maxPage) || page > maxPage) return [];
+    return [{ ...item, catalog, page }];
+  });
+}
+
+function syncViewerFavoriteButtonUi() {
+  const button = els.viewerFavoriteButton;
+  if (!button) return;
+  const identity = favoriteIdentity();
+  const isFavorite = Boolean(identity && favoritesStore?.has(identity));
+  const label = isFavorite ? "הסרת העמוד מהמועדפים" : "הוספת העמוד למועדפים";
+  button.dataset.favoriteActive = isFavorite ? "true" : "false";
+  button.setAttribute("aria-pressed", isFavorite ? "true" : "false");
+  button.setAttribute("aria-label", label);
+  setTooltipText(button, label, { updateDefault: true });
+  const hiddenLabel = button.querySelector(".visually-hidden");
+  if (hiddenLabel) hiddenLabel.textContent = label;
+}
+
+function renderFavoritesPanel(entries = getFavoriteEntries()) {
+  if (!els.favoritesGrid) return;
+  const count = entries.length;
+  if (els.favoritesCount) els.favoritesCount.textContent = String(count);
+  els.favoritesClearButton?.classList.toggle("hidden", count === 0);
+  els.favoritesEmpty?.classList.toggle("hidden", count !== 0);
+
+  els.favoritesGrid.innerHTML = entries.map(({ catalog, page }) => {
+    const identityCatalog = escapeHtml(catalog.id);
+    const title = escapeHtml(catalog.title || "קטלוג");
+    const image = pageSrc(catalog, page);
+    return `
+      <article class="favorite-card" data-favorite-catalog="${identityCatalog}" data-favorite-page="${page}">
+        <button class="favorite-preview-button" type="button" data-open-favorite="1" aria-label="פתיחת ${title}, עמוד ${page}">
+          <span class="favorite-image-frame catalog-image-frame"${pageAspectStyle(catalog, page)}>
+            <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(image)} />
+          </span>
+          <span class="favorite-card-meta">
+            <strong>${title}</strong>
+            <span>עמוד ${page}</span>
+          </span>
+        </button>
+        <button class="favorite-remove-button" type="button" data-remove-favorite="1" aria-label="הסרת ${title}, עמוד ${page} מהמועדפים" title="הסרה מהמועדפים">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" /></svg>
+        </button>
+      </article>
+    `;
+  }).join("");
+}
+
+function syncFavoritesUi(options = {}) {
+  const { renderPanel = state.favoritesOpen } = options;
+  const entries = getFavoriteEntries();
+  const count = entries.length;
+  if (els.headerFavoritesCount) els.headerFavoritesCount.textContent = String(count);
+  if (els.headerFavoritesButton) {
+    els.headerFavoritesButton.classList.toggle("hidden", count === 0);
+    els.headerFavoritesButton.setAttribute("aria-label", `פתיחת מועדפים, ${count} עמודים שמורים`);
+  }
+  syncViewerFavoriteButtonUi();
+  if (renderPanel) {
+    renderFavoritesPanel(entries);
+    if (state.favoritesOpen && entries.length === 0) {
+      requestAnimationFrame(() => els.favoritesCloseButton?.focus());
+    }
+  }
+}
+
+function openFavoritesPanel() {
+  const entries = getFavoriteEntries();
+  if (!els.favoritesPanel || !entries.length) return;
+  state.favoritesReturnFocus = document.activeElement;
+  state.favoritesOpen = true;
+  renderFavoritesPanel(entries);
+  els.favoritesPanel.classList.remove("hidden");
+  els.favoritesPanel.setAttribute("aria-hidden", "false");
+  els.headerFavoritesButton?.setAttribute("aria-expanded", "true");
+  syncDocumentLock();
+  requestAnimationFrame(() => els.favoritesCloseButton?.focus());
+}
+
+function closeFavoritesPanel(options = {}) {
+  const { restoreFocus = true } = options;
+  if (!state.favoritesOpen) return;
+  state.favoritesOpen = false;
+  els.favoritesPanel?.classList.add("hidden");
+  els.favoritesPanel?.setAttribute("aria-hidden", "true");
+  els.headerFavoritesButton?.setAttribute("aria-expanded", "false");
+  syncDocumentLock();
+  if (restoreFocus && state.favoritesReturnFocus?.focus) state.favoritesReturnFocus.focus();
+  state.favoritesReturnFocus = null;
+}
+
+function toggleCurrentPageFavorite() {
+  const identity = favoriteIdentity();
+  if (!identity || !favoritesStore) return;
+  const added = favoritesStore.toggle({ ...identity, savedAt: Date.now() });
+  syncFavoritesUi({ renderPanel: true });
+  flashActionButton(els.viewerFavoriteButton, added ? "נוסף למועדפים" : "הוסר מהמועדפים");
+}
+
+function removeFavorite(catalogId, page) {
+  if (!favoritesStore) return;
+  favoritesStore.remove({ catalogId, page });
+  syncFavoritesUi({ renderPanel: true });
+}
+
+function clearAllFavorites() {
+  if (!favoritesStore || !getFavoriteEntries().length) return;
+  if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
+  favoritesStore.clear();
+  syncFavoritesUi({ renderPanel: true });
+}
+
+function handleFavoritesGridClick(event) {
+  const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
+  if (!card || !els.favoritesGrid?.contains(card)) return;
+  const catalogId = card.dataset.favoriteCatalog;
+  const page = Number.parseInt(card.dataset.favoritePage, 10);
+  if (event.target.closest?.("[data-remove-favorite]")) {
+    removeFavorite(catalogId, page);
+    return;
+  }
+  if (event.target.closest?.("[data-open-favorite]")) {
+    closeFavoritesPanel({ restoreFocus: false });
+    openCatalogInViewer(catalogId, page);
+  }
+}
+
+function handleFavoritesStorageChange(event) {
+  if (!favoritesStore || (event.key !== null && event.key !== favoritesStore.storageKey)) return;
+  favoritesStore.reload();
+  syncFavoritesUi({ renderPanel: true });
+}
+
+function handleFavoritesPanelKeydown(event) {
+  if (!state.favoritesOpen || event.key !== "Tab" || !els.favoritesPanel) return;
+  const focusable = Array.from(els.favoritesPanel.querySelectorAll(
+    'button:not([disabled]):not(.hidden), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.closest?.(".hidden"));
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function catalogShareRouteId(catalogId) {
@@ -3426,6 +3613,7 @@ function updateLightbox(options = {}) {
   els.lightboxTitle.textContent = catalog.title;
   els.lightboxMeta.textContent = `עמוד ${state.page} מתוך ${catalog.pages}`;
   syncLightboxProgress(state.page, catalog);
+  syncViewerFavoriteButtonUi();
   initLightboxSearchStatus();
   els.prevPageBtn.disabled = state.page <= 1;
   els.nextPageBtn.disabled = state.page >= catalog.pages;
@@ -3445,10 +3633,9 @@ function updateLightbox(options = {}) {
   updateHash();
 }
 
-function setViewerDocumentLock(locked) {
-  const isLocked = Boolean(locked);
-  document.body.classList.toggle("no-scroll", isLocked);
-  document.documentElement.classList.toggle("viewer-open", isLocked);
+function syncDocumentLock() {
+  document.body.classList.toggle("no-scroll", state.lightboxOpen || state.favoritesOpen);
+  document.documentElement.classList.toggle("viewer-open", state.lightboxOpen);
 }
 
 function openLightbox(page = 1) {
@@ -3468,7 +3655,7 @@ function openLightbox(page = 1) {
   els.lightbox.classList.remove("hidden");
   els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail");
   syncTopUiPinnedUi();
-  setViewerDocumentLock(true);
+  syncDocumentLock();
   clearLightboxBottomThumbs();
   renderLightboxPageRail();
   renderLightboxCatalogMenu();
@@ -3494,7 +3681,7 @@ function closeLightbox() {
   window.clearTimeout(state.thumbsHideTimer);
   window.clearTimeout(state.uiHideTimer);
   window.clearTimeout(state.pageRailHideTimer);
-  setViewerDocumentLock(false);
+  syncDocumentLock();
   scheduleCatalogScrollTopButtonUpdate();
   updateHash();
 }
@@ -4129,7 +4316,13 @@ function attachEvents() {
   });
 
   els.headerCopyLink?.addEventListener("click", () => copyCurrentMainHeaderLink());
+  els.headerFavoritesButton?.addEventListener("click", openFavoritesPanel);
   els.headerFullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.headerFullscreenToggle));
+  els.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
+  els.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
+  els.favoritesClearButton?.addEventListener("click", clearAllFavorites);
+  els.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
+  els.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
   els.lightboxHomeLink?.addEventListener("click", returnToMainSiteFromLightbox);
@@ -4147,6 +4340,12 @@ function attachEvents() {
     setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
   });
   els.viewerAutoZoomBtn?.addEventListener("pointerdown", (event) => event.stopPropagation());
+  els.viewerFavoriteButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleCurrentPageFavorite();
+  });
+  els.viewerFavoriteButton?.addEventListener("pointerdown", (event) => event.stopPropagation());
   els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
 
   attachViewerGestures();
@@ -4193,6 +4392,8 @@ function attachEvents() {
   });
 
 
+  window.addEventListener("storage", handleFavoritesStorageChange);
+
   window.addEventListener("resize", () => {
     if (!window.matchMedia("(max-width: 760px)").matches) closeMobileCategoryMenu();
     scheduleCatalogLayoutRefresh();
@@ -4217,6 +4418,11 @@ function attachEvents() {
   syncFullscreenButtonUi();
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.favoritesOpen) {
+      event.preventDefault();
+      closeFavoritesPanel();
+      return;
+    }
     if (event.key === "Escape" && isMobileCategoryMenuOpen()) {
       event.preventDefault();
       closeMobileCategoryMenu({ focusButton: true });
@@ -4294,6 +4500,7 @@ function init() {
   initRevealObserver();
   initCategoryNavFit();
   attachEvents();
+  syncFavoritesUi({ renderPanel: false });
 
   if (!catalogs.length) {
     renderEmptyState();
