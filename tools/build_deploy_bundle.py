@@ -17,8 +17,9 @@ Examples:
     python tools/build_deploy_bundle.py --include-json
     python tools/build_deploy_bundle.py --external-assets-url https://cdn.example.com
 
-The deploy bundle intentionally fingerprints browser-loaded CSS/JS files and
-rewrites index.html to reference the hashed filenames. This makes each new site
+The deploy bundle renders all public HTML documents from site.template.html,
+fingerprints browser-loaded CSS/JS files, and rewrites every page to reference
+the hashed filenames. This makes each new site
 version a new URL in the browser cache, so users get updates without clearing
 cookies, manually purging Cloudflare, or relying on every browser to revalidate
 same-name files correctly.
@@ -36,17 +37,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from build_site_pages import PAGE_DOCUMENTS, render_site_pages
+
 BIG_PAGES_VIEWER_FILE = "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
 
 DEPLOY_FILES = [
     "_headers",
     "_redirects",
-    "index.html",
     "styles.css",
     "app.js",
     "catalog-search.js",
     "tooltip-manager.js",
     "favorites-store.js",
+    "site-routes.js",
     "catalog-snapshot.js",
     "catalog-assets.config.js",
     "brand-logo.js",
@@ -155,29 +158,27 @@ def hashed_asset_name(path: Path) -> str:
 
 
 def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
-    """Move referenced CSS/JS bundle assets into static/<name>.<hash>.<ext>.
+    """Fingerprint shared CSS/JS once and rewrite every public HTML document."""
 
-    Source files keep their simple names for local development. Only the Cloudflare
-    Pages upload bundle is fingerprinted.
-    """
+    html_paths = [out_dir / page.filename for page in PAGE_DOCUMENTS]
+    missing = [path.name for path in html_paths if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(f"Cannot fingerprint bundle because HTML documents are missing: {', '.join(missing)}")
 
-    index_path = out_dir / "index.html"
-    if not index_path.is_file():
-        raise FileNotFoundError("Cannot fingerprint bundle assets because index.html is missing from the output folder.")
-
-    html = index_path.read_text(encoding="utf-8", errors="replace")
     references: list[str] = []
-    for match in HTML_ASSET_ATTR_RE.finditer(html):
-        raw_reference = match.group("url").strip()
-        reference_path, _suffix = split_url_reference(raw_reference)
-        if (
-            not reference_path
-            or reference_path.startswith(("http://", "https://", "//", "#", "mailto:"))
-            or Path(reference_path).suffix.lower() not in FINGERPRINTED_EXTENSIONS
-        ):
-            continue
-        if reference_path not in references:
-            references.append(reference_path)
+    for html_path in html_paths:
+        html = html_path.read_text(encoding="utf-8", errors="replace")
+        for match in HTML_ASSET_ATTR_RE.finditer(html):
+            raw_reference = match.group("url").strip()
+            reference_path, _suffix = split_url_reference(raw_reference)
+            if (
+                not reference_path
+                or reference_path.startswith(("http://", "https://", "//", "#", "mailto:"))
+                or Path(reference_path).suffix.lower() not in FINGERPRINTED_EXTENSIONS
+            ):
+                continue
+            if reference_path not in references:
+                references.append(reference_path)
 
     static_dir = out_dir / FINGERPRINTED_ASSET_DIR
     rewrite_map: dict[str, str] = {}
@@ -202,9 +203,10 @@ def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
                 return match.group(0)
             return f"{match.group('prefix')}{replacement}{suffix}{match.group('suffix')}"
 
-        index_path.write_text(HTML_ASSET_ATTR_RE.sub(replace_reference, html), encoding="utf-8")
+        for html_path in html_paths:
+            html = html_path.read_text(encoding="utf-8", errors="replace")
+            html_path.write_text(HTML_ASSET_ATTR_RE.sub(replace_reference, html), encoding="utf-8")
 
-    # Keep the directory absent in unusual HTML-only bundles.
     if static_dir.exists() and not any(static_dir.iterdir()):
         static_dir.rmdir()
     return rewrite_map
@@ -263,8 +265,8 @@ def add_stats(left: CopyStats, right: CopyStats) -> CopyStats:
 
 def referenced_html_assets(root: Path) -> set[str]:
     references: set[str] = set()
-    for html_file in ("index.html",):
-        path = root / html_file
+    for page in PAGE_DOCUMENTS:
+        path = root / page.filename
         if not path.is_file():
             continue
         content = path.read_text(encoding="utf-8", errors="replace")
@@ -304,6 +306,7 @@ def load_generated_catalogs(root: Path) -> list[dict]:
 def validate_static_references(root: Path) -> list[str]:
     warnings: list[str] = []
     known_files = {Path(path).as_posix() for path in DEPLOY_FILES + OPTIONAL_DEPLOY_FILES + JSON_DEPLOY_FILES}
+    known_files.update(page.filename for page in PAGE_DOCUMENTS)
     for reference in sorted(referenced_html_assets(root)):
         if reference in known_files:
             continue
@@ -412,7 +415,11 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-        stats = CopyStats(files=0, bytes=0)
+        rendered_pages = render_site_pages(root, out_dir)
+        stats = CopyStats(
+            files=len(rendered_pages),
+            bytes=sum(path.stat().st_size for path in rendered_pages),
+        )
         for relative in deploy_files:
             if relative == "catalog-assets.config.js":
                 continue

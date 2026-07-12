@@ -2,9 +2,30 @@
 
 הפרויקט מוגדר למסלול עבודה אחד וברור:
 
+- האתר מחולק לארבעה מסמכי ניווט: `index.html`, `catalog.html`, `favorites.html`, `viewer.html`.
+- כל הקטלוגים משתמשים באותו `catalog.html` ובאותו `viewer.html` עם כתובת ייחודית לפי `catalog` ו-`page`; אין שכפול HTML לכל קטלוג.
+- `site.template.html` הוא מקור ה-HTML המשותף, ו-`tools/build_site_pages.py` מייצר ממנו את ארבעת הדפים.
+- `site-routes.js` מרכז את בניית הכתובות ופענוחן, כולל תאימות לקישורי `#c/...` הישנים.
 - האתר הסטטי עצמו עולה ל-Cloudflare Pages דרך Wrangler.
 - תמונות עמודי הקטלוגים נשמרות ומוגשות דרך Cloudflare R2 / CDN.
 - תיקיית `assets/pages` נשארת תיקיית עבודה מקומית וסנכרון ל-R2; היא לא מועתקת לתיקיית ההעלאה ל-Cloudflare Pages.
+
+## מבנה דפי האתר
+
+```text
+index.html                         רשימת הקטלוגים
+catalog.html?catalog=<id>          גלריית העמודים של קטלוג יחיד
+favorites.html                    המועדפים כדף עצמאי
+viewer.html?catalog=<id>&page=<n> צפייה במסך מלא
+```
+
+לא עורכים ידנית את ארבעת קובצי ה-HTML במקביל. עורכים את `site.template.html` ואז מריצים:
+
+```bat
+python tools\build_site_pages.py
+```
+
+כלי יצירת הבאנדל מרנדר את הדפים מהתבנית מחדש באופן אוטומטי, כך שגם אם קובץ HTML שנוצר מקומית התיישן, תיקיית הפריסה נשארת עקבית.
 
 ## מה מעלים ל-Cloudflare Pages
 

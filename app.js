@@ -1,7 +1,65 @@
 const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
 const catalogSearch = window.BargigCatalogSearch || null;
+const siteRoutes = window.BargigRoutes || null;
+const APP_PAGE = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home";
 
 const $ = (id) => document.getElementById(id);
+
+function isAppPage(page) {
+  return APP_PAGE === page;
+}
+
+function navigateTo(relativeUrl, options = {}) {
+  const target = String(relativeUrl || "").trim();
+  if (!target) return;
+  if (options.replace) window.location.replace(target);
+  else window.location.assign(target);
+}
+
+function canReturnToSameSite() {
+  if (!document.referrer) return false;
+  try {
+    return new URL(document.referrer).origin === window.location.origin;
+  } catch (_error) {
+    return false;
+  }
+}
+
+function homeDocumentUrl() {
+  return siteRoutes?.homeUrl?.() || "index.html";
+}
+
+function catalogDocumentUrl(catalogId) {
+  return siteRoutes?.catalogUrl?.(catalogId) || `catalog.html?catalog=${encodeURIComponent(String(catalogId || ""))}`;
+}
+
+function favoritesDocumentUrl() {
+  return siteRoutes?.favoritesUrl?.() || "favorites.html";
+}
+
+function viewerDocumentUrl(catalogId, page = 1, options = {}) {
+  return siteRoutes?.viewerUrl?.(catalogId, page, options) || `viewer.html?catalog=${encodeURIComponent(String(catalogId || ""))}&page=${Math.max(1, Number.parseInt(page, 10) || 1)}`;
+}
+
+function absoluteDocumentUrl(relativeUrl) {
+  return new URL(relativeUrl, window.location.href).href;
+}
+
+function updateDocumentMetadata(catalog = state?.catalog || null) {
+  const brand = "רהיטי ברגיג";
+  if (isAppPage("catalog") && catalog) {
+    document.title = `${catalog.title} | ${brand}`;
+  } else if (isAppPage("viewer") && catalog) {
+    document.title = `${catalog.title} — עמוד ${state.page} | ${brand}`;
+  } else if (isAppPage("favorites")) {
+    document.title = `המועדפים שלי | ${brand}`;
+  } else {
+    document.title = `קטלוגים | ${brand}`;
+  }
+
+  const canonical = document.querySelector('link[rel="canonical"]');
+  if (canonical) canonical.href = window.location.href.split("#")[0];
+}
 const AUTO_VIEWER_ZOOM = 1;
 const MIN_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
@@ -788,24 +846,35 @@ function syncFavoritesUi(options = {}) {
 function openFavoritesPanel(options = {}) {
   const { allowEmpty = false, captureReturnFocus = true } = options;
   const entries = getFavoriteEntries();
+
+  if (!isAppPage("favorites")) {
+    if (allowEmpty || entries.length) navigateTo(favoritesDocumentUrl());
+    return;
+  }
+
   if (!els.favoritesPanel || (!allowEmpty && !entries.length)) return;
   if (captureReturnFocus) state.favoritesReturnFocus = document.activeElement;
   state.favoritesOpen = true;
   renderFavoritesPanel(entries);
   els.favoritesPanel.classList.remove("hidden");
+  els.favoritesPanel.classList.add("favorites-standalone-page");
   els.favoritesPanel.setAttribute("aria-hidden", "false");
-  els.headerFavoritesButton?.setAttribute("aria-expanded", "true");
+  els.favoritesPanel.setAttribute("aria-modal", "false");
   syncDocumentLock();
-  requestAnimationFrame(() => els.favoritesCloseButton?.focus());
+  updateDocumentMetadata();
 }
 
 function closeFavoritesPanel(options = {}) {
   const { restoreFocus = true, preserveReturnFocus = false } = options;
+  if (isAppPage("favorites")) {
+    if (canReturnToSameSite() && window.history.length > 1) window.history.back();
+    else navigateTo(homeDocumentUrl(), { replace: true });
+    return;
+  }
   if (!state.favoritesOpen) return;
   state.favoritesOpen = false;
   els.favoritesPanel?.classList.add("hidden");
   els.favoritesPanel?.setAttribute("aria-hidden", "true");
-  els.headerFavoritesButton?.setAttribute("aria-expanded", "false");
   syncDocumentLock();
   if (restoreFocus && state.favoritesReturnFocus?.focus) state.favoritesReturnFocus.focus();
   if (!preserveReturnFocus) state.favoritesReturnFocus = null;
@@ -816,10 +885,14 @@ function openFavoriteViewer(catalogId, page) {
   const index = findFavoriteEntryIndex(entries, catalogId, page);
   if (index < 0) return;
 
-  state.favoritesViewerOpeningHash = window.location.hash;
+  if (!isAppPage("viewer")) {
+    navigateTo(viewerDocumentUrl(catalogId, page, { source: LIGHTBOX_SOURCE_FAVORITES }));
+    return;
+  }
+
+  state.favoritesViewerOpeningHash = window.location.href;
   state.favoritesViewerPreviousCatalog = state.catalog;
   state.favoritesViewerPreviousPage = state.page;
-  closeFavoritesPanel({ restoreFocus: false, preserveReturnFocus: true });
   setFavoriteViewerEntry(entries, index);
   openLightbox(state.page, {
     source: LIGHTBOX_SOURCE_FAVORITES,
@@ -892,59 +965,30 @@ function handleFavoritesPanelKeydown(event) {
   }
 }
 
-function catalogShareRouteId(catalogId) {
-  const catalog = findCatalogById(catalogId);
-  return String(catalog?.id || catalogId || "");
-}
-
-function resolveCatalogRouteId(value) {
-  return decodeHashRouteSegment(value);
-}
-
-function buildCatalogRouteHash(catalogId, options = {}) {
-  const id = encodeHashRouteSegment(catalogShareRouteId(catalogId));
-  if (!id) return "";
-
-  const { lightbox = false, page = 1 } = options;
-  let hash = `#c/${id}`;
-  if (lightbox) {
-    const currentPage = Math.max(1, Number.parseInt(page, 10) || 1);
-    hash += `/p/${currentPage}`;
-  }
-
-  return hash;
-}
-
 function buildMainHeaderUrl() {
-  const url = new URL(window.location.href);
-  const route = parseHash();
-
-  if (route?.id) {
-    url.hash = buildCatalogRouteHash(route.id, route.lightbox ? {
-      lightbox: true,
-      page: route.page
-    } : {});
-    return url.href;
+  if (isAppPage("catalog") && state.catalog) {
+    return absoluteDocumentUrl(catalogDocumentUrl(state.catalog.id));
+  }
+  if (isAppPage("viewer") && state.catalog) {
+    return absoluteDocumentUrl(viewerDocumentUrl(state.catalog.id, state.page, {
+      source: isFavoritesLightboxMode() ? LIGHTBOX_SOURCE_FAVORITES : LIGHTBOX_SOURCE_CATALOG
+    }));
+  }
+  if (isAppPage("favorites")) {
+    return absoluteDocumentUrl(favoritesDocumentUrl());
   }
 
   const categoryTargetId = getCurrentCatalogFocusUrlTargetId();
-  if (categoryTargetId) {
-    url.hash = buildCatalogFocusRouteHash(categoryTargetId);
-    return url.href;
-  }
-
-  url.hash = "";
+  const url = new URL(homeDocumentUrl(), window.location.href);
+  if (categoryTargetId) url.hash = buildCatalogFocusRouteHash(categoryTargetId);
   return url.href;
 }
 
 function buildLightboxPageUrl() {
   if (!state.catalog) return buildMainHeaderUrl();
-  const url = new URL(window.location.href);
-  url.hash = buildCatalogRouteHash(state.catalog.id, {
-    lightbox: true,
-    page: clampPage(state.page, state.catalog)
-  });
-  return url.href;
+  return absoluteDocumentUrl(viewerDocumentUrl(state.catalog.id, clampPage(state.page, state.catalog), {
+    source: isFavoritesLightboxMode() ? LIGHTBOX_SOURCE_FAVORITES : LIGHTBOX_SOURCE_CATALOG
+  }));
 }
 
 async function copyTextToClipboard(value) {
@@ -1379,6 +1423,11 @@ function handleCatalogFocusLinkClick(link, event) {
   if (!targetId) return;
 
   event.preventDefault();
+
+  if (!isAppPage("home")) {
+    navigateTo(`${homeDocumentUrl()}${buildCatalogFocusRouteHash(targetId)}`);
+    return;
+  }
 
   if (state.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
     clearCatalogCategoryFocus({ clearHash: true });
@@ -2789,17 +2838,17 @@ function preloadNeighbors() {
 }
 
 function updateHash() {
-  if (state.lightboxOpen && isFavoritesLightboxMode()) return;
-  if (!state.catalog) {
-    history.replaceState(null, "", "#catalogs");
-    return;
+  if (!window.history?.replaceState) return;
+
+  if (isAppPage("catalog") && state.catalog) {
+    history.replaceState(null, "", catalogDocumentUrl(state.catalog.id));
+  } else if (isAppPage("viewer") && state.catalog) {
+    history.replaceState(null, "", viewerDocumentUrl(state.catalog.id, state.page, {
+      source: isFavoritesLightboxMode() ? LIGHTBOX_SOURCE_FAVORITES : LIGHTBOX_SOURCE_CATALOG
+    }));
   }
 
-  const hash = buildCatalogRouteHash(state.catalog.id, state.lightboxOpen ? {
-    lightbox: true,
-    page: state.page,
-  } : {});
-  history.replaceState(null, "", hash || "#catalogs");
+  updateDocumentMetadata(state.catalog);
 }
 
 function getPointerList() {
@@ -3287,16 +3336,7 @@ function returnToMainSiteFromLightbox(event = null) {
   event?.preventDefault?.();
   closeLightboxSearchScopeMenu();
   closeLightboxCatalogMenu();
-
-  if (state.lightboxOpen) closeLightbox({ restoreFavorites: false });
-
-  state.catalog = null;
-  state.page = 1;
-  els.catalogDetail?.classList.add("hidden");
-  els.catalogDetail?.classList.remove("in-view");
-  updateHash();
-  document.getElementById("catalogs")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  syncFullscreenButtonUi();
+  navigateTo(homeDocumentUrl());
 }
 
 
@@ -3782,7 +3822,8 @@ function updateLightbox(options = {}) {
 }
 
 function syncDocumentLock() {
-  document.body.classList.toggle("no-scroll", state.lightboxOpen || state.favoritesOpen);
+  const modalFavoritesOpen = state.favoritesOpen && !isAppPage("favorites");
+  document.body.classList.toggle("no-scroll", state.lightboxOpen || modalFavoritesOpen);
   document.documentElement.classList.toggle("viewer-open", state.lightboxOpen);
 }
 
@@ -3791,6 +3832,12 @@ function openLightbox(page = 1, options = {}) {
   const source = options.source === LIGHTBOX_SOURCE_FAVORITES
     ? LIGHTBOX_SOURCE_FAVORITES
     : LIGHTBOX_SOURCE_CATALOG;
+
+  if (!isAppPage("viewer")) {
+    navigateTo(viewerDocumentUrl(state.catalog.id, page, { source }));
+    return;
+  }
+
   state.lightboxSource = source;
   if (source === LIGHTBOX_SOURCE_FAVORITES) {
     state.favoritesViewerIndex = Math.max(0, Number.parseInt(options.favoriteIndex, 10) || 0);
@@ -3831,11 +3878,24 @@ function openLightbox(page = 1, options = {}) {
 function closeLightbox(options = {}) {
   const wasFavoritesViewer = isFavoritesLightboxMode();
   const { restoreFavorites = wasFavoritesViewer } = options;
+
+  if (isAppPage("viewer")) {
+    if (canReturnToSameSite() && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    const destination = wasFavoritesViewer && restoreFavorites
+      ? favoritesDocumentUrl()
+      : catalogDocumentUrl(state.catalog?.id);
+    navigateTo(destination || homeDocumentUrl(), { replace: true });
+    return;
+  }
+
   state.lightboxOpen = false;
   state.singleImageLoadToken += 1;
   window.clearTimeout(state.singleImageAnimationTimer);
-  els.lightbox.classList.add("hidden");
-  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "is-page-loading", "is-zoomed");
+  els.lightbox?.classList.add("hidden");
+  els.lightbox?.classList.remove("show-thumbs", "show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "is-page-loading", "is-zoomed");
   syncViewerAutoZoomButtonUi();
   hideViewerZoomIndicator();
   els.lightboxImageFrame?.classList.remove("page-swap-enter");
@@ -3845,35 +3905,8 @@ function closeLightbox(options = {}) {
   window.clearTimeout(state.uiHideTimer);
   window.clearTimeout(state.pageRailHideTimer);
   scheduleCatalogScrollTopButtonUpdate();
-
-  if (wasFavoritesViewer) {
-    const openingHash = state.favoritesViewerOpeningHash;
-    const previousCatalog = state.favoritesViewerPreviousCatalog;
-    const previousPage = state.favoritesViewerPreviousPage;
-    state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
-    state.favoritesViewerIndex = 0;
-    state.favoritesViewerOpeningHash = "";
-    state.favoritesViewerPreviousCatalog = null;
-    state.favoritesViewerPreviousPage = 1;
-    state.catalog = previousCatalog;
-    state.page = previousPage;
-
-    if (openingHash !== window.location.hash) {
-      history.replaceState(null, "", openingHash || `${window.location.pathname}${window.location.search}`);
-    }
-
-    if (restoreFavorites) {
-      openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
-    } else {
-      state.favoritesReturnFocus = null;
-      syncDocumentLock();
-    }
-    return;
-  }
-
   state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
   syncDocumentLock();
-  updateHash();
 }
 
 function setLightboxPage(page, options = {}) {
@@ -4089,31 +4122,41 @@ function toggleZoomAtPoint(clientX, clientY) {
 
 function openCatalog(id, options = {}) {
   const { scroll = false, openPage = null, scrollBehavior = "smooth" } = options;
-  const catalog = catalogs.find((item) => item.id === id) || catalogs[0] || null;
+  const catalog = catalogs.find((item) => item.id === id) || null;
   if (!catalog) return;
+
+  if (!isAppPage("catalog")) {
+    navigateTo(openPage != null
+      ? viewerDocumentUrl(catalog.id, openPage)
+      : catalogDocumentUrl(catalog.id));
+    return;
+  }
 
   state.catalog = catalog;
   state.page = 1;
   renderCatalogDetail();
   updateHash();
 
-  if (scroll) {
-    scrollCatalogDetailIntoView({ behavior: scrollBehavior });
-  }
-
-  if (openPage != null) {
-    openLightbox(openPage);
-  }
+  if (scroll) scrollCatalogDetailIntoView({ behavior: scrollBehavior });
+  if (openPage != null) openLightbox(openPage);
 }
 
-function openCatalogInViewer(id, page = 1) {
-  const catalog = catalogs.find((item) => item.id === id) || catalogs[0] || null;
+function openCatalogInViewer(id, page = 1, options = {}) {
+  const catalog = catalogs.find((item) => item.id === id) || null;
   if (!catalog) return;
+  const source = options.source === LIGHTBOX_SOURCE_FAVORITES
+    ? LIGHTBOX_SOURCE_FAVORITES
+    : LIGHTBOX_SOURCE_CATALOG;
+
+  if (!isAppPage("viewer")) {
+    navigateTo(viewerDocumentUrl(catalog.id, page, { source }));
+    return;
+  }
 
   state.catalog = catalog;
   state.page = clampPage(page, catalog);
   renderCatalogDetail();
-  openLightbox(state.page);
+  openLightbox(state.page, { source, favoriteIndex: options.favoriteIndex });
 }
 
 function openCurrentFavoriteInCatalog() {
@@ -4132,29 +4175,9 @@ function openCurrentFavoriteInCatalog() {
   resetLightboxSearch();
   syncLightboxModeUi();
   updateLightbox();
+  updateHash();
   showTopUiTemporarily(1700);
 }
-
-function parseHash(hash = location.hash) {
-  const rawHash = String(hash || "");
-  const rawRoute = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
-  const parts = rawRoute.replace(/^\/+/, "").split("/");
-  if (parts[0] !== "c" || !parts[1]) return null;
-
-  const id = resolveCatalogRouteId(parts[1]);
-  if (!id) return null;
-
-  if (parts.length === 2) {
-    return { id, page: 1, lightbox: false };
-  }
-
-  if (parts[2] !== "p" || !parts[3]) return null;
-  const page = Number.parseInt(decodeHashRouteSegment(parts[3]), 10);
-  if (!Number.isFinite(page) || page < 1) return null;
-
-  return { id, page, lightbox: true };
-}
-
 
 function getZoomSurfaceName(surface) {
   return surface === els.stageCanvas ? "catalog-entry" : "";
@@ -4564,7 +4587,6 @@ function attachEvents() {
   });
 
   els.headerCopyLink?.addEventListener("click", () => copyCurrentMainHeaderLink());
-  els.headerFavoritesButton?.addEventListener("click", openFavoritesPanel);
   els.headerFullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.headerFullscreenToggle));
   els.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
   els.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
@@ -4726,35 +4748,85 @@ function attachEvents() {
   });
 
   window.addEventListener("hashchange", () => {
-    const route = parseHash();
-    if (!route) {
-      syncCatalogCategoryFocusFromHash();
+    if (!isAppPage("home")) return;
+    const legacyRoute = siteRoutes?.parseLegacyHash?.(window.location.hash);
+    if (legacyRoute) {
+      const destination = legacyRoute.viewer
+        ? viewerDocumentUrl(legacyRoute.catalogId, legacyRoute.page)
+        : catalogDocumentUrl(legacyRoute.catalogId);
+      navigateTo(destination, { replace: true });
       return;
     }
-    const target = catalogs.find((item) => item.id === route.id);
-    if (!target) return;
-
-    if (!state.catalog || state.catalog.id !== target.id) {
-      openCatalog(target.id, route.lightbox
-        ? { openPage: route.page }
-        : { scroll: true });
-      return;
-    }
-
-    if (route.lightbox) {
-      openLightbox(route.page);
-    } else {
-      if (state.lightboxOpen) closeLightbox();
-      scrollCatalogDetailIntoView();
-    }
+    syncCatalogCategoryFocusFromHash();
   });
+
+}
+
+function initDocumentRoute() {
+  const route = siteRoutes?.parseLocation?.(window.location, APP_PAGE) || {
+    page: APP_PAGE,
+    catalogId: "",
+    currentPage: 1,
+    source: LIGHTBOX_SOURCE_CATALOG
+  };
+
+  if (route.page === "home") {
+    const legacyRoute = siteRoutes?.parseLegacyHash?.(window.location.hash);
+    if (legacyRoute && findCatalogById(legacyRoute.catalogId)) {
+      navigateTo(legacyRoute.viewer
+        ? viewerDocumentUrl(legacyRoute.catalogId, legacyRoute.page)
+        : catalogDocumentUrl(legacyRoute.catalogId), { replace: true });
+      return false;
+    }
+    syncCatalogCategoryFocusFromHash({ animate: false, scroll: true });
+    updateDocumentMetadata();
+    return true;
+  }
+
+  if (route.page === "favorites") {
+    openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
+    return true;
+  }
+
+  const catalog = findCatalogById(route.catalogId);
+  if (!catalog) {
+    navigateTo(homeDocumentUrl(), { replace: true });
+    return false;
+  }
+
+  if (route.page === "catalog") {
+    openCatalog(catalog.id, { scrollBehavior: "auto" });
+    return true;
+  }
+
+  if (route.page === "viewer") {
+    if (route.source === LIGHTBOX_SOURCE_FAVORITES) {
+      const entries = getFavoriteEntries();
+      const favoriteIndex = findFavoriteEntryIndex(entries, catalog.id, route.currentPage);
+      if (favoriteIndex < 0) {
+        navigateTo(favoritesDocumentUrl(), { replace: true });
+        return false;
+      }
+      openCatalogInViewer(catalog.id, route.currentPage, {
+        source: LIGHTBOX_SOURCE_FAVORITES,
+        favoriteIndex
+      });
+      return true;
+    }
+
+    openCatalogInViewer(catalog.id, route.currentPage);
+    return true;
+  }
+
+  navigateTo(homeDocumentUrl(), { replace: true });
+  return false;
 }
 
 function init() {
   initRevealObserver();
   initCategoryNavFit();
   attachEvents();
-  syncFavoritesUi({ renderPanel: false });
+  syncFavoritesUi({ renderPanel: isAppPage("favorites") });
 
   if (!catalogs.length) {
     renderEmptyState();
@@ -4764,15 +4836,9 @@ function init() {
   renderCatalogCards();
   renderGlobalSearchScopeMenu();
   scheduleSearchIndexPreload();
-  syncCatalogCategoryFocusFromHash({ animate: false, scroll: true });
   fillCatalogSelect();
   initSearchStatus();
-  const route = parseHash();
-  if (route && catalogs.some((item) => item.id === route.id)) {
-    openCatalog(route.id, route.lightbox
-      ? { openPage: route.page }
-      : { scroll: true, scrollBehavior: "auto" });
-  }
+  initDocumentRoute();
 }
 
 init();

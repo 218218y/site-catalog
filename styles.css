@@ -4347,3 +4347,71 @@ a.reader-home:focus-visible {
 .header-favorites-button {
   order: 10;
 }
+
+/* Multi-document application layout.
+   Each major workflow has its own URL/document while sharing one visual system. */
+body[data-page="catalog"] #catalogs,
+body[data-page="catalog"] .catalog-scroll-top-float:not([aria-hidden="false"]) {
+  display: none;
+}
+
+body[data-page="catalog"] #catalogDetail {
+  margin-top: 26px;
+}
+
+body[data-page="favorites"] main,
+body[data-page="favorites"] .catalog-scroll-top-float,
+body[data-page="favorites"] .search-floating-preview {
+  display: none;
+}
+
+body[data-page="favorites"] .favorites-panel.favorites-standalone-page {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  display: block;
+  width: min(1300px, calc(100% - 28px));
+  margin: clamp(20px, 4vw, 44px) auto;
+  padding: 0;
+}
+
+body[data-page="favorites"] .favorites-standalone-page .favorites-backdrop {
+  display: none;
+}
+
+body[data-page="favorites"] .favorites-standalone-page .favorites-dialog {
+  width: 100%;
+  max-height: none;
+  min-height: min(620px, calc(100vh - var(--header-h) - 150px));
+  overflow: visible;
+  box-shadow: 0 24px 64px rgba(57, 43, 33, 0.18), inset 0 1px 0 rgba(255,255,255,0.92);
+}
+
+body[data-page="favorites"] .favorites-standalone-page .favorites-grid {
+  overflow: visible;
+}
+
+body[data-page="viewer"] > .site-header,
+body[data-page="viewer"] > main,
+body[data-page="viewer"] > .catalog-scroll-top-float,
+body[data-page="viewer"] > .search-floating-preview,
+body[data-page="viewer"] > .favorites-panel,
+body[data-page="viewer"] > .site-footer {
+  display: none !important;
+}
+
+body[data-page="viewer"] {
+  min-height: 100vh;
+  background: #080604;
+}
+
+@media (max-width: 640px) {
+  body[data-page="favorites"] .favorites-panel.favorites-standalone-page {
+    width: min(100% - 16px, 1300px);
+    margin-block: 8px 18px;
+  }
+
+  body[data-page="favorites"] .favorites-standalone-page .favorites-dialog {
+    min-height: calc(100vh - var(--header-h) - 34px);
+  }
+}

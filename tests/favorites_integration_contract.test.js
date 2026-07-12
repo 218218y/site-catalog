@@ -10,14 +10,14 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 const bundleBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
 
-assert.match(html, /<button[^>]*class="[^"]*header-favorites-button[^"]*hidden[^"]*"[^>]*id="headerFavoritesButton"/);
+assert.match(html, /<a[^>]*class="[^"]*header-favorites-button[^"]*hidden[^"]*"[^>]*id="headerFavoritesButton"[^>]*href="favorites\.html"/);
 assert.match(html, /<div[^>]*id="favoritesPanel"[^>]*role="dialog"[^>]*aria-modal="true"/);
 assert.match(html, /id="viewerFavoriteButton"[^>]*aria-pressed="false"/);
 assert.match(html, /id="favoriteOpenCatalogButton"[^>]*aria-label="פתיחת התמונה בתוך הקטלוג המלא"/);
 assert.match(html, /id="prevPageBtn"[\s\S]*?<\/button>\s*<\/div>\s*<button class="reader-button favorite-open-catalog-button[^>]*id="favoriteOpenCatalogButton"/);
 assert.match(html, /id="favoriteOpenCatalogButton"[\s\S]*?id="thumbsHotspot"/);
 assert.match(html, /id="lightboxPageRailTitle">עמודים</);
-assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="app\.js"><\/script>/);
+assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app\.js"><\/script>/);
 
 assert.match(app, /favoritesStore\.toggle\(\{ \.\.\.identity, savedAt: Date\.now\(\) \}\)/);
 assert.match(app, /window\.addEventListener\("storage", handleFavoritesStorageChange\)/);
@@ -43,5 +43,6 @@ assert.match(css, /\.favorite-open-catalog-button\s*\{/);
 assert.match(css, /\.lightbox\.favorites-viewer-mode \.lightbox-search/);
 assert.match(css, /\.header-favorites-button\s*\{[\s\S]*?order:\s*10;/);
 assert.match(bundleBuilder, /"favorites-store\.js"/);
+assert.match(bundleBuilder, /"site-routes\.js"/);
 
 console.log('favorites_integration_contract.test.js: PASS');
