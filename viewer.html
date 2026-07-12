@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>
     (() => {
-      document.documentElement.classList.add("site-transition-pending");
       const hostname = window.location.hostname;
       const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
       if (window.location.protocol === "http:" && !isLocalHost) {
@@ -24,8 +23,6 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-page="viewer">
-  <div class="site-page-transition" id="sitePageTransition" aria-hidden="true"></div>
-
   <header class="site-header">
     <div class="brand-lockup">
       <a class="brand" href="index.html" aria-label="רהיטי ברגיג - דף הבית">
@@ -370,7 +367,6 @@
   <script src="catalog-search.js"></script>
   <script src="tooltip-manager.js"></script>
   <script src="favorites-store.js"></script>
-  <script src="page-transition.js"></script>
   <script src="site-routes.js"></script>
   <script src="app.js"></script>
 </body>

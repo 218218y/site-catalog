@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+
+import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,3 +63,35 @@ def test_cors_only_dry_run_does_not_require_site_bundle(capsys) -> None:
     assert "wrangler r2 bucket cors set" in output
     assert "wrangler r2 bucket cors list" in output
     assert "wrangler pages deploy" not in output
+
+
+def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | None = None) -> None:
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    (bundle_dir / "_headers").write_text("/*\n  X-Robots-Tag: noindex\n", encoding="utf-8")
+    static_dir = bundle_dir / "static"
+    static_dir.mkdir()
+    (static_dir / "app.test.js").write_text("window.test = true;\n", encoding="utf-8")
+    (static_dir / "styles.test.css").write_text("body {}\n", encoding="utf-8")
+
+    for html_name in MODULE.PUBLIC_HTML_FILES:
+        script = "static/app.test.js"
+        if missing_reference and missing_reference[0] == html_name:
+            script = missing_reference[1]
+        (bundle_dir / html_name).write_text(
+            f'<link rel="stylesheet" href="static/styles.test.css"><script src="{script}"></script>',
+            encoding="utf-8",
+        )
+
+
+def test_bundle_validation_checks_every_public_document(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    MODULE.validate_bundle(bundle_dir)
+
+
+def test_bundle_validation_rejects_missing_asset_in_non_index_page(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir, ("viewer.html", "static/missing-transition.js"))
+
+    with pytest.raises(FileNotFoundError, match=r"viewer\.html -> static/missing-transition\.js"):
+        MODULE.validate_bundle(bundle_dir)

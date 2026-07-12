@@ -1,7 +1,6 @@
 const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
 const catalogSearch = window.BargigCatalogSearch || null;
 const siteRoutes = window.BargigRoutes || null;
-const pageTransition = window.BargigPageTransition || null;
 const APP_PAGE = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home";
 
 const $ = (id) => document.getElementById(id);
@@ -14,34 +13,16 @@ function navigateTo(relativeUrl, options = {}) {
   const target = String(relativeUrl || "").trim();
   if (!target) return;
 
-  if (pageTransition?.navigate) {
-    pageTransition.navigate(target, { replace: Boolean(options.replace) });
-    return;
-  }
-
   if (options.replace) window.location.replace(target);
   else window.location.assign(target);
 }
 
 function navigateBack() {
-  if (pageTransition?.back) {
-    pageTransition.back();
-    return;
-  }
   window.history.back();
 }
 
-function revealReadyDocument() {
+function markAppReady() {
   document.body?.setAttribute("data-app-ready", "true");
-  if (pageTransition?.ready) {
-    pageTransition.ready();
-    return;
-  }
-  document.documentElement.classList.remove(
-    "site-transition-pending",
-    "site-transition-leaving",
-    "site-transition-entering"
-  );
 }
 
 function canReturnToSameSite() {
@@ -4864,5 +4845,5 @@ let initResult = true;
 try {
   initResult = init();
 } finally {
-  if (initResult !== false) revealReadyDocument();
+  if (initResult !== false) markAppReady();
 }

@@ -24,14 +24,9 @@
   --site-scrollbar-dark-track: rgba(255,255,255,0.07);
   --site-scrollbar-dark-thumb: rgba(255,255,255,0.34);
   --site-scrollbar-dark-thumb-hover: rgba(255,255,255,0.48);
-  --page-transition-cover-duration: 30ms;
-  --page-transition-reveal-duration: 30ms;
-  --page-transition-easing: cubic-bezier(.2, .72, .22, 1);
-  /* Both document navigation and image replacement use the same visual dim.
-     A 58% dark veil leaves 42% of the previous frame visible, matching the
-     starting opacity of the fullscreen image-swap animation below. */
-  --content-transition-dim-strength: .58;
   --image-swap-duration: 220ms;
+  --image-swap-easing: cubic-bezier(.2, .72, .22, 1);
+  --image-swap-start-opacity: .42;
 }
 
 * {
@@ -93,52 +88,6 @@ body[data-page="favorites"] > .favorites-panel.favorites-standalone-page {
   flex: 1 0 auto;
 }
 body.no-scroll { overflow: hidden; }
-
-/*
-  Cross-document dim transition. The destination starts behind the same soft
-  dark veil used perceptually by the fullscreen image swap, then reveals only
-  after app.js has mounted the requested route. The stable page shell keeps the
-  footer in place, while this short translucent cover masks document boot
-  without turning navigation into a loading screen.
-*/
-.site-page-transition {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483000;
-  background: rgb(8 6 4 / var(--content-transition-dim-strength));
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition:
-    opacity var(--page-transition-reveal-duration) var(--page-transition-easing),
-    visibility 0s linear var(--page-transition-reveal-duration);
-  will-change: opacity;
-}
-
-html.site-transition-pending .site-page-transition {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition: none;
-}
-
-html.site-transition-leaving .site-page-transition {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition:
-    opacity var(--page-transition-cover-duration) var(--page-transition-easing),
-    visibility 0s linear 0s;
-}
-
-html.site-transition-entering .site-page-transition {
-  opacity: 0;
-  visibility: visible;
-  pointer-events: none;
-  transition:
-    opacity var(--page-transition-reveal-duration) var(--page-transition-easing),
-    visibility 0s linear var(--page-transition-reveal-duration);
-}
 
 /*
   The page normally reserves a stable root scrollbar gutter so the catalog list
@@ -2383,11 +2332,6 @@ a.reader-home:focus-visible {
   background: rgba(45, 34, 27, 0.97);
 }
 @media (prefers-reduced-motion: reduce) {
-  .site-page-transition {
-    transition-duration: 1ms !important;
-    transition-delay: 0s !important;
-  }
-
   .site-tooltip { transition: none; }
   .page-thumb,
   .lightbox-image-frame.page-swap-enter {
@@ -3183,7 +3127,7 @@ a.reader-home:focus-visible {
 .lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
 
 .lightbox-image-frame.page-swap-enter {
-  animation: lightbox-page-swap var(--image-swap-duration) var(--page-transition-easing) both;
+  animation: lightbox-page-swap var(--image-swap-duration) var(--image-swap-easing) both;
 }
 
 .lightbox.is-page-loading .lightbox-image-frame {
@@ -3197,7 +3141,7 @@ a.reader-home:focus-visible {
 
 @keyframes lightbox-page-swap {
   from {
-    opacity: calc(1 - var(--content-transition-dim-strength));
+    opacity: var(--image-swap-start-opacity);
     transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(calc(var(--single-zoom, 1) * .988));
   }
   to {

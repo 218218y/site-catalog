@@ -26,10 +26,13 @@ DEFAULT_BRANCH = "main"
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 DEFAULT_R2_BUCKET = "bargig-catalog"
 DEFAULT_R2_CORS_FILE = "r2-cors.json"
-REQUIRED_BUNDLE_FILES = (
+PUBLIC_HTML_FILES = (
     "index.html",
-    "_headers",
+    "catalog.html",
+    "favorites.html",
+    "viewer.html",
 )
+REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "_headers")
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 
 
@@ -150,21 +153,22 @@ def validate_bundle(bundle_dir: Path) -> None:
             "Create a fresh R2 bundle before deploying."
         )
 
-    index_html = (bundle_dir / "index.html").read_text(encoding="utf-8", errors="replace")
     missing_assets: list[str] = []
-    for match in HTML_ASSET_RE.finditer(index_html):
-        reference = match.group(1).strip()
-        if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:")):
-            continue
-        reference_path = reference.split("?", 1)[0].split("#", 1)[0]
-        if Path(reference_path).suffix.lower() not in {".css", ".js"}:
-            continue
-        if not (bundle_dir / reference_path).is_file():
-            missing_assets.append(reference_path)
+    for html_name in PUBLIC_HTML_FILES:
+        html = (bundle_dir / html_name).read_text(encoding="utf-8", errors="replace")
+        for match in HTML_ASSET_RE.finditer(html):
+            reference = match.group(1).strip()
+            if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:")):
+                continue
+            reference_path = reference.split("?", 1)[0].split("#", 1)[0]
+            if Path(reference_path).suffix.lower() not in {".css", ".js"}:
+                continue
+            if not (bundle_dir / reference_path).is_file():
+                missing_assets.append(f"{html_name} -> {reference_path}")
     if missing_assets:
         raise FileNotFoundError(
             f"Bundle folder is incomplete: {rel_to_root(bundle_dir)}. "
-            f"index.html references missing CSS/JS assets: {', '.join(sorted(set(missing_assets)))}. "
+            f"Public HTML references missing CSS/JS assets: {', '.join(sorted(set(missing_assets)))}. "
             "Create a fresh R2 bundle before deploying."
         )
 

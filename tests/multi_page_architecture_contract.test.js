@@ -15,9 +15,8 @@ const pages = {
 for (const [filename, mode] of Object.entries(pages)) {
   const html = fs.readFileSync(path.join(root, filename), 'utf8');
   assert.match(html, new RegExp(`<body data-page="${mode}">`));
-  assert.match(html, /<script src="page-transition\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app\.js"><\/script>/);
-  assert.match(html, /<div class="site-page-transition" id="sitePageTransition" aria-hidden="true"><\/div>/);
-  assert.doesNotMatch(html, /site-page-transition-(?:brand|logo|progress)/);
+  assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app\.js"><\/script>/);
+  assert.doesNotMatch(html, /page-transition\.js|sitePageTransition|site-page-transition|site-transition-(?:pending|leaving|entering)/);
   assert.match(html, /href="index\.html" aria-label="רהיטי ברגיג - דף הבית"/);
 }
 
@@ -44,33 +43,32 @@ assert.match(app, /navigateTo\(favoritesDocumentUrl\(\)\)/);
 assert.match(app, /siteRoutes\?\.parseLocation/);
 assert.match(css, /body\[data-page="favorites"\] \.favorites-panel\.favorites-standalone-page/);
 assert.match(css, /body\[data-page="viewer"\] > \.site-header/);
-const transition = fs.readFileSync(path.join(root, 'page-transition.js'), 'utf8');
-assert.match(template, /document\.documentElement\.classList\.add\("site-transition-pending"\)/);
-assert.match(template, /<div class="site-page-transition" id="sitePageTransition" aria-hidden="true"><\/div>/);
-assert.doesNotMatch(template, /site-page-transition-(?:brand|logo|progress)/);
-assert.match(template, /<script src="page-transition\.js"><\/script>/);
-assert.match(transition, /function prefetchDocument\(url\)/);
-assert.match(transition, /hint\.rel = 'prefetch'/);
-assert.match(transition, /function coverThen\(callback\)/);
-assert.match(transition, /global\.BargigPageTransition = Object\.freeze/);
-assert.match(transition, /global\.addEventListener\('pageshow'[\s\S]*?event\.persisted/);
-assert.match(app, /pageTransition\?\.navigate/);
-assert.match(app, /pageTransition\?\.back/);
-assert.match(app, /pageTransition\?\.ready/);
+
+// Cross-document navigation is intentionally native. The stable flex shell
+// prevents the footer from flashing while the next document initializes.
+assert.doesNotMatch(template, /page-transition\.js|sitePageTransition|site-page-transition|site-transition-(?:pending|leaving|entering)/);
+assert.doesNotMatch(app, /BargigPageTransition|pageTransition\?\.|site-transition-(?:pending|leaving|entering)/);
+assert.match(app, /function navigateTo\([\s\S]*?window\.location\.replace\(target\)[\s\S]*?window\.location\.assign\(target\)/);
+assert.match(app, /function navigateBack\(\) \{\s*window\.history\.back\(\);\s*\}/);
+assert.match(app, /function markAppReady\(\) \{[\s\S]*?data-app-ready/);
 assert.match(app, /return initDocumentRoute\(\)/);
-assert.match(css, /\.site-page-transition\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?z-index:\s*2147483000;/);
-assert.match(css, /html\.site-transition-pending \.site-page-transition\s*\{[\s\S]*?opacity:\s*1;[\s\S]*?transition:\s*none;/);
-assert.match(css, /html\.site-transition-leaving \.site-page-transition\s*\{[\s\S]*?var\(--page-transition-cover-duration\)/);
-assert.match(css, /html\.site-transition-entering \.site-page-transition\s*\{[\s\S]*?var\(--page-transition-reveal-duration\)/);
-assert.match(css, /--content-transition-dim-strength:\s*\.58;/);
-assert.match(css, /\.site-page-transition\s*\{[\s\S]*?background:\s*rgb\(8 6 4 \/ var\(--content-transition-dim-strength\)\);/);
-assert.match(css, /@keyframes lightbox-page-swap\s*\{[\s\S]*?opacity:\s*calc\(1 - var\(--content-transition-dim-strength\)\);/);
-assert.doesNotMatch(css, /\.site-page-transition\s*\{[^}]*background:\s*#080604;/);
-assert.doesNotMatch(css, /site-page-transition-(?:brand|logo|progress)|site-page-transition-(?:sweep|shine)/);
-assert.match(css, /body:not\(\[data-page="viewer"\]\)\s*\{[\s\S]*?display:\s*flex;[\s\S]*?flex-direction:\s*column;/);
+assert.doesNotMatch(css, /site-page-transition|site-transition-(?:pending|leaving|entering)|--page-transition-|--content-transition-dim-strength/);
+assert.doesNotMatch(builder, /"page-transition\.js"/);
+assert.equal(fs.existsSync(path.join(root, 'page-transition.js')), false, 'obsolete page transition runtime must be removed');
+assert.equal(fs.existsSync(path.join(root, 'tests', 'page_transition.test.js')), false, 'obsolete page transition test must be removed');
+
+// The layout fix that solved the footer jump remains active.
+assert.match(css, /body:not\(\[data-page="viewer"\]\)\s*\{[\s\S]*?min-height:\s*100svh;[\s\S]*?display:\s*flex;[\s\S]*?flex-direction:\s*column;/);
 assert.match(css, /body:not\(\[data-page="viewer"\]\) > main\s*\{[\s\S]*?flex:\s*1 0 auto;/);
-assert.match(css, /\.lightbox-image-frame\.page-swap-enter\s*\{[\s\S]*?var\(--image-swap-duration\)[\s\S]*?var\(--page-transition-easing\)/);
-assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.site-page-transition[\s\S]*?transition-duration:\s*1ms\s*!important;/);
-assert.match(builder, /"page-transition\.js"/);
+assert.match(css, /body:not\(\[data-page="viewer"\]\) > \.site-footer\s*\{[\s\S]*?margin-top:\s*auto;/);
+assert.match(css, /body\[data-page="favorites"\] > \.favorites-panel\.favorites-standalone-page\s*\{[\s\S]*?flex:\s*1 0 auto;/);
+
+// Only the fullscreen image swap keeps an animation contract.
+assert.match(css, /--image-swap-duration:\s*220ms;/);
+assert.match(css, /--image-swap-easing:\s*cubic-bezier\(\.2, \.72, \.22, 1\);/);
+assert.match(css, /--image-swap-start-opacity:\s*\.42;/);
+assert.match(css, /\.lightbox-image-frame\.page-swap-enter\s*\{[\s\S]*?var\(--image-swap-duration\)[\s\S]*?var\(--image-swap-easing\)/);
+assert.match(css, /@keyframes lightbox-page-swap\s*\{[\s\S]*?opacity:\s*var\(--image-swap-start-opacity\);/);
+assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.lightbox-image-frame\.page-swap-enter[\s\S]*?animation:\s*none !important;/);
 
 console.log('multi_page_architecture_contract.test.js: PASS');
