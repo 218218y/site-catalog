@@ -13,8 +13,9 @@ if errorlevel 1 goto error
 echo.
 echo Conversion finished in high-quality optimized WebP.
 echo Existing converted catalogs are skipped only when the source PDF and settings did not change.
-echo To rebuild everything, run convert-catalogs-force.bat
-echo You can now delete the PDFs if you only want to keep the images.
+echo Catalogs removed from catalogs.config.json were removed from assets\pages and the generated search index.
+echo Catalogs whose source PDF is missing were removed from catalogs.config.json, assets\pages and the generated search index.
+echo To rebuild every remaining PDF, run convert-catalogs-force.bat
 echo Open index.html or run start-server.bat
 echo.
 pause
@@ -22,5 +23,6 @@ exit /b 0
 :error
 echo.
 echo Conversion failed. Check the PDF names in assets\pdfs and catalogs.config.json
+echo.
 pause
 exit /b 1

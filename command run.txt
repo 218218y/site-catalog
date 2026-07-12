@@ -13,7 +13,7 @@ catalog-control-panel.bat
 2. עורכים את פרטי הקטלוג בלוח השליטה או בקובץ:
    catalogs.config.json
 
-3. ממירים PDFים חדשים/שהשתנו לתמונות ואינדקס חיפוש:
+3. ממירים PDFים חדשים/שהשתנו ומנקים אוטומטית קטלוגים שהוסרו או שחסר להם PDF:
    convert-catalogs.bat
 
 4. בודקים מראש מה ישתנה ב-R2 בלי לבצע שינוי אמיתי:
@@ -44,14 +44,8 @@ sync-r2-images.bat
 sync-r2-images.bat --no-delete
 
 
-המרה של כל PDF מחדש בהכרח, בלי למחוק קטלוג שכבר נמחק PDF שלו
+המרה של כל PDF מחדש בהכרח + ניקוי אוטומטי של קטלוגים שהוסרו מהרשימה או שחסר להם PDF
 convert-catalogs-force.bat
-
-המרת PDF חדשים בלבד + מחיקת קטלוגים שנמחקו מתוך catalogs.config.json
-convert-catalogsdelete.bat
-
-המרה של כל PDF מחדש בהכרח + מחיקת קטלוגים שנמחקו מתוך catalogs.config.json
-convert-catalogs-deleteforce.bat
 
 רענון מחדש רק של זיהוי OCR/חיפוש
 refresh-ocr-search.bat
@@ -64,9 +58,9 @@ npx serve .
 לוח השליטה אינו עובד דרך שרת האתר הראשי. בשבילו מריצים:
 catalog-control-panel.bat
 
-מחיקה דרך לוח השליטה מסירה רק מהרשימה ומהאתר שנוצר, לא מוחקת PDF ולא מוחקת assets/pages.
-לניקוי תיקיות תמונות ישנות מריצים:
-convert-catalogsdelete.bat
+מחיקה דרך לוח השליטה יכולה להסיר רק מהרשימה או גם למחוק מיד PDF ותמונות.
+גם כשמסירים רק מהרשימה, ההמרה הרגילה הבאה תנקה אוטומטית את תיקיית התמונות ואת אינדקס החיפוש.
+אם PDF של קטלוג רשום נמחק ידנית, ההמרה הבאה תסיר גם את הקטלוג מהרשימה, את התמונות ואת רשומת החיפוש.
 
 הגדרת אתר ב-Cloudflare Pages
 Site configuration / Domain management / Production domains

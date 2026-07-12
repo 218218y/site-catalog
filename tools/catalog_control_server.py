@@ -71,23 +71,13 @@ ACTIONS: dict[str, Action] = {
     ),
     "convert": Action(
         "המרה רגילה",
-        "ממיר רק קטלוגים חסרים/שהשתנו. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
+        "ממיר רק קטלוגים חסרים/שהשתנו, ומנקה אוטומטית קטלוגים שהוסרו מהרשימה או שה-PDF שלהם נמחק. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
         [*BASE_CONVERT_ARGS, "--ocr", "auto"],
-    ),
-    "convert_delete": Action(
-        "המרה רגילה + מחיקת לא רשומים",
-        "ממיר חסרים/שהשתנו ומוחק תיקיות assets/pages שלא קיימות יותר ב-catalogs.config.json.",
-        ["tools/build_catalogs.py", "--delete-unlisted", *BASE_CONVERT_ARGS[1:], "--ocr", "auto"],
     ),
     "convert_force": Action(
         "המרה מחדש לכל הקטלוגים",
-        "מרנדר מחדש את כל הקטלוגים הרשומים, בלי למחוק קטלוגים לא רשומים.",
+        "מרנדר מחדש את כל הקטלוגים התקינים, ומנקה אוטומטית קטלוגים שהוסרו מהרשימה או שה-PDF שלהם נמחק.",
         ["tools/build_catalogs.py", "--force", *BASE_CONVERT_ARGS[1:], "--ocr", "auto"],
-    ),
-    "convert_delete_force": Action(
-        "המרה מחדש + מחיקת לא רשומים",
-        "מרנדר הכל מחדש ומנקה תיקיות קטלוגים שאינן רשומות בקובץ ההגדרות.",
-        ["tools/build_catalogs.py", "--force", "--delete-unlisted", *BASE_CONVERT_ARGS[1:], "--ocr", "auto"],
     ),
     "refresh_ocr": Action(
         "רענון אינדקס חיפוש/OCR בלבד",

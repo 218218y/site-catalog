@@ -9,6 +9,7 @@ Defaults are tuned for fast catalog browsing:
 - 220 DPI render, capped to 2800px on the long side for quick browsing
 - separate lightweight thumbnails
 - OCR prefers embedded PDF text and only falls back to full-page OCR for scanned/empty pages
+- every run removes stale output folders and config entries whose source PDF is missing
 - no PDF links in the site output
 
 Examples:
@@ -92,6 +93,8 @@ TITLE_OCR_STOP_WORDS = {
     "קטלוג",
 }
 MANIFEST_FILE = "catalog.render-manifest.json"
+
+
 @dataclass(frozen=True)
 class RenderOptions:
     dpi: int
@@ -502,8 +505,66 @@ def load_config(config_path: Path) -> list[dict[str, Any]]:
     return data
 
 
-def delete_unlisted_catalog_outputs(root: Path, configured_ids: set[str]) -> list[Path]:
-    """Delete converted catalog output folders that are no longer listed in the config.
+def write_config_atomic(config_path: Path, config: list[dict[str, Any]]) -> None:
+    """Persist the normalized catalog config without exposing a partially-written file."""
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(config, ensure_ascii=False, indent=2) + "\n"
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=config_path.parent,
+            prefix=f".{config_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp_file:
+            temp_file.write(payload)
+            temp_path = Path(temp_file.name)
+        temp_path.replace(config_path)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+def remove_catalogs_with_missing_pdfs(
+    root: Path,
+    config_path: Path,
+    config: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Remove config entries whose source PDF no longer exists.
+
+    Missing source files are treated as an intentional catalog deletion. The
+    corresponding generated image folder is removed later by the shared stale
+    output cleanup, and regenerated catalog/search files are rebuilt only from
+    the remaining config entries.
+    """
+    kept: list[dict[str, Any]] = []
+    removed_ids: list[str] = []
+
+    for item in config:
+        pdf_path = (root / str(item["pdf"])).resolve()
+        if pdf_path.is_file():
+            kept.append(item)
+            continue
+
+        catalog_id = str(item["id"])
+        removed_ids.append(catalog_id)
+        print(
+            f"[delete-missing-pdf] Removing catalog {catalog_id!r} from {rel_to_root(config_path)} "
+            f"because its source PDF is missing: {rel_to_root(pdf_path)}"
+        )
+
+    if removed_ids:
+        write_config_atomic(config_path, kept)
+        print(f"[config] Removed {len(removed_ids)} catalog(s) whose source PDF no longer exists.")
+
+    return kept, removed_ids
+
+
+def delete_stale_catalog_outputs(root: Path, configured_ids: set[str]) -> list[Path]:
+    """Delete converted catalog folders that are no longer backed by the config.
 
     Only direct subdirectories of assets/pages are considered. This keeps the
     cleanup scoped to generated catalog folders and prevents accidental deletion
@@ -522,10 +583,10 @@ def delete_unlisted_catalog_outputs(root: Path, configured_ids: set[str]) -> lis
             continue
         shutil.rmtree(output_dir)
         deleted.append(output_dir)
-        print(f"[delete-unlisted] Removed converted catalog not listed in config: {rel_to_root(output_dir)}")
+        print(f"[delete-stale] Removed converted catalog output: {rel_to_root(output_dir)}")
 
     if not deleted:
-        print("[cleanup] No unlisted converted catalog folders were found.")
+        print("[cleanup] No stale converted catalog folders were found.")
     return deleted
 
 
@@ -1108,11 +1169,6 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Render every configured catalog again, even when assets/pages/<id> already exists",
     )
-    parser.add_argument(
-        "--delete-unlisted",
-        action="store_true",
-        help="Delete converted catalog folders under assets/pages whose id is not listed in the config",
-    )
     parser.add_argument("--no-clean", action="store_true", help="When rendering, do not delete the old output folder first")
     parser.add_argument("--skip-existing", action="store_true", help="Skip pages that already have image and thumbnail files")
     return parser.parse_args()
@@ -1143,9 +1199,9 @@ def main() -> int:
 
     try:
         config = load_config(config_path)
+        config, removed_missing_pdf_ids = remove_catalogs_with_missing_pdfs(root, config_path, config)
         configured_ids = {str(item["id"]) for item in config}
-        if args.delete_unlisted:
-            delete_unlisted_catalog_outputs(root, configured_ids)
+        deleted_output_dirs = delete_stale_catalog_outputs(root, configured_ids)
 
         generated: list[dict[str, Any]] = []
         search_generated: list[dict[str, Any]] = []
@@ -1181,21 +1237,14 @@ def main() -> int:
 
                 previous_pages_for_catalog = previous_search_pages.get(catalog_id, [])
                 search_refresh_reason = ""
-                reuse_previous_search = True
-                if not pdf_path.exists():
-                    print(f"[keep] Source PDF is missing, keeping existing images: {rel_to_root(pdf_path)}")
-                    if catalog_options.ocr_mode == "never":
-                        reuse_previous_search = False
-                        print("[ocr] OCR is disabled and the source PDF is missing; previous search text is not reused because it may contain old OCR text.")
+                if adopt_legacy_manifest:
+                    print(f"[adopt] Existing images do not have {MANIFEST_FILE}; adopting them for future change detection.")
+                if not previous_pages_for_catalog:
+                    search_refresh_reason = "no previous OCR/search text found"
                 else:
-                    if adopt_legacy_manifest:
-                        print(f"[adopt] Existing images do not have {MANIFEST_FILE}; adopting them for future change detection.")
-                    if not previous_pages_for_catalog:
-                        search_refresh_reason = "no previous OCR/search text found"
-                    else:
-                        search_refresh_reason = search_manifest_mismatch_reason(out_dir, catalog_options)
+                    search_refresh_reason = search_manifest_mismatch_reason(out_dir, catalog_options)
 
-                if search_refresh_reason and pdf_path.exists():
+                if search_refresh_reason:
                     print(f"[search-refresh] {search_refresh_reason}; rebuilding search text from PDF without re-rendering images.")
                     search_page_count, search_pages = build_pdf_search_pages(pdf_path, catalog_options, manual_pages)
                     if int(search_page_count) != int(existing_output.pages):
@@ -1204,12 +1253,12 @@ def main() -> int:
                             f"but existing images contain {existing_output.pages} pages."
                         )
                 else:
-                    search_pages = merge_manual_search_pages(previous_pages_for_catalog if reuse_previous_search else [], manual_pages, existing_output.pages)
+                    search_pages = merge_manual_search_pages(previous_pages_for_catalog, manual_pages, existing_output.pages)
 
                 if not search_pages:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
-                if pdf_path.exists() and (adopt_legacy_manifest or search_refresh_reason):
+                if adopt_legacy_manifest or search_refresh_reason:
                     write_render_manifest(out_dir, pdf_path, catalog_options, existing_output.pages, existing_output.image_format, page_sizes)
                 generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
                 search_generated.append(build_search_entry(item, search_pages))
@@ -1217,33 +1266,6 @@ def main() -> int:
 
             if rebuild_reason:
                 print(f"[rebuild] {rebuild_reason}.")
-
-            if not pdf_path.exists():
-                if existing_output and existing_output.is_complete:
-                    print(f"[keep] Source PDF is missing, keeping existing images: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
-                    previous_pages_for_catalog = previous_search_pages.get(catalog_id, [])
-                    if catalog_options.ocr_mode == "never":
-                        previous_pages_for_catalog = []
-                        print("[ocr] OCR is disabled and the source PDF is missing; previous search text is not reused because it may contain old OCR text.")
-                    search_pages = merge_manual_search_pages(previous_pages_for_catalog, manual_pages, existing_output.pages)
-                    if not search_pages:
-                        print("[warn] No previous OCR/search text found for this catalog; images will still be shown.")
-                    page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
-                    generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
-                    search_generated.append(build_search_entry(item, search_pages))
-                    continue
-
-                if existing_output:
-                    print(
-                        f"[warn] Found an incomplete output folder at {rel_to_root(out_dir)} ({existing_output.reason}), "
-                        "but the source PDF is missing. Skipping this catalog without deleting anything."
-                    )
-                else:
-                    print(
-                        f"[warn] Source PDF is missing and no converted images were found: {rel_to_root(pdf_path)}. "
-                        "Skipping this catalog without deleting anything."
-                    )
-                continue
 
             if existing_output and not existing_output.is_complete:
                 print(f"[warn] Existing output is incomplete ({existing_output.reason}); rebuilding from PDF.")
@@ -1266,9 +1288,11 @@ def main() -> int:
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
         print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings can refresh the search index without re-rendering images. Use --force to rebuild all catalogs.")
-        if args.delete_unlisted:
-            print("Unlisted converted catalog folders under assets/pages were deleted before conversion.")
-        print("You may delete the PDFs after conversion if you only want to keep the images.")
+        if removed_missing_pdf_ids:
+            print(f"Removed from config because their source PDF was missing: {', '.join(removed_missing_pdf_ids)}")
+        if deleted_output_dirs:
+            print(f"Deleted stale converted catalog folders: {len(deleted_output_dirs)}")
+        print("Catalogs removed from catalogs.config.json, or whose source PDF was deleted, are also removed from assets/pages and the generated search index.")
         print("Open index.html or run: python -m http.server 8080")
         return 0
     except Exception as exc:

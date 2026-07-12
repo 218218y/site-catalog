@@ -134,14 +134,20 @@ catalogs.search.json
 
 אם כבר קיימות תמונות תקינות, הסקריפט מדלג עליהן ולא מרנדר מחדש בלי צורך. אם אינדקס החיפוש חסר או שצריך OCR מעודכן, הוא מרענן את החיפוש ככל האפשר בלי לגעת בתמונות קיימות.
 
+בכל הרצה מתבצע גם ניקוי עקבי:
+
+- קטלוג שהוסר מתוך `catalogs.config.json` נמחק מתוך `assets/pages` ומאינדקס החיפוש שנוצר.
+- קטלוג שעדיין רשום אבל קובץ ה־PDF שלו כבר לא קיים מוסר אוטומטית מתוך `catalogs.config.json`, תיקיית התמונות שלו נמחקת והוא מוסר מאינדקס החיפוש.
+- קובצי PDF קיימים לעולם אינם נמחקים על ידי פקודת ההמרה.
+
 אפשרויות תחזוקה נוספות:
 
 ```bat
-convert-catalogsdelete.bat
 convert-catalogs-force.bat
-convert-catalogs-deleteforce.bat
 refresh-ocr-search.bat
 ```
+
+`convert-catalogs-force.bat` מבצע את אותו ניקוי, אבל מרנדר מחדש בהכרח את כל קובצי ה־PDF שנותרו.
 
 ### 5. בדיקת סנכרון R2 לפני שינוי אמיתי
 
@@ -317,8 +323,8 @@ tools/build_deploy_bundle.py       בניית תיקיית ההעלאה ל-Cloud
 tools/deploy_cloudflare_pages.py  העלאה קבועה ל-Cloudflare Pages דרך Wrangler; CORS רק במצב תחזוקה מפורש
 tools/sync_r2_catalog_images.py    כלי הסנכרון מול Cloudflare R2 ללא תלות ב-AWS CLI
 sync-catalog-pdfs.bat              סריקת assets/pdfs והוספת PDFים חסרים לרשימה
-convert-catalogs.bat               המרת PDF לתמונות ועדכון נתוני קטלוגים
-convert-catalogsdelete.bat         המרה + מחיקת תיקיות קטלוגים לא רשומים
+convert-catalogs.bat               המרת PDF חדשים/שהשתנו + ניקוי קטלוגים שהוסרו או שחסר להם PDF
+convert-catalogs-force.bat         המרה מחדש של כל ה-PDFים + אותו ניקוי אוטומטי
 refresh-ocr-search.bat             רענון אינדקס חיפוש/OCR בלי רינדור תמונות מחדש ככל האפשר
 ```
 
