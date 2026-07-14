@@ -724,10 +724,34 @@ img[data-brand-logo="1"] {
   object-fit: contain;
   background: transparent;
 }
-.brand-mark {
+.brand-mark-frame {
+  position: relative;
+  isolation: isolate;
+  flex: 0 0 auto;
   width: clamp(98px, 13vw, 154px);
+  aspect-ratio: 786 / 317;
+  display: block;
+}
+.brand-mark-frame::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 5.68% 2.42% 5.36%;
+  border: 1px solid rgba(117, 88, 68, 0.22);
+  border-radius: 3.9% / 10.3%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,250,246,0.9));
+  box-shadow:
+    0 9px 22px rgba(67, 48, 34, 0.18),
+    0 2px 5px rgba(67, 48, 34, 0.12),
+    inset 0 1px 0 rgba(255,255,255,0.96);
+  pointer-events: none;
+}
+.brand-mark {
+  position: relative;
+  z-index: 1;
+  width: 100%;
   height: auto;
-  filter: drop-shadow(0 10px 24px rgba(67, 48, 34, 0.14));
+  filter: none;
 }
 .brand-text {
   min-width: 0;
@@ -3760,7 +3784,7 @@ a.reader-home:focus-visible {
   .brand-fullscreen-link { width: 34px; min-width: 34px; min-height: 34px; }
   .brand-copy-link svg,
   .brand-fullscreen-link svg { width: 17px; height: 17px; }
-  .brand-mark { width: 110px; height: auto; }
+  .brand-mark-frame { width: 110px; }
   .brand-text small { display: none; }
   main, .site-footer { padding-inline: 10px; }
   .panel { border-radius: 24px; padding: 16px; }
@@ -4282,7 +4306,7 @@ a.reader-home:focus-visible {
     min-width: 40px;
     min-height: 40px;
   }
-  .brand-mark {
+  .brand-mark-frame {
     width: clamp(92px, 28vw, 112px);
   }
   .top-search-button {
@@ -4415,7 +4439,7 @@ a.reader-home:focus-visible {
   .mobile-category-menu-toggle span {
     display: none;
   }
-  .brand-mark {
+  .brand-mark-frame {
     width: 88px;
   }
   .reader-logo,
