@@ -40,6 +40,18 @@ assert.match(css, /\.image-placeholder-frame\.image-loading/);
 assert.match(css, /@keyframes image-placeholder-sheen/);
 assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?width var\(--image-swap-duration\)[\s\S]*?height var\(--image-swap-duration\)/);
 assert.match(css, /\.viewer-page-indicator\s*\{/);
+
+const placeholderRule = css.match(/\.image-placeholder-frame\s*\{([\s\S]*?)\}/);
+assert.ok(placeholderRule, 'shared image placeholder rule should exist');
+assert.doesNotMatch(placeholderRule[1], /position\s*:/, 'placeholder styling must not override the viewer frame layout position');
+assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?position:\s*absolute/);
+assert.match(css, /\.favorite-image-frame\s*\{[\s\S]*?position:\s*relative/);
+assert.match(css, /\.viewer-page-indicator\.visible\s*\{[\s\S]*?opacity:\s*1/);
+assert.match(app, /const VIEWER_PAGE_INDICATOR_HIDE_MS\s*=\s*1450/);
+assert.match(app, /function showViewerPageIndicatorTemporarily\(/);
+assert.match(app, /function hideViewerPageIndicator\(/);
+assert.match(app, /showViewerPageIndicatorTemporarily\(\)/);
+assert.match(app, /hideViewerPageIndicator\(\)/);
 assert.match(css, /\.catalog-progress\s*\{[\s\S]*?height:\s*5px/);
 assert.match(css, /\.site-action-toast\[data-tone="removed"\]::before/);
 assert.match(css, /\.empty-state\s*\{/);

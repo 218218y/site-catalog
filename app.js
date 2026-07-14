@@ -321,6 +321,7 @@ const SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO = 0.06;
 const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
 const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
+const VIEWER_PAGE_INDICATOR_HIDE_MS = 1450;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 
 const state = {
@@ -358,6 +359,7 @@ const state = {
   lastTouchLikeViewportInputAt: 0,
   lastTouchLikeRailInputAt: 0,
   zoomIndicatorHideTimer: 0,
+  pageIndicatorHideTimer: 0,
   globalSearchCategory: "",
   globalSearchOpen: false,
   lightboxSearchScope: "catalog",
@@ -4069,6 +4071,25 @@ function handlePageRailPointerOutside(event) {
 
 
 
+function hideViewerPageIndicator() {
+  window.clearTimeout(state.pageIndicatorHideTimer);
+  state.pageIndicatorHideTimer = 0;
+  els.viewerPageIndicator?.classList.remove("visible");
+}
+
+function showViewerPageIndicatorTemporarily(delay = VIEWER_PAGE_INDICATOR_HIDE_MS) {
+  if (!state.lightboxOpen || !els.viewerPageIndicator) return;
+
+  window.clearTimeout(state.pageIndicatorHideTimer);
+  els.viewerPageIndicator.classList.add("visible");
+  if (delay <= 0) return;
+
+  state.pageIndicatorHideTimer = window.setTimeout(() => {
+    els.viewerPageIndicator?.classList.remove("visible");
+    state.pageIndicatorHideTimer = 0;
+  }, delay);
+}
+
 function syncLightboxProgress(current, total, title, options = {}) {
   if (!els.lightboxProgress) return;
   const totalItems = Math.max(1, Number.parseInt(total, 10) || 1);
@@ -4096,6 +4117,7 @@ function syncLightboxProgress(current, total, title, options = {}) {
       els.viewerPageIndicatorDetail.classList.toggle("hidden", !detail);
     }
     els.viewerPageIndicator.setAttribute("title", accessibleTitle);
+    showViewerPageIndicatorTemporarily();
   }
 }
 
@@ -4814,6 +4836,7 @@ function hideLightboxUi() {
   hideLightboxFloatingPreview();
   window.clearTimeout(state.uiHideTimer);
   window.clearTimeout(state.pageRailHideTimer);
+  hideViewerPageIndicator();
   scheduleCatalogScrollTopButtonUpdate();
   state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
   syncDocumentLock();
