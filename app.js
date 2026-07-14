@@ -343,7 +343,6 @@ const state = {
   favoritesViewerPreviousCatalog: null,
   favoritesViewerPreviousPage: 1,
   topUiPinned: false,
-  thumbsHideTimer: 0,
   uiHideTimer: 0,
   pageRailHideTimer: 0,
   lastTouchLikeViewportInputAt: 0,
@@ -375,6 +374,8 @@ const state = {
   viewerOnboardingShownThisSession: false,
   viewerOnboardingStep: 0,
   viewerOnboardingTarget: null,
+  viewerOnboardingFloatingTarget: null,
+  viewerOnboardingFloatingSource: null,
   viewerOnboardingRestoreUi: null,
   viewerOnboardingLayoutRaf: 0,
   viewerOnboardingLayoutTimer: 0,
@@ -427,7 +428,6 @@ const els = {
   lightboxBackdrop: $("lightboxBackdrop"),
   lightboxBar: $("lightboxBar"),
   topHotspot: $("topHotspot"),
-  thumbsHotspot: $("thumbsHotspot"),
   lightboxScreenshot: $("lightboxScreenshot"),
   lightboxCopyLink: $("lightboxCopyLink"),
   lightboxHomeLink: $("lightboxHomeLink"),
@@ -439,7 +439,6 @@ const els = {
   lightboxProgress: $("lightboxProgress"),
   lightboxImage: $("lightboxImage"),
   lightboxImageFrame: $("lightboxImageFrame"),
-  lightboxThumbs: $("lightboxThumbs"),
   lightboxStage: $("lightboxStage"),
   lightboxSideHotspot: $("lightboxSideHotspot"),
   lightboxPageRail: $("lightboxPageRail"),
@@ -3211,29 +3210,6 @@ function applyZoom() {
   syncViewerAutoZoomButtonUi();
 }
 
-function showThumbsTemporarily(delay = 2600) {
-  if (!els.lightbox) return;
-  window.clearTimeout(state.thumbsHideTimer);
-  els.lightbox.classList.add("show-thumbs");
-  if (delay > 0) {
-    state.thumbsHideTimer = window.setTimeout(() => {
-      els.lightbox.classList.remove("show-thumbs");
-    }, delay);
-  }
-}
-
-function keepThumbsOpen() {
-  window.clearTimeout(state.thumbsHideTimer);
-  els.lightbox?.classList.add("show-thumbs");
-}
-
-function scheduleThumbsClose() {
-  window.clearTimeout(state.thumbsHideTimer);
-  state.thumbsHideTimer = window.setTimeout(() => {
-    els.lightbox?.classList.remove("show-thumbs");
-  }, 420);
-}
-
 function showTopUiTemporarily(delay = 2200) {
   if (!els.lightbox) return;
   window.clearTimeout(state.uiHideTimer);
@@ -3563,21 +3539,6 @@ function normalizeWheelDeltaToPixels(delta, deltaMode, pageSize = 0) {
   return delta;
 }
 
-function handleLightboxThumbsWheel(event) {
-  if (!els.lightboxThumbs) return;
-
-  const scroller = els.lightboxThumbs;
-  const hasHorizontalOverflow = scroller.scrollWidth > scroller.clientWidth + 1;
-  const isVerticalWheel = Math.abs(event.deltaY || 0) >= Math.abs(event.deltaX || 0);
-  if (!hasHorizontalOverflow || !isVerticalWheel || !event.deltaY) return;
-
-  event.preventDefault();
-  keepThumbsOpen();
-
-  const delta = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, scroller.clientWidth);
-  scroller.scrollLeft -= delta;
-}
-
 function positionLightboxFloatingPreview(button) {
   const preview = els.lightboxFloatingPreview;
   if (!preview || !button) return;
@@ -3636,14 +3597,6 @@ function updateLightboxThumbs(options = {}) {
   const { scrollIntoView = true } = options;
   const pageRailIsVisible = Boolean(els.lightbox?.classList.contains("show-page-rail"));
 
-  els.lightboxThumbs?.querySelectorAll(".lightbox-thumb").forEach((button) => {
-    const active = Number(button.dataset.page) === state.page;
-    button.classList.toggle("active", active);
-    if (active && scrollIntoView) {
-      button.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }
-  });
-
   els.lightboxPageThumbs?.querySelectorAll(".lightbox-page-thumb").forEach((button) => {
     const active = isFavoritesLightboxMode()
       ? Number(button.dataset.favoriteIndex) === state.favoritesViewerIndex
@@ -3657,11 +3610,6 @@ function updateLightboxThumbs(options = {}) {
     }
   });
 }
-
-function clearLightboxBottomThumbs() {
-  if (els.lightboxThumbs) els.lightboxThumbs.textContent = "";
-}
-
 
 function handleLightboxPageRailSelection(button) {
   if (!button) return;
@@ -4072,10 +4020,12 @@ function getViewerOnboardingSteps() {
       title: "הסרגל העליון",
       description: "הזיזו את הסמן או געו בקצה העליון כדי לפתוח אותו. כאן נמצאים החיפוש, השיתוף, הורדת התמונה וכלי התצוגה.",
       note: "במחשב משולב אפשר להשתמש במגע, בעכבר ובמקלדת במקביל — ההסבר מתאים לכל דרכי הקלט.",
-      target: () => els.lightboxBar,
+      target: () => els.lightboxBar?.querySelector?.(".lightbox-reader-header") || els.lightboxBar,
+      targetRect: getViewerOnboardingTopBarFocusRect,
       preferredPlacement: "below",
-      padding: 8,
-      radius: 22,
+      padding: 0,
+      viewportMargin: 0,
+      radius: 0,
       revealTopBar: true,
       gesture: "top-edge"
     },
@@ -4086,9 +4036,10 @@ function getViewerOnboardingSteps() {
       description: "לחיצה על סמל הנעץ משאירה את הסרגל פתוח. לחיצה נוספת מחזירה אותו למצב שנפתח רק כשמתקרבים לקצה העליון.",
       note: "אפשר ללחוץ על כפתור הנעץ האמיתי כבר עכשיו.",
       target: () => els.lightboxPinTopBar,
+      floatingTarget: () => els.lightboxPinTopBar,
       preferredPlacement: "below",
-      padding: 9,
-      radius: 16,
+      padding: 7,
+      radius: 15,
       revealTopBar: true,
       gesture: "tap"
     },
@@ -4110,10 +4061,12 @@ function getViewerOnboardingSteps() {
       eyebrow: "עמוד קדימה ואחורה",
       title: "מעבר בין עמודים",
       description: viewerNavigationOnboardingCopy(),
-      target: () => els.nextPageBtn,
-      preferredPlacement: "left",
-      padding: 10,
-      radius: 18,
+      target: () => els.stageCanvas,
+      targetRect: getViewerOnboardingNavigationFocusRect,
+      floatingTarget: () => els.nextPageBtn,
+      preferredPlacement: "above",
+      padding: 0,
+      radius: 26,
       gesture: "swipe"
     },
     {
@@ -4141,6 +4094,30 @@ function getViewerOnboardingSteps() {
       gesture: "tap"
     }
   ];
+}
+
+function getViewerOnboardingTopBarFocusRect() {
+  const header = els.lightboxBar?.querySelector?.(".lightbox-reader-header");
+  return header?.getBoundingClientRect?.() || els.lightboxBar?.getBoundingClientRect?.() || null;
+}
+
+function getViewerOnboardingNavigationFocusRect() {
+  const source = els.stageCanvas?.getBoundingClientRect?.() || els.lightboxStage?.getBoundingClientRect?.();
+  if (!source) return null;
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const width = Math.min(Math.max(240, source.width * 0.36), 460, Math.max(200, viewportWidth - 42));
+  const height = Math.min(Math.max(150, source.height * 0.24), 230, Math.max(130, viewportHeight - 190));
+  const centerX = source.left + source.width / 2;
+  const centerY = source.top + source.height / 2;
+  return {
+    left: centerX - width / 2,
+    top: centerY - height / 2,
+    right: centerX + width / 2,
+    bottom: centerY + height / 2,
+    width,
+    height
+  };
 }
 
 function getViewerOnboardingPageRailFocusRect() {
@@ -4181,7 +4158,7 @@ function getViewerOnboardingFocusableElements() {
   const controls = Array.from(els.viewerOnboarding.querySelectorAll(
     'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )).filter((element) => !element.closest?.(".hidden"));
-  const target = state.viewerOnboardingTarget;
+  const target = state.viewerOnboardingFloatingTarget || state.viewerOnboardingTarget;
   const targetControls = target
     ? [
         ...(target.matches?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') ? [target] : []),
@@ -4199,11 +4176,11 @@ function setViewerOnboardingShadeRect(element, left, top, width, height) {
   element.style.height = `${Math.max(0, height)}px`;
 }
 
-function normalizeViewerOnboardingRect(rawRect, padding = 0) {
+function normalizeViewerOnboardingRect(rawRect, padding = 0, viewportMargin = 6) {
   if (!rawRect) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-  const margin = 6;
+  const margin = Math.max(0, Number(viewportMargin || 0));
   const left = Math.max(margin, Number(rawRect.left || 0) - padding);
   const top = Math.max(margin, Number(rawRect.top || 0) - padding);
   const right = Math.min(viewportWidth - margin, Number(rawRect.right || 0) + padding);
@@ -4277,6 +4254,67 @@ function calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, prefe
   };
 }
 
+function removeViewerOnboardingFloatingTarget() {
+  state.viewerOnboardingFloatingTarget?.remove?.();
+  state.viewerOnboardingFloatingTarget = null;
+  state.viewerOnboardingFloatingSource = null;
+}
+
+function sanitizeViewerOnboardingFloatingTarget(clone) {
+  clone.removeAttribute("id");
+  clone.removeAttribute("aria-controls");
+  clone.removeAttribute("aria-describedby");
+  clone.querySelectorAll?.("[id]").forEach((element) => element.removeAttribute("id"));
+  clone.querySelectorAll?.("[aria-controls]").forEach((element) => element.removeAttribute("aria-controls"));
+  clone.classList.remove("hidden");
+  clone.removeAttribute("hidden");
+}
+
+function syncViewerOnboardingFloatingTargetState(source, clone) {
+  ["aria-label", "aria-pressed", "title", "data-pinned", "data-fullscreen-active"].forEach((attribute) => {
+    if (source.hasAttribute(attribute)) clone.setAttribute(attribute, source.getAttribute(attribute));
+    else clone.removeAttribute(attribute);
+  });
+  clone.disabled = Boolean(source.disabled);
+}
+
+function updateViewerOnboardingFloatingTarget(step) {
+  const source = step.floatingTarget?.() || null;
+  if (!source || !els.viewerOnboarding) {
+    removeViewerOnboardingFloatingTarget();
+    return;
+  }
+
+  let clone = state.viewerOnboardingFloatingTarget;
+  if (!clone || state.viewerOnboardingFloatingSource !== source || clone.dataset.tourStep !== step.id) {
+    removeViewerOnboardingFloatingTarget();
+    clone = source.cloneNode(true);
+    sanitizeViewerOnboardingFloatingTarget(clone);
+    clone.classList.add("viewer-onboarding-floating-target");
+    clone.dataset.tourStep = step.id;
+    clone.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      source.click();
+      window.requestAnimationFrame(() => {
+        if (!state.viewerOnboardingOpen || state.viewerOnboardingFloatingTarget !== clone) return;
+        syncViewerOnboardingFloatingTargetState(source, clone);
+        scheduleViewerOnboardingLayout(30);
+      });
+    });
+    els.viewerOnboarding.appendChild(clone);
+    state.viewerOnboardingFloatingTarget = clone;
+    state.viewerOnboardingFloatingSource = source;
+  }
+
+  syncViewerOnboardingFloatingTargetState(source, clone);
+  const rect = source.getBoundingClientRect();
+  clone.style.left = `${rect.left}px`;
+  clone.style.top = `${rect.top}px`;
+  clone.style.width = `${rect.width}px`;
+  clone.style.height = `${rect.height}px`;
+}
+
 function layoutViewerOnboarding() {
   if (!state.viewerOnboardingOpen || !els.viewerOnboarding || !els.viewerOnboardingCard || !els.viewerOnboardingSpotlight) return;
   const steps = getViewerOnboardingSteps();
@@ -4286,8 +4324,14 @@ function layoutViewerOnboarding() {
   const target = step.target?.() || null;
   state.viewerOnboardingTarget = target;
   const rawRect = step.targetRect?.() || target?.getBoundingClientRect?.();
-  const targetRect = normalizeViewerOnboardingRect(rawRect, Number(step.padding || 0));
+  const targetRect = normalizeViewerOnboardingRect(
+    rawRect,
+    Number(step.padding || 0),
+    step.viewportMargin === undefined ? 6 : Number(step.viewportMargin)
+  );
   if (!targetRect) return;
+
+  updateViewerOnboardingFloatingTarget(step);
 
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -4303,6 +4347,7 @@ function layoutViewerOnboarding() {
   spotlight.style.height = `${targetRect.height}px`;
   spotlight.style.borderRadius = `${Number(step.radius || 18)}px`;
   spotlight.dataset.gesture = step.gesture || "";
+  spotlight.dataset.tourStep = step.id || "";
 
   const calloutRect = els.viewerOnboardingCard.getBoundingClientRect();
   const calloutPosition = calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, step.preferredPlacement || "below");
@@ -4328,6 +4373,10 @@ function renderViewerOnboardingStep(options = {}) {
   state.viewerOnboardingStep = clampValue(state.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
   const step = steps[state.viewerOnboardingStep];
   if (!step) return;
+
+  if (state.viewerOnboardingFloatingTarget?.dataset?.tourStep !== step.id) {
+    removeViewerOnboardingFloatingTarget();
+  }
 
   els.lightbox?.classList.toggle("viewer-tour-show-top-ui", Boolean(step.revealTopBar));
   els.lightbox?.classList.toggle("viewer-tour-show-page-rail", Boolean(step.revealPageRail));
@@ -4386,6 +4435,7 @@ function closeViewerOnboarding(options = {}) {
   const { restoreFocus = true, remember = true } = options;
   state.viewerOnboardingOpen = false;
   state.viewerOnboardingTarget = null;
+  removeViewerOnboardingFloatingTarget();
   window.cancelAnimationFrame(state.viewerOnboardingLayoutRaf);
   window.clearTimeout(state.viewerOnboardingLayoutTimer);
   if (remember) markViewerOnboardingSeen();
@@ -4485,10 +4535,9 @@ function openLightbox(page = 1, options = {}) {
     els.lightboxImageFrame?.classList.remove("page-swap-enter");
   }
   els.lightbox.classList.remove("hidden");
-  els.lightbox.classList.remove("show-thumbs", "show-ui", "show-page-rail");
+  els.lightbox.classList.remove("show-ui", "show-page-rail");
   syncTopUiPinnedUi();
   syncDocumentLock();
-  clearLightboxBottomThumbs();
   renderLightboxPageRail();
   if (!isFavoritesLightboxMode()) renderLightboxCatalogMenu();
   resetLightboxSearch();
@@ -4508,13 +4557,12 @@ function hideLightboxUi() {
   state.singleImageLoadToken += 1;
   window.clearTimeout(state.singleImageAnimationTimer);
   els.lightbox?.classList.add("hidden");
-  els.lightbox?.classList.remove("show-thumbs", "show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "is-page-loading", "is-zoomed");
+  els.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "is-page-loading", "is-zoomed");
   syncViewerAutoZoomButtonUi();
   hideViewerZoomIndicator();
   els.lightboxImageFrame?.classList.remove("page-swap-enter");
   setViewerLoading(false);
   hideLightboxFloatingPreview();
-  window.clearTimeout(state.thumbsHideTimer);
   window.clearTimeout(state.uiHideTimer);
   window.clearTimeout(state.pageRailHideTimer);
   scheduleCatalogScrollTopButtonUpdate();
@@ -5283,18 +5331,6 @@ function attachEvents() {
   els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
 
   attachViewerGestures();
-
-  els.thumbsHotspot?.addEventListener("mouseenter", () => showThumbsTemporarily(0));
-  els.thumbsHotspot?.addEventListener("mouseleave", scheduleThumbsClose);
-  els.thumbsHotspot?.addEventListener("focus", () => showThumbsTemporarily(0));
-  els.thumbsHotspot?.addEventListener("blur", scheduleThumbsClose);
-
-  els.lightboxThumbs?.addEventListener("mouseenter", keepThumbsOpen);
-  els.lightboxThumbs?.addEventListener("wheel", handleLightboxThumbsWheel, { passive: false });
-  els.lightboxThumbs?.addEventListener("mouseleave", () => {
-    hideLightboxFloatingPreview();
-    scheduleThumbsClose();
-  });
 
   els.lightboxSideHotspot?.addEventListener("pointerdown", openPageRailFromTouch, { passive: false });
   els.lightboxSideHotspot?.addEventListener("mouseenter", showPageRailFromHover);

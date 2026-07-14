@@ -17,7 +17,8 @@ assert.match(html, /id="favoritesDescription"><span id="favoritesCount">0<\/span
 assert.match(html, /id="favoritesCloseButton"[\s\S]*?<svg[\s\S]*?<path d="M6\.5 6\.5 17\.5 17\.5M17\.5 6\.5 6\.5 17\.5"/);
 assert.match(html, /id="favoriteOpenCatalogButton"[^>]*aria-label="פתיחת התמונה בתוך הקטלוג המלא"/);
 assert.match(html, /id="prevPageBtn"[\s\S]*?<\/button>\s*<\/div>\s*<button class="reader-button favorite-open-catalog-button[^>]*id="favoriteOpenCatalogButton"/);
-assert.match(html, /id="favoriteOpenCatalogButton"[\s\S]*?id="thumbsHotspot"/);
+assert.match(html, /id="favoriteOpenCatalogButton"[\s\S]*?id="lightboxPageRail"/);
+assert.doesNotMatch(html, /id="thumbsHotspot"|id="lightboxThumbs"/);
 assert.match(html, /id="lightboxPageRailTitle">עמודים</);
 assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app\.js"><\/script>/);
 

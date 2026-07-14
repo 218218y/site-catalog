@@ -22,6 +22,7 @@ for (const html of [template, index, viewer]) {
   assert.match(html, /id="viewerOnboardingNext"[^>]*>הבא</);
   assert.match(html, /id="viewerOnboardingSkip"[^>]*aria-label="דלג על ההסבר"/);
   assert.match(html, /id="siteActionToast"[^>]*aria-live="polite"/);
+  assert.doesNotMatch(html, /id="thumbsHotspot"|id="lightboxThumbs"/);
   assert.doesNotMatch(html, /viewer-onboarding-touch-copy|viewer-onboarding-desktop-copy|viewerOnboardingConfirm|viewerOnboardingBackdrop/);
 }
 
@@ -34,14 +35,23 @@ assert.match(app, /showActionToast\("הקישור המדויק לעמוד הוע
 assert.match(app, /VIEWER_ONBOARDING_STORAGE_KEY = "bargig\.viewer-onboarding\.v2"/);
 assert.match(app, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouchPoints[\s\S]*?ontouchstart/);
 assert.match(app, /function getViewerOnboardingSteps\([\s\S]*?סרגל העליון[\s\S]*?נעיצת הסרגל העליון[\s\S]*?סרגל העמודים הימני[\s\S]*?מעבר בין עמודים[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?הוספה למועדפים/);
+assert.match(app, /function getViewerOnboardingTopBarFocusRect\([\s\S]*?lightbox-reader-header/);
+assert.match(app, /id: "top-bar"[\s\S]*?viewportMargin: 0[\s\S]*?radius: 0/);
+assert.match(app, /id: "pin-top-bar"[\s\S]*?floatingTarget: \(\) => els\.lightboxPinTopBar/);
+assert.match(app, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTarget: \(\) => els\.nextPageBtn/);
+assert.match(app, /function updateViewerOnboardingFloatingTarget\([\s\S]*?cloneNode\(true\)[\s\S]*?source\.click\(\)/);
 assert.match(app, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
+assert.doesNotMatch(app, /thumbsHotspot|lightboxThumbs|show-thumbs|thumbsHideTimer/);
 assert.match(app, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardingWasSeen\(\)[\s\S]*?viewer-tour-active[\s\S]*?renderViewerOnboardingStep/);
 assert.match(app, /function closeViewerOnboarding\([\s\S]*?markViewerOnboardingSeen\(\)[\s\S]*?restoreViewerUiAfterOnboarding/);
 assert.match(app, /window\.requestAnimationFrame\(showViewerOnboardingIfNeeded\)/);
 assert.match(css, /\.site-action-toast\s*\{[\s\S]*?top:\s*max\(16px, env\(safe-area-inset-top\)\);/);
 assert.match(css, /body\[data-page="home"\] #headerFullscreenToggle\s*\{[\s\S]*?display:\s*none !important;/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.brand-copy-link\s*\{[\s\S]*?display:\s*inline-flex;/);
-assert.match(css, /\.viewer-onboarding-spotlight\s*\{[\s\S]*?border:\s*2px solid/);
+assert.match(css, /\.viewer-onboarding-spotlight\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?border:\s*2px solid/);
+assert.match(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?z-index:\s*2 !important;[\s\S]*?right:\s*auto !important;[\s\S]*?bottom:\s*auto !important;[\s\S]*?pointer-events:\s*auto !important;/);
+assert.doesNotMatch(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?inset:\s*auto !important;/);
+assert.doesNotMatch(css, /\.thumbs-hotspot|\.lightbox-thumbs|\.lightbox-thumb/);
 assert.match(css, /\.viewer-onboarding-callout\s*\{[\s\S]*?border-radius:\s*24px;/);
 assert.match(css, /\.lightbox\.viewer-tour-show-top-ui \.lightbox-top-shell/);
 assert.match(css, /\.lightbox\.viewer-tour-show-page-rail \.lightbox-page-rail/);
