@@ -54,6 +54,8 @@
   Cache-Control: public, no-cache, max-age=0, must-revalidate
 /brand-logo.svg
   Cache-Control: public, no-cache, max-age=0, must-revalidate
+/brand-logo-header.svg
+  Cache-Control: public, no-cache, max-age=0, must-revalidate
 
 # Content-hashed assets are immutable. Each deployment contains exactly one
 # current asset generation, built and validated together with its HTML files.

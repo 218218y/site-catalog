@@ -54,6 +54,7 @@ DEPLOY_FILES = [
     "catalog-snapshot.js",
     "catalog-assets.config.js",
     "brand-logo.svg",
+    "brand-logo-header.svg",
     "favicon-loader.js",
     "catalogs.generated.js",
     "catalogs.search.js",
