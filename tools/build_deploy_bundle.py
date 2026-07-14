@@ -90,6 +90,9 @@ GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 FINGERPRINTED_ASSET_DIR = "static"
 FINGERPRINTED_EXTENSIONS = {".css", ".js"}
+HASHED_ASSET_FILENAME_RE = re.compile(
+    r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
+)
 
 
 @dataclass(frozen=True)
@@ -193,6 +196,7 @@ def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
         source = out_dir / reference
         if not source.is_file():
             raise FileNotFoundError(f"Cannot fingerprint missing referenced asset in bundle: {reference}")
+        normalize_fingerprinted_text(source)
         target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(source)
         target = out_dir / target_relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -237,6 +241,119 @@ def clean_output_dir(out_dir: Path) -> None:
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+
+def staging_output_dir(out_dir: Path) -> Path:
+    """Return a sibling staging folder used to build a complete bundle before publish."""
+
+    return out_dir.with_name(f".{out_dir.name}.building")
+
+
+def replace_output_dir(staging_dir: Path, out_dir: Path) -> None:
+    """Replace the previous bundle only after the new bundle is fully built and validated.
+
+    The build happens in a separate sibling directory. The old output is moved aside,
+    the complete staging directory is promoted, and only then is the old output removed.
+    This prevents a partially-written ``dist`` folder from ever becoming deployable.
+    """
+
+    backup_dir = out_dir.with_name(f".{out_dir.name}.previous")
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+
+    moved_previous = False
+    try:
+        if out_dir.exists():
+            out_dir.rename(backup_dir)
+            moved_previous = True
+        staging_dir.rename(out_dir)
+    except Exception:
+        if moved_previous and not out_dir.exists() and backup_dir.exists():
+            backup_dir.rename(out_dir)
+        raise
+    else:
+        if backup_dir.exists():
+            shutil.rmtree(backup_dir)
+
+
+def normalize_fingerprinted_text(path: Path) -> None:
+    """Normalize CSS/JS line endings so hashes are reproducible on Windows and Linux."""
+
+    content = path.read_bytes()
+    normalized = content.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    if normalized != content:
+        path.write_bytes(normalized)
+
+
+def validate_fingerprinted_bundle(out_dir: Path) -> int:
+    """Validate a single, self-contained asset generation in the completed bundle."""
+
+    referenced_assets: set[str] = set()
+    missing_assets: list[str] = []
+    invalid_assets: list[str] = []
+
+    for page in PAGE_DOCUMENTS:
+        html_path = out_dir / page.filename
+        if not html_path.is_file():
+            raise FileNotFoundError(f"Public HTML document is missing from bundle: {page.filename}")
+        html = html_path.read_text(encoding="utf-8", errors="replace")
+        for match in HTML_ASSET_ATTR_RE.finditer(html):
+            raw_reference = match.group("url").strip()
+            reference_path, _suffix = split_url_reference(raw_reference)
+            if (
+                not reference_path
+                or reference_path.startswith(("http://", "https://", "//", "#", "mailto:", "data:", "blob:"))
+                or Path(reference_path).suffix.lower() not in FINGERPRINTED_EXTENSIONS
+            ):
+                continue
+
+            relative = Path(reference_path)
+            if relative.is_absolute() or ".." in relative.parts:
+                invalid_assets.append(f"{page.filename} -> {reference_path} (unsafe path)")
+                continue
+            asset_path = out_dir / relative
+            if not asset_path.is_file():
+                missing_assets.append(f"{page.filename} -> {reference_path}")
+                continue
+            if not relative.parts or relative.parts[0] != FINGERPRINTED_ASSET_DIR:
+                invalid_assets.append(f"{page.filename} -> {reference_path} (not fingerprinted under static/)")
+                continue
+
+            match_name = HASHED_ASSET_FILENAME_RE.fullmatch(relative.name)
+            if match_name is None:
+                invalid_assets.append(f"{page.filename} -> {reference_path} (invalid fingerprinted filename)")
+                continue
+            actual_digest = content_hash(asset_path)
+            if match_name.group("digest") != actual_digest:
+                invalid_assets.append(
+                    f"{page.filename} -> {reference_path} (filename hash does not match file contents)"
+                )
+                continue
+            referenced_assets.add(relative.as_posix())
+
+    if missing_assets:
+        raise FileNotFoundError(
+            "Bundle HTML references missing CSS/JS assets: " + ", ".join(sorted(set(missing_assets)))
+        )
+    if invalid_assets:
+        raise ValueError(
+            "Bundle contains invalid CSS/JS references: " + ", ".join(sorted(set(invalid_assets)))
+        )
+
+    static_dir = out_dir / FINGERPRINTED_ASSET_DIR
+    deployed_assets = {
+        path.relative_to(out_dir).as_posix()
+        for path in static_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() in FINGERPRINTED_EXTENSIONS
+    } if static_dir.is_dir() else set()
+    unreferenced = sorted(deployed_assets - referenced_assets)
+    if unreferenced:
+        raise ValueError(
+            "Bundle contains stale or unreferenced fingerprinted assets: " + ", ".join(unreferenced)
+        )
+    if referenced_assets - deployed_assets:
+        raise FileNotFoundError("Validated asset set is incomplete.")
+    return len(referenced_assets)
 
 
 def copy_file(root: Path, out_dir: Path, relative_path: str | Path) -> CopyStats:
@@ -450,7 +567,6 @@ def create_zip_from_folder(folder: Path, zip_path: Path) -> CopyStats:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create a clean Cloudflare Pages upload folder for the R2-backed catalog website.")
     parser.add_argument("--out", default="dist/site-upload-r2", help="Output folder, relative to the project root by default")
-    parser.add_argument("--no-clean", action="store_true", help="Do not clear the output folder before copying")
     parser.add_argument("--zip", action="store_true", help="Also create a .zip file next to the output folder")
     parser.add_argument("--include-json", action="store_true", help="Also copy catalogs.generated.json and catalogs.search.json")
     parser.add_argument(
@@ -481,12 +597,10 @@ def main() -> int:
     args = parse_args()
     root = project_root()
     out_dir = ensure_safe_output_dir(root, root / args.out)
+    staging_dir = ensure_safe_output_dir(root, staging_output_dir(out_dir))
 
     try:
-        if not args.no_clean:
-            clean_output_dir(out_dir)
-        else:
-            out_dir.mkdir(parents=True, exist_ok=True)
+        clean_output_dir(staging_dir)
 
         deploy_files = list(DEPLOY_FILES)
         if args.include_big_pages_viewer:
@@ -496,7 +610,7 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-        rendered_pages = render_site_pages(root, out_dir)
+        rendered_pages = render_site_pages(root, staging_dir)
         stats = CopyStats(
             files=len(rendered_pages),
             bytes=sum(path.stat().st_size for path in rendered_pages),
@@ -504,20 +618,25 @@ def main() -> int:
         for relative in deploy_files:
             if relative == "catalog-assets.config.js":
                 continue
-            stats = add_stats(stats, copy_file(root, out_dir, relative))
+            stats = add_stats(stats, copy_file(root, staging_dir, relative))
         for relative in OPTIONAL_DEPLOY_FILES:
-            stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
-        stats = add_stats(stats, copy_web_app_assets(root, out_dir))
+            stats = add_stats(stats, copy_optional_file(root, staging_dir, relative))
+        stats = add_stats(stats, copy_web_app_assets(root, staging_dir))
         if args.include_json:
             for relative in JSON_DEPLOY_FILES:
-                stats = add_stats(stats, copy_optional_file(root, out_dir, relative))
+                stats = add_stats(stats, copy_optional_file(root, staging_dir, relative))
 
-        stats = add_stats(stats, write_asset_config(out_dir, args.external_assets_url))
-        fingerprinted_assets = fingerprint_bundle_assets(out_dir)
+        stats = add_stats(stats, write_asset_config(staging_dir, args.external_assets_url))
+        fingerprinted_assets = fingerprint_bundle_assets(staging_dir)
+        validated_asset_count = validate_fingerprinted_bundle(staging_dir)
+
         print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
         print("[assets] assets/pages was intentionally not copied into the Cloudflare Pages upload folder.")
         if fingerprinted_assets:
-            print(f"[cache] Fingerprinted browser assets: {len(fingerprinted_assets)} files under {FINGERPRINTED_ASSET_DIR}/")
+            print(
+                f"[cache] Built and validated one current asset generation: "
+                f"{validated_asset_count} fingerprinted CSS/JS files under {FINGERPRINTED_ASSET_DIR}/"
+            )
 
         warnings = validate_static_references(root)
         pages_dir = root / "assets" / "pages"
@@ -531,6 +650,8 @@ def main() -> int:
         for warning in warnings:
             print(f"[warn] {warning}", file=sys.stderr)
 
+        replace_output_dir(staging_dir, out_dir)
+
         print("\nDone.")
         print(f"Upload folder: {rel_to_root(out_dir)}")
         print(f"Copied: {stats.files} files, {format_bytes(stats.bytes)}")
@@ -543,7 +664,10 @@ def main() -> int:
         print(f"Excluded: {excluded_note}.")
         print(f"Images: R2/CDN mode, loaded from {args.external_assets_url}")
         if fingerprinted_assets:
-            print("Cache: HTML is revalidated; CSS/JS use content-hashed URLs and can be cached immutably.")
+            print(
+                "Cache: HTML is not stored; CSS/JS use one current content-hashed generation "
+                "and can be cached immutably."
+            )
         print("Contact: direct Gmail compose link only; no mailto fallback, form, or serverless function is required.")
 
         if args.zip:
@@ -555,6 +679,8 @@ def main() -> int:
             print("\nBundle was created, but review the warnings above before uploading.")
         return 0
     except Exception as exc:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir, ignore_errors=True)
         print(f"\nERROR: {exc}", file=sys.stderr)
         return 1
 

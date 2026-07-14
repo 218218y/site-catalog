@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Deploy the generated static site bundle to Cloudflare Pages.
 
-Default command executed from the project root:
-    npx --yes wrangler pages deploy dist/site-upload-r2 --project-name bargig-catlog --branch main
+Default flow executed from the project root:
+    1. Rebuild dist/site-upload-r2 from the current source files.
+    2. Validate every HTML -> CSS/JS reference in that fresh bundle.
+    3. Deploy the same validated folder with Wrangler.
 
 The regular deploy path intentionally changes only Cloudflare Pages. R2 CORS
 configuration is an explicit maintenance action exposed through --cors-only,
@@ -15,12 +17,17 @@ shell execution in the browser.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Sequence
 
@@ -30,6 +37,7 @@ DEFAULT_BRANCH = "main"
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 DEFAULT_R2_BUCKET = "bargig-catalog"
 DEFAULT_R2_CORS_FILE = "r2-cors.json"
+DEFAULT_VERIFY_URL = "https://bargig-furniture.com"
 PUBLIC_HTML_FILES = (
     "index.html",
     "catalog.html",
@@ -38,6 +46,11 @@ PUBLIC_HTML_FILES = (
 )
 REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "_headers")
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
+HTML_RESPONSE_PREFIX_RE = re.compile(br"^\s*(?:<!doctype\s+html\b|<html\b)", re.IGNORECASE)
+FINGERPRINTED_ASSET_DIR = "static"
+HASHED_ASSET_FILENAME_RE = re.compile(
+    r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
+)
 
 
 def project_root() -> Path:
@@ -144,11 +157,17 @@ def apply_r2_cors(npx: str, bucket: str, cors_file: str, root: Path) -> int:
     return returncode
 
 
+def file_content_hash(path: Path, length: int = 12) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:length]
+
+
 def validate_bundle(bundle_dir: Path) -> None:
+    """Validate one clean, internally consistent deployment bundle."""
+
     if not bundle_dir.is_dir():
         raise FileNotFoundError(
             f"Bundle folder does not exist: {rel_to_root(bundle_dir)}. "
-            "Run bundle-site-r2.bat or the control-panel action 'יצירת באנדל R2' first."
+            "The deploy command must create a fresh bundle before uploading."
         )
     missing = [relative for relative in REQUIRED_BUNDLE_FILES if not (bundle_dir / relative).is_file()]
     if missing:
@@ -157,24 +176,151 @@ def validate_bundle(bundle_dir: Path) -> None:
             "Create a fresh R2 bundle before deploying."
         )
 
+    referenced_assets: set[str] = set()
     missing_assets: list[str] = []
+    invalid_assets: list[str] = []
     for html_name in PUBLIC_HTML_FILES:
         html = (bundle_dir / html_name).read_text(encoding="utf-8", errors="replace")
         for match in HTML_ASSET_RE.finditer(html):
             reference = match.group(1).strip()
-            if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:")):
+            if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:", "data:", "blob:")):
                 continue
             reference_path = reference.split("?", 1)[0].split("#", 1)[0]
             if Path(reference_path).suffix.lower() not in {".css", ".js"}:
                 continue
-            if not (bundle_dir / reference_path).is_file():
+
+            relative = Path(reference_path)
+            if relative.is_absolute() or ".." in relative.parts:
+                invalid_assets.append(f"{html_name} -> {reference_path} (unsafe path)")
+                continue
+            asset_path = bundle_dir / relative
+            if not asset_path.is_file():
                 missing_assets.append(f"{html_name} -> {reference_path}")
+                continue
+            if not relative.parts or relative.parts[0] != FINGERPRINTED_ASSET_DIR:
+                invalid_assets.append(f"{html_name} -> {reference_path} (not under static/)")
+                continue
+
+            filename_match = HASHED_ASSET_FILENAME_RE.fullmatch(relative.name)
+            if filename_match is None:
+                invalid_assets.append(f"{html_name} -> {reference_path} (invalid hash filename)")
+                continue
+            if filename_match.group("digest") != file_content_hash(asset_path):
+                invalid_assets.append(f"{html_name} -> {reference_path} (hash/content mismatch)")
+                continue
+            referenced_assets.add(relative.as_posix())
+
     if missing_assets:
         raise FileNotFoundError(
             f"Bundle folder is incomplete: {rel_to_root(bundle_dir)}. "
             f"Public HTML references missing CSS/JS assets: {', '.join(sorted(set(missing_assets)))}. "
             "Create a fresh R2 bundle before deploying."
         )
+    if invalid_assets:
+        raise ValueError(
+            f"Bundle folder is inconsistent: {rel_to_root(bundle_dir)}. "
+            f"Invalid CSS/JS references: {', '.join(sorted(set(invalid_assets)))}."
+        )
+
+    static_dir = bundle_dir / FINGERPRINTED_ASSET_DIR
+    deployed_assets = {
+        path.relative_to(bundle_dir).as_posix()
+        for path in static_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".css", ".js"}
+    } if static_dir.is_dir() else set()
+    stale_assets = sorted(deployed_assets - referenced_assets)
+    if stale_assets:
+        raise ValueError(
+            f"Bundle folder contains stale fingerprinted files that are not referenced by the current HTML: "
+            f"{', '.join(stale_assets)}. Rebuild the bundle; old generations must not be deployed."
+        )
+    if not referenced_assets:
+        raise ValueError("Bundle validation found no fingerprinted CSS/JS references in public HTML.")
+
+
+def with_cache_buster(url: str, token: str) -> str:
+    parts = urllib.parse.urlsplit(url)
+    query = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+    query.append(("__deploy_check", token))
+    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(query), parts.fragment))
+
+
+def fetch_public_url(url: str, token: str) -> tuple[str, bytes]:
+    request = urllib.request.Request(
+        with_cache_buster(url, token),
+        headers={
+            "User-Agent": "Bargig-Cloudflare-Deploy-Validator/1.0",
+            "Cache-Control": "no-cache, no-store, max-age=0",
+            "Pragma": "no-cache",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        content_type = response.headers.get_content_type().lower()
+        body = response.read(2_000_000)
+        return content_type, body
+
+
+def validate_public_asset(asset_url: str, token: str) -> None:
+    content_type, body = fetch_public_url(asset_url, token)
+    path = urllib.parse.urlsplit(asset_url).path.lower()
+    is_html_body = HTML_RESPONSE_PREFIX_RE.match(body) is not None
+    if path.endswith(".js"):
+        valid_type = "javascript" in content_type or "ecmascript" in content_type
+        expected = "JavaScript"
+    elif path.endswith(".css"):
+        valid_type = content_type == "text/css"
+        expected = "CSS"
+    else:
+        return
+    if not valid_type or is_html_body:
+        raise RuntimeError(
+            f"Public asset validation failed: {asset_url} returned Content-Type {content_type!r} "
+            f"instead of executable {expected}. The deployment is serving HTML/404 content for a static asset."
+        )
+
+
+def verify_public_deployment(base_url: str, attempts: int = 4, delay_seconds: float = 2.0) -> None:
+    """Verify public HTML and every referenced CSS/JS after deployment."""
+
+    normalized = str(base_url or "").strip().rstrip("/")
+    if not normalized.startswith(("https://", "http://")):
+        raise ValueError(f"Verification URL must start with http:// or https://: {base_url}")
+
+    routes = ("/", "/catalog", "/favorites", "/viewer")
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        token = f"{int(time.time() * 1000)}-{attempt}"
+        try:
+            asset_urls: set[str] = set()
+            for route in routes:
+                page_url = f"{normalized}{route}"
+                content_type, body = fetch_public_url(page_url, token)
+                if content_type != "text/html" and HTML_RESPONSE_PREFIX_RE.match(body) is None:
+                    raise RuntimeError(
+                        f"Public page validation failed: {page_url} returned Content-Type {content_type!r}, not HTML."
+                    )
+                html = body.decode("utf-8", errors="replace")
+                for match in HTML_ASSET_RE.finditer(html):
+                    reference = match.group(1).strip()
+                    if not reference or reference.startswith(("data:", "blob:", "mailto:", "#")):
+                        continue
+                    asset_url = urllib.parse.urljoin(page_url, reference)
+                    asset_path = urllib.parse.urlsplit(asset_url).path.lower()
+                    if asset_path.endswith((".js", ".css")):
+                        asset_urls.add(asset_url)
+
+            if not asset_urls:
+                raise RuntimeError("Public deployment validation found no CSS/JS references in the HTML pages.")
+            for asset_url in sorted(asset_urls):
+                validate_public_asset(asset_url, token)
+            return
+        except (OSError, RuntimeError, urllib.error.URLError) as exc:
+            last_error = exc
+            if attempt < attempts:
+                time.sleep(delay_seconds)
+
+    assert last_error is not None
+    raise RuntimeError(f"Public deployment validation failed after {attempts} attempts: {last_error}") from last_error
 
 
 def find_npx() -> str:
@@ -226,12 +372,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--build-first",
         action="store_true",
-        help="Create a fresh R2 bundle before uploading it to Cloudflare Pages.",
+        help="Compatibility alias. A fresh R2 bundle is now created before every normal deploy.",
     )
     parser.add_argument(
         "--external-assets-url",
         default=DEFAULT_R2_ASSET_BASE_URL,
-        help=f"R2/CDN image base URL used only with --build-first. Default: {DEFAULT_R2_ASSET_BASE_URL}",
+        help=f"R2/CDN image base URL written into the fresh bundle. Default: {DEFAULT_R2_ASSET_BASE_URL}",
+    )
+    parser.add_argument(
+        "--verify-url",
+        default=DEFAULT_VERIFY_URL,
+        help=f"Public site URL checked after a successful deploy. Default: {DEFAULT_VERIFY_URL}",
+    )
+    parser.add_argument(
+        "--no-verify",
+        action="store_true",
+        help="Skip the public post-deploy HTML/CSS/JS MIME validation.",
     )
     parser.add_argument(
         "--r2-bucket",
@@ -276,8 +432,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             return apply_r2_cors(npx, args.r2_bucket, rel_to_root(cors_file), root)
 
         bundle_dir = ensure_inside_project(root / args.dir)
-        if args.build_first:
-            print("Creating a fresh R2 bundle before Cloudflare Pages deploy...", flush=True)
+        print("Creating one fresh, validated R2 bundle before Cloudflare Pages deploy...", flush=True)
+        if args.dry_run:
+            print(
+                quote_command([
+                    sys.executable,
+                    "tools/build_deploy_bundle.py",
+                    "--out",
+                    args.dir,
+                    "--external-assets-url",
+                    args.external_assets_url,
+                ]),
+                flush=True,
+            )
+        else:
             build_code = build_bundle(args)
             if build_code != 0:
                 print(f"\nERROR: Bundle creation failed with return code {build_code}.", file=sys.stderr)
@@ -305,11 +473,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dry_run:
             print("\nDry run only. Command that would be executed:", flush=True)
             print(quote_command(wrangler_command), flush=True)
+            if not args.no_verify:
+                print(f"Post-deploy verification: {args.verify_url}", flush=True)
             return 0
 
         returncode = run_streamed(wrangler_command, root)
         if returncode == 0:
             print("\nCloudflare Pages deploy finished successfully.", flush=True)
+            if not args.no_verify:
+                print(f"Verifying public deployment at {args.verify_url}...", flush=True)
+                verify_public_deployment(args.verify_url)
+                print("Public HTML and all referenced CSS/JS passed MIME validation.", flush=True)
         else:
             print(f"\nERROR: Cloudflare Pages deploy failed with return code {returncode}.", file=sys.stderr)
         return returncode

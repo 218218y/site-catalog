@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
@@ -77,9 +78,15 @@ def test_pages_deploy_dry_run_never_reads_or_changes_r2_cors(
 
     assert MODULE.main(["--dir", "bundle", "--dry-run"]) == 0
     output = capsys.readouterr().out
+    assert "tools/build_deploy_bundle.py" in output
     assert "wrangler pages deploy" in output
     assert "wrangler r2 bucket cors" not in output
     assert "R2 CORS" not in output
+
+
+def test_deploy_interface_does_not_allow_skipping_the_fresh_build() -> None:
+    with pytest.raises(SystemExit):
+        MODULE.parse_args(["--no-build"])
 
 
 def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | None = None) -> None:
@@ -87,15 +94,20 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
     (bundle_dir / "_headers").write_text("/*\n  X-Robots-Tag: noindex\n", encoding="utf-8")
     static_dir = bundle_dir / "static"
     static_dir.mkdir()
-    (static_dir / "app.test.js").write_text("window.test = true;\n", encoding="utf-8")
-    (static_dir / "styles.test.css").write_text("body {}\n", encoding="utf-8")
+
+    app_content = b"window.test = true;\n"
+    style_content = b"body {}\n"
+    app_name = f"app.{hashlib.sha256(app_content).hexdigest()[:12]}.js"
+    style_name = f"styles.{hashlib.sha256(style_content).hexdigest()[:12]}.css"
+    (static_dir / app_name).write_bytes(app_content)
+    (static_dir / style_name).write_bytes(style_content)
 
     for html_name in MODULE.PUBLIC_HTML_FILES:
-        script = "static/app.test.js"
+        script = f"static/{app_name}"
         if missing_reference and missing_reference[0] == html_name:
             script = missing_reference[1]
         (bundle_dir / html_name).write_text(
-            f'<link rel="stylesheet" href="static/styles.test.css"><script src="{script}"></script>',
+            f'<link rel="stylesheet" href="static/{style_name}"><script src="{script}"></script>',
             encoding="utf-8",
         )
 
@@ -112,3 +124,45 @@ def test_bundle_validation_rejects_missing_asset_in_non_index_page(tmp_path: Pat
 
     with pytest.raises(FileNotFoundError, match=r"viewer\.html -> static/missing-transition\.js"):
         MODULE.validate_bundle(bundle_dir)
+
+
+def test_bundle_validation_rejects_unreferenced_old_generation(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    (bundle_dir / "static" / "app.111111111111.js").write_text("window.old = true;\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="old generations must not be deployed"):
+        MODULE.validate_bundle(bundle_dir)
+
+
+def test_public_deployment_verifier_checks_root_static_assets_for_clean_routes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested: list[str] = []
+
+    def fake_fetch(url: str, token: str) -> tuple[str, bytes]:
+        requested.append(url)
+        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
+            return "text/html", b'<script src="static/app.123456789abc.js"></script>'
+        if url.endswith("/static/app.123456789abc.js"):
+            return "application/javascript", b"window.ok = true;\n"
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
+    MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)
+
+    assert "https://example.com/static/app.123456789abc.js" in requested
+    assert all("/catalog/static/" not in url for url in requested)
+
+
+def test_public_deployment_verifier_rejects_html_returned_for_javascript(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_fetch(url: str, token: str) -> tuple[str, bytes]:
+        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
+            return "text/html", b'<script src="static/site-routes.123456789abc.js"></script>'
+        return "text/html", b"<!doctype html><html><body>404</body></html>"
+
+    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
+    with pytest.raises(RuntimeError, match="returned Content-Type 'text/html'.*instead of executable JavaScript"):
+        MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)

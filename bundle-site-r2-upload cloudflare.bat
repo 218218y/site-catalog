@@ -17,7 +17,7 @@ if exist ".venv\Scripts\python.exe" (
 %PYTHON_EXE% tools\deploy_cloudflare_pages.py %*
 if errorlevel 1 (
   echo.
-  echo Cloudflare Pages deploy failed. Make sure dist\site-upload-r2 exists, Node.js/npm is installed, and Wrangler is logged in.
+  echo Cloudflare Pages deploy failed. The tool creates and validates one clean dist\site-upload-r2 bundle automatically. Make sure Node.js/npm is installed and Wrangler is logged in.
   pause
   exit /b 1
 )

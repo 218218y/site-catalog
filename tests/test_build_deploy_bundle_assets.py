@@ -102,3 +102,56 @@ def test_missing_manifest_asset_fails_the_bundle(tmp_path: Path) -> None:
 def test_manifest_path_traversal_is_rejected() -> None:
     with pytest.raises(ValueError, match="Unsafe local asset reference"):
         MODULE.normalize_local_public_asset("../outside.png")
+
+
+def test_line_endings_are_normalized_before_hashing(tmp_path: Path) -> None:
+    windows_asset = tmp_path / "app.js"
+    unix_asset = tmp_path / "app-lf.js"
+    windows_asset.write_bytes(b"const one = 1;\r\nconst two = 2;\r\n")
+    unix_asset.write_bytes(b"const one = 1;\nconst two = 2;\n")
+
+    MODULE.normalize_fingerprinted_text(windows_asset)
+
+    assert windows_asset.read_bytes() == unix_asset.read_bytes()
+    assert MODULE.content_hash(windows_asset) == MODULE.content_hash(unix_asset)
+
+
+def test_atomic_output_replacement_publishes_only_complete_staging_bundle(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    staging = MODULE.staging_output_dir(out)
+    write_asset(out, "static/old.111111111111.js", b"old")
+    write_asset(staging, "static/new.222222222222.js", b"new")
+
+    MODULE.replace_output_dir(staging, out)
+
+    assert not staging.exists()
+    assert not (out / "static/old.111111111111.js").exists()
+    assert (out / "static/new.222222222222.js").read_bytes() == b"new"
+    assert not out.with_name(f".{out.name}.previous").exists()
+
+
+def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    out.mkdir()
+    source = out / "app.js"
+    source.write_text("window.current = true;\n", encoding="utf-8")
+    current_name = f"app.{MODULE.content_hash(source)}.js"
+    static = out / "static"
+    static.mkdir()
+    source.rename(static / current_name)
+    for page in MODULE.PAGE_DOCUMENTS:
+        (out / page.filename).write_text(
+            f'<script src="static/{current_name}"></script>',
+            encoding="utf-8",
+        )
+    (static / "app.111111111111.js").write_text("window.old = true;\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="stale or unreferenced"):
+        MODULE.validate_fingerprinted_bundle(out)
+
+
+def test_public_html_routes_disable_storage_cache() -> None:
+    headers = (ROOT / "_headers").read_text(encoding="utf-8")
+    for route in ("/", "/index", "/index.html", "/catalog", "/catalog.html", "/favorites", "/favorites.html", "/viewer", "/viewer.html"):
+        assert f"{route}\n  Cache-Control: no-store, max-age=0, must-revalidate" in headers
+    assert "/static/*\n  Cache-Control: public, max-age=31536000, immutable" in headers
