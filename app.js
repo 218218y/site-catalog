@@ -4036,9 +4036,11 @@ function getViewerOnboardingSteps() {
       description: "לחיצה על סמל הנעץ משאירה את הסרגל פתוח. לחיצה נוספת מחזירה אותו למצב שנפתח רק כשמתקרבים לקצה העליון.",
       note: "אפשר ללחוץ על כפתור הנעץ האמיתי כבר עכשיו.",
       target: () => els.lightboxPinTopBar,
+      targetRect: getViewerOnboardingPinFocusRect,
       floatingTarget: () => els.lightboxPinTopBar,
       preferredPlacement: "below",
-      padding: 12,
+      padding: 0,
+      viewportMargin: 0,
       radius: 25,
       revealTopBar: true,
       gesture: "tap"
@@ -4099,6 +4101,39 @@ function getViewerOnboardingSteps() {
 function getViewerOnboardingTopBarFocusRect() {
   const header = els.lightboxBar?.querySelector?.(".lightbox-reader-header");
   return header?.getBoundingClientRect?.() || els.lightboxBar?.getBoundingClientRect?.() || null;
+}
+
+function getViewerOnboardingPinFocusRect() {
+  const source = els.lightboxPinTopBar?.getBoundingClientRect?.();
+  if (!source) return null;
+
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const desiredPadding = 12;
+
+  // The pin button sits close to the viewport's top edge. A regular padded
+  // rectangle gets clipped only at the top and therefore looks shifted down.
+  // Use the same available padding on opposite sides so the frame remains
+  // visually centred around the real button even near a viewport boundary.
+  const horizontalPadding = Math.max(0, Math.min(
+    desiredPadding,
+    Number(source.left || 0),
+    Math.max(0, viewportWidth - Number(source.right || 0))
+  ));
+  const verticalPadding = Math.max(0, Math.min(
+    desiredPadding,
+    Number(source.top || 0),
+    Math.max(0, viewportHeight - Number(source.bottom || 0))
+  ));
+
+  return {
+    left: source.left - horizontalPadding,
+    top: source.top - verticalPadding,
+    right: source.right + horizontalPadding,
+    bottom: source.bottom + verticalPadding,
+    width: source.width + horizontalPadding * 2,
+    height: source.height + verticalPadding * 2
+  };
 }
 
 function getViewerOnboardingNavigationFocusRect() {

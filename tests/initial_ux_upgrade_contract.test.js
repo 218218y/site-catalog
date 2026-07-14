@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
@@ -37,7 +38,19 @@ assert.match(app, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouc
 assert.match(app, /function getViewerOnboardingSteps\([\s\S]*?סרגל העליון[\s\S]*?נעיצת הסרגל העליון[\s\S]*?סרגל העמודים הימני[\s\S]*?מעבר בין עמודים[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?הוספה למועדפים/);
 assert.match(app, /function getViewerOnboardingTopBarFocusRect\([\s\S]*?lightbox-reader-header/);
 assert.match(app, /id: "top-bar"[\s\S]*?viewportMargin: 0[\s\S]*?radius: 0/);
-assert.match(app, /id: "pin-top-bar"[\s\S]*?floatingTarget: \(\) => els\.lightboxPinTopBar[\s\S]*?padding: 12[\s\S]*?radius: 25/);
+assert.match(app, /id: "pin-top-bar"[\s\S]*?targetRect: getViewerOnboardingPinFocusRect[\s\S]*?floatingTarget: \(\) => els\.lightboxPinTopBar[\s\S]*?padding: 0[\s\S]*?viewportMargin: 0[\s\S]*?radius: 25/);
+assert.match(app, /function getViewerOnboardingPinFocusRect\(\)[\s\S]*?desiredPadding = 12[\s\S]*?horizontalPadding[\s\S]*?verticalPadding[\s\S]*?source\.top - verticalPadding[\s\S]*?source\.bottom \+ verticalPadding/);
+const pinFocusFunctionSource = app.match(/(function getViewerOnboardingPinFocusRect\(\) \{[\s\S]*?\r?\n\})\r?\n\r?\nfunction getViewerOnboardingNavigationFocusRect/)?.[1];
+assert.ok(pinFocusFunctionSource, "pin focus rectangle function should be extractable");
+const measuredPinRect = { left: 120, top: 9, right: 160, bottom: 49, width: 40, height: 40 };
+const symmetricPinRect = vm.runInNewContext(`${pinFocusFunctionSource}; getViewerOnboardingPinFocusRect();`, {
+  els: { lightboxPinTopBar: { getBoundingClientRect: () => measuredPinRect } },
+  window: { innerWidth: 1000, innerHeight: 700 },
+  document: { documentElement: { clientWidth: 1000, clientHeight: 700 } }
+});
+assert.equal(measuredPinRect.top - symmetricPinRect.top, symmetricPinRect.bottom - measuredPinRect.bottom);
+assert.equal(measuredPinRect.left - symmetricPinRect.left, symmetricPinRect.right - measuredPinRect.right);
+assert.deepEqual(JSON.parse(JSON.stringify(symmetricPinRect)), { left: 108, top: 0, right: 172, bottom: 58, width: 64, height: 58 });
 assert.match(app, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTarget: \(\) => els\.nextPageBtn/);
 assert.match(app, /function updateViewerOnboardingFloatingTarget\([\s\S]*?cloneNode\(true\)[\s\S]*?source\.click\(\)/);
 assert.match(app, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
