@@ -150,8 +150,43 @@ def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None
         MODULE.validate_fingerprinted_bundle(out)
 
 
-def test_public_html_routes_disable_storage_cache() -> None:
+def test_public_html_routes_disable_browser_and_cdn_cache() -> None:
     headers = (ROOT / "_headers").read_text(encoding="utf-8")
-    for route in ("/", "/index", "/index.html", "/catalog", "/catalog.html", "/favorites", "/favorites.html", "/viewer", "/viewer.html"):
-        assert f"{route}\n  Cache-Control: no-store, max-age=0, must-revalidate" in headers
-    assert "/static/*\n  Cache-Control: public, max-age=31536000, immutable" in headers
+    for route in (
+        "/",
+        "/index",
+        "/index.html",
+        "/catalog",
+        "/catalog/",
+        "/catalog.html",
+        "/favorites",
+        "/favorites/",
+        "/favorites.html",
+        "/viewer",
+        "/viewer/",
+        "/viewer.html",
+        "/404",
+        "/404.html",
+    ):
+        block = (
+            f"{route}\n"
+            "  Cache-Control: no-store, max-age=0, must-revalidate\n"
+            "  Cloudflare-CDN-Cache-Control: no-store\n"
+            "  CDN-Cache-Control: no-store"
+        )
+        assert block in headers
+    assert (
+        "/static/*\n"
+        "  Cache-Control: public, max-age=31536000, immutable\n"
+        "  Cloudflare-CDN-Cache-Control: public, max-age=31536000, immutable\n"
+        "  CDN-Cache-Control: public, max-age=31536000, immutable"
+    ) in headers
+
+
+def test_top_level_404_disables_pages_spa_fallback() -> None:
+    error_page = ROOT / "404.html"
+    assert error_page.is_file()
+    content = error_page.read_text(encoding="utf-8").lower()
+    assert "<!doctype html>" in content
+    assert "<script" not in content
+    assert "404.html" in MODULE.DEPLOY_FILES

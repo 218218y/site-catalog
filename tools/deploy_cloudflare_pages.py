@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
@@ -43,7 +44,7 @@ PUBLIC_HTML_FILES = (
     "favorites.html",
     "viewer.html",
 )
-REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "_headers")
+REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "404.html", "_headers")
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 HTML_RESPONSE_PREFIX_RE = re.compile(br"^\s*(?:<!doctype\s+html\b|<html\b)", re.IGNORECASE)
 FINGERPRINTED_ASSET_DIR = "static"
@@ -55,6 +56,14 @@ PAGES_DEPLOYMENT_URL_RE = re.compile(
     r"https://[a-z0-9-]+(?:\.[a-z0-9-]+)+\.pages\.dev(?:/[^\s]*)?",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class PublicResponse:
+    status: int
+    content_type: str
+    headers: dict[str, str]
+    body: bytes
 
 
 def project_root() -> Path:
@@ -267,7 +276,26 @@ def with_cache_buster(url: str, token: str) -> str:
     return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(query), parts.fragment))
 
 
-def fetch_public_url(url: str, token: str) -> tuple[str, bytes]:
+def response_headers_dict(headers: object) -> dict[str, str]:
+    if not hasattr(headers, "items"):
+        return {}
+    return {str(name).lower(): str(value) for name, value in headers.items()}
+
+
+def build_public_response(response: object, body: bytes) -> PublicResponse:
+    headers = getattr(response, "headers", None)
+    content_type = ""
+    if headers is not None and hasattr(headers, "get_content_type"):
+        content_type = str(headers.get_content_type()).lower()
+    return PublicResponse(
+        status=int(getattr(response, "status", getattr(response, "code", 0)) or 0),
+        content_type=content_type,
+        headers=response_headers_dict(headers),
+        body=body,
+    )
+
+
+def fetch_public_url(url: str, token: str) -> PublicResponse:
     request = urllib.request.Request(
         with_cache_buster(url, token),
         headers={
@@ -276,28 +304,63 @@ def fetch_public_url(url: str, token: str) -> tuple[str, bytes]:
             "Pragma": "no-cache",
         },
     )
-    with urllib.request.urlopen(request, timeout=20) as response:
-        content_type = response.headers.get_content_type().lower()
-        body = response.read(2_000_000)
-        return content_type, body
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return build_public_response(response, response.read(2_000_000))
+    except urllib.error.HTTPError as exc:
+        return build_public_response(exc, exc.read(2_000_000))
+
+
+def require_cache_directive(url: str, headers: dict[str, str], header_name: str, directive: str) -> None:
+    value = headers.get(header_name.lower(), "")
+    directives = {item.strip().lower() for item in value.split(",") if item.strip()}
+    if directive.lower() not in directives:
+        raise RuntimeError(
+            f"Public cache-header validation failed: {url} must return {header_name}: {directive}; "
+            f"received {value!r}. Check the deployed _headers file and Cloudflare Cache Rules."
+        )
+
+
+def validate_public_html(page_url: str, response: PublicResponse) -> None:
+    if response.status != 200:
+        raise RuntimeError(f"Public page validation failed: {page_url} returned HTTP {response.status}, not 200.")
+    if response.content_type != "text/html" and HTML_RESPONSE_PREFIX_RE.match(response.body) is None:
+        raise RuntimeError(
+            f"Public page validation failed: {page_url} returned Content-Type {response.content_type!r}, not HTML."
+        )
+    require_cache_directive(page_url, response.headers, "Cache-Control", "no-store")
+    require_cache_directive(page_url, response.headers, "CDN-Cache-Control", "no-store")
 
 
 def validate_public_asset(asset_url: str, token: str) -> None:
-    content_type, body = fetch_public_url(asset_url, token)
+    response = fetch_public_url(asset_url, token)
     path = urllib.parse.urlsplit(asset_url).path.lower()
-    is_html_body = HTML_RESPONSE_PREFIX_RE.match(body) is not None
+    is_html_body = HTML_RESPONSE_PREFIX_RE.match(response.body) is not None
     if path.endswith(".js"):
-        valid_type = "javascript" in content_type or "ecmascript" in content_type
+        valid_type = "javascript" in response.content_type or "ecmascript" in response.content_type
         expected = "JavaScript"
     elif path.endswith(".css"):
-        valid_type = content_type == "text/css"
+        valid_type = response.content_type == "text/css"
         expected = "CSS"
     else:
         return
-    if not valid_type or is_html_body:
+    if response.status != 200 or not valid_type or is_html_body:
         raise RuntimeError(
-            f"Public asset validation failed: {asset_url} returned Content-Type {content_type!r} "
-            f"instead of executable {expected}. The deployment is serving HTML/404 content for a static asset."
+            f"Public asset validation failed: {asset_url} returned HTTP {response.status} and "
+            f"Content-Type {response.content_type!r} instead of executable {expected}. "
+            "The deployment is serving HTML/404 content for a static asset."
+        )
+    require_cache_directive(asset_url, response.headers, "Cache-Control", "immutable")
+
+
+def validate_missing_static_asset_is_404(base_url: str, token: str) -> None:
+    missing_url = f"{base_url.rstrip('/')}/static/__deploy_missing_{token}.js"
+    response = fetch_public_url(missing_url, token)
+    if response.status != 404:
+        raise RuntimeError(
+            f"Missing-asset validation failed: {missing_url} returned HTTP {response.status}. "
+            "A missing JavaScript file must return a real 404, not the application HTML. "
+            "Ensure a top-level 404.html is included in the Pages deployment."
         )
 
 
@@ -327,12 +390,9 @@ def verify_public_deployment(
             asset_urls: set[str] = set()
             for route in routes:
                 page_url = f"{normalized}{route}"
-                content_type, body = fetch_public_url(page_url, token)
-                if content_type != "text/html" and HTML_RESPONSE_PREFIX_RE.match(body) is None:
-                    raise RuntimeError(
-                        f"Public page validation failed: {page_url} returned Content-Type {content_type!r}, not HTML."
-                    )
-                html = body.decode("utf-8", errors="replace")
+                response = fetch_public_url(page_url, token)
+                validate_public_html(page_url, response)
+                html = response.body.decode("utf-8", errors="replace")
                 route_asset_paths: set[str] = set()
                 for match in HTML_ASSET_RE.finditer(html):
                     reference = match.group(1).strip()
@@ -364,6 +424,7 @@ def verify_public_deployment(
                 raise RuntimeError("Public deployment validation found no CSS/JS references in the HTML pages.")
             for asset_url in sorted(asset_urls):
                 validate_public_asset(asset_url, token)
+            validate_missing_static_asset_is_404(normalized, token)
             return
         except (OSError, RuntimeError, urllib.error.URLError) as exc:
             last_error = exc

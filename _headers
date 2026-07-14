@@ -4,34 +4,68 @@
   X-Robots-Tag: noindex, nofollow, noimageindex, nosnippet, noarchive
   Strict-Transport-Security: max-age=31536000
 
-# HTML/app shell must never be stored by a browser or a custom Cloudflare Cache Rule.
+# HTML/app shell must never be stored by browsers or CDN caches.
+# Dashboard Cache Rules must not override these response headers for HTML routes.
 # Cloudflare serves the public pages both as *.html and as clean extensionless URLs,
 # so every public route is listed explicitly. This prevents stale HTML from requesting
 # a content-hashed JavaScript file that belonged to an older deployment.
 /
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /index
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /index.html
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /catalog
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /catalog/
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /catalog.html
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /favorites
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /favorites/
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /favorites.html
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /viewer
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /viewer/
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 /viewer.html
   Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
+
+/404
+  Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
+/404.html
+  Cache-Control: no-store, max-age=0, must-revalidate
+  Cloudflare-CDN-Cache-Control: no-store
+  CDN-Cache-Control: no-store
 
 /site.webmanifest
   Cache-Control: public, no-cache, max-age=0, must-revalidate
@@ -52,6 +86,8 @@
 # current asset generation, built and validated together with its HTML files.
 /static/*
   Cache-Control: public, max-age=31536000, immutable
+  Cloudflare-CDN-Cache-Control: public, max-age=31536000, immutable
+  CDN-Cache-Control: public, max-age=31536000, immutable
 
 # Legacy/local Pages image path. The public R2 bundle normally does not copy assets/pages into Pages;
 # live catalog images are served from the configured R2/CDN domain with their own cache policy.

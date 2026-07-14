@@ -191,6 +191,7 @@ def test_preview_deploy_does_not_verify_or_change_production_domain(
 def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | None = None) -> None:
     bundle_dir.mkdir(parents=True, exist_ok=True)
     (bundle_dir / "_headers").write_text("/*\n  X-Robots-Tag: noindex\n", encoding="utf-8")
+    (bundle_dir / "404.html").write_text("<!doctype html><title>404</title>", encoding="utf-8")
     static_dir = bundle_dir / "static"
     static_dir.mkdir()
 
@@ -239,12 +240,24 @@ def test_public_deployment_verifier_checks_root_static_assets_for_clean_routes(
 ) -> None:
     requested: list[str] = []
 
-    def fake_fetch(url: str, token: str) -> tuple[str, bytes]:
+    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
         requested.append(url)
         if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
-            return "text/html", b'<script src="static/app.123456789abc.js"></script>'
+            return MODULE.PublicResponse(
+                200,
+                "text/html",
+                {"cache-control": "no-store", "cdn-cache-control": "no-store"},
+                b'<script src="static/app.123456789abc.js"></script>',
+            )
         if url.endswith("/static/app.123456789abc.js"):
-            return "application/javascript", b"window.ok = true;\n"
+            return MODULE.PublicResponse(
+                200,
+                "application/javascript",
+                {"cache-control": "public, max-age=31536000, immutable"},
+                b"window.ok = true;\n",
+            )
+        if "/static/__deploy_missing_" in url:
+            return MODULE.PublicResponse(404, "text/html", {}, b"<!doctype html><title>404</title>")
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
@@ -257,23 +270,38 @@ def test_public_deployment_verifier_checks_root_static_assets_for_clean_routes(
 def test_public_deployment_verifier_rejects_html_returned_for_javascript(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_fetch(url: str, token: str) -> tuple[str, bytes]:
+    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
         if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
-            return "text/html", b'<script src="static/site-routes.123456789abc.js"></script>'
-        return "text/html", b"<!doctype html><html><body>404</body></html>"
+            return MODULE.PublicResponse(
+                200,
+                "text/html",
+                {"cache-control": "no-store", "cdn-cache-control": "no-store"},
+                b'<script src="static/site-routes.123456789abc.js"></script>',
+            )
+        return MODULE.PublicResponse(200, "text/html", {}, b"<!doctype html><html><body>404</body></html>")
 
     monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
-    with pytest.raises(RuntimeError, match="returned Content-Type 'text/html'.*instead of executable JavaScript"):
+    with pytest.raises(RuntimeError, match="returned HTTP 200 and Content-Type 'text/html'.*instead of executable JavaScript"):
         MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)
 
 
 def test_public_deployment_verifier_rejects_a_stale_asset_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_fetch(url: str, token: str) -> tuple[str, bytes]:
+    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
         if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
-            return "text/html", b'<script src="static/app.111111111111.js"></script>'
-        return "application/javascript", b"window.old = true;\n"
+            return MODULE.PublicResponse(
+                200,
+                "text/html",
+                {"cache-control": "no-store", "cdn-cache-control": "no-store"},
+                b'<script src="static/app.111111111111.js"></script>',
+            )
+        return MODULE.PublicResponse(
+            200,
+            "application/javascript",
+            {"cache-control": "public, max-age=31536000, immutable"},
+            b"window.old = true;\n",
+        )
 
     monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
     with pytest.raises(RuntimeError, match="not serving the release that was just built"):
@@ -283,3 +311,48 @@ def test_public_deployment_verifier_rejects_a_stale_asset_generation(
             attempts=1,
             delay_seconds=0,
         )
+
+
+def test_public_deployment_verifier_rejects_missing_html_cache_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
+        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
+            return MODULE.PublicResponse(
+                200,
+                "text/html",
+                {"cache-control": "public, max-age=14400"},
+                b'<script src="static/app.123456789abc.js"></script>',
+            )
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
+    with pytest.raises(RuntimeError, match="must return Cache-Control: no-store"):
+        MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)
+
+
+def test_public_deployment_verifier_requires_real_404_for_missing_static_asset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
+        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
+            return MODULE.PublicResponse(
+                200,
+                "text/html",
+                {"cache-control": "no-store", "cdn-cache-control": "no-store"},
+                b'<script src="static/app.123456789abc.js"></script>',
+            )
+        if url.endswith("/static/app.123456789abc.js"):
+            return MODULE.PublicResponse(
+                200,
+                "application/javascript",
+                {"cache-control": "public, max-age=31536000, immutable"},
+                b"window.ok = true;\n",
+            )
+        if "/static/__deploy_missing_" in url:
+            return MODULE.PublicResponse(200, "text/html", {}, b"<!doctype html><html></html>")
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
+    with pytest.raises(RuntimeError, match="must return a real 404"):
+        MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)

@@ -44,6 +44,7 @@ BIG_PAGES_VIEWER_FILE = "catalog-big-pages-viewer-netfree/catalog-big-pages-view
 DEPLOY_FILES = [
     "_headers",
     "_redirects",
+    "404.html",
     "styles.css",
     "app.js",
     "catalog-search.js",
