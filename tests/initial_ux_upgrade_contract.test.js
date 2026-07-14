@@ -32,7 +32,7 @@ assert.match(app, /data-open-catalog-preview="\$\{safeCatalogId\}"[^>]*>תצוג
 assert.doesNotMatch(app, /צפייה בקטלוג קטן|data-enter-catalog-card/);
 assert.match(app, /function isMobileShareEnvironment\([\s\S]*?navigator\.share[\s\S]*?userAgentData\?\.mobile/);
 assert.match(app, /function shareOrCopyCurrentLink\([\s\S]*?currentVisibleDocumentUrl\(\)[\s\S]*?navigator\.share\([\s\S]*?copyTextToClipboard\(link\)/);
-assert.match(app, /showActionToast\("הקישור המדויק לעמוד הועתק ללוח"\)/);
+assert.match(app, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
 assert.match(app, /VIEWER_ONBOARDING_STORAGE_KEY = "bargig\.viewer-onboarding\.v2"/);
 assert.match(app, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouchPoints[\s\S]*?ontouchstart/);
 assert.match(app, /function getViewerOnboardingSteps\([\s\S]*?סרגל העליון[\s\S]*?נעיצת הסרגל העליון[\s\S]*?סרגל העמודים הימני[\s\S]*?מעבר בין עמודים[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?הוספה למועדפים/);

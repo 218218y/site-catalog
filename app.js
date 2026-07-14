@@ -265,6 +265,8 @@ function finishSingleImageSwap(token) {
   if (token !== state.singleImageLoadToken) return;
   setViewerLoading(false);
   els.lightbox?.classList.remove("is-page-loading");
+  els.lightboxImageFrame?.classList.remove("is-preparing-swap");
+  syncImagePlaceholderState(els.lightboxImage);
   applyZoom();
 }
 
@@ -283,9 +285,15 @@ async function showSingleLightboxImage(catalog, page, src) {
   els.lightbox?.classList.add("is-page-loading");
 
   try {
-    await prepareCatalogImage(src, { priority: "high" });
+    const preparedImage = await prepareCatalogImage(src, { priority: "high" });
     if (token !== state.singleImageLoadToken || !state.lightboxOpen || state.catalog !== catalog || state.page !== page) return;
 
+    // The decoded image already gives us the exact next aspect ratio. Size the
+    // frame before swapping the visible source, so the viewer transitions to a
+    // known rectangle instead of collapsing and expanding after the load event.
+    applyLightboxFrameGeometry(preparedImage.naturalWidth, preparedImage.naturalHeight, { updateFitScale: false });
+    els.lightboxImageFrame?.classList.add("is-preparing-swap");
+    prepareImagePlaceholder(image);
     image.alt = `${catalog.title} - עמוד ${page}`;
     image.decoding = "async";
     image.fetchPriority = "high";
@@ -299,6 +307,8 @@ async function showSingleLightboxImage(catalog, page, src) {
   } catch (error) {
     if (token !== state.singleImageLoadToken) return;
     console.warn("Lightbox image preload failed", error);
+    primeLightboxFrameForCatalogPage(catalog, page);
+    prepareImagePlaceholder(image);
     image.alt = `${catalog.title} - עמוד ${page}`;
     setCatalogImageSource(image, src);
     finishSingleImageSwap(token);
@@ -437,6 +447,11 @@ const els = {
   lightboxMeta: $("lightboxMeta"),
   favoriteOpenCatalogButton: $("favoriteOpenCatalogButton"),
   lightboxProgress: $("lightboxProgress"),
+  viewerPageIndicator: $("viewerPageIndicator"),
+  viewerPageIndicatorLabel: $("viewerPageIndicatorLabel"),
+  viewerPageIndicatorCurrent: $("viewerPageIndicatorCurrent"),
+  viewerPageIndicatorTotal: $("viewerPageIndicatorTotal"),
+  viewerPageIndicatorDetail: $("viewerPageIndicatorDetail"),
   lightboxImage: $("lightboxImage"),
   lightboxImageFrame: $("lightboxImageFrame"),
   lightboxStage: $("lightboxStage"),
@@ -741,18 +756,32 @@ function flashActionButton(button, message) {
   if (!button || !message) return;
   const originalTooltip = getTooltipText(button);
   setTooltipText(button, message);
-  button.classList.add("reader-icon-button-done");
+  button.classList.remove("reader-icon-button-feedback");
+  void button.offsetWidth;
+  button.classList.add("reader-icon-button-done", "reader-icon-button-feedback");
   window.setTimeout(() => {
     setTooltipText(button, originalTooltip);
-    button.classList.remove("reader-icon-button-done");
-  }, 1500);
+    button.classList.remove("reader-icon-button-done", "reader-icon-button-feedback");
+  }, 1200);
 }
 
-function showActionToast(message, duration = 2600) {
+function actionToastTone(message) {
+  if (message === "נשמר" || message === "התמונה נשמרה") return "saved";
+  if (message === "הוסר" || message.includes("הוסרו")) return "removed";
+  if (message.includes("קישור")) return "link";
+  return "info";
+}
+
+function showActionToast(message, options = {}) {
   if (!els.siteActionToast || !message) return;
+  const normalizedOptions = typeof options === "number" ? { duration: options } : options;
+  const duration = Math.max(1000, Number(normalizedOptions.duration) || 2100);
+
   window.clearTimeout(state.actionToastTimer);
   els.siteActionToast.textContent = message;
-  els.siteActionToast.classList.remove("hidden");
+  els.siteActionToast.dataset.tone = normalizedOptions.tone || actionToastTone(message);
+  els.siteActionToast.classList.remove("hidden", "visible");
+  void els.siteActionToast.offsetWidth;
   window.requestAnimationFrame(() => els.siteActionToast.classList.add("visible"));
   state.actionToastTimer = window.setTimeout(() => {
     els.siteActionToast.classList.remove("visible");
@@ -760,8 +789,79 @@ function showActionToast(message, duration = 2600) {
       if (!els.siteActionToast.classList.contains("visible")) {
         els.siteActionToast.classList.add("hidden");
       }
-    }, 220);
-  }, Math.max(1200, duration));
+    }, 180);
+  }, duration);
+}
+
+const IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
+  ".catalog-image-frame",
+  ".lightbox-image-frame",
+  ".search-result-thumb-frame",
+  ".reader-search-thumb-frame",
+  ".favorite-image-frame",
+  ".lightbox-page-thumb-frame",
+  ".reader-page-frame",
+  ".reader-page-thumb-frame"
+].join(", ");
+
+function imagePlaceholderFrame(img) {
+  return img?.closest?.(IMAGE_PLACEHOLDER_FRAME_SELECTOR) || null;
+}
+
+function syncImagePlaceholderState(img) {
+  const frame = imagePlaceholderFrame(img);
+  if (!frame) return;
+
+  frame.classList.add("image-placeholder-frame");
+  const isReady = Boolean(img.complete && img.naturalWidth > 0);
+  const isError = Boolean(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
+  frame.classList.toggle("image-ready", isReady);
+  frame.classList.toggle("image-error", isError);
+  frame.classList.toggle("image-loading", !isReady && !isError);
+}
+
+function prepareImagePlaceholder(img) {
+  const frame = imagePlaceholderFrame(img);
+  if (!frame) return;
+  frame.classList.add("image-placeholder-frame");
+  if (img.complete) {
+    syncImagePlaceholderState(img);
+    return;
+  }
+  frame.classList.remove("image-ready", "image-error");
+  frame.classList.add("image-loading");
+}
+
+function initImagePlaceholderObserver() {
+  document.querySelectorAll(`${IMAGE_PLACEHOLDER_FRAME_SELECTOR} img`).forEach(prepareImagePlaceholder);
+
+  document.addEventListener("load", (event) => {
+    if (event.target instanceof HTMLImageElement) syncImagePlaceholderState(event.target);
+  }, true);
+  document.addEventListener("error", (event) => {
+    if (event.target instanceof HTMLImageElement) syncImagePlaceholderState(event.target);
+  }, true);
+
+  if (!("MutationObserver" in window) || !document.body) return;
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === "attributes" && mutation.target instanceof HTMLImageElement) {
+        prepareImagePlaceholder(mutation.target);
+        return;
+      }
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof Element)) return;
+        if (node.matches?.("img")) prepareImagePlaceholder(node);
+        node.querySelectorAll?.("img").forEach(prepareImagePlaceholder);
+      });
+    });
+  });
+  observer.observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["src", "data-src"]
+  });
 }
 
 function loadDeferredImage(img) {
@@ -810,7 +910,8 @@ async function downloadCatalogPageSnapshot(catalog, page, button) {
     const blob = await window.CatalogSnapshot.buildSnapshotBlob(src);
     const extension = window.CatalogSnapshot.extension || "jpg";
     saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.${extension}`);
-    flashActionButton(button, "צילום המסך נשמר");
+    flashActionButton(button, "נשמר");
+    showActionToast("התמונה נשמרה", { tone: "saved" });
   } catch (error) {
     console.error("[CatalogSnapshot] Failed to export catalog page", {
       catalogId: catalog.id,
@@ -1066,14 +1167,17 @@ function toggleCurrentPageFavorite() {
     syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
   }
   if (state.lightboxOpen) {
-    flashActionButton(els.viewerFavoriteButton, added ? "נוסף למועדפים" : "הוסר מהמועדפים");
+    const feedback = added ? "נשמר" : "הוסר";
+    flashActionButton(els.viewerFavoriteButton, feedback);
+    showActionToast(feedback, { tone: added ? "saved" : "removed" });
   }
 }
 
 function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
-  favoritesStore.remove({ catalogId, page });
+  const removed = favoritesStore.remove({ catalogId, page });
   syncFavoritesUi({ renderPanel: true });
+  if (removed !== false) showActionToast("הוסר", { tone: "removed" });
 }
 
 function clearAllFavorites() {
@@ -1081,6 +1185,7 @@ function clearAllFavorites() {
   if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
   favoritesStore.clear();
   syncFavoritesUi({ renderPanel: true });
+  showActionToast("כל המועדפים הוסרו", { tone: "removed" });
 }
 
 function handleFavoritesGridClick(event) {
@@ -1181,7 +1286,7 @@ async function shareOrCopyCurrentLink(button) {
   try {
     await copyTextToClipboard(link);
     flashActionButton(button, "הקישור הועתק");
-    showActionToast("הקישור המדויק לעמוד הועתק ללוח");
+    showActionToast("הקישור הועתק", { tone: "link" });
   } catch (_error) {
     showActionToast("לא ניתן להעתיק אוטומטית — אפשר להעתיק מהחלון שנפתח");
     window.prompt("אפשר להעתיק את הקישור מכאן:", link);
@@ -2677,6 +2782,29 @@ function updateLightboxSearchResultsLayout(count = 0) {
   els.lightboxSearchResults.dataset.resultCount = String(resultCount);
 }
 
+function searchEmptyStateMarkup(query, message, options = {}) {
+  const reader = options.reader === true;
+  const wrapperClass = reader
+    ? "reader-search-empty lightbox-search-empty empty-state empty-state-dark"
+    : "search-empty empty-state";
+  const actionAttribute = reader ? "data-lightbox-empty-search-clear" : "data-empty-search-clear";
+  return `
+    <article class="${wrapperClass}">
+      <span class="empty-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <circle cx="10.5" cy="10.5" r="5.8"></circle>
+          <path d="m15 15 4.2 4.2M8.2 8.2l4.6 4.6M12.8 8.2l-4.6 4.6"></path>
+        </svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>לא נמצאו תוצאות עבור “${escapeHtml(query)}”</strong>
+        <p>${escapeHtml(message)}</p>
+      </div>
+      <button class="button soft empty-state-action" type="button" ${actionAttribute}>נקה וחפש מחדש</button>
+    </article>
+  `;
+}
+
 function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!els.lightboxSearchResults || !els.lightboxSearchStatus) return;
@@ -2709,12 +2837,17 @@ function renderLightboxSearchResults(query) {
     els.lightboxSearchStatus.textContent = scope === "all"
       ? "לא נמצאו תוצאות בכל הקטלוגים."
       : "לא נמצאו תוצאות בקטלוג הפתוח.";
-    els.lightboxSearchResults.innerHTML = `
-      <article class="reader-search-empty lightbox-search-empty">
-        <strong>לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”</strong>
-        <span>נסה חלק קצר יותר של הדגם או מילה אחרת.</span>
-      </article>
-    `;
+    els.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
+      rawQuery,
+      "נסה חלק קצר יותר של הדגם או מילה אחרת.",
+      { reader: true }
+    );
+    els.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      els.lightboxSearchInput.value = "";
+      renderLightboxSearchResults("");
+      els.lightboxSearchInput.focus();
+    });
     return;
   }
 
@@ -2862,12 +2995,17 @@ function renderSearchResults(query) {
   const results = getGlobalSearchResults(rawQuery, 72);
   if (!results.length) {
     els.globalSearchResults.classList.remove("hidden");
-    els.globalSearchResults.innerHTML = `
-      <article class="search-empty">
-        <strong>לא נמצאו תוצאות עבור “${escapeHtml(rawQuery)}”</strong>
-        <p>${category ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים." : "נסה מספר דגם קצר יותר, או חלק מהמילה"}</p>
-      </article>
-    `;
+    els.globalSearchResults.innerHTML = searchEmptyStateMarkup(
+      rawQuery,
+      category
+        ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים."
+        : "נסה מספר דגם קצר יותר או חלק מהמילה."
+    );
+    els.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
+      els.globalSearchInput.value = "";
+      renderSearchResults("");
+      els.globalSearchInput.focus();
+    });
     return;
   }
 
@@ -3171,23 +3309,51 @@ function applyPendingSingleImageFitOrigin() {
   state.singleImageFitOriginPending = false;
 }
 
-function applySingleZoom() {
-  const image = els.lightboxImage;
-  const frame = els.lightboxImageFrame;
+function singleImageFitLayout(naturalWidth, naturalHeight) {
   const stage = els.stageCanvas;
-  if (!image?.naturalWidth || !image?.naturalHeight || !frame || !stage) return;
+  const width = Number(naturalWidth);
+  const height = Number(naturalHeight);
+  if (!stage || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
 
   const availableWidth = Math.max(260, stage.clientWidth - 18);
   const availableHeight = Math.max(260, stage.clientHeight - 18);
-  const widthScale = availableWidth / image.naturalWidth;
-  const heightScale = availableHeight / image.naturalHeight;
-  state.fitScale = state.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
+  const widthScale = availableWidth / width;
+  const heightScale = availableHeight / height;
+  const fitScale = state.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
+  return {
+    fitScale,
+    width: Math.max(220, Math.round(width * fitScale)),
+    height: Math.max(160, Math.round(height * fitScale))
+  };
+}
 
-  const fitWidth = Math.max(220, Math.round(image.naturalWidth * state.fitScale));
-  frame.style.width = `${fitWidth}px`;
-  frame.style.height = "auto";
+function applyLightboxFrameGeometry(naturalWidth, naturalHeight, options = {}) {
+  const frame = els.lightboxImageFrame;
+  const image = els.lightboxImage;
+  const layout = singleImageFitLayout(naturalWidth, naturalHeight);
+  if (!frame || !image || !layout) return null;
+
+  if (options.updateFitScale !== false) state.fitScale = layout.fitScale;
+  frame.style.width = `${layout.width}px`;
+  frame.style.height = `${layout.height}px`;
+  frame.style.aspectRatio = `${naturalWidth} / ${naturalHeight}`;
   image.style.width = "100%";
-  image.style.height = "auto";
+  image.style.height = "100%";
+  return layout;
+}
+
+function primeLightboxFrameForCatalogPage(catalog, page) {
+  const size = pageSize(catalog, page);
+  if (!size) return false;
+  return Boolean(applyLightboxFrameGeometry(size.width, size.height, { updateFitScale: false }));
+}
+
+function applySingleZoom() {
+  const image = els.lightboxImage;
+  const frame = els.lightboxImageFrame;
+  if (!image?.naturalWidth || !image?.naturalHeight || !frame) return;
+
+  applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight);
 
   if (state.singleImageFitOriginPending) {
     applyPendingSingleImageFitOrigin();
@@ -3903,18 +4069,34 @@ function handlePageRailPointerOutside(event) {
 
 
 
-function syncLightboxProgress(current, total, title) {
+function syncLightboxProgress(current, total, title, options = {}) {
   if (!els.lightboxProgress) return;
   const totalItems = Math.max(1, Number.parseInt(total, 10) || 1);
   const currentItem = clampValue(Number.parseInt(current, 10) || 1, 1, totalItems);
   const ratio = totalItems <= 1 ? 1 : currentItem / totalItems;
   const clampedRatio = Math.min(1, Math.max(0, ratio));
+  const label = String(options.label || "עמוד");
+  const detail = String(options.detail || "").trim();
+  const accessibleTitle = title || `${label} ${currentItem} מתוך ${totalItems}`;
 
   els.lightboxProgress.style.setProperty("--catalog-progress-ratio", String(clampedRatio));
+  els.lightboxProgress.style.setProperty("--catalog-progress-percent", `${clampedRatio * 100}%`);
   els.lightboxProgress.setAttribute("aria-valuemin", "1");
   els.lightboxProgress.setAttribute("aria-valuemax", String(totalItems));
   els.lightboxProgress.setAttribute("aria-valuenow", String(currentItem));
-  els.lightboxProgress.setAttribute("title", title || `${currentItem} מתוך ${totalItems}`);
+  els.lightboxProgress.setAttribute("aria-valuetext", accessibleTitle);
+  els.lightboxProgress.setAttribute("title", accessibleTitle);
+
+  if (els.viewerPageIndicator) {
+    els.viewerPageIndicatorLabel.textContent = label;
+    els.viewerPageIndicatorCurrent.textContent = String(currentItem);
+    els.viewerPageIndicatorTotal.textContent = String(totalItems);
+    if (els.viewerPageIndicatorDetail) {
+      els.viewerPageIndicatorDetail.textContent = detail;
+      els.viewerPageIndicatorDetail.classList.toggle("hidden", !detail);
+    }
+    els.viewerPageIndicator.setAttribute("title", accessibleTitle);
+  }
 }
 
 function updateLightbox(options = {}) {
@@ -3942,12 +4124,17 @@ function updateLightbox(options = {}) {
     const current = state.favoritesViewerIndex + 1;
     const total = favoriteEntries.length;
     els.lightboxMeta.textContent = `מועדף ${current} מתוך ${total} · עמוד ${state.page}`;
-    syncLightboxProgress(current, total, `מועדף ${current} מתוך ${total}`);
+    syncLightboxProgress(current, total, `מועדף ${current} מתוך ${total} · עמוד ${state.page}`, {
+      label: "מועדף",
+      detail: `עמוד ${state.page}`
+    });
     els.prevPageBtn.disabled = state.favoritesViewerIndex <= 0;
     els.nextPageBtn.disabled = state.favoritesViewerIndex >= total - 1;
   } else {
     els.lightboxMeta.textContent = `עמוד ${state.page} מתוך ${catalog.pages}`;
-    syncLightboxProgress(state.page, catalog.pages, `עמוד ${state.page} מתוך ${catalog.pages}`);
+    syncLightboxProgress(state.page, catalog.pages, `עמוד ${state.page} מתוך ${catalog.pages}`, {
+      label: "עמוד"
+    });
     els.prevPageBtn.disabled = state.page <= 1;
     els.nextPageBtn.disabled = state.page >= catalog.pages;
   }
@@ -4589,9 +4776,11 @@ function openLightbox(page = 1, options = {}) {
   state.pointers.clear();
   hideViewerZoomIndicator();
   state.lightboxOpen = true;
+  primeLightboxFrameForCatalogPage(state.catalog, state.page);
   const initialSrc = pageSrc(state.catalog, state.page);
   if (els.lightboxImage?.getAttribute("src") !== initialSrc) {
     els.lightboxImage?.removeAttribute("src");
+    prepareImagePlaceholder(els.lightboxImage);
     els.lightboxImageFrame?.classList.remove("page-swap-enter");
   }
   els.lightbox.classList.remove("hidden");
@@ -5638,6 +5827,7 @@ function initDocumentRoute(options = {}) {
 function init() {
   initRevealObserver();
   initCategoryNavFit();
+  initImagePlaceholderObserver();
   attachEvents();
   syncLightboxMobileSearchUi();
   syncFavoritesUi({ renderPanel: isAppPage("favorites") });

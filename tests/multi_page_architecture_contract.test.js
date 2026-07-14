@@ -80,11 +80,11 @@ assert.match(css, /body:not\(\[data-page="viewer"\]\) > \.site-footer\s*\{[\s\S]
 assert.match(css, /body\[data-page="favorites"\] > \.favorites-panel\.favorites-standalone-page\s*\{[\s\S]*?flex:\s*1 0 auto;/);
 
 // Only the fullscreen image swap keeps an animation contract.
-assert.match(css, /--image-swap-duration:\s*220ms;/);
-assert.match(css, /--image-swap-easing:\s*cubic-bezier\(\.2, \.72, \.22, 1\);/);
-assert.match(css, /--image-swap-start-opacity:\s*\.42;/);
+assert.match(css, /--image-swap-duration:\s*190ms;/);
+assert.match(css, /--image-swap-easing:\s*var\(--motion-easing\);/);
+assert.match(css, /--image-swap-start-opacity:\s*\.58;/);
 assert.match(css, /\.lightbox-image-frame\.page-swap-enter\s*\{[\s\S]*?var\(--image-swap-duration\)[\s\S]*?var\(--image-swap-easing\)/);
 assert.match(css, /@keyframes lightbox-page-swap\s*\{[\s\S]*?opacity:\s*var\(--image-swap-start-opacity\);/);
-assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.lightbox-image-frame\.page-swap-enter[\s\S]*?animation:\s*none !important;/);
+assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation-duration:\s*\.01ms !important;/);
 
 console.log('multi_page_architecture_contract.test.js: PASS');

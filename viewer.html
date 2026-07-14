@@ -172,9 +172,17 @@
         </div>
       </header>
       <div class="favorites-grid" id="favoritesGrid"></div>
-      <div class="favorites-empty hidden" id="favoritesEmpty">
-        <strong>אין כרגע עמודים שמורים</strong>
-        <p>אפשר לסמן עמודים בכוכב מתוך תצוגת הקטלוג.</p>
+      <div class="favorites-empty empty-state hidden" id="favoritesEmpty">
+        <span class="empty-state-icon favorites-empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="m12 3.4 2.55 5.17 5.71.83-4.13 4.03.98 5.69L12 16.43l-5.11 2.69.98-5.69L3.74 9.4l5.71-.83L12 3.4Z"></path>
+          </svg>
+        </span>
+        <div class="empty-state-copy">
+          <strong>אין כרגע עמודים שמורים</strong>
+          <p>לחיצה על הכוכב בצופה תשמור כאן עמודים שתרצה לחזור אליהם.</p>
+        </div>
+        <a class="button primary empty-state-action" href="index.html">לצפייה בקטלוגים</a>
       </div>
     </section>
   </div>
@@ -289,6 +297,14 @@
 
       <div class="catalog-progress lightbox-progress" id="lightboxProgress" role="progressbar" aria-label="התקדמות בקטלוג" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1">
         <span class="catalog-progress-value" id="lightboxProgressValue"></span>
+      </div>
+
+      <div class="viewer-page-indicator" id="viewerPageIndicator" aria-hidden="true">
+        <span class="viewer-page-indicator-label" id="viewerPageIndicatorLabel">עמוד</span>
+        <strong id="viewerPageIndicatorCurrent">1</strong>
+        <span class="viewer-page-indicator-separator">מתוך</span>
+        <span id="viewerPageIndicatorTotal">1</span>
+        <span class="viewer-page-indicator-detail hidden" id="viewerPageIndicatorDetail"></span>
       </div>
 
       <div class="lightbox-stage" id="lightboxStage">
