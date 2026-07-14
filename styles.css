@@ -749,13 +749,13 @@ img[data-brand-logo="1"] {
   position: absolute;
   z-index: 0;
   inset: 5.68% 2.42% 5.36%;
-  border: 1px solid rgba(117, 88, 68, 0.22);
+  border: 1px solid rgba(110, 86, 70, 0.15);
   border-radius: 3.9% / 10.3%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,250,246,0.9));
+  background: linear-gradient(180deg, rgba(255, 254, 252, 0.99), rgba(252, 247, 242, 0.97));
   box-shadow:
-    0 9px 22px rgba(67, 48, 34, 0.18),
-    0 2px 5px rgba(67, 48, 34, 0.12),
-    inset 0 1px 0 rgba(255,255,255,0.96);
+    0 8px 20px rgba(67, 48, 34, 0.13),
+    0 1px 3px rgba(67, 48, 34, 0.08),
+    inset 0 1px 0 rgba(255,255,255,0.98);
   pointer-events: none;
 }
 .brand-mark {
@@ -2360,6 +2360,16 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   backdrop-filter: blur(10px);
 }
 
+/* The SVG panel is intentionally translucent for watermarks and exported images.
+   A warm underlay here prevents it from absorbing the viewer toolbar's dark
+   background while keeping the artwork itself unchanged and crisp. */
+.reader-brand-lockup .reader-logo {
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 254, 252, 0.99), rgba(248, 239, 232, 0.97));
+  box-shadow:
+    0 5px 15px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
 .lightbox-brand-lockup .reader-logo {
   width: clamp(90px, 7.5vw, 116px);
 }
