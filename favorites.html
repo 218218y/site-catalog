@@ -32,9 +32,9 @@
           <small>גלריית קטלוגים</small>
         </span>
       </a>
-      <button class="brand-copy-link" id="headerCopyLink" type="button" aria-label="העתקת קישור לעמוד הנוכחי" title="העתקת קישור">
+      <button class="brand-copy-link" id="headerCopyLink" type="button" aria-label="שיתוף העמוד הנוכחי" title="שיתוף">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M10.6 13.4a1 1 0 0 1 0-1.4l2.8-2.8a3.2 3.2 0 0 1 4.5 4.5l-2.1 2.1a3.2 3.2 0 0 1-4.5 0 1 1 0 1 1 1.4-1.4 1.2 1.2 0 0 0 1.7 0l2.1-2.1a1.2 1.2 0 0 0-1.7-1.7L12 13.4a1 1 0 0 1-1.4 0Zm2.8-2.8a1 1 0 0 1 0 1.4l-2.8 2.8a1.2 1.2 0 0 0 1.7 1.7 1 1 0 1 1 1.4 1.4 3.2 3.2 0 0 1-4.5-4.5l2.8-2.8a1 1 0 0 1 1.4 0Zm-5.2 7.2a3.2 3.2 0 0 1 0-4.5l2.1-2.1a3.2 3.2 0 0 1 4.5 0 1 1 0 1 1-1.4 1.4 1.2 1.2 0 0 0-1.7 0l-2.1 2.1a1.2 1.2 0 0 0 0 1.7 1 1 0 0 1-1.4 1.4Z"/>
+          <path d="M18 8.2a3.1 3.1 0 1 0-2.94-4.08L8.87 7.56a3.1 3.1 0 1 0 0 4.88l6.19 3.44A3.1 3.1 0 1 0 16 14.2l-6.2-3.45a3.2 3.2 0 0 0 0-1.5L16 5.8A3.1 3.1 0 0 0 18 8.2Z"/>
         </svg>
       </button>
       <button class="brand-copy-link brand-fullscreen-link" id="headerFullscreenToggle" type="button" aria-label="כניסה למסך מלא" title="מסך מלא" aria-pressed="false" data-fullscreen-active="false">
@@ -196,9 +196,9 @@
                   <path d="M7.6 6.2 8.9 4.5h6.2l1.3 1.7H19a2 2 0 0 1 2 2v8.9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2h2.6Zm4.4 10a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6Zm0-1.8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/>
                 </svg>
               </button>
-              <button class="reader-button reader-icon-button" id="lightboxCopyLink" type="button" aria-label="העתקת קישור לעמוד הנוכחי" title="העתקת קישור">
+              <button class="reader-button reader-icon-button" id="lightboxCopyLink" type="button" aria-label="שיתוף העמוד הנוכחי" title="שיתוף">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M10.6 13.4a1 1 0 0 1 0-1.4l2.8-2.8a3.2 3.2 0 0 1 4.5 4.5l-2.1 2.1a3.2 3.2 0 0 1-4.5 0 1 1 0 1 1 1.4-1.4 1.2 1.2 0 0 0 1.7 0l2.1-2.1a1.2 1.2 0 0 0-1.7-1.7L12 13.4a1 1 0 0 1-1.4 0Zm2.8-2.8a1 1 0 0 1 0 1.4l-2.8 2.8a1.2 1.2 0 0 0 1.7 1.7 1 1 0 1 1 1.4 1.4 3.2 3.2 0 0 1-4.5-4.5l2.8-2.8a1 1 0 0 1 1.4 0Zm-5.2 7.2a3.2 3.2 0 0 1 0-4.5l2.1-2.1a3.2 3.2 0 0 1 4.5 0 1 1 0 1 1-1.4 1.4 1.2 1.2 0 0 0-1.7 0l-2.1 2.1a1.2 1.2 0 0 0 0 1.7 1 1 0 0 1-1.4 1.4Z"/>
+                  <path d="M18 8.2a3.1 3.1 0 1 0-2.94-4.08L8.87 7.56a3.1 3.1 0 1 0 0 4.88l6.19 3.44A3.1 3.1 0 1 0 16 14.2l-6.2-3.45a3.2 3.2 0 0 0 0-1.5L16 5.8A3.1 3.1 0 0 0 18 8.2Z"/>
                 </svg>
               </button>
               <button class="reader-button reader-icon-button top-ui-pin-button" id="lightboxPinTopBar" type="button" aria-label="נעיצת הסרגל העליון" aria-pressed="false" title="נעיצת הסרגל העליון">
@@ -290,7 +290,7 @@
       </div>
 
       <div class="lightbox-stage" id="lightboxStage">
-        <div class="stage-canvas" id="stageCanvas">
+        <div class="stage-canvas" id="stageCanvas" tabindex="-1">
           <div class="loading-pill hidden" id="viewerLoading">טוען עמוד...</div>
           <div class="lightbox-image-frame" id="lightboxImageFrame">
             <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" decoding="async" />
@@ -352,8 +352,58 @@
         <img id="lightboxFloatingPreviewImage" alt="" loading="lazy" />
         <span id="lightboxFloatingPreviewPage"></span>
       </div>
+
+      <div class="viewer-onboarding hidden" id="viewerOnboarding" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="viewerOnboardingTitle" aria-describedby="viewerOnboardingDescription">
+        <div class="viewer-onboarding-backdrop" id="viewerOnboardingBackdrop"></div>
+        <section class="viewer-onboarding-card" id="viewerOnboardingCard" tabindex="-1">
+          <div class="viewer-onboarding-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M7 4.8h8.8A2.2 2.2 0 0 1 18 7v10a2.2 2.2 0 0 1-2.2 2.2H7A2.2 2.2 0 0 1 4.8 17V7A2.2 2.2 0 0 1 7 4.8Z" />
+              <path d="M9.2 8.2h4.4M9.2 11.8h5.6M9.2 15.4h3.2" />
+            </svg>
+          </div>
+          <div class="viewer-onboarding-heading">
+            <span>טיפ קטן לפני שמתחילים</span>
+            <h2 id="viewerOnboardingTitle">כך נוח לצפות בקטלוג</h2>
+            <p id="viewerOnboardingDescription">שלוש פעולות קצרות שיעזרו לכם להתמצא במהירות.</p>
+          </div>
+          <div class="viewer-onboarding-list">
+            <div class="viewer-onboarding-item">
+              <span class="viewer-onboarding-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false"><path d="m9.2 6.4-5.6 5.6 5.6 5.6M14.8 6.4l5.6 5.6-5.6 5.6" /></svg>
+              </span>
+              <div>
+                <strong>מעבר בין עמודים</strong>
+                <p><span class="viewer-onboarding-touch-copy">החליקו ימינה או שמאלה, או השתמשו בחצים.</span><span class="viewer-onboarding-desktop-copy">השתמשו בחצים בצדי המסך או במקשי החצים.</span></p>
+              </div>
+            </div>
+            <div class="viewer-onboarding-item">
+              <span class="viewer-onboarding-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M8.2 8.2 4.8 4.8M4.8 8.4V4.8h3.6M15.8 8.2l3.4-3.4M15.6 4.8h3.6v3.6M8.2 15.8l-3.4 3.4M8.4 19.2H4.8v-3.6M15.8 15.8l3.4 3.4M19.2 15.6v3.6h-3.6" /></svg>
+              </span>
+              <div>
+                <strong>הגדלה ותנועה</strong>
+                <p><span class="viewer-onboarding-touch-copy">צבטו או הקישו פעמיים להגדלה; לאחר מכן גררו את התמונה.</span><span class="viewer-onboarding-desktop-copy">לחצו פעמיים להגדלה; לאחר מכן גררו את התמונה.</span></p>
+              </div>
+            </div>
+            <div class="viewer-onboarding-item">
+              <span class="viewer-onboarding-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false"><path d="m12 4 2.2 4.45 4.9.72-3.55 3.46.84 4.88L12 15.2l-4.39 2.31.84-4.88L4.9 9.17l4.9-.72L12 4Z" /><path d="M18.3 4.8v5.4M15.6 7.5h5.4" /></svg>
+              </span>
+              <div>
+                <strong>שמירה ושיתוף</strong>
+                <p>הכוכב שומר עמוד למועדפים, וכפתור השיתוף שולח קישור מדויק לעמוד הנוכחי.</p>
+              </div>
+            </div>
+          </div>
+          <button class="button primary viewer-onboarding-confirm" id="viewerOnboardingConfirm" type="button">הבנתי, אפשר להתחיל</button>
+          <small>ההסבר הזה מוצג בכניסה הראשונה בלבד.</small>
+        </section>
+      </div>
     </div>
   </div>
+
+  <div class="site-action-toast hidden" id="siteActionToast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <footer class="site-footer">
     <div class="site-footer-row">

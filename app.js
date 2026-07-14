@@ -163,6 +163,7 @@ const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
 const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
 const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
+const VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v1";
 
 function getFavoritesStorage() {
   try {
@@ -369,7 +370,10 @@ const state = {
   searchPreviewPointerClientX: null,
   searchPreviewPointerClientY: null,
   favoritesOpen: false,
-  favoritesReturnFocus: null
+  favoritesReturnFocus: null,
+  viewerOnboardingOpen: false,
+  viewerOnboardingShownThisSession: false,
+  actionToastTimer: 0
 };
 
 const els = {
@@ -459,7 +463,12 @@ const els = {
   lightboxCatalogMenu: $("lightboxCatalogMenu"),
   lightboxFloatingPreview: $("lightboxFloatingPreview"),
   lightboxFloatingPreviewImage: $("lightboxFloatingPreviewImage"),
-  lightboxFloatingPreviewPage: $("lightboxFloatingPreviewPage")
+  lightboxFloatingPreviewPage: $("lightboxFloatingPreviewPage"),
+  viewerOnboarding: $("viewerOnboarding"),
+  viewerOnboardingBackdrop: $("viewerOnboardingBackdrop"),
+  viewerOnboardingCard: $("viewerOnboardingCard"),
+  viewerOnboardingConfirm: $("viewerOnboardingConfirm"),
+  siteActionToast: $("siteActionToast")
 };
 
 function pad(num) {
@@ -720,6 +729,22 @@ function flashActionButton(button, message) {
     setTooltipText(button, originalTooltip);
     button.classList.remove("reader-icon-button-done");
   }, 1500);
+}
+
+function showActionToast(message, duration = 2600) {
+  if (!els.siteActionToast || !message) return;
+  window.clearTimeout(state.actionToastTimer);
+  els.siteActionToast.textContent = message;
+  els.siteActionToast.classList.remove("hidden");
+  window.requestAnimationFrame(() => els.siteActionToast.classList.add("visible"));
+  state.actionToastTimer = window.setTimeout(() => {
+    els.siteActionToast.classList.remove("visible");
+    window.setTimeout(() => {
+      if (!els.siteActionToast.classList.contains("visible")) {
+        els.siteActionToast.classList.add("hidden");
+      }
+    }, 220);
+  }, Math.max(1200, duration));
 }
 
 function loadDeferredImage(img) {
@@ -1105,24 +1130,53 @@ function downloadCurrentLightboxImage() {
   downloadCatalogPageSnapshot(state.catalog, state.page, els.lightboxScreenshot);
 }
 
-async function copyCurrentMainHeaderLink() {
+function isMobileShareEnvironment() {
+  if (typeof navigator.share !== "function") return false;
+  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+  const iPadDesktopMode = navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1;
+  const userAgentDataMobile = navigator.userAgentData?.mobile === true;
+  return Boolean(mobileUserAgent || iPadDesktopMode || userAgentDataMobile);
+}
+
+function currentShareLabel() {
+  if (state.catalog && isAppPage("viewer")) return `${state.catalog.title} · עמוד ${state.page}`;
+  if (state.catalog && isAppPage("catalog")) return state.catalog.title;
+  if (isAppPage("favorites")) return "המועדפים שלי · רהיטי ברגיג";
+  return "קטלוגי רהיטי ברגיג";
+}
+
+async function shareOrCopyCurrentLink(button) {
   const link = currentVisibleDocumentUrl();
+
+  if (isMobileShareEnvironment()) {
+    try {
+      await navigator.share({
+        title: document.title,
+        text: currentShareLabel(),
+        url: link
+      });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+
   try {
     await copyTextToClipboard(link);
-    flashActionButton(els.headerCopyLink, "הקישור הועתק");
+    flashActionButton(button, "הקישור הועתק");
+    showActionToast("הקישור המדויק לעמוד הועתק ללוח");
   } catch (_error) {
+    showActionToast("לא ניתן להעתיק אוטומטית — אפשר להעתיק מהחלון שנפתח");
     window.prompt("אפשר להעתיק את הקישור מכאן:", link);
   }
 }
 
-async function copyCurrentLightboxLink() {
-  const link = currentVisibleDocumentUrl();
-  try {
-    await copyTextToClipboard(link);
-    flashActionButton(els.lightboxCopyLink, "הקישור הועתק");
-  } catch (_error) {
-    window.prompt("אפשר להעתיק את הקישור מכאן:", link);
-  }
+async function shareCurrentMainHeaderLink() {
+  await shareOrCopyCurrentLink(els.headerCopyLink);
+}
+
+async function shareCurrentLightboxLink() {
+  await shareOrCopyCurrentLink(els.lightboxCopyLink);
 }
 
 
@@ -1721,16 +1775,17 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   const safeTitle = escapeHtml(catalog.title);
   const safeHeadingLevel = headingLevel === 4 ? 4 : 3;
   return `
-    <article class="catalog-card catalog-card-clickable" role="link" tabindex="0" data-enter-catalog-card="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
-      <div class="catalog-cover-frame catalog-image-frame">
+    <article class="catalog-card">
+      <button class="catalog-cover-frame catalog-image-frame catalog-cover-button" type="button" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
         <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
-        <div class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</div>
-      </div>
+        <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
+      </button>
       <div class="catalog-body">
         <h${safeHeadingLevel}>${safeTitle}</h${safeHeadingLevel}>
         <p>${escapeHtml(catalog.description || "")}</p>
-        <div class="catalog-actions">
-          <button class="button soft catalog-preview-button" type="button" data-open-catalog="${safeCatalogId}">צפייה בקטלוג קטן</button>
+        <div class="catalog-actions" role="group" aria-label="פעולות עבור ${safeTitle}">
+          <button class="button primary catalog-open-button" type="button" data-open-catalog-entry="${safeCatalogId}">פתיחת הקטלוג</button>
+          <button class="button soft catalog-preview-button" type="button" data-open-catalog-preview="${safeCatalogId}">תצוגה מקדימה</button>
         </div>
       </div>
     </article>
@@ -1916,23 +1971,13 @@ function openCatalogEntry(catalogId, page = 1) {
 function bindCatalogCardEvents() {
   if (!els.catalogGrid) return;
 
-  els.catalogGrid.querySelectorAll("[data-enter-catalog-card]").forEach((card) => {
-    card.addEventListener("click", (event) => {
-      if (event.target.closest?.("button, a, input, select, textarea")) return;
-      openCatalogEntry(card.dataset.enterCatalogCard);
-    });
-
-    card.addEventListener("keydown", (event) => {
-      if (event.target !== card || (event.key !== "Enter" && event.key !== " ")) return;
-      event.preventDefault();
-      openCatalogEntry(card.dataset.enterCatalogCard);
-    });
+  els.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((button) => {
+    button.addEventListener("click", () => openCatalogEntry(button.dataset.openCatalogEntry));
   });
 
-  els.catalogGrid.querySelectorAll("[data-open-catalog]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openCatalog(button.dataset.openCatalog, { scroll: true });
+  els.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openCatalog(button.dataset.openCatalogPreview, { scroll: true });
     });
   });
 }
@@ -3959,6 +4004,91 @@ function updateLightbox(options = {}) {
   updateHash();
 }
 
+function getViewerOnboardingStorage() {
+  try {
+    return window.localStorage;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function viewerOnboardingWasSeen() {
+  try {
+    return getViewerOnboardingStorage()?.getItem(VIEWER_ONBOARDING_STORAGE_KEY) === "1";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function markViewerOnboardingSeen() {
+  state.viewerOnboardingShownThisSession = true;
+  try {
+    getViewerOnboardingStorage()?.setItem(VIEWER_ONBOARDING_STORAGE_KEY, "1");
+  } catch (_error) {
+    // The in-memory flag still prevents repeat display during this visit.
+  }
+}
+
+function getViewerOnboardingFocusableElements() {
+  if (!els.viewerOnboarding) return [];
+  return Array.from(els.viewerOnboarding.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.closest?.(".hidden"));
+}
+
+function closeViewerOnboarding(options = {}) {
+  if (!state.viewerOnboardingOpen) return;
+  const { restoreFocus = true } = options;
+  state.viewerOnboardingOpen = false;
+  els.viewerOnboarding?.classList.remove("visible");
+  els.viewerOnboarding?.setAttribute("aria-hidden", "true");
+  window.setTimeout(() => {
+    if (!state.viewerOnboardingOpen) els.viewerOnboarding?.classList.add("hidden");
+  }, 220);
+  if (restoreFocus) els.stageCanvas?.focus?.({ preventScroll: true });
+}
+
+function showViewerOnboardingIfNeeded() {
+  if (!state.lightboxOpen || !els.viewerOnboarding || state.viewerOnboardingOpen) return;
+  if (state.viewerOnboardingShownThisSession || viewerOnboardingWasSeen()) return;
+
+  markViewerOnboardingSeen();
+  state.viewerOnboardingOpen = true;
+  els.viewerOnboarding.classList.remove("hidden");
+  els.viewerOnboarding.setAttribute("aria-hidden", "false");
+  window.requestAnimationFrame(() => {
+    if (!state.viewerOnboardingOpen) return;
+    els.viewerOnboarding.classList.add("visible");
+    els.viewerOnboardingConfirm?.focus?.({ preventScroll: true });
+  });
+}
+
+function handleViewerOnboardingKeydown(event) {
+  if (!state.viewerOnboardingOpen) return false;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeViewerOnboarding();
+    return true;
+  }
+  if (event.key !== "Tab") return true;
+
+  const focusable = getViewerOnboardingFocusableElements();
+  if (!focusable.length) {
+    event.preventDefault();
+    return true;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+  return true;
+}
+
 function syncDocumentLock() {
   const modalFavoritesOpen = state.favoritesOpen && !isAppPage("favorites");
   document.body.classList.toggle("no-scroll", state.lightboxOpen || modalFavoritesOpen);
@@ -4010,10 +4140,12 @@ function openLightbox(page = 1, options = {}) {
   showTopUiTemporarily(1700);
   updateLightbox();
   scheduleCatalogScrollTopButtonUpdate();
+  window.requestAnimationFrame(showViewerOnboardingIfNeeded);
 
 }
 
 function hideLightboxUi() {
+  closeViewerOnboarding({ restoreFocus: false });
   state.lightboxOpen = false;
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
@@ -4755,7 +4887,7 @@ function attachEvents() {
     handleCatalogFocusLinkClick(link, event);
   });
 
-  els.headerCopyLink?.addEventListener("click", () => copyCurrentMainHeaderLink());
+  els.headerCopyLink?.addEventListener("click", () => shareCurrentMainHeaderLink());
   els.headerFullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.headerFullscreenToggle));
   els.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
   els.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
@@ -4763,7 +4895,9 @@ function attachEvents() {
   els.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
   els.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
-  els.lightboxCopyLink?.addEventListener("click", () => copyCurrentLightboxLink());
+  els.lightboxCopyLink?.addEventListener("click", () => shareCurrentLightboxLink());
+  els.viewerOnboardingConfirm?.addEventListener("click", () => closeViewerOnboarding());
+  els.viewerOnboardingBackdrop?.addEventListener("click", () => closeViewerOnboarding());
   els.lightboxHomeLink?.addEventListener("click", returnToMainSiteFromLightbox);
   els.favoriteOpenCatalogButton?.addEventListener("click", openCurrentFavoriteInCatalog);
   els.lightboxPinTopBar?.addEventListener("click", toggleTopUiPinned);
@@ -4884,6 +5018,10 @@ function attachEvents() {
       return;
     }
     if (!state.lightboxOpen) return;
+    if (state.viewerOnboardingOpen) {
+      handleViewerOnboardingKeydown(event);
+      return;
+    }
     if (event.key === "Escape" && state.lightboxMobileSearchOpen) {
       event.preventDefault();
       setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
