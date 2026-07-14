@@ -329,7 +329,6 @@ def validate_public_html(page_url: str, response: PublicResponse) -> None:
             f"Public page validation failed: {page_url} returned Content-Type {response.content_type!r}, not HTML."
         )
     require_cache_directive(page_url, response.headers, "Cache-Control", "no-store")
-    require_cache_directive(page_url, response.headers, "CDN-Cache-Control", "no-store")
 
 
 def validate_public_asset(asset_url: str, token: str) -> None:

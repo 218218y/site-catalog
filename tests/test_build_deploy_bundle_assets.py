@@ -150,7 +150,7 @@ def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None
         MODULE.validate_fingerprinted_bundle(out)
 
 
-def test_public_html_routes_disable_browser_and_cdn_cache() -> None:
+def test_public_html_routes_keep_original_cache_policy_and_include_404() -> None:
     headers = (ROOT / "_headers").read_text(encoding="utf-8")
     for route in (
         "/",
@@ -168,19 +168,12 @@ def test_public_html_routes_disable_browser_and_cdn_cache() -> None:
         "/404",
         "/404.html",
     ):
-        block = (
-            f"{route}\n"
-            "  Cache-Control: no-store, max-age=0, must-revalidate\n"
-            "  Cloudflare-CDN-Cache-Control: no-store\n"
-            "  CDN-Cache-Control: no-store"
-        )
-        assert block in headers
-    assert (
-        "/static/*\n"
-        "  Cache-Control: public, max-age=31536000, immutable\n"
-        "  Cloudflare-CDN-Cache-Control: public, max-age=31536000, immutable\n"
-        "  CDN-Cache-Control: public, max-age=31536000, immutable"
-    ) in headers
+        assert f"{route}\n  Cache-Control: no-store, max-age=0, must-revalidate" in headers
+
+    assert "/static/*\n  Cache-Control: public, max-age=31536000, immutable" in headers
+    assert "/assets/pages/*\n  Cache-Control: public, max-age=31536000, immutable" in headers
+    assert "Cloudflare-CDN-Cache-Control" not in headers
+    assert "CDN-Cache-Control" not in headers
 
 
 def test_top_level_404_disables_pages_spa_fallback() -> None:

@@ -246,7 +246,7 @@ def test_public_deployment_verifier_checks_root_static_assets_for_clean_routes(
             return MODULE.PublicResponse(
                 200,
                 "text/html",
-                {"cache-control": "no-store", "cdn-cache-control": "no-store"},
+                {"cache-control": "no-store"},
                 b'<script src="static/app.123456789abc.js"></script>',
             )
         if url.endswith("/static/app.123456789abc.js"):
@@ -275,7 +275,7 @@ def test_public_deployment_verifier_rejects_html_returned_for_javascript(
             return MODULE.PublicResponse(
                 200,
                 "text/html",
-                {"cache-control": "no-store", "cdn-cache-control": "no-store"},
+                {"cache-control": "no-store"},
                 b'<script src="static/site-routes.123456789abc.js"></script>',
             )
         return MODULE.PublicResponse(200, "text/html", {}, b"<!doctype html><html><body>404</body></html>")
@@ -293,7 +293,7 @@ def test_public_deployment_verifier_rejects_a_stale_asset_generation(
             return MODULE.PublicResponse(
                 200,
                 "text/html",
-                {"cache-control": "no-store", "cdn-cache-control": "no-store"},
+                {"cache-control": "no-store"},
                 b'<script src="static/app.111111111111.js"></script>',
             )
         return MODULE.PublicResponse(
@@ -339,7 +339,7 @@ def test_public_deployment_verifier_requires_real_404_for_missing_static_asset(
             return MODULE.PublicResponse(
                 200,
                 "text/html",
-                {"cache-control": "no-store", "cdn-cache-control": "no-store"},
+                {"cache-control": "no-store"},
                 b'<script src="static/app.123456789abc.js"></script>',
             )
         if url.endswith("/static/app.123456789abc.js"):

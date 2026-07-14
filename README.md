@@ -231,11 +231,9 @@ bundle-site-r2-upload cloudflare.bat
 
 אחרי ש־Wrangler מסיים, הכלי קורא את כתובת הפריסה המדויקת שהוחזרה, מוודא שהיא מכילה בדיוק את דור ה־CSS/JS שנבנה עכשיו, ורק לאחר מכן ממתין לדומיין `https://bargig-furniture.com` ומוודא שגם הוא קודם לאותה גרסה. כך פריסה תקינה אינה מתבלבלת עם דומיין production ישן או עם preview שלא חובר לדומיין. במקרה תחזוקה שבו רוצים לדלג במפורש על הבדיקה הציבורית אפשר להוסיף `--no-verify`.
 
-בדיקת הפריסה מאמתת גם את מדיניות ה־cache בפועל: כל נתיב HTML חייב להחזיר `Cache-Control: no-store` וגם `CDN-Cache-Control: no-store`, קובצי `static` בעלי hash חייבים להחזיר `immutable`, וכתובת JavaScript שאינה קיימת חייבת להחזיר HTTP 404 אמיתי. הקובץ העליון `404.html` מונע מ־Cloudflare Pages להתייחס לאתר כ־SPA ולהחזיר את דף הבית במקום קובץ סטטי חסר.
+בדיקת הפריסה מאמתת את המדיניות המקורית של הפרויקט: נתיבי HTML חייבים להחזיר `Cache-Control: no-store`, קובצי `static` בעלי hash חייבים להחזיר `immutable`, וכתובת JavaScript שאינה קיימת חייבת להחזיר HTTP 404 אמיתי. הקובץ העליון `404.html` מונע מ־Cloudflare Pages להחזיר את דף הבית במקום קובץ סטטי חסר. לא נוספו כותרות `Cloudflare-CDN-Cache-Control` או `CDN-Cache-Control`; מדיניות התמונות והנכסים נשארה כפי שהייתה.
 
-### הגדרות cache נדרשות ב־Cloudflare
-
-ב־Caching > Configuration יש להשאיר את **Browser Cache TTL** על **Respect Existing Headers**. בנוסף, ב־Caching > Cache Rules אין להחיל על נתיבי HTML כלל מסוג `Cache Everything`, `Edge Cache TTL`, `Ignore cache-control header` או כלל אחר שמכריח שמירת HTML. ניתן להחיל cache ארוך רק על `/static/*`, משום ששמות הקבצים שם כוללים hash של התוכן. לאחר הסרת כלל ישן שכבר שמר HTML, יש לבצע פעם אחת `Purge Everything`; לאחר מכן ההעלאות הרגילות אינן אמורות לדרוש purge ידני.
+ב־Caching > Configuration יש להשאיר את **Browser Cache TTL** על **Respect Existing Headers**. תמונות מקומיות תחת `/assets/pages/*` וקובצי `static` בעלי hash נשמרים לשנה עם `immutable`; התמונות החיות שמגיעות מ־R2/CDN ממשיכות להשתמש במדיניות ה־cache של אותו שירות ואינן מושפעות מ־`_headers` של Pages.
 
 ```bat
 python tools\build_deploy_bundle.py --out dist\site-upload-r2 --external-assets-url https://cdn.bargig-furniture.com
