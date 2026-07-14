@@ -51,12 +51,6 @@ FINGERPRINTED_ASSET_DIR = "static"
 HASHED_ASSET_FILENAME_RE = re.compile(
     r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
 )
-ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-PAGES_DEPLOYMENT_URL_RE = re.compile(
-    r"https://[a-z0-9-]+(?:\.[a-z0-9-]+)+\.pages\.dev(?:/[^\s]*)?",
-    re.IGNORECASE,
-)
-
 
 @dataclass(frozen=True)
 class PublicResponse:
@@ -457,16 +451,6 @@ def build_pages_deploy_command(
     return command
 
 
-def extract_pages_deployment_url(output: str) -> str | None:
-    """Extract Wrangler's immutable deployment URL from its terminal output."""
-
-    cleaned = ANSI_ESCAPE_RE.sub("", output or "")
-    matches = PAGES_DEPLOYMENT_URL_RE.findall(cleaned)
-    if not matches:
-        return None
-    return matches[-1].rstrip(".,;)")
-
-
 def find_npx() -> str:
     candidates = ["npx.cmd", "npx"] if os.name == "nt" else ["npx"]
     for name in candidates:
@@ -494,28 +478,6 @@ def run_streamed(command: Sequence[str], cwd: Path) -> int:
     for line in process.stdout:
         print(line.rstrip("\n"), flush=True)
     return process.wait()
-
-
-def run_streamed_capture(command: Sequence[str], cwd: Path) -> tuple[int, str]:
-    """Run a command while echoing and retaining output for deployment URL parsing."""
-
-    print(f"$ {quote_command(command)}", flush=True)
-    process = subprocess.Popen(
-        list(command),
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    assert process.stdout is not None
-    lines: list[str] = []
-    for line in process.stdout:
-        line = line.rstrip("\n")
-        lines.append(line)
-        print(line, flush=True)
-    return process.wait(), "\n".join(lines)
 
 
 def build_bundle(args: argparse.Namespace) -> int:
@@ -552,7 +514,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--verify-url",
         default=DEFAULT_VERIFY_URL,
-        help=f"Public site URL checked after a successful deploy. Default: {DEFAULT_VERIFY_URL}",
+        help=(
+            "Production custom-domain URL checked after a successful production deploy. "
+            f"The temporary *.pages.dev URL is intentionally not requested. Default: {DEFAULT_VERIFY_URL}"
+        ),
     )
     parser.add_argument(
         "--no-verify",
@@ -641,44 +606,38 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dry_run:
             print("\nDry run only. Command that would be executed:", flush=True)
             print(quote_command(wrangler_command), flush=True)
-            if not args.no_verify:
-                print(f"Post-deploy verification: {args.verify_url}", flush=True)
+            if preview_branch:
+                print(
+                    "Post-deploy network verification: skipped for preview because its temporary *.pages.dev URL may be blocked.",
+                    flush=True,
+                )
+            elif args.no_verify:
+                print("Post-deploy production-domain verification: disabled by --no-verify", flush=True)
+            else:
+                print(f"Post-deploy production-domain verification: {args.verify_url}", flush=True)
             return 0
 
-        returncode, wrangler_output = run_streamed_capture(wrangler_command, root)
+        returncode = run_streamed(wrangler_command, root)
         if returncode == 0:
             print("\nCloudflare Pages deploy finished successfully.", flush=True)
-            if not args.no_verify:
-                deployment_url = extract_pages_deployment_url(wrangler_output)
-                if not deployment_url:
-                    raise RuntimeError(
-                        "Wrangler reported a successful deploy but its deployment URL could not be read from the output."
-                    )
-
-                expected_assets = expected_bundle_asset_paths(bundle_dir)
-                print(f"Verifying the exact deployment at {deployment_url}...", flush=True)
-                verify_public_deployment(
-                    deployment_url,
-                    expected_asset_paths=expected_assets,
-                    attempts=8,
-                    delay_seconds=1.5,
+            if preview_branch:
+                print(
+                    "Preview deployment uploaded. Automatic network verification was skipped because the temporary "
+                    "*.pages.dev address may be blocked by the local filtering network.",
+                    flush=True,
                 )
-                print("Exact deployment HTML/CSS/JS passed validation.", flush=True)
-
-                if preview_branch:
-                    print(
-                        "Preview deployment verified. The production custom domain was intentionally not changed.",
-                        flush=True,
-                    )
-                else:
-                    print(f"Waiting for the production domain at {args.verify_url}...", flush=True)
-                    verify_public_deployment(
-                        args.verify_url,
-                        expected_asset_paths=expected_assets,
-                        attempts=30,
-                        delay_seconds=3.0,
-                    )
-                    print("Production domain is serving the exact new release with valid CSS/JS MIME types.", flush=True)
+            elif not args.no_verify:
+                expected_assets = expected_bundle_asset_paths(bundle_dir)
+                print(f"Waiting for the production domain at {args.verify_url}...", flush=True)
+                verify_public_deployment(
+                    args.verify_url,
+                    expected_asset_paths=expected_assets,
+                    attempts=30,
+                    delay_seconds=3.0,
+                )
+                print("Production domain is serving the exact new release with valid CSS/JS MIME types.", flush=True)
+            else:
+                print("Post-deploy production-domain verification was skipped by --no-verify.", flush=True)
         else:
             print(f"\nERROR: Cloudflare Pages deploy failed with return code {returncode}.", file=sys.stderr)
         return returncode

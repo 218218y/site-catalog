@@ -101,7 +101,7 @@ ACTIONS: dict[str, Action] = {
     ),
     "cloudflare_pages_deploy": Action(
         "העלאת באנדל ל-Cloudflare",
-        "יוצר תמיד באנדל R2 טרי, מעלה אותו ישירות ל-production של Cloudflare Pages בפרויקט bargig-catlog, ומאמת גם את כתובת הפריסה וגם את הדומיין הראשי.",
+        "יוצר תמיד באנדל R2 טרי, מעלה אותו ישירות ל-production של Cloudflare Pages בפרויקט bargig-catlog, ומאמת לאחר ההעלאה רק דרך הדומיין הראשי הפתוח בסינון.",
         ["tools/deploy_cloudflare_pages.py"],
     ),
 }

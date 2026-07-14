@@ -119,15 +119,7 @@ def test_preview_pages_command_requires_explicit_preview_branch() -> None:
     assert command[-2:] == ["--branch", "feature-test"]
 
 
-def test_wrangler_deployment_url_is_extracted_from_terminal_output() -> None:
-    output = (
-        "✨ Deployment complete! Take a peek over at "
-        "https://11739281.bargig-catlog.pages.dev\n"
-    )
-    assert MODULE.extract_pages_deployment_url(output) == "https://11739281.bargig-catlog.pages.dev"
-
-
-def test_production_deploy_verifies_exact_deployment_before_custom_domain(
+def test_production_deploy_verifies_only_the_allowed_custom_domain(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -139,27 +131,25 @@ def test_production_deploy_verifies_exact_deployment_before_custom_domain(
 
     captured_command: list[str] = []
 
-    def fake_run(command: list[str], cwd: Path) -> tuple[int, str]:
+    def fake_run(command: list[str], cwd: Path) -> int:
         captured_command.extend(command)
-        return 0, "Deployment complete: https://abc123.bargig-catlog.pages.dev"
+        return 0
 
     verified: list[str] = []
 
     def fake_verify(base_url: str, **kwargs: object) -> None:
         verified.append(base_url)
 
-    monkeypatch.setattr(MODULE, "run_streamed_capture", fake_run)
+    monkeypatch.setattr(MODULE, "run_streamed", fake_run)
     monkeypatch.setattr(MODULE, "verify_public_deployment", fake_verify)
 
     assert MODULE.main(["--dir", "bundle"]) == 0
     assert "--branch" not in captured_command
-    assert verified == [
-        "https://abc123.bargig-catlog.pages.dev",
-        "https://bargig-furniture.com",
-    ]
+    assert verified == ["https://bargig-furniture.com"]
+    assert all("pages.dev" not in url for url in verified)
 
 
-def test_preview_deploy_does_not_verify_or_change_production_domain(
+def test_preview_deploy_skips_network_verification_when_pages_dev_is_blocked(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -171,12 +161,12 @@ def test_preview_deploy_does_not_verify_or_change_production_domain(
 
     captured_command: list[str] = []
 
-    def fake_run(command: list[str], cwd: Path) -> tuple[int, str]:
+    def fake_run(command: list[str], cwd: Path) -> int:
         captured_command.extend(command)
-        return 0, "Deployment complete: https://def456.bargig-catlog.pages.dev"
+        return 0
 
     verified: list[str] = []
-    monkeypatch.setattr(MODULE, "run_streamed_capture", fake_run)
+    monkeypatch.setattr(MODULE, "run_streamed", fake_run)
     monkeypatch.setattr(
         MODULE,
         "verify_public_deployment",
@@ -185,8 +175,23 @@ def test_preview_deploy_does_not_verify_or_change_production_domain(
 
     assert MODULE.main(["--dir", "bundle", "--preview-branch", "test-change"]) == 0
     assert captured_command[-2:] == ["--branch", "test-change"]
-    assert verified == ["https://def456.bargig-catlog.pages.dev"]
+    assert verified == []
 
+
+def test_dry_run_does_not_schedule_pages_dev_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
+    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+
+    assert MODULE.main(["--dir", "bundle", "--dry-run"]) == 0
+    output = capsys.readouterr().out
+    assert "https://bargig-furniture.com" in output
+    assert "pages.dev" not in output
 
 def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | None = None) -> None:
     bundle_dir.mkdir(parents=True, exist_ok=True)
