@@ -354,50 +354,31 @@
       </div>
 
       <div class="viewer-onboarding hidden" id="viewerOnboarding" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="viewerOnboardingTitle" aria-describedby="viewerOnboardingDescription">
-        <div class="viewer-onboarding-backdrop" id="viewerOnboardingBackdrop"></div>
-        <section class="viewer-onboarding-card" id="viewerOnboardingCard" tabindex="-1">
-          <div class="viewer-onboarding-badge" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M7 4.8h8.8A2.2 2.2 0 0 1 18 7v10a2.2 2.2 0 0 1-2.2 2.2H7A2.2 2.2 0 0 1 4.8 17V7A2.2 2.2 0 0 1 7 4.8Z" />
-              <path d="M9.2 8.2h4.4M9.2 11.8h5.6M9.2 15.4h3.2" />
-            </svg>
+        <div class="viewer-onboarding-shade viewer-onboarding-shade-top" id="viewerOnboardingShadeTop" aria-hidden="true"></div>
+        <div class="viewer-onboarding-shade viewer-onboarding-shade-right" id="viewerOnboardingShadeRight" aria-hidden="true"></div>
+        <div class="viewer-onboarding-shade viewer-onboarding-shade-bottom" id="viewerOnboardingShadeBottom" aria-hidden="true"></div>
+        <div class="viewer-onboarding-shade viewer-onboarding-shade-left" id="viewerOnboardingShadeLeft" aria-hidden="true"></div>
+
+        <div class="viewer-onboarding-spotlight" id="viewerOnboardingSpotlight" aria-hidden="true">
+          <span class="viewer-onboarding-gesture" id="viewerOnboardingGesture"><span></span></span>
+        </div>
+
+        <section class="viewer-onboarding-callout" id="viewerOnboardingCard" tabindex="-1" data-placement="below">
+          <div class="viewer-onboarding-callout-head">
+            <span class="viewer-onboarding-counter" id="viewerOnboardingCounter">1 מתוך 6</span>
+            <button class="viewer-onboarding-skip" id="viewerOnboardingSkip" type="button" aria-label="דלג על ההסבר" title="דלג על ההסבר">×</button>
           </div>
           <div class="viewer-onboarding-heading">
-            <span>טיפ קטן לפני שמתחילים</span>
-            <h2 id="viewerOnboardingTitle">כך נוח לצפות בקטלוג</h2>
-            <p id="viewerOnboardingDescription">שלוש פעולות קצרות שיעזרו לכם להתמצא במהירות.</p>
+            <span id="viewerOnboardingEyebrow">סיור קצר</span>
+            <h2 id="viewerOnboardingTitle">היכרות עם הצופה</h2>
+            <p id="viewerOnboardingDescription">נעבור על הכלים החשובים ישירות על גבי המסך.</p>
           </div>
-          <div class="viewer-onboarding-list">
-            <div class="viewer-onboarding-item">
-              <span class="viewer-onboarding-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false"><path d="m9.2 6.4-5.6 5.6 5.6 5.6M14.8 6.4l5.6 5.6-5.6 5.6" /></svg>
-              </span>
-              <div>
-                <strong>מעבר בין עמודים</strong>
-                <p><span class="viewer-onboarding-touch-copy">החליקו ימינה או שמאלה, או השתמשו בחצים.</span><span class="viewer-onboarding-desktop-copy">השתמשו בחצים בצדי המסך או במקשי החצים.</span></p>
-              </div>
-            </div>
-            <div class="viewer-onboarding-item">
-              <span class="viewer-onboarding-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false"><path d="M8.2 8.2 4.8 4.8M4.8 8.4V4.8h3.6M15.8 8.2l3.4-3.4M15.6 4.8h3.6v3.6M8.2 15.8l-3.4 3.4M8.4 19.2H4.8v-3.6M15.8 15.8l3.4 3.4M19.2 15.6v3.6h-3.6" /></svg>
-              </span>
-              <div>
-                <strong>הגדלה ותנועה</strong>
-                <p><span class="viewer-onboarding-touch-copy">צבטו או הקישו פעמיים להגדלה; לאחר מכן גררו את התמונה.</span><span class="viewer-onboarding-desktop-copy">לחצו פעמיים להגדלה; לאחר מכן גררו את התמונה.</span></p>
-              </div>
-            </div>
-            <div class="viewer-onboarding-item">
-              <span class="viewer-onboarding-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false"><path d="m12 4 2.2 4.45 4.9.72-3.55 3.46.84 4.88L12 15.2l-4.39 2.31.84-4.88L4.9 9.17l4.9-.72L12 4Z" /><path d="M18.3 4.8v5.4M15.6 7.5h5.4" /></svg>
-              </span>
-              <div>
-                <strong>שמירה ושיתוף</strong>
-                <p>הכוכב שומר עמוד למועדפים, וכפתור השיתוף שולח קישור מדויק לעמוד הנוכחי.</p>
-              </div>
-            </div>
+          <p class="viewer-onboarding-note hidden" id="viewerOnboardingNote"></p>
+          <div class="viewer-onboarding-actions">
+            <button class="button soft viewer-onboarding-previous" id="viewerOnboardingPrevious" type="button">הקודם</button>
+            <button class="button primary viewer-onboarding-next" id="viewerOnboardingNext" type="button">הבא</button>
           </div>
-          <button class="button primary viewer-onboarding-confirm" id="viewerOnboardingConfirm" type="button">הבנתי, אפשר להתחיל</button>
-          <small>ההסבר הזה מוצג בכניסה הראשונה בלבד.</small>
+          <div class="viewer-onboarding-dots" id="viewerOnboardingDots" aria-hidden="true"></div>
         </section>
       </div>
     </div>

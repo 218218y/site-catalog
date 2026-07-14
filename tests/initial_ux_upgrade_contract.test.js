@@ -15,8 +15,14 @@ for (const html of [template, index, viewer]) {
   assert.match(html, /id="headerCopyLink"[^>]*aria-label="שיתוף העמוד הנוכחי"[^>]*title="שיתוף"/);
   assert.match(html, /id="lightboxCopyLink"[^>]*aria-label="שיתוף העמוד הנוכחי"[^>]*title="שיתוף"/);
   assert.match(html, /id="viewerOnboarding"[^>]*aria-modal="true"/);
-  assert.match(html, /id="viewerOnboardingConfirm"[^>]*>הבנתי, אפשר להתחיל</);
+  assert.match(html, /id="viewerOnboardingSpotlight"/);
+  assert.match(html, /id="viewerOnboardingShadeTop"/);
+  assert.match(html, /id="viewerOnboardingShadeRight"/);
+  assert.match(html, /id="viewerOnboardingPrevious"[^>]*>הקודם</);
+  assert.match(html, /id="viewerOnboardingNext"[^>]*>הבא</);
+  assert.match(html, /id="viewerOnboardingSkip"[^>]*aria-label="דלג על ההסבר"/);
   assert.match(html, /id="siteActionToast"[^>]*aria-live="polite"/);
+  assert.doesNotMatch(html, /viewer-onboarding-touch-copy|viewer-onboarding-desktop-copy|viewerOnboardingConfirm|viewerOnboardingBackdrop/);
 }
 
 assert.match(app, /data-open-catalog-entry="\$\{safeCatalogId\}"[^>]*>פתיחת הקטלוג</);
@@ -25,12 +31,20 @@ assert.doesNotMatch(app, /צפייה בקטלוג קטן|data-enter-catalog-card
 assert.match(app, /function isMobileShareEnvironment\([\s\S]*?navigator\.share[\s\S]*?userAgentData\?\.mobile/);
 assert.match(app, /function shareOrCopyCurrentLink\([\s\S]*?currentVisibleDocumentUrl\(\)[\s\S]*?navigator\.share\([\s\S]*?copyTextToClipboard\(link\)/);
 assert.match(app, /showActionToast\("הקישור המדויק לעמוד הועתק ללוח"\)/);
-assert.match(app, /VIEWER_ONBOARDING_STORAGE_KEY = "bargig\.viewer-onboarding\.v1"/);
-assert.match(app, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardingWasSeen\(\)[\s\S]*?markViewerOnboardingSeen\(\)/);
+assert.match(app, /VIEWER_ONBOARDING_STORAGE_KEY = "bargig\.viewer-onboarding\.v2"/);
+assert.match(app, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouchPoints[\s\S]*?ontouchstart/);
+assert.match(app, /function getViewerOnboardingSteps\([\s\S]*?סרגל העליון[\s\S]*?נעיצת הסרגל העליון[\s\S]*?סרגל העמודים הימני[\s\S]*?מעבר בין עמודים[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?הוספה למועדפים/);
+assert.match(app, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
+assert.match(app, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardingWasSeen\(\)[\s\S]*?viewer-tour-active[\s\S]*?renderViewerOnboardingStep/);
+assert.match(app, /function closeViewerOnboarding\([\s\S]*?markViewerOnboardingSeen\(\)[\s\S]*?restoreViewerUiAfterOnboarding/);
 assert.match(app, /window\.requestAnimationFrame\(showViewerOnboardingIfNeeded\)/);
+assert.match(css, /\.site-action-toast\s*\{[\s\S]*?top:\s*max\(16px, env\(safe-area-inset-top\)\);/);
 assert.match(css, /body\[data-page="home"\] #headerFullscreenToggle\s*\{[\s\S]*?display:\s*none !important;/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.brand-copy-link\s*\{[\s\S]*?display:\s*inline-flex;/);
-assert.match(css, /\.viewer-onboarding-card\s*\{[\s\S]*?border-radius:\s*30px;/);
+assert.match(css, /\.viewer-onboarding-spotlight\s*\{[\s\S]*?border:\s*2px solid/);
+assert.match(css, /\.viewer-onboarding-callout\s*\{[\s\S]*?border-radius:\s*24px;/);
+assert.match(css, /\.lightbox\.viewer-tour-show-top-ui \.lightbox-top-shell/);
+assert.match(css, /\.lightbox\.viewer-tour-show-page-rail \.lightbox-page-rail/);
 assert.match(css, /\.site-action-toast\.visible\s*\{/);
 assert.match(css, /@media \(max-width: 560px\)[\s\S]*?\.catalog-card \.catalog-actions\s*\{[\s\S]*?grid-template-columns:\s*1fr;/);
 
