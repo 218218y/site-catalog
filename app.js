@@ -4038,8 +4038,8 @@ function getViewerOnboardingSteps() {
       target: () => els.lightboxPinTopBar,
       floatingTarget: () => els.lightboxPinTopBar,
       preferredPlacement: "below",
-      padding: 7,
-      radius: 15,
+      padding: 12,
+      radius: 25,
       revealTopBar: true,
       gesture: "tap"
     },
@@ -4357,18 +4357,25 @@ function layoutViewerOnboarding() {
 }
 
 function scheduleViewerOnboardingLayout(delay = 0) {
-  window.cancelAnimationFrame(state.viewerOnboardingLayoutRaf);
-  window.clearTimeout(state.viewerOnboardingLayoutTimer);
   const run = () => {
+    window.cancelAnimationFrame(state.viewerOnboardingLayoutRaf);
     state.viewerOnboardingLayoutRaf = window.requestAnimationFrame(layoutViewerOnboarding);
   };
-  if (delay > 0) state.viewerOnboardingLayoutTimer = window.setTimeout(run, delay);
-  else run();
+
+  if (delay > 0) {
+    // Keep the immediate layout that was scheduled for this step. The delayed
+    // pass only re-measures after toolbar/callout transitions have settled.
+    window.clearTimeout(state.viewerOnboardingLayoutTimer);
+    state.viewerOnboardingLayoutTimer = window.setTimeout(run, delay);
+    return;
+  }
+
+  run();
 }
 
 function renderViewerOnboardingStep(options = {}) {
   if (!state.viewerOnboardingOpen) return;
-  const { focus = true } = options;
+  const { focus = true, scheduleLayout = true } = options;
   const steps = getViewerOnboardingSteps();
   state.viewerOnboardingStep = clampValue(state.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
   const step = steps[state.viewerOnboardingStep];
@@ -4401,8 +4408,10 @@ function renderViewerOnboardingStep(options = {}) {
     )).join("");
   }
 
-  scheduleViewerOnboardingLayout();
-  scheduleViewerOnboardingLayout(260);
+  if (scheduleLayout) {
+    scheduleViewerOnboardingLayout();
+    scheduleViewerOnboardingLayout(260);
+  }
   if (focus) window.requestAnimationFrame(() => els.viewerOnboardingNext?.focus?.({ preventScroll: true }));
 }
 
@@ -4443,7 +4452,9 @@ function closeViewerOnboarding(options = {}) {
   els.viewerOnboarding?.classList.remove("visible");
   els.viewerOnboarding?.setAttribute("aria-hidden", "true");
   window.setTimeout(() => {
-    if (!state.viewerOnboardingOpen) els.viewerOnboarding?.classList.add("hidden");
+    if (state.viewerOnboardingOpen) return;
+    els.viewerOnboarding?.classList.add("hidden");
+    els.viewerOnboarding?.classList.remove("layout-ready");
   }, 220);
   if (restoreFocus) els.stageCanvas?.focus?.({ preventScroll: true });
 }
@@ -4460,12 +4471,26 @@ function showViewerOnboardingIfNeeded() {
     showPageRail: Boolean(els.lightbox?.classList.contains("show-page-rail"))
   };
   els.lightbox?.classList.add("viewer-tour-active");
-  els.viewerOnboarding.classList.remove("hidden");
+  els.viewerOnboarding.classList.remove("hidden", "visible", "layout-ready");
   els.viewerOnboarding.setAttribute("aria-hidden", "false");
+
+  // Build and measure the first step while the tour is still transparent.
+  // Waiting one frame after revealing the real toolbar lets its layout settle,
+  // so the callout is already in its final position before the fade-in begins.
   window.requestAnimationFrame(() => {
     if (!state.viewerOnboardingOpen) return;
-    els.viewerOnboarding.classList.add("visible");
-    renderViewerOnboardingStep();
+    renderViewerOnboardingStep({ focus: false, scheduleLayout: false });
+    window.requestAnimationFrame(() => {
+      if (!state.viewerOnboardingOpen) return;
+      layoutViewerOnboarding();
+      els.viewerOnboarding.classList.add("layout-ready");
+      window.requestAnimationFrame(() => {
+        if (!state.viewerOnboardingOpen) return;
+        els.viewerOnboarding.classList.add("visible");
+        els.viewerOnboardingNext?.focus?.({ preventScroll: true });
+        scheduleViewerOnboardingLayout(260);
+      });
+    });
   });
 }
 

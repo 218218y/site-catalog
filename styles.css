@@ -121,6 +121,12 @@ body:not([data-page="viewer"]) > main {
 .viewer-onboarding.visible {
   opacity: 1;
 }
+.viewer-onboarding:not(.layout-ready) .viewer-onboarding-shade,
+.viewer-onboarding:not(.layout-ready) .viewer-onboarding-spotlight,
+.viewer-onboarding:not(.layout-ready) .viewer-onboarding-callout,
+.viewer-onboarding:not(.layout-ready) .viewer-onboarding-floating-target {
+  visibility: hidden;
+}
 .viewer-onboarding-shade {
   position: fixed;
   z-index: 0;
@@ -168,6 +174,12 @@ body:not([data-page="viewer"]) > main {
   transition: left .28s cubic-bezier(.22,.8,.28,1), top .28s cubic-bezier(.22,.8,.28,1), width .28s cubic-bezier(.22,.8,.28,1), height .28s cubic-bezier(.22,.8,.28,1);
   animation: viewerTourFloatingTarget 1.8s ease-in-out infinite;
 }
+.viewer-onboarding-floating-target[data-tour-step="pin-top-bar"] {
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,0.98),
+    0 0 0 5px rgba(217,186,163,0.28),
+    0 18px 46px rgba(0,0,0,0.46) !important;
+}
 .viewer-onboarding-floating-target.stage-nav:hover,
 .viewer-onboarding-floating-target.stage-nav:focus-visible,
 .viewer-onboarding-floating-target.reader-button:hover,
@@ -192,6 +204,9 @@ body:not([data-page="viewer"]) > main {
   pointer-events: auto;
   outline: none;
   transform-origin: center;
+  animation: none;
+}
+.viewer-onboarding.visible .viewer-onboarding-callout {
   animation: viewerTourCalloutIn .24s ease both;
 }
 .viewer-onboarding-callout::before {

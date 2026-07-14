@@ -37,12 +37,13 @@ assert.match(app, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouc
 assert.match(app, /function getViewerOnboardingSteps\([\s\S]*?סרגל העליון[\s\S]*?נעיצת הסרגל העליון[\s\S]*?סרגל העמודים הימני[\s\S]*?מעבר בין עמודים[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?הוספה למועדפים/);
 assert.match(app, /function getViewerOnboardingTopBarFocusRect\([\s\S]*?lightbox-reader-header/);
 assert.match(app, /id: "top-bar"[\s\S]*?viewportMargin: 0[\s\S]*?radius: 0/);
-assert.match(app, /id: "pin-top-bar"[\s\S]*?floatingTarget: \(\) => els\.lightboxPinTopBar/);
+assert.match(app, /id: "pin-top-bar"[\s\S]*?floatingTarget: \(\) => els\.lightboxPinTopBar[\s\S]*?padding: 12[\s\S]*?radius: 25/);
 assert.match(app, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTarget: \(\) => els\.nextPageBtn/);
 assert.match(app, /function updateViewerOnboardingFloatingTarget\([\s\S]*?cloneNode\(true\)[\s\S]*?source\.click\(\)/);
 assert.match(app, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
+assert.match(app, /function scheduleViewerOnboardingLayout\(delay = 0\)[\s\S]*?if \(delay > 0\) \{[\s\S]*?window\.clearTimeout\(state\.viewerOnboardingLayoutTimer\)[\s\S]*?return;[\s\S]*?run\(\);/);
 assert.doesNotMatch(app, /thumbsHotspot|lightboxThumbs|show-thumbs|thumbsHideTimer/);
-assert.match(app, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardingWasSeen\(\)[\s\S]*?viewer-tour-active[\s\S]*?renderViewerOnboardingStep/);
+assert.match(app, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardingWasSeen\(\)[\s\S]*?viewer-tour-active[\s\S]*?renderViewerOnboardingStep\(\{ focus: false, scheduleLayout: false \}\)[\s\S]*?layoutViewerOnboarding\(\)[\s\S]*?layout-ready[\s\S]*?classList\.add\("visible"\)/);
 assert.match(app, /function closeViewerOnboarding\([\s\S]*?markViewerOnboardingSeen\(\)[\s\S]*?restoreViewerUiAfterOnboarding/);
 assert.match(app, /window\.requestAnimationFrame\(showViewerOnboardingIfNeeded\)/);
 assert.match(css, /\.site-action-toast\s*\{[\s\S]*?top:\s*max\(16px, env\(safe-area-inset-top\)\);/);
@@ -50,6 +51,8 @@ assert.match(css, /body\[data-page="home"\] #headerFullscreenToggle\s*\{[\s\S]*?
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.brand-copy-link\s*\{[\s\S]*?display:\s*inline-flex;/);
 assert.match(css, /\.viewer-onboarding-spotlight\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?border:\s*2px solid/);
 assert.match(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?z-index:\s*2 !important;[\s\S]*?right:\s*auto !important;[\s\S]*?bottom:\s*auto !important;[\s\S]*?pointer-events:\s*auto !important;/);
+assert.match(css, /\.viewer-onboarding:not\(\.layout-ready\) \.viewer-onboarding-callout[\s\S]*?visibility:\s*hidden;/);
+assert.match(css, /\.viewer-onboarding-floating-target\[data-tour-step="pin-top-bar"\][\s\S]*?0 0 0 5px rgba\(217,186,163,0\.28\)/);
 assert.doesNotMatch(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?inset:\s*auto !important;/);
 assert.doesNotMatch(css, /\.thumbs-hotspot|\.lightbox-thumbs|\.lightbox-thumb/);
 assert.match(css, /\.viewer-onboarding-callout\s*\{[\s\S]*?border-radius:\s*24px;/);
