@@ -58,6 +58,10 @@ assert.match(app, /function handleInternalAppLinkClick\([\s\S]*?isBrowserFullscr
 assert.match(app, /window\.addEventListener\("popstate"[\s\S]*?initDocumentRoute\(\{/);
 assert.match(app, /function prepareDocumentRoute\([\s\S]*?hideLightboxUi\(\)[\s\S]*?hideFavoritesPanelUi\(\)[\s\S]*?setCurrentAppPage\(nextPage\)/);
 assert.match(app, /function navigateBack\(\) \{\s*window\.history\.back\(\);\s*\}/);
+assert.match(app, /function currentVisibleDocumentUrl\(\) \{\s*return window\.location\.href;\s*\}/);
+assert.match(app, /function copyCurrentMainHeaderLink\([\s\S]*?currentVisibleDocumentUrl\(\)/);
+assert.match(app, /function copyCurrentLightboxLink\([\s\S]*?currentVisibleDocumentUrl\(\)/);
+assert.doesNotMatch(app, /function build(?:MainHeader|LightboxPage)Url/);
 assert.match(app, /function markAppReady\(\) \{[\s\S]*?data-app-ready/);
 assert.match(app, /return initDocumentRoute\(\)/);
 assert.doesNotMatch(app, /(?:localStorage|sessionStorage)[\s\S]{0,80}fullscreen/i);

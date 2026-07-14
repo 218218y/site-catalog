@@ -1083,30 +1083,8 @@ function handleFavoritesPanelKeydown(event) {
   }
 }
 
-function buildMainHeaderUrl() {
-  if (isAppPage("catalog") && state.catalog) {
-    return absoluteDocumentUrl(catalogDocumentUrl(state.catalog.id));
-  }
-  if (isAppPage("viewer") && state.catalog) {
-    return absoluteDocumentUrl(viewerDocumentUrl(state.catalog.id, state.page, {
-      source: isFavoritesLightboxMode() ? LIGHTBOX_SOURCE_FAVORITES : LIGHTBOX_SOURCE_CATALOG
-    }));
-  }
-  if (isAppPage("favorites")) {
-    return absoluteDocumentUrl(favoritesDocumentUrl());
-  }
-
-  const categoryTargetId = getCurrentCatalogFocusUrlTargetId();
-  const url = new URL(homeDocumentUrl(), window.location.href);
-  if (categoryTargetId) url.hash = buildCatalogFocusRouteHash(categoryTargetId);
-  return url.href;
-}
-
-function buildLightboxPageUrl() {
-  if (!state.catalog) return buildMainHeaderUrl();
-  return absoluteDocumentUrl(viewerDocumentUrl(state.catalog.id, clampPage(state.page, state.catalog), {
-    source: isFavoritesLightboxMode() ? LIGHTBOX_SOURCE_FAVORITES : LIGHTBOX_SOURCE_CATALOG
-  }));
+function currentVisibleDocumentUrl() {
+  return window.location.href;
 }
 
 async function copyTextToClipboard(value) {
@@ -1132,7 +1110,7 @@ function downloadCurrentLightboxImage() {
 }
 
 async function copyCurrentMainHeaderLink() {
-  const link = state.lightboxOpen ? buildLightboxPageUrl() : buildMainHeaderUrl();
+  const link = currentVisibleDocumentUrl();
   try {
     await copyTextToClipboard(link);
     flashActionButton(els.headerCopyLink, "הקישור הועתק");
@@ -1142,7 +1120,7 @@ async function copyCurrentMainHeaderLink() {
 }
 
 async function copyCurrentLightboxLink() {
-  const link = buildLightboxPageUrl();
+  const link = currentVisibleDocumentUrl();
   try {
     await copyTextToClipboard(link);
     flashActionButton(els.lightboxCopyLink, "הקישור הועתק");

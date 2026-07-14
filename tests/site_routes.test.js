@@ -29,6 +29,18 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/viewer.html', search: '?catalog=abc&page=9&source=favorites' }, 'viewer'))),
   { page: 'viewer', catalogId: 'abc', currentPage: 9, source: 'favorites' }
 );
+assert.deepEqual(
+  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog', search: '?catalog=clean-url' }))),
+  { page: 'catalog', catalogId: 'clean-url', currentPage: 1, source: 'catalog' },
+  'Cloudflare Pages redirects catalog.html to the extensionless /catalog route'
+);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/viewer', search: '?catalog=clean-url&page=4' }))),
+  { page: 'viewer', catalogId: 'clean-url', currentPage: 4, source: 'catalog' },
+  'Cloudflare Pages redirects viewer.html to the extensionless /viewer route'
+);
+assert.equal(routes.pageFromLocation({ pathname: '/favorites/' }), 'favorites');
+assert.equal(routes.pageFromLocation({ pathname: '/' }), 'home');
 assert.equal(
   Object.prototype.hasOwnProperty.call(routes, 'parseLegacyHash'),
   false,

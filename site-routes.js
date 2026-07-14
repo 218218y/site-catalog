@@ -25,8 +25,15 @@
   }
 
   function documentNameFromPath(pathname) {
-    const clean = String(pathname || "").split("/").pop()?.toLowerCase() || "";
-    return clean || DOCUMENTS[PAGE_HOME];
+    const segments = String(pathname || "")
+      .split("/")
+      .map((segment) => segment.trim().toLowerCase())
+      .filter(Boolean);
+    return segments.pop() || DOCUMENTS[PAGE_HOME];
+  }
+
+  function documentRouteName(filename) {
+    return String(filename || "").trim().toLowerCase().replace(/\.html$/, "");
   }
 
   function pageFromLocation(locationLike, declaredPage = "") {
@@ -34,7 +41,12 @@
     if (String(declaredPage || "").trim()) return explicit;
 
     const documentName = documentNameFromPath(locationLike?.pathname);
-    const match = Object.entries(DOCUMENTS).find(([, filename]) => filename === documentName);
+    const routeName = documentRouteName(documentName);
+    if (!routeName || routeName === "index") return PAGE_HOME;
+
+    const match = Object.entries(DOCUMENTS).find(([, filename]) => (
+      filename === documentName || documentRouteName(filename) === routeName
+    ));
     return match?.[0] || PAGE_HOME;
   }
 
