@@ -52,6 +52,8 @@ assert.equal(measuredPinRect.top - symmetricPinRect.top, symmetricPinRect.bottom
 assert.equal(measuredPinRect.left - symmetricPinRect.left, symmetricPinRect.right - measuredPinRect.right);
 assert.deepEqual(JSON.parse(JSON.stringify(symmetricPinRect)), { left: 108, top: 0, right: 172, bottom: 58, width: 64, height: 58 });
 assert.match(app, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTarget: \(\) => els\.nextPageBtn/);
+assert.match(app, /id: "favorite"[\s\S]*?target: \(\) => els\.viewerFavoriteButton[\s\S]*?floatingTarget: \(\) => els\.viewerFavoriteButton/);
+assert.match(app, /function syncViewerOnboardingFloatingTargetState\([\s\S]*?"data-favorite-active"/);
 assert.match(app, /function updateViewerOnboardingFloatingTarget\([\s\S]*?cloneNode\(true\)[\s\S]*?source\.click\(\)/);
 assert.match(app, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
 assert.match(app, /function scheduleViewerOnboardingLayout\(delay = 0\)[\s\S]*?if \(delay > 0\) \{[\s\S]*?window\.clearTimeout\(state\.viewerOnboardingLayoutTimer\)[\s\S]*?return;[\s\S]*?run\(\);/);
@@ -65,7 +67,11 @@ assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.brand-copy-link\s*\{[\s\
 assert.match(css, /\.viewer-onboarding-spotlight\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?border:\s*2px solid/);
 assert.match(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?z-index:\s*2 !important;[\s\S]*?right:\s*auto !important;[\s\S]*?bottom:\s*auto !important;[\s\S]*?pointer-events:\s*auto !important;/);
 assert.match(css, /\.viewer-onboarding:not\(\.layout-ready\) \.viewer-onboarding-callout[\s\S]*?visibility:\s*hidden;/);
-assert.match(css, /\.viewer-onboarding-floating-target\[data-tour-step="pin-top-bar"\][\s\S]*?0 0 0 5px rgba\(217,186,163,0\.28\)/);
+const pinFloatingRule = css.match(/\.viewer-onboarding-floating-target\[data-tour-step="pin-top-bar"\]\s*\{([\s\S]*?)\}/);
+assert.ok(pinFloatingRule, "pin floating target rule should exist");
+assert.match(pinFloatingRule[1], /0 0 0 5px rgba\(217,186,163,0\.28\)/);
+assert.doesNotMatch(pinFloatingRule[1], /0 0 0 2px rgba\(255,255,255,0\.98\)/, "pin button edge must keep its normal border");
+assert.match(css, /\.viewer-onboarding-floating-target\[data-tour-step="favorite"\][\s\S]*?background:\s*rgba\(151, 106, 36, 0\.9\) !important;[\s\S]*?border-color:\s*rgba\(255, 225, 157, 0\.62\) !important;/);
 assert.doesNotMatch(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?inset:\s*auto !important;/);
 assert.doesNotMatch(css, /\.thumbs-hotspot|\.lightbox-thumbs|\.lightbox-thumb/);
 assert.match(css, /\.viewer-onboarding-callout\s*\{[\s\S]*?border-radius:\s*24px;/);

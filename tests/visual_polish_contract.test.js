@@ -47,6 +47,8 @@ assert.doesNotMatch(placeholderRule[1], /position\s*:/, 'placeholder styling mus
 assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?position:\s*absolute/);
 assert.match(css, /\.favorite-image-frame\s*\{[\s\S]*?position:\s*relative/);
 assert.match(css, /\.viewer-page-indicator\.visible\s*\{[\s\S]*?opacity:\s*1/);
+assert.match(css, /\.viewer-page-indicator\s*\{[\s\S]*?font-family:\s*Tahoma, "Segoe UI", Arial, sans-serif;[\s\S]*?align-items:\s*center;/);
+assert.match(css, /\.viewer-page-indicator > span,[\s\S]*?\.viewer-page-indicator > strong\s*\{[\s\S]*?display:\s*inline-grid;[\s\S]*?place-items:\s*center;[\s\S]*?line-height:\s*1;/);
 assert.match(app, /const VIEWER_PAGE_INDICATOR_HIDE_MS\s*=\s*1450/);
 assert.match(app, /function showViewerPageIndicatorTemporarily\(/);
 assert.match(app, /function hideViewerPageIndicator\(/);

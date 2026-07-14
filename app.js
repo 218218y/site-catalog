@@ -4299,6 +4299,7 @@ function getViewerOnboardingSteps() {
       description: "לחצו על הכוכב כדי לשמור את העמוד. תוכלו לפתוח אחר כך את כל העמודים ששמרתם מתוך אזור המועדפים.",
       note: "לשיתוף קישור מדויק לעמוד השתמשו בכפתור השיתוף שבסרגל העליון.",
       target: () => els.viewerFavoriteButton,
+      floatingTarget: () => els.viewerFavoriteButton,
       preferredPlacement: "left",
       padding: 10,
       radius: 18,
@@ -4515,7 +4516,7 @@ function sanitizeViewerOnboardingFloatingTarget(clone) {
 }
 
 function syncViewerOnboardingFloatingTargetState(source, clone) {
-  ["aria-label", "aria-pressed", "title", "data-pinned", "data-fullscreen-active"].forEach((attribute) => {
+  ["aria-label", "aria-pressed", "title", "data-pinned", "data-fullscreen-active", "data-favorite-active"].forEach((attribute) => {
     if (source.hasAttribute(attribute)) clone.setAttribute(attribute, source.getAttribute(attribute));
     else clone.removeAttribute(attribute);
   });

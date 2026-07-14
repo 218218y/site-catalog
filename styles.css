@@ -186,11 +186,32 @@ body:not([data-page="viewer"]) > main {
   transition: left .28s cubic-bezier(.22,.8,.28,1), top .28s cubic-bezier(.22,.8,.28,1), width .28s cubic-bezier(.22,.8,.28,1), height .28s cubic-bezier(.22,.8,.28,1);
   animation: viewerTourFloatingTarget 1.8s ease-in-out infinite;
 }
+/* The spotlight already draws the white outer circle around the pin control.
+   Keep the cloned button's own border untouched so the control is not marked
+   twice with a second white ring directly on its edge. */
 .viewer-onboarding-floating-target[data-tour-step="pin-top-bar"] {
   box-shadow:
-    0 0 0 2px rgba(255,255,255,0.98),
+    inset 0 1px 0 rgba(255,255,255,0.08),
     0 0 0 5px rgba(217,186,163,0.28),
     0 18px 46px rgba(0,0,0,0.46) !important;
+}
+
+/* The side favorite control normally uses deliberately dark viewer chrome.
+   During its tour step a real cloned control sits above the shade and receives
+   a warm, high-contrast treatment, while retaining the button's actual shape
+   and active/inactive star state. */
+.viewer-onboarding-floating-target[data-tour-step="favorite"] {
+  color: #fff4cf !important;
+  background: rgba(151, 106, 36, 0.9) !important;
+  border-color: rgba(255, 225, 157, 0.62) !important;
+  filter: brightness(1.18) saturate(1.12);
+  box-shadow:
+    0 0 0 2px rgba(255, 236, 190, 0.86),
+    0 0 0 7px rgba(203, 151, 70, 0.24),
+    0 18px 46px rgba(0,0,0,0.46) !important;
+}
+.viewer-onboarding-floating-target[data-tour-step="favorite"] svg {
+  filter: drop-shadow(0 0 8px rgba(255, 224, 145, 0.46));
 }
 .viewer-onboarding-floating-target.stage-nav:hover,
 .viewer-onboarding-floating-target.stage-nav:focus-visible,
@@ -5155,6 +5176,7 @@ body[data-page="viewer"] {
   visibility: hidden;
   transform: translateX(50%) translateY(8px) scale(.985);
   pointer-events: none;
+  font-family: Tahoma, "Segoe UI", Arial, sans-serif;
   font-size: .86rem;
   font-weight: 760;
   line-height: 1;
@@ -5169,6 +5191,14 @@ body[data-page="viewer"] {
   visibility: visible;
   transform: translateX(50%) translateY(0) scale(1);
   transition-delay: 0s;
+}
+
+.viewer-page-indicator > span,
+.viewer-page-indicator > strong {
+  min-height: 1.22em;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
 }
 
 .viewer-page-indicator strong {
