@@ -31,8 +31,11 @@ bundle-site-r2-upload cloudflare.bat
 הפקודה בונה תמיד באנדל חדש בתיקיית ביניים נקייה, מוודאת שכל קובצי ה-JS/CSS שה-HTML מפנה אליהם קיימים וששם ה-hash תואם לתוכן, ורק אז מחליפה את dist בשלמותה ומעלה אותה.
 בכל העלאה יש רק דור נוכחי אחד של קובצי hash; אין שמירה של קבצים ישנים. אחרי ההעלאה היא בודקת גם את האתר הציבורי ומוודאת שקובצי JS/CSS מוחזרים עם MIME נכון ולא כדף HTML או 404.
 
-הפקודה שהקובץ מריץ בפועל:
-npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog --branch main
+הפקודה שהקובץ מריץ בפועל עבור production:
+npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog
+
+אין להוסיף --branch להעלאת production. לפריסת preview בלבד משתמשים ב:
+bundle-site-r2-upload cloudflare.bat --preview-branch test-name
 
 
 פקודות שימושיות נוספות

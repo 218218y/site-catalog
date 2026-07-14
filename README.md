@@ -227,11 +227,19 @@ bundle-site-r2-upload cloudflare.bat
 
 כלי ההעלאה בונה תחילה תיקיית ביניים נקייה, מנרמל שורות CSS/JS כדי שה־hash יהיה זהה ב־Windows ובלינוקס, ומאמת שכל קובץ שה־HTML מפנה אליו קיים וששם ה־hash תואם לתוכן. רק לאחר שכל הבדיקות עברו הוא מחליף את `dist\site-upload-r2` בשלמותה ומעלה אותה ל־Pages. בכל העלאה קיימת רק גרסה נוכחית אחת של קובצי ה־CSS/JS; קבצים מדורות קודמים אינם נשמרים. הכלי משנה רק את אתר ה־Pages ואינו קורא או מעדכן את הגדרות ה־CORS של R2.
 
-אחרי ש־Wrangler מסיים, הכלי בודק גם את האתר הציבורי ב־`https://bargig-furniture.com`: הוא פותח את `/`,‏ `/catalog`,‏ `/favorites` ו־`/viewer`, ומוודא שכל קובץ CSS/JS שהדפים מפנים אליו חוזר עם MIME תקין ולא עם דף HTML/404. במקרה תחזוקה שבו רוצים לדלג במפורש על הבדיקה הציבורית אפשר להוסיף `--no-verify`.
+העלאת production מתבצעת בלי `--branch`. ב־Cloudflare Pages הפרמטר `--branch` מיועד לפריסת preview; לכן הכלי משתמש בו רק כאשר מעבירים במפורש `--preview-branch NAME`.
+
+אחרי ש־Wrangler מסיים, הכלי קורא את כתובת הפריסה המדויקת שהוחזרה, מוודא שהיא מכילה בדיוק את דור ה־CSS/JS שנבנה עכשיו, ורק לאחר מכן ממתין לדומיין `https://bargig-furniture.com` ומוודא שגם הוא קודם לאותה גרסה. כך פריסה תקינה אינה מתבלבלת עם דומיין production ישן או עם preview שלא חובר לדומיין. במקרה תחזוקה שבו רוצים לדלג במפורש על הבדיקה הציבורית אפשר להוסיף `--no-verify`.
 
 ```bat
 python tools\build_deploy_bundle.py --out dist\site-upload-r2 --external-assets-url https://cdn.bargig-furniture.com
-npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog --branch main
+npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog
+```
+
+לפריסת preview בלבד:
+
+```bat
+python tools\deploy_cloudflare_pages.py --preview-branch test-name
 ```
 
 ה־CORS הוא הגדרה חד־פעמית/תחזוקתית נפרדת. רק כאשר צריך לשנות אותה במפורש, מריצים:

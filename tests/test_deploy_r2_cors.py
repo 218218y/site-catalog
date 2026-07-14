@@ -80,6 +80,8 @@ def test_pages_deploy_dry_run_never_reads_or_changes_r2_cors(
     output = capsys.readouterr().out
     assert "tools/build_deploy_bundle.py" in output
     assert "wrangler pages deploy" in output
+    assert "--branch" not in output
+    assert "environment: production" in output
     assert "wrangler r2 bucket cors" not in output
     assert "R2 CORS" not in output
 
@@ -87,6 +89,103 @@ def test_pages_deploy_dry_run_never_reads_or_changes_r2_cors(
 def test_deploy_interface_does_not_allow_skipping_the_fresh_build() -> None:
     with pytest.raises(SystemExit):
         MODULE.parse_args(["--no-build"])
+
+
+def test_production_pages_command_does_not_pass_branch() -> None:
+    command = MODULE.build_pages_deploy_command(
+        "npx",
+        "dist/site-upload-r2",
+        "bargig-catlog",
+    )
+    assert command == [
+        "npx",
+        "--yes",
+        "wrangler",
+        "pages",
+        "deploy",
+        "dist/site-upload-r2",
+        "--project-name",
+        "bargig-catlog",
+    ]
+
+
+def test_preview_pages_command_requires_explicit_preview_branch() -> None:
+    command = MODULE.build_pages_deploy_command(
+        "npx",
+        "dist/site-upload-r2",
+        "bargig-catlog",
+        "feature-test",
+    )
+    assert command[-2:] == ["--branch", "feature-test"]
+
+
+def test_wrangler_deployment_url_is_extracted_from_terminal_output() -> None:
+    output = (
+        "✨ Deployment complete! Take a peek over at "
+        "https://11739281.bargig-catlog.pages.dev\n"
+    )
+    assert MODULE.extract_pages_deployment_url(output) == "https://11739281.bargig-catlog.pages.dev"
+
+
+def test_production_deploy_verifies_exact_deployment_before_custom_domain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
+    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "build_bundle", lambda args: 0)
+
+    captured_command: list[str] = []
+
+    def fake_run(command: list[str], cwd: Path) -> tuple[int, str]:
+        captured_command.extend(command)
+        return 0, "Deployment complete: https://abc123.bargig-catlog.pages.dev"
+
+    verified: list[str] = []
+
+    def fake_verify(base_url: str, **kwargs: object) -> None:
+        verified.append(base_url)
+
+    monkeypatch.setattr(MODULE, "run_streamed_capture", fake_run)
+    monkeypatch.setattr(MODULE, "verify_public_deployment", fake_verify)
+
+    assert MODULE.main(["--dir", "bundle"]) == 0
+    assert "--branch" not in captured_command
+    assert verified == [
+        "https://abc123.bargig-catlog.pages.dev",
+        "https://bargig-furniture.com",
+    ]
+
+
+def test_preview_deploy_does_not_verify_or_change_production_domain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
+    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "build_bundle", lambda args: 0)
+
+    captured_command: list[str] = []
+
+    def fake_run(command: list[str], cwd: Path) -> tuple[int, str]:
+        captured_command.extend(command)
+        return 0, "Deployment complete: https://def456.bargig-catlog.pages.dev"
+
+    verified: list[str] = []
+    monkeypatch.setattr(MODULE, "run_streamed_capture", fake_run)
+    monkeypatch.setattr(
+        MODULE,
+        "verify_public_deployment",
+        lambda base_url, **kwargs: verified.append(base_url),
+    )
+
+    assert MODULE.main(["--dir", "bundle", "--preview-branch", "test-change"]) == 0
+    assert captured_command[-2:] == ["--branch", "test-change"]
+    assert verified == ["https://def456.bargig-catlog.pages.dev"]
 
 
 def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | None = None) -> None:
@@ -166,3 +265,21 @@ def test_public_deployment_verifier_rejects_html_returned_for_javascript(
     monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
     with pytest.raises(RuntimeError, match="returned Content-Type 'text/html'.*instead of executable JavaScript"):
         MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)
+
+
+def test_public_deployment_verifier_rejects_a_stale_asset_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_fetch(url: str, token: str) -> tuple[str, bytes]:
+        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
+            return "text/html", b'<script src="static/app.111111111111.js"></script>'
+        return "application/javascript", b"window.old = true;\n"
+
+    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
+    with pytest.raises(RuntimeError, match="not serving the release that was just built"):
+        MODULE.verify_public_deployment(
+            "https://example.com",
+            expected_asset_paths={"/static/app.222222222222.js"},
+            attempts=1,
+            delay_seconds=0,
+        )

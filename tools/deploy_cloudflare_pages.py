@@ -33,7 +33,6 @@ from typing import Sequence
 
 DEFAULT_BUNDLE_DIR = "dist/site-upload-r2"
 DEFAULT_PROJECT_NAME = "bargig-catlog"
-DEFAULT_BRANCH = "main"
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 DEFAULT_R2_BUCKET = "bargig-catalog"
 DEFAULT_R2_CORS_FILE = "r2-cors.json"
@@ -50,6 +49,11 @@ HTML_RESPONSE_PREFIX_RE = re.compile(br"^\s*(?:<!doctype\s+html\b|<html\b)", re.
 FINGERPRINTED_ASSET_DIR = "static"
 HASHED_ASSET_FILENAME_RE = re.compile(
     r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
+)
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+PAGES_DEPLOYMENT_URL_RE = re.compile(
+    r"https://[a-z0-9-]+(?:\.[a-z0-9-]+)+\.pages\.dev(?:/[^\s]*)?",
+    re.IGNORECASE,
 )
 
 
@@ -238,6 +242,24 @@ def validate_bundle(bundle_dir: Path) -> None:
         raise ValueError("Bundle validation found no fingerprinted CSS/JS references in public HTML.")
 
 
+def expected_bundle_asset_paths(bundle_dir: Path) -> set[str]:
+    """Return the exact CSS/JS path set referenced by the validated release."""
+
+    assets: set[str] = set()
+    for html_name in PUBLIC_HTML_FILES:
+        html = (bundle_dir / html_name).read_text(encoding="utf-8", errors="replace")
+        for match in HTML_ASSET_RE.finditer(html):
+            reference = match.group(1).strip()
+            if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:", "data:", "blob:")):
+                continue
+            reference_path = reference.split("?", 1)[0].split("#", 1)[0]
+            if Path(reference_path).suffix.lower() in {".css", ".js"}:
+                assets.add("/" + reference_path.lstrip("/"))
+    if not assets:
+        raise ValueError("Bundle contains no browser CSS/JS references to verify after deployment.")
+    return assets
+
+
 def with_cache_buster(url: str, token: str) -> str:
     parts = urllib.parse.urlsplit(url)
     query = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
@@ -279,8 +301,19 @@ def validate_public_asset(asset_url: str, token: str) -> None:
         )
 
 
-def verify_public_deployment(base_url: str, attempts: int = 4, delay_seconds: float = 2.0) -> None:
-    """Verify public HTML and every referenced CSS/JS after deployment."""
+def verify_public_deployment(
+    base_url: str,
+    *,
+    expected_asset_paths: set[str] | None = None,
+    attempts: int = 4,
+    delay_seconds: float = 2.0,
+) -> None:
+    """Verify public HTML and every referenced CSS/JS after deployment.
+
+    When ``expected_asset_paths`` is provided, each public page must reference
+    the exact asset generation that was just built. This prevents a stale
+    production domain from being mistaken for the newly-created deployment.
+    """
 
     normalized = str(base_url or "").strip().rstrip("/")
     if not normalized.startswith(("https://", "http://")):
@@ -300,6 +333,7 @@ def verify_public_deployment(base_url: str, attempts: int = 4, delay_seconds: fl
                         f"Public page validation failed: {page_url} returned Content-Type {content_type!r}, not HTML."
                     )
                 html = body.decode("utf-8", errors="replace")
+                route_asset_paths: set[str] = set()
                 for match in HTML_ASSET_RE.finditer(html):
                     reference = match.group(1).strip()
                     if not reference or reference.startswith(("data:", "blob:", "mailto:", "#")):
@@ -308,6 +342,23 @@ def verify_public_deployment(base_url: str, attempts: int = 4, delay_seconds: fl
                     asset_path = urllib.parse.urlsplit(asset_url).path.lower()
                     if asset_path.endswith((".js", ".css")):
                         asset_urls.add(asset_url)
+                        route_asset_paths.add(asset_path)
+
+                if expected_asset_paths is not None:
+                    expected_lower = {path.lower() for path in expected_asset_paths}
+                    if route_asset_paths != expected_lower:
+                        missing = sorted(expected_lower - route_asset_paths)
+                        unexpected = sorted(route_asset_paths - expected_lower)
+                        details: list[str] = []
+                        if missing:
+                            details.append("missing " + ", ".join(missing))
+                        if unexpected:
+                            details.append("unexpected " + ", ".join(unexpected))
+                        raise RuntimeError(
+                            f"Public page {page_url} is not serving the release that was just built"
+                            + (f" ({'; '.join(details)})" if details else "")
+                            + "."
+                        )
 
             if not asset_urls:
                 raise RuntimeError("Public deployment validation found no CSS/JS references in the HTML pages.")
@@ -321,6 +372,39 @@ def verify_public_deployment(base_url: str, attempts: int = 4, delay_seconds: fl
 
     assert last_error is not None
     raise RuntimeError(f"Public deployment validation failed after {attempts} attempts: {last_error}") from last_error
+
+
+def build_pages_deploy_command(
+    npx: str,
+    bundle_dir: str,
+    project_name: str,
+    preview_branch: str | None = None,
+) -> list[str]:
+    """Build a Pages command that targets production unless preview is explicit."""
+
+    command = [
+        npx,
+        "--yes",
+        "wrangler",
+        "pages",
+        "deploy",
+        bundle_dir,
+        "--project-name",
+        project_name,
+    ]
+    if preview_branch:
+        command.extend(["--branch", preview_branch])
+    return command
+
+
+def extract_pages_deployment_url(output: str) -> str | None:
+    """Extract Wrangler's immutable deployment URL from its terminal output."""
+
+    cleaned = ANSI_ESCAPE_RE.sub("", output or "")
+    matches = PAGES_DEPLOYMENT_URL_RE.findall(cleaned)
+    if not matches:
+        return None
+    return matches[-1].rstrip(".,;)")
 
 
 def find_npx() -> str:
@@ -352,6 +436,28 @@ def run_streamed(command: Sequence[str], cwd: Path) -> int:
     return process.wait()
 
 
+def run_streamed_capture(command: Sequence[str], cwd: Path) -> tuple[int, str]:
+    """Run a command while echoing and retaining output for deployment URL parsing."""
+
+    print(f"$ {quote_command(command)}", flush=True)
+    process = subprocess.Popen(
+        list(command),
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert process.stdout is not None
+    lines: list[str] = []
+    for line in process.stdout:
+        line = line.rstrip("\n")
+        lines.append(line)
+        print(line, flush=True)
+    return process.wait(), "\n".join(lines)
+
+
 def build_bundle(args: argparse.Namespace) -> int:
     command = [
         sys.executable,
@@ -368,7 +474,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Deploy dist/site-upload-r2 to Cloudflare Pages with Wrangler.")
     parser.add_argument("--dir", default=DEFAULT_BUNDLE_DIR, help=f"Bundle folder to deploy. Default: {DEFAULT_BUNDLE_DIR}")
     parser.add_argument("--project-name", default=DEFAULT_PROJECT_NAME, help=f"Cloudflare Pages project name. Default: {DEFAULT_PROJECT_NAME}")
-    parser.add_argument("--branch", default=DEFAULT_BRANCH, help=f"Cloudflare Pages branch name. Default: {DEFAULT_BRANCH}")
+    parser.add_argument(
+        "--preview-branch",
+        default="",
+        help="Create an explicit preview deployment for this branch. Omit for the production deployment/custom domain.",
+    )
     parser.add_argument(
         "--build-first",
         action="store_true",
@@ -452,23 +562,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return build_code
 
         validate_bundle(bundle_dir)
-        wrangler_command = [
+        preview_branch = str(args.preview_branch or "").strip() or None
+        wrangler_command = build_pages_deploy_command(
             npx,
-            "--yes",
-            "wrangler",
-            "pages",
-            "deploy",
             args.dir,
-            "--project-name",
             args.project_name,
-            "--branch",
-            args.branch,
-        ]
+            preview_branch,
+        )
 
         print("Cloudflare Pages deploy settings:", flush=True)
         print(f"  folder: {rel_to_root(bundle_dir)}", flush=True)
         print(f"  project: {args.project_name}", flush=True)
-        print(f"  branch: {args.branch}", flush=True)
+        print(
+            f"  environment: {'preview branch ' + preview_branch if preview_branch else 'production'}",
+            flush=True,
+        )
 
         if args.dry_run:
             print("\nDry run only. Command that would be executed:", flush=True)
@@ -477,13 +585,40 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"Post-deploy verification: {args.verify_url}", flush=True)
             return 0
 
-        returncode = run_streamed(wrangler_command, root)
+        returncode, wrangler_output = run_streamed_capture(wrangler_command, root)
         if returncode == 0:
             print("\nCloudflare Pages deploy finished successfully.", flush=True)
             if not args.no_verify:
-                print(f"Verifying public deployment at {args.verify_url}...", flush=True)
-                verify_public_deployment(args.verify_url)
-                print("Public HTML and all referenced CSS/JS passed MIME validation.", flush=True)
+                deployment_url = extract_pages_deployment_url(wrangler_output)
+                if not deployment_url:
+                    raise RuntimeError(
+                        "Wrangler reported a successful deploy but its deployment URL could not be read from the output."
+                    )
+
+                expected_assets = expected_bundle_asset_paths(bundle_dir)
+                print(f"Verifying the exact deployment at {deployment_url}...", flush=True)
+                verify_public_deployment(
+                    deployment_url,
+                    expected_asset_paths=expected_assets,
+                    attempts=8,
+                    delay_seconds=1.5,
+                )
+                print("Exact deployment HTML/CSS/JS passed validation.", flush=True)
+
+                if preview_branch:
+                    print(
+                        "Preview deployment verified. The production custom domain was intentionally not changed.",
+                        flush=True,
+                    )
+                else:
+                    print(f"Waiting for the production domain at {args.verify_url}...", flush=True)
+                    verify_public_deployment(
+                        args.verify_url,
+                        expected_asset_paths=expected_assets,
+                        attempts=30,
+                        delay_seconds=3.0,
+                    )
+                    print("Production domain is serving the exact new release with valid CSS/JS MIME types.", flush=True)
         else:
             print(f"\nERROR: Cloudflare Pages deploy failed with return code {returncode}.", file=sys.stderr)
         return returncode
