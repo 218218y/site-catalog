@@ -51,7 +51,9 @@ assert.doesNotMatch(app, /BargigPageTransition|pageTransition\?\.|site-transitio
 assert.doesNotMatch(app, /const APP_PAGE/);
 assert.match(app, /let currentAppPage = siteRoutes\?\.pageFromLocation/);
 assert.match(app, /function setCurrentAppPage\([\s\S]*?document\.body\.dataset\.page = currentAppPage/);
+assert.match(app, /function isInternalAppDocumentUrl\([\s\S]*?siteRoutes\?\.isSameAppDocumentLocation\?\.\(window\.location, url, currentAppPage\)/);
 assert.match(app, /function canNavigateWithinCurrentDocument\([\s\S]*?isBrowserFullscreenActive\(\)[\s\S]*?isInternalAppDocumentUrl\(url\)/);
+assert.match(fs.readFileSync(path.join(root, 'site-routes.js'), 'utf8'), /function matchPageFromLocation\([\s\S]*?function basePathFromLocation\([\s\S]*?function isDocumentLocation\([\s\S]*?function isSameAppDocumentLocation\(/);
 assert.match(app, /function navigateWithinCurrentDocument\([\s\S]*?history\.pushState\([\s\S]*?initDocumentRoute\(\{ scrollPosition/);
 assert.match(app, /function navigateTo\([\s\S]*?canNavigateWithinCurrentDocument\(targetUrl\)[\s\S]*?window\.location\.replace\(target\)[\s\S]*?window\.location\.assign\(target\)/);
 assert.match(app, /function handleInternalAppLinkClick\([\s\S]*?isBrowserFullscreenActive\(\)[\s\S]*?navigateWithinCurrentDocument\(targetUrl\)/);

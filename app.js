@@ -30,14 +30,10 @@ function saveCurrentRouteScrollPosition() {
 }
 
 function isInternalAppDocumentUrl(url) {
-  if (!url || url.origin !== window.location.origin || !siteRoutes?.DOCUMENTS) return false;
-
-  const currentDirectory = new URL(".", window.location.href).pathname;
-  const targetDirectory = new URL(".", url.href).pathname;
-  if (currentDirectory !== targetDirectory) return false;
-
-  const filename = url.pathname.split("/").pop() || siteRoutes.DOCUMENTS.home;
-  return Object.values(siteRoutes.DOCUMENTS).includes(filename);
+  return Boolean(
+    url &&
+    siteRoutes?.isSameAppDocumentLocation?.(window.location, url, currentAppPage)
+  );
 }
 
 function canNavigateWithinCurrentDocument(url) {

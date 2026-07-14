@@ -41,6 +41,53 @@ assert.deepEqual(
 );
 assert.equal(routes.pageFromLocation({ pathname: '/favorites/' }), 'favorites');
 assert.equal(routes.pageFromLocation({ pathname: '/' }), 'home');
+assert.equal(routes.matchPageFromLocation({ pathname: '/favorites' }), 'favorites');
+assert.equal(routes.matchPageFromLocation({ pathname: '/favorites.html' }), 'favorites');
+assert.equal(routes.matchPageFromLocation({ pathname: '/unknown-page' }), '');
+assert.equal(routes.isDocumentLocation({ pathname: '/favorites' }), true);
+assert.equal(routes.isDocumentLocation({ pathname: '/favorites.html' }), true);
+assert.equal(routes.isDocumentLocation({ pathname: '/unknown-page' }), false);
+assert.equal(routes.basePathFromLocation({ pathname: '/favorites' }, 'favorites'), '/');
+assert.equal(routes.basePathFromLocation({ pathname: '/favorites/' }, 'favorites'), '/');
+assert.equal(routes.basePathFromLocation({ pathname: '/shop/favorites' }, 'favorites'), '/shop/');
+assert.equal(routes.basePathFromLocation({ pathname: '/shop/favorites.html' }, 'favorites'), '/shop/');
+assert.equal(routes.basePathFromLocation({ pathname: '/shop/' }, 'home'), '/shop/');
+assert.equal(
+  routes.isSameAppDocumentLocation(
+    { origin: 'https://example.test', pathname: '/viewer' },
+    { origin: 'https://example.test', pathname: '/favorites' },
+    'viewer'
+  ),
+  true,
+  'clean Netlify/Cloudflare routes must stay inside the current document during fullscreen navigation'
+);
+assert.equal(
+  routes.isSameAppDocumentLocation(
+    { origin: 'https://example.test', pathname: '/shop/viewer/' },
+    { origin: 'https://example.test', pathname: '/shop/favorites.html' },
+    'viewer'
+  ),
+  true,
+  'clean and .html routes must resolve to the same application base path'
+);
+assert.equal(
+  routes.isSameAppDocumentLocation(
+    { origin: 'https://example.test', pathname: '/shop/viewer' },
+    { origin: 'https://example.test', pathname: '/favorites' },
+    'viewer'
+  ),
+  false,
+  'navigation must not escape a subdirectory deployment'
+);
+assert.equal(
+  routes.isSameAppDocumentLocation(
+    { origin: 'https://example.test', pathname: '/viewer' },
+    { origin: 'https://other.test', pathname: '/favorites' },
+    'viewer'
+  ),
+  false,
+  'cross-origin links are never in-document application routes'
+);
 assert.equal(
   Object.prototype.hasOwnProperty.call(routes, 'parseLegacyHash'),
   false,

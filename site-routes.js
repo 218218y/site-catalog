@@ -36,9 +36,8 @@
     return String(filename || "").trim().toLowerCase().replace(/\.html$/, "");
   }
 
-  function pageFromLocation(locationLike, declaredPage = "") {
-    const explicit = normalizePage(declaredPage);
-    if (String(declaredPage || "").trim()) return explicit;
+  function matchPageFromLocation(locationLike, declaredPage = "") {
+    if (String(declaredPage || "").trim()) return normalizePage(declaredPage);
 
     const documentName = documentNameFromPath(locationLike?.pathname);
     const routeName = documentRouteName(documentName);
@@ -47,7 +46,44 @@
     const match = Object.entries(DOCUMENTS).find(([, filename]) => (
       filename === documentName || documentRouteName(filename) === routeName
     ));
-    return match?.[0] || PAGE_HOME;
+    return match?.[0] || "";
+  }
+
+  function pageFromLocation(locationLike, declaredPage = "") {
+    return matchPageFromLocation(locationLike, declaredPage) || PAGE_HOME;
+  }
+
+  function basePathFromLocation(locationLike, declaredPage = "") {
+    const pathname = String(locationLike?.pathname || "/");
+    const segments = pathname.split("/").filter(Boolean);
+    const page = matchPageFromLocation(locationLike, declaredPage);
+
+    if (page && segments.length) {
+      const lastSegment = segments[segments.length - 1].toLowerCase();
+      const expectedDocument = DOCUMENTS[page];
+      const expectedRoute = documentRouteName(expectedDocument);
+      const isPageSegment = lastSegment === expectedDocument || documentRouteName(lastSegment) === expectedRoute;
+      if (isPageSegment) segments.pop();
+    }
+
+    return segments.length ? `/${segments.join("/")}/` : "/";
+  }
+
+  function isDocumentLocation(locationLike) {
+    return Boolean(matchPageFromLocation(locationLike));
+  }
+
+  function isSameAppDocumentLocation(currentLocationLike, targetLocationLike, declaredCurrentPage = "") {
+    if (!isDocumentLocation(targetLocationLike)) return false;
+
+    const currentOrigin = String(currentLocationLike?.origin || "");
+    const targetOrigin = String(targetLocationLike?.origin || "");
+    if (currentOrigin && targetOrigin && currentOrigin !== targetOrigin) return false;
+
+    const currentBasePath = basePathFromLocation(currentLocationLike, declaredCurrentPage);
+    const targetPage = matchPageFromLocation(targetLocationLike);
+    const targetBasePath = basePathFromLocation(targetLocationLike, targetPage);
+    return currentBasePath === targetBasePath;
   }
 
   function buildRelativeUrl(page, params = {}) {
@@ -99,7 +135,11 @@
     FAVORITES_SOURCE,
     DOCUMENTS,
     normalizePage,
+    matchPageFromLocation,
     pageFromLocation,
+    basePathFromLocation,
+    isDocumentLocation,
+    isSameAppDocumentLocation,
     buildRelativeUrl,
     homeUrl,
     catalogUrl,
