@@ -62,8 +62,7 @@ function createHarness() {
     location: {
       origin: 'https://catalog.example.com',
       href: 'https://catalog.example.com/index.html'
-    },
-    WP_LOGO_DATA_URI: 'data:image/png;base64,AA=='
+    }
   };
 
   const context = vm.createContext({
@@ -98,7 +97,8 @@ async function run() {
     assert.equal(harness.imageRequests[0].crossOrigin, 'anonymous');
     assert.match(harness.imageRequests[0].src, /[?&]snapshot-cors=1(?:&|$)/);
     assert.match(harness.imageRequests[0].src, /[?&]v=abc(?:&|$)/);
-    assert.equal(harness.imageRequests[1].src, 'data:image/png;base64,AA==');
+    assert.equal(harness.imageRequests[1].src, 'https://catalog.example.com/brand-logo.svg');
+    assert.equal(harness.imageRequests[1].crossOrigin, '');
   }
 
   {

@@ -1356,7 +1356,7 @@ function scheduleCategoryNavFit() {
 
 function initCategoryNavFit() {
   if (!els.categoryNav) return;
-  document.querySelectorAll('img[data-brand-logo="1"], img[data-wp-logo="1"]').forEach((image) => {
+  document.querySelectorAll('img[data-brand-logo="1"]').forEach((image) => {
     image.addEventListener("load", scheduleCategoryNavFit);
   });
   if (document.fonts?.ready) {

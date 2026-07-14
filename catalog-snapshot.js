@@ -14,6 +14,7 @@
   var LOGO_WIDTH_RATIO = 0.13;
   var LOGO_TOP_RATIO = 0.02;
   var LOGO_ASPECT_RATIO = 786 / 317;
+  var LOGO_ASSET_PATH = 'brand-logo.svg';
   var SNAPSHOT_CORS_VERSION = '1';
 
   function resolveUrl(src) {
@@ -77,7 +78,8 @@
   }
 
   function getLogoUri() {
-    return typeof window.WP_LOGO_DATA_URI === 'string' ? window.WP_LOGO_DATA_URI : '';
+    var url = resolveUrl(LOGO_ASSET_PATH);
+    return url ? url.href : LOGO_ASSET_PATH;
   }
 
   function drawLogoOverlay(ctx, canvas) {

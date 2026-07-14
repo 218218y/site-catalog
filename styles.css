@@ -717,9 +717,7 @@ img { max-width: 100%; display: block; }
 body[data-page="home"] #headerFullscreenToggle {
   display: none !important;
 }
-img[data-brand-logo="1"],
-img[data-wp-logo="1"],
-#wpHeaderLogo {
+img[data-brand-logo="1"] {
   display: block;
   height: auto;
   aspect-ratio: 786 / 317;
@@ -3377,7 +3375,7 @@ a.reader-home:focus-visible {
 }
 
 
-/* Embedded Bargig branding */
+/* Bargig SVG branding */
 .catalog-image-frame,
 .catalog-cover-frame,
 .page-thumb-wrap,

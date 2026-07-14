@@ -53,9 +53,8 @@ DEPLOY_FILES = [
     "site-routes.js",
     "catalog-snapshot.js",
     "catalog-assets.config.js",
-    "brand-logo.js",
+    "brand-logo.svg",
     "favicon-loader.js",
-    "wp_logo_data.js",
     "catalogs.generated.js",
     "catalogs.search.js",
 ]
