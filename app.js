@@ -1,17 +1,81 @@
 const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
 const catalogSearch = window.BargigCatalogSearch || null;
 const siteRoutes = window.BargigRoutes || null;
-const APP_PAGE = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home";
+let currentAppPage = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home";
+const IN_DOCUMENT_ROUTE_STATE_KEY = "__bargigInDocumentRoute";
+let hasInDocumentRouteSession = false;
 
 const $ = (id) => document.getElementById(id);
 
 function isAppPage(page) {
-  return APP_PAGE === page;
+  return currentAppPage === page;
+}
+
+function setCurrentAppPage(page) {
+  currentAppPage = siteRoutes?.normalizePage?.(page) || String(page || "home");
+  if (document.body) document.body.dataset.page = currentAppPage;
+}
+
+function historyStateWithRouteData(values = {}) {
+  const currentState = history.state && typeof history.state === "object" ? history.state : {};
+  return { ...currentState, [IN_DOCUMENT_ROUTE_STATE_KEY]: true, ...values };
+}
+
+function saveCurrentRouteScrollPosition() {
+  if (!window.history?.replaceState) return;
+  history.replaceState(historyStateWithRouteData({
+    scrollX: window.scrollX || 0,
+    scrollY: window.scrollY || 0
+  }), "", window.location.href);
+}
+
+function isInternalAppDocumentUrl(url) {
+  if (!url || url.origin !== window.location.origin || !siteRoutes?.DOCUMENTS) return false;
+
+  const currentDirectory = new URL(".", window.location.href).pathname;
+  const targetDirectory = new URL(".", url.href).pathname;
+  if (currentDirectory !== targetDirectory) return false;
+
+  const filename = url.pathname.split("/").pop() || siteRoutes.DOCUMENTS.home;
+  return Object.values(siteRoutes.DOCUMENTS).includes(filename);
+}
+
+function canNavigateWithinCurrentDocument(url) {
+  return Boolean(
+    isBrowserFullscreenActive() &&
+    window.history?.pushState &&
+    window.history?.replaceState &&
+    isInternalAppDocumentUrl(url)
+  );
+}
+
+function navigateWithinCurrentDocument(url, options = {}) {
+  hasInDocumentRouteSession = true;
+  saveCurrentRouteScrollPosition();
+
+  const nextState = historyStateWithRouteData({ scrollX: 0, scrollY: 0 });
+  const sameUrl = url.href === window.location.href;
+  if (options.replace || sameUrl) history.replaceState(nextState, "", url.href);
+  else history.pushState(nextState, "", url.href);
+
+  initDocumentRoute({ scrollPosition: { x: 0, y: 0 } });
 }
 
 function navigateTo(relativeUrl, options = {}) {
   const target = String(relativeUrl || "").trim();
   if (!target) return;
+
+  let targetUrl = null;
+  try {
+    targetUrl = new URL(target, window.location.href);
+  } catch (_error) {
+    targetUrl = null;
+  }
+
+  if (targetUrl && canNavigateWithinCurrentDocument(targetUrl)) {
+    navigateWithinCurrentDocument(targetUrl, options);
+    return;
+  }
 
   if (options.replace) window.location.replace(target);
   else window.location.assign(target);
@@ -19,6 +83,30 @@ function navigateTo(relativeUrl, options = {}) {
 
 function navigateBack() {
   window.history.back();
+}
+
+function handleInternalAppLinkClick(event) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  if (!isBrowserFullscreenActive()) return;
+
+  const link = event.target.closest?.("a[href]");
+  if (!link || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
+
+  let targetUrl = null;
+  try {
+    targetUrl = new URL(link.href, window.location.href);
+  } catch (_error) {
+    return;
+  }
+
+  const sameDocumentHashNavigation = targetUrl.pathname === window.location.pathname
+    && targetUrl.search === window.location.search
+    && targetUrl.hash
+    && targetUrl.hash !== window.location.hash;
+  if (sameDocumentHashNavigation || !canNavigateWithinCurrentDocument(targetUrl)) return;
+
+  event.preventDefault();
+  navigateWithinCurrentDocument(targetUrl);
 }
 
 function markAppReady() {
@@ -884,20 +972,30 @@ function openFavoritesPanel(options = {}) {
   updateDocumentMetadata();
 }
 
+function hideFavoritesPanelUi(options = {}) {
+  const { restoreFocus = false, preserveReturnFocus = false } = options;
+  const returnFocus = state.favoritesReturnFocus;
+
+  state.favoritesOpen = false;
+  els.favoritesPanel?.classList.add("hidden");
+  els.favoritesPanel?.classList.remove("favorites-standalone-page");
+  els.favoritesPanel?.setAttribute("aria-hidden", "true");
+  els.favoritesPanel?.setAttribute("aria-modal", "true");
+  syncDocumentLock();
+
+  if (restoreFocus && returnFocus?.focus) returnFocus.focus();
+  if (!preserveReturnFocus) state.favoritesReturnFocus = null;
+}
+
 function closeFavoritesPanel(options = {}) {
   const { restoreFocus = true, preserveReturnFocus = false } = options;
   if (isAppPage("favorites")) {
-    if (canReturnToSameSite() && window.history.length > 1) navigateBack();
+    if ((hasInDocumentRouteSession || canReturnToSameSite()) && window.history.length > 1) navigateBack();
     else navigateTo(homeDocumentUrl(), { replace: true });
     return;
   }
   if (!state.favoritesOpen) return;
-  state.favoritesOpen = false;
-  els.favoritesPanel?.classList.add("hidden");
-  els.favoritesPanel?.setAttribute("aria-hidden", "true");
-  syncDocumentLock();
-  if (restoreFocus && state.favoritesReturnFocus?.focus) state.favoritesReturnFocus.focus();
-  if (!preserveReturnFocus) state.favoritesReturnFocus = null;
+  hideFavoritesPanelUi({ restoreFocus, preserveReturnFocus });
 }
 
 function openFavoriteViewer(catalogId, page) {
@@ -1401,7 +1499,7 @@ function clearCatalogCategoryFocus(options = {}) {
 
   const hashTargetId = resolveCatalogCategoryTargetIdFromHash();
   if (clearHash && hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length && window.history?.replaceState) {
-    history.replaceState(null, "", `${location.pathname}${location.search}`);
+    history.replaceState(history.state, "", `${location.pathname}${location.search}`);
   }
 
   return true;
@@ -2907,9 +3005,9 @@ function updateHash() {
   if (!window.history?.replaceState) return;
 
   if (isAppPage("catalog") && state.catalog) {
-    history.replaceState(null, "", catalogDocumentUrl(state.catalog.id));
+    history.replaceState(history.state, "", catalogDocumentUrl(state.catalog.id));
   } else if (isAppPage("viewer") && state.catalog) {
-    history.replaceState(null, "", viewerDocumentUrl(state.catalog.id, state.page, {
+    history.replaceState(history.state, "", viewerDocumentUrl(state.catalog.id, state.page, {
       source: isFavoritesLightboxMode() ? LIGHTBOX_SOURCE_FAVORITES : LIGHTBOX_SOURCE_CATALOG
     }));
   }
@@ -3941,22 +4039,7 @@ function openLightbox(page = 1, options = {}) {
 
 }
 
-function closeLightbox(options = {}) {
-  const wasFavoritesViewer = isFavoritesLightboxMode();
-  const { restoreFavorites = wasFavoritesViewer } = options;
-
-  if (isAppPage("viewer")) {
-    if (canReturnToSameSite() && window.history.length > 1) {
-      navigateBack();
-      return;
-    }
-    const destination = wasFavoritesViewer && restoreFavorites
-      ? favoritesDocumentUrl()
-      : catalogDocumentUrl(state.catalog?.id);
-    navigateTo(destination || homeDocumentUrl(), { replace: true });
-    return;
-  }
-
+function hideLightboxUi() {
   state.lightboxOpen = false;
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
@@ -3975,6 +4058,25 @@ function closeLightbox(options = {}) {
   scheduleCatalogScrollTopButtonUpdate();
   state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
   syncDocumentLock();
+}
+
+function closeLightbox(options = {}) {
+  const wasFavoritesViewer = isFavoritesLightboxMode();
+  const { restoreFavorites = wasFavoritesViewer } = options;
+
+  if (isAppPage("viewer")) {
+    if ((hasInDocumentRouteSession || canReturnToSameSite()) && window.history.length > 1) {
+      navigateBack();
+      return;
+    }
+    const destination = wasFavoritesViewer && restoreFavorites
+      ? favoritesDocumentUrl()
+      : catalogDocumentUrl(state.catalog?.id);
+    navigateTo(destination || homeDocumentUrl(), { replace: true });
+    return;
+  }
+
+  hideLightboxUi();
 }
 
 function setLightboxPage(page, options = {}) {
@@ -4846,6 +4948,21 @@ function attachEvents() {
     }
   });
 
+  document.addEventListener("click", handleInternalAppLinkClick);
+
+  window.addEventListener("popstate", (event) => {
+    const routeState = event.state && typeof event.state === "object" ? event.state : null;
+    if (!hasInDocumentRouteSession && !routeState?.[IN_DOCUMENT_ROUTE_STATE_KEY]) return;
+
+    hasInDocumentRouteSession = true;
+    initDocumentRoute({
+      scrollPosition: {
+        x: routeState?.scrollX || 0,
+        y: routeState?.scrollY || 0
+      }
+    });
+  });
+
   window.addEventListener("hashchange", () => {
     if (!isAppPage("home")) return;
     syncCatalogCategoryFocusFromHash();
@@ -4853,22 +4970,64 @@ function attachEvents() {
 
 }
 
-function initDocumentRoute() {
-  const route = siteRoutes?.parseLocation?.(window.location, APP_PAGE) || {
-    page: APP_PAGE,
+function hideCatalogDetailUi() {
+  els.catalogDetail?.classList.add("hidden");
+  els.catalogDetail?.classList.remove("in-view");
+  setCatalogScrollTopButtonVisible(false);
+}
+
+function prepareDocumentRoute(nextPage) {
+  if (nextPage !== "viewer" && state.lightboxOpen) hideLightboxUi();
+  if (nextPage !== "favorites" && (state.favoritesOpen || els.favoritesPanel?.classList.contains("favorites-standalone-page"))) {
+    hideFavoritesPanelUi();
+  }
+  if (nextPage !== "catalog") hideCatalogDetailUi();
+
+  closeMobileCategoryMenu();
+  closeGlobalSearchPanel({ focusButton: false });
+  closeGlobalSearchScopeMenu();
+  closeLightboxSearchScopeMenu();
+  closeLightboxCatalogMenu();
+  closeDetailCatalogMenu();
+
+  setCurrentAppPage(nextPage);
+  syncDocumentLock();
+  syncFullscreenButtonUi();
+}
+
+function restoreDocumentRouteScroll(position) {
+  if (!position) return;
+  const x = Number.isFinite(Number(position.x)) ? Number(position.x) : 0;
+  const y = Number.isFinite(Number(position.y)) ? Number(position.y) : 0;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => window.scrollTo(x, y));
+  });
+}
+
+function initDocumentRoute(options = {}) {
+  const route = siteRoutes?.parseLocation?.(window.location) || {
+    page: currentAppPage,
     catalogId: "",
     currentPage: 1,
     source: LIGHTBOX_SOURCE_CATALOG
   };
 
+  prepareDocumentRoute(route.page);
+
   if (route.page === "home") {
-    syncCatalogCategoryFocusFromHash({ animate: false, scroll: true });
+    state.catalog = null;
+    state.page = 1;
+    syncCatalogCategoryFocusFromHash({ animate: false, scroll: Boolean(window.location.hash) });
     updateDocumentMetadata();
+    if (!window.location.hash) restoreDocumentRouteScroll(options.scrollPosition);
     return true;
   }
 
   if (route.page === "favorites") {
+    state.catalog = null;
+    state.page = 1;
     openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
+    restoreDocumentRouteScroll(options.scrollPosition);
     return true;
   }
 
@@ -4880,6 +5039,7 @@ function initDocumentRoute() {
 
   if (route.page === "catalog") {
     openCatalog(catalog.id, { scrollBehavior: "auto" });
+    restoreDocumentRouteScroll(options.scrollPosition);
     return true;
   }
 

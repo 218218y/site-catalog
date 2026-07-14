@@ -44,14 +44,23 @@ assert.match(app, /siteRoutes\?\.parseLocation/);
 assert.match(css, /body\[data-page="favorites"\] \.favorites-panel\.favorites-standalone-page/);
 assert.match(css, /body\[data-page="viewer"\] > \.site-header/);
 
-// Cross-document navigation is intentionally native. The stable flex shell
-// prevents the footer from flashing while the next document initializes.
+// Normal browsing remains native, but fullscreen navigation must stay in the
+// current document because replacing the document makes browsers exit fullscreen.
 assert.doesNotMatch(template, /page-transition\.js|sitePageTransition|site-page-transition|site-transition-(?:pending|leaving|entering)/);
 assert.doesNotMatch(app, /BargigPageTransition|pageTransition\?\.|site-transition-(?:pending|leaving|entering)/);
-assert.match(app, /function navigateTo\([\s\S]*?window\.location\.replace\(target\)[\s\S]*?window\.location\.assign\(target\)/);
+assert.doesNotMatch(app, /const APP_PAGE/);
+assert.match(app, /let currentAppPage = siteRoutes\?\.pageFromLocation/);
+assert.match(app, /function setCurrentAppPage\([\s\S]*?document\.body\.dataset\.page = currentAppPage/);
+assert.match(app, /function canNavigateWithinCurrentDocument\([\s\S]*?isBrowserFullscreenActive\(\)[\s\S]*?isInternalAppDocumentUrl\(url\)/);
+assert.match(app, /function navigateWithinCurrentDocument\([\s\S]*?history\.pushState\([\s\S]*?initDocumentRoute\(\{ scrollPosition/);
+assert.match(app, /function navigateTo\([\s\S]*?canNavigateWithinCurrentDocument\(targetUrl\)[\s\S]*?window\.location\.replace\(target\)[\s\S]*?window\.location\.assign\(target\)/);
+assert.match(app, /function handleInternalAppLinkClick\([\s\S]*?isBrowserFullscreenActive\(\)[\s\S]*?navigateWithinCurrentDocument\(targetUrl\)/);
+assert.match(app, /window\.addEventListener\("popstate"[\s\S]*?initDocumentRoute\(\{/);
+assert.match(app, /function prepareDocumentRoute\([\s\S]*?hideLightboxUi\(\)[\s\S]*?hideFavoritesPanelUi\(\)[\s\S]*?setCurrentAppPage\(nextPage\)/);
 assert.match(app, /function navigateBack\(\) \{\s*window\.history\.back\(\);\s*\}/);
 assert.match(app, /function markAppReady\(\) \{[\s\S]*?data-app-ready/);
 assert.match(app, /return initDocumentRoute\(\)/);
+assert.doesNotMatch(app, /(?:localStorage|sessionStorage)[\s\S]{0,80}fullscreen/i);
 assert.doesNotMatch(css, /site-page-transition|site-transition-(?:pending|leaving|entering)|--page-transition-|--content-transition-dim-strength/);
 assert.doesNotMatch(builder, /"page-transition\.js"/);
 assert.equal(fs.existsSync(path.join(root, 'page-transition.js')), false, 'obsolete page transition runtime must be removed');
