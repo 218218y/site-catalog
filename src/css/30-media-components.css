@@ -1,0 +1,180 @@
+/**
+ * Source stylesheet: 30-media-components.css
+ * Shared branded image frames, placeholders, loading states, and media presentation.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
+
+/* Bargig SVG branding */
+.catalog-image-frame,
+.catalog-cover-frame,
+.page-thumb-wrap,
+.catalog-cover-wrap,
+.search-result-thumb-frame,
+.lightbox-image-frame,
+.lightbox-page-thumb-frame,
+.reader-page-frame,
+.reader-page-thumb-frame,
+.reader-search-thumb-frame {
+  position: relative;
+}
+
+.has-bargig-logo .catalog-image-frame::after,
+.has-bargig-logo .catalog-cover-wrap::after,
+.has-bargig-logo .page-thumb-wrap::after,
+.has-bargig-logo .lightbox-image-frame::after,
+.has-bargig-logo .lightbox-page-thumb-frame::after,
+.has-bargig-logo .reader-page-frame::after,
+.has-bargig-logo .reader-page-thumb-frame::after,
+.has-bargig-logo .reader-search-thumb-frame::after,
+.has-bargig-logo .search-result-thumb-frame::after {
+  content: "";
+  position: absolute;
+  top: clamp(8px, 2.2%, 18px);
+  left: 50%;
+  right: auto;
+  z-index: 6;
+  width: clamp(58px, 16%, 138px);
+  aspect-ratio: 786 / 317;
+  background: var(--bargig-logo-url) center / contain no-repeat;
+  pointer-events: none;
+  opacity: .98;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.16));
+}
+
+.has-bargig-logo .page-thumb-wrap::after {
+  top: 24px;
+  left: 50%;
+  right: auto;
+  width: clamp(54px, 20%, 92px);
+}
+
+.has-bargig-logo .catalog-cover-wrap::after {
+  top: 28px;
+  left: 50%;
+  right: auto;
+}
+
+.has-bargig-logo .reader-page-frame::after,
+.has-bargig-logo .lightbox-image-frame::after {
+  width: clamp(82px, 13%, 170px);
+  top: clamp(10px, 2%, 24px);
+  left: 50%;
+  right: auto;
+}
+
+.has-bargig-logo .lightbox-page-thumb-frame::after,
+.has-bargig-logo .reader-page-thumb-frame::after,
+.has-bargig-logo .search-result-thumb-frame::after,
+.has-bargig-logo .reader-search-thumb-frame::after {
+  width: clamp(28px, 42%, 50px);
+  top: 6px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.18));
+}
+
+.catalog-cover-frame {
+  width: 100%;
+  aspect-ratio: 1.55 / 1;
+  overflow: hidden;
+  background: linear-gradient(135deg, #ede2d9, #d8c1b0);
+}
+.catalog-cover-frame .catalog-cover {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+.search-result-thumb-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.34 / 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #ede2d9, #d8c1b0);
+}
+.search-result-thumb-frame .search-result-thumb {
+  width: 100%;
+  height: 100%;
+}
+.reader-search-thumb-frame {
+  display: block;
+  width: 100%;
+  /* Match the main search popover thumbnail behavior: catalog page previews are
+     landscape images, so the frame should be rectangular and the image must fit
+     inside it instead of being cropped into a fixed square-like crop. */
+  aspect-ratio: 1.58 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+.reader-search-thumb-frame .reader-search-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+}
+
+.page-number-badge {
+  right: auto;
+  left: 24px;
+}
+
+.lightbox-image-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: auto;
+  transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(var(--single-zoom, 1));
+  transform-origin: center center;
+  will-change: transform;
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 20px 80px rgba(0,0,0,0.45);
+  user-select: none;
+  cursor: grab;
+}
+.lightbox-image-frame .lightbox-image {
+  position: static;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  transform: none;
+  border-radius: inherit;
+  background: #fff;
+  box-shadow: none;
+}
+.lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
+
+.lightbox-image-frame.page-swap-enter {
+  animation: lightbox-page-swap var(--image-swap-duration) var(--image-swap-easing) both;
+}
+
+.lightbox.is-page-loading .lightbox-image-frame {
+  filter: brightness(.92);
+}
+
+.lightbox-image-frame,
+.lightbox-image-frame .lightbox-image {
+  backface-visibility: hidden;
+}
+
+@keyframes lightbox-page-swap {
+  from {
+    opacity: var(--image-swap-start-opacity);
+    transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(calc(var(--single-zoom, 1) * .988));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(var(--single-zoom, 1));
+  }
+}

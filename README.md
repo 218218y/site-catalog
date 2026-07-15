@@ -2,9 +2,10 @@
 
 הפרויקט מוגדר למסלול עבודה אחד וברור:
 
-- האתר מחולק לארבעה מסמכי ניווט: `index.html`, `catalog.html`, `favorites.html`, `viewer.html`.
+- האתר מחולק לארבעה מסמכי אפליקציה: `index.html`, `catalog.html`, `favorites.html`, `viewer.html`, ולשני מסמכים משפטיים: `terms.html`, `privacy.html`.
 - כל הקטלוגים משתמשים באותו `catalog.html` ובאותו `viewer.html` עם כתובת ייחודית לפי `catalog` ו-`page`; אין שכפול HTML לכל קטלוג.
-- `site.template.html` הוא מקור ה-HTML המשותף, ו-`tools/build_site_pages.py` מייצר ממנו את ארבעת הדפים.
+- `site.template.html` ו-`legal.template.html` הם מקורות ה-HTML המשותפים, ו-`tools/build_site_pages.py` מייצר מהם את ששת הדפים הציבוריים.
+- קוד המקור של הממשק מחולק לפי תחומים תחת `src/js` ו-`src/css`; כלי הבנייה מאחד אותו ל-`app.js` ול-`styles.css`, ולכן הדפדפן ממשיך להוריד רק שני קבצים משותפים.
 - `site-routes.js` מרכז את בניית הכתובות ופענוחן עבור מבנה הדפים הנוכחי.
 - האתר הסטטי עצמו עולה ל-Cloudflare Pages דרך Wrangler.
 - תמונות עמודי הקטלוגים נשמרות ומוגשות דרך Cloudflare R2 / CDN.
@@ -17,15 +18,38 @@ index.html                         רשימת הקטלוגים
 catalog.html?catalog=<id>          גלריית העמודים של קטלוג יחיד
 favorites.html                    המועדפים כדף עצמאי
 viewer.html?catalog=<id>&page=<n> צפייה במסך מלא
+terms.html                         תנאי שימוש
+privacy.html                       מדיניות פרטיות
 ```
 
-לא עורכים ידנית את ארבעת קובצי ה-HTML במקביל. עורכים את `site.template.html` ואז מריצים:
+לא עורכים ידנית את קובצי ה-HTML שנוצרו. עורכים את התבניות והחלקים המשותפים ואז מריצים:
 
 ```bat
 python tools\build_site_pages.py
 ```
 
 כלי יצירת הבאנדל מרנדר את הדפים מהתבנית מחדש באופן אוטומטי, כך שגם אם קובץ HTML שנוצר מקומית התיישן, תיקיית הפריסה נשארת עקבית.
+
+
+## מבנה קוד הממשק
+
+הקבצים `app.js` ו-`styles.css` הם קובצי באנדל שנוצרים אוטומטית. אין לערוך אותם ישירות, מפני שהבנייה הבאה תחליף אותם.
+
+מקורות JavaScript נמצאים תחת `src/js` בשמונה תחומים גדולים: ניווט, מצב אפליקציה, רכיבי UI משותפים, מועדפים ושיתוף, קטלוגים, חיפוש, צופה ואתחול. מקורות CSS נמצאים תחת `src/css` בשבע שכבות מסודרות ששומרות על סדר ה-cascade המקורי.
+
+לבנייה ידנית של קובצי הממשק בלבד:
+
+```bat
+python tools\build_frontend_assets.py
+```
+
+לבדיקה שקובצי הבאנדל מעודכנים בלי לשנות דבר:
+
+```bat
+python tools\build_frontend_assets.py --check
+```
+
+`build_site_pages.py`, יצירת באנדל הפריסה והשרת המקומי מריצים את בניית הממשק אוטומטית. תיקיות `src/js` ו-`src/css` נשארות בפרויקט העבודה ואינן מועלות לאתר; בפריסה נשלחים רק `app.js` ו-`styles.css` המאוחדים והחתומים ב-hash.
 
 ## מה מעלים ל-Cloudflare Pages
 
@@ -310,8 +334,11 @@ assets\pages
 
 ```text
 index.html                         דף האתר הראשי
-styles.css                         עיצוב האתר
-app.js                             לוגיקת הצופה והניווט
+src/css/                           מקורות העיצוב לפי תחומים; נערכים ידנית
+src/js/                            מקורות JavaScript לפי תחומים; נערכים ידנית
+styles.css                         באנדל CSS שנוצר אוטומטית מכל src/css
+app.js                             באנדל JavaScript שנוצר אוטומטית מכל src/js
+tools/build_frontend_assets.py    בנייה אטומית ובדיקת עדכניות של שני קובצי הממשק
 catalog-search.js                  חיפוש בתוך הקטלוגים
 catalog-snapshot.js                הורדת/צילום עמוד עם הלוגו
 catalog-assets.config.js           הגדרת בסיס תמונות; בבאנדל R2 נכתב לתוכו URL של ה-CDN

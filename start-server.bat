@@ -14,6 +14,13 @@ if errorlevel 2 goto control
 goto site
 
 :site
+echo Building frontend modules and public pages...
+python tools\build_site_pages.py
+if errorlevel 1 (
+  echo Frontend build failed.
+  pause
+  exit /b 1
+)
 echo.
 echo Starting local website at http://localhost:8080
 echo שים לב: לוח השליטה לא עובד דרך השרת הזה, כי אין כאן API.
@@ -28,6 +35,13 @@ call catalog-control-panel.bat
 exit /b %errorlevel%
 
 :both
+echo Building frontend modules and public pages...
+python tools\build_site_pages.py
+if errorlevel 1 (
+  echo Frontend build failed.
+  pause
+  exit /b 1
+)
 echo.
 echo Starting local website in a separate window at http://localhost:8080
 start "Catalog Website 8080" cmd /k "cd /d ""%~dp0"" && echo Starting local website at http://localhost:8080 && python -m http.server 8080"

@@ -1,3 +1,27 @@
+/*
+ * GENERATED FILE — DO NOT EDIT DIRECTLY.
+ * Browser bundle: app.js
+ * Source modules:
+ *   - src/js/00-navigation.js
+ *   - src/js/10-app-state.js
+ *   - src/js/20-shared-ui.js
+ *   - src/js/30-favorites-share.js
+ *   - src/js/40-catalog-grid.js
+ *   - src/js/50-search-ui.js
+ *   - src/js/60-viewer.js
+ *   - src/js/90-bootstrap.js
+ * Build command: python tools/build_frontend_assets.py
+ */
+
+/* ===== BEGIN SOURCE: src/js/00-navigation.js ===== */
+/**
+ * Source module: 00-navigation.js
+ * Application routing, document metadata, and fullscreen-safe in-document navigation.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
+
 const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
 const catalogSearch = window.BargigCatalogSearch || null;
 const siteRoutes = window.BargigRoutes || null;
@@ -153,6 +177,17 @@ function updateDocumentMetadata(catalog = state?.catalog || null) {
   const canonical = document.querySelector('link[rel="canonical"]');
   if (canonical) canonical.href = window.location.href.split("#")[0];
 }
+/* ===== END SOURCE: src/js/00-navigation.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/10-app-state.js ===== */
+/**
+ * Source module: 10-app-state.js
+ * Shared runtime constants, persistent stores, application state, and cached DOM references.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
+
 const AUTO_VIEWER_ZOOM = 1;
 const MIN_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
@@ -178,145 +213,6 @@ function getFavoritesStorage() {
 
 const favoritesStore = window.BargigFavorites?.createStore?.({ storage: getFavoritesStorage() }) || null;
 
-function catalogAssetBaseUrl() {
-  const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
-  if (!rawBase) return "";
-  return rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
-}
-
-function isAbsoluteAssetUrl(path) {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith("//") || path.startsWith("data:");
-}
-
-function resolveCatalogAssetUrl(path) {
-  const cleanPath = String(path || "").trim();
-  if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
-
-  const baseUrl = catalogAssetBaseUrl();
-  if (!baseUrl) return cleanPath;
-
-  try {
-    return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
-  } catch {
-    return `${baseUrl}${cleanPath.replace(/^\/+/, "")}`;
-  }
-}
-
-function catalogImageCrossOriginAttribute() {
-  return "";
-}
-
-function applyCatalogImageCrossOrigin(img) {
-  if (img) img.removeAttribute("crossorigin");
-}
-
-function setCatalogImageSource(img, url) {
-  if (!img) return;
-  applyCatalogImageCrossOrigin(img);
-  img.src = url;
-}
-
-function prepareCatalogImage(url, options = {}) {
-  const src = String(url || "");
-  if (!src) return Promise.reject(new Error("missing-image-src"));
-
-  const cached = state.catalogImageLoadCache.get(src);
-  if (cached) return cached;
-
-  const image = new Image();
-  applyCatalogImageCrossOrigin(image);
-  image.decoding = "async";
-  image.fetchPriority = options.priority || "auto";
-
-  const promise = new Promise((resolve, reject) => {
-    image.addEventListener("load", async () => {
-      try {
-        if (typeof image.decode === "function") await image.decode();
-      } catch (_error) {
-        // Some browsers reject decode() for images that are already usable.
-      }
-      resolve(image);
-    }, { once: true });
-
-    image.addEventListener("error", () => {
-      state.catalogImageLoadCache.delete(src);
-      reject(new Error("image-load-failed"));
-    }, { once: true });
-
-    image.src = src;
-  });
-
-  state.catalogImageLoadCache.set(src, promise);
-  return promise;
-}
-
-function runSingleImageSwapAnimation() {
-  const frame = els.lightboxImageFrame;
-  if (!frame) return;
-
-  window.clearTimeout(state.singleImageAnimationTimer);
-  frame.classList.remove("page-swap-enter");
-  void frame.offsetWidth;
-  frame.classList.add("page-swap-enter");
-  state.singleImageAnimationTimer = window.setTimeout(() => {
-    frame.classList.remove("page-swap-enter");
-  }, 240);
-}
-
-
-function finishSingleImageSwap(token) {
-  if (token !== state.singleImageLoadToken) return;
-  setViewerLoading(false);
-  els.lightbox?.classList.remove("is-page-loading");
-  els.lightboxImageFrame?.classList.remove("is-preparing-swap");
-  syncImagePlaceholderState(els.lightboxImage);
-  applyZoom();
-}
-
-async function showSingleLightboxImage(catalog, page, src) {
-  if (!els.lightboxImage || !catalog || !src) return;
-
-  const token = ++state.singleImageLoadToken;
-  const image = els.lightboxImage;
-  const currentSrc = image.getAttribute("src") || "";
-  if (currentSrc === src && image.complete && image.naturalWidth) {
-    finishSingleImageSwap(token);
-    return;
-  }
-
-  setViewerLoading(true);
-  els.lightbox?.classList.add("is-page-loading");
-
-  try {
-    const preparedImage = await prepareCatalogImage(src, { priority: "high" });
-    if (token !== state.singleImageLoadToken || !state.lightboxOpen || state.catalog !== catalog || state.page !== page) return;
-
-    // The decoded image already gives us the exact next aspect ratio. Size the
-    // frame before swapping the visible source, so the viewer transitions to a
-    // known rectangle instead of collapsing and expanding after the load event.
-    applyLightboxFrameGeometry(preparedImage.naturalWidth, preparedImage.naturalHeight, { updateFitScale: false });
-    els.lightboxImageFrame?.classList.add("is-preparing-swap");
-    prepareImagePlaceholder(image);
-    image.alt = `${catalog.title} - עמוד ${page}`;
-    image.decoding = "async";
-    image.fetchPriority = "high";
-    setCatalogImageSource(image, src);
-
-    if (image.complete && image.naturalWidth) {
-      finishSingleImageSwap(token);
-    }
-
-    runSingleImageSwapAnimation();
-  } catch (error) {
-    if (token !== state.singleImageLoadToken) return;
-    console.warn("Lightbox image preload failed", error);
-    primeLightboxFrameForCatalogPage(catalog, page);
-    prepareImagePlaceholder(image);
-    image.alt = `${catalog.title} - עמוד ${page}`;
-    setCatalogImageSource(image, src);
-    finishSingleImageSwap(token);
-  }
-}
 const DOUBLE_TAP_DELAY = 320;
 const DOUBLE_TAP_DISTANCE = 34;
 const TAP_MOVE_TOLERANCE = 14;
@@ -517,7 +413,156 @@ const els = {
   viewerOnboardingShadeLeft: $("viewerOnboardingShadeLeft"),
   siteActionToast: $("siteActionToast")
 };
+/* ===== END SOURCE: src/js/10-app-state.js ===== */
 
+/* ===== BEGIN SOURCE: src/js/20-shared-ui.js ===== */
+/**
+ * Source module: 20-shared-ui.js
+ * Shared media loading, image placeholders, action feedback, asset paths, snapshots, and route helpers.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
+
+function catalogAssetBaseUrl() {
+  const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
+  if (!rawBase) return "";
+  return rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
+}
+
+function isAbsoluteAssetUrl(path) {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith("//") || path.startsWith("data:");
+}
+
+function resolveCatalogAssetUrl(path) {
+  const cleanPath = String(path || "").trim();
+  if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
+
+  const baseUrl = catalogAssetBaseUrl();
+  if (!baseUrl) return cleanPath;
+
+  try {
+    return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
+  } catch {
+    return `${baseUrl}${cleanPath.replace(/^\/+/, "")}`;
+  }
+}
+
+function catalogImageCrossOriginAttribute() {
+  return "";
+}
+
+function applyCatalogImageCrossOrigin(img) {
+  if (img) img.removeAttribute("crossorigin");
+}
+
+function setCatalogImageSource(img, url) {
+  if (!img) return;
+  applyCatalogImageCrossOrigin(img);
+  img.src = url;
+}
+
+function prepareCatalogImage(url, options = {}) {
+  const src = String(url || "");
+  if (!src) return Promise.reject(new Error("missing-image-src"));
+
+  const cached = state.catalogImageLoadCache.get(src);
+  if (cached) return cached;
+
+  const image = new Image();
+  applyCatalogImageCrossOrigin(image);
+  image.decoding = "async";
+  image.fetchPriority = options.priority || "auto";
+
+  const promise = new Promise((resolve, reject) => {
+    image.addEventListener("load", async () => {
+      try {
+        if (typeof image.decode === "function") await image.decode();
+      } catch (_error) {
+        // Some browsers reject decode() for images that are already usable.
+      }
+      resolve(image);
+    }, { once: true });
+
+    image.addEventListener("error", () => {
+      state.catalogImageLoadCache.delete(src);
+      reject(new Error("image-load-failed"));
+    }, { once: true });
+
+    image.src = src;
+  });
+
+  state.catalogImageLoadCache.set(src, promise);
+  return promise;
+}
+
+function runSingleImageSwapAnimation() {
+  const frame = els.lightboxImageFrame;
+  if (!frame) return;
+
+  window.clearTimeout(state.singleImageAnimationTimer);
+  frame.classList.remove("page-swap-enter");
+  void frame.offsetWidth;
+  frame.classList.add("page-swap-enter");
+  state.singleImageAnimationTimer = window.setTimeout(() => {
+    frame.classList.remove("page-swap-enter");
+  }, 240);
+}
+
+
+function finishSingleImageSwap(token) {
+  if (token !== state.singleImageLoadToken) return;
+  setViewerLoading(false);
+  els.lightbox?.classList.remove("is-page-loading");
+  els.lightboxImageFrame?.classList.remove("is-preparing-swap");
+  syncImagePlaceholderState(els.lightboxImage);
+  applyZoom();
+}
+
+async function showSingleLightboxImage(catalog, page, src) {
+  if (!els.lightboxImage || !catalog || !src) return;
+
+  const token = ++state.singleImageLoadToken;
+  const image = els.lightboxImage;
+  const currentSrc = image.getAttribute("src") || "";
+  if (currentSrc === src && image.complete && image.naturalWidth) {
+    finishSingleImageSwap(token);
+    return;
+  }
+
+  setViewerLoading(true);
+  els.lightbox?.classList.add("is-page-loading");
+
+  try {
+    const preparedImage = await prepareCatalogImage(src, { priority: "high" });
+    if (token !== state.singleImageLoadToken || !state.lightboxOpen || state.catalog !== catalog || state.page !== page) return;
+
+    // The decoded image already gives us the exact next aspect ratio. Size the
+    // frame before swapping the visible source, so the viewer transitions to a
+    // known rectangle instead of collapsing and expanding after the load event.
+    applyLightboxFrameGeometry(preparedImage.naturalWidth, preparedImage.naturalHeight, { updateFitScale: false });
+    els.lightboxImageFrame?.classList.add("is-preparing-swap");
+    prepareImagePlaceholder(image);
+    image.alt = `${catalog.title} - עמוד ${page}`;
+    image.decoding = "async";
+    image.fetchPriority = "high";
+    setCatalogImageSource(image, src);
+
+    if (image.complete && image.naturalWidth) {
+      finishSingleImageSwap(token);
+    }
+
+    runSingleImageSwapAnimation();
+  } catch (error) {
+    if (token !== state.singleImageLoadToken) return;
+    console.warn("Lightbox image preload failed", error);
+    primeLightboxFrameForCatalogPage(catalog, page);
+    prepareImagePlaceholder(image);
+    image.alt = `${catalog.title} - עמוד ${page}`;
+    setCatalogImageSource(image, src);
+    finishSingleImageSwap(token);
+  }
+}
 function pad(num) {
   return String(num).padStart(3, "0");
 }
@@ -980,6 +1025,16 @@ function findCatalogById(id) {
   const catalogId = String(id || "");
   return catalogs.find((item) => String(item.id || "") === catalogId) || null;
 }
+/* ===== END SOURCE: src/js/20-shared-ui.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/30-favorites-share.js ===== */
+/**
+ * Source module: 30-favorites-share.js
+ * Favorites storage integration, portable selection links, favorites panels, and link sharing.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
 
 function favoriteIdentity(catalog = state.catalog, page = state.page) {
   if (!catalog) return null;
@@ -1640,7 +1695,16 @@ async function shareCurrentMainHeaderLink() {
 async function shareCurrentLightboxLink() {
   await shareOrCopyCurrentLink(els.lightboxCopyLink);
 }
+/* ===== END SOURCE: src/js/30-favorites-share.js ===== */
 
+/* ===== BEGIN SOURCE: src/js/40-catalog-grid.js ===== */
+/**
+ * Source module: 40-catalog-grid.js
+ * Catalog navigation, category layout, catalog cards, preview grids, and catalog detail rendering.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
 
 function initRevealObserver() {
   const nodes = document.querySelectorAll(".reveal");
@@ -2467,6 +2531,153 @@ function renderCatalogCards() {
   syncCatalogCategoryFocusFromHash({ animate: false });
 }
 
+
+function fillCatalogSelect() {
+  updateDetailCatalogMenuLabel();
+}
+
+
+function renderPageGrid() {
+  if (!state.catalog) return;
+  // Keep generated page cards visually stable during scroll.
+  // Older versions attached scroll-time observers here for reveal animation
+  // and thumb activation; that caused work exactly when a card entered view.
+
+  const catalog = state.catalog;
+  const cards = [];
+  for (let page = 1; page <= catalog.pages; page += 1) {
+    cards.push(`
+      <article class="page-card">
+        <button class="page-button" type="button" data-open-page="${page}">
+          <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <span class="page-number-badge">${page}</span>
+          </div>
+          <div class="page-card-body">
+            <span class="page-card-title">עמוד ${page}</span>
+            <span class="page-card-hint">לחץ להגדלה</span>
+          </div>
+        </button>
+      </article>
+    `);
+  }
+  els.pageGrid.innerHTML = cards.join("");
+
+  els.pageGrid.querySelectorAll("[data-open-page]").forEach((button) => {
+    button.addEventListener("click", () => openLightbox(Number(button.dataset.openPage)));
+  });
+}
+
+function showCatalogDetail() {
+  if (!els.catalogDetail) return;
+  els.catalogDetail.classList.remove("hidden");
+  els.catalogDetail.classList.add("in-view");
+}
+
+function scrollCatalogDetailIntoView(options = {}) {
+  if (!els.catalogDetail) return;
+  const { behavior = "smooth" } = options;
+  requestAnimationFrame(() => {
+    els.catalogDetail.scrollIntoView({ behavior, block: "start" });
+    scheduleCatalogScrollTopButtonUpdate();
+  });
+}
+
+function positionCatalogScrollTopButton() {
+  if (!els.scrollToTopBtn || !els.pageGrid) return;
+
+  const gridRect = els.pageGrid.getBoundingClientRect();
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const buttonWidth = Math.max(els.scrollToTopBtn.offsetWidth || 46, 46);
+  const safeInset = 12;
+  const gapFromGrid = 12;
+  const maxLeft = Math.max(safeInset, viewportWidth - buttonWidth - safeInset);
+  const preferredLeft = gridRect.left - buttonWidth - gapFromGrid;
+  const left = clampValue(preferredLeft, safeInset, maxLeft);
+
+  els.scrollToTopBtn.style.setProperty("--catalog-scroll-top-left", `${Math.round(left)}px`);
+}
+
+function setCatalogScrollTopButtonVisible(visible) {
+  if (!els.scrollToTopBtn) return;
+  els.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
+  els.scrollToTopBtn.setAttribute("aria-hidden", visible ? "false" : "true");
+  els.scrollToTopBtn.tabIndex = visible ? 0 : -1;
+}
+
+function updateCatalogScrollTopButton() {
+  state.catalogScrollTopButtonRaf = 0;
+  if (!els.scrollToTopBtn || !els.catalogDetail || !els.pageGrid || els.catalogDetail.classList.contains("hidden") || !state.catalog || state.lightboxOpen) {
+    setCatalogScrollTopButtonVisible(false);
+    return;
+  }
+
+  positionCatalogScrollTopButton();
+
+  const detailRect = els.catalogDetail.getBoundingClientRect();
+  const gridRect = els.pageGrid.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 90;
+  const startedScrollingInsideGrid = gridRect.top < Math.min(headerHeight + 28, viewportHeight * 0.28);
+  const stillNearGrid = gridRect.bottom > Math.min(180, viewportHeight * 0.35);
+  const detailVisible = detailRect.bottom > 80 && detailRect.top < viewportHeight;
+  setCatalogScrollTopButtonVisible(startedScrollingInsideGrid && stillNearGrid && detailVisible);
+}
+
+function scheduleCatalogScrollTopButtonUpdate() {
+  if (state.catalogScrollTopButtonRaf) return;
+  state.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton);
+}
+
+function renderCatalogDetail() {
+  if (!state.catalog) return;
+  const catalog = state.catalog;
+  showCatalogDetail();
+  els.catalogTitle.textContent = catalog.title;
+  els.catalogDescription.textContent = catalog.description || "";
+  updateDetailCatalogMenuLabel(catalog);
+  if (els.catalogCoverPreview) {
+    setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
+    els.catalogCoverPreview.loading = "lazy";
+    els.catalogCoverPreview.decoding = "async";
+    els.catalogCoverPreview.alt = `שער ${catalog.title}`;
+  }
+  if (els.openCatalogEntryFromDetail) els.openCatalogEntryFromDetail.disabled = catalog.pages < 1;
+  if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) renderDetailCatalogMenu();
+  renderPageGrid();
+  scheduleCatalogScrollTopButtonUpdate();
+}
+
+function preloadNeighbors() {
+  if (!state.catalog) return;
+
+  if (isFavoritesLightboxMode()) {
+    const entries = getFavoriteEntries();
+    [state.favoritesViewerIndex - 2, state.favoritesViewerIndex - 1, state.favoritesViewerIndex + 1, state.favoritesViewerIndex + 2]
+      .filter((index) => index >= 0 && index < entries.length)
+      .forEach((index) => {
+        const entry = entries[index];
+        prepareCatalogImage(pageSrc(entry.catalog, entry.page), { priority: "low" }).catch(() => {});
+      });
+    return;
+  }
+
+  [state.page - 2, state.page - 1, state.page + 1, state.page + 2]
+    .filter((page) => page >= 1 && page <= state.catalog.pages)
+    .forEach((page) => {
+      prepareCatalogImage(pageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
+    });
+}
+/* ===== END SOURCE: src/js/40-catalog-grid.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/50-search-ui.js ===== */
+/**
+ * Source module: 50-search-ui.js
+ * Global and viewer search loading, scopes, result rendering, previews, and search interactions.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
 
 function isSearchIndexReady() {
   return Array.isArray(window.BARGIG_CATALOG_SEARCH);
@@ -3377,143 +3588,16 @@ function renderSearchResults(query) {
     });
   });
 }
+/* ===== END SOURCE: src/js/50-search-ui.js ===== */
 
-function fillCatalogSelect() {
-  updateDetailCatalogMenuLabel();
-}
-
-
-function renderPageGrid() {
-  if (!state.catalog) return;
-  // Keep generated page cards visually stable during scroll.
-  // Older versions attached scroll-time observers here for reveal animation
-  // and thumb activation; that caused work exactly when a card entered view.
-
-  const catalog = state.catalog;
-  const cards = [];
-  for (let page = 1; page <= catalog.pages; page += 1) {
-    cards.push(`
-      <article class="page-card">
-        <button class="page-button" type="button" data-open-page="${page}">
-          <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
-            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
-            <span class="page-number-badge">${page}</span>
-          </div>
-          <div class="page-card-body">
-            <span class="page-card-title">עמוד ${page}</span>
-            <span class="page-card-hint">לחץ להגדלה</span>
-          </div>
-        </button>
-      </article>
-    `);
-  }
-  els.pageGrid.innerHTML = cards.join("");
-
-  els.pageGrid.querySelectorAll("[data-open-page]").forEach((button) => {
-    button.addEventListener("click", () => openLightbox(Number(button.dataset.openPage)));
-  });
-}
-
-function showCatalogDetail() {
-  if (!els.catalogDetail) return;
-  els.catalogDetail.classList.remove("hidden");
-  els.catalogDetail.classList.add("in-view");
-}
-
-function scrollCatalogDetailIntoView(options = {}) {
-  if (!els.catalogDetail) return;
-  const { behavior = "smooth" } = options;
-  requestAnimationFrame(() => {
-    els.catalogDetail.scrollIntoView({ behavior, block: "start" });
-    scheduleCatalogScrollTopButtonUpdate();
-  });
-}
-
-function positionCatalogScrollTopButton() {
-  if (!els.scrollToTopBtn || !els.pageGrid) return;
-
-  const gridRect = els.pageGrid.getBoundingClientRect();
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-  const buttonWidth = Math.max(els.scrollToTopBtn.offsetWidth || 46, 46);
-  const safeInset = 12;
-  const gapFromGrid = 12;
-  const maxLeft = Math.max(safeInset, viewportWidth - buttonWidth - safeInset);
-  const preferredLeft = gridRect.left - buttonWidth - gapFromGrid;
-  const left = clampValue(preferredLeft, safeInset, maxLeft);
-
-  els.scrollToTopBtn.style.setProperty("--catalog-scroll-top-left", `${Math.round(left)}px`);
-}
-
-function setCatalogScrollTopButtonVisible(visible) {
-  if (!els.scrollToTopBtn) return;
-  els.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
-  els.scrollToTopBtn.setAttribute("aria-hidden", visible ? "false" : "true");
-  els.scrollToTopBtn.tabIndex = visible ? 0 : -1;
-}
-
-function updateCatalogScrollTopButton() {
-  state.catalogScrollTopButtonRaf = 0;
-  if (!els.scrollToTopBtn || !els.catalogDetail || !els.pageGrid || els.catalogDetail.classList.contains("hidden") || !state.catalog || state.lightboxOpen) {
-    setCatalogScrollTopButtonVisible(false);
-    return;
-  }
-
-  positionCatalogScrollTopButton();
-
-  const detailRect = els.catalogDetail.getBoundingClientRect();
-  const gridRect = els.pageGrid.getBoundingClientRect();
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-  const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 90;
-  const startedScrollingInsideGrid = gridRect.top < Math.min(headerHeight + 28, viewportHeight * 0.28);
-  const stillNearGrid = gridRect.bottom > Math.min(180, viewportHeight * 0.35);
-  const detailVisible = detailRect.bottom > 80 && detailRect.top < viewportHeight;
-  setCatalogScrollTopButtonVisible(startedScrollingInsideGrid && stillNearGrid && detailVisible);
-}
-
-function scheduleCatalogScrollTopButtonUpdate() {
-  if (state.catalogScrollTopButtonRaf) return;
-  state.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton);
-}
-
-function renderCatalogDetail() {
-  if (!state.catalog) return;
-  const catalog = state.catalog;
-  showCatalogDetail();
-  els.catalogTitle.textContent = catalog.title;
-  els.catalogDescription.textContent = catalog.description || "";
-  updateDetailCatalogMenuLabel(catalog);
-  if (els.catalogCoverPreview) {
-    setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
-    els.catalogCoverPreview.loading = "lazy";
-    els.catalogCoverPreview.decoding = "async";
-    els.catalogCoverPreview.alt = `שער ${catalog.title}`;
-  }
-  if (els.openCatalogEntryFromDetail) els.openCatalogEntryFromDetail.disabled = catalog.pages < 1;
-  if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) renderDetailCatalogMenu();
-  renderPageGrid();
-  scheduleCatalogScrollTopButtonUpdate();
-}
-
-function preloadNeighbors() {
-  if (!state.catalog) return;
-
-  if (isFavoritesLightboxMode()) {
-    const entries = getFavoriteEntries();
-    [state.favoritesViewerIndex - 2, state.favoritesViewerIndex - 1, state.favoritesViewerIndex + 1, state.favoritesViewerIndex + 2]
-      .filter((index) => index >= 0 && index < entries.length)
-      .forEach((index) => {
-        const entry = entries[index];
-        prepareCatalogImage(pageSrc(entry.catalog, entry.page), { priority: "low" }).catch(() => {});
-      });
-    return;
-  }
-
-  [state.page - 2, state.page - 1, state.page + 1, state.page + 2]
-    .filter((page) => page >= 1 && page <= state.catalog.pages)
-    .forEach((page) => {
-      prepareCatalogImage(pageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
-    });
-}
+/* ===== BEGIN SOURCE: src/js/60-viewer.js ===== */
+/**
+ * Source module: 60-viewer.js
+ * Catalog viewer layout, fullscreen controls, page rail, onboarding, zoom, pan, and pointer gestures.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
 
 function updateHash() {
   if (!window.history?.replaceState) return;
@@ -5699,6 +5783,16 @@ function handleLightboxSearchResultsBackgroundClick(event) {
   event.stopPropagation();
   hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi: true });
 }
+/* ===== END SOURCE: src/js/60-viewer.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/90-bootstrap.js ===== */
+/**
+ * Source module: 90-bootstrap.js
+ * Cross-feature event wiring, route preparation, initialization, and application startup.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
 
 function attachEvents() {
   els.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
@@ -6223,3 +6317,4 @@ try {
 } finally {
   if (initResult !== false) markAppReady();
 }
+/* ===== END SOURCE: src/js/90-bootstrap.js ===== */

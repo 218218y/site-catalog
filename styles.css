@@ -1,3 +1,25 @@
+/*
+ * GENERATED FILE — DO NOT EDIT DIRECTLY.
+ * Browser bundle: styles.css
+ * Source modules:
+ *   - src/css/00-foundation.css
+ *   - src/css/10-catalog.css
+ *   - src/css/20-viewer.css
+ *   - src/css/30-media-components.css
+ *   - src/css/40-catalog-refinements.css
+ *   - src/css/50-footer-legal.css
+ *   - src/css/90-responsive-polish.css
+ * Build command: python tools/build_frontend_assets.py
+ */
+
+/* ===== BEGIN SOURCE: src/css/00-foundation.css ===== */
+/**
+ * Source stylesheet: 00-foundation.css
+ * Design tokens, resets, global layout, shared controls, header, and onboarding foundation.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
+
 :root {
   --bg: #f6f0eb;
   --bg-2: #fdfaf7;
@@ -930,6 +952,15 @@ main {
   font-size: clamp(1.9rem, 3vw, 3.2rem);
   letter-spacing: -0.04em;
 }
+/* ===== END SOURCE: src/css/00-foundation.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/10-catalog.css ===== */
+/**
+ * Source stylesheet: 10-catalog.css
+ * Catalog categories, cards, search surfaces, catalog details, and page grids.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
 
 .catalog-category-list {
   --catalog-category-gap-x: 42px;
@@ -2010,7 +2041,15 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   color: var(--ink);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
+/* ===== END SOURCE: src/css/10-catalog.css ===== */
 
+/* ===== BEGIN SOURCE: src/css/20-viewer.css ===== */
+/**
+ * Source stylesheet: 20-viewer.css
+ * Fullscreen viewer shell, page rail, controls, search, zoom, and viewer-specific states.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
 
 .lightbox {
   position: fixed;
@@ -3418,7 +3457,15 @@ a.reader-home:focus-visible {
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.14);
 }
+/* ===== END SOURCE: src/css/20-viewer.css ===== */
 
+/* ===== BEGIN SOURCE: src/css/30-media-components.css ===== */
+/**
+ * Source stylesheet: 30-media-components.css
+ * Shared branded image frames, placeholders, loading states, and media presentation.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
 
 /* Bargig SVG branding */
 .catalog-image-frame,
@@ -3593,8 +3640,15 @@ a.reader-home:focus-visible {
     transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(var(--single-zoom, 1));
   }
 }
+/* ===== END SOURCE: src/css/30-media-components.css ===== */
 
-
+/* ===== BEGIN SOURCE: src/css/40-catalog-refinements.css ===== */
+/**
+ * Source stylesheet: 40-catalog-refinements.css
+ * Catalog interaction refinements and unified viewer-search integration.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
 
 /* Catalog interaction fixes */
 .search-panel:not(.global-search-popover) {
@@ -3732,6 +3786,15 @@ a.reader-home:focus-visible {
 .lightbox-search-empty {
   text-align: right;
 }
+/* ===== END SOURCE: src/css/40-catalog-refinements.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/50-footer-legal.css ===== */
+/**
+ * Source stylesheet: 50-footer-legal.css
+ * Site footer, contact controls, and standalone legal document presentation.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
 
 .site-footer {
   width: 100%;
@@ -4084,6 +4147,15 @@ a.reader-home:focus-visible {
   font-weight: 820;
   text-underline-offset: 3px;
 }
+/* ===== END SOURCE: src/css/50-footer-legal.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/90-responsive-polish.css ===== */
+/**
+ * Source stylesheet: 90-responsive-polish.css
+ * Responsive breakpoints, performance containment, accessibility motion rules, and final visual refinements.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
 
 @media (max-width: 1180px) {
   .search-panel.global-search-popover .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -5983,3 +6055,4 @@ body[data-page="viewer"] {
   .legal-document-content { padding-inline: 19px; }
   .legal-document-content section + section { margin-top: 26px; padding-top: 24px; }
 }
+/* ===== END SOURCE: src/css/90-responsive-polish.css ===== */

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from build_frontend_assets import build_frontend_assets
+
 
 @dataclass(frozen=True)
 class PageDocument:
@@ -109,7 +111,10 @@ def render_page(template: str, page: PageDocument, *, site_footer: str, legal_co
     return rendered
 
 
-def render_site_pages(root: Path, output_dir: Path | None = None) -> list[Path]:
+def render_site_pages(root: Path, output_dir: Path | None = None, *, build_assets: bool = True) -> list[Path]:
+    if build_assets:
+        build_frontend_assets(root)
+
     target_root = output_dir or root
     target_root.mkdir(parents=True, exist_ok=True)
 
