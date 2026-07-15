@@ -31,17 +31,14 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from build_site_pages import PAGE_DOCUMENTS
+
 DEFAULT_BUNDLE_DIR = "dist/site-upload-r2"
 DEFAULT_PROJECT_NAME = "bargig-catlog"
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 DEFAULT_R2_BUCKET = "bargig-catalog"
 DEFAULT_R2_CORS_FILE = "r2-cors.json"
-PUBLIC_HTML_FILES = (
-    "index.html",
-    "catalog.html",
-    "favorites.html",
-    "viewer.html",
-)
+PUBLIC_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS)
 REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "404.html", "_headers")
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 FINGERPRINTED_ASSET_DIR = "static"

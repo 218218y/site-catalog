@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="he" dir="rtl" class="has-bargig-logo">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (() => {
+      const hostname = window.location.hostname;
+      const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+      if (window.location.protocol === "http:" && !isLocalHost) {
+        window.location.replace("https:" + window.location.href.slice(window.location.protocol.length));
+      }
+    })();
+  </script>
+  <meta name="robots" content="noindex, nofollow, noimageindex, nosnippet, noarchive" />
+  <meta name="theme-color" content="#8b6f5a" />
+  <link rel="manifest" href="site.webmanifest" />
+  <link rel="icon" href="favicon.ico" sizes="any" data-site-favicon="1" />
+  <script src="favicon-loader.js" defer></script>
+  <title>{{PAGE_TITLE}}</title>
+  <meta name="description" content="{{PAGE_DESCRIPTION}}" />
+  <link rel="canonical" href="https://bargig-furniture.com/{{CANONICAL_PATH}}" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="{{PAGE_MODE}}">
+  <header class="legal-site-header" id="top">
+    <a class="brand legal-site-brand" href="index.html" aria-label="רהיטי ברגיג — חזרה לדף הבית">
+      <span class="brand-mark-frame" aria-hidden="true">
+        <img class="brand-mark" src="brand-logo-header.svg" width="786" height="317" alt="" decoding="async" />
+      </span>
+      <span class="brand-text">
+        <strong>רהיטי ברגיג</strong>
+        <small>גלריית קטלוגים</small>
+      </span>
+    </a>
+    <a class="button soft legal-back-link" href="index.html">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg>
+      <span>חזרה לקטלוגים</span>
+    </a>
+  </header>
+
+  <main class="legal-main">
+    <nav class="legal-breadcrumbs" aria-label="פירורי לחם">
+      <a href="index.html">דף הבית</a>
+      <span aria-hidden="true">/</span>
+      <span aria-current="page">{{LEGAL_HEADING}}</span>
+    </nav>
+
+    <article class="legal-document">
+      <header class="legal-document-header">
+        <span class="legal-eyebrow">{{LEGAL_EYEBROW}}</span>
+        <h1>{{LEGAL_HEADING}}</h1>
+        <p class="legal-updated">עודכן לאחרונה: {{LEGAL_UPDATED}}</p>
+        <p class="legal-summary">{{LEGAL_SUMMARY}}</p>
+      </header>
+
+      <div class="legal-document-content">
+        {{LEGAL_CONTENT}}
+      </div>
+    </article>
+  </main>
+
+  {{SITE_FOOTER}}
+</body>
+</html>

@@ -165,6 +165,12 @@ def test_public_html_routes_keep_original_cache_policy_and_include_404() -> None
         "/viewer",
         "/viewer/",
         "/viewer.html",
+        "/terms",
+        "/terms/",
+        "/terms.html",
+        "/privacy",
+        "/privacy/",
+        "/privacy.html",
         "/404",
         "/404.html",
     ):

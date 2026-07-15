@@ -722,7 +722,7 @@ def main() -> int:
                 "Cache: HTML is not stored; CSS/JS use one current content-hashed generation "
                 "and can be cached immutably."
             )
-        print("Contact: direct Gmail compose link only; no mailto fallback, form, or serverless function is required.")
+        print("Contact: direct phone and email links are included in the shared site footer; no contact form or serverless function is required.")
 
         if args.zip:
             zip_path = out_dir.with_suffix(".zip")

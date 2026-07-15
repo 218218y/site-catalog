@@ -32,6 +32,18 @@
   Cache-Control: no-store, max-age=0, must-revalidate
 /viewer.html
   Cache-Control: no-store, max-age=0, must-revalidate
+/terms
+  Cache-Control: no-store, max-age=0, must-revalidate
+/terms/
+  Cache-Control: no-store, max-age=0, must-revalidate
+/terms.html
+  Cache-Control: no-store, max-age=0, must-revalidate
+/privacy
+  Cache-Control: no-store, max-age=0, must-revalidate
+/privacy/
+  Cache-Control: no-store, max-age=0, must-revalidate
+/privacy.html
+  Cache-Control: no-store, max-age=0, must-revalidate
 
 /404
   Cache-Control: no-store, max-age=0, must-revalidate
