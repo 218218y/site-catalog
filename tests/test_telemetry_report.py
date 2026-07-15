@@ -24,7 +24,8 @@ def test_report_query_is_aggregate_and_bounded() -> None:
     assert "_sample_interval AS sample_interval" in query
     assert "SUM(sample_interval) AS count" in query
     assert "SUM(if(value = 0, sample_interval, 0))" in query
-    assert "SUM(sample_interval * duration_ms) / SUM(sample_interval)" in query
+    assert "page_load" not in query
+    assert "first_catalog_image" not in query
     assert "ip" not in query.lower()
     assert "user_agent" not in query.lower()
 

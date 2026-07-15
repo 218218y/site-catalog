@@ -70,7 +70,7 @@ async function loadFunctionModule() {
       "Origin": "https://attacker.example",
       "Sec-Fetch-Site": "cross-site"
     },
-    body: JSON.stringify({ version: 1, events: [{ name: "page_view" }] })
+    body: JSON.stringify({ version: 1, events: [{ name: "catalog_open", catalogId: "test-catalog" }] })
   });
   assert.equal((await module.onRequestPost({ request: crossOrigin, env })).status, 403);
 
@@ -82,12 +82,36 @@ async function loadFunctionModule() {
         "Origin": "https://bargig-furniture.com",
         "Sec-Fetch-Site": "same-origin"
       },
-      body: JSON.stringify({ version: 1, events: [{ name: "page_view" }] })
+      body: JSON.stringify({ version: 1, events: [{ name: "catalog_open", catalogId: "test-catalog" }] })
     }),
     env: {}
   });
   assert.equal(disabled.status, 202);
   assert.equal(disabled.headers.get("X-Telemetry-Status"), "disabled");
+
+  const writesBeforeDuplicateMetrics = writes.length;
+  const duplicateMetrics = await module.onRequestPost({
+    request: new Request("https://bargig-furniture.com/api/telemetry", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Origin": "https://bargig-furniture.com",
+        "Sec-Fetch-Site": "same-origin"
+      },
+      body: JSON.stringify({
+        version: 1,
+        events: [
+          { name: "page_view" },
+          { name: "page_load", durationMs: 300 },
+          { name: "first_catalog_image", durationMs: 500 }
+        ]
+      })
+    }),
+    env
+  });
+  assert.equal(duplicateMetrics.status, 202);
+  assert.deepEqual(await duplicateMetrics.json(), { ok: true, accepted: 0 });
+  assert.equal(writes.length, writesBeforeDuplicateMetrics);
 
   const health = await module.onRequestGet({ env });
   assert.equal(health.status, 200);

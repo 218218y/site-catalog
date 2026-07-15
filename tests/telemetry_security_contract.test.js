@@ -25,17 +25,17 @@ assert.doesNotMatch(telemetry, /document\.referrer/);
 assert.doesNotMatch(telemetry, /\.stack\b/);
 
 for (const eventName of [
-  "page_view",
   "catalog_open",
   "search",
   "favorite",
   "contact",
   "js_error",
-  "image_error",
-  "page_load",
-  "first_catalog_image"
+  "image_error"
 ]) {
   assert.match(telemetry, new RegExp(`"${eventName}"`));
+}
+for (const duplicateMetric of ["page_view", "page_load", "first_catalog_image"]) {
+  assert.doesNotMatch(telemetry, new RegExp(`"${duplicateMetric}"`));
 }
 
 assert.equal(wrangler.name, "bargig-catlog");

@@ -9,6 +9,21 @@
   width: 100%;
   padding: 0 clamp(12px, 3vw, 42px) clamp(10px, 1.5vw, 18px);
   color: var(--muted);
+  overflow-anchor: none;
+}
+
+/* Catalog and favorites content is rendered by JavaScript. Keep the footer out of
+   the paint tree until that first render is complete, so it appears once at its
+   final position instead of being pushed down through the viewport. */
+body:not([data-page="viewer"]):not([data-app-ready="true"]) > .site-footer {
+  visibility: hidden;
+  opacity: 0;
+}
+
+body[data-app-ready="true"] > .site-footer {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity var(--motion-fast) ease;
 }
 .site-footer-shell {
   width: min(1480px, 100%);

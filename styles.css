@@ -3824,6 +3824,21 @@ a.reader-home:focus-visible {
   width: 100%;
   padding: 0 clamp(12px, 3vw, 42px) clamp(10px, 1.5vw, 18px);
   color: var(--muted);
+  overflow-anchor: none;
+}
+
+/* Catalog and favorites content is rendered by JavaScript. Keep the footer out of
+   the paint tree until that first render is complete, so it appears once at its
+   final position instead of being pushed down through the viewport. */
+body:not([data-page="viewer"]):not([data-app-ready="true"]) > .site-footer {
+  visibility: hidden;
+  opacity: 0;
+}
+
+body[data-app-ready="true"] > .site-footer {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity var(--motion-fast) ease;
 }
 .site-footer-shell {
   width: min(1480px, 100%);
@@ -5538,9 +5553,12 @@ body[data-page="viewer"] {
 /* The decoded target dimensions are applied before the source swap. Width and height
    now ease to their next values instead of snapping after the load event. */
 .lightbox-image-frame {
+  /* Width/height animation was visually pleasant but produced real CLS when an
+     image finished decoding after the interaction window. Geometry now changes
+     atomically; the existing opacity/filter transition keeps the swap polished. */
+  contain: layout paint style;
+  will-change: transform, opacity, filter;
   transition:
-    width var(--image-swap-duration) var(--image-swap-easing),
-    height var(--image-swap-duration) var(--image-swap-easing),
     box-shadow var(--motion-standard) ease,
     filter var(--motion-fast) ease;
 }
@@ -5825,6 +5843,7 @@ body[data-page="viewer"] {
     opacity: .24;
     transform: none;
   }
+  body[data-app-ready="true"] > .site-footer { transition: none !important; }
   .catalog-card,
   .page-card,
   .favorite-card,

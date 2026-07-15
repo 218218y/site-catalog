@@ -461,7 +461,7 @@ const els = {
 /* ===== BEGIN SOURCE: src/js/15-telemetry.js ===== */
 /**
  * Source module: 15-telemetry.js
- * Privacy-first operational telemetry, runtime error reporting, and performance measurements.
+ * Privacy-first business telemetry and runtime error reporting.
  *
  * The browser sends only whitelisted, coarse events to the same-origin Pages Function.
  * No cookie, persistent visitor id, IP address, full referrer, user agent, or error stack is sent.
@@ -479,15 +479,12 @@ const TELEMETRY_ALLOWED_HOSTS = new Set([
   "www.bargig-furniture.com"
 ]);
 const TELEMETRY_EVENT_NAMES = new Set([
-  "page_view",
   "catalog_open",
   "search",
   "favorite",
   "contact",
   "js_error",
-  "image_error",
-  "page_load",
-  "first_catalog_image"
+  "image_error"
 ]);
 
 const telemetryRuntime = {
@@ -495,14 +492,11 @@ const telemetryRuntime = {
   queue: [],
   flushTimer: 0,
   flushing: false,
-  routeKey: "",
-  routeAt: 0,
   catalogKey: "",
   catalogAt: 0,
   searchTimers: new Map(),
   searchKeys: new Map(),
   imageFailures: new Set(),
-  firstCatalogImageSent: false,
   initialized: false
 };
 
@@ -646,21 +640,6 @@ async function telemetryFlush(options = {}) {
   }
 }
 
-function telemetryTrackPageView(route = {}) {
-  if (!telemetryIsEnabled()) return;
-  const now = Date.now();
-  const key = [route.page, route.catalogId, route.currentPage, telemetryCleanPathname()].join("|");
-  if (key === telemetryRuntime.routeKey && now - telemetryRuntime.routeAt < 800) return;
-  telemetryRuntime.routeKey = key;
-  telemetryRuntime.routeAt = now;
-  telemetryTrack("page_view", {
-    page: route.page,
-    catalogId: route.catalogId,
-    pageNumber: route.currentPage,
-    source: route.source
-  });
-}
-
 function telemetryTrackCatalogOpen(catalog, page, source = LIGHTBOX_SOURCE_CATALOG) {
   if (!catalog) return;
   const now = Date.now();
@@ -734,41 +713,6 @@ function telemetryTrackImageFailure(src, options = {}) {
   }, { immediate: true });
 }
 
-function telemetryTrackFirstCatalogImage(img) {
-  if (telemetryRuntime.firstCatalogImageSent || !telemetryIsEnabled()) return;
-  const frame = img?.closest?.(".catalog-image-frame, .image-placeholder-frame");
-  if (!frame || !img.naturalWidth) return;
-  const context = telemetryCatalogImageContext(img);
-  const entries = performance.getEntriesByName?.(img.currentSrc || img.src) || [];
-  const resource = entries[entries.length - 1];
-  telemetryRuntime.firstCatalogImageSent = true;
-  telemetryTrack("first_catalog_image", {
-    catalogId: context.catalogId,
-    pageNumber: context.pageNumber,
-    detail: context.detail,
-    durationMs: resource?.duration || performance.now(),
-    value: resource?.transferSize || 0,
-    secondaryValue: resource?.decodedBodySize || 0
-  });
-}
-
-function telemetryTrackNavigationPerformance() {
-  if (!telemetryIsEnabled() || !window.performance) return;
-  const send = () => {
-    const navigation = performance.getEntriesByType?.("navigation")?.[0];
-    const duration = navigation?.loadEventEnd > 0 ? navigation.loadEventEnd - navigation.startTime : performance.now();
-    telemetryTrack("page_load", {
-      durationMs: duration,
-      value: navigation ? navigation.responseStart - navigation.startTime : 0,
-      secondaryValue: navigation ? navigation.domContentLoadedEventEnd - navigation.startTime : 0,
-      detail: navigation?.type || "navigate"
-    });
-  };
-
-  if (document.readyState === "complete") window.setTimeout(send, 0);
-  else window.addEventListener("load", () => window.setTimeout(send, 0), { once: true });
-}
-
 function telemetryTrackRuntimeError(event) {
   const sourceName = telemetryCleanText(String(event?.filename || "").split("?")[0].split("/").pop(), 80);
   const errorName = telemetryCleanText(event?.error?.name || "Error", 40);
@@ -819,21 +763,11 @@ function telemetryInit() {
     telemetryTrackRuntimeError(event);
   }, true);
   window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection);
-  document.addEventListener("load", (event) => {
-    if (event.target instanceof HTMLImageElement) telemetryTrackFirstCatalogImage(event.target);
-  }, true);
   document.addEventListener("click", telemetryHandleDocumentClick, true);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") telemetryFlush({ beacon: true }).catch(() => {});
   });
   window.addEventListener("pagehide", () => telemetryFlush({ beacon: true }).catch(() => {}));
-  telemetryTrackNavigationPerformance();
-
-  window.requestAnimationFrame(() => {
-    document.querySelectorAll(".catalog-image-frame img, .image-placeholder-frame img").forEach((img) => {
-      if (!telemetryRuntime.firstCatalogImageSent && img.complete && img.naturalWidth) telemetryTrackFirstCatalogImage(img);
-    });
-  });
 }
 /* ===== END SOURCE: src/js/15-telemetry.js ===== */
 
@@ -4384,11 +4318,14 @@ function applyLightboxFrameGeometry(naturalWidth, naturalHeight, options = {}) {
   if (!frame || !image || !layout) return null;
 
   if (options.updateFitScale !== false) state.fitScale = layout.fitScale;
-  frame.style.width = `${layout.width}px`;
-  frame.style.height = `${layout.height}px`;
-  frame.style.aspectRatio = `${naturalWidth} / ${naturalHeight}`;
-  image.style.width = "100%";
-  image.style.height = "100%";
+  const nextWidth = `${layout.width}px`;
+  const nextHeight = `${layout.height}px`;
+  const nextAspectRatio = `${naturalWidth} / ${naturalHeight}`;
+  if (frame.style.width !== nextWidth) frame.style.width = nextWidth;
+  if (frame.style.height !== nextHeight) frame.style.height = nextHeight;
+  if (frame.style.aspectRatio !== nextAspectRatio) frame.style.aspectRatio = nextAspectRatio;
+  if (image.style.width !== "100%") image.style.width = "100%";
+  if (image.style.height !== "100%") image.style.height = "100%";
   return layout;
 }
 
@@ -4811,20 +4748,26 @@ function showLightboxFloatingPreview(button) {
 
 function updateLightboxThumbs(options = {}) {
   const { scrollIntoView = true } = options;
-  const pageRailIsVisible = Boolean(els.lightbox?.classList.contains("show-page-rail"));
+  const rail = els.lightboxPageThumbs;
+  if (!rail) return;
 
-  els.lightboxPageThumbs?.querySelectorAll(".lightbox-page-thumb").forEach((button) => {
-    const active = isFavoritesLightboxMode()
-      ? Number(button.dataset.favoriteIndex) === state.favoritesViewerIndex
-      : Number(button.dataset.page) === state.page;
-    button.classList.toggle("active", active);
-    if (active) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
+  const previous = rail.querySelector('.lightbox-page-thumb[aria-current="page"]');
+  const selector = isFavoritesLightboxMode()
+    ? `.lightbox-page-thumb[data-favorite-index="${state.favoritesViewerIndex}"]`
+    : `.lightbox-page-thumb[data-page="${state.page}"]`;
+  const active = rail.querySelector(selector);
 
-    if (active && scrollIntoView && pageRailIsVisible) {
-      button.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }
-  });
+  if (previous && previous !== active) {
+    previous.classList.remove("active");
+    previous.removeAttribute("aria-current");
+  }
+  if (!active) return;
+
+  active.classList.add("active");
+  active.setAttribute("aria-current", "page");
+  if (scrollIntoView && els.lightbox?.classList.contains("show-page-rail")) {
+    active.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
 }
 
 function handleLightboxPageRailSelection(button) {
@@ -6692,8 +6635,6 @@ function initDocumentRoute(options = {}) {
   };
 
   prepareDocumentRoute(route.page);
-  telemetryTrackPageView(route);
-
   if (route.page === "home") {
     state.catalog = null;
     state.page = 1;

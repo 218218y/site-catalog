@@ -121,10 +121,6 @@ FROM recent WHERE event_name = 'favorite' GROUP BY action_name
 UNION ALL
 SELECT 'error', if(error_code = '', event_name, error_code), SUM(sample_interval), 0
 FROM recent WHERE event_name IN ('js_error', 'image_error') GROUP BY error_code, event_name
-UNION ALL
-SELECT 'performance', event_name, SUM(sample_interval),
-       round(SUM(sample_interval * duration_ms) / SUM(sample_interval), 1)
-FROM recent WHERE event_name IN ('page_load', 'first_catalog_image') AND duration_ms > 0 GROUP BY event_name
 ORDER BY section, count DESC
 FORMAT JSON
 """.strip()
@@ -155,7 +151,6 @@ def print_report(rows: list[dict[str, Any]], days: int) -> None:
         "contact": "Contact clicks",
         "favorite": "Favorite actions",
         "error": "Runtime/image errors",
-        "performance": "Performance (metric = average milliseconds)",
     }
     current = None
     for row in rows:

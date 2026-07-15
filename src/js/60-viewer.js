@@ -165,11 +165,14 @@ function applyLightboxFrameGeometry(naturalWidth, naturalHeight, options = {}) {
   if (!frame || !image || !layout) return null;
 
   if (options.updateFitScale !== false) state.fitScale = layout.fitScale;
-  frame.style.width = `${layout.width}px`;
-  frame.style.height = `${layout.height}px`;
-  frame.style.aspectRatio = `${naturalWidth} / ${naturalHeight}`;
-  image.style.width = "100%";
-  image.style.height = "100%";
+  const nextWidth = `${layout.width}px`;
+  const nextHeight = `${layout.height}px`;
+  const nextAspectRatio = `${naturalWidth} / ${naturalHeight}`;
+  if (frame.style.width !== nextWidth) frame.style.width = nextWidth;
+  if (frame.style.height !== nextHeight) frame.style.height = nextHeight;
+  if (frame.style.aspectRatio !== nextAspectRatio) frame.style.aspectRatio = nextAspectRatio;
+  if (image.style.width !== "100%") image.style.width = "100%";
+  if (image.style.height !== "100%") image.style.height = "100%";
   return layout;
 }
 
@@ -592,20 +595,26 @@ function showLightboxFloatingPreview(button) {
 
 function updateLightboxThumbs(options = {}) {
   const { scrollIntoView = true } = options;
-  const pageRailIsVisible = Boolean(els.lightbox?.classList.contains("show-page-rail"));
+  const rail = els.lightboxPageThumbs;
+  if (!rail) return;
 
-  els.lightboxPageThumbs?.querySelectorAll(".lightbox-page-thumb").forEach((button) => {
-    const active = isFavoritesLightboxMode()
-      ? Number(button.dataset.favoriteIndex) === state.favoritesViewerIndex
-      : Number(button.dataset.page) === state.page;
-    button.classList.toggle("active", active);
-    if (active) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
+  const previous = rail.querySelector('.lightbox-page-thumb[aria-current="page"]');
+  const selector = isFavoritesLightboxMode()
+    ? `.lightbox-page-thumb[data-favorite-index="${state.favoritesViewerIndex}"]`
+    : `.lightbox-page-thumb[data-page="${state.page}"]`;
+  const active = rail.querySelector(selector);
 
-    if (active && scrollIntoView && pageRailIsVisible) {
-      button.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }
-  });
+  if (previous && previous !== active) {
+    previous.classList.remove("active");
+    previous.removeAttribute("aria-current");
+  }
+  if (!active) return;
+
+  active.classList.add("active");
+  active.setAttribute("aria-current", "page");
+  if (scrollIntoView && els.lightbox?.classList.contains("show-page-rail")) {
+    active.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
 }
 
 function handleLightboxPageRailSelection(button) {

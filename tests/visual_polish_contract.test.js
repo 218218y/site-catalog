@@ -38,7 +38,8 @@ assert.match(css, /--radius-card:\s*22px/);
 assert.match(css, /--control-height:\s*42px/);
 assert.match(css, /\.image-placeholder-frame\.image-loading/);
 assert.match(css, /@keyframes image-placeholder-sheen/);
-assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?width var\(--image-swap-duration\)[\s\S]*?height var\(--image-swap-duration\)/);
+assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?contain:\s*layout paint style/);
+assert.doesNotMatch(css, /width var\(--image-swap-duration\)|height var\(--image-swap-duration\)/);
 assert.match(css, /\.viewer-page-indicator\s*\{/);
 
 const placeholderRule = css.match(/\.image-placeholder-frame\s*\{([\s\S]*?)\}/);

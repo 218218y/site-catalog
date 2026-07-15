@@ -337,11 +337,13 @@ test.describe("critical catalog journeys", () => {
     await page.locator("#viewerFavoriteButton").click();
     await page.waitForTimeout(1200);
 
-    await expect.poll(() => events.map((event) => event.name)).toContain("page_view");
-    expect(events.map((event) => event.name)).toContain("search");
-    expect(events.map((event) => event.name)).toContain("catalog_open");
-    expect(events.map((event) => event.name)).toContain("favorite");
-    expect(events.map((event) => event.name)).toContain("first_catalog_image");
+    const names = events.map((event) => event.name);
+    expect(names).toContain("search");
+    expect(names).toContain("catalog_open");
+    expect(names).toContain("favorite");
+    expect(names).not.toContain("page_view");
+    expect(names).not.toContain("page_load");
+    expect(names).not.toContain("first_catalog_image");
     for (const event of events) {
       expect(event).not.toHaveProperty("visitorId");
       expect(event).not.toHaveProperty("userAgent");

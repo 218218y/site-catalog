@@ -185,8 +185,6 @@ function initDocumentRoute(options = {}) {
   };
 
   prepareDocumentRoute(route.page);
-  telemetryTrackPageView(route);
-
   if (route.page === "home") {
     state.catalog = null;
     state.page = 1;

@@ -113,9 +113,12 @@
 /* The decoded target dimensions are applied before the source swap. Width and height
    now ease to their next values instead of snapping after the load event. */
 .lightbox-image-frame {
+  /* Width/height animation was visually pleasant but produced real CLS when an
+     image finished decoding after the interaction window. Geometry now changes
+     atomically; the existing opacity/filter transition keeps the swap polished. */
+  contain: layout paint style;
+  will-change: transform, opacity, filter;
   transition:
-    width var(--image-swap-duration) var(--image-swap-easing),
-    height var(--image-swap-duration) var(--image-swap-easing),
     box-shadow var(--motion-standard) ease,
     filter var(--motion-fast) ease;
 }
@@ -400,6 +403,7 @@
     opacity: .24;
     transform: none;
   }
+  body[data-app-ready="true"] > .site-footer { transition: none !important; }
   .catalog-card,
   .page-card,
   .favorite-card,

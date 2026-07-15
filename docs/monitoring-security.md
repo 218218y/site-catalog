@@ -1,8 +1,11 @@
 # Monitoring and security
 
-This project uses a small, first-party telemetry pipeline designed for a static
-Cloudflare Pages site. It does not add an advertising SDK, cookie banner, user
-profile, or persistent visitor identifier.
+This project uses two complementary, privacy-oriented Cloudflare layers:
+Cloudflare Web Analytics for aggregate visits/Core Web Vitals, and a small
+first-party telemetry pipeline only for site-specific actions and operational
+errors. The custom pipeline deliberately does not duplicate page views or load
+timings already available in Web Analytics. Neither layer adds an advertising
+SDK or a persistent visitor profile.
 
 ## Architecture
 
@@ -23,15 +26,12 @@ bundle.
 
 | Event | Purpose | Main fields |
 |---|---|---|
-| `page_view` | Page/route usage | page, path, catalog, page number |
 | `catalog_open` | Catalog interest | catalog, page number, source |
 | `search` | Search quality | query, scope, result count |
 | `favorite` | Feature usage | add/remove/clear, catalog/page, count |
 | `contact` | Contact intent | phone/email/Gmail |
 | `js_error` | Runtime stability | coarse error name/message fingerprint, file, line |
 | `image_error` | Missing/broken catalog images | catalog/page, image role |
-| `page_load` | App-shell performance | load, response and DOM timing |
-| `first_catalog_image` | Perceived catalog performance | first image duration and byte sizes |
 
 Each request receives a random, short-lived batch key used only as the Analytics Engine sampling index; it is not reused across requests and cannot identify a visitor.
 
@@ -89,7 +89,8 @@ npm run telemetry:report -- --days 30
 ```
 
 The report shows event totals, opened catalogs, searches/no-result searches,
-contact and favorite actions, errors, and average performance timings. Its SQL
+contact and favorite actions, and runtime/image errors. Page traffic and Core
+Web Vitals remain in Cloudflare Web Analytics. Its SQL
 uses Analytics Engine's `_sample_interval`, so counts and timing averages remain
 correct when Cloudflare samples a high-volume dataset. Use `--json` for
 machine-readable output.
