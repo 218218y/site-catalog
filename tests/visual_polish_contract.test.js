@@ -49,7 +49,7 @@ assert.match(css, /\.favorite-image-frame\s*\{[\s\S]*?position:\s*relative/);
 assert.match(css, /\.viewer-page-indicator\.visible\s*\{[\s\S]*?opacity:\s*1/);
 assert.match(css, /\.viewer-page-indicator\s*\{[\s\S]*?font-family:\s*Tahoma, "Segoe UI", Arial, sans-serif;[\s\S]*?align-items:\s*center;/);
 assert.match(css, /\.viewer-page-indicator > span,[\s\S]*?\.viewer-page-indicator > strong\s*\{[\s\S]*?display:\s*inline-grid;[\s\S]*?place-items:\s*center;[\s\S]*?line-height:\s*1;/);
-assert.match(app, /const VIEWER_PAGE_INDICATOR_HIDE_MS\s*=\s*1050/);
+assert.match(app, /const VIEWER_PAGE_INDICATOR_HIDE_MS\s*=\s*1000/);
 assert.match(app, /function showViewerPageIndicatorTemporarily\(/);
 assert.match(app, /function hideViewerPageIndicator\(/);
 assert.match(app, /showViewerPageIndicatorTemporarily\(\)/);
