@@ -46,6 +46,8 @@ DEPLOY_FILES = [
     "_headers",
     "_redirects",
     "404.html",
+    "404.css",
+    "https-redirect.js",
     "styles.css",
     "app.js",
     "catalog-search.js",
@@ -96,6 +98,7 @@ GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 FINGERPRINTED_ASSET_DIR = "static"
 FINGERPRINTED_EXTENSIONS = {".css", ".js"}
+FINGERPRINT_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
 HASHED_ASSET_FILENAME_RE = re.compile(
     r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
 )
@@ -221,7 +224,7 @@ def rebase_css_asset_urls(source: Path, target_dir: Path, bundle_root: Path) -> 
 def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
     """Fingerprint shared CSS/JS once and rewrite every public HTML document."""
 
-    html_paths = [out_dir / page.filename for page in PAGE_DOCUMENTS]
+    html_paths = [out_dir / filename for filename in FINGERPRINT_HTML_FILES]
     missing = [path.name for path in html_paths if not path.is_file()]
     if missing:
         raise FileNotFoundError(f"Cannot fingerprint bundle because HTML documents are missing: {', '.join(missing)}")
@@ -346,10 +349,10 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
     missing_assets: list[str] = []
     invalid_assets: list[str] = []
 
-    for page in PAGE_DOCUMENTS:
-        html_path = out_dir / page.filename
+    for html_name in FINGERPRINT_HTML_FILES:
+        html_path = out_dir / html_name
         if not html_path.is_file():
-            raise FileNotFoundError(f"Public HTML document is missing from bundle: {page.filename}")
+            raise FileNotFoundError(f"Public HTML document is missing from bundle: {html_name}")
         html = html_path.read_text(encoding="utf-8", errors="replace")
         for match in HTML_ASSET_ATTR_RE.finditer(html):
             raw_reference = match.group("url").strip()
@@ -363,24 +366,24 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
 
             relative = Path(reference_path)
             if relative.is_absolute() or ".." in relative.parts:
-                invalid_assets.append(f"{page.filename} -> {reference_path} (unsafe path)")
+                invalid_assets.append(f"{html_name} -> {reference_path} (unsafe path)")
                 continue
             asset_path = out_dir / relative
             if not asset_path.is_file():
-                missing_assets.append(f"{page.filename} -> {reference_path}")
+                missing_assets.append(f"{html_name} -> {reference_path}")
                 continue
             if not relative.parts or relative.parts[0] != FINGERPRINTED_ASSET_DIR:
-                invalid_assets.append(f"{page.filename} -> {reference_path} (not fingerprinted under static/)")
+                invalid_assets.append(f"{html_name} -> {reference_path} (not fingerprinted under static/)")
                 continue
 
             match_name = HASHED_ASSET_FILENAME_RE.fullmatch(relative.name)
             if match_name is None:
-                invalid_assets.append(f"{page.filename} -> {reference_path} (invalid fingerprinted filename)")
+                invalid_assets.append(f"{html_name} -> {reference_path} (invalid fingerprinted filename)")
                 continue
             actual_digest = content_hash(asset_path)
             if match_name.group("digest") != actual_digest:
                 invalid_assets.append(
-                    f"{page.filename} -> {reference_path} (filename hash does not match file contents)"
+                    f"{html_name} -> {reference_path} (filename hash does not match file contents)"
                 )
                 continue
             referenced_assets.add(relative.as_posix())
@@ -517,8 +520,8 @@ def add_stats(left: CopyStats, right: CopyStats) -> CopyStats:
 
 def referenced_html_assets(root: Path) -> set[str]:
     references: set[str] = set()
-    for page in PAGE_DOCUMENTS:
-        path = root / page.filename
+    for html_name in FINGERPRINT_HTML_FILES:
+        path = root / html_name
         if not path.is_file():
             continue
         content = path.read_text(encoding="utf-8", errors="replace")
@@ -722,7 +725,7 @@ def main() -> int:
                 "Cache: HTML is not stored; CSS/JS use one current content-hashed generation "
                 "and can be cached immutably."
             )
-        print("Contact: direct phone and email links are included in the shared site footer; no contact form or serverless function is required.")
+        print("Runtime: direct contact links stay static; the privacy-first telemetry endpoint is deployed separately from functions/ by Wrangler.")
 
         if args.zip:
             zip_path = out_dir.with_suffix(".zip")

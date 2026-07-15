@@ -1,11 +1,18 @@
 "use strict";
 
+const fs = require("node:fs");
 const path = require("node:path");
 const { test: base, expect } = require("@playwright/test");
 
 function monitorRuntimeErrors(page) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error?.stack || error?.message || String(error)));
+  page.on("console", (message) => {
+    const text = message.text();
+    if (message.type() === "error" && /content security policy|refused to (?:load|execute|connect|apply)/i.test(text)) {
+      errors.push(text);
+    }
+  });
   return errors;
 }
 
@@ -17,7 +24,15 @@ const test = base.extend({
   }
 });
 
-const CATALOG_ID = "opening-tbi-2026";
+const catalogData = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../catalogs.generated.json"), "utf8"));
+const testCatalog = catalogData.find((catalog) => catalog.id === "opening-tbi-2026")
+  || catalogData.find((catalog) => Number(catalog.pages) >= 6)
+  || catalogData[0];
+if (!testCatalog) throw new Error("E2E requires at least one generated catalog.");
+const CATALOG_ID = testCatalog.id;
+const CATALOG_PAGES = Math.max(1, Number(testCatalog.pages) || 1);
+const CATALOG_COUNT = catalogData.length;
+const PREVIEW_PAGE = Math.min(6, CATALOG_PAGES);
 const ONBOARDING_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_KEY = "bargig.catalog-favorites.v1";
 const VISUAL_STYLE = path.join(__dirname, "visual-stability.css");
@@ -42,7 +57,9 @@ async function preparePage(page, options = {}) {
   const onboardingSeen = options.onboardingSeen !== false;
   const resetFavorites = options.resetFavorites !== false;
   const captureClipboard = options.captureClipboard === true;
-  await page.addInitScript(({ onboardingKey, favoritesKey, onboardingSeen, resetFavorites, captureClipboard }) => {
+  const telemetryEvents = Array.isArray(options.telemetryEvents) ? options.telemetryEvents : null;
+  await page.addInitScript(({ onboardingKey, favoritesKey, onboardingSeen, resetFavorites, captureClipboard, enableTelemetry }) => {
+    if (enableTelemetry) window.__BARGIG_ENABLE_TELEMETRY__ = true;
     if (sessionStorage.getItem("bargig.e2e-onboarding-prepared") !== "1") {
       if (onboardingSeen) localStorage.setItem(onboardingKey, "1");
       else localStorage.removeItem(onboardingKey);
@@ -62,11 +79,28 @@ async function preparePage(page, options = {}) {
         }
       });
     }
-  }, { onboardingKey: ONBOARDING_KEY, favoritesKey: FAVORITES_KEY, onboardingSeen, resetFavorites, captureClipboard });
+  }, {
+    onboardingKey: ONBOARDING_KEY,
+    favoritesKey: FAVORITES_KEY,
+    onboardingSeen,
+    resetFavorites,
+    captureClipboard,
+    enableTelemetry: Boolean(telemetryEvents)
+  });
 
   await page.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname === "/api/telemetry" && request.method() === "POST" && telemetryEvents) {
+      const payload = request.postDataJSON();
+      telemetryEvents.push(...(Array.isArray(payload?.events) ? payload.events : []));
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json; charset=utf-8",
+        body: JSON.stringify({ ok: true, accepted: payload?.events?.length || 0 })
+      });
+      return;
+    }
     if (!url.pathname.includes("/assets/pages/")) {
       await route.continue();
       return;
@@ -114,15 +148,30 @@ async function expectViewerFrameCentered(page, tolerance = 1.5) {
 }
 
 test.describe("critical catalog journeys", () => {
+  test("serves the restrictive security policy without breaking the app", async ({ page }) => {
+    await preparePage(page);
+    const response = await page.goto("/index.html");
+    expect(response).not.toBeNull();
+    const csp = await response.headerValue("content-security-policy");
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(await response.headerValue("x-content-type-options")).toBe("nosniff");
+    expect(await response.headerValue("x-frame-options")).toBe("DENY");
+    expect(await response.headerValue("referrer-policy")).toBe("no-referrer");
+    await waitForApp(page);
+    await expect(page.locator(".catalog-card").first()).toBeVisible();
+  });
+
   test("opens a catalog and moves forward and backward", async ({ page }) => {
     await preparePage(page);
     await page.goto("/index.html");
     await waitForApp(page);
 
-    await expect(page.locator(".catalog-card")).toHaveCount(16);
+    await expect(page.locator(".catalog-card")).toHaveCount(CATALOG_COUNT);
     await page.locator(".catalog-open-button").first().click();
 
-    await expect(page).toHaveURL(/viewer\.html\?catalog=opening-tbi-2026&page=1/);
+    await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=1`));
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
 
     await page.locator("#nextPageBtn").click();
@@ -139,11 +188,11 @@ test.describe("critical catalog journeys", () => {
     await page.locator("[data-open-catalog-preview]").first().click();
     await expect(page).toHaveURL(new RegExp(`catalog\\.html\\?catalog=${CATALOG_ID}`));
     await waitForApp(page);
-    await expect(page.locator("#pageGrid .page-card")).toHaveCount(37);
+    await expect(page.locator("#pageGrid .page-card")).toHaveCount(CATALOG_PAGES);
 
-    await page.locator('[data-open-page="6"]').click();
-    await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=6`));
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("6");
+    await page.locator(`[data-open-page="${PREVIEW_PAGE}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=${PREVIEW_PAGE}`));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(PREVIEW_PAGE));
     await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
   });
 
@@ -216,7 +265,7 @@ test.describe("critical catalog journeys", () => {
     await page.locator("[data-open-catalog-preview]").first().click();
     await expect(page).toHaveURL(new RegExp(`catalog\\.html\\?catalog=${CATALOG_ID}`));
     await expect(page.locator("body")).toHaveAttribute("data-page", "catalog");
-    await expect(page.locator("#pageGrid .page-card")).toHaveCount(37);
+    await expect(page.locator("#pageGrid .page-card")).toHaveCount(CATALOG_PAGES);
     await expect(page.locator("#fullscreenToggle")).toBeHidden();
 
     await page.locator("#headerFavoritesButton").click();
@@ -235,7 +284,7 @@ test.describe("critical catalog journeys", () => {
     await page.keyboard.press("ArrowRight");
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
     await page.keyboard.press("End");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("37");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_PAGES));
     await page.keyboard.press("Home");
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
   });
@@ -269,6 +318,36 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
     await expect(tour).toBeHidden();
     await expect(tour).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("emits privacy-safe operational telemetry for a real journey", async ({ page }) => {
+    const events = [];
+    await preparePage(page, { telemetryEvents: events });
+    await page.goto("/index.html");
+    await waitForApp(page);
+
+    await page.locator("#globalSearchOpen").click();
+    await page.locator("#globalSearchInput").fill("פתיחת");
+    await expect(page.locator("#globalSearchResults [data-search-catalog]").first()).toBeVisible();
+    await expect.poll(() => events.map((event) => event.name), { timeout: 3500 }).toContain("search");
+    await page.locator("#globalSearchClose").click();
+
+    await page.locator(".catalog-open-button").first().click();
+    await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+    await page.locator("#viewerFavoriteButton").click();
+    await page.waitForTimeout(1200);
+
+    await expect.poll(() => events.map((event) => event.name)).toContain("page_view");
+    expect(events.map((event) => event.name)).toContain("search");
+    expect(events.map((event) => event.name)).toContain("catalog_open");
+    expect(events.map((event) => event.name)).toContain("favorite");
+    expect(events.map((event) => event.name)).toContain("first_catalog_image");
+    for (const event of events) {
+      expect(event).not.toHaveProperty("visitorId");
+      expect(event).not.toHaveProperty("userAgent");
+      expect(event).not.toHaveProperty("referrer");
+      expect(event).not.toHaveProperty("stack");
+    }
   });
 });
 

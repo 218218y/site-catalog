@@ -139,8 +139,8 @@ def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None
     static = out / "static"
     static.mkdir()
     source.rename(static / current_name)
-    for page in MODULE.PAGE_DOCUMENTS:
-        (out / page.filename).write_text(
+    for html_name in MODULE.FINGERPRINT_HTML_FILES:
+        (out / html_name).write_text(
             f'<script src="static/{current_name}"></script>',
             encoding="utf-8",
         )
@@ -199,8 +199,8 @@ def test_css_asset_urls_are_rebased_before_fingerprinting(tmp_path: Path) -> Non
         ':root { --logo: url("brand-logo.svg"); }\n',
         encoding="utf-8",
     )
-    for page in MODULE.PAGE_DOCUMENTS:
-        (out / page.filename).write_text(
+    for html_name in MODULE.FINGERPRINT_HTML_FILES:
+        (out / html_name).write_text(
             '<link rel="stylesheet" href="styles.css">',
             encoding="utf-8",
         )

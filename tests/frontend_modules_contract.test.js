@@ -27,6 +27,7 @@ assert.doesNotMatch(deployBuilder, /src\/js|src\/css/);
 const jsSources = [
   ['src/js/00-navigation.js', /function navigateTo/],
   ['src/js/10-app-state.js', /const state =/],
+  ['src/js/15-telemetry.js', /function telemetryInit/],
   ['src/js/20-shared-ui.js', /function showActionToast/],
   ['src/js/30-favorites-share.js', /function shareFavoritesList/],
   ['src/js/40-catalog-grid.js', /function renderCatalogCards/],

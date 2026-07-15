@@ -37,6 +37,11 @@ assert.match(spec, /keyboard navigation/);
 assert.match(spec, /catalog image fails/);
 assert.match(spec, /mobile home and viewer survive portrait and landscape orientation/);
 assert.match(spec, /monitorRuntimeErrors/);
+assert.match(spec, /privacy-safe operational telemetry/);
+assert.match(spec, /restrictive security policy/);
+assert.match(spec, /content security policy/);
+assert.match(spec, /CATALOG_PAGES/);
+assert.match(spec, /CATALOG_COUNT/);
 assert.match(spec, /toHaveScreenshot/);
 assert.match(verifier, /Playwright browser journeys/);
 

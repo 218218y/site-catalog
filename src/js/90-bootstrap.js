@@ -185,6 +185,7 @@ function initDocumentRoute(options = {}) {
   };
 
   prepareDocumentRoute(route.page);
+  telemetryTrackPageView(route);
 
   if (route.page === "home") {
     state.catalog = null;
@@ -240,6 +241,7 @@ function initDocumentRoute(options = {}) {
 }
 
 function init() {
+  telemetryInit();
   initRevealObserver();
   initCategoryNavFit();
   initImagePlaceholderObserver();

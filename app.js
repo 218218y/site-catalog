@@ -4,6 +4,7 @@
  * Source modules:
  *   - src/js/00-navigation.js
  *   - src/js/10-app-state.js
+ *   - src/js/15-telemetry.js
  *   - src/js/20-shared-ui.js
  *   - src/js/30-favorites-share.js
  *   - src/js/40-catalog-grid.js
@@ -457,6 +458,385 @@ const els = {
 };
 /* ===== END SOURCE: src/js/10-app-state.js ===== */
 
+/* ===== BEGIN SOURCE: src/js/15-telemetry.js ===== */
+/**
+ * Source module: 15-telemetry.js
+ * Privacy-first operational telemetry, runtime error reporting, and performance measurements.
+ *
+ * The browser sends only whitelisted, coarse events to the same-origin Pages Function.
+ * No cookie, persistent visitor id, IP address, full referrer, user agent, or error stack is sent.
+ * Respect for Global Privacy Control and Do Not Track is built in.
+ */
+
+const TELEMETRY_ENDPOINT = "/api/telemetry";
+const TELEMETRY_SCHEMA_VERSION = 1;
+const TELEMETRY_BATCH_LIMIT = 20;
+const TELEMETRY_QUEUE_LIMIT = 60;
+const TELEMETRY_FLUSH_DELAY_MS = 900;
+const TELEMETRY_SEARCH_DELAY_MS = 850;
+const TELEMETRY_ALLOWED_HOSTS = new Set([
+  "bargig-furniture.com",
+  "www.bargig-furniture.com"
+]);
+const TELEMETRY_EVENT_NAMES = new Set([
+  "page_view",
+  "catalog_open",
+  "search",
+  "favorite",
+  "contact",
+  "js_error",
+  "image_error",
+  "page_load",
+  "first_catalog_image"
+]);
+
+const telemetryRuntime = {
+  enabled: null,
+  queue: [],
+  flushTimer: 0,
+  flushing: false,
+  routeKey: "",
+  routeAt: 0,
+  catalogKey: "",
+  catalogAt: 0,
+  searchTimers: new Map(),
+  searchKeys: new Map(),
+  imageFailures: new Set(),
+  firstCatalogImageSent: false,
+  initialized: false
+};
+
+function telemetryCleanText(value, limit = 120) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, limit);
+}
+
+function telemetryCleanPathname(value = window.location.pathname) {
+  const pathname = telemetryCleanText(value, 180) || "/";
+  return pathname.startsWith("/") ? pathname : `/${pathname}`;
+}
+
+function telemetryViewportBucket() {
+  const width = Math.max(0, Number(window.innerWidth) || 0);
+  if (width < 480) return "xs";
+  if (width < 760) return "sm";
+  if (width < 1100) return "md";
+  if (width < 1600) return "lg";
+  return "xl";
+}
+
+function telemetryPrivacySignalEnabled() {
+  if (navigator.globalPrivacyControl === true) return true;
+  const dnt = String(navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack || "").toLowerCase();
+  return dnt === "1" || dnt === "yes";
+}
+
+function telemetryIsEnabled() {
+  if (telemetryRuntime.enabled !== null) return telemetryRuntime.enabled;
+  if (window.__BARGIG_DISABLE_TELEMETRY__ === true || telemetryPrivacySignalEnabled()) {
+    telemetryRuntime.enabled = false;
+    return false;
+  }
+
+  const forced = window.__BARGIG_ENABLE_TELEMETRY__ === true;
+  const productionHost = TELEMETRY_ALLOWED_HOSTS.has(window.location.hostname.toLowerCase());
+  telemetryRuntime.enabled = Boolean(forced || productionHost);
+  return telemetryRuntime.enabled;
+}
+
+function telemetryNumber(value, min = 0, max = 86_400_000) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.min(max, Math.max(min, number));
+}
+
+function telemetryErrorFingerprint(parts) {
+  const source = parts.map((part) => telemetryCleanText(part, 160)).join("|");
+  let hash = 2166136261;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `e${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function telemetryNormalizeEvent(name, fields = {}) {
+  const eventName = telemetryCleanText(name, 40);
+  if (!TELEMETRY_EVENT_NAMES.has(eventName)) return null;
+
+  return {
+    name: eventName,
+    page: telemetryCleanText(fields.page || currentAppPage || document.body?.dataset?.page || "", 30),
+    path: telemetryCleanPathname(fields.path),
+    catalogId: telemetryCleanText(fields.catalogId, 100),
+    query: telemetryCleanText(fields.query, 80),
+    scope: telemetryCleanText(fields.scope, 50),
+    action: telemetryCleanText(fields.action, 50),
+    detail: telemetryCleanText(fields.detail, 120),
+    error: telemetryCleanText(fields.error, 80),
+    viewport: telemetryViewportBucket(),
+    source: telemetryCleanText(fields.source, 50),
+    value: telemetryNumber(fields.value, -1_000_000, 1_000_000),
+    durationMs: telemetryNumber(fields.durationMs),
+    pageNumber: telemetryNumber(fields.pageNumber, 0, 100_000),
+    secondaryValue: telemetryNumber(fields.secondaryValue, -1_000_000, 1_000_000)
+  };
+}
+
+function telemetryScheduleFlush(delay = TELEMETRY_FLUSH_DELAY_MS) {
+  window.clearTimeout(telemetryRuntime.flushTimer);
+  telemetryRuntime.flushTimer = window.setTimeout(() => {
+    telemetryRuntime.flushTimer = 0;
+    telemetryFlush().catch(() => {});
+  }, Math.max(0, delay));
+}
+
+function telemetryTrack(name, fields = {}, options = {}) {
+  if (!telemetryIsEnabled()) return false;
+  const event = telemetryNormalizeEvent(name, fields);
+  if (!event) return false;
+
+  if (telemetryRuntime.queue.length >= TELEMETRY_QUEUE_LIMIT) {
+    telemetryRuntime.queue.splice(0, telemetryRuntime.queue.length - TELEMETRY_QUEUE_LIMIT + 1);
+  }
+  telemetryRuntime.queue.push(event);
+  telemetryScheduleFlush(options.immediate ? 0 : TELEMETRY_FLUSH_DELAY_MS);
+  return true;
+}
+
+async function telemetryFlush(options = {}) {
+  if (!telemetryIsEnabled() || telemetryRuntime.flushing || !telemetryRuntime.queue.length) return false;
+
+  window.clearTimeout(telemetryRuntime.flushTimer);
+  telemetryRuntime.flushTimer = 0;
+  const events = telemetryRuntime.queue.splice(0, TELEMETRY_BATCH_LIMIT);
+  const body = JSON.stringify({ version: TELEMETRY_SCHEMA_VERSION, events });
+  telemetryRuntime.flushing = true;
+
+  try {
+    if (options.beacon && typeof navigator.sendBeacon === "function") {
+      const queued = navigator.sendBeacon(TELEMETRY_ENDPOINT, new Blob([body], { type: "application/json" }));
+      if (!queued) telemetryRuntime.queue.unshift(...events);
+      return queued;
+    }
+
+    const response = await fetch(TELEMETRY_ENDPOINT, {
+      method: "POST",
+      body,
+      headers: { "Content-Type": "application/json" },
+      credentials: "omit",
+      cache: "no-store",
+      keepalive: true,
+      redirect: "error"
+    });
+    if (!response.ok && response.status !== 202 && response.status !== 204) {
+      throw new Error(`telemetry-http-${response.status}`);
+    }
+    return true;
+  } catch (_error) {
+    // Telemetry must never interfere with the catalog. Events are deliberately
+    // not persisted or retried across page loads, which also protects privacy.
+    return false;
+  } finally {
+    telemetryRuntime.flushing = false;
+    if (telemetryRuntime.queue.length) telemetryScheduleFlush(250);
+  }
+}
+
+function telemetryTrackPageView(route = {}) {
+  if (!telemetryIsEnabled()) return;
+  const now = Date.now();
+  const key = [route.page, route.catalogId, route.currentPage, telemetryCleanPathname()].join("|");
+  if (key === telemetryRuntime.routeKey && now - telemetryRuntime.routeAt < 800) return;
+  telemetryRuntime.routeKey = key;
+  telemetryRuntime.routeAt = now;
+  telemetryTrack("page_view", {
+    page: route.page,
+    catalogId: route.catalogId,
+    pageNumber: route.currentPage,
+    source: route.source
+  });
+}
+
+function telemetryTrackCatalogOpen(catalog, page, source = LIGHTBOX_SOURCE_CATALOG) {
+  if (!catalog) return;
+  const now = Date.now();
+  const key = `${catalog.id}|${source}`;
+  if (key === telemetryRuntime.catalogKey && now - telemetryRuntime.catalogAt < 1200) return;
+  telemetryRuntime.catalogKey = key;
+  telemetryRuntime.catalogAt = now;
+  telemetryTrack("catalog_open", {
+    page: "viewer",
+    catalogId: catalog.id,
+    pageNumber: page,
+    source
+  });
+}
+
+function telemetryTrackSearch(query, resultCount, options = {}) {
+  if (!telemetryIsEnabled()) return;
+  const cleanQuery = telemetryCleanText(query, 80);
+  if (cleanQuery.length < 2) return;
+
+  const surface = telemetryCleanText(options.surface || "global", 30);
+  const scope = telemetryCleanText(options.scope || "all", 50);
+  const catalogId = telemetryCleanText(options.catalogId, 100);
+  const key = `${cleanQuery}|${resultCount}|${scope}|${catalogId}`;
+  window.clearTimeout(telemetryRuntime.searchTimers.get(surface));
+  telemetryRuntime.searchTimers.set(surface, window.setTimeout(() => {
+    telemetryRuntime.searchTimers.delete(surface);
+    if (telemetryRuntime.searchKeys.get(surface) === key) return;
+    telemetryRuntime.searchKeys.set(surface, key);
+    telemetryTrack("search", {
+      query: cleanQuery,
+      scope,
+      catalogId,
+      source: surface,
+      value: Math.max(0, Number(resultCount) || 0)
+    });
+  }, TELEMETRY_SEARCH_DELAY_MS));
+}
+
+function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 0) {
+  telemetryTrack("favorite", {
+    action,
+    catalogId,
+    pageNumber,
+    value: count
+  });
+}
+
+function telemetryCatalogImageContext(img, src = "") {
+  const value = String(src || img?.currentSrc || img?.getAttribute?.("src") || "");
+  const match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i);
+  const catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || state.catalog?.id || "", 100);
+  const pageNumber = Number.parseInt(match?.[2] || img?.dataset?.page || state.page || 0, 10) || 0;
+  let detail = "image";
+  if (/\/thumbs\//i.test(value)) detail = "thumbnail";
+  else if (img === els.lightboxImage || img?.id === "lightboxImage") detail = "viewer";
+  else if (img?.classList?.contains("catalog-cover")) detail = "cover";
+  return { catalogId, pageNumber, detail, value };
+}
+
+function telemetryTrackImageFailure(src, options = {}) {
+  const context = telemetryCatalogImageContext(options.img, src);
+  const failureKey = telemetryCleanText(context.value, 240) || `${context.catalogId}|${context.pageNumber}|${context.detail}`;
+  if (telemetryRuntime.imageFailures.has(failureKey)) return;
+  telemetryRuntime.imageFailures.add(failureKey);
+  telemetryTrack("image_error", {
+    catalogId: context.catalogId,
+    pageNumber: context.pageNumber,
+    detail: options.detail || context.detail,
+    source: telemetryCleanText(context.value.split("?")[0].split("#")[0].split("/").pop(), 80)
+  }, { immediate: true });
+}
+
+function telemetryTrackFirstCatalogImage(img) {
+  if (telemetryRuntime.firstCatalogImageSent || !telemetryIsEnabled()) return;
+  const frame = img?.closest?.(".catalog-image-frame, .image-placeholder-frame");
+  if (!frame || !img.naturalWidth) return;
+  const context = telemetryCatalogImageContext(img);
+  const entries = performance.getEntriesByName?.(img.currentSrc || img.src) || [];
+  const resource = entries[entries.length - 1];
+  telemetryRuntime.firstCatalogImageSent = true;
+  telemetryTrack("first_catalog_image", {
+    catalogId: context.catalogId,
+    pageNumber: context.pageNumber,
+    detail: context.detail,
+    durationMs: resource?.duration || performance.now(),
+    value: resource?.transferSize || 0,
+    secondaryValue: resource?.decodedBodySize || 0
+  });
+}
+
+function telemetryTrackNavigationPerformance() {
+  if (!telemetryIsEnabled() || !window.performance) return;
+  const send = () => {
+    const navigation = performance.getEntriesByType?.("navigation")?.[0];
+    const duration = navigation?.loadEventEnd > 0 ? navigation.loadEventEnd - navigation.startTime : performance.now();
+    telemetryTrack("page_load", {
+      durationMs: duration,
+      value: navigation ? navigation.responseStart - navigation.startTime : 0,
+      secondaryValue: navigation ? navigation.domContentLoadedEventEnd - navigation.startTime : 0,
+      detail: navigation?.type || "navigate"
+    });
+  };
+
+  if (document.readyState === "complete") window.setTimeout(send, 0);
+  else window.addEventListener("load", () => window.setTimeout(send, 0), { once: true });
+}
+
+function telemetryTrackRuntimeError(event) {
+  const sourceName = telemetryCleanText(String(event?.filename || "").split("?")[0].split("/").pop(), 80);
+  const errorName = telemetryCleanText(event?.error?.name || "Error", 40);
+  const message = telemetryCleanText(event?.message || event?.error?.message || "JavaScript error", 120);
+  telemetryTrack("js_error", {
+    action: errorName,
+    detail: message,
+    source: sourceName,
+    pageNumber: Number(event?.lineno) || 0,
+    secondaryValue: Number(event?.colno) || 0,
+    error: telemetryErrorFingerprint([errorName, message, sourceName, event?.lineno, event?.colno])
+  }, { immediate: true });
+}
+
+function telemetryTrackUnhandledRejection(event) {
+  const reason = event?.reason;
+  const errorName = telemetryCleanText(reason?.name || "UnhandledRejection", 40);
+  const message = telemetryCleanText(reason?.message || reason || "Unhandled promise rejection", 120);
+  telemetryTrack("js_error", {
+    action: errorName,
+    detail: message,
+    error: telemetryErrorFingerprint([errorName, message, "promise"]),
+    source: "promise"
+  }, { immediate: true });
+}
+
+function telemetryHandleDocumentClick(event) {
+  const link = event.target?.closest?.("a[href]");
+  if (!link) return;
+  const href = String(link.getAttribute("href") || "").trim();
+  let action = "";
+  if (href.startsWith("tel:")) action = "phone";
+  else if (href.startsWith("mailto:")) action = "email";
+  else if (link.classList.contains("site-footer-gmail-link") || /mail\.google\.com/i.test(href)) action = "gmail";
+  if (action) telemetryTrack("contact", { action, source: "footer" }, { immediate: true });
+}
+
+function telemetryInit() {
+  if (telemetryRuntime.initialized) return;
+  telemetryRuntime.initialized = true;
+  if (!telemetryIsEnabled()) return;
+
+  window.addEventListener("error", (event) => {
+    if (event.target instanceof HTMLImageElement) {
+      telemetryTrackImageFailure(event.target.currentSrc || event.target.src, { img: event.target });
+      return;
+    }
+    telemetryTrackRuntimeError(event);
+  }, true);
+  window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection);
+  document.addEventListener("load", (event) => {
+    if (event.target instanceof HTMLImageElement) telemetryTrackFirstCatalogImage(event.target);
+  }, true);
+  document.addEventListener("click", telemetryHandleDocumentClick, true);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") telemetryFlush({ beacon: true }).catch(() => {});
+  });
+  window.addEventListener("pagehide", () => telemetryFlush({ beacon: true }).catch(() => {}));
+  telemetryTrackNavigationPerformance();
+
+  window.requestAnimationFrame(() => {
+    document.querySelectorAll(".catalog-image-frame img, .image-placeholder-frame img").forEach((img) => {
+      if (!telemetryRuntime.firstCatalogImageSent && img.complete && img.naturalWidth) telemetryTrackFirstCatalogImage(img);
+    });
+  });
+}
+/* ===== END SOURCE: src/js/15-telemetry.js ===== */
+
 /* ===== BEGIN SOURCE: src/js/20-shared-ui.js ===== */
 /**
  * Source module: 20-shared-ui.js
@@ -528,6 +908,7 @@ function prepareCatalogImage(url, options = {}) {
 
     image.addEventListener("error", () => {
       state.catalogImageLoadCache.delete(src);
+      telemetryTrackImageFailure(src, { detail: options.detail || "preload" });
       reject(new Error("image-load-failed"));
     }, { once: true });
 
@@ -1601,6 +1982,7 @@ function toggleCurrentPageFavorite() {
   if (!identity || !favoritesStore) return;
   const previousFavoriteIndex = state.favoritesViewerIndex;
   const added = favoritesStore.toggle({ ...identity, savedAt: Date.now() });
+  telemetryTrackFavorite(added ? "add" : "remove", identity.catalogId, identity.page, getFavoriteEntries().length);
   syncFavoritesUi({ renderPanel: true });
   if (isFavoritesLightboxMode() && !added) {
     syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
@@ -1615,6 +1997,7 @@ function toggleCurrentPageFavorite() {
 function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
   const removed = favoritesStore.remove({ catalogId, page });
+  if (removed !== false) telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
   syncFavoritesUi({ renderPanel: true });
   if (removed !== false) showActionToast("הוסר", { tone: "removed" });
 }
@@ -1623,6 +2006,7 @@ function clearAllFavorites() {
   if (!favoritesStore || !getFavoriteEntries().length) return;
   if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
   favoritesStore.clear();
+  telemetryTrackFavorite("clear", "", 0, 0);
   syncFavoritesUi({ renderPanel: true });
   showActionToast("כל המועדפים הוסרו", { tone: "removed" });
 }
@@ -3485,6 +3869,11 @@ function renderLightboxSearchResults(query) {
 
   const scope = getLightboxSearchScope();
   const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+  telemetryTrackSearch(rawQuery, results.length, {
+    surface: "viewer",
+    scope,
+    catalogId: scope === "all" ? "" : state.catalog?.id
+  });
   updateLightboxSearchResultsLayout(results.length);
   els.lightboxSearchResults.classList.remove("hidden");
 
@@ -3648,6 +4037,10 @@ function renderSearchResults(query) {
   }
 
   const results = getGlobalSearchResults(rawQuery, 72);
+  telemetryTrackSearch(rawQuery, results.length, {
+    surface: "global",
+    scope: category || "all"
+  });
   if (!results.length) {
     els.globalSearchResults.classList.remove("hidden");
     els.globalSearchResults.innerHTML = searchEmptyStateMarkup(
@@ -4869,6 +5262,7 @@ function openLightbox(page = 1, options = {}) {
   state.pointers.clear();
   hideViewerZoomIndicator();
   state.lightboxOpen = true;
+  telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
   const initialSrc = pageSrc(state.catalog, state.page);
   if (els.lightboxImage?.getAttribute("src") !== initialSrc) {
@@ -6298,6 +6692,7 @@ function initDocumentRoute(options = {}) {
   };
 
   prepareDocumentRoute(route.page);
+  telemetryTrackPageView(route);
 
   if (route.page === "home") {
     state.catalog = null;
@@ -6353,6 +6748,7 @@ function initDocumentRoute(options = {}) {
 }
 
 function init() {
+  telemetryInit();
   initRevealObserver();
   initCategoryNavFit();
   initImagePlaceholderObserver();

@@ -529,6 +529,7 @@ function toggleCurrentPageFavorite() {
   if (!identity || !favoritesStore) return;
   const previousFavoriteIndex = state.favoritesViewerIndex;
   const added = favoritesStore.toggle({ ...identity, savedAt: Date.now() });
+  telemetryTrackFavorite(added ? "add" : "remove", identity.catalogId, identity.page, getFavoriteEntries().length);
   syncFavoritesUi({ renderPanel: true });
   if (isFavoritesLightboxMode() && !added) {
     syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
@@ -543,6 +544,7 @@ function toggleCurrentPageFavorite() {
 function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
   const removed = favoritesStore.remove({ catalogId, page });
+  if (removed !== false) telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
   syncFavoritesUi({ renderPanel: true });
   if (removed !== false) showActionToast("הוסר", { tone: "removed" });
 }
@@ -551,6 +553,7 @@ function clearAllFavorites() {
   if (!favoritesStore || !getFavoriteEntries().length) return;
   if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
   favoritesStore.clear();
+  telemetryTrackFavorite("clear", "", 0, 0);
   syncFavoritesUi({ renderPanel: true });
   showActionToast("כל המועדפים הוסרו", { tone: "removed" });
 }

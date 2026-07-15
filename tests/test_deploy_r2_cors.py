@@ -9,6 +9,9 @@ import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
 SPEC = importlib.util.spec_from_file_location(
     "deploy_cloudflare_pages",
     ROOT / "tools" / "deploy_cloudflare_pages.py",
@@ -176,6 +179,20 @@ def test_dry_run_reports_no_post_deploy_website_comparison(
 
 def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | None = None) -> None:
     bundle_dir.mkdir(parents=True, exist_ok=True)
+    root = bundle_dir.parent
+    (root / "functions" / "api").mkdir(parents=True, exist_ok=True)
+    (root / "functions" / "api" / "telemetry.js").write_text("export function onRequest() {}\n", encoding="utf-8")
+    (root / "wrangler.jsonc").write_text(
+        json.dumps({
+            "name": "bargig-catlog",
+            "pages_build_output_dir": f"./{bundle_dir.name}",
+            "compatibility_date": "2026-07-15",
+            "analytics_engine_datasets": [
+                {"binding": "SITE_TELEMETRY", "dataset": "bargig_catalog_telemetry"}
+            ],
+        }),
+        encoding="utf-8",
+    )
     (bundle_dir / "_headers").write_text("/*\n  X-Robots-Tag: noindex\n", encoding="utf-8")
     (bundle_dir / "404.html").write_text("<!doctype html><title>404</title>", encoding="utf-8")
     static_dir = bundle_dir / "static"
@@ -219,3 +236,31 @@ def test_bundle_validation_rejects_unreferenced_old_generation(tmp_path: Path) -
 
     with pytest.raises(ValueError, match="old generations must not be deployed"):
         MODULE.validate_bundle(bundle_dir)
+
+
+def test_pages_runtime_config_requires_telemetry_binding(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    config = MODULE.validate_pages_runtime_config(tmp_path, bundle_dir, "bargig-catlog")
+    assert config["analytics_engine_datasets"][0]["binding"] == "SITE_TELEMETRY"
+
+    (tmp_path / "wrangler.jsonc").write_text(
+        json.dumps({
+            "name": "bargig-catlog",
+            "pages_build_output_dir": "./bundle",
+            "analytics_engine_datasets": [],
+        }),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="SITE_TELEMETRY"):
+        MODULE.validate_pages_runtime_config(tmp_path, bundle_dir, "bargig-catlog")
+
+
+def test_pages_runtime_config_rejects_output_mismatch(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    payload = json.loads((tmp_path / "wrangler.jsonc").read_text(encoding="utf-8"))
+    payload["pages_build_output_dir"] = "./somewhere-else"
+    (tmp_path / "wrangler.jsonc").write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="output mismatch"):
+        MODULE.validate_pages_runtime_config(tmp_path, bundle_dir, "bargig-catlog")

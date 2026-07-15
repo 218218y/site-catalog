@@ -441,3 +441,31 @@ npm run setup:browsers
 כלי הבנייה של הממשק בודק גם שאין שני מודולי JavaScript שמצהירים על אותו שם top-level. הבדיקה חשובה משום שהמודולים מתאחדים ל־scope פרטי אחד בתוך `app.js`.
 
 הקבצים הישנים `wp_logo_data.js` ו־`brand-logo.js` כבר אינם קיימים בפרויקט. אין צורך לחפש או למחוק אותם ידנית; בדיקות התחזוקה מוודאות שהם נשארים מחוץ למבנה.
+
+## ניטור תפעולי ואבטחת האתר
+
+האתר כולל מערכת ניטור מצומצמת ושומרת פרטיות. הממשק שולח אירועים מאושרים בלבד אל `/api/telemetry`, ו־Cloudflare Pages Function שומר אותם ב־Workers Analytics Engine. המערכת מודדת צפיות, פתיחת קטלוגים, חיפושים ותוצאותיהם, שימוש במועדפים, לחיצות יצירת קשר, שגיאות JavaScript/תמונה וזמני טעינה. היא אינה יוצרת עוגיות או מזהה מבקר מתמשך, ואינה שולחת IP, User-Agent, referrer מלא או stack של שגיאה. Global Privacy Control ו־Do Not Track מכבים את המדידה בדפדפן.
+
+הגדרת Cloudflare נמצאת ב־`wrangler.jsonc`, וה־Function נמצא ב־`functions/api/telemetry.js`. כלי ההעלאה בודק שהפרויקט, תיקיית הפלט וה־binding `SITE_TELEMETRY` תואמים לפני שהוא מפעיל את Wrangler.
+
+לאחר העלאה אפשר לבדוק את בריאות השירות בכתובת:
+
+```text
+https://bargig-furniture.com/api/telemetry
+```
+
+לקבלת דוח מקומי מעתיקים את `telemetry.env.example` אל `telemetry.env`, ממלאים Account ID ו־API Token לקריאה בלבד, ואז מריצים:
+
+```bat
+telemetry-report.bat
+```
+
+או:
+
+```bat
+npm run telemetry:report -- --days 30
+```
+
+הוראות מלאות, מבנה הנתונים ורשימת כותרות האבטחה נמצאים ב־`docs/monitoring-security.md`.
+
+`_headers` כולל כעת CSP מצומצם, מניעת iframe, `nosniff`, מדיניות referrer, Permissions Policy ו־HSTS. קוד הפניית HTTPS עבר ל־`https-redirect.js`, ועיצוב עמוד 404 עבר ל־`404.css`, כדי לאפשר `script-src 'self'` ללא JavaScript inline.

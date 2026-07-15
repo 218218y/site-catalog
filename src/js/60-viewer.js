@@ -1043,6 +1043,7 @@ function openLightbox(page = 1, options = {}) {
   state.pointers.clear();
   hideViewerZoomIndicator();
   state.lightboxOpen = true;
+  telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
   const initialSrc = pageSrc(state.catalog, state.page);
   if (els.lightboxImage?.getAttribute("src") !== initialSrc) {

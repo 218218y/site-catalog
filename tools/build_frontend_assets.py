@@ -31,6 +31,7 @@ from typing import Sequence
 JS_MODULES: tuple[str, ...] = (
     "src/js/00-navigation.js",
     "src/js/10-app-state.js",
+    "src/js/15-telemetry.js",
     "src/js/20-shared-ui.js",
     "src/js/30-favorites-share.js",
     "src/js/40-catalog-grid.js",

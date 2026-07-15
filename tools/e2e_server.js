@@ -22,6 +22,25 @@ const MIME_TYPES = new Map([
   [".txt", "text/plain; charset=utf-8"]
 ]);
 
+
+function readRootSecurityHeaders() {
+  const headerFile = path.join(ROOT, "_headers");
+  const result = {};
+  if (!fs.existsSync(headerFile)) return result;
+  const lines = fs.readFileSync(headerFile, "utf8").split(/\r?\n/);
+  const rootIndex = lines.findIndex((line) => line.trim() === "/*");
+  if (rootIndex < 0) return result;
+  for (const line of lines.slice(rootIndex + 1)) {
+    if (!/^\s+/.test(line) || !line.trim()) break;
+    const separator = line.indexOf(":");
+    if (separator <= 0) continue;
+    result[line.slice(0, separator).trim()] = line.slice(separator + 1).trim();
+  }
+  return result;
+}
+
+const ROOT_SECURITY_HEADERS = readRootSecurityHeaders();
+
 function parsePort(argv) {
   const index = argv.indexOf("--port");
   const candidate = index >= 0 ? Number(argv[index + 1]) : Number(process.env.PORT);
@@ -41,6 +60,7 @@ function safeFilePath(requestUrl) {
 function writeResponse(response, status, headers, body = "") {
   response.writeHead(status, {
     "Cache-Control": "no-store, max-age=0",
+    ...ROOT_SECURITY_HEADERS,
     "X-Content-Type-Options": "nosniff",
     ...headers
   });
@@ -65,6 +85,7 @@ function serveFile(request, response) {
       "Content-Type": contentType,
       "Content-Length": stats.size,
       "Cache-Control": "no-store, max-age=0",
+      ...ROOT_SECURITY_HEADERS,
       "X-Content-Type-Options": "nosniff"
     });
 

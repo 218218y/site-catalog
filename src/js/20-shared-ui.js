@@ -68,6 +68,7 @@ function prepareCatalogImage(url, options = {}) {
 
     image.addEventListener("error", () => {
       state.catalogImageLoadCache.delete(src);
+      telemetryTrackImageFailure(src, { detail: options.detail || "preload" });
       reject(new Error("image-load-failed"));
     }, { once: true });
 

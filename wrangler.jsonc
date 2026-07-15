@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bargig-catlog",
+  "pages_build_output_dir": "./dist/site-upload-r2",
+  "compatibility_date": "2026-07-15",
+  "send_metrics": false,
+  "analytics_engine_datasets": [
+    {
+      "binding": "SITE_TELEMETRY",
+      "dataset": "bargig_catalog_telemetry"
+    }
+  ]
+}

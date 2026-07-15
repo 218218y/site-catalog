@@ -40,6 +40,7 @@ def test_frontend_manifest_uses_reviewed_feature_modules() -> None:
     assert MODULE.JS_MODULES == (
         "src/js/00-navigation.js",
         "src/js/10-app-state.js",
+        "src/js/15-telemetry.js",
         "src/js/20-shared-ui.js",
         "src/js/30-favorites-share.js",
         "src/js/40-catalog-grid.js",
@@ -75,16 +76,18 @@ def test_generated_bundle_preserves_declared_module_order() -> None:
     assert app_positions == sorted(app_positions)
     assert css_positions == sorted(css_positions)
 
-    assert "function navigateWithinCurrentDocument" in (ROOT / MODULE.JS_MODULES[0]).read_text(encoding="utf-8")
-    assert "const state =" in (ROOT / MODULE.JS_MODULES[1]).read_text(encoding="utf-8")
-    assert "function shareFavoritesList" in (ROOT / MODULE.JS_MODULES[3]).read_text(encoding="utf-8")
-    assert "function renderCatalogCards" in (ROOT / MODULE.JS_MODULES[4]).read_text(encoding="utf-8")
-    assert "function renderSearchResults" in (ROOT / MODULE.JS_MODULES[5]).read_text(encoding="utf-8")
-    assert "function openLightbox" in (ROOT / MODULE.JS_MODULES[6]).read_text(encoding="utf-8")
-    assert "function showViewerOnboardingIfNeeded" in (ROOT / MODULE.JS_MODULES[7]).read_text(encoding="utf-8")
-    assert "function startPointerInteraction" in (ROOT / MODULE.JS_MODULES[8]).read_text(encoding="utf-8")
-    assert "let initResult = true;" in (ROOT / MODULE.JS_MODULES[9]).read_text(encoding="utf-8")
-    assert "initResult = init();" in (ROOT / MODULE.JS_MODULES[9]).read_text(encoding="utf-8")
+    module_sources = {relative: (ROOT / relative).read_text(encoding="utf-8") for relative in MODULE.JS_MODULES}
+    assert "function navigateWithinCurrentDocument" in module_sources["src/js/00-navigation.js"]
+    assert "const state =" in module_sources["src/js/10-app-state.js"]
+    assert "function telemetryInit" in module_sources["src/js/15-telemetry.js"]
+    assert "function shareFavoritesList" in module_sources["src/js/30-favorites-share.js"]
+    assert "function renderCatalogCards" in module_sources["src/js/40-catalog-grid.js"]
+    assert "function renderSearchResults" in module_sources["src/js/50-search-ui.js"]
+    assert "function openLightbox" in module_sources["src/js/60-viewer.js"]
+    assert "function showViewerOnboardingIfNeeded" in module_sources["src/js/65-viewer-onboarding.js"]
+    assert "function startPointerInteraction" in module_sources["src/js/70-viewer-input.js"]
+    assert "let initResult = true;" in module_sources["src/js/90-bootstrap.js"]
+    assert "initResult = init();" in module_sources["src/js/90-bootstrap.js"]
     assert app.lstrip().startswith("/*")
     assert '\n(() => {\n"use strict";' in app
     assert app.rstrip().endswith("})();")

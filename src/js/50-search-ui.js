@@ -708,6 +708,11 @@ function renderLightboxSearchResults(query) {
 
   const scope = getLightboxSearchScope();
   const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+  telemetryTrackSearch(rawQuery, results.length, {
+    surface: "viewer",
+    scope,
+    catalogId: scope === "all" ? "" : state.catalog?.id
+  });
   updateLightboxSearchResultsLayout(results.length);
   els.lightboxSearchResults.classList.remove("hidden");
 
@@ -871,6 +876,10 @@ function renderSearchResults(query) {
   }
 
   const results = getGlobalSearchResults(rawQuery, 72);
+  telemetryTrackSearch(rawQuery, results.length, {
+    surface: "global",
+    scope: category || "all"
+  });
   if (!results.length) {
     els.globalSearchResults.classList.remove("hidden");
     els.globalSearchResults.innerHTML = searchEmptyStateMarkup(

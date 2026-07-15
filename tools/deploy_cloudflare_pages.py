@@ -38,8 +38,11 @@ DEFAULT_PROJECT_NAME = "bargig-catlog"
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 DEFAULT_R2_BUCKET = "bargig-catalog"
 DEFAULT_R2_CORS_FILE = "r2-cors.json"
-PUBLIC_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS)
-REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "404.html", "_headers")
+WRANGLER_CONFIG_FILE = "wrangler.jsonc"
+TELEMETRY_FUNCTION_FILE = "functions/api/telemetry.js"
+TELEMETRY_BINDING = "SITE_TELEMETRY"
+PUBLIC_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
+REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "_headers")
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 FINGERPRINTED_ASSET_DIR = "static"
 HASHED_ASSET_FILENAME_RE = re.compile(
@@ -78,6 +81,60 @@ def ensure_inside_project(path: Path) -> Path:
         raise ValueError(f"Bundle folder must be inside the project: {path}") from exc
     return resolved
 
+
+
+def load_wrangler_pages_config(root: Path) -> dict:
+    config_path = root / WRANGLER_CONFIG_FILE
+    if not config_path.is_file():
+        raise FileNotFoundError(
+            f"Cloudflare Pages config is missing: {WRANGLER_CONFIG_FILE}. "
+            "It defines the Pages project, output folder, and telemetry binding."
+        )
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{WRANGLER_CONFIG_FILE} is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{WRANGLER_CONFIG_FILE} must contain one JSON object.")
+    return payload
+
+
+def validate_pages_runtime_config(root: Path, bundle_dir: Path, project_name: str) -> dict:
+    config = load_wrangler_pages_config(root)
+    configured_name = str(config.get("name") or "").strip()
+    if configured_name != project_name:
+        raise ValueError(
+            f"Cloudflare project mismatch: command uses {project_name!r}, "
+            f"but {WRANGLER_CONFIG_FILE} defines {configured_name!r}."
+        )
+
+    configured_output = str(config.get("pages_build_output_dir") or "").strip()
+    if not configured_output:
+        raise ValueError(f"{WRANGLER_CONFIG_FILE} must define pages_build_output_dir.")
+    configured_output_path = (root / configured_output).resolve(strict=False)
+    if configured_output_path != bundle_dir.resolve(strict=False):
+        raise ValueError(
+            f"Cloudflare output mismatch: deploy folder is {rel_to_root(bundle_dir)}, "
+            f"but {WRANGLER_CONFIG_FILE} points to {configured_output}."
+        )
+
+    bindings = config.get("analytics_engine_datasets")
+    if not isinstance(bindings, list) or not any(
+        isinstance(item, dict)
+        and item.get("binding") == TELEMETRY_BINDING
+        and str(item.get("dataset") or "").strip()
+        for item in bindings
+    ):
+        raise ValueError(
+            f"{WRANGLER_CONFIG_FILE} must define the {TELEMETRY_BINDING} Analytics Engine binding."
+        )
+
+    function_path = root / TELEMETRY_FUNCTION_FILE
+    if not function_path.is_file():
+        raise FileNotFoundError(
+            f"Telemetry Pages Function is missing: {TELEMETRY_FUNCTION_FILE}."
+        )
+    return config
 
 def validate_r2_cors_file(cors_file: Path) -> None:
     if not cors_file.is_file():
@@ -358,6 +415,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return apply_r2_cors(npx, args.r2_bucket, rel_to_root(cors_file), root)
 
         bundle_dir = ensure_inside_project(root / args.dir)
+        runtime_config = validate_pages_runtime_config(root, bundle_dir, args.project_name)
         print("Creating one fresh, validated R2 bundle before Cloudflare Pages deploy...", flush=True)
         if args.dry_run:
             print(
@@ -389,6 +447,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("Cloudflare Pages deploy settings:", flush=True)
         print(f"  folder: {rel_to_root(bundle_dir)}", flush=True)
         print(f"  project: {args.project_name}", flush=True)
+        print(f"  telemetry: {TELEMETRY_BINDING} -> {runtime_config['analytics_engine_datasets'][0]['dataset']}", flush=True)
         print(
             f"  environment: {'preview branch ' + preview_branch if preview_branch else 'production'}",
             flush=True,

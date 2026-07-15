@@ -18,6 +18,7 @@
 |---|---|
 | `00-navigation.js` | כתובות, היסטוריה, ניווט בתוך אותו מסמך ומטא־דאטה |
 | `10-app-state.js` | קבועים, state, הפניות DOM ורישום אירועים חד־פעמי |
+| `15-telemetry.js` | ניטור תפעולי שומר פרטיות, batching, שגיאות וביצועים |
 | `20-shared-ui.js` | תמונות, placeholders, הודעות, tooltips וכלי UI משותפים |
 | `30-favorites-share.js` | מועדפים, העברת רשימה ושיתוף קישורים |
 | `40-catalog-grid.js` | רשימת קטלוגים, קטגוריות ותצוגה מקדימה |
@@ -71,6 +72,8 @@ npm run test:e2e
 npm test
 npm run verify
 ```
+
+פרטי הניטור, Pages Function וכותרות האבטחה מתועדים ב־`docs/monitoring-security.md`.
 
 `npm test` מיועד לסבב מהיר בזמן עבודה ומריץ בדיקות מקור, תחביר, חוזי JavaScript ו־Python. `npm run verify` הוא שער האיכות לפני העלאה: הוא מוסיף בדיקות Playwright בדפדפן אמיתי ובניית חבילת פריסה עם אימות hash.
 
