@@ -1,0 +1,488 @@
+/**
+ * Source stylesheet: 85-favorites-routing.css
+ * Saved-page surfaces, standalone favorites layout, and multi-document route shell behavior.
+ *
+ * Kept after responsive shell rules to preserve the existing reviewed cascade exactly.
+ */
+
+/* Saved catalog pages */
+.header-favorites-button {
+  position: relative;
+}
+.header-favorites-button svg {
+  fill: #b88433;
+  stroke: rgba(91, 59, 19, 0.38);
+  stroke-width: .7;
+}
+.lightbox-favorites-button {
+  position: relative;
+  order: 10;
+  overflow: visible;
+  color: #ffd779;
+  border-color: rgba(255, 224, 157, 0.34);
+  background: rgba(143, 102, 37, 0.42);
+}
+.lightbox-favorites-button:hover,
+.lightbox-favorites-button:focus-visible {
+  color: #ffe49b;
+  border-color: rgba(255, 224, 157, 0.52);
+  background: rgba(143, 102, 37, 0.62);
+}
+.lightbox-favorites-button svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: rgba(91, 59, 19, 0.38);
+  stroke-width: .7;
+  filter: drop-shadow(0 0 7px rgba(255, 211, 113, 0.22));
+}
+.header-favorites-count.lightbox-favorites-count {
+  top: -7px;
+  left: -7px;
+  border-color: rgba(18, 14, 11, 0.94);
+}
+.header-favorites-count {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  min-width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border: 2px solid rgba(250, 245, 239, 0.96);
+  border-radius: 999px;
+  color: #fff;
+  background: var(--brand-dark);
+  box-shadow: 0 6px 14px rgba(55, 37, 24, 0.24);
+  font-size: .72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.favorites-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: clamp(12px, 3vw, 34px);
+}
+.favorites-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(21, 16, 12, 0.72);
+  backdrop-filter: blur(12px);
+}
+.favorites-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(1240px, 100%);
+  max-height: min(900px, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.78);
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255,253,250,0.99), rgba(244,234,225,0.98));
+  box-shadow: 0 34px 90px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.92);
+}
+.favorites-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px clamp(16px, 2.4vw, 24px);
+  border-bottom: 1px solid rgba(110, 86, 70, 0.16);
+  background: rgba(255,255,255,0.64);
+}
+.favorites-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.favorites-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.2rem, 1.8vw, 1.55rem);
+  line-height: 1.2;
+}
+.favorites-heading p {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid rgba(110, 86, 70, 0.16);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255,255,255,0.78);
+  font-size: .86rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.favorites-heading p #favoritesCount {
+  color: var(--brand-dark);
+  font-weight: 950;
+}
+.favorites-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.favorites-clear-button {
+  min-height: 42px;
+  padding-inline: 18px;
+  border: 1px solid rgba(128, 69, 54, 0.2);
+  color: #74483d;
+  background: rgba(255,255,255,0.82);
+}
+.favorites-clear-button:hover,
+.favorites-clear-button:focus-visible {
+  border-color: rgba(128, 69, 54, 0.34);
+  background: rgba(255,244,240,0.98);
+}
+.favorites-close-button {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(110, 86, 70, 0.18);
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 10px 24px rgba(70, 50, 36, 0.1);
+  cursor: pointer;
+}
+.favorites-close-button svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.favorites-close-button:hover,
+.favorites-close-button:focus-visible {
+  background: #fff;
+  transform: translateY(-1px);
+}
+.favorites-grid {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  align-items: start;
+  align-content: start;
+  gap: 18px;
+  overflow: auto;
+  padding: clamp(18px, 3vw, 30px);
+  overscroll-behavior: contain;
+}
+.favorite-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(110, 86, 70, 0.16);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 14px 32px rgba(57, 43, 33, 0.12);
+}
+.favorite-preview-button {
+  width: 100%;
+  display: block;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: right;
+  cursor: zoom-in;
+}
+.favorite-image-frame {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, #eee2d7, #d8c1af);
+}
+.favorite-image-frame img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  transition: transform .2s ease;
+}
+.favorite-preview-button:hover .favorite-image-frame img,
+.favorite-preview-button:focus-visible .favorite-image-frame img {
+  transform: scale(1.015);
+}
+.favorite-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.favorite-card-meta strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.favorite-card-meta span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-weight: 750;
+}
+.favorite-remove-button {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  right: auto;
+  bottom: auto;
+  left: 12px;
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.72);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(132, 67, 55, 0.92);
+  box-shadow: 0 10px 24px rgba(57,43,33,0.28);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: transform .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.favorite-remove-button:hover,
+.favorite-remove-button:focus-visible {
+  color: #fff;
+  border-color: rgba(255,255,255,0.9);
+  background: #713c32;
+  box-shadow: 0 13px 28px rgba(57,43,33,0.34);
+  transform: translateY(-1px);
+}
+.favorite-remove-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.favorites-empty {
+  margin: clamp(18px, 3vw, 30px);
+  padding: 52px 24px;
+  border: 1px dashed rgba(110,86,70,0.3);
+  border-radius: 22px;
+  color: var(--muted);
+  background: rgba(255,255,255,0.54);
+  text-align: center;
+}
+.favorites-empty strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-size: 1.25rem;
+}
+.favorites-empty p { margin: 0; }
+
+.viewer-favorite-button {
+  position: fixed;
+  z-index: 12;
+  top: var(--viewer-side-control-near-top);
+  left: var(--viewer-side-control-edge);
+  width: var(--viewer-side-control-size);
+  min-width: var(--viewer-side-control-size);
+  min-height: var(--viewer-side-control-size);
+  padding: 0 !important;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  color: #fff;
+  background: var(--viewer-side-control-bg) !important;
+  border-color: var(--viewer-side-control-border) !important;
+  box-shadow: var(--viewer-side-control-shadow);
+  backdrop-filter: blur(14px);
+}
+.viewer-favorite-button:hover,
+.viewer-favorite-button:focus-visible,
+.viewer-favorite-button:active {
+  transform: translateY(-50%) !important;
+  background: var(--viewer-side-control-hover-bg) !important;
+  border-color: var(--viewer-side-control-hover-border) !important;
+}
+.viewer-favorite-button svg {
+  width: 23px;
+  height: 23px;
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  transition: fill .16s ease, color .16s ease, filter .16s ease;
+}
+.viewer-favorite-button[data-favorite-active="true"] {
+  color: #ffd779;
+  background: rgba(143, 102, 37, 0.74) !important;
+  border-color: rgba(255, 224, 157, 0.58) !important;
+}
+.viewer-favorite-button[data-favorite-active="true"] svg {
+  fill: currentColor;
+  filter: drop-shadow(0 0 8px rgba(255, 211, 113, 0.34));
+}
+
+@media (max-width: 960px) {
+  .favorites-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .favorites-panel { padding: 8px; }
+  .favorites-dialog {
+    max-height: calc(100vh - 16px);
+    border-radius: 22px;
+  }
+  .favorites-header {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 11px;
+  }
+  .favorites-heading {
+    flex: 1 1 170px;
+    gap: 6px 8px;
+  }
+  .favorites-heading h2 { font-size: 1.12rem; }
+  .favorites-heading p {
+    min-height: 26px;
+    padding-inline: 8px;
+    font-size: .78rem;
+  }
+  .favorites-header-actions { gap: 7px; }
+  .favorites-clear-button {
+    min-height: 38px;
+    padding-inline: 12px;
+    font-size: .84rem;
+  }
+  .favorites-close-button {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+  }
+  .favorites-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 14px;
+  }
+  .favorite-image-frame { min-height: 180px; }
+  .favorite-open-catalog-button {
+    bottom: 18px;
+    min-height: 42px;
+    max-width: calc(100vw - 128px);
+    padding-inline: 14px !important;
+    font-size: .88rem;
+  }
+  .favorite-open-catalog-button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Keep the favorites entry as the physical leftmost header action in RTL layouts. */
+.header-favorites-button {
+  order: 10;
+}
+
+/* Multi-document application layout.
+   Each major workflow has its own URL/document while sharing one visual system. */
+body[data-page="catalog"] #catalogs,
+body[data-page="catalog"] .catalog-scroll-top-float:not([aria-hidden="false"]) {
+  display: none;
+}
+
+body[data-page="catalog"] #catalogDetail {
+  margin-top: 26px;
+}
+
+body[data-page="favorites"] main,
+body[data-page="favorites"] .catalog-scroll-top-float {
+  display: none;
+}
+
+body[data-page="favorites"] .favorites-panel.favorites-standalone-page {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  display: block;
+  width: min(1300px, calc(100% - 28px));
+  margin: clamp(14px, 2.2vw, 28px) auto 34px;
+  padding: 0;
+}
+
+body[data-page="favorites"] .favorites-standalone-page .favorites-backdrop {
+  display: none;
+}
+
+body[data-page="favorites"] .favorites-standalone-page .favorites-dialog {
+  width: 100%;
+  max-height: none;
+  min-height: min(620px, calc(100vh - var(--header-h) - 122px));
+  overflow: visible;
+  border-radius: 26px;
+  box-shadow: 0 24px 64px rgba(57, 43, 33, 0.18), inset 0 1px 0 rgba(255,255,255,0.92);
+}
+
+body[data-page="favorites"] .favorites-standalone-page .favorites-header {
+  margin: 12px 12px 0;
+  border: 1px solid rgba(110, 86, 70, 0.15);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.78);
+}
+
+body[data-page="favorites"] .favorites-standalone-page .favorites-grid {
+  overflow: visible;
+  padding-top: 12px;
+}
+
+/* Hide only the inactive document shell in the standalone viewer.
+   Shared runtime overlays (notably .search-floating-preview) must remain
+   available because the viewer search reuses them for hover previews. */
+body[data-page="viewer"] > .site-header,
+body[data-page="viewer"] > #catalogSearch,
+body[data-page="viewer"] > main,
+body[data-page="viewer"] > .catalog-scroll-top-float,
+body[data-page="viewer"] > .favorites-panel,
+body[data-page="viewer"] > .site-footer {
+  display: none !important;
+}
+
+body[data-page="viewer"] {
+  min-height: 100vh;
+  background: #080604;
+}
+
+@media (max-width: 640px) {
+  body[data-page="favorites"] .favorites-panel.favorites-standalone-page {
+    width: min(100% - 16px, 1300px);
+    margin-block: 8px 18px;
+  }
+
+  body[data-page="favorites"] .favorites-standalone-page .favorites-dialog {
+    min-height: calc(100vh - var(--header-h) - 34px);
+    border-radius: 22px;
+  }
+
+  body[data-page="favorites"] .favorites-standalone-page .favorites-header {
+    margin: 8px 8px 0;
+    border-radius: 15px;
+  }
+}

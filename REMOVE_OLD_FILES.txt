@@ -1,6 +1,0 @@
-Remove these obsolete files from the project root after copying the updated files:
-
-site-catalog/wp_logo_data.js
-site-catalog/brand-logo.js
-
-They are intentionally no longer referenced or deployed. The site now loads brand-logo.svg directly.

@@ -17,6 +17,9 @@ assert.match(frontendBuilder, /JS_MODULES:\s*tuple\[str, \.\.\.\]/);
 assert.match(frontendBuilder, /CSS_MODULES:\s*tuple\[str, \.\.\.\]/);
 assert.match(frontendBuilder, /def atomic_write_text/);
 assert.match(frontendBuilder, /def build_frontend_assets/);
+assert.match(frontendBuilder, /def validate_module_manifest/);
+assert.match(app, /\(\(\) => \{\s*"use strict";/);
+assert.match(app, /\}\)\(\);\s*$/);
 assert.match(pageBuilder, /from build_frontend_assets import build_frontend_assets/);
 assert.match(pageBuilder, /if build_assets:\s*\n\s*build_frontend_assets\(root\)/);
 assert.doesNotMatch(deployBuilder, /src\/js|src\/css/);
@@ -29,6 +32,8 @@ const jsSources = [
   ['src/js/40-catalog-grid.js', /function renderCatalogCards/],
   ['src/js/50-search-ui.js', /function renderSearchResults/],
   ['src/js/60-viewer.js', /function openLightbox/],
+  ['src/js/65-viewer-onboarding.js', /function showViewerOnboardingIfNeeded/],
+  ['src/js/70-viewer-input.js', /function startPointerInteraction/],
   ['src/js/90-bootstrap.js', /function attachEvents/]
 ];
 for (const [relative, pattern] of jsSources) {
@@ -40,5 +45,9 @@ for (const [relative, pattern] of jsSources) {
 assert.equal((app.match(/let initResult = true;/g) || []).length, 1);
 assert.equal((app.match(/initResult = init\(\);/g) || []).length, 1);
 assert.equal((app.match(/function attachEvents\(/g) || []).length, 1);
+assert.match(app, /function bindFeatureEventsOnce\(/);
+assert.match(app, /bindFeatureEventsOnce\("catalog-grid", attachCatalogGridEvents\)/);
+assert.match(app, /bindFeatureEventsOnce\("viewer-onboarding", attachViewerOnboardingEvents\)/);
+assert.match(app, /bindFeatureEventsOnce\("viewer", attachViewerEvents\)/);
 
 console.log('frontend_modules_contract.test.js: PASS');

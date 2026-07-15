@@ -665,3 +665,22 @@ async function shareCurrentMainHeaderLink() {
 async function shareCurrentLightboxLink() {
   await shareOrCopyCurrentLink(els.lightboxCopyLink);
 }
+
+function attachFavoritesShareEvents() {
+  els.headerCopyLink?.addEventListener("click", () => shareCurrentMainHeaderLink());
+  els.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
+  els.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
+  els.favoritesClearButton?.addEventListener("click", clearAllFavorites);
+  els.favoritesShareButton?.addEventListener("click", () => shareFavoritesList());
+  els.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
+  els.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
+  els.favoritesTransferBackdrop?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
+  els.favoritesTransferCancel?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
+  els.favoritesTransferMerge?.addEventListener("click", () => applyFavoritesTransfer("merge"));
+  els.favoritesTransferReplace?.addEventListener("click", () => applyFavoritesTransfer("replace"));
+  els.favoritesTransferOverlay?.addEventListener("keydown", handleFavoritesTransferKeydown);
+  els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
+  els.lightboxCopyLink?.addEventListener("click", () => shareCurrentLightboxLink());
+
+  window.addEventListener("storage", handleFavoritesStorageChange);
+}

@@ -161,3 +161,25 @@ function updateDocumentMetadata(catalog = state?.catalog || null) {
   const canonical = document.querySelector('link[rel="canonical"]');
   if (canonical) canonical.href = window.location.href.split("#")[0];
 }
+
+function attachNavigationEvents() {
+  document.addEventListener("click", handleInternalAppLinkClick);
+
+  window.addEventListener("popstate", (event) => {
+    const routeState = event.state && typeof event.state === "object" ? event.state : null;
+    if (!hasInDocumentRouteSession && !routeState?.[IN_DOCUMENT_ROUTE_STATE_KEY]) return;
+
+    hasInDocumentRouteSession = true;
+    initDocumentRoute({
+      scrollPosition: {
+        x: routeState?.scrollX || 0,
+        y: routeState?.scrollY || 0
+      }
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    if (!isAppPage("home")) return;
+    syncCatalogCategoryFocusFromHash();
+  });
+}

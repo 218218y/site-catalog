@@ -3,9 +3,11 @@
 
 The public HTML intentionally continues to load exactly one ``app.js`` and one
 ``styles.css`` file. Source code is maintained under ``src/js`` and ``src/css``
-and concatenated in a fixed, reviewed order. This gives the project clear
-feature boundaries without adding runtime requests or requiring a JavaScript
-package manager on the deployment machine.
+and concatenated in a fixed, reviewed order. JavaScript is wrapped in one
+private strict-mode scope, so implementation helpers do not leak into ``window``.
+The manifest is validated before writing. This gives the project clear feature
+boundaries without adding runtime requests or requiring a JavaScript package
+manager on the deployment machine.
 
 Usage:
     python tools/build_frontend_assets.py
@@ -20,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,20 +36,53 @@ JS_MODULES: tuple[str, ...] = (
     "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
     "src/js/60-viewer.js",
+    "src/js/65-viewer-onboarding.js",
+    "src/js/70-viewer-input.js",
     "src/js/90-bootstrap.js",
 )
 
 CSS_MODULES: tuple[str, ...] = (
     "src/css/00-foundation.css",
+    "src/css/05-viewer-onboarding.css",
+    "src/css/06-shell-components.css",
     "src/css/10-catalog.css",
     "src/css/20-viewer.css",
     "src/css/30-media-components.css",
     "src/css/40-catalog-refinements.css",
     "src/css/50-footer-legal.css",
-    "src/css/90-responsive-polish.css",
+    "src/css/80-responsive-shell.css",
+    "src/css/85-favorites-routing.css",
+    "src/css/90-visual-polish.css",
 )
 
 GENERATED_FILES: tuple[str, ...] = ("app.js", "styles.css")
+MODULE_NAME_PATTERN = re.compile(r"^(?P<order>\d{2})-[a-z0-9-]+\.(?P<extension>js|css)$")
+
+
+def validate_module_manifest(module_paths: Sequence[str], *, expected_extension: str) -> None:
+    """Reject ambiguous or accidentally reordered frontend module manifests."""
+
+    if len(module_paths) != len(set(module_paths)):
+        raise ValueError(f"Duplicate {expected_extension} source module in frontend manifest")
+
+    previous_order = -1
+    for relative_path in module_paths:
+        path = Path(relative_path)
+        match = MODULE_NAME_PATTERN.fullmatch(path.name)
+        if (
+            path.parent.as_posix() != f"src/{expected_extension}"
+            or not match
+            or match.group("extension") != expected_extension
+        ):
+            raise ValueError(
+                f"Frontend module must use src/{expected_extension}/NN-feature.{expected_extension}: {relative_path}"
+            )
+        order = int(match.group("order"))
+        if order <= previous_order:
+            raise ValueError(
+                f"Frontend {expected_extension} module order is not strictly increasing at: {relative_path}"
+            )
+        previous_order = order
 
 
 @dataclass(frozen=True)
@@ -86,6 +122,8 @@ def render_bundle(root: Path, *, kind: str, module_paths: Sequence[str]) -> str:
     if kind not in {"js", "css"}:
         raise ValueError(f"Unsupported frontend bundle kind: {kind}")
 
+    validate_module_manifest(module_paths, expected_extension=kind)
+
     comment_open, comment_close = "/*", "*/"
     target = "app.js" if kind == "js" else "styles.css"
     banner = (
@@ -99,6 +137,11 @@ def render_bundle(root: Path, *, kind: str, module_paths: Sequence[str]) -> str:
     )
 
     sections: list[str] = [banner]
+    if kind == "js":
+        # One private strict-mode scope prevents hundreds of implementation helpers from
+        # becoming mutable window globals while preserving a single cacheable browser file.
+        sections.append('\n(() => {\n"use strict";\n')
+
     for relative_path in module_paths:
         content = read_source_module(root, relative_path)
         sections.append(
@@ -106,6 +149,9 @@ def render_bundle(root: Path, *, kind: str, module_paths: Sequence[str]) -> str:
             f"{content}"
             f"{comment_open} ===== END SOURCE: {relative_path} ===== {comment_close}\n"
         )
+
+    if kind == "js":
+        sections.append("\n})();\n")
     return normalize_text("".join(sections))
 
 

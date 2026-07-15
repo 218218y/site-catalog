@@ -1,164 +1,12 @@
 /**
  * Source module: 90-bootstrap.js
- * Cross-feature event wiring, route preparation, initialization, and application startup.
+ * Application composition root: feature registration, route preparation, and startup.
  *
  * These source modules intentionally share one lexical scope and are concatenated
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
-function attachEvents() {
-  els.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    closeGlobalSearchPanel({ focusButton: false });
-    setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
-  });
-
-  els.mobileCategoryMenu?.addEventListener("click", (event) => {
-    const link = event.target.closest?.(".category-nav-link");
-    if (!link || !els.mobileCategoryMenu.contains(link)) return;
-    closeMobileCategoryMenu();
-    handleCatalogFocusLinkClick(link, event);
-  });
-
-  els.globalSearchOpen?.addEventListener("click", (event) => {
-    event.preventDefault();
-    ensureSearchIndexLoaded().catch(() => {});
-    event.stopPropagation();
-    closeDetailCatalogMenu();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
-    setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: true, focusButton: true });
-  });
-  els.globalSearchClose?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    closeGlobalSearchPanel({ focusButton: true });
-  });
-
-  els.globalSearchInput?.addEventListener("input", () => {
-    ensureSearchIndexLoaded().then(() => renderSearchResults(els.globalSearchInput.value)).catch(() => renderSearchResults(els.globalSearchInput.value));
-  });
-  els.globalSearchInput?.addEventListener("focus", () => {
-    ensureSearchIndexLoaded().then(() => renderSearchResults(els.globalSearchInput.value)).catch(() => renderSearchResults(els.globalSearchInput.value));
-  });
-  els.globalSearchInput?.addEventListener("click", () => renderSearchResults(els.globalSearchInput.value));
-  els.globalSearchInput?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    submitGlobalSearch();
-  });
-  els.globalSearchClear?.addEventListener("click", () => {
-    els.globalSearchInput.value = "";
-    els.globalSearchInput.focus();
-    renderSearchResults("");
-  });
-
-  els.globalSearchScopeToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    hideSearchFloatingPreview();
-    closeDetailCatalogMenu();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
-    renderGlobalSearchScopeMenu();
-    const isOpen = !els.globalSearchScopeMenu?.classList.contains("hidden");
-    els.globalSearchScopeMenu?.classList.toggle("hidden", isOpen);
-    els.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-  });
-  els.globalSearchScopeMenu?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const button = event.target.closest?.("[data-global-search-category]");
-    if (!button || !els.globalSearchScopeMenu.contains(button)) return;
-    setGlobalSearchCategory(button.dataset.globalSearchCategory);
-    els.globalSearchInput?.focus();
-  });
-  els.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: false });
-  els.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  els.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  els.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
-  els.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  els.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
-  els.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-
-  els.lightboxSearchInput?.addEventListener("input", () => {
-    ensureSearchIndexLoaded().then(() => renderLightboxSearchResults(els.lightboxSearchInput.value)).catch(() => renderLightboxSearchResults(els.lightboxSearchInput.value));
-  });
-  els.lightboxSearchInput?.addEventListener("focus", () => {
-    showTopUiTemporarily(0);
-    ensureSearchIndexLoaded().then(() => renderLightboxSearchResults(els.lightboxSearchInput.value)).catch(() => renderLightboxSearchResults(els.lightboxSearchInput.value));
-  });
-  els.lightboxSearchInput?.addEventListener("click", () => {
-    showTopUiTemporarily(0);
-    renderLightboxSearchResults(els.lightboxSearchInput.value);
-  });
-  els.lightboxSearchInput?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    submitLightboxSearch();
-  });
-  els.lightboxSearchClear?.addEventListener("click", () => {
-    els.lightboxSearchInput.value = "";
-    els.lightboxSearchInput.focus();
-    renderLightboxSearchResults("");
-    showTopUiTemporarily(0);
-  });
-
-  els.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setLightboxMobileSearchOpen(!state.lightboxMobileSearchOpen, {
-      focusInput: true,
-      returnFocus: state.lightboxMobileSearchOpen
-    });
-  });
-  els.lightboxMobileSearchClose?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
-  });
-
-  els.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    hideSearchFloatingPreview();
-    closeDetailCatalogMenu();
-    closeLightboxCatalogMenu();
-    const isOpen = !els.lightboxSearchScopeMenu?.classList.contains("hidden");
-    els.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen);
-    els.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-    showTopUiTemporarily(0);
-  });
-  els.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      setLightboxSearchScope(button.dataset.lightboxSearchScope);
-      showTopUiTemporarily(0);
-      els.lightboxSearchInput?.focus();
-    });
-  });
-  els.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    closeDetailCatalogMenu();
-    closeLightboxSearchScopeMenu();
-    renderLightboxCatalogMenu();
-    const isOpen = !els.lightboxCatalogMenu?.classList.contains("hidden");
-    els.lightboxCatalogMenu?.classList.toggle("hidden", isOpen);
-    els.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-    showTopUiTemporarily(0);
-  });
-  els.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
-  els.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
-
-  els.catalogMenuToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
-    renderDetailCatalogMenu();
-    const isOpen = !els.catalogMenu?.classList.contains("hidden");
-    els.catalogMenu?.classList.toggle("hidden", isOpen);
-    els.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-  });
-  els.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
-
+function attachShellEvents() {
   document.addEventListener("click", (event) => {
     const target = event.target;
     const insideGlobalSearch = Boolean(els.catalogSearch?.contains(target) || els.globalSearchOpen?.contains(target));
@@ -193,100 +41,6 @@ function attachEvents() {
     closeDetailCatalogMenu();
   });
 
-  els.openCatalogEntryFromDetail?.addEventListener("click", () => openLightbox(1));
-  els.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
-
-  els.categoryNav?.addEventListener("click", (event) => {
-    const link = event.target.closest?.(".category-nav-link");
-    if (!link || !els.categoryNav.contains(link)) return;
-    closeMobileCategoryMenu();
-    handleCatalogFocusLinkClick(link, event);
-  });
-
-  els.catalogGrid?.addEventListener("click", (event) => {
-    const link = event.target.closest?.(".catalog-subcategory-nav-link");
-    if (!link || !els.catalogGrid.contains(link)) return;
-    handleCatalogFocusLinkClick(link, event);
-  });
-
-  els.headerCopyLink?.addEventListener("click", () => shareCurrentMainHeaderLink());
-  els.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
-  els.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
-  els.favoritesClearButton?.addEventListener("click", clearAllFavorites);
-  els.favoritesShareButton?.addEventListener("click", () => shareFavoritesList());
-  els.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
-  els.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
-  els.favoritesTransferBackdrop?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
-  els.favoritesTransferCancel?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
-  els.favoritesTransferMerge?.addEventListener("click", () => applyFavoritesTransfer("merge"));
-  els.favoritesTransferReplace?.addEventListener("click", () => applyFavoritesTransfer("replace"));
-  els.favoritesTransferOverlay?.addEventListener("keydown", handleFavoritesTransferKeydown);
-  els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
-  els.lightboxCopyLink?.addEventListener("click", () => shareCurrentLightboxLink());
-  els.viewerOnboardingPrevious?.addEventListener("click", () => moveViewerOnboardingStep(-1));
-  els.viewerOnboardingNext?.addEventListener("click", () => moveViewerOnboardingStep(1));
-  els.viewerOnboardingSkip?.addEventListener("click", () => closeViewerOnboarding());
-  els.lightboxHomeLink?.addEventListener("click", returnToMainSiteFromLightbox);
-  els.favoriteOpenCatalogButton?.addEventListener("click", openCurrentFavoriteInCatalog);
-  els.lightboxPinTopBar?.addEventListener("click", () => {
-    toggleTopUiPinned();
-    if (state.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
-  });
-  els.lightboxBackdrop?.addEventListener("click", closeLightbox);
-  els.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
-  els.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.fullscreenToggle));
-  els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
-  els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
-  els.fitHeightBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_HEIGHT));
-  els.fitWidthBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_WIDTH));
-  els.viewerAutoZoomBtn?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
-  });
-  els.viewerAutoZoomBtn?.addEventListener("pointerdown", (event) => event.stopPropagation());
-  els.viewerFavoriteButton?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleCurrentPageFavorite();
-  });
-  els.viewerFavoriteButton?.addEventListener("pointerdown", (event) => event.stopPropagation());
-  els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
-
-  attachViewerGestures();
-
-  els.lightboxSideHotspot?.addEventListener("pointerdown", openPageRailFromTouch, { passive: false });
-  els.lightboxSideHotspot?.addEventListener("mouseenter", showPageRailFromHover);
-  els.lightboxSideHotspot?.addEventListener("mouseleave", schedulePageRailClose);
-  els.lightboxSideHotspot?.addEventListener("click", openPageRailFromHotspot);
-  els.lightboxPageRail?.addEventListener("pointerdown", markTouchLikeRailInput);
-  els.lightboxPageRail?.addEventListener("mouseenter", keepPageRailOpenFromHover);
-  els.lightboxPageRail?.addEventListener("mouseleave", (event) => {
-    hideLightboxFloatingPreview();
-    schedulePageRailClose(event);
-  });
-  els.lightbox?.addEventListener("pointerdown", handlePageRailPointerOutside);
-  els.lightboxPageRail?.addEventListener("focusin", () => keepPageRailOpen({ scrollIntoView: false }));
-  els.lightboxPageRail?.addEventListener("focusout", schedulePageRailClose);
-
-  els.topHotspot?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
-  els.lightboxBar?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
-  els.lightboxBar?.addEventListener("mouseleave", scheduleTopUiClose);
-  document.addEventListener("pointerdown", markTouchLikeViewportInput, { passive: true });
-  document.addEventListener("touchstart", markTouchLikeViewportInput, { passive: true });
-  document.addEventListener("mousemove", handleLightboxEdgeHoverMove, { passive: true });
-  document.addEventListener("mouseout", handleLightboxEdgeHoverViewportExit, { passive: true });
-  document.documentElement?.addEventListener("mouseleave", handleLightboxEdgeHoverViewportExit, { passive: true });
-
-  els.lightboxImage?.addEventListener("load", () => {
-    setViewerLoading(false);
-    els.lightbox?.classList.remove("is-page-loading");
-    applyZoom();
-  });
-
-
-  window.addEventListener("storage", handleFavoritesStorageChange);
-
   window.addEventListener("resize", () => {
     if (!window.matchMedia("(max-width: 760px)").matches) closeMobileCategoryMenu();
     scheduleCatalogLayoutRefresh();
@@ -305,12 +59,6 @@ function attachEvents() {
     hideSearchFloatingPreview();
     scheduleCatalogScrollTopButtonUpdate();
   }, { passive: true });
-
-  ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"].forEach((eventName) => {
-    document.addEventListener(eventName, syncFullscreenButtonUi);
-  });
-
-  syncFullscreenButtonUi();
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && state.favoritesOpen) {
@@ -379,27 +127,16 @@ function attachEvents() {
       else setLightboxPage(state.catalog.pages);
     }
   });
+}
 
-  document.addEventListener("click", handleInternalAppLinkClick);
-
-  window.addEventListener("popstate", (event) => {
-    const routeState = event.state && typeof event.state === "object" ? event.state : null;
-    if (!hasInDocumentRouteSession && !routeState?.[IN_DOCUMENT_ROUTE_STATE_KEY]) return;
-
-    hasInDocumentRouteSession = true;
-    initDocumentRoute({
-      scrollPosition: {
-        x: routeState?.scrollX || 0,
-        y: routeState?.scrollY || 0
-      }
-    });
-  });
-
-  window.addEventListener("hashchange", () => {
-    if (!isAppPage("home")) return;
-    syncCatalogCategoryFocusFromHash();
-  });
-
+function attachEvents() {
+  bindFeatureEventsOnce("catalog-grid", attachCatalogGridEvents);
+  bindFeatureEventsOnce("search-ui", attachSearchUiEvents);
+  bindFeatureEventsOnce("shell", attachShellEvents);
+  bindFeatureEventsOnce("favorites-share", attachFavoritesShareEvents);
+  bindFeatureEventsOnce("viewer-onboarding", attachViewerOnboardingEvents);
+  bindFeatureEventsOnce("viewer", attachViewerEvents);
+  bindFeatureEventsOnce("navigation", attachNavigationEvents);
 }
 
 function hideCatalogDetailUi() {

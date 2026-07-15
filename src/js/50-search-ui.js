@@ -915,3 +915,132 @@ function renderSearchResults(query) {
     });
   });
 }
+
+function attachSearchUiEvents() {
+  els.globalSearchOpen?.addEventListener("click", (event) => {
+    event.preventDefault();
+    ensureSearchIndexLoaded().catch(() => {});
+    event.stopPropagation();
+    closeDetailCatalogMenu();
+    closeLightboxCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: true, focusButton: true });
+  });
+  els.globalSearchClose?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeGlobalSearchPanel({ focusButton: true });
+  });
+
+  els.globalSearchInput?.addEventListener("input", () => {
+    ensureSearchIndexLoaded().then(() => renderSearchResults(els.globalSearchInput.value)).catch(() => renderSearchResults(els.globalSearchInput.value));
+  });
+  els.globalSearchInput?.addEventListener("focus", () => {
+    ensureSearchIndexLoaded().then(() => renderSearchResults(els.globalSearchInput.value)).catch(() => renderSearchResults(els.globalSearchInput.value));
+  });
+  els.globalSearchInput?.addEventListener("click", () => renderSearchResults(els.globalSearchInput.value));
+  els.globalSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    submitGlobalSearch();
+  });
+  els.globalSearchClear?.addEventListener("click", () => {
+    els.globalSearchInput.value = "";
+    els.globalSearchInput.focus();
+    renderSearchResults("");
+  });
+
+  els.globalSearchScopeToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    hideSearchFloatingPreview();
+    closeDetailCatalogMenu();
+    closeLightboxCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    renderGlobalSearchScopeMenu();
+    const isOpen = !els.globalSearchScopeMenu?.classList.contains("hidden");
+    els.globalSearchScopeMenu?.classList.toggle("hidden", isOpen);
+    els.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  });
+  els.globalSearchScopeMenu?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const button = event.target.closest?.("[data-global-search-category]");
+    if (!button || !els.globalSearchScopeMenu.contains(button)) return;
+    setGlobalSearchCategory(button.dataset.globalSearchCategory);
+    els.globalSearchInput?.focus();
+  });
+  els.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: false });
+  els.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  els.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  els.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
+  els.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  els.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
+  els.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+
+  els.lightboxSearchInput?.addEventListener("input", () => {
+    ensureSearchIndexLoaded().then(() => renderLightboxSearchResults(els.lightboxSearchInput.value)).catch(() => renderLightboxSearchResults(els.lightboxSearchInput.value));
+  });
+  els.lightboxSearchInput?.addEventListener("focus", () => {
+    showTopUiTemporarily(0);
+    ensureSearchIndexLoaded().then(() => renderLightboxSearchResults(els.lightboxSearchInput.value)).catch(() => renderLightboxSearchResults(els.lightboxSearchInput.value));
+  });
+  els.lightboxSearchInput?.addEventListener("click", () => {
+    showTopUiTemporarily(0);
+    renderLightboxSearchResults(els.lightboxSearchInput.value);
+  });
+  els.lightboxSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    submitLightboxSearch();
+  });
+  els.lightboxSearchClear?.addEventListener("click", () => {
+    els.lightboxSearchInput.value = "";
+    els.lightboxSearchInput.focus();
+    renderLightboxSearchResults("");
+    showTopUiTemporarily(0);
+  });
+
+  els.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setLightboxMobileSearchOpen(!state.lightboxMobileSearchOpen, {
+      focusInput: true,
+      returnFocus: state.lightboxMobileSearchOpen
+    });
+  });
+  els.lightboxMobileSearchClose?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
+  });
+
+  els.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    hideSearchFloatingPreview();
+    closeDetailCatalogMenu();
+    closeLightboxCatalogMenu();
+    const isOpen = !els.lightboxSearchScopeMenu?.classList.contains("hidden");
+    els.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen);
+    els.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    showTopUiTemporarily(0);
+  });
+  els.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setLightboxSearchScope(button.dataset.lightboxSearchScope);
+      showTopUiTemporarily(0);
+      els.lightboxSearchInput?.focus();
+    });
+  });
+  els.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeDetailCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    renderLightboxCatalogMenu();
+    const isOpen = !els.lightboxCatalogMenu?.classList.contains("hidden");
+    els.lightboxCatalogMenu?.classList.toggle("hidden", isOpen);
+    els.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    showTopUiTemporarily(0);
+  });
+  els.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+  els.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
+}

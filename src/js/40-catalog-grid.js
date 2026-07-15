@@ -968,3 +968,46 @@ function preloadNeighbors() {
       prepareCatalogImage(pageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
     });
 }
+
+function attachCatalogGridEvents() {
+  els.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeGlobalSearchPanel({ focusButton: false });
+    setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
+  });
+
+  els.mobileCategoryMenu?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".category-nav-link");
+    if (!link || !els.mobileCategoryMenu.contains(link)) return;
+    closeMobileCategoryMenu();
+    handleCatalogFocusLinkClick(link, event);
+  });
+
+  els.catalogMenuToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeLightboxCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    renderDetailCatalogMenu();
+    const isOpen = !els.catalogMenu?.classList.contains("hidden");
+    els.catalogMenu?.classList.toggle("hidden", isOpen);
+    els.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  });
+  els.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+
+  els.openCatalogEntryFromDetail?.addEventListener("click", () => openLightbox(1));
+  els.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
+
+  els.categoryNav?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".category-nav-link");
+    if (!link || !els.categoryNav.contains(link)) return;
+    closeMobileCategoryMenu();
+    handleCatalogFocusLinkClick(link, event);
+  });
+
+  els.catalogGrid?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".catalog-subcategory-nav-link");
+    if (!link || !els.catalogGrid.contains(link)) return;
+    handleCatalogFocusLinkClick(link, event);
+  });
+}

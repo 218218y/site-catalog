@@ -41,6 +41,21 @@ const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
 const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 
+const boundEventFeatures = new Set();
+
+function bindFeatureEventsOnce(featureName, binder) {
+  const name = String(featureName || "").trim();
+  if (!name) throw new TypeError("Feature event binding requires a stable name");
+  if (boundEventFeatures.has(name)) return false;
+  if (typeof binder !== "function") throw new TypeError(`Feature event binder is not callable: ${name}`);
+
+  // Mark only after a successful bind. A thrown setup error therefore cannot leave
+  // the application believing that a half-bound feature is healthy.
+  binder();
+  boundEventFeatures.add(name);
+  return true;
+}
+
 const state = {
   catalog: null,
   page: 1,

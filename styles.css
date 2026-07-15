@@ -3,19 +3,23 @@
  * Browser bundle: styles.css
  * Source modules:
  *   - src/css/00-foundation.css
+ *   - src/css/05-viewer-onboarding.css
+ *   - src/css/06-shell-components.css
  *   - src/css/10-catalog.css
  *   - src/css/20-viewer.css
  *   - src/css/30-media-components.css
  *   - src/css/40-catalog-refinements.css
  *   - src/css/50-footer-legal.css
- *   - src/css/90-responsive-polish.css
+ *   - src/css/80-responsive-shell.css
+ *   - src/css/85-favorites-routing.css
+ *   - src/css/90-visual-polish.css
  * Build command: python tools/build_frontend_assets.py
  */
 
 /* ===== BEGIN SOURCE: src/css/00-foundation.css ===== */
 /**
  * Source stylesheet: 00-foundation.css
- * Design tokens, resets, global layout, shared controls, header, and onboarding foundation.
+ * Design tokens, resets, document baseline, and global feedback surfaces.
  *
  * Concatenated in the declared order by tools/build_frontend_assets.py.
  */
@@ -142,6 +146,16 @@ body:not([data-page="viewer"]) > main {
   opacity: 1;
   transform: translate(50%, 0) scale(1);
 }
+/* ===== END SOURCE: src/css/00-foundation.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/05-viewer-onboarding.css ===== */
+/**
+ * Source stylesheet: 05-viewer-onboarding.css
+ * First-run viewer tour, spotlight, floating controls, callout layout, gestures, and reduced motion.
+ *
+ * This file intentionally follows foundation.css so the tour can reuse global design tokens
+ * while remaining independent from the permanent viewer chrome.
+ */
 
 .viewer-onboarding {
   position: fixed;
@@ -567,6 +581,16 @@ body:not([data-page="viewer"]) > main {
     transition: none !important;
   }
 }
+/* ===== END SOURCE: src/css/05-viewer-onboarding.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/06-shell-components.css ===== */
+/**
+ * Source stylesheet: 06-shell-components.css
+ * Shared application shell, scroll containers, header controls, panels, buttons, and common sections.
+ *
+ * It follows the onboarding layer to preserve the reviewed cascade order that existed
+ * before source extraction, while keeping the permanent site shell independently maintainable.
+ */
 
 body:not([data-page="viewer"]) > .site-footer {
   margin-top: 0;
@@ -952,7 +976,7 @@ main {
   font-size: clamp(1.9rem, 3vw, 3.2rem);
   letter-spacing: -0.04em;
 }
-/* ===== END SOURCE: src/css/00-foundation.css ===== */
+/* ===== END SOURCE: src/css/06-shell-components.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/10-catalog.css ===== */
 /**
@@ -4149,7 +4173,7 @@ a.reader-home:focus-visible {
 }
 /* ===== END SOURCE: src/css/50-footer-legal.css ===== */
 
-/* ===== BEGIN SOURCE: src/css/90-responsive-polish.css ===== */
+/* ===== BEGIN SOURCE: src/css/80-responsive-shell.css ===== */
 /**
  * Source stylesheet: 90-responsive-polish.css
  * Responsive breakpoints, performance containment, accessibility motion rules, and final visual refinements.
@@ -4905,6 +4929,15 @@ a.reader-home:focus-visible {
     min-height: 40px;
   }
 }
+/* ===== END SOURCE: src/css/80-responsive-shell.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/85-favorites-routing.css ===== */
+/**
+ * Source stylesheet: 85-favorites-routing.css
+ * Saved-page surfaces, standalone favorites layout, and multi-document route shell behavior.
+ *
+ * Kept after responsive shell rules to preserve the existing reviewed cascade exactly.
+ */
 
 /* Saved catalog pages */
 .header-favorites-button {
@@ -5387,6 +5420,15 @@ body[data-page="viewer"] {
     border-radius: 15px;
   }
 }
+/* ===== END SOURCE: src/css/85-favorites-routing.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/90-visual-polish.css ===== */
+/**
+ * Source stylesheet: 90-visual-polish.css
+ * Unified placeholders, action feedback, empty states, favorites sharing, and final responsive polish.
+ *
+ * This is intentionally the last source layer because it standardizes later feature additions.
+ */
 
 /* Stage 12 — unified visual feedback, image loading and catalog-viewer polish. */
 .button,
@@ -6055,4 +6097,4 @@ body[data-page="viewer"] {
   .legal-document-content { padding-inline: 19px; }
   .legal-document-content section + section { margin-top: 26px; padding-top: 24px; }
 }
-/* ===== END SOURCE: src/css/90-responsive-polish.css ===== */
+/* ===== END SOURCE: src/css/90-visual-polish.css ===== */

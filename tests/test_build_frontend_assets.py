@@ -45,16 +45,22 @@ def test_frontend_manifest_uses_reviewed_feature_modules() -> None:
         "src/js/40-catalog-grid.js",
         "src/js/50-search-ui.js",
         "src/js/60-viewer.js",
+        "src/js/65-viewer-onboarding.js",
+        "src/js/70-viewer-input.js",
         "src/js/90-bootstrap.js",
     )
     assert MODULE.CSS_MODULES == (
         "src/css/00-foundation.css",
+        "src/css/05-viewer-onboarding.css",
+        "src/css/06-shell-components.css",
         "src/css/10-catalog.css",
         "src/css/20-viewer.css",
         "src/css/30-media-components.css",
         "src/css/40-catalog-refinements.css",
         "src/css/50-footer-legal.css",
-        "src/css/90-responsive-polish.css",
+        "src/css/80-responsive-shell.css",
+        "src/css/85-favorites-routing.css",
+        "src/css/90-visual-polish.css",
     )
     for relative in (*MODULE.JS_MODULES, *MODULE.CSS_MODULES):
         assert (ROOT / relative).is_file(), relative
@@ -75,8 +81,24 @@ def test_generated_bundle_preserves_declared_module_order() -> None:
     assert "function renderCatalogCards" in (ROOT / MODULE.JS_MODULES[4]).read_text(encoding="utf-8")
     assert "function renderSearchResults" in (ROOT / MODULE.JS_MODULES[5]).read_text(encoding="utf-8")
     assert "function openLightbox" in (ROOT / MODULE.JS_MODULES[6]).read_text(encoding="utf-8")
-    assert "let initResult = true;" in (ROOT / MODULE.JS_MODULES[7]).read_text(encoding="utf-8")
-    assert "initResult = init();" in (ROOT / MODULE.JS_MODULES[7]).read_text(encoding="utf-8")
+    assert "function showViewerOnboardingIfNeeded" in (ROOT / MODULE.JS_MODULES[7]).read_text(encoding="utf-8")
+    assert "function startPointerInteraction" in (ROOT / MODULE.JS_MODULES[8]).read_text(encoding="utf-8")
+    assert "let initResult = true;" in (ROOT / MODULE.JS_MODULES[9]).read_text(encoding="utf-8")
+    assert "initResult = init();" in (ROOT / MODULE.JS_MODULES[9]).read_text(encoding="utf-8")
+    assert app.lstrip().startswith("/*")
+    assert '\n(() => {\n"use strict";' in app
+    assert app.rstrip().endswith("})();")
+
+
+def test_manifest_validation_rejects_duplicates_and_unordered_modules() -> None:
+    with pytest.raises(ValueError, match="Duplicate js"):
+        MODULE.validate_module_manifest(("src/js/00-a.js", "src/js/00-a.js"), expected_extension="js")
+
+    with pytest.raises(ValueError, match="strictly increasing"):
+        MODULE.validate_module_manifest(("src/css/10-b.css", "src/css/05-a.css"), expected_extension="css")
+
+    with pytest.raises(ValueError, match="NN-feature"):
+        MODULE.validate_module_manifest(("src/js/viewer.js",), expected_extension="js")
 
 
 def test_check_mode_detects_a_stale_generated_asset(tmp_path: Path) -> None:
