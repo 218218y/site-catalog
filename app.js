@@ -414,7 +414,6 @@ const els = {
   lightboxFavoritesButton: $("lightboxFavoritesButton"),
   lightboxFavoritesCount: $("lightboxFavoritesCount"),
   headerCopyLink: $("headerCopyLink"),
-  headerFullscreenToggle: $("headerFullscreenToggle"),
   globalSearchClose: $("globalSearchClose"),
   globalSearchInput: $("globalSearchInput"),
   globalSearchResults: $("globalSearchResults"),
@@ -3974,7 +3973,7 @@ function exitBrowserFullscreen() {
 }
 
 function getFullscreenToggleButtons() {
-  return [els.headerFullscreenToggle, els.fullscreenToggle].filter(Boolean);
+  return els.fullscreenToggle ? [els.fullscreenToggle] : [];
 }
 
 function syncFullscreenButtonUi() {
@@ -3996,7 +3995,7 @@ function syncFullscreenButtonUi() {
 }
 
 async function toggleBrowserFullscreen(sourceButton = null) {
-  const button = sourceButton || els.fullscreenToggle || els.headerFullscreenToggle;
+  const button = sourceButton || els.fullscreenToggle;
   const wasActive = isBrowserFullscreenActive();
 
   try {
@@ -5905,7 +5904,6 @@ function attachEvents() {
   });
 
   els.headerCopyLink?.addEventListener("click", () => shareCurrentMainHeaderLink());
-  els.headerFullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.headerFullscreenToggle));
   els.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
   els.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
   els.favoritesClearButton?.addEventListener("click", clearAllFavorites);

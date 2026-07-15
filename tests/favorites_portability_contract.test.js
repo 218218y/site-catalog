@@ -26,10 +26,10 @@ for (const html of [template, favorites]) {
 assert.doesNotMatch(index, /id="headerFullscreenToggle"/);
 assert.doesNotMatch(catalog, /id="headerFullscreenToggle"/);
 assert.doesNotMatch(favorites, /id="headerFullscreenToggle"/);
-assert.match(viewer, /id="headerFullscreenToggle"/);
-assert.match(template, /\{\{HEADER_FULLSCREEN_BUTTON\}\}/);
-assert.match(pageBuilder, /show_header_fullscreen:\s*bool = False/);
-assert.match(pageBuilder, /HEADER_FULLSCREEN_BUTTON if page\.show_header_fullscreen else ""/);
+assert.doesNotMatch(viewer, /id="headerFullscreenToggle"/);
+assert.doesNotMatch(template, /HEADER_FULLSCREEN_BUTTON|headerFullscreenToggle|brand-fullscreen-link/);
+assert.doesNotMatch(pageBuilder, /HEADER_FULLSCREEN_BUTTON|show_header_fullscreen|headerFullscreenToggle/);
+assert.doesNotMatch(app, /headerFullscreenToggle/);
 
 assert.match(app, /const FAVORITES_SHARE_VERSION = 2;/);
 assert.match(app, /function canonicalizeFavoriteShareItems\(/);
