@@ -1,0 +1,14 @@
+{
+  "name": "site-catalog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static furniture catalog site and deterministic build tools",
+  "scripts": {
+    "build:frontend": "python tools/build_frontend_assets.py",
+    "check:frontend": "python tools/build_frontend_assets.py --check",
+    "build:pages": "python tools/build_site_pages.py",
+    "build:deploy": "python tools/build_deploy_bundle.py",
+    "test": "python tools/verify_project.py --quick",
+    "verify": "python tools/verify_project.py"
+  }
+}

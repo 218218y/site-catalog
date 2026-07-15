@@ -124,3 +124,43 @@ def test_build_is_deterministic_and_does_not_emit_source_directories(tmp_path: P
     assert all(result.changed is False for result in second)
     assert first_bytes == {result.output.name: result.output.read_bytes() for result in second}
     assert not (root / "static").exists()
+
+
+def test_js_module_boundary_validation_rejects_duplicate_top_level_names(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    first = root / "src/js/00-first.js"
+    second = root / "src/js/10-second.js"
+    first.parent.mkdir(parents=True)
+    first.write_text(
+        "/**\n * Source module: 00-first.js\n */\nfunction sharedName() {}\n",
+        encoding="utf-8",
+    )
+    second.write_text(
+        "/**\n * Source module: 10-second.js\n */\nconst sharedName = () => {};\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate top-level JavaScript declaration 'sharedName'"):
+        MODULE.validate_js_module_boundaries(
+            root,
+            ("src/js/00-first.js", "src/js/10-second.js"),
+        )
+
+
+def test_js_module_boundary_validation_requires_an_accurate_header(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    source = root / "src/js/00-first.js"
+    source.parent.mkdir(parents=True)
+    source.write_text("function firstFeature() {}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="header must identify"):
+        MODULE.validate_js_module_boundaries(root, ("src/js/00-first.js",))
+
+
+def test_current_js_sources_have_unique_top_level_ownership() -> None:
+    owners = MODULE.validate_js_module_boundaries(ROOT, MODULE.JS_MODULES)
+    assert len(owners) >= 450
+    assert owners["navigateTo"] == "src/js/00-navigation.js"
+    assert owners["state"] == "src/js/10-app-state.js"
+    assert owners["openLightbox"] == "src/js/60-viewer.js"
+    assert owners["init"] == "src/js/90-bootstrap.js"

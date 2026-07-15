@@ -57,6 +57,11 @@ CSS_MODULES: tuple[str, ...] = (
 
 GENERATED_FILES: tuple[str, ...] = ("app.js", "styles.css")
 MODULE_NAME_PATTERN = re.compile(r"^(?P<order>\d{2})-[a-z0-9-]+\.(?P<extension>js|css)$")
+TOP_LEVEL_DECLARATION_PATTERN = re.compile(
+    r"^(?:(?:async\s+)?function(?:\s*\*)?\s+|class\s+|(?:const|let|var)\s+)"
+    r"(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)",
+    re.MULTILINE,
+)
 
 
 def validate_module_manifest(module_paths: Sequence[str], *, expected_extension: str) -> None:
@@ -118,11 +123,50 @@ def source_manifest_text(module_paths: Sequence[str]) -> str:
     return "\n".join(f" *   - {path}" for path in module_paths)
 
 
+def top_level_declarations(content: str) -> tuple[str, ...]:
+    """Return zero-indented declarations that share the generated bundle scope.
+
+    Source modules are concatenated into one private lexical scope. A duplicate
+    top-level name can therefore shadow a function or make a ``const`` bundle
+    fail at parse time. Keeping this check in the builder makes that architectural
+    contract impossible to bypass accidentally.
+    """
+
+    return tuple(match.group("name") for match in TOP_LEVEL_DECLARATION_PATTERN.finditer(content))
+
+
+def validate_js_module_boundaries(root: Path, module_paths: Sequence[str]) -> dict[str, str]:
+    """Validate module identity and reject duplicate bundle-scope declarations."""
+
+    owners: dict[str, str] = {}
+    for relative_path in module_paths:
+        content = read_source_module(root, relative_path)
+        filename = Path(relative_path).name
+        header = "\n".join(content.splitlines()[:12])
+        expected_header = f"Source module: {filename}"
+        if expected_header not in header:
+            raise ValueError(
+                f"Frontend JavaScript module header must identify its source file: {relative_path}"
+            )
+
+        for name in top_level_declarations(content):
+            previous = owners.get(name)
+            if previous:
+                raise ValueError(
+                    f"Duplicate top-level JavaScript declaration '{name}' in "
+                    f"{previous} and {relative_path}"
+                )
+            owners[name] = relative_path
+    return owners
+
+
 def render_bundle(root: Path, *, kind: str, module_paths: Sequence[str]) -> str:
     if kind not in {"js", "css"}:
         raise ValueError(f"Unsupported frontend bundle kind: {kind}")
 
     validate_module_manifest(module_paths, expected_extension=kind)
+    if kind == "js":
+        validate_js_module_boundaries(root, module_paths)
 
     comment_open, comment_close = "/*", "*/"
     target = "app.js" if kind == "js" else "styles.css"
