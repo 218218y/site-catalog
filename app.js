@@ -324,7 +324,7 @@ const SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO = 0.06;
 const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
 const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
-const VIEWER_PAGE_INDICATOR_HIDE_MS = 1050;
+const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 
 const state = {
@@ -791,7 +791,7 @@ function actionToastTone(message) {
 function showActionToast(message, options = {}) {
   if (!els.siteActionToast || !message) return;
   const normalizedOptions = typeof options === "number" ? { duration: options } : options;
-  const duration = Math.max(1000, Number(normalizedOptions.duration) || 2100);
+  const duration = Math.max(1000, Number(normalizedOptions.duration) || 1000);
 
   window.clearTimeout(state.actionToastTimer);
   els.siteActionToast.textContent = message;
