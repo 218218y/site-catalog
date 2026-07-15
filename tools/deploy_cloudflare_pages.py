@@ -6,6 +6,10 @@ Default flow executed from the project root:
     2. Validate every HTML -> CSS/JS reference in that fresh bundle.
     3. Deploy the same validated folder with Wrangler.
 
+The deploy finishes when Wrangler reports success. It intentionally performs
+no request to the public website after upload, because filtering/proxy layers
+may inject content and make a byte/reference comparison unreliable.
+
 The regular deploy path intentionally changes only Cloudflare Pages. R2 CORS
 configuration is an explicit maintenance action exposed through --cors-only,
 so repeated site uploads never rewrite a stable bucket policy.
@@ -24,11 +28,6 @@ import re
 import shutil
 import subprocess
 import sys
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
@@ -37,7 +36,6 @@ DEFAULT_PROJECT_NAME = "bargig-catlog"
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 DEFAULT_R2_BUCKET = "bargig-catalog"
 DEFAULT_R2_CORS_FILE = "r2-cors.json"
-DEFAULT_VERIFY_URL = "https://bargig-furniture.com"
 PUBLIC_HTML_FILES = (
     "index.html",
     "catalog.html",
@@ -46,19 +44,10 @@ PUBLIC_HTML_FILES = (
 )
 REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "404.html", "_headers")
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
-HTML_RESPONSE_PREFIX_RE = re.compile(br"^\s*(?:<!doctype\s+html\b|<html\b)", re.IGNORECASE)
 FINGERPRINTED_ASSET_DIR = "static"
 HASHED_ASSET_FILENAME_RE = re.compile(
     r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
 )
-
-@dataclass(frozen=True)
-class PublicResponse:
-    status: int
-    content_type: str
-    headers: dict[str, str]
-    body: bytes
-
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -245,188 +234,6 @@ def validate_bundle(bundle_dir: Path) -> None:
         raise ValueError("Bundle validation found no fingerprinted CSS/JS references in public HTML.")
 
 
-def expected_bundle_asset_paths(bundle_dir: Path) -> set[str]:
-    """Return the exact CSS/JS path set referenced by the validated release."""
-
-    assets: set[str] = set()
-    for html_name in PUBLIC_HTML_FILES:
-        html = (bundle_dir / html_name).read_text(encoding="utf-8", errors="replace")
-        for match in HTML_ASSET_RE.finditer(html):
-            reference = match.group(1).strip()
-            if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:", "data:", "blob:")):
-                continue
-            reference_path = reference.split("?", 1)[0].split("#", 1)[0]
-            if Path(reference_path).suffix.lower() in {".css", ".js"}:
-                assets.add("/" + reference_path.lstrip("/"))
-    if not assets:
-        raise ValueError("Bundle contains no browser CSS/JS references to verify after deployment.")
-    return assets
-
-
-def with_cache_buster(url: str, token: str) -> str:
-    parts = urllib.parse.urlsplit(url)
-    query = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
-    query.append(("__deploy_check", token))
-    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(query), parts.fragment))
-
-
-def response_headers_dict(headers: object) -> dict[str, str]:
-    if not hasattr(headers, "items"):
-        return {}
-    return {str(name).lower(): str(value) for name, value in headers.items()}
-
-
-def build_public_response(response: object, body: bytes) -> PublicResponse:
-    headers = getattr(response, "headers", None)
-    content_type = ""
-    if headers is not None and hasattr(headers, "get_content_type"):
-        content_type = str(headers.get_content_type()).lower()
-    return PublicResponse(
-        status=int(getattr(response, "status", getattr(response, "code", 0)) or 0),
-        content_type=content_type,
-        headers=response_headers_dict(headers),
-        body=body,
-    )
-
-
-def fetch_public_url(url: str, token: str) -> PublicResponse:
-    request = urllib.request.Request(
-        with_cache_buster(url, token),
-        headers={
-            "User-Agent": "Bargig-Cloudflare-Deploy-Validator/1.0",
-            "Cache-Control": "no-cache, no-store, max-age=0",
-            "Pragma": "no-cache",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return build_public_response(response, response.read(2_000_000))
-    except urllib.error.HTTPError as exc:
-        return build_public_response(exc, exc.read(2_000_000))
-
-
-def require_cache_directive(url: str, headers: dict[str, str], header_name: str, directive: str) -> None:
-    value = headers.get(header_name.lower(), "")
-    directives = {item.strip().lower() for item in value.split(",") if item.strip()}
-    if directive.lower() not in directives:
-        raise RuntimeError(
-            f"Public cache-header validation failed: {url} must return {header_name}: {directive}; "
-            f"received {value!r}. Check the deployed _headers file and Cloudflare Cache Rules."
-        )
-
-
-def validate_public_html(page_url: str, response: PublicResponse) -> None:
-    if response.status != 200:
-        raise RuntimeError(f"Public page validation failed: {page_url} returned HTTP {response.status}, not 200.")
-    if response.content_type != "text/html" and HTML_RESPONSE_PREFIX_RE.match(response.body) is None:
-        raise RuntimeError(
-            f"Public page validation failed: {page_url} returned Content-Type {response.content_type!r}, not HTML."
-        )
-    require_cache_directive(page_url, response.headers, "Cache-Control", "no-store")
-
-
-def validate_public_asset(asset_url: str, token: str) -> None:
-    response = fetch_public_url(asset_url, token)
-    path = urllib.parse.urlsplit(asset_url).path.lower()
-    is_html_body = HTML_RESPONSE_PREFIX_RE.match(response.body) is not None
-    if path.endswith(".js"):
-        valid_type = "javascript" in response.content_type or "ecmascript" in response.content_type
-        expected = "JavaScript"
-    elif path.endswith(".css"):
-        valid_type = response.content_type == "text/css"
-        expected = "CSS"
-    else:
-        return
-    if response.status != 200 or not valid_type or is_html_body:
-        raise RuntimeError(
-            f"Public asset validation failed: {asset_url} returned HTTP {response.status} and "
-            f"Content-Type {response.content_type!r} instead of executable {expected}. "
-            "The deployment is serving HTML/404 content for a static asset."
-        )
-    require_cache_directive(asset_url, response.headers, "Cache-Control", "immutable")
-
-
-def validate_missing_static_asset_is_404(base_url: str, token: str) -> None:
-    missing_url = f"{base_url.rstrip('/')}/static/__deploy_missing_{token}.js"
-    response = fetch_public_url(missing_url, token)
-    if response.status != 404:
-        raise RuntimeError(
-            f"Missing-asset validation failed: {missing_url} returned HTTP {response.status}. "
-            "A missing JavaScript file must return a real 404, not the application HTML. "
-            "Ensure a top-level 404.html is included in the Pages deployment."
-        )
-
-
-def verify_public_deployment(
-    base_url: str,
-    *,
-    expected_asset_paths: set[str] | None = None,
-    attempts: int = 4,
-    delay_seconds: float = 2.0,
-) -> None:
-    """Verify public HTML and every referenced CSS/JS after deployment.
-
-    When ``expected_asset_paths`` is provided, each public page must reference
-    the exact asset generation that was just built. This prevents a stale
-    production domain from being mistaken for the newly-created deployment.
-    """
-
-    normalized = str(base_url or "").strip().rstrip("/")
-    if not normalized.startswith(("https://", "http://")):
-        raise ValueError(f"Verification URL must start with http:// or https://: {base_url}")
-
-    routes = ("/", "/catalog", "/favorites", "/viewer")
-    last_error: Exception | None = None
-    for attempt in range(1, attempts + 1):
-        token = f"{int(time.time() * 1000)}-{attempt}"
-        try:
-            asset_urls: set[str] = set()
-            for route in routes:
-                page_url = f"{normalized}{route}"
-                response = fetch_public_url(page_url, token)
-                validate_public_html(page_url, response)
-                html = response.body.decode("utf-8", errors="replace")
-                route_asset_paths: set[str] = set()
-                for match in HTML_ASSET_RE.finditer(html):
-                    reference = match.group(1).strip()
-                    if not reference or reference.startswith(("data:", "blob:", "mailto:", "#")):
-                        continue
-                    asset_url = urllib.parse.urljoin(page_url, reference)
-                    asset_path = urllib.parse.urlsplit(asset_url).path.lower()
-                    if asset_path.endswith((".js", ".css")):
-                        asset_urls.add(asset_url)
-                        route_asset_paths.add(asset_path)
-
-                if expected_asset_paths is not None:
-                    expected_lower = {path.lower() for path in expected_asset_paths}
-                    if route_asset_paths != expected_lower:
-                        missing = sorted(expected_lower - route_asset_paths)
-                        unexpected = sorted(route_asset_paths - expected_lower)
-                        details: list[str] = []
-                        if missing:
-                            details.append("missing " + ", ".join(missing))
-                        if unexpected:
-                            details.append("unexpected " + ", ".join(unexpected))
-                        raise RuntimeError(
-                            f"Public page {page_url} is not serving the release that was just built"
-                            + (f" ({'; '.join(details)})" if details else "")
-                            + "."
-                        )
-
-            if not asset_urls:
-                raise RuntimeError("Public deployment validation found no CSS/JS references in the HTML pages.")
-            for asset_url in sorted(asset_urls):
-                validate_public_asset(asset_url, token)
-            validate_missing_static_asset_is_404(normalized, token)
-            return
-        except (OSError, RuntimeError, urllib.error.URLError) as exc:
-            last_error = exc
-            if attempt < attempts:
-                time.sleep(delay_seconds)
-
-    assert last_error is not None
-    raise RuntimeError(f"Public deployment validation failed after {attempts} attempts: {last_error}") from last_error
-
 
 def build_pages_deploy_command(
     npx: str,
@@ -512,19 +319,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help=f"R2/CDN image base URL written into the fresh bundle. Default: {DEFAULT_R2_ASSET_BASE_URL}",
     )
     parser.add_argument(
-        "--verify-url",
-        default=DEFAULT_VERIFY_URL,
-        help=(
-            "Production custom-domain URL checked after a successful production deploy. "
-            f"The temporary *.pages.dev URL is intentionally not requested. Default: {DEFAULT_VERIFY_URL}"
-        ),
-    )
-    parser.add_argument(
-        "--no-verify",
-        action="store_true",
-        help="Skip the public post-deploy HTML/CSS/JS MIME validation.",
-    )
-    parser.add_argument(
         "--r2-bucket",
         default=DEFAULT_R2_BUCKET,
         help=f"R2 bucket used only with --cors-only. Default: {DEFAULT_R2_BUCKET}",
@@ -606,38 +400,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dry_run:
             print("\nDry run only. Command that would be executed:", flush=True)
             print(quote_command(wrangler_command), flush=True)
-            if preview_branch:
-                print(
-                    "Post-deploy network verification: skipped for preview because its temporary *.pages.dev URL may be blocked.",
-                    flush=True,
-                )
-            elif args.no_verify:
-                print("Post-deploy production-domain verification: disabled by --no-verify", flush=True)
-            else:
-                print(f"Post-deploy production-domain verification: {args.verify_url}", flush=True)
+            print("Post-deploy website comparison: disabled; Wrangler success ends the deployment.", flush=True)
             return 0
 
         returncode = run_streamed(wrangler_command, root)
         if returncode == 0:
             print("\nCloudflare Pages deploy finished successfully.", flush=True)
-            if preview_branch:
-                print(
-                    "Preview deployment uploaded. Automatic network verification was skipped because the temporary "
-                    "*.pages.dev address may be blocked by the local filtering network.",
-                    flush=True,
-                )
-            elif not args.no_verify:
-                expected_assets = expected_bundle_asset_paths(bundle_dir)
-                print(f"Waiting for the production domain at {args.verify_url}...", flush=True)
-                verify_public_deployment(
-                    args.verify_url,
-                    expected_asset_paths=expected_assets,
-                    attempts=30,
-                    delay_seconds=3.0,
-                )
-                print("Production domain is serving the exact new release with valid CSS/JS MIME types.", flush=True)
-            else:
-                print("Post-deploy production-domain verification was skipped by --no-verify.", flush=True)
+            print(
+                "The fresh bundle passed local validation and Wrangler completed the upload; "
+                "no public website comparison was performed.",
+                flush=True,
+            )
         else:
             print(f"\nERROR: Cloudflare Pages deploy failed with return code {returncode}.", file=sys.stderr)
         return returncode

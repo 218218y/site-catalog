@@ -119,9 +119,10 @@ def test_preview_pages_command_requires_explicit_preview_branch() -> None:
     assert command[-2:] == ["--branch", "feature-test"]
 
 
-def test_production_deploy_verifies_only_the_allowed_custom_domain(
+def test_production_deploy_finishes_after_wrangler_success_without_public_check(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     bundle_dir = tmp_path / "bundle"
     write_minimal_bundle(bundle_dir)
@@ -129,56 +130,34 @@ def test_production_deploy_verifies_only_the_allowed_custom_domain(
     monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
     monkeypatch.setattr(MODULE, "build_bundle", lambda args: 0)
 
-    captured_command: list[str] = []
+    captured_commands: list[list[str]] = []
 
     def fake_run(command: list[str], cwd: Path) -> int:
-        captured_command.extend(command)
+        captured_commands.append(list(command))
         return 0
 
-    verified: list[str] = []
-
-    def fake_verify(base_url: str, **kwargs: object) -> None:
-        verified.append(base_url)
-
     monkeypatch.setattr(MODULE, "run_streamed", fake_run)
-    monkeypatch.setattr(MODULE, "verify_public_deployment", fake_verify)
 
     assert MODULE.main(["--dir", "bundle"]) == 0
-    assert "--branch" not in captured_command
-    assert verified == ["https://bargig-furniture.com"]
-    assert all("pages.dev" not in url for url in verified)
+    assert len(captured_commands) == 1
+    assert captured_commands[0][:5] == ["npx", "--yes", "wrangler", "pages", "deploy"]
+    output = capsys.readouterr().out
+    assert "Cloudflare Pages deploy finished successfully." in output
+    assert "no public website comparison was performed" in output
+    assert "https://bargig-furniture.com" not in output
+    assert "pages.dev" not in output
 
 
-def test_preview_deploy_skips_network_verification_when_pages_dev_is_blocked(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bundle_dir = tmp_path / "bundle"
-    write_minimal_bundle(bundle_dir)
-    monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
-    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
-    monkeypatch.setattr(MODULE, "build_bundle", lambda args: 0)
-
-    captured_command: list[str] = []
-
-    def fake_run(command: list[str], cwd: Path) -> int:
-        captured_command.extend(command)
-        return 0
-
-    verified: list[str] = []
-    monkeypatch.setattr(MODULE, "run_streamed", fake_run)
-    monkeypatch.setattr(
-        MODULE,
-        "verify_public_deployment",
-        lambda base_url, **kwargs: verified.append(base_url),
-    )
-
-    assert MODULE.main(["--dir", "bundle", "--preview-branch", "test-change"]) == 0
-    assert captured_command[-2:] == ["--branch", "test-change"]
-    assert verified == []
+def test_public_verification_interface_was_removed() -> None:
+    assert not hasattr(MODULE, "verify_public_deployment")
+    assert not hasattr(MODULE, "fetch_public_url")
+    with pytest.raises(SystemExit):
+        MODULE.parse_args(["--verify-url", "https://example.com"])
+    with pytest.raises(SystemExit):
+        MODULE.parse_args(["--no-verify"])
 
 
-def test_dry_run_does_not_schedule_pages_dev_verification(
+def test_dry_run_reports_no_post_deploy_website_comparison(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -190,8 +169,10 @@ def test_dry_run_does_not_schedule_pages_dev_verification(
 
     assert MODULE.main(["--dir", "bundle", "--dry-run"]) == 0
     output = capsys.readouterr().out
-    assert "https://bargig-furniture.com" in output
+    assert "Post-deploy website comparison: disabled" in output
+    assert "https://bargig-furniture.com" not in output
     assert "pages.dev" not in output
+
 
 def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | None = None) -> None:
     bundle_dir.mkdir(parents=True, exist_ok=True)
@@ -238,126 +219,3 @@ def test_bundle_validation_rejects_unreferenced_old_generation(tmp_path: Path) -
 
     with pytest.raises(ValueError, match="old generations must not be deployed"):
         MODULE.validate_bundle(bundle_dir)
-
-
-def test_public_deployment_verifier_checks_root_static_assets_for_clean_routes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requested: list[str] = []
-
-    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
-        requested.append(url)
-        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
-            return MODULE.PublicResponse(
-                200,
-                "text/html",
-                {"cache-control": "no-store"},
-                b'<script src="static/app.123456789abc.js"></script>',
-            )
-        if url.endswith("/static/app.123456789abc.js"):
-            return MODULE.PublicResponse(
-                200,
-                "application/javascript",
-                {"cache-control": "public, max-age=31536000, immutable"},
-                b"window.ok = true;\n",
-            )
-        if "/static/__deploy_missing_" in url:
-            return MODULE.PublicResponse(404, "text/html", {}, b"<!doctype html><title>404</title>")
-        raise AssertionError(f"Unexpected URL: {url}")
-
-    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
-    MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)
-
-    assert "https://example.com/static/app.123456789abc.js" in requested
-    assert all("/catalog/static/" not in url for url in requested)
-
-
-def test_public_deployment_verifier_rejects_html_returned_for_javascript(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
-        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
-            return MODULE.PublicResponse(
-                200,
-                "text/html",
-                {"cache-control": "no-store"},
-                b'<script src="static/site-routes.123456789abc.js"></script>',
-            )
-        return MODULE.PublicResponse(200, "text/html", {}, b"<!doctype html><html><body>404</body></html>")
-
-    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
-    with pytest.raises(RuntimeError, match="returned HTTP 200 and Content-Type 'text/html'.*instead of executable JavaScript"):
-        MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)
-
-
-def test_public_deployment_verifier_rejects_a_stale_asset_generation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
-        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
-            return MODULE.PublicResponse(
-                200,
-                "text/html",
-                {"cache-control": "no-store"},
-                b'<script src="static/app.111111111111.js"></script>',
-            )
-        return MODULE.PublicResponse(
-            200,
-            "application/javascript",
-            {"cache-control": "public, max-age=31536000, immutable"},
-            b"window.old = true;\n",
-        )
-
-    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
-    with pytest.raises(RuntimeError, match="not serving the release that was just built"):
-        MODULE.verify_public_deployment(
-            "https://example.com",
-            expected_asset_paths={"/static/app.222222222222.js"},
-            attempts=1,
-            delay_seconds=0,
-        )
-
-
-def test_public_deployment_verifier_rejects_missing_html_cache_headers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
-        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
-            return MODULE.PublicResponse(
-                200,
-                "text/html",
-                {"cache-control": "public, max-age=14400"},
-                b'<script src="static/app.123456789abc.js"></script>',
-            )
-        raise AssertionError(f"Unexpected URL: {url}")
-
-    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
-    with pytest.raises(RuntimeError, match="must return Cache-Control: no-store"):
-        MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)
-
-
-def test_public_deployment_verifier_requires_real_404_for_missing_static_asset(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fake_fetch(url: str, token: str) -> MODULE.PublicResponse:
-        if url.endswith(("/", "/catalog", "/favorites", "/viewer")):
-            return MODULE.PublicResponse(
-                200,
-                "text/html",
-                {"cache-control": "no-store"},
-                b'<script src="static/app.123456789abc.js"></script>',
-            )
-        if url.endswith("/static/app.123456789abc.js"):
-            return MODULE.PublicResponse(
-                200,
-                "application/javascript",
-                {"cache-control": "public, max-age=31536000, immutable"},
-                b"window.ok = true;\n",
-            )
-        if "/static/__deploy_missing_" in url:
-            return MODULE.PublicResponse(200, "text/html", {}, b"<!doctype html><html></html>")
-        raise AssertionError(f"Unexpected URL: {url}")
-
-    monkeypatch.setattr(MODULE, "fetch_public_url", fake_fetch)
-    with pytest.raises(RuntimeError, match="must return a real 404"):
-        MODULE.verify_public_deployment("https://example.com", attempts=1, delay_seconds=0)

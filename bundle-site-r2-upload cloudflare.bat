@@ -17,7 +17,7 @@ if exist ".venv\Scripts\python.exe" (
 %PYTHON_EXE% tools\deploy_cloudflare_pages.py %*
 if errorlevel 1 (
   echo.
-  echo The Cloudflare operation did not complete successfully. Read the exact build, deploy, or production-domain validation error above.
+  echo The Cloudflare operation did not complete successfully. Read the exact build or deploy error above.
   pause
   exit /b 1
 )
