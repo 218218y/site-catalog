@@ -64,17 +64,17 @@ function attachSearchUiEvents() {
 ## פקודות תחזוקה
 
 ```bat
-python tools\build_frontend_assets.py
-python tools\build_frontend_assets.py --check
-node --check app.js
+npm run build
+npm run test:js
+npm run test:python
+npm run test:e2e
+npm test
+npm run verify
 ```
 
-בדיקה מלאה:
+`npm test` מיועד לסבב מהיר בזמן עבודה ומריץ בדיקות מקור, תחביר, חוזי JavaScript ו־Python. `npm run verify` הוא שער האיכות לפני העלאה: הוא מוסיף בדיקות Playwright בדפדפן אמיתי ובניית חבילת פריסה עם אימות hash.
 
-```bat
-for %f in (tests\*.test.js) do node "%f"
-python -m pytest -q
-```
+בדיקות הדפדפן נמצאות תחת `tests/e2e`. הן משתמשות בשרת סטטי מקומי ובתמונות fixture דטרמיניסטיות, ולכן אינן תלויות בזמינות R2. תמונות הייחוס נשמרות תחת `tests/e2e/__screenshots__`; מעדכנים אותן רק לאחר שינוי חזותי מכוון באמצעות `npm run test:e2e:update`.
 
 ## רשימת בדיקה לפני שינוי
 
@@ -85,6 +85,8 @@ python -m pytest -q
 5. להריץ בדיקות JavaScript ו־Python.
 6. לוודא שתיקיית `src` אינה נכללת בבאנדל הפריסה.
 7. בשינוי CSS, לבדוק מחשב, מסך צר ו־`prefers-reduced-motion` כאשר רלוונטי.
+8. בשינוי מסלול שימוש או פריסה, לעדכן בדיקת Playwright ולא להסתפק בבדיקת חוזה טקסטואלית.
+9. בשינוי חזותי מכוון, לבחון ידנית את diff הצילום לפני עדכון תמונות הייחוס.
 
 ## מצב ההשלמה של שלב 18
 

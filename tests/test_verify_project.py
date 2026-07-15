@@ -33,9 +33,11 @@ def test_quick_verification_omits_deploy_build() -> None:
     commands = [step.command for step in steps]
 
     assert titles[0] == "Frontend bundles are current"
+    assert "Generated site pages are current" in titles
     assert commands[0][0] == "project-python"
     assert any(command[:2] == ("node", "--check") for command in commands)
     assert any(command[:4] == ("project-python", "-m", "pytest", "-q") for command in commands)
+    assert not any("playwright" in " ".join(command).lower() for command in commands)
     assert not any("build_deploy_bundle.py" in command for command in commands)
 
 
@@ -50,6 +52,11 @@ def test_complete_verification_builds_a_clean_deploy_bundle() -> None:
     assert len(deploy_steps) == 1
     assert deploy_steps[0].command[0] == "project-python"
     assert deploy_steps[0].command[-2:] == ("--out", ".artifacts/verify-deploy")
+
+    titles = [step.title for step in steps]
+    assert "Generated site pages are current" in titles
+    assert "Playwright Chromium is installed" in titles
+    assert "Playwright browser journeys" in titles
 
 
 def test_missing_environment_message_points_to_setup_command(tmp_path: Path, monkeypatch) -> None:
@@ -68,3 +75,24 @@ def test_missing_environment_message_points_to_setup_command(tmp_path: Path, mon
         assert "pytest" in str(exc)
     else:
         raise AssertionError("Expected a missing Python test environment error")
+
+
+def test_javascript_only_scope_does_not_require_python_tests_or_browser() -> None:
+    steps = MODULE.verification_steps(
+        ROOT, quick=False, python_executable="system-python", scope="javascript"
+    )
+    titles = [step.title for step in steps]
+    assert "Generated site pages are current" in titles
+    assert any(title.startswith("JavaScript contract:") for title in titles)
+    assert "Python tests" not in titles
+    assert "Playwright browser journeys" not in titles
+    assert "Clean Cloudflare Pages bundle" not in titles
+
+
+def test_python_only_scope_runs_only_pytest() -> None:
+    steps = MODULE.verification_steps(
+        ROOT, quick=False, python_executable="project-python", scope="python"
+    )
+    assert steps == (
+        MODULE.VerificationStep("Python tests", ("project-python", "-m", "pytest", "-q")),
+    )

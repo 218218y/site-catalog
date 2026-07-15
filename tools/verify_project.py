@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Run the complete project verification workflow with one cross-platform command.
 
-The script verifies generated frontend assets, JavaScript syntax, every
-JavaScript contract file, the Python suite, and (unless ``--quick`` is supplied)
-a clean deploy bundle. Python tests run inside the project's ``.venv`` when it
+The script verifies generated frontend assets and HTML pages, JavaScript syntax,
+every JavaScript contract file, and the Python suite. Complete verification also
+runs Playwright browser journeys and creates a clean deploy bundle with validated
+fingerprinted assets. Python tests run inside the project's ``.venv`` when it
 exists, so the command behaves consistently on Windows and Unix-like systems.
-Temporary verification artifacts are removed even when a command fails.
+Temporary deploy artifacts are removed even when a command fails.
 """
 from __future__ import annotations
 
@@ -17,9 +18,10 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Literal, Sequence
 
 REQUIRED_PYTHON_MODULES: tuple[str, ...] = ("pytest", "fitz", "PIL")
+VerificationScope = Literal["all", "javascript", "python"]
 
 
 @dataclass(frozen=True)
@@ -99,32 +101,58 @@ def discover_javascript_tests(root: Path) -> tuple[Path, ...]:
     return tuple(sorted((root / "tests").glob("*.test.js")))
 
 
+def playwright_cli_path(root: Path) -> Path:
+    return root / "node_modules" / "@playwright" / "test" / "cli.js"
+
+
 def verification_steps(
     root: Path,
     *,
     quick: bool = False,
     python_executable: str | None = None,
+    scope: VerificationScope = "all",
 ) -> tuple[VerificationStep, ...]:
-    python = python_executable or resolve_project_python(root)
-    steps: list[VerificationStep] = [
-        VerificationStep(
-            "Frontend bundles are current",
-            (python, "tools/build_frontend_assets.py", "--check"),
-        ),
-        VerificationStep("Generated JavaScript syntax", ("node", "--check", "app.js")),
-    ]
-    steps.extend(
-        VerificationStep(f"JavaScript contract: {path.name}", ("node", path.as_posix()))
-        for path in discover_javascript_tests(root)
-    )
-    steps.append(VerificationStep("Python tests", (python, "-m", "pytest", "-q")))
-    if not quick:
-        steps.append(
+    if scope not in {"all", "javascript", "python"}:
+        raise ValueError(f"Unknown verification scope: {scope}")
+
+    python = python_executable or (resolve_project_python(root) if scope != "javascript" else sys.executable)
+    steps: list[VerificationStep] = []
+
+    if scope in {"all", "javascript"}:
+        steps.extend((
+            VerificationStep(
+                "Frontend bundles are current",
+                (python, "tools/build_frontend_assets.py", "--check"),
+            ),
+            VerificationStep(
+                "Generated site pages are current",
+                (python, "tools/build_site_pages.py", "--check"),
+            ),
+            VerificationStep("Generated JavaScript syntax", ("node", "--check", "app.js")),
+        ))
+        steps.extend(
+            VerificationStep(f"JavaScript contract: {path.name}", ("node", path.as_posix()))
+            for path in discover_javascript_tests(root)
+        )
+
+    if scope in {"all", "python"}:
+        steps.append(VerificationStep("Python tests", (python, "-m", "pytest", "-q")))
+
+    if scope == "all" and not quick:
+        steps.extend((
+            VerificationStep(
+                "Playwright Chromium is installed",
+                ("node", "tools/check_playwright_browser.js"),
+            ),
+            VerificationStep(
+                "Playwright browser journeys",
+                ("node", playwright_cli_path(root).relative_to(root).as_posix(), "test"),
+            ),
             VerificationStep(
                 "Clean Cloudflare Pages bundle",
                 (python, "tools/build_deploy_bundle.py", "--out", ".artifacts/verify-deploy"),
-            )
-        )
+            ),
+        ))
     return tuple(steps)
 
 
@@ -133,15 +161,20 @@ def run_step(root: Path, step: VerificationStep) -> None:
     subprocess.run(step.command, cwd=root, check=True)
 
 
-def verify_project(root: Path | None = None, *, quick: bool = False) -> int:
+def verify_project(
+    root: Path | None = None,
+    *,
+    quick: bool = False,
+    scope: VerificationScope = "all",
+) -> int:
     base = (root or project_root()).resolve()
     artifact_dir = base / ".artifacts" / "verify-deploy"
     staging_dir = artifact_dir.with_name(f".{artifact_dir.name}.staging")
     backup_dir = artifact_dir.with_name(f".{artifact_dir.name}.previous")
 
     try:
-        python = resolve_project_python(base)
-        for step in verification_steps(base, quick=quick, python_executable=python):
+        python = sys.executable if scope == "javascript" else resolve_project_python(base)
+        for step in verification_steps(base, quick=quick, python_executable=python, scope=scope):
             run_step(base, step)
     except (FileNotFoundError, MissingPythonTestEnvironment, subprocess.CalledProcessError) as exc:
         print(f"\nVERIFICATION FAILED: {exc}", file=sys.stderr)
@@ -151,7 +184,7 @@ def verify_project(root: Path | None = None, *, quick: bool = False) -> int:
             if path.exists():
                 shutil.rmtree(path, ignore_errors=True)
 
-    mode = "quick" if quick else "complete"
+    mode = scope if scope != "all" else ("quick" if quick else "complete")
     print(f"\nProject verification passed ({mode}).")
     return 0
 
@@ -161,10 +194,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Run source, syntax and test checks without creating a deploy bundle.",
+        help="Run source, syntax and unit checks without browser journeys or a deploy bundle.",
+    )
+    scope_group = parser.add_mutually_exclusive_group()
+    scope_group.add_argument(
+        "--javascript-only",
+        action="store_true",
+        help="Run generated-page, JavaScript syntax and JavaScript contract checks only.",
+    )
+    scope_group.add_argument(
+        "--python-only",
+        action="store_true",
+        help="Run the Python test suite only.",
     )
     args = parser.parse_args(argv)
-    return verify_project(quick=args.quick)
+    scope: VerificationScope = "javascript" if args.javascript_only else ("python" if args.python_only else "all")
+    return verify_project(quick=args.quick, scope=scope)
 
 
 if __name__ == "__main__":

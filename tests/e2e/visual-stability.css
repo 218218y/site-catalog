@@ -1,0 +1,19 @@
+/* Keep cross-platform screenshot baselines focused on geometry rather than font rasterisation. */
+.catalog-card h2,
+.catalog-card h3,
+.catalog-card h4,
+.catalog-card p,
+.catalog-card .catalog-actions,
+.catalog-cover-card-entry-hint,
+.viewer-page-indicator,
+.reader-header,
+.lightbox-page-rail,
+.viewer-favorite-button,
+.viewer-auto-zoom-button,
+.lightbox-side-hotspot {
+  visibility: hidden !important;
+}
+
+* {
+  caret-color: transparent !important;
+}

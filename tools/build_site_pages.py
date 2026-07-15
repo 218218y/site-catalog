@@ -2,8 +2,11 @@
 """Render every public HTML document from shared templates and fragments."""
 from __future__ import annotations
 
+import argparse
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 from build_frontend_assets import build_frontend_assets
 
@@ -140,10 +143,45 @@ def render_site_pages(root: Path, output_dir: Path | None = None, *, build_asset
     return written
 
 
-def main() -> int:
+def check_site_pages(root: Path) -> tuple[Path, ...]:
+    build_frontend_assets(root, check=True)
+    stale: list[Path] = []
+    with tempfile.TemporaryDirectory(prefix="site-catalog-pages-") as temporary_dir:
+        generated_root = Path(temporary_dir)
+        generated = render_site_pages(root, generated_root, build_assets=False)
+        for expected_path in generated:
+            relative = expected_path.relative_to(generated_root)
+            current_path = root / relative
+            if not current_path.is_file() or current_path.read_bytes() != expected_path.read_bytes():
+                stale.append(relative)
+    if stale:
+        names = ", ".join(path.as_posix() for path in stale)
+        raise RuntimeError(
+            f"Generated site pages are stale: {names}. "
+            "Run: python tools/build_site_pages.py"
+        )
+    return tuple(root / page.filename for page in PAGE_DOCUMENTS)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify that generated HTML pages match the templates without writing files.",
+    )
+    args = parser.parse_args(argv)
+
     root = Path(__file__).resolve().parents[1]
-    for path in render_site_pages(root):
-        print(path.relative_to(root).as_posix())
+    try:
+        paths = check_site_pages(root) if args.check else tuple(render_site_pages(root))
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        print(f"ERROR: {exc}")
+        return 1
+
+    status = "verified" if args.check else "rendered"
+    for path in paths:
+        print(f"{path.relative_to(root).as_posix()}: {status}")
     return 0
 
 
