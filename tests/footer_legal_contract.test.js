@@ -18,6 +18,7 @@ for (const filename of publicPages) {
   assert.match(html, /077-2180217/);
   assert.match(html, /href="mailto:bargig218@gmail\.com"/);
   assert.match(html, /class="site-footer-gmail-link"/);
+  assert.doesNotMatch(html, /<span>שליחה דרך Gmail<\/span>/);
   assert.match(html, /mail\.google\.com\/mail\/\?view=cm&amp;fs=1&amp;to=bargig218%40gmail\.com/);
   assert.match(html, /su=%D7%A4%D7%A0%D7%99%D7%99%D7%94%20%D7%9E%D7%90%D7%AA%D7%A8%20%D7%A8%D7%94%D7%99%D7%98%D7%99%20%D7%91%D7%A8%D7%92%D7%99%D7%92/);
   assert.match(html, /11:00–13:00/);
@@ -41,6 +42,7 @@ assert.match(footerFragment, /<h2 id="footerVisitTitle">כתובת ושעות פ
 assert.match(footerFragment, /<address>רחוב הרב מצליח 5/);
 assert.match(footerFragment, /ע\.מ\. <bdi dir="ltr">301276861<\/bdi>/);
 assert.match(footerFragment, /class="site-footer-gmail-link"/);
+assert.doesNotMatch(footerFragment, /<span>שליחה דרך Gmail<\/span>/);
 assert.match(footerFragment, /פתיחת הודעה חדשה ב-Gmail אל רהיטי ברגיג/);
 assert.doesNotMatch(footerFragment, /site-footer-intro|site-footer-logo|site-footer-brand/);
 assert.match(pageBuilder, /"terms\.html"[\s\S]*?template_filename="legal\.template\.html"/);
@@ -48,7 +50,9 @@ assert.match(pageBuilder, /"privacy\.html"[\s\S]*?content_filename="legal\/priva
 assert.match(deployTool, /PUBLIC_HTML_FILES = tuple\(page\.filename for page in PAGE_DOCUMENTS\)/);
 assert.match(css, /\.site-footer-grid\s*\{[\s\S]*?grid-template-columns:/);
 assert.match(css, /\.site-footer-bottom\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\)/);
-assert.match(css, /\.site-footer-gmail-link\s*\{/);
+assert.match(css, /\.site-footer-gmail-link\s*\{[\s\S]*?width:\s*34px;[\s\S]*?border-radius:\s*50%/);
+assert.match(css, /\.site-footer-contact-list a:hover,[\s\S]*?background:\s*linear-gradient\([\s\S]*?box-shadow:/);
+assert.match(css, /\.site-footer-link-list a:focus-visible[\s\S]*?outline:\s*2px solid/);
 assert.match(css, /body:not\(\[data-page="viewer"\]\) > \.site-footer\s*\{\s*margin-top:\s*0;/);
 assert.match(css, /\.site-footer\s*\{[\s\S]*?padding:\s*0\s+clamp\(/);
 assert.doesNotMatch(css, /\.site-footer-intro\s*\{/);

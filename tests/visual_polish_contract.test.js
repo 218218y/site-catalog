@@ -45,6 +45,7 @@ const placeholderRule = css.match(/\.image-placeholder-frame\s*\{([\s\S]*?)\}/);
 assert.ok(placeholderRule, 'shared image placeholder rule should exist');
 assert.doesNotMatch(placeholderRule[1], /position\s*:/, 'placeholder styling must not override the viewer frame layout position');
 assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?position:\s*absolute/);
+assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?top:\s*50%;[\s\S]*?left:\s*50%;[\s\S]*?transform:\s*translate\(-50%, -50%\)/, 'viewer placeholder must be centered before asynchronous image loading completes');
 assert.match(css, /\.favorite-image-frame\s*\{[\s\S]*?position:\s*relative/);
 assert.match(css, /\.viewer-page-indicator\.visible\s*\{[\s\S]*?opacity:\s*1/);
 assert.match(css, /\.viewer-page-indicator\s*\{[\s\S]*?font-family:\s*Tahoma, "Segoe UI", Arial, sans-serif;[\s\S]*?align-items:\s*center;/);
