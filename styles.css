@@ -3904,9 +3904,9 @@ a.reader-home:focus-visible {
   transform: translateY(-2px);
 }
 .site-footer-bottom {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 8px 20px;
   margin-top: 11px;
   padding-top: 10px;
@@ -3917,6 +3917,41 @@ a.reader-home:focus-visible {
 }
 .site-footer-bottom p { margin: 0; }
 .site-footer-bottom p:last-child { text-align: left; }
+.site-footer-gmail-link {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid rgba(110, 86, 70, 0.16);
+  border-radius: 999px;
+  color: #665348;
+  background: rgba(255,255,255,.58);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.88);
+  text-decoration: none;
+  font-size: .72rem;
+  font-weight: 780;
+  white-space: nowrap;
+  transition: color var(--motion-fast) ease, border-color var(--motion-fast) ease, background var(--motion-fast) ease, transform var(--motion-fast) var(--motion-easing), box-shadow var(--motion-fast) ease;
+}
+.site-footer-gmail-link svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.site-footer-gmail-link:hover,
+.site-footer-gmail-link:focus-visible {
+  color: var(--brand-dark);
+  border-color: rgba(117, 88, 68, 0.28);
+  background: rgba(255,255,255,.84);
+  box-shadow: 0 7px 18px rgba(70,50,36,.08), inset 0 1px 0 rgba(255,255,255,.96);
+  transform: translateY(-1px);
+}
 
 /* Standalone legal documents share the same brand language without loading the catalog runtime. */
 .legal-site-header {
@@ -5920,12 +5955,16 @@ body[data-page="viewer"] {
   .site-footer-grid { grid-template-columns: 1fr; gap: 10px; }
   .site-footer-card { padding: 15px; }
   .site-footer-bottom {
-    align-items: flex-start;
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    justify-items: start;
+    align-items: start;
     margin-top: 9px;
     padding: 9px 2px 1px;
   }
   .site-footer-bottom p:last-child { text-align: right; }
+  .site-footer-gmail-link {
+    justify-self: start;
+  }
 
   .legal-site-header {
     width: calc(100% - 18px);
