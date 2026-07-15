@@ -4,11 +4,14 @@
   "private": true,
   "description": "Static furniture catalog site and deterministic build tools",
   "scripts": {
+    "setup:python": "python tools/setup_python_env.py",
     "build:frontend": "python tools/build_frontend_assets.py",
     "check:frontend": "python tools/build_frontend_assets.py --check",
     "build:pages": "python tools/build_site_pages.py",
     "build:deploy": "python tools/build_deploy_bundle.py",
+    "pretest": "python tools/setup_python_env.py --quiet",
     "test": "python tools/verify_project.py --quick",
+    "preverify": "python tools/setup_python_env.py --quiet",
     "verify": "python tools/verify_project.py"
   }
 }

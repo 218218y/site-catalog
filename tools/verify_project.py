@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """Run the complete project verification workflow with one cross-platform command.
 
-The script intentionally uses the same commands on Windows and Unix-like systems.
-It verifies generated frontend assets, JavaScript syntax, every JavaScript contract
-file, the Python suite, and (unless ``--quick`` is supplied) a clean deploy bundle.
+The script verifies generated frontend assets, JavaScript syntax, every
+JavaScript contract file, the Python suite, and (unless ``--quick`` is supplied)
+a clean deploy bundle. Python tests run inside the project's ``.venv`` when it
+exists, so the command behaves consistently on Windows and Unix-like systems.
 Temporary verification artifacts are removed even when a command fails.
 """
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
+
+REQUIRED_PYTHON_MODULES: tuple[str, ...] = ("pytest", "fitz", "PIL")
 
 
 @dataclass(frozen=True)
@@ -23,16 +28,84 @@ class VerificationStep:
     command: tuple[str, ...]
 
 
+class MissingPythonTestEnvironment(RuntimeError):
+    """Raised when neither the local venv nor the current Python can run tests."""
+
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def venv_python_path(root: Path, *, platform: str | None = None) -> Path:
+    platform_name = platform or os.name
+    relative = Path("Scripts/python.exe") if platform_name == "nt" else Path("bin/python")
+    return root / ".venv" / relative
+
+
+def missing_python_modules(
+    python: Path | str,
+    modules: Sequence[str] = REQUIRED_PYTHON_MODULES,
+) -> tuple[str, ...]:
+    script = (
+        "import importlib.util, json; "
+        f"modules = {list(modules)!r}; "
+        "print(json.dumps([name for name in modules if importlib.util.find_spec(name) is None]))"
+    )
+    try:
+        result = subprocess.run(
+            (str(python), "-c", script),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return tuple(modules)
+
+    try:
+        payload = json.loads(result.stdout.strip() or "[]")
+    except json.JSONDecodeError:
+        return tuple(modules)
+    return tuple(str(name) for name in payload)
+
+
+def resolve_project_python(root: Path) -> str:
+    candidates: list[Path | str] = []
+    local_python = venv_python_path(root)
+    if local_python.is_file():
+        candidates.append(local_python)
+    candidates.append(sys.executable)
+
+    checked: set[str] = set()
+    failures: list[str] = []
+    for candidate in candidates:
+        normalized = str(candidate)
+        if normalized in checked:
+            continue
+        checked.add(normalized)
+        missing = missing_python_modules(candidate)
+        if not missing:
+            return normalized
+        failures.append(f"{normalized}: missing {', '.join(missing)}")
+
+    details = "; ".join(failures) if failures else "no usable Python interpreter was found"
+    raise MissingPythonTestEnvironment(
+        "Python test dependencies are not installed. "
+        "Run `npm run setup:python` once, then run the verification again. "
+        f"Checked: {details}"
+    )
 
 
 def discover_javascript_tests(root: Path) -> tuple[Path, ...]:
     return tuple(sorted((root / "tests").glob("*.test.js")))
 
 
-def verification_steps(root: Path, *, quick: bool = False) -> tuple[VerificationStep, ...]:
-    python = sys.executable
+def verification_steps(
+    root: Path,
+    *,
+    quick: bool = False,
+    python_executable: str | None = None,
+) -> tuple[VerificationStep, ...]:
+    python = python_executable or resolve_project_python(root)
     steps: list[VerificationStep] = [
         VerificationStep(
             "Frontend bundles are current",
@@ -67,9 +140,10 @@ def verify_project(root: Path | None = None, *, quick: bool = False) -> int:
     backup_dir = artifact_dir.with_name(f".{artifact_dir.name}.previous")
 
     try:
-        for step in verification_steps(base, quick=quick):
+        python = resolve_project_python(base)
+        for step in verification_steps(base, quick=quick, python_executable=python):
             run_step(base, step)
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+    except (FileNotFoundError, MissingPythonTestEnvironment, subprocess.CalledProcessError) as exc:
         print(f"\nVERIFICATION FAILED: {exc}", file=sys.stderr)
         return 1
     finally:

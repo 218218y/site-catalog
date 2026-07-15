@@ -1,21 +1,26 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-echo Installing local Python environment...
-py -3 -m venv .venv
+
+echo Preparing the local Python environment...
+where py >nul 2>&1
+if not errorlevel 1 (
+  py -3 tools\setup_python_env.py
+) else (
+  python tools\setup_python_env.py
+)
 if errorlevel 1 goto error
-call .venv\Scripts\activate.bat
-python -m pip install --upgrade pip
-python -m pip install -r tools\requirements.txt
-if errorlevel 1 goto error
+
 echo.
-echo Done. Now put PDFs in assets\pdfs and run convert-catalogs.bat
-echo For maximum quality PNG output, run convert-catalogs-png.bat
+echo Done. The .venv environment now contains the build and test dependencies.
+echo You can run npm test or npm run verify without activating it manually.
 echo.
+echo Now put PDFs in assets\pdfs and run convert-catalogs.bat
 pause
 exit /b 0
+
 :error
 echo.
-echo Something failed. Make sure Python 3 is installed and try again.
+echo Something failed. Make sure Python 3 and internet access are available, then try again.
 pause
 exit /b 1

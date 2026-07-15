@@ -11,12 +11,18 @@ const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), 
 const architecture = fs.readFileSync(path.join(root, "docs", "frontend-architecture.md"), "utf8");
 
 assert.equal(packageJson.private, true);
+assert.equal(packageJson.scripts["setup:python"], "python tools/setup_python_env.py");
+assert.equal(packageJson.scripts.pretest, "python tools/setup_python_env.py --quiet");
 assert.equal(packageJson.scripts.test, "python tools/verify_project.py --quick");
+assert.equal(packageJson.scripts.preverify, "python tools/setup_python_env.py --quiet");
 assert.equal(packageJson.scripts.verify, "python tools/verify_project.py");
 assert.match(builder, /def validate_js_module_boundaries/);
 assert.match(builder, /Duplicate top-level JavaScript declaration/);
 assert.match(verifier, /discover_javascript_tests/);
+assert.match(verifier, /resolve_project_python/);
+assert.match(verifier, /npm run setup:python/);
 assert.match(verifier, /build_deploy_bundle\.py/);
+assert.equal(fs.existsSync(path.join(root, "tools", "requirements-dev.txt")), true);
 assert.match(architecture, /אין לפצל מודול רק בגלל מספר השורות/);
 
 assert.equal(fs.existsSync(path.join(root, "wp_logo_data.js")), false);
