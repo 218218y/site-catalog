@@ -30,7 +30,8 @@ for (const filename of pageFiles) {
   const readerLogo = html.match(/<img\b[^>]*class="reader-logo"[^>]*>/)?.[0];
   assert.ok(headerLogo, `${filename} must contain the header logo`);
   assert.ok(readerLogo, `${filename} must contain the reader logo`);
-  assert.match(html, /<html\b[^>]*class="has-bargig-logo"[^>]*--bargig-logo-url:\s*url\('brand-logo\.svg'\)/s);
+  assert.match(html, /<html\b[^>]*class="has-bargig-logo"/s);
+  assert.doesNotMatch(html, /--bargig-logo-url:/, `${filename} must not define CSS-relative asset URLs inline`);
   assert.doesNotMatch(html, /wp_logo_data\.js|brand-logo\.js|data-wp-logo=/);
   assert.match(headerLogo, /\bsrc="brand-logo-header\.svg"/, `${filename} header must use the transparent header artwork`);
   assert.match(readerLogo, /\bsrc="brand-logo\.svg"/, `${filename} reader must keep the complete shared logo`);
@@ -48,6 +49,7 @@ assert.match(sharedLogoRule[1], new RegExp(`aspect-ratio:\\s*${escapedRatio};`),
 assert.match(sharedLogoRule[1], /height:\s*auto;/, 'responsive logos must override the intrinsic height attribute');
 assert.match(css, /\.brand-mark-frame\s*\{[\s\S]*?width:\s*clamp\([^;]+\);[\s\S]*?aspect-ratio:\s*786\s*\/\s*317;/);
 assert.match(css, /\.brand-mark\s*\{[\s\S]*?width:\s*100%;[\s\S]*?height:\s*auto;/);
+assert.match(css, /--bargig-logo-url:\s*url\(["']brand-logo\.svg["']\);/, 'the source stylesheet must own the local logo dependency');
 assert.doesNotMatch(css, /\.reader-logo\s*\{[^}]*height:\s*(?!auto\b)[^;}]+/s, 'reader logo must not receive a fixed CSS height');
 
 console.log('header_layout_stability_contract.test.js: PASS');

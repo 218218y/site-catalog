@@ -62,7 +62,8 @@ assert.match(app, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardi
 assert.match(app, /function closeViewerOnboarding\([\s\S]*?markViewerOnboardingSeen\(\)[\s\S]*?restoreViewerUiAfterOnboarding/);
 assert.match(app, /window\.requestAnimationFrame\(showViewerOnboardingIfNeeded\)/);
 assert.match(css, /\.site-action-toast\s*\{[\s\S]*?top:\s*max\(16px, env\(safe-area-inset-top\)\);/);
-assert.match(css, /body\[data-page="home"\] #headerFullscreenToggle\s*\{[\s\S]*?display:\s*none !important;/);
+assert.doesNotMatch(index, /id="headerFullscreenToggle"/);
+assert.match(viewer, /id="headerFullscreenToggle"/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.brand-copy-link\s*\{[\s\S]*?display:\s*inline-flex;/);
 assert.match(css, /\.viewer-onboarding-spotlight\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?border:\s*2px solid/);
 assert.match(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?z-index:\s*2 !important;[\s\S]*?right:\s*auto !important;[\s\S]*?bottom:\s*auto !important;[\s\S]*?pointer-events:\s*auto !important;/);

@@ -164,6 +164,9 @@ const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
 const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
 const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
 const VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2";
+const FAVORITES_SHARE_PARAM = "selection";
+const FAVORITES_SHARE_VERSION = 2;
+const FAVORITES_SHARE_LEGACY_VERSION = 1;
 
 function getFavoritesStorage() {
   try {
@@ -382,6 +385,8 @@ const state = {
   searchPreviewPointerClientY: null,
   favoritesOpen: false,
   favoritesReturnFocus: null,
+  favoritesTransferPending: null,
+  favoritesTransferReturnFocus: null,
   viewerOnboardingOpen: false,
   viewerOnboardingShownThisSession: false,
   viewerOnboardingStep: 0,
@@ -433,9 +438,18 @@ const els = {
   favoritesBackdrop: $("favoritesBackdrop"),
   favoritesCloseButton: $("favoritesCloseButton"),
   favoritesClearButton: $("favoritesClearButton"),
+  favoritesShareButton: $("favoritesShareButton"),
   favoritesCount: $("favoritesCount"),
   favoritesGrid: $("favoritesGrid"),
   favoritesEmpty: $("favoritesEmpty"),
+  favoritesTransferOverlay: $("favoritesTransferOverlay"),
+  favoritesTransferBackdrop: $("favoritesTransferBackdrop"),
+  favoritesTransferTitle: $("favoritesTransferTitle"),
+  favoritesTransferDescription: $("favoritesTransferDescription"),
+  favoritesTransferSummary: $("favoritesTransferSummary"),
+  favoritesTransferMerge: $("favoritesTransferMerge"),
+  favoritesTransferReplace: $("favoritesTransferReplace"),
+  favoritesTransferCancel: $("favoritesTransferCancel"),
   lightbox: $("lightbox"),
   lightboxBackdrop: $("lightboxBackdrop"),
   lightboxBar: $("lightboxBar"),
@@ -987,6 +1001,331 @@ function getFavoriteEntries() {
   });
 }
 
+
+function getValidFavoriteItems() {
+  return getFavoriteEntries().map(({ catalogId, catalog, page, savedAt }) => ({
+    catalogId: String(catalogId || catalog?.id || ""),
+    page,
+    savedAt: Number(savedAt) > 0 ? Number(savedAt) : 0
+  }));
+}
+
+function favoriteItemKey(item) {
+  const catalogId = String(item?.catalogId || item?.catalog?.id || "").trim();
+  const page = Number.parseInt(item?.page, 10);
+  return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\u0000${page}` : "";
+}
+
+function normalizeFavoriteTransferItems(values) {
+  const normalized = window.BargigFavorites?.normalizeItems?.(values) || [];
+  const accepted = [];
+  let rejected = Math.max(0, Array.isArray(values) ? values.length - normalized.length : 0);
+
+  normalized.forEach((item) => {
+    const catalog = findCatalogById(item.catalogId);
+    const pageCount = Number.parseInt(catalog?.pages, 10);
+    if (!catalog || !Number.isFinite(pageCount) || item.page > pageCount) {
+      rejected += 1;
+      return;
+    }
+    accepted.push({
+      catalogId: item.catalogId,
+      page: item.page,
+      savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : 0
+    });
+  });
+
+  return { items: accepted, rejected };
+}
+
+function mergeFavoriteItemLists(incoming, existing = getValidFavoriteItems()) {
+  const incomingItems = window.BargigFavorites?.normalizeItems?.(incoming) || [];
+  const incomingKeys = new Set(incomingItems.map(favoriteItemKey).filter(Boolean));
+  const existingItems = (window.BargigFavorites?.normalizeItems?.(existing) || [])
+    .filter((item) => !incomingKeys.has(favoriteItemKey(item)));
+  return [...incomingItems, ...existingItems];
+}
+
+function encodeBase64UrlUtf8(value) {
+  const bytes = new TextEncoder().encode(String(value || ""));
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return window.btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function decodeBase64UrlUtf8(value) {
+  const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = window.atob(`${normalized}${padding}`);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function canonicalizeFavoriteShareItems(items) {
+  const normalized = normalizeFavoriteTransferItems(items).items.map(({ catalogId, page }) => ({ catalogId, page }));
+  const catalogOrder = new Map(catalogs.map((catalog, index) => [String(catalog.id || ""), index]));
+  return normalized.sort((a, b) => {
+    const aIndex = catalogOrder.has(a.catalogId) ? catalogOrder.get(a.catalogId) : Number.MAX_SAFE_INTEGER;
+    const bIndex = catalogOrder.has(b.catalogId) ? catalogOrder.get(b.catalogId) : Number.MAX_SAFE_INTEGER;
+    if (aIndex !== bIndex) return aIndex - bIndex;
+    const catalogCompare = a.catalogId.localeCompare(b.catalogId, "he");
+    return catalogCompare || a.page - b.page;
+  });
+}
+
+function encodeFavoritePageRanges(pages) {
+  const sorted = [...new Set(pages.map((page) => Number.parseInt(page, 10)).filter((page) => Number.isFinite(page) && page > 0))]
+    .sort((a, b) => a - b);
+  const ranges = [];
+  for (let index = 0; index < sorted.length;) {
+    const start = sorted[index];
+    let end = start;
+    while (index + 1 < sorted.length && sorted[index + 1] === end + 1) {
+      index += 1;
+      end = sorted[index];
+    }
+    const encodedStart = start.toString(36);
+    ranges.push(end === start ? encodedStart : `${encodedStart}-${end.toString(36)}`);
+    index += 1;
+  }
+  return ranges.join(",");
+}
+
+function decodeFavoritePageRanges(value) {
+  const pages = [];
+  String(value || "").split(",").forEach((part) => {
+    if (!part) return;
+    const [rawStart, rawEnd = rawStart] = part.split("-", 2);
+    const start = Number.parseInt(rawStart, 36);
+    const end = Number.parseInt(rawEnd, 36);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end - start > 1000) return;
+    for (let page = start; page <= end; page += 1) pages.push(page);
+  });
+  return pages;
+}
+
+function buildFavoritesShareToken(items) {
+  const grouped = new Map();
+  canonicalizeFavoriteShareItems(items).forEach(({ catalogId, page }) => {
+    if (!grouped.has(catalogId)) grouped.set(catalogId, []);
+    grouped.get(catalogId).push(page);
+  });
+  const payload = [...grouped.entries()]
+    .map(([catalogId, pages]) => `${encodeURIComponent(catalogId)}~${encodeFavoritePageRanges(pages)}`)
+    .join("|");
+  return `v${FAVORITES_SHARE_VERSION}.${encodeBase64UrlUtf8(payload)}`;
+}
+
+function parseLegacyFavoritesShareToken(rawToken) {
+  const prefix = `v${FAVORITES_SHARE_LEGACY_VERSION}.`;
+  if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
+  try {
+    const payload = JSON.parse(decodeBase64UrlUtf8(rawToken.slice(prefix.length)));
+    if (!payload || payload.v !== FAVORITES_SHARE_LEGACY_VERSION || !Array.isArray(payload.c) || !Array.isArray(payload.i)) {
+      return { items: [], rejected: 0, valid: false };
+    }
+    const rawItems = payload.i.map((entry) => {
+      if (!Array.isArray(entry) || entry.length < 2) return null;
+      const catalogIndex = Number.parseInt(entry[0], 10);
+      return { catalogId: payload.c[catalogIndex], page: entry[1], savedAt: 0 };
+    });
+    return { ...normalizeFavoriteTransferItems(rawItems), valid: true };
+  } catch (_error) {
+    return { items: [], rejected: 0, valid: false };
+  }
+}
+
+function parseFavoritesShareToken(token) {
+  const rawToken = String(token || "").trim();
+  const prefix = `v${FAVORITES_SHARE_VERSION}.`;
+  if (!rawToken.startsWith(prefix)) return parseLegacyFavoritesShareToken(rawToken);
+
+  try {
+    const payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length));
+    const rawItems = [];
+    if (payload) {
+      payload.split("|").forEach((group) => {
+        const separatorIndex = group.indexOf("~");
+        if (separatorIndex < 1) return;
+        const catalogId = decodeURIComponent(group.slice(0, separatorIndex));
+        decodeFavoritePageRanges(group.slice(separatorIndex + 1)).forEach((page) => {
+          rawItems.push({ catalogId, page, savedAt: 0 });
+        });
+      });
+    }
+    const normalized = normalizeFavoriteTransferItems(rawItems);
+    return { ...normalized, valid: true };
+  } catch (_error) {
+    return { items: [], rejected: 0, valid: false };
+  }
+}
+
+function buildFavoritesShareUrl(items) {
+  const url = new URL(favoritesDocumentUrl(), window.location.href);
+  url.hash = "";
+  url.searchParams.set(FAVORITES_SHARE_PARAM, buildFavoritesShareToken(items));
+  return url.toString();
+}
+
+function cleanFavoritesSelectionFromUrl() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(FAVORITES_SHARE_PARAM)) return;
+  url.searchParams.delete(FAVORITES_SHARE_PARAM);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function syncFavoritesTransferDialogUi() {
+  const pending = state.favoritesTransferPending;
+  if (!pending || !els.favoritesTransferOverlay) return;
+  const incomingCount = pending.items.length;
+  const currentCount = getFavoriteEntries().length;
+  if (els.favoritesTransferTitle) els.favoritesTransferTitle.textContent = "רשימת מועדפים התקבלה";
+  if (els.favoritesTransferDescription) {
+    els.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת.";
+  }
+  if (els.favoritesTransferSummary) {
+    const rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "";
+    els.favoritesTransferSummary.textContent = `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}`;
+  }
+}
+
+function openFavoritesTransferDialog(transfer, returnFocus = document.activeElement) {
+  if (!transfer?.items?.length || !els.favoritesTransferOverlay) return false;
+  state.favoritesTransferPending = transfer;
+  state.favoritesTransferReturnFocus = returnFocus;
+  syncFavoritesTransferDialogUi();
+  els.favoritesTransferOverlay.classList.remove("hidden");
+  els.favoritesTransferOverlay.setAttribute("aria-hidden", "false");
+  syncDocumentLock();
+  requestAnimationFrame(() => els.favoritesTransferMerge?.focus());
+  return true;
+}
+
+function closeFavoritesTransferDialog(options = {}) {
+  const { restoreFocus = true, cleanUrl = false } = options;
+  const returnFocus = state.favoritesTransferReturnFocus;
+  state.favoritesTransferPending = null;
+  state.favoritesTransferReturnFocus = null;
+  els.favoritesTransferOverlay?.classList.add("hidden");
+  els.favoritesTransferOverlay?.setAttribute("aria-hidden", "true");
+  if (cleanUrl) cleanFavoritesSelectionFromUrl();
+  syncDocumentLock();
+  if (restoreFocus && returnFocus?.focus) returnFocus.focus();
+}
+
+function applyFavoritesTransfer(mode) {
+  const pending = state.favoritesTransferPending;
+  if (!pending?.items?.length || !favoritesStore) return;
+  const timestamp = Date.now();
+  const incoming = pending.items.map((item, index) => ({
+    ...item,
+    savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : timestamp - index
+  }));
+  const nextItems = mode === "merge"
+    ? mergeFavoriteItemLists(incoming, getValidFavoriteItems())
+    : incoming;
+  favoritesStore.replace(nextItems);
+  closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: pending.source === "link" });
+  syncFavoritesUi({ renderPanel: true });
+  syncFavoriteViewerAfterStoreChange();
+  const verb = mode === "merge" ? "מוזגה" : "נטענה";
+  const rejectedText = pending.rejected ? ` · ${pending.rejected} לא היו זמינים` : "";
+  showActionToast(`הרשימה ${verb}: ${incoming.length} פריטים${rejectedText}`, { tone: "saved", duration: 2800 });
+  requestAnimationFrame(() => els.favoritesGrid?.querySelector(".favorite-card")?.focus?.());
+}
+
+function prepareIncomingFavoritesTransfer(transfer, options = {}) {
+  const { returnFocus = document.activeElement } = options;
+  if (!transfer?.valid || !transfer.items.length || !favoritesStore) return false;
+  const currentItems = getValidFavoriteItems();
+  if (!currentItems.length) {
+    state.favoritesTransferPending = transfer;
+    applyFavoritesTransfer("replace");
+    return true;
+  }
+  return openFavoritesTransferDialog(transfer, returnFocus);
+}
+
+function processFavoritesSelectionFromUrl() {
+  if (!isAppPage("favorites")) return;
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get(FAVORITES_SHARE_PARAM);
+  if (!token) return;
+  const parsed = parseFavoritesShareToken(token);
+  if (!parsed.valid || !parsed.items.length) {
+    cleanFavoritesSelectionFromUrl();
+    showActionToast("הקישור אינו מכיל רשימת בחירה תקינה");
+    return;
+  }
+  prepareIncomingFavoritesTransfer({ ...parsed, source: "link" }, { returnFocus: els.favoritesShareButton });
+}
+
+function syncFavoritesShareButton(count = getFavoriteEntries().length) {
+  if (!els.favoritesShareButton) return;
+  const hasItems = count > 0;
+  els.favoritesShareButton.disabled = !hasItems;
+  els.favoritesShareButton.setAttribute("aria-label", hasItems
+    ? `שיתוף רשימת המועדפים, ${count} עמודים שמורים`
+    : "שיתוף רשימת המועדפים — אין עדיין עמודים שמורים");
+}
+
+async function shareFavoritesList() {
+  const items = getFavoriteEntries().map(({ catalogId, catalog, page }) => ({
+    catalogId: String(catalogId || catalog?.id || ""),
+    page
+  }));
+  if (!items.length) return;
+  const link = buildFavoritesShareUrl(items);
+
+  if (isMobileShareEnvironment()) {
+    try {
+      await navigator.share({
+        title: "המועדפים שלי",
+        text: `${items.length} עמודים שמורים מתוך קטלוגי רהיטי ברגיג`,
+        url: link
+      });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+
+  try {
+    await copyTextToClipboard(link);
+    flashActionButton(els.favoritesShareButton, "הקישור הועתק");
+    showActionToast("הקישור לרשימת המועדפים הועתק", { tone: "link" });
+  } catch (_error) {
+    window.prompt("אפשר להעתיק את הקישור מכאן:", link);
+  }
+}
+
+function handleFavoritesTransferKeydown(event) {
+  if (!state.favoritesTransferPending || !els.favoritesTransferOverlay) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" });
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = Array.from(els.favoritesTransferOverlay.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'));
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function isFavoritesLightboxMode() {
   return state.lightboxSource === LIGHTBOX_SOURCE_FAVORITES;
 }
@@ -1046,6 +1385,7 @@ function renderFavoritesPanel(entries = getFavoriteEntries()) {
   if (els.favoritesCount) els.favoritesCount.textContent = String(count);
   els.favoritesClearButton?.classList.toggle("hidden", count === 0);
   els.favoritesEmpty?.classList.toggle("hidden", count !== 0);
+  syncFavoritesShareButton(count);
 
   els.favoritesGrid.innerHTML = entries.map(({ catalog, page }) => {
     const identityCatalog = escapeHtml(catalog.id);
@@ -1084,6 +1424,7 @@ function syncFavoritesUi(options = {}) {
   syncFavoritesShortcut(els.headerFavoritesButton, els.headerFavoritesCount, count);
   syncFavoritesShortcut(els.lightboxFavoritesButton, els.lightboxFavoritesCount, count);
   syncViewerFavoriteButtonUi();
+  syncFavoritesShareButton(count);
   if (renderPanel) {
     renderFavoritesPanel(entries);
     if (state.favoritesOpen && entries.length === 0) {
@@ -1199,9 +1540,7 @@ function handleFavoritesGridClick(event) {
     removeFavorite(catalogId, page);
     return;
   }
-  if (event.target.closest?.("[data-open-favorite]")) {
-    openFavoriteViewer(catalogId, page);
-  }
+  if (event.target.closest?.("[data-open-favorite]")) openFavoriteViewer(catalogId, page);
 }
 
 function handleFavoritesStorageChange(event) {
@@ -4767,7 +5106,8 @@ function handleViewerOnboardingKeydown(event) {
 
 function syncDocumentLock() {
   const modalFavoritesOpen = state.favoritesOpen && !isAppPage("favorites");
-  document.body.classList.toggle("no-scroll", state.lightboxOpen || modalFavoritesOpen);
+  const transferOpen = Boolean(state.favoritesTransferPending);
+  document.body.classList.toggle("no-scroll", state.lightboxOpen || modalFavoritesOpen || transferOpen);
   document.documentElement.classList.toggle("viewer-open", state.lightboxOpen);
 }
 
@@ -5569,8 +5909,14 @@ function attachEvents() {
   els.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
   els.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
   els.favoritesClearButton?.addEventListener("click", clearAllFavorites);
+  els.favoritesShareButton?.addEventListener("click", () => shareFavoritesList());
   els.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
   els.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
+  els.favoritesTransferBackdrop?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
+  els.favoritesTransferCancel?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
+  els.favoritesTransferMerge?.addEventListener("click", () => applyFavoritesTransfer("merge"));
+  els.favoritesTransferReplace?.addEventListener("click", () => applyFavoritesTransfer("replace"));
+  els.favoritesTransferOverlay?.addEventListener("keydown", handleFavoritesTransferKeydown);
   els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
   els.lightboxCopyLink?.addEventListener("click", () => shareCurrentLightboxLink());
   els.viewerOnboardingPrevious?.addEventListener("click", () => moveViewerOnboardingStep(-1));
@@ -5760,6 +6106,9 @@ function hideCatalogDetailUi() {
 
 function prepareDocumentRoute(nextPage) {
   if (nextPage !== "viewer" && state.lightboxOpen) hideLightboxUi();
+  if (nextPage !== "favorites" && state.favoritesTransferPending) {
+    closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: true });
+  }
   if (nextPage !== "favorites" && (state.favoritesOpen || els.favoritesPanel?.classList.contains("favorites-standalone-page"))) {
     hideFavoritesPanelUi();
   }
@@ -5809,6 +6158,7 @@ function initDocumentRoute(options = {}) {
     state.catalog = null;
     state.page = 1;
     openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
+    processFavoritesSelectionFromUrl();
     restoreDocumentRouteScroll(options.scrollPosition);
     return true;
   }

@@ -183,3 +183,37 @@ def test_top_level_404_disables_pages_spa_fallback() -> None:
     assert "<!doctype html>" in content
     assert "<script" not in content
     assert "404.html" in MODULE.DEPLOY_FILES
+
+
+def test_css_asset_urls_are_rebased_before_fingerprinting(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    out.mkdir()
+    write_asset(out, "brand-logo.svg", b"<svg></svg>")
+    (out / "styles.css").write_text(
+        ':root { --logo: url("brand-logo.svg"); }\n',
+        encoding="utf-8",
+    )
+    for page in MODULE.PAGE_DOCUMENTS:
+        (out / page.filename).write_text(
+            '<link rel="stylesheet" href="styles.css">',
+            encoding="utf-8",
+        )
+
+    rewrite_map = MODULE.fingerprint_bundle_assets(out)
+
+    css_relative = Path(rewrite_map["styles.css"])
+    css = (out / css_relative).read_text(encoding="utf-8")
+    assert 'url("../brand-logo.svg")' in css
+    assert (out / "brand-logo.svg").is_file()
+    assert not (out / "static" / "brand-logo.svg").exists()
+    assert MODULE.content_hash(out / css_relative) == css_relative.name.split(".")[-2]
+
+
+def test_css_rebase_rejects_missing_local_dependencies(tmp_path: Path) -> None:
+    root = tmp_path / "bundle"
+    root.mkdir()
+    css = root / "styles.css"
+    css.write_text('.mark { background: url("missing.svg"); }\n', encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="missing.svg"):
+        MODULE.rebase_css_asset_urls(css, root / "static", root)

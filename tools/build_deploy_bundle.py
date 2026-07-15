@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import sys
@@ -85,6 +86,10 @@ JSON_DEPLOY_FILES = [
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 HTML_ASSET_ATTR_RE = re.compile(
     r"(?P<prefix><(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*[\"'])(?P<url>[^\"']+)(?P<suffix>[\"'])",
+    re.IGNORECASE,
+)
+CSS_URL_RE = re.compile(
+    r"url\(\s*(?P<quote>[\"']?)(?P<url>[^\"')]+)(?P=quote)\s*\)",
     re.IGNORECASE,
 )
 GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s*;\s*$", re.DOTALL)
@@ -168,6 +173,51 @@ def hashed_asset_name(path: Path) -> str:
     return f"{path.stem}.{digest}{path.suffix}"
 
 
+def rebase_css_asset_urls(source: Path, target_dir: Path, bundle_root: Path) -> None:
+    """Rebase local CSS ``url(...)`` references before moving CSS into ``static/``.
+
+    CSS-relative URLs are resolved from the stylesheet location, not from the
+    HTML document. Fingerprinting moves the stylesheet into a child folder, so
+    every local dependency must be rewritten relative to that new folder before
+    the content hash is calculated. Remote, data, blob, fragment and root-relative
+    URLs are intentionally left untouched.
+    """
+
+    text = source.read_text(encoding="utf-8", errors="replace")
+    changed = False
+
+    def replace_url(match: re.Match[str]) -> str:
+        nonlocal changed
+        raw_reference = match.group("url").strip()
+        if (
+            not raw_reference
+            or raw_reference.startswith(("http://", "https://", "//", "data:", "blob:", "#", "/"))
+        ):
+            return match.group(0)
+
+        reference_path, suffix = split_url_reference(raw_reference)
+        dependency = (source.parent / reference_path).resolve()
+        try:
+            dependency.relative_to(bundle_root.resolve())
+        except ValueError as exc:
+            raise ValueError(
+                f"CSS asset reference escapes the deploy bundle: {source.name} -> {raw_reference}"
+            ) from exc
+        if not dependency.is_file():
+            raise FileNotFoundError(
+                f"CSS references a missing local asset: {source.name} -> {raw_reference}"
+            )
+
+        rebased = os.path.relpath(dependency, target_dir.resolve()).replace(os.sep, "/")
+        quote = match.group("quote") or '"'
+        changed = changed or rebased != reference_path
+        return f"url({quote}{rebased}{suffix}{quote})"
+
+    rewritten = CSS_URL_RE.sub(replace_url, text)
+    if changed:
+        source.write_text(rewritten, encoding="utf-8")
+
+
 def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
     """Fingerprint shared CSS/JS once and rewrite every public HTML document."""
 
@@ -198,6 +248,9 @@ def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
         if not source.is_file():
             raise FileNotFoundError(f"Cannot fingerprint missing referenced asset in bundle: {reference}")
         normalize_fingerprinted_text(source)
+        target_directory = (out_dir / FINGERPRINTED_ASSET_DIR)
+        if source.suffix.lower() == ".css":
+            rebase_css_asset_urls(source, target_directory, out_dir)
         target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(source)
         target = out_dir / target_relative
         target.parent.mkdir(parents=True, exist_ok=True)
