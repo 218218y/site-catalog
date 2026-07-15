@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Sequence
 
 from build_frontend_assets import build_frontend_assets
+from footer_content import read_footer_content, render_footer_template, validate_footer_content
 
 
 @dataclass(frozen=True)
@@ -114,14 +115,26 @@ def render_page(template: str, page: PageDocument, *, site_footer: str, legal_co
     return rendered
 
 
-def render_site_pages(root: Path, output_dir: Path | None = None, *, build_assets: bool = True) -> list[Path]:
+def render_site_pages(
+    root: Path,
+    output_dir: Path | None = None,
+    *,
+    build_assets: bool = True,
+    footer_content: dict[str, str] | None = None,
+) -> list[Path]:
     if build_assets:
         build_frontend_assets(root)
 
     target_root = output_dir or root
     target_root.mkdir(parents=True, exist_ok=True)
 
-    site_footer = read_required_text(root, "partials/site-footer.html").strip()
+    footer_template = read_required_text(root, "partials/site-footer.html").strip()
+    normalized_footer_content = (
+        validate_footer_content(footer_content)
+        if footer_content is not None
+        else read_footer_content(root)
+    )
+    site_footer = render_footer_template(footer_template, normalized_footer_content)
     templates: dict[str, str] = {}
     written: list[Path] = []
 

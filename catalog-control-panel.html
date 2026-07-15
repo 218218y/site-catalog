@@ -102,7 +102,7 @@
       box-shadow: 0 12px 24px rgba(37, 99, 235, .24);
     }
     .save-btn::before { content: "✓ "; font-weight: 900; }
-    input[type="search"], input[type="text"], textarea {
+    input[type="search"], input[type="text"], input[type="email"], input[type="tel"], textarea {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -223,6 +223,17 @@
     .toggle input:checked + .switch::after { transform: translateX(20px); }
     [dir="rtl"] .switch::after { right: 3px; left: auto; }
     [dir="rtl"] .toggle input:checked + .switch::after { transform: translateX(-20px); }
+    .footer-editor { display: grid; gap: 16px; }
+    .footer-editor-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; align-items: start; }
+    .footer-editor-group { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: #fbfcff; }
+    .footer-editor-group legend { padding: 0 8px; font-weight: 850; color: #1e3a8a; }
+    .footer-fields { display: grid; gap: 11px; }
+    .footer-field { display: grid; gap: 6px; }
+    .footer-field label { font-weight: 750; color: #344054; }
+    .footer-field small { color: var(--muted); line-height: 1.45; }
+    .footer-field input[dir="ltr"] { text-align: left; }
+    .footer-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 2px; }
+    .footer-save-btn { min-width: 250px; }
     .notice { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; padding: 12px 14px; border-radius: 16px; line-height: 1.6; margin-bottom: 14px; }
     .server-alert { display: none; border: 1px solid #fecdca; background: #fff4f3; color: #912018; padding: 14px 16px; border-radius: 18px; line-height: 1.65; margin-top: 14px; font-weight: 650; }
     .server-alert.show { display: block; }
@@ -263,7 +274,7 @@
       <div class="topbar">
         <div>
           <h1>לוח שליטה מקומי לקטלוגים</h1>
-          <p>מקום אחד להוספת PDFים לרשימה, המרה, OCR, סנכרון R2, יצירת באנדל R2 והעלאת הבאנדל ל-Cloudflare Pages. ההמרה כוללת ניקוי אוטומטי של קטלוגים שהוסרו או שה-PDF שלהם נמחק. הדף הזה עובד רק דרך השרת המקומי שמופעל מהמחשב.</p>
+          <p>מקום אחד לניהול קטלוגים, עריכת טקסט הפוטר, המרה, OCR, סנכרון R2, יצירת באנדל R2 והעלאת הבאנדל ל-Cloudflare Pages. ההמרה כוללת ניקוי אוטומטי של קטלוגים שהוסרו או שה-PDF שלהם נמחק. הדף הזה עובד רק דרך השרת המקומי שמופעל מהמחשב.</p>
         </div>
         <button class="refresh-btn" id="refreshState" type="button">רענן מצב</button>
       </div>
@@ -325,6 +336,80 @@
       </aside>
     </div>
 
+
+    <section class="card" style="margin-top: 18px;">
+      <div class="card-header">
+        <div>
+          <h2>עריכת טקסט הפוטר</h2>
+          <p>השדות כאן משנים רק את הטקסט והקישורים שנגזרים ממנו. מבנה הפוטר, העיצוב והגדלים נשארים קבועים.</p>
+        </div>
+      </div>
+      <div class="card-body footer-editor">
+        <div class="notice">השמירה מעדכנת את <span dir="ltr">partials/site-footer.content.json</span> ובונה מיד מחדש את כל ששת קובצי ה־HTML הציבוריים. מספרי הטלפון והמייל מעדכנים גם את קישורי החיוג, המייל ו־Gmail, כך שאין צורך לערוך HTML ידנית.</div>
+        <div class="footer-editor-groups">
+          <fieldset class="footer-editor-group">
+            <legend>כתובת וביקור</legend>
+            <div class="footer-fields">
+              <div class="footer-field"><label for="footerVisitTitle">כותרת הכרטיס</label><input id="footerVisitTitle" type="text" maxlength="120" required data-footer-field="visitTitle" /></div>
+              <div class="footer-field"><label for="footerAddress">כתובת עד לפני מספר הקומה</label><input id="footerAddress" type="text" maxlength="240" required data-footer-field="address" /></div>
+              <div class="footer-field"><label for="footerAddressFloor">מספר קומה</label><input id="footerAddressFloor" type="text" dir="ltr" maxlength="80" required data-footer-field="addressFloor" /><small>נשמר בנפרד כדי שמספר שלילי יוצג נכון בתוך טקסט עברי.</small></div>
+              <div class="footer-field"><label for="footerVisitingHours">ימי ושעות ביקור</label><input id="footerVisitingHours" type="text" maxlength="160" required data-footer-field="visitingHours" /></div>
+              <div class="footer-field"><label for="footerVisitNote">הערה מתחת לשעות</label><input id="footerVisitNote" type="text" maxlength="240" required data-footer-field="visitNote" /></div>
+            </div>
+          </fieldset>
+
+          <fieldset class="footer-editor-group">
+            <legend>יצירת קשר</legend>
+            <div class="footer-fields">
+              <div class="footer-field"><label for="footerContactTitle">כותרת הכרטיס</label><input id="footerContactTitle" type="text" maxlength="120" required data-footer-field="contactTitle" /></div>
+              <div class="footer-field"><label for="footerMobileLabel">תווית הנייד</label><input id="footerMobileLabel" type="text" maxlength="80" required data-footer-field="mobileLabel" /></div>
+              <div class="footer-field"><label for="footerMobile">מספר נייד</label><input id="footerMobile" type="tel" dir="ltr" maxlength="80" required data-footer-field="mobile" /><small>קישור החיוג נבנה אוטומטית מהמספר.</small></div>
+              <div class="footer-field"><label for="footerPhoneLabel">תווית הטלפון</label><input id="footerPhoneLabel" type="text" maxlength="80" required data-footer-field="phoneLabel" /></div>
+              <div class="footer-field"><label for="footerPhone">מספר טלפון</label><input id="footerPhone" type="tel" dir="ltr" maxlength="80" required data-footer-field="phone" /></div>
+              <div class="footer-field"><label for="footerEmailLabel">תווית המייל</label><input id="footerEmailLabel" type="text" maxlength="80" required data-footer-field="emailLabel" /></div>
+              <div class="footer-field"><label for="footerEmail">כתובת מייל</label><input id="footerEmail" type="email" dir="ltr" maxlength="254" required data-footer-field="email" /><small>מתעדכן גם בקישור המייל ובכפתור Gmail.</small></div>
+            </div>
+          </fieldset>
+
+          <fieldset class="footer-editor-group">
+            <legend>שעות מענה</legend>
+            <div class="footer-fields">
+              <div class="footer-field"><label for="footerResponseTitle">כותרת הכרטיס</label><input id="footerResponseTitle" type="text" maxlength="120" required data-footer-field="responseTitle" /></div>
+              <div class="footer-field"><label for="footerResponseHours">שעות מענה</label><input id="footerResponseHours" type="text" dir="ltr" maxlength="160" required data-footer-field="responseHours" /></div>
+              <div class="footer-field"><label for="footerResponseNote">הסבר מתחת לשעות</label><input id="footerResponseNote" type="text" maxlength="240" required data-footer-field="responseNote" /></div>
+            </div>
+          </fieldset>
+
+          <fieldset class="footer-editor-group">
+            <legend>קישורים שימושיים</legend>
+            <div class="footer-fields">
+              <div class="footer-field"><label for="footerLinksTitle">כותרת הכרטיס</label><input id="footerLinksTitle" type="text" maxlength="120" required data-footer-field="linksTitle" /></div>
+              <div class="footer-field"><label for="footerTermsLabel">טקסט קישור תנאי שימוש</label><input id="footerTermsLabel" type="text" maxlength="120" required data-footer-field="termsLabel" /></div>
+              <div class="footer-field"><label for="footerPrivacyLabel">טקסט קישור פרטיות</label><input id="footerPrivacyLabel" type="text" maxlength="120" required data-footer-field="privacyLabel" /></div>
+              <div class="footer-field"><label for="footerTopLabel">טקסט חזרה למעלה</label><input id="footerTopLabel" type="text" maxlength="120" required data-footer-field="topLabel" /></div>
+            </div>
+          </fieldset>
+
+          <fieldset class="footer-editor-group">
+            <legend>שורה תחתונה ו־Gmail</legend>
+            <div class="footer-fields">
+              <div class="footer-field"><label for="footerBusinessName">שם העסק</label><input id="footerBusinessName" type="text" maxlength="160" required data-footer-field="businessName" /></div>
+              <div class="footer-field"><label for="footerRegistrationLabel">תווית מספר העסק</label><input id="footerRegistrationLabel" type="text" maxlength="80" required data-footer-field="registrationLabel" /></div>
+              <div class="footer-field"><label for="footerRegistrationNumber">מספר העסק</label><input id="footerRegistrationNumber" type="text" dir="ltr" maxlength="80" required data-footer-field="registrationNumber" /></div>
+              <div class="footer-field"><label for="footerRightsText">טקסט זכויות</label><input id="footerRightsText" type="text" maxlength="160" required data-footer-field="rightsText" /></div>
+              <div class="footer-field"><label for="footerGmailTitle">כותרת כפתור Gmail</label><input id="footerGmailTitle" type="text" maxlength="160" required data-footer-field="gmailTitle" /></div>
+              <div class="footer-field"><label for="footerGmailSubject">נושא הודעת Gmail</label><input id="footerGmailSubject" type="text" maxlength="240" required data-footer-field="gmailSubject" /></div>
+              <div class="footer-field"><label for="footerBottomNote">הטקסט האחרון בפוטר</label><input id="footerBottomNote" type="text" maxlength="240" required data-footer-field="bottomNote" /></div>
+            </div>
+          </fieldset>
+        </div>
+        <div class="footer-actions">
+          <button class="footer-save-btn" id="saveFooter" type="button">שמור ועדכן את כל הדפים</button>
+          <span class="toast" id="footerSaveStatus"></span>
+        </div>
+      </div>
+    </section>
+
     <section class="card" style="margin-top: 18px;">
       <div class="card-header">
         <div>
@@ -361,7 +446,7 @@
   </div>
 
   <script>
-    const state = { catalogs: [], actions: [], counts: {}, pdfFiles: [], pdfUploadCatalogIndex: null, deleteDialogIndex: null, pendingAssetDeletes: [], activeJobId: null, polling: null };
+    const state = { catalogs: [], footer: {}, actions: [], counts: {}, pdfFiles: [], pdfUploadCatalogIndex: null, deleteDialogIndex: null, pendingAssetDeletes: [], activeJobId: null, polling: null };
     const els = {
       stats: document.getElementById('stats'),
       rows: document.getElementById('catalogRows'),
@@ -369,6 +454,9 @@
       filter: document.getElementById('catalogFilter'),
       save: document.getElementById('saveCatalogs'),
       saveStatus: document.getElementById('saveStatus'),
+      footerSave: document.getElementById('saveFooter'),
+      footerSaveStatus: document.getElementById('footerSaveStatus'),
+      footerFields: Array.from(document.querySelectorAll('[data-footer-field]')),
       jobStatus: document.getElementById('jobStatus'),
       jobLog: document.getElementById('jobLog'),
       jobHistory: document.getElementById('jobHistory'),
@@ -422,11 +510,13 @@
       setServerAlert('');
       state.catalogs = (data.catalogs || []).map(catalog => ({ ...catalog, originalId: catalog.originalId || catalog.id }));
       state.actions = data.actions || [];
+      state.footer = data.footer || {};
       state.counts = data.counts || {};
       state.pdfFiles = data.pdfFiles || [];
       state.pendingAssetDeletes = [];
       renderStats(state.counts);
       renderCatalogs();
+      renderFooterEditor();
       renderActions();
       renderJobHistory(data.jobs || []);
     }
@@ -440,6 +530,48 @@
         ['OCR כבוי', counts.ocrDisabled ?? 0]
       ];
       els.stats.innerHTML = items.map(([label, value]) => `<div class="stat"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+    }
+
+
+    function renderFooterEditor() {
+      els.footerSave.disabled = false;
+      for (const input of els.footerFields) {
+        input.value = state.footer[input.dataset.footerField] ?? '';
+      }
+      setFooterSaveStatus('', '');
+    }
+
+    function collectFooterContent() {
+      return Object.fromEntries(els.footerFields.map(input => [input.dataset.footerField, input.value]));
+    }
+
+    function setFooterSaveStatus(text, kind) {
+      els.footerSaveStatus.textContent = text;
+      els.footerSaveStatus.className = `toast ${kind || ''}`;
+    }
+
+    async function saveFooter() {
+      const invalid = els.footerFields.find(input => !input.reportValidity());
+      if (invalid) {
+        invalid.focus();
+        return;
+      }
+      setFooterSaveStatus('בודק את התוכן ובונה מחדש את כל דפי האתר...', '');
+      els.footerSave.disabled = true;
+      try {
+        const payload = await api('/api/footer', {
+          method: 'POST',
+          body: JSON.stringify({ footer: collectFooterContent() })
+        });
+        state.footer = payload.footer || (payload.state && payload.state.footer) || state.footer;
+        renderFooterEditor();
+        const count = (payload.updatedPages || []).length;
+        setFooterSaveStatus(`נשמר בהצלחה ועודכנו ${count || 6} קובצי HTML.`, 'ok');
+      } catch (error) {
+        setFooterSaveStatus(error.message, 'err');
+      } finally {
+        els.footerSave.disabled = false;
+      }
     }
 
     function isFilterActive() {
@@ -970,6 +1102,10 @@
     });
     els.filter.addEventListener('input', renderCatalogs);
     els.save.addEventListener('click', saveCatalogs);
+    els.footerSave.addEventListener('click', saveFooter);
+    for (const input of els.footerFields) {
+      input.addEventListener('input', () => setFooterSaveStatus('יש שינויים שלא נשמרו בפוטר.', ''));
+    }
     els.refresh.addEventListener('click', () => {
       loadState().catch(showLoadError);
     });
@@ -990,6 +1126,8 @@
       els.stats.innerHTML = '';
       els.rows.innerHTML = '<tr><td colspan="10">לא ניתן לטעון קטלוגים כי שרת ה־API של לוח השליטה לא פעיל.</td></tr>';
       els.actions.innerHTML = '<div class="notice">הפעל <span dir="ltr">catalog-control-panel.bat</span> מתוך תיקיית הפרויקט, ואז הדף ייטען עם כל הקטלוגים והכפתורים.</div>';
+      setFooterSaveStatus('לא ניתן לטעון או לשמור את הפוטר בלי שרת לוח השליטה.', 'err');
+      els.footerSave.disabled = true;
       els.jobLog.textContent = message;
       els.jobStatus.textContent = 'שגיאה בטעינת מצב';
       els.jobStatus.className = 'toast err';

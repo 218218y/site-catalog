@@ -2,8 +2,8 @@
 """Local control panel for catalog maintenance.
 
 This server is intentionally localhost-only. It exposes a small browser UI for
-editing catalogs.config.json and for running the existing fixed maintenance
-commands without giving the browser arbitrary shell access.
+editing catalogs.config.json, editing validated footer text, and running the
+existing fixed maintenance commands without giving the browser arbitrary shell access.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ import re
 import subprocess
 import shutil
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -27,6 +28,18 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+from build_site_pages import PAGE_DOCUMENTS, render_site_pages
+from footer_content import (
+    FOOTER_CONTENT_RELATIVE_PATH,
+    read_footer_content,
+    serialize_footer_content,
+    validate_footer_content,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "catalogs.config.json"
 GENERATED_JSON_FILE = PROJECT_ROOT / "catalogs.generated.json"
@@ -34,6 +47,7 @@ GENERATED_JS_FILE = PROJECT_ROOT / "catalogs.generated.js"
 SEARCH_JSON_FILE = PROJECT_ROOT / "catalogs.search.json"
 SEARCH_JS_FILE = PROJECT_ROOT / "catalogs.search.js"
 SEARCH_OVERRIDES_FILE = PROJECT_ROOT / "catalogs.search-overrides.json"
+FOOTER_CONTENT_FILE = PROJECT_ROOT / FOOTER_CONTENT_RELATIVE_PATH
 PDF_DIR = PROJECT_ROOT / "assets" / "pdfs"
 PAGES_DIR = PROJECT_ROOT / "assets" / "pages"
 CATALOG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
@@ -137,6 +151,7 @@ class StagedAssetDelete:
 jobs: dict[str, Job] = {}
 jobs_lock = threading.Lock()
 native_dialog_lock = threading.Lock()
+footer_save_lock = threading.Lock()
 
 
 def rel_to_root(path: Path) -> str:
@@ -175,6 +190,75 @@ def read_config() -> list[dict[str, Any]]:
 
 def write_config(config: list[dict[str, Any]]) -> None:
     CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def atomic_write_bytes(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_bytes(data)
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def restore_file_bytes(path: Path, previous: bytes | None) -> None:
+    if previous is None:
+        path.unlink(missing_ok=True)
+    else:
+        atomic_write_bytes(path, previous)
+
+
+def save_footer_content_and_render_pages(
+    value: Any,
+    *,
+    root: Path = PROJECT_ROOT,
+) -> dict[str, str]:
+    """Validate one footer edit, stage all pages, then commit with rollback."""
+
+    normalized = validate_footer_content(value)
+    content_path = root / FOOTER_CONTENT_RELATIVE_PATH
+    page_paths = [root / page.filename for page in PAGE_DOCUMENTS]
+
+    with tempfile.TemporaryDirectory(prefix="site-catalog-footer-") as temporary_dir:
+        staged_root = Path(temporary_dir)
+        staged_pages = render_site_pages(
+            root,
+            staged_root,
+            build_assets=False,
+            footer_content=normalized,
+        )
+        staged_bytes = {
+            page.relative_to(staged_root): page.read_bytes()
+            for page in staged_pages
+        }
+
+    previous_files: dict[Path, bytes | None] = {
+        content_path: content_path.read_bytes() if content_path.is_file() else None
+    }
+    previous_files.update(
+        {path: path.read_bytes() if path.is_file() else None for path in page_paths}
+    )
+
+    try:
+        atomic_write_bytes(content_path, serialize_footer_content(normalized))
+        for relative, data in staged_bytes.items():
+            atomic_write_bytes(root / relative, data)
+    except Exception:
+        rollback_errors: list[str] = []
+        for path, previous in previous_files.items():
+            try:
+                restore_file_bytes(path, previous)
+            except Exception as rollback_error:  # pragma: no cover - exceptional disk failure
+                rollback_errors.append(f"{rel_to_root(path)}: {rollback_error}")
+        if rollback_errors:
+            raise RuntimeError(
+                "Footer save failed and rollback was incomplete: " + "; ".join(rollback_errors)
+            )
+        raise
+
+    return normalized
 
 
 def group_value(value: Any) -> str:
@@ -993,6 +1077,7 @@ def state_payload() -> dict[str, Any]:
         job_summaries = [serialize_job(job, include_log=False) for job in sorted(jobs.values(), key=lambda item: item.started_at, reverse=True)[:10]]
     return {
         "catalogs": [normalize_catalog_for_ui(item) for item in config],
+        "footer": read_footer_content(PROJECT_ROOT),
         "counts": {
             "catalogs": len(config),
             "pdfs": len(iter_pdf_files()),
@@ -1006,6 +1091,7 @@ def state_payload() -> dict[str, Any]:
             "search": (PROJECT_ROOT / "catalogs.search.js").is_file(),
             "pdfDir": rel_to_root(PDF_DIR),
             "pagesDir": rel_to_root(PAGES_DIR),
+            "footerContent": rel_to_root(FOOTER_CONTENT_FILE),
         },
         "pdfFiles": pdf_files_payload(),
         "actions": [
@@ -1192,6 +1278,11 @@ class ControlHandler(BaseHTTPRequestHandler):
                 return
 
             payload = read_json_body(self)
+            if path == "/api/footer":
+                with footer_save_lock:
+                    footer = save_footer_content_and_render_pages(payload.get("footer"))
+                self.send_json({"ok": True, "footer": footer, "state": state_payload(), "updatedPages": [page.filename for page in PAGE_DOCUMENTS]})
+                return
             if path == "/api/catalogs":
                 catalogs = validate_catalogs_for_save(payload.get("catalogs"))
                 catalogs = group_catalogs_by_category_subcategory(catalogs)
