@@ -284,6 +284,7 @@ const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const VIEWER_PAGE_SWAP_CLEANUP_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
+const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
 
 const boundEventFeatures = new Set();
 
@@ -880,13 +881,14 @@ function prepareCatalogImage(url, options = {}) {
   image.fetchPriority = options.priority || "auto";
 
   const promise = new Promise((resolve, reject) => {
-    image.addEventListener("load", async () => {
-      try {
-        if (typeof image.decode === "function") await image.decode();
-      } catch (_error) {
-        // Some browsers reject decode() for images that are already usable.
-      }
-      resolve(image);
+    image.addEventListener("load", () => {
+      // Keep only lightweight readiness metadata in the promise cache. Returning
+      // the Image object itself retained its decoded bitmap indefinitely, which
+      // made a browsing session accumulate tens or hundreds of megabytes.
+      resolve({
+        width: Number(image.naturalWidth) || 0,
+        height: Number(image.naturalHeight) || 0
+      });
     }, { once: true });
 
     image.addEventListener("error", () => {
@@ -898,6 +900,10 @@ function prepareCatalogImage(url, options = {}) {
     image.src = src;
   });
 
+  if (state.catalogImageLoadCache.size >= CATALOG_IMAGE_PRELOAD_CACHE_LIMIT) {
+    const oldestSrc = state.catalogImageLoadCache.keys().next().value;
+    if (oldestSrc) state.catalogImageLoadCache.delete(oldestSrc);
+  }
   state.catalogImageLoadCache.set(src, promise);
   return promise;
 }
@@ -938,13 +944,14 @@ function finishSingleImageSwap(token) {
   applyZoom();
 }
 
-async function showSingleLightboxImage(catalog, page, src) {
+function showSingleLightboxImage(catalog, page, src) {
   if (!els.lightboxImage || !catalog || !src) return;
 
   const token = ++state.singleImageLoadToken;
   const image = els.lightboxImage;
   const currentSrc = image.getAttribute("src") || "";
   if (currentSrc === src && image.complete && image.naturalWidth) {
+    applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
     finishSingleImageSwap(token);
     return;
   }
@@ -952,35 +959,45 @@ async function showSingleLightboxImage(catalog, page, src) {
   setViewerLoading(true);
   els.lightbox?.classList.add("is-page-loading");
 
-  try {
-    const preparedImage = await prepareCatalogImage(src, { priority: "high" });
-    if (token !== state.singleImageLoadToken || !state.lightboxOpen || state.catalog !== catalog || state.page !== page) return;
+  // The visible image must own the request. The old implementation withheld
+  // its src until a second, hidden Image had loaded and decode() had completed.
+  // A stalled/expensive decode therefore left the real viewer image permanently
+  // empty. Metadata already primes the frame; the load event only corrects it
+  // when the delivered file differs from that metadata.
+  els.lightboxImageFrame?.classList.add("is-preparing-swap");
+  prepareImagePlaceholder(image);
+  image.alt = `${catalog.title} - עמוד ${page}`;
+  image.decoding = "async";
+  image.fetchPriority = "high";
 
-    // The decoded image already gives us the exact next aspect ratio. Size the
-    // frame before swapping the visible source, so the viewer transitions to a
-    // known rectangle instead of collapsing and expanding after the load event.
-    applyLightboxFrameGeometry(preparedImage.naturalWidth, preparedImage.naturalHeight, { updateFitScale: false });
-    els.lightboxImageFrame?.classList.add("is-preparing-swap");
-    prepareImagePlaceholder(image);
-    image.alt = `${catalog.title} - עמוד ${page}`;
-    image.decoding = "async";
-    image.fetchPriority = "high";
-    setCatalogImageSource(image, src);
+  let settled = false;
+  const settle = (loaded) => {
+    if (settled) return;
+    settled = true;
+    if (
+      token !== state.singleImageLoadToken
+      || !state.lightboxOpen
+      || state.catalog !== catalog
+      || state.page !== page
+      || image.getAttribute("src") !== src
+    ) return;
 
-    if (image.complete && image.naturalWidth) {
-      finishSingleImageSwap(token);
+    if (loaded && image.naturalWidth && image.naturalHeight) {
+      applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
+    } else if (!loaded) {
+      telemetryTrackImageFailure(src, { detail: "viewer-single" });
     }
 
-    runSingleImageSwapAnimation();
-  } catch (error) {
-    if (token !== state.singleImageLoadToken) return;
-    console.warn("Lightbox image preload failed", error);
-    primeLightboxFrameForCatalogPage(catalog, page);
-    prepareImagePlaceholder(image);
-    image.alt = `${catalog.title} - עמוד ${page}`;
-    setCatalogImageSource(image, src);
     finishSingleImageSwap(token);
-  }
+    if (loaded) runSingleImageSwapAnimation();
+  };
+
+  image.addEventListener("load", () => settle(true), { once: true });
+  image.addEventListener("error", () => settle(false), { once: true });
+  setCatalogImageSource(image, src);
+
+  // Cached images may already be complete before the event loop returns.
+  if (image.complete) queueMicrotask(() => settle(Boolean(image.naturalWidth)));
 }
 function pad(num) {
   return String(num).padStart(3, "0");
@@ -5596,24 +5613,36 @@ function loadViewerScrollPage(page, priority = "low") {
   const src = pageSrc(state.catalog, page);
   if (image.dataset.loadedSrc === src || image.dataset.loadingSrc === src) return;
   image.dataset.loadingSrc = src;
-  image.loading = "eager";
+  image.loading = priority === "high" ? "eager" : "lazy";
   image.fetchPriority = priority;
   prepareImagePlaceholder(image);
 
   const token = state.viewerScrollLoadToken;
-  prepareCatalogImage(src, { priority, detail: "viewer-scroll" })
-    .then(() => {
-      if (token !== state.viewerScrollLoadToken || !isScrollViewerMode() || !state.catalog) return;
-      if (pageSrc(state.catalog, page) !== src) return;
+  let settled = false;
+  const settle = (loaded) => {
+    if (settled) return;
+    settled = true;
+    if (token !== state.viewerScrollLoadToken || !isScrollViewerMode() || !state.catalog) return;
+    if (pageSrc(state.catalog, page) !== src || image.getAttribute("src") !== src) return;
+
+    delete image.dataset.loadingSrc;
+    if (loaded) {
       image.dataset.loadedSrc = src;
-      delete image.dataset.loadingSrc;
-      setCatalogImageSource(image, src);
-    })
-    .catch(() => {
-      if (token !== state.viewerScrollLoadToken || !isScrollViewerMode()) return;
-      delete image.dataset.loadingSrc;
-      setCatalogImageSource(image, src);
-    });
+    } else {
+      delete image.dataset.loadedSrc;
+      telemetryTrackImageFailure(src, { detail: "viewer-scroll" });
+    }
+    syncImagePlaceholderState(image);
+  };
+
+  image.addEventListener("load", () => settle(true), { once: true });
+  image.addEventListener("error", () => settle(false), { once: true });
+
+  // Assign the request to the element the user actually sees. Preloading with
+  // a separate Image used to gate this assignment and could leave the frame
+  // forever empty when a large WebP decode stalled or memory became tight.
+  setCatalogImageSource(image, src);
+  if (image.complete) queueMicrotask(() => settle(Boolean(image.naturalWidth)));
 }
 
 function loadViewerScrollWindow(centerPage) {
@@ -6316,25 +6345,15 @@ function openCatalogInViewer(id, page = 1, options = {}) {
 function openCurrentFavoriteInCatalog() {
   if (!state.lightboxOpen || !isFavoritesLightboxMode() || !state.catalog) return;
 
-  state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
-  state.favoritesViewerIndex = 0;
-  state.favoritesViewerOpeningHash = "";
-  state.favoritesViewerPreviousCatalog = null;
-  state.favoritesViewerPreviousPage = 1;
-  state.favoritesReturnFocus = null;
-  state.viewerLayoutMode = readViewerLayoutPreference();
-  state.zoom = AUTO_VIEWER_ZOOM;
-  resetImagePosition({ queueSingleFitOrigin: true });
-  state.pointers.clear();
+  const catalogId = state.catalog.id;
+  const page = state.page;
 
-  renderCatalogDetail();
-  renderLightboxPageRail();
-  renderLightboxCatalogMenu();
-  resetLightboxSearch();
-  syncLightboxModeUi();
-  updateLightbox();
-  updateHash();
-  showTopUiTemporarily(1700);
+  // Re-enter through the canonical catalog-viewer lifecycle instead of
+  // partially mutating favorites state in place. The old shortcut skipped the
+  // scroll viewer's initial positioning step: it loaded pages around the saved
+  // favorite but left scrollTop at page 1, so the visible frame had no src and
+  // the user saw only the viewer background.
+  openCatalogInViewer(catalogId, page, { source: LIGHTBOX_SOURCE_CATALOG });
 }
 
 function attachViewerEvents() {

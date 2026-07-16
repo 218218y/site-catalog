@@ -22,7 +22,8 @@ for (const html of [template, favorites]) {
 
 assert.match(app, /function singleImageFitLayout\(/);
 assert.match(app, /function applyLightboxFrameGeometry\(/);
-assert.match(app, /applyLightboxFrameGeometry\(preparedImage\.naturalWidth, preparedImage\.naturalHeight/);
+assert.match(app, /applyLightboxFrameGeometry\(image\.naturalWidth, image\.naturalHeight/);
+assert.match(app, /setCatalogImageSource\(image, src\);/);
 assert.match(app, /function initImagePlaceholderObserver\(/);
 assert.match(app, /new MutationObserver/);
 assert.match(app, /showActionToast\("נשמר",|const feedback = added \? "נשמר" : "הוסר"/);

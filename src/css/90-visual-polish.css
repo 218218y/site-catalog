@@ -132,6 +132,10 @@
   box-shadow: 0 18px 68px rgba(0,0,0,0.38);
 }
 
+.lightbox-image-frame.is-preparing-swap .lightbox-image {
+  opacity: 0;
+}
+
 .viewer-scroll-page.page-swap-enter,
 .lightbox-image-frame.page-swap-enter {
   animation: viewer-page-swap-enter var(--image-swap-duration) var(--image-swap-easing) both;

@@ -31,6 +31,10 @@ const testCatalog = catalogData.find((catalog) => catalog.id === "opening-tbi-20
 if (!testCatalog) throw new Error("E2E requires at least one generated catalog.");
 const CATALOG_ID = testCatalog.id;
 const CATALOG_PAGES = Math.max(1, Number(testCatalog.pages) || 1);
+const favoriteCatalogTransitionCatalog = catalogData.find((catalog) => catalog.id === "opening-fredi-2026") || testCatalog;
+const FAVORITE_CATALOG_TRANSITION_ID = favoriteCatalogTransitionCatalog.id;
+const FAVORITE_CATALOG_TRANSITION_PAGES = Math.max(1, Number(favoriteCatalogTransitionCatalog.pages) || 1);
+const FAVORITE_CATALOG_TRANSITION_PAGE = Math.min(4, FAVORITE_CATALOG_TRANSITION_PAGES);
 const CATALOG_COUNT = catalogData.length;
 const PREVIEW_PAGE = Math.min(6, CATALOG_PAGES);
 const ONBOARDING_KEY = "bargig.viewer-onboarding.v2";
@@ -257,6 +261,67 @@ test.describe("critical catalog journeys", () => {
     await page.goto("/favorites.html");
     await waitForApp(page);
     await expect(page.locator("#favoritesGrid .favorite-card")).toHaveCount(1);
+  });
+
+  test("re-enters the full scroll catalog at the saved favorite instead of showing a blank frame", async ({ page }) => {
+    await preparePage(page);
+    await page.goto(`/viewer.html?catalog=${FAVORITE_CATALOG_TRANSITION_ID}&page=${FAVORITE_CATALOG_TRANSITION_PAGE}`);
+    await waitForApp(page);
+    await expect(page.locator("#lightbox")).toBeVisible();
+    await expectCurrentViewerImageReady(page);
+
+    await page.locator("#viewerFavoriteButton").click();
+    await expect(page.locator("#viewerFavoriteButton")).toHaveAttribute("aria-pressed", "true");
+
+    await page.goto("/favorites.html");
+    await waitForApp(page);
+    const favoriteCard = page.locator(
+      `[data-favorite-catalog="${FAVORITE_CATALOG_TRANSITION_ID}"][data-favorite-page="${FAVORITE_CATALOG_TRANSITION_PAGE}"]`
+    );
+    await expect(favoriteCard).toBeVisible();
+    await favoriteCard.locator("[data-open-favorite]").click();
+
+    await expect(page).toHaveURL(new RegExp(
+      `viewer[.]html[?]catalog=${FAVORITE_CATALOG_TRANSITION_ID}&page=${FAVORITE_CATALOG_TRANSITION_PAGE}&source=favorites`
+    ));
+    await expect(page.locator("#lightbox")).toHaveClass(/favorites-viewer-mode/);
+    await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+
+    await page.locator("#favoriteOpenCatalogButton").click();
+
+    await expect(page).toHaveURL(new RegExp(
+      `viewer[.]html[?]catalog=${FAVORITE_CATALOG_TRANSITION_ID}&page=${FAVORITE_CATALOG_TRANSITION_PAGE}$`
+    ));
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    await expect(page.locator("#lightbox")).not.toHaveClass(/favorites-viewer-mode/);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(FAVORITE_CATALOG_TRANSITION_PAGE));
+
+    const scrollPages = page.locator("#viewerScrollPages");
+    const targetFrame = scrollPages.locator(`[data-scroll-page="${FAVORITE_CATALOG_TRANSITION_PAGE}"]`);
+    await expect(targetFrame).toHaveClass(/image-ready/);
+    await expect(targetFrame.locator("img")).toHaveAttribute(
+      "src",
+      new RegExp(`page-${String(FAVORITE_CATALOG_TRANSITION_PAGE).padStart(3, "0")}[.]webp`)
+    );
+    await expect.poll(() => targetFrame.evaluate((frame) => {
+      const rect = frame.getBoundingClientRect();
+      return Math.abs((rect.top + rect.height / 2) - window.innerHeight / 2);
+    })).toBeLessThanOrEqual(2);
+    if (FAVORITE_CATALOG_TRANSITION_PAGE > 1) {
+      await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
+    }
+
+    if (FAVORITE_CATALOG_TRANSITION_PAGE < FAVORITE_CATALOG_TRANSITION_PAGES) {
+      const nextPage = FAVORITE_CATALOG_TRANSITION_PAGE + 1;
+      await page.locator("#nextPageBtn").click();
+      await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(nextPage));
+      const nextFrame = scrollPages.locator(`[data-scroll-page="${nextPage}"]`);
+      await expect(nextFrame).toHaveClass(/image-ready/);
+      await expect.poll(() => nextFrame.evaluate((frame) => {
+        const rect = frame.getBoundingClientRect();
+        return Math.abs((rect.top + rect.height / 2) - window.innerHeight / 2);
+      })).toBeLessThanOrEqual(2);
+    }
   });
 
   test("supports a direct viewer link, shares the exact page, and returns home", async ({ page }) => {

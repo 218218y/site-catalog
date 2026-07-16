@@ -1380,24 +1380,36 @@ function loadViewerScrollPage(page, priority = "low") {
   const src = pageSrc(state.catalog, page);
   if (image.dataset.loadedSrc === src || image.dataset.loadingSrc === src) return;
   image.dataset.loadingSrc = src;
-  image.loading = "eager";
+  image.loading = priority === "high" ? "eager" : "lazy";
   image.fetchPriority = priority;
   prepareImagePlaceholder(image);
 
   const token = state.viewerScrollLoadToken;
-  prepareCatalogImage(src, { priority, detail: "viewer-scroll" })
-    .then(() => {
-      if (token !== state.viewerScrollLoadToken || !isScrollViewerMode() || !state.catalog) return;
-      if (pageSrc(state.catalog, page) !== src) return;
+  let settled = false;
+  const settle = (loaded) => {
+    if (settled) return;
+    settled = true;
+    if (token !== state.viewerScrollLoadToken || !isScrollViewerMode() || !state.catalog) return;
+    if (pageSrc(state.catalog, page) !== src || image.getAttribute("src") !== src) return;
+
+    delete image.dataset.loadingSrc;
+    if (loaded) {
       image.dataset.loadedSrc = src;
-      delete image.dataset.loadingSrc;
-      setCatalogImageSource(image, src);
-    })
-    .catch(() => {
-      if (token !== state.viewerScrollLoadToken || !isScrollViewerMode()) return;
-      delete image.dataset.loadingSrc;
-      setCatalogImageSource(image, src);
-    });
+    } else {
+      delete image.dataset.loadedSrc;
+      telemetryTrackImageFailure(src, { detail: "viewer-scroll" });
+    }
+    syncImagePlaceholderState(image);
+  };
+
+  image.addEventListener("load", () => settle(true), { once: true });
+  image.addEventListener("error", () => settle(false), { once: true });
+
+  // Assign the request to the element the user actually sees. Preloading with
+  // a separate Image used to gate this assignment and could leave the frame
+  // forever empty when a large WebP decode stalled or memory became tight.
+  setCatalogImageSource(image, src);
+  if (image.complete) queueMicrotask(() => settle(Boolean(image.naturalWidth)));
 }
 
 function loadViewerScrollWindow(centerPage) {
@@ -2100,25 +2112,15 @@ function openCatalogInViewer(id, page = 1, options = {}) {
 function openCurrentFavoriteInCatalog() {
   if (!state.lightboxOpen || !isFavoritesLightboxMode() || !state.catalog) return;
 
-  state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
-  state.favoritesViewerIndex = 0;
-  state.favoritesViewerOpeningHash = "";
-  state.favoritesViewerPreviousCatalog = null;
-  state.favoritesViewerPreviousPage = 1;
-  state.favoritesReturnFocus = null;
-  state.viewerLayoutMode = readViewerLayoutPreference();
-  state.zoom = AUTO_VIEWER_ZOOM;
-  resetImagePosition({ queueSingleFitOrigin: true });
-  state.pointers.clear();
+  const catalogId = state.catalog.id;
+  const page = state.page;
 
-  renderCatalogDetail();
-  renderLightboxPageRail();
-  renderLightboxCatalogMenu();
-  resetLightboxSearch();
-  syncLightboxModeUi();
-  updateLightbox();
-  updateHash();
-  showTopUiTemporarily(1700);
+  // Re-enter through the canonical catalog-viewer lifecycle instead of
+  // partially mutating favorites state in place. The old shortcut skipped the
+  // scroll viewer's initial positioning step: it loaded pages around the saved
+  // favorite but left scrollTop at page 1, so the visible frame had no src and
+  // the user saw only the viewer background.
+  openCatalogInViewer(catalogId, page, { source: LIGHTBOX_SOURCE_CATALOG });
 }
 
 function attachViewerEvents() {
