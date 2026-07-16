@@ -438,7 +438,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerAutoZoomBtn")).toBeHidden();
   });
 
-  test("lands repeated vertical page commands on exact scroll-page positions", async ({ page }) => {
+  test("cancels smooth motion for repeated vertical commands and lands exactly", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(2, Math.max(1, CATALOG_PAGES - 4));
     await openDirectViewer(page, startPage);
@@ -446,9 +446,29 @@ test.describe("critical catalog journeys", () => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
 
     const scrollPages = page.locator("#viewerScrollPages");
+    await scrollPages.evaluate((container) => {
+      const nativeScrollTo = container.scrollTo.bind(container);
+      window.__viewerE2eSmoothScrollCalls = [];
+      container.scrollTo = (...args) => {
+        const options = args[0];
+        if (options && typeof options === "object") {
+          window.__viewerE2eSmoothScrollCalls.push(options.behavior || "auto");
+        }
+        return nativeScrollTo(...args);
+      };
+    });
+
     const forwardSteps = Math.min(3, CATALOG_PAGES - startPage);
-    for (let index = 0; index < forwardSteps; index += 1) {
-      await page.keyboard.press("ArrowDown");
+    if (forwardSteps > 0) await page.keyboard.press("ArrowDown");
+    for (let index = 1; index < forwardSteps; index += 1) {
+      await page.evaluate(() => {
+        window.dispatchEvent(new KeyboardEvent("keydown", {
+          key: "ArrowDown",
+          repeat: true,
+          bubbles: true,
+          cancelable: true
+        }));
+      });
     }
     const forwardPage = startPage + forwardSteps;
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(forwardPage));
@@ -458,10 +478,20 @@ test.describe("critical catalog journeys", () => {
       const expected = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
       return Math.abs(container.scrollTop - expected);
     }, forwardPage)).toBeLessThanOrEqual(2);
+    await expect.poll(() => page.evaluate(() => window.__viewerE2eSmoothScrollCalls)).toEqual(["smooth"]);
 
+    await page.waitForTimeout(320);
     const backwardSteps = Math.min(2, forwardPage - 1);
-    for (let index = 0; index < backwardSteps; index += 1) {
-      await page.keyboard.press("ArrowUp");
+    if (backwardSteps > 0) await page.keyboard.press("ArrowUp");
+    for (let index = 1; index < backwardSteps; index += 1) {
+      await page.evaluate(() => {
+        window.dispatchEvent(new KeyboardEvent("keydown", {
+          key: "ArrowUp",
+          repeat: true,
+          bubbles: true,
+          cancelable: true
+        }));
+      });
     }
     const backwardPage = forwardPage - backwardSteps;
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(backwardPage));
@@ -471,6 +501,7 @@ test.describe("critical catalog journeys", () => {
       const expected = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
       return Math.abs(container.scrollTop - expected);
     }, backwardPage)).toBeLessThanOrEqual(2);
+    await expect.poll(() => page.evaluate(() => window.__viewerE2eSmoothScrollCalls)).toEqual(["smooth", "smooth"]);
   });
 
   test("keeps scroll-viewer boundary navigation stationary", async ({ page }) => {

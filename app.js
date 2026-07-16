@@ -275,6 +275,7 @@ const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
 const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
+const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
 
 const boundEventFeatures = new Set();
 
@@ -344,6 +345,7 @@ const state = {
   viewerScrollPageAnimationTimer: 0,
   viewerScrollSettleTimer: 0,
   viewerScrollTargetPage: 0,
+  viewerScrollLastCommandAt: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
@@ -5594,6 +5596,26 @@ function clearViewerScrollTarget() {
   state.viewerScrollTargetPage = 0;
 }
 
+function resetViewerScrollCommandSequence() {
+  state.viewerScrollLastCommandAt = 0;
+}
+
+function shouldJumpViewerScrollCommand(options = {}) {
+  const now = performance.now();
+  const elapsed = state.viewerScrollLastCommandAt > 0
+    ? now - state.viewerScrollLastCommandAt
+    : Number.POSITIVE_INFINITY;
+  const isRapidFollowUp = elapsed <= VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS;
+  state.viewerScrollLastCommandAt = now;
+
+  // A single page command keeps the polished smooth movement. Once another
+  // command joins the same sequence, native smooth scrolling becomes a queue:
+  // each destination is animated from an in-flight position and held keys feel
+  // progressively slower. Jumping the accumulated destination cancels that
+  // native animation immediately while preserving exact page alignment.
+  return Boolean(options.repeated || isRapidFollowUp || state.viewerScrollTargetPage);
+}
+
 function scrollViewerToPage(page, options = {}) {
   const container = els.viewerScrollPages;
   const frame = getViewerScrollPageFrame(page);
@@ -5684,7 +5706,7 @@ function handleViewerScrollPagesScroll() {
   });
 }
 
-function scrollViewerByViewport(direction) {
+function scrollViewerByViewport(direction, options = {}) {
   if (!isScrollViewerMode() || !els.viewerScrollPages || !state.catalog) return false;
 
   const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
@@ -5698,13 +5720,14 @@ function scrollViewerByViewport(direction) {
   const basePage = state.viewerScrollTargetPage || state.page;
   const targetPage = clampPage(basePage + step, state.catalog);
   if (targetPage === basePage) return true;
+  const jumpImmediately = shouldJumpViewerScrollCommand(options);
 
   if (isViewerScrollIsolatedZoom()) {
     exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
   }
 
   loadViewerScrollWindow(targetPage);
-  scrollViewerToPage(targetPage, { behavior: "smooth" });
+  scrollViewerToPage(targetPage, { behavior: jumpImmediately ? "auto" : "smooth" });
   return true;
 }
 
@@ -5724,6 +5747,7 @@ function setViewerLayoutMode(layoutMode, options = {}) {
   hideViewerZoomIndicator();
   state.singleImageLoadToken += 1;
   clearViewerScrollTarget();
+  resetViewerScrollCommandSequence();
   syncViewerLayoutModeUi();
 
   if (isScrollViewerMode()) {
@@ -5913,6 +5937,7 @@ function hideLightboxUi() {
   window.clearTimeout(state.viewerScrollPageAnimationTimer);
   state.viewerScrollPageAnimationTimer = 0;
   clearViewerScrollTarget();
+  resetViewerScrollCommandSequence();
   window.clearTimeout(state.singleImageAnimationTimer);
   if (els.viewerScrollPages) els.viewerScrollPages.innerHTML = "";
   els.lightbox?.classList.add("hidden");
@@ -7331,8 +7356,8 @@ function attachShellEvents() {
       return;
     }
     if (event.key === "Escape") closeLightbox();
-    else if (event.key === "ArrowDown" && scrollViewerByViewport(1)) event.preventDefault();
-    else if (event.key === "ArrowUp" && scrollViewerByViewport(-1)) event.preventDefault();
+    else if (event.key === "ArrowDown" && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
+    else if (event.key === "ArrowUp" && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
     else if (event.key === "ArrowDown" && panSingleImageBy(0, -getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowRight") moveLightbox(-1);

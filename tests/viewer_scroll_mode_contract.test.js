@@ -34,9 +34,15 @@ assert.match(app, /for \(let page = Math\.max\(1, center - 2\); page <= Math\.mi
 assert.match(app, /function handleViewerScrollPagesScroll\(\)/);
 assert.match(app, /viewerScrollPages\?\.addEventListener\("scroll", handleViewerScrollPagesScroll, \{ passive: true \}\)/);
 assert.match(app, /scrollToPage: isScrollViewerMode\(\)/);
-assert.match(app, /function scrollViewerByViewport\(direction\)/);
+assert.match(app, /const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;/);
+assert.match(app, /viewerScrollLastCommandAt: 0/);
+assert.match(app, /function shouldJumpViewerScrollCommand\(options = \{\}\)/);
+assert.match(app, /options\.repeated \|\| isRapidFollowUp \|\| state\.viewerScrollTargetPage/);
+assert.match(app, /function scrollViewerByViewport\(direction, options = \{\}\)/);
 assert.match(app, /const basePage = state\.viewerScrollTargetPage \|\| state\.page;/);
-assert.match(app, /scrollViewerToPage\(targetPage, \{ behavior: "smooth" \}\)/);
+assert.match(app, /scrollViewerToPage\(targetPage, \{ behavior: jumpImmediately \? "auto" : "smooth" \}\)/);
+assert.match(app, /scrollViewerByViewport\(1, \{ repeated: event\.repeat \}\)/);
+assert.match(app, /scrollViewerByViewport\(-1, \{ repeated: event\.repeat \}\)/);
 assert.match(app, /getZoomSurfaceName\(surface\)[\s\S]*?surface === els\.viewerScrollPages && isScrollViewerMode\(\)/);
 assert.match(app, /function isActiveZoomSurface\(surface\)\s*\{[\s\S]*?Boolean\(getZoomSurfaceName\(surface\)\)/);
 assert.match(app, /attachZoomSurfaceGestures\(els\.viewerScrollPages\)/);

@@ -65,6 +65,7 @@ const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
 const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
+const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
 
 const boundEventFeatures = new Set();
 
@@ -134,6 +135,7 @@ const state = {
   viewerScrollPageAnimationTimer: 0,
   viewerScrollSettleTimer: 0,
   viewerScrollTargetPage: 0,
+  viewerScrollLastCommandAt: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,

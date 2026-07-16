@@ -115,8 +115,8 @@ function attachShellEvents() {
       return;
     }
     if (event.key === "Escape") closeLightbox();
-    else if (event.key === "ArrowDown" && scrollViewerByViewport(1)) event.preventDefault();
-    else if (event.key === "ArrowUp" && scrollViewerByViewport(-1)) event.preventDefault();
+    else if (event.key === "ArrowDown" && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
+    else if (event.key === "ArrowUp" && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
     else if (event.key === "ArrowDown" && panSingleImageBy(0, -getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowRight") moveLightbox(-1);
