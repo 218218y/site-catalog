@@ -50,14 +50,41 @@ for (const expected of [
   "Referrer-Policy: no-referrer",
   "Permissions-Policy:",
   "X-Permitted-Cross-Domain-Policies: none",
-  "default-src 'none'",
-  "script-src 'self'",
+  "default-src 'self'",
+  "script-src 'self' https://static.cloudflareinsights.com",
+  "script-src-attr 'none'",
+  "connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com",
+  "media-src 'none'",
+  "child-src 'none'",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "https://cdn.bargig-furniture.com"
 ]) {
   assert.ok(headers.includes(expected), `Missing security header/directive: ${expected}`);
 }
+
+
+const cspLine = headers
+  .split(/\r?\n/)
+  .find((line) => line.trim().startsWith("Content-Security-Policy:"));
+assert.ok(cspLine, "Missing Content-Security-Policy header");
+const cspDirectives = cspLine
+  .slice(cspLine.indexOf(":") + 1)
+  .split(";")
+  .map((directive) => directive.trim())
+  .filter(Boolean);
+for (const directive of cspDirectives) {
+  const tokens = directive.split(/\s+/);
+  if (tokens.includes("'none'")) {
+    assert.equal(
+      tokens.length,
+      2,
+      `CSP 'none' must be the only source expression: ${directive}`
+    );
+  }
+}
+assert.ok(!cspDirectives.some((directive) => directive.startsWith("frame-src ")),
+  "Use child-src 'none' instead of frame-src 'none' so filtered-network compatibility additions remain valid");
 
 assert.doesNotMatch(siteTemplate, /<script>\s*/i);
 assert.doesNotMatch(legalTemplate, /<script>\s*/i);

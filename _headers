@@ -1,5 +1,9 @@
 # Cloudflare Pages / static hosting: keep this build out of search results while it is under construction.
 # Do not replace this with robots.txt Disallow; Google must be able to crawl the page to see noindex.
+# Keep every CSP 'none' directive isolated. Some filtered networks append their own
+# compatibility origins to selected directives; combining those with 'none' makes
+# the directive invalid in browsers. child-src keeps first-party frames blocked,
+# while a filter may still add a narrower frame-src for its own local UI.
 /*
   X-Robots-Tag: noindex, nofollow, noimageindex, nosnippet, noarchive
   Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -8,7 +12,7 @@
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=(), fullscreen=(self), clipboard-read=(self), clipboard-write=(self)
   X-Permitted-Cross-Domain-Policies: none
-  Content-Security-Policy: default-src 'none'; base-uri 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.bargig-furniture.com; connect-src 'self' https://cdn.bargig-furniture.com; font-src 'self'; manifest-src 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; worker-src 'self' blob:
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; script-src 'self' https://static.cloudflareinsights.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.bargig-furniture.com; connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com; font-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; child-src 'none'; frame-ancestors 'none'; form-action 'self'; worker-src 'self' blob:
 
 # HTML/app shell must never be stored by a browser or a custom Cloudflare Cache Rule.
 # Cloudflare serves the public pages both as *.html and as clean extensionless URLs,

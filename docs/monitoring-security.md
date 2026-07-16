@@ -113,11 +113,25 @@ comparisons are required.
 - `X-Permitted-Cross-Domain-Policies: none`
 - a restrictive Content Security Policy
 
-The CSP allows scripts only from the site itself. Images may load from the site,
-data/blob URLs needed by the viewer, and the catalog CDN. Connections are
-limited to the site and catalog CDN. Inline JavaScript is not allowed. Inline
-styles remain allowed because the viewer legitimately updates layout and CSS
-custom properties at runtime.
+The CSP allows first-party scripts plus Cloudflare's Web Analytics beacon from
+`static.cloudflareinsights.com`. Beacon delivery is allowed to the current site
+and to `cloudflareinsights.com` for Cloudflare's documented fallback/manual
+path. Images may load from the site, data/blob URLs needed by the viewer, and
+the catalog CDN. Inline JavaScript and inline script attributes are not allowed.
+Inline styles remain allowed because the viewer legitimately updates layout and
+CSS custom properties at runtime.
+
+`default-src` is intentionally set to `'self'` rather than mixing `'none'` with
+compatibility origins that some filtered networks append at the proxy layer.
+Every directive that uses `'none'` keeps it as its only source expression.
+First-party child browsing contexts remain blocked through `child-src 'none'`;
+`frame-src` is intentionally omitted so a network filter can add a narrow local
+frame exception without turning an existing `frame-src 'none'` directive into an
+invalid policy. `frame-ancestors 'none'` still prevents any site from embedding
+this catalog. Do not add filter-specific domains, `unsafe-inline`, or a console-
+reported one-off script hash to the project CSP. Those resources are not part of
+the application and hashes injected by a filtering layer are not a stable site
+contract.
 
 The HTTPS redirect was moved to `https-redirect.js`, and the 404 page style was
 moved to `404.css`, so the CSP does not need an inline-script exception.
@@ -135,6 +149,9 @@ After deployment:
 1. Open the main site and one catalog.
 2. Check `/api/telemetry` reports `storage: true`.
 3. After several minutes, run the local telemetry report.
-4. If CSP blocks a legitimate resource, investigate the exact browser console
-   violation and extend the narrowest directive only. Do not weaken
-   `default-src`, `script-src`, or `frame-ancestors` as a shortcut.
+4. If CSP blocks a legitimate first-party or Cloudflare resource, investigate
+   the exact browser console violation and extend the narrowest directive only.
+   Messages from `netfree.link`, `internal.netfree.link`, `go-payment.js`, or
+   `card-injection.js` are produced by the local filtering layer, not by this
+   repository; do not whitelist them in the public site's policy. Never weaken
+   `script-src` or `frame-ancestors` as a shortcut.
