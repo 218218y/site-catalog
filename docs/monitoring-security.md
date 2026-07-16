@@ -92,10 +92,12 @@ npm run telemetry:report -- 30
 
 The report shows event totals, opened catalogs, searches/no-result searches,
 contact and favorite actions, and runtime/image errors. Page traffic and Core
-Web Vitals remain in Cloudflare Web Analytics. Its SQL
-uses Analytics Engine's `_sample_interval`, so counts and timing averages remain
-correct when Cloudflare samples a high-volume dataset. Use `--json` for
-machine-readable output.
+Web Vitals remain in Cloudflare Web Analytics. The SQL API is called once per
+report section with a single supported `SELECT`; the Python tool merges the
+normalized rows locally instead of using `UNION ALL` or a CTE. One report run
+therefore performs six small SQL API read requests, one per section. Each query
+uses Analytics Engine's `_sample_interval`, so sampled event counts remain correct.
+Use `--json` for machine-readable output.
 
 Analytics Engine is intended for aggregated operational analytics rather than a
 per-user event log. Cloudflare currently retains Analytics Engine data for

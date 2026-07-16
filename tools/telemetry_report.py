@@ -15,7 +15,7 @@ import unicodedata
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, NamedTuple, Sequence
 
 DEFAULT_ENV_FILE = "telemetry.env"
 DEFAULT_DATASET = "bargig_catalog_telemetry"
@@ -136,44 +136,115 @@ def query_api(account_id: str, api_token: str, query: str) -> dict[str, Any]:
         raise RuntimeError(f"Could not reach Cloudflare Analytics API: {exc.reason}") from exc
 
 
-def report_query(dataset: str, days: int) -> str:
+class ReportQuery(NamedTuple):
+    section: str
+    sql: str
+
+
+def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
+    """Build Analytics Engine-compatible report queries.
+
+    Analytics Engine accepts one SELECT statement per SQL API request. Keep each
+    report section independent and merge the normalized rows in Python instead
+    of relying on UNION/CTE features that are not part of the supported query
+    grammar.
+    """
+
     interval_days = max(1, min(90, int(days)))
-    return f"""
-WITH recent AS (
-  SELECT
-    blob1 AS event_name,
-    blob2 AS page_name,
-    blob4 AS catalog_id,
-    blob5 AS search_query,
-    blob7 AS action_name,
-    blob9 AS error_code,
-    double1 AS value,
-    double2 AS duration_ms,
-    _sample_interval AS sample_interval
-  FROM {dataset}
-  WHERE timestamp >= NOW() - INTERVAL '{interval_days}' DAY
-)
-SELECT 'event' AS section, event_name AS label, SUM(sample_interval) AS count, 0 AS metric
-FROM recent GROUP BY event_name
-UNION ALL
-SELECT 'catalog', catalog_id, SUM(sample_interval), 0
-FROM recent WHERE event_name = 'catalog_open' AND catalog_id != '' GROUP BY catalog_id
-UNION ALL
-SELECT 'search', search_query, SUM(sample_interval),
-       SUM(if(value = 0, sample_interval, 0))
-FROM recent WHERE event_name = 'search' AND search_query != '' GROUP BY search_query
-UNION ALL
-SELECT 'contact', action_name, SUM(sample_interval), 0
-FROM recent WHERE event_name = 'contact' GROUP BY action_name
-UNION ALL
-SELECT 'favorite', action_name, SUM(sample_interval), 0
-FROM recent WHERE event_name = 'favorite' GROUP BY action_name
-UNION ALL
-SELECT 'error', if(error_code = '', event_name, error_code), SUM(sample_interval), 0
-FROM recent WHERE event_name IN ('js_error', 'image_error') GROUP BY error_code, event_name
-ORDER BY section, count DESC
-FORMAT JSON
-""".strip()
+    since = f"timestamp >= NOW() - INTERVAL '{interval_days}' DAY"
+
+    def query(select: str, where: str, group_by: str, limit: int = 100) -> str:
+        return (
+            f"SELECT {select}\n"
+            f"FROM {dataset}\n"
+            f"WHERE {since} AND {where}\n"
+            f"GROUP BY {group_by}\n"
+            "ORDER BY count DESC\n"
+            f"LIMIT {limit}\n"
+            "FORMAT JSON"
+        )
+
+    return (
+        ReportQuery(
+            "event",
+            query(
+                "blob1 AS label, SUM(_sample_interval) AS count",
+                "blob1 IN ('catalog_open', 'search', 'favorite', 'contact', 'js_error', 'image_error')",
+                "blob1",
+                20,
+            ),
+        ),
+        ReportQuery(
+            "catalog",
+            query(
+                "blob4 AS label, SUM(_sample_interval) AS count",
+                "blob1 = 'catalog_open' AND blob4 != ''",
+                "blob4",
+            ),
+        ),
+        ReportQuery(
+            "search",
+            query(
+                "blob5 AS label, SUM(_sample_interval) AS count, "
+                "sumIf(_sample_interval, double1 = 0) AS metric",
+                "blob1 = 'search' AND blob5 != ''",
+                "blob5",
+            ),
+        ),
+        ReportQuery(
+            "contact",
+            query(
+                "blob7 AS label, SUM(_sample_interval) AS count",
+                "blob1 = 'contact' AND blob7 != ''",
+                "blob7",
+            ),
+        ),
+        ReportQuery(
+            "favorite",
+            query(
+                "blob7 AS label, SUM(_sample_interval) AS count",
+                "blob1 = 'favorite' AND blob7 != ''",
+                "blob7",
+            ),
+        ),
+        ReportQuery(
+            "error",
+            query(
+                "if(empty(blob9), blob1, blob9) AS label, "
+                "SUM(_sample_interval) AS count",
+                "blob1 IN ('js_error', 'image_error')",
+                "if(empty(blob9), blob1, blob9)",
+            ),
+        ),
+    )
+
+
+def fetch_report_rows(
+    account_id: str,
+    api_token: str,
+    dataset: str,
+    days: int,
+) -> list[dict[str, Any]]:
+    """Execute supported single-SELECT queries and merge their rows."""
+
+    merged: list[dict[str, Any]] = []
+    for report_query in report_queries(dataset, days):
+        try:
+            payload = query_api(account_id, api_token, report_query.sql)
+            section_rows = extract_rows(payload)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Cloudflare query for report section '{report_query.section}' failed: {exc}"
+            ) from exc
+
+        for row in section_rows:
+            normalized = dict(row)
+            normalized["section"] = report_query.section
+            normalized.setdefault("label", "")
+            normalized.setdefault("count", 0)
+            normalized.setdefault("metric", 0)
+            merged.append(normalized)
+    return merged
 
 
 def extract_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -251,8 +322,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 file=sys.stderr,
             )
         account_id, api_token, dataset = settings(env_file)
-        payload = query_api(account_id, api_token, report_query(dataset, days))
-        rows = extract_rows(payload)
+        rows = fetch_report_rows(account_id, api_token, dataset, days)
         if args.json:
             print(json.dumps(rows, ensure_ascii=False, indent=2))
         else:

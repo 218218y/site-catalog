@@ -468,4 +468,6 @@ npm run telemetry:report -- 30
 
 הוראות מלאות, מבנה הנתונים ורשימת כותרות האבטחה נמצאים ב־`docs/monitoring-security.md`.
 
+כלי הדוח שולח ל־Analytics Engine שש שאילתות `SELECT` קטנות — אחת לכל אזור בדוח — ומאחד את התוצאות מקומית. אין שימוש ב־`UNION ALL` או ב־CTE, שאינם חלק מתחביר ה־SELECT הנתמך ב־SQL API של Analytics Engine.
+
 `_headers` כולל כעת CSP מצומצם, מניעת iframe, `nosniff`, מדיניות referrer, Permissions Policy ו־HSTS. קוד הפניית HTTPS עבר ל־`https-redirect.js`, ועיצוב עמוד 404 עבר ל־`404.css`, כדי לאפשר `script-src 'self'` ללא JavaScript inline.

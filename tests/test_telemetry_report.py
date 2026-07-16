@@ -15,19 +15,71 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
-def test_report_query_is_aggregate_and_bounded() -> None:
-    query = MODULE.report_query("bargig_catalog_telemetry", 200)
-    assert "INTERVAL '90' DAY" in query
-    assert "GROUP BY event_name" in query
-    assert "blob1 AS event_name" in query
-    assert "FORMAT JSON" in query
-    assert "_sample_interval AS sample_interval" in query
-    assert "SUM(sample_interval) AS count" in query
-    assert "SUM(if(value = 0, sample_interval, 0))" in query
-    assert "page_load" not in query
-    assert "first_catalog_image" not in query
-    assert "ip" not in query.lower()
-    assert "user_agent" not in query.lower()
+def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
+    queries = MODULE.report_queries("bargig_catalog_telemetry", 200)
+    assert [item.section for item in queries] == [
+        "event",
+        "catalog",
+        "search",
+        "contact",
+        "favorite",
+        "error",
+    ]
+
+    for item in queries:
+        query = item.sql
+        assert query.startswith("SELECT ")
+        assert query.count("SELECT ") == 1
+        assert "INTERVAL '90' DAY" in query
+        assert "FROM bargig_catalog_telemetry" in query
+        assert "SUM(_sample_interval) AS count" in query
+        assert query.endswith("FORMAT JSON")
+        assert "UNION" not in query
+        assert "WITH recent" not in query
+        assert "page_load" not in query
+        assert "first_catalog_image" not in query
+        assert "ip" not in query.lower()
+        assert "user_agent" not in query.lower()
+
+    search_query = next(item.sql for item in queries if item.section == "search")
+    assert "sumIf(_sample_interval, double1 = 0) AS metric" in search_query
+    error_query = next(item.sql for item in queries if item.section == "error")
+    assert "if(empty(blob9), blob1, blob9)" in error_query
+
+
+def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    def fake_query_api(account_id: str, token: str, query: str) -> dict[str, object]:
+        assert account_id == "account"
+        assert token == "token"
+        calls.append(query)
+        if "blob4 AS label" in query:
+            return {"data": [{"label": "opening-test", "count": 4}]}
+        if "blob5 AS label" in query:
+            return {"data": [{"label": "ארון", "count": 3, "metric": 1}]}
+        return {"data": []}
+
+    monkeypatch.setattr(MODULE, "query_api", fake_query_api)
+    rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
+
+    assert len(calls) == 6
+    assert all("UNION" not in query for query in calls)
+    assert rows == [
+        {"label": "opening-test", "count": 4, "section": "catalog", "metric": 0},
+        {"label": "ארון", "count": 3, "metric": 1, "section": "search"},
+    ]
+
+
+def test_fetch_report_rows_names_the_failed_section(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_query_api(_account_id: str, _token: str, query: str) -> dict[str, object]:
+        if "blob5 AS label" in query:
+            raise RuntimeError("invalid query")
+        return {"data": []}
+
+    monkeypatch.setattr(MODULE, "query_api", fake_query_api)
+    with pytest.raises(RuntimeError, match="section 'search'.*invalid query"):
+        MODULE.fetch_report_rows("account", "token", "dataset", 7)
 
 
 def test_settings_load_local_secret_file_without_committing_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
