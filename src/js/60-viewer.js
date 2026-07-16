@@ -1218,7 +1218,13 @@ function runViewerScrollPageSwapAnimation(page) {
   if (!frame) return;
 
   window.clearTimeout(state.viewerScrollPageAnimationTimer);
-  frame.classList.remove("page-swap-enter");
+  els.viewerScrollPages
+    ?.querySelectorAll(".viewer-scroll-page.page-swap-enter")
+    .forEach((animatedFrame) => animatedFrame.classList.remove("page-swap-enter"));
+
+  // Repeated page commands jump to their accumulated destination immediately,
+  // then use the same lightweight incoming-page treatment as side navigation.
+  // The layout does not animate and no intermediate pages are traversed.
   void frame.offsetWidth;
   frame.classList.add("page-swap-enter");
   state.viewerScrollPageAnimationTimer = window.setTimeout(() => {
@@ -1533,7 +1539,10 @@ function scrollViewerByViewport(direction, options = {}) {
   }
 
   loadViewerScrollWindow(targetPage);
-  scrollViewerToPage(targetPage, { behavior: jumpImmediately ? "auto" : "smooth" });
+  scrollViewerToPage(targetPage, {
+    behavior: jumpImmediately ? "auto" : "smooth",
+    animate: jumpImmediately
+  });
   return true;
 }
 

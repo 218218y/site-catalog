@@ -40,7 +40,7 @@ assert.match(app, /function shouldJumpViewerScrollCommand\(options = \{\}\)/);
 assert.match(app, /options\.repeated \|\| isRapidFollowUp \|\| state\.viewerScrollTargetPage/);
 assert.match(app, /function scrollViewerByViewport\(direction, options = \{\}\)/);
 assert.match(app, /const basePage = state\.viewerScrollTargetPage \|\| state\.page;/);
-assert.match(app, /scrollViewerToPage\(targetPage, \{ behavior: jumpImmediately \? "auto" : "smooth" \}\)/);
+assert.match(app, /scrollViewerToPage\(targetPage, \{[\s\S]*?behavior: jumpImmediately \? "auto" : "smooth",[\s\S]*?animate: jumpImmediately[\s\S]*?\}\)/);
 assert.match(app, /scrollViewerByViewport\(1, \{ repeated: event\.repeat \}\)/);
 assert.match(app, /scrollViewerByViewport\(-1, \{ repeated: event\.repeat \}\)/);
 assert.match(app, /getZoomSurfaceName\(surface\)[\s\S]*?surface === els\.viewerScrollPages && isScrollViewerMode\(\)/);
@@ -60,6 +60,7 @@ assert.match(app, /zoom > AUTO_VIEWER_ZOOM \+ 0\.001/);
 assert.match(app, /const zoom = Math\.min\(AUTO_VIEWER_ZOOM, getSafeViewerZoom\(\)\)/);
 assert.match(app, /container\.scrollTop = top;/);
 assert.match(app, /function runViewerScrollPageSwapAnimation\(page\)/);
+assert.match(app, /querySelectorAll\("\.viewer-scroll-page\.page-swap-enter"\)[\s\S]*?classList\.remove\("page-swap-enter"\)/);
 assert.match(app, /updateLightbox\(\{[\s\S]*?scrollToPage: isScrollViewerMode\(\)[\s\S]*?scrollBehavior: "auto"/);
 assert.match(app, /const showButton = Boolean\(state\.lightboxOpen && !isAutoViewerZoom\(\)\)/);
 

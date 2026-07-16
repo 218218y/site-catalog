@@ -471,6 +471,10 @@ test.describe("critical catalog journeys", () => {
       });
     }
     const forwardPage = startPage + forwardSteps;
+    if (forwardSteps > 1) {
+      await expect(scrollPages.locator(`[data-scroll-page="${forwardPage}"]`)).toHaveClass(/page-swap-enter/);
+      await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(1);
+    }
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(forwardPage));
     await expect.poll(() => scrollPages.evaluate((container, targetPage) => {
       const frame = container.querySelector(`[data-scroll-page="${targetPage}"]`);
@@ -494,6 +498,10 @@ test.describe("critical catalog journeys", () => {
       });
     }
     const backwardPage = forwardPage - backwardSteps;
+    if (backwardSteps > 1) {
+      await expect(scrollPages.locator(`[data-scroll-page="${backwardPage}"]`)).toHaveClass(/page-swap-enter/);
+      await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(1);
+    }
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(backwardPage));
     await expect.poll(() => scrollPages.evaluate((container, targetPage) => {
       const frame = container.querySelector(`[data-scroll-page="${targetPage}"]`);
