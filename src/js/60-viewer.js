@@ -1051,8 +1051,15 @@ function getViewerScrollPageLayout(page) {
     || els.stageCanvas?.clientHeight
     || window.innerHeight
     || 480;
-  const availableWidth = Math.max(220, viewportWidth - 34);
-  const availableHeight = Math.max(220, viewportHeight - 34);
+  const containerStyle = container ? window.getComputedStyle(container) : null;
+  const horizontalInset = containerStyle
+    ? Math.max(0, Number.parseFloat(containerStyle.paddingLeft) || 0)
+    : 17;
+  const verticalInset = containerStyle
+    ? Math.max(0, Number.parseFloat(containerStyle.paddingTop) || 0)
+    : 17;
+  const availableWidth = Math.max(220, viewportWidth - horizontalInset * 2);
+  const availableHeight = Math.max(220, viewportHeight - verticalInset * 2);
   const widthScale = availableWidth / size.width;
   const heightScale = availableHeight / size.height;
   const scale = state.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
@@ -1453,7 +1460,10 @@ function scrollViewerToPage(page, options = {}) {
   const targetPage = state.catalog ? clampPage(page, state.catalog) : Number(page) || 1;
   const behavior = options.behavior === "smooth" ? "smooth" : "auto";
   const top = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
-  const left = Math.max(0, frame.offsetLeft - Math.max(0, (container.clientWidth - frame.offsetWidth) / 2));
+  // Center pages on the horizontal viewport even when fit-height makes them
+  // wider than the container. Clamping the size difference before subtracting
+  // it leaves over-wide pages at scrollLeft 0 and exposes only one side.
+  const left = Math.max(0, frame.offsetLeft + (frame.offsetWidth - container.clientWidth) / 2);
 
   clearViewerScrollTarget();
   if (behavior === "smooth") {
