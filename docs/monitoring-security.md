@@ -124,22 +124,36 @@ The CSP allows first-party scripts plus Cloudflare's Web Analytics beacon from
 `static.cloudflareinsights.com`. Beacon delivery is allowed to the current site
 and to `cloudflareinsights.com` for Cloudflare's documented fallback/manual
 path. Images may load from the site, data/blob URLs needed by the viewer, and
-the catalog CDN. Inline JavaScript and inline script attributes are not allowed.
-Inline styles remain allowed because the viewer legitimately updates layout and
-CSS custom properties at runtime.
+the catalog CDN. Inline event-handler attributes remain blocked. Inline styles
+remain allowed because the viewer legitimately updates layout and CSS custom
+properties at runtime.
+
+### NetFree review-card compatibility
+
+NetFree users rely on a browser-side review card for checking filtered images and
+requesting a new review. The filtering layer injects a changing inline bootstrap
+script and opens a frame from `netfree.link`; a stable hash or a site-generated
+nonce cannot authorize that third-party injected code. The enforced policy therefore
+contains a deliberately narrow compatibility exception:
+
+- the normal `script-src` remains strict and does **not** contain `unsafe-inline`;
+- `script-src-elem` permits inline **script elements** and explicit NetFree hosts;
+- `script-src-attr 'none'` continues to block `onclick` and other inline handlers;
+- `frame-src` permits only same-origin frames and explicit `netfree.link` frames;
+- `frame-ancestors 'none'` and `X-Frame-Options: DENY` still prevent other sites
+  from embedding the catalog;
+- `unsafe-eval` remains forbidden.
+
+This is a conscious compatibility/security trade-off. Do not broaden the NetFree
+wildcards, add arbitrary third-party script hosts, or remove `script-src-attr 'none'`.
+The one-off hashes shown in the browser console are not stable and must not be copied
+into `_headers`.
 
 `default-src` is intentionally set to `'self'` rather than mixing `'none'` with
-compatibility origins that some filtered networks append at the proxy layer.
-Every directive that uses `'none'` keeps it as its only source expression.
-Frames are limited to `frame-src 'self'`. This keeps the public policy narrow
-while allowing a filtered network to append its own local frame origin without
-creating an invalid `frame-src 'none'` combination. `worker-src` remains explicit,
-and `frame-ancestors 'none'` still prevents any site from embedding this catalog.
-Do not add filter-specific domains, `unsafe-inline`, or a console-reported one-off
-script hash to the project CSP. An enforcement violation is shown as a red browser
-console error by design; changing it to report-only would stop the browser from
-blocking the injected code. Hashes injected by a filtering layer are not a stable
-site contract and can change between pages or sessions.
+compatibility origins that filtered networks may append at the proxy layer. Every
+directive that uses `'none'` keeps it as its only source expression. `worker-src`
+remains explicit, and `frame-ancestors 'none'` continues to protect against
+clickjacking.
 
 The HTTPS redirect was moved to `https-redirect.js`, and the 404 page style was
 moved to `404.css`, so the CSP does not need an inline-script exception.
@@ -157,12 +171,10 @@ After deployment:
 1. Open the main site and one catalog.
 2. Check `/api/telemetry` reports `storage: true`.
 3. After several minutes, run the local telemetry report.
-4. If CSP blocks a legitimate first-party or Cloudflare resource, investigate
-   the exact browser console violation and extend the narrowest directive only.
-   Messages from `netfree.link`, `internal.netfree.link`, `go-payment.js`, or
-   `card-injection.js` are produced by the local filtering layer, not by this
-   repository; do not whitelist them in the public site's policy. Never weaken
-   `script-src` or `frame-ancestors` as a shortcut.
+4. If CSP blocks a legitimate first-party, Cloudflare, or NetFree review-card
+   resource, investigate the exact browser console violation and extend only the
+   existing narrow compatibility directives. Never add a changing console hash,
+   `unsafe-eval`, arbitrary external hosts, or weaken `frame-ancestors`.
 
 ## Report files and long-term archive
 

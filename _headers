@@ -1,10 +1,10 @@
 # Cloudflare Pages / static hosting: keep this build out of search results while it is under construction.
 # Do not replace this with robots.txt Disallow; Google must be able to crawl the page to see noindex.
-# Keep every CSP 'none' directive isolated. Some filtered networks append their own
-# compatibility origins to selected directives; combining those with 'none' makes
-# the directive invalid in browsers. frame-src allows only same-origin frames in the
-# public policy; filtered networks may append their own narrowly scoped frame origin
-# without invalidating the directive. frame-ancestors still blocks clickjacking.
+# Keep every CSP 'none' directive isolated. NetFree injects a small review card
+# into filtered browsers. Its current integration requires an inline bootstrap script
+# plus a frame hosted on netfree.link. The compatibility exception is intentionally
+# limited to script elements (not inline event attributes) and explicit NetFree hosts.
+# frame-ancestors and X-Frame-Options still prevent other sites from embedding us.
 /*
   X-Robots-Tag: noindex, nofollow, noimageindex, nosnippet, noarchive
   Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -13,7 +13,7 @@
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=(), fullscreen=(self), clipboard-read=(self), clipboard-write=(self)
   X-Permitted-Cross-Domain-Policies: none
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; script-src 'self' https://static.cloudflareinsights.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.bargig-furniture.com; connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com; font-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'self'; frame-ancestors 'none'; form-action 'self'; worker-src 'self' blob:
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; script-src 'self' https://static.cloudflareinsights.com; script-src-elem 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://netfree.link https://*.netfree.link https://*.internal.netfree.link https://*.internal.netfree.link:12001; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.bargig-furniture.com; connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com https://netfree.link https://*.netfree.link https://*.internal.netfree.link https://*.internal.netfree.link:12001; font-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'self' https://netfree.link https://*.netfree.link; frame-ancestors 'none'; form-action 'self'; worker-src 'self' blob:
 
 # HTML/app shell must never be stored by a browser or a custom Cloudflare Cache Rule.
 # Cloudflare serves the public pages both as *.html and as clean extensionless URLs,

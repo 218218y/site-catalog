@@ -163,10 +163,13 @@ test.describe("critical catalog journeys", () => {
     const csp = await response.headerValue("content-security-policy");
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("script-src 'self' https://static.cloudflareinsights.com");
+    expect(csp).toContain("script-src-elem 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://netfree.link");
     expect(csp).toContain("script-src-attr 'none'");
-    expect(csp).toContain("frame-src 'self'");
+    expect(csp).toContain("frame-src 'self' https://netfree.link");
     expect(csp).not.toContain("frame-src 'none'");
     expect(csp).not.toContain("child-src");
+    expect(csp).not.toContain("script-src 'self' https://static.cloudflareinsights.com 'unsafe-inline'");
+    expect(csp).not.toContain("unsafe-eval");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(await response.headerValue("x-content-type-options")).toBe("nosniff");
     expect(await response.headerValue("x-frame-options")).toBe("DENY");

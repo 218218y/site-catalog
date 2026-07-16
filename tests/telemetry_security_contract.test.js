@@ -52,10 +52,11 @@ for (const expected of [
   "X-Permitted-Cross-Domain-Policies: none",
   "default-src 'self'",
   "script-src 'self' https://static.cloudflareinsights.com",
+  "script-src-elem 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://netfree.link",
   "script-src-attr 'none'",
-  "connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com",
+  "connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com https://netfree.link",
   "media-src 'none'",
-  "frame-src 'self'",
+  "frame-src 'self' https://netfree.link",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "https://cdn.bargig-furniture.com"
@@ -87,6 +88,19 @@ assert.ok(!cspDirectives.some((directive) => directive === "frame-src 'none'"),
   "Do not combine a filtered-network frame exception with frame-src 'none'");
 assert.ok(!cspDirectives.some((directive) => directive.startsWith("child-src ")),
   "frame-src and worker-src are explicit; avoid a conflicting child-src fallback");
+assert.ok(!cspDirectives.some((directive) => directive.startsWith("script-src ") && directive.includes("'unsafe-inline'")),
+  "Keep the main script-src strict; the NetFree exception belongs only in script-src-elem");
+const scriptElementDirective = cspDirectives.find((directive) => directive.startsWith("script-src-elem "));
+assert.ok(scriptElementDirective?.includes("'unsafe-inline'"),
+  "NetFree's injected bootstrap script requires the narrow script-src-elem inline exception");
+assert.ok(scriptElementDirective?.includes("https://netfree.link"),
+  "NetFree script elements must be restricted to explicit NetFree hosts");
+assert.ok(cspDirectives.some((directive) => directive.startsWith("script-src-attr ") && directive.endsWith("'none'")),
+  "Inline event-handler attributes must remain blocked");
+const frameDirective = cspDirectives.find((directive) => directive.startsWith("frame-src "));
+assert.ok(frameDirective?.includes("https://netfree.link"),
+  "The NetFree review card frame must be allowed explicitly");
+assert.ok(!cspLine.includes("'unsafe-eval'"), "CSP must never enable unsafe-eval");
 
 assert.doesNotMatch(siteTemplate, /<script>\s*/i);
 assert.doesNotMatch(legalTemplate, /<script>\s*/i);
