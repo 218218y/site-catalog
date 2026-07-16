@@ -79,17 +79,30 @@ function prepareCatalogImage(url, options = {}) {
   return promise;
 }
 
-function runSingleImageSwapAnimation() {
-  const frame = els.lightboxImageFrame;
-  if (!frame) return;
+function runViewerPageSwapAnimation(element, options = {}) {
+  const { timerKey, root = element?.parentElement } = options;
+  if (!element || !timerKey || !(timerKey in state)) return;
 
-  window.clearTimeout(state.singleImageAnimationTimer);
-  frame.classList.remove("page-swap-enter");
-  void frame.offsetWidth;
-  frame.classList.add("page-swap-enter");
-  state.singleImageAnimationTimer = window.setTimeout(() => {
-    frame.classList.remove("page-swap-enter");
-  }, 240);
+  window.clearTimeout(state[timerKey]);
+  root?.querySelectorAll?.(".page-swap-enter")
+    .forEach((animatedElement) => animatedElement.classList.remove("page-swap-enter"));
+
+  // Restart the exact same entrance animation for both the single-page frame
+  // and the active frame in continuous-scroll mode. Page positioning is
+  // already complete before this reflow, so only the incoming page animates.
+  void element.offsetWidth;
+  element.classList.add("page-swap-enter");
+  state[timerKey] = window.setTimeout(() => {
+    element.classList.remove("page-swap-enter");
+    state[timerKey] = 0;
+  }, VIEWER_PAGE_SWAP_CLEANUP_MS);
+}
+
+function runSingleImageSwapAnimation() {
+  runViewerPageSwapAnimation(els.lightboxImageFrame, {
+    timerKey: "singleImageAnimationTimer",
+    root: els.stageCanvas
+  });
 }
 
 

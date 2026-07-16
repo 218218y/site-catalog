@@ -143,11 +143,27 @@ async function openDirectViewer(page, pageNumber = 1) {
   await page.goto(`/viewer.html?catalog=${CATALOG_ID}&page=${pageNumber}`);
   await waitForApp(page);
   await expect(page.locator("#lightbox")).toBeVisible();
-  await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+  await expectCurrentViewerImageReady(page);
+}
+
+async function currentViewerSurface(page) {
+  const lightbox = page.locator("#lightbox");
+  if (await lightbox.evaluate((element) => element.classList.contains("viewer-layout-scroll"))) {
+    const currentPage = Number(await page.locator("#viewerPageIndicatorCurrent").textContent()) || 1;
+    return page.locator(`#viewerScrollPages [data-scroll-page="${currentPage}"]`);
+  }
+  return page.locator("#lightboxImageFrame");
+}
+
+async function expectCurrentViewerImageReady(page) {
+  await expect.poll(async () => {
+    const surface = await currentViewerSurface(page);
+    return surface.getAttribute("class");
+  }).toMatch(/image-ready/);
 }
 
 async function expectViewerFrameCentered(page, tolerance = 1.5) {
-  await expect.poll(async () => page.locator("#lightboxImageFrame").evaluate((frame) => {
+  await expect.poll(async () => (await currentViewerSurface(page)).evaluate((frame) => {
     const rect = frame.getBoundingClientRect();
     const horizontal = Math.abs((rect.left + rect.width / 2) - window.innerWidth / 2);
     const vertical = Math.abs((rect.top + rect.height / 2) - window.innerHeight / 2);
@@ -208,7 +224,7 @@ test.describe("critical catalog journeys", () => {
     await page.locator(`[data-open-page="${PREVIEW_PAGE}"]`).click();
     await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=${PREVIEW_PAGE}`));
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(PREVIEW_PAGE));
-    await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+    await expectCurrentViewerImageReady(page);
   });
 
   test("searches the OCR index and opens a result", async ({ page }) => {
@@ -248,7 +264,7 @@ test.describe("critical catalog journeys", () => {
     await openDirectViewer(page, 5);
 
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("5");
-    await expect(page.locator("#lightboxImage")).toHaveAttribute("src", /page-005\.webp/);
+    await expect(page.locator('#viewerScrollPages [data-scroll-page="5"] img')).toHaveAttribute("src", /page-005\.webp/);
 
     await page.locator("#lightboxCopyLink").click();
     await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).toContain(`viewer.html?catalog=${CATALOG_ID}&page=5`);
@@ -304,16 +320,13 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
   });
 
-  test("switches between side and progressively loaded vertical scroll layouts", async ({ page }) => {
+  test("starts in progressively loaded scroll layout and can switch to side layout", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(4, CATALOG_PAGES);
     await openDirectViewer(page, startPage);
 
     const toggle = page.locator("#viewerLayoutToggle");
     const scrollPages = page.locator("#viewerScrollPages");
-    await expect(toggle).toHaveAttribute("data-viewer-layout", "side");
-
-    await toggle.click();
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
     await expect(toggle).toHaveAttribute("data-viewer-layout", "scroll");
     await expect(toggle).toHaveAttribute("aria-label", "מעבר לתצוגת צדדים");
@@ -341,7 +354,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightboxImage")).toHaveAttribute("src", new RegExp(`page-${String(startPage < CATALOG_PAGES ? startPage + 1 : startPage).padStart(3, "0")}\.webp`));
   });
 
-  test("remembers scroll layout, isolates zoom-in, and jumps directly to selected pages", async ({ page }) => {
+  test("defaults to scroll, remembers only side override, isolates zoom, and jumps to selected pages", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(3, CATALOG_PAGES);
     await openDirectViewer(page, startPage);
@@ -350,8 +363,7 @@ test.describe("critical catalog journeys", () => {
     const scrollPages = page.locator("#viewerScrollPages");
     const autoZoomButton = page.locator("#viewerAutoZoomBtn");
 
-    await toggle.click();
-    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("scroll");
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBeNull();
     await page.reload();
     await waitForApp(page);
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
@@ -413,6 +425,13 @@ test.describe("critical catalog journeys", () => {
     await waitForApp(page);
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-side/);
     await expect(toggle).toHaveAttribute("data-viewer-layout", "side");
+
+    await toggle.click();
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBeNull();
+    await page.reload();
+    await waitForApp(page);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    await expect(toggle).toHaveAttribute("data-viewer-layout", "scroll");
   });
 
 
@@ -420,7 +439,6 @@ test.describe("critical catalog journeys", () => {
     await preparePage(page);
     const startPage = Math.min(4, CATALOG_PAGES);
     await openDirectViewer(page, startPage);
-    await page.locator("#viewerLayoutToggle").click();
 
     const lightbox = page.locator("#lightbox");
     const scrollPages = page.locator("#viewerScrollPages");
@@ -442,7 +460,6 @@ test.describe("critical catalog journeys", () => {
     await preparePage(page);
     const startPage = Math.min(2, Math.max(1, CATALOG_PAGES - 4));
     await openDirectViewer(page, startPage);
-    await page.locator("#viewerLayoutToggle").click();
     await page.emulateMedia({ reducedMotion: "no-preference" });
 
     const scrollPages = page.locator("#viewerScrollPages");
@@ -515,7 +532,6 @@ test.describe("critical catalog journeys", () => {
   test("keeps scroll-viewer boundary navigation stationary", async ({ page }) => {
     await preparePage(page);
     await openDirectViewer(page, 1);
-    await page.locator("#viewerLayoutToggle").click();
 
     const scrollPages = page.locator("#viewerScrollPages");
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
@@ -538,12 +554,83 @@ test.describe("critical catalog journeys", () => {
     await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(0);
   });
 
+  test("supports PageUp, PageDown, and horizontal touch swipes in scroll layout", async ({ page }) => {
+    await preparePage(page);
+    const startPage = Math.min(2, Math.max(1, CATALOG_PAGES - 2));
+    await openDirectViewer(page, startPage);
+
+    await page.keyboard.press("PageDown");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(Math.min(CATALOG_PAGES, startPage + 1)));
+    await page.keyboard.press("PageUp");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
+
+    const scrollPages = page.locator("#viewerScrollPages");
+    await scrollPages.evaluate((container) => {
+      const nativeScrollTo = container.scrollTo.bind(container);
+      window.__viewerSwipeSmoothScrollCalls = [];
+      container.scrollTo = (...args) => {
+        const options = args[0];
+        if (options && typeof options === "object") {
+          window.__viewerSwipeSmoothScrollCalls.push(options.behavior || "auto");
+        }
+        return nativeScrollTo(...args);
+      };
+    });
+
+    await scrollPages.dispatchEvent("pointerdown", {
+      pointerId: 71,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 280,
+      clientY: 430,
+      bubbles: true,
+      cancelable: true
+    });
+    await scrollPages.dispatchEvent("pointerup", {
+      pointerId: 71,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 390,
+      clientY: 438,
+      bubbles: true,
+      cancelable: true
+    });
+    const nextPage = Math.min(CATALOG_PAGES, startPage + 1);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(nextPage));
+    await expect(scrollPages.locator(`[data-scroll-page="${nextPage}"]`)).toHaveClass(/page-swap-enter/);
+    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => window.__viewerSwipeSmoothScrollCalls)).toEqual([]);
+
+    await scrollPages.dispatchEvent("pointerdown", {
+      pointerId: 72,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 390,
+      clientY: 430,
+      bubbles: true,
+      cancelable: true
+    });
+    await scrollPages.dispatchEvent("pointerup", {
+      pointerId: 72,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 280,
+      clientY: 438,
+      bubbles: true,
+      cancelable: true
+    });
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
+    await expect(scrollPages.locator(`[data-scroll-page="${startPage}"]`)).toHaveClass(/page-swap-enter/);
+    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => window.__viewerSwipeSmoothScrollCalls)).toEqual([]);
+  });
+
   test("shows a stable error state when a catalog image fails", async ({ page }) => {
     await preparePage(page, { failPages: [2] });
     await page.goto(`/viewer.html?catalog=${CATALOG_ID}&page=2`);
     await waitForApp(page);
 
-    await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-error/);
+    await expect(page.locator('#viewerScrollPages [data-scroll-page="2"]')).toHaveClass(/image-error/);
     await expect(page.locator("#viewerLoading")).toBeHidden();
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
   });
@@ -564,7 +651,7 @@ test.describe("critical catalog journeys", () => {
 
     await page.reload();
     await waitForApp(page);
-    await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+    await expectCurrentViewerImageReady(page);
     await expect(tour).toBeHidden();
     await expect(tour).toHaveAttribute("aria-hidden", "true");
   });
@@ -582,7 +669,7 @@ test.describe("critical catalog journeys", () => {
     await page.locator("#globalSearchClose").click();
 
     await page.locator(".catalog-open-button").first().click();
-    await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+    await expectCurrentViewerImageReady(page);
     await page.locator("#viewerFavoriteButton").click();
     await page.waitForTimeout(1200);
 
@@ -674,7 +761,7 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
 
   await page.locator(".catalog-open-button").first().click();
   await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=1`));
-  await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+  await expectCurrentViewerImageReady(page);
   await expectViewerFrameCentered(page);
   await page.locator("#nextPageBtn").click();
   await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");

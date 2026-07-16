@@ -29,7 +29,9 @@ function startPointerInteraction(event) {
     return;
   }
 
+  if (state.pointers.size === 0) state.pointerGestureHadMultiplePointers = false;
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (state.pointers.size >= 2) state.pointerGestureHadMultiplePointers = true;
   if (((!isScrollViewerMode() || isViewerScrollIsolatedZoom()) && viewerCanPan()) || state.pointers.size >= 2) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -120,6 +122,35 @@ function handlePotentialDoubleTap(event, startedX, startedY) {
   return true;
 }
 
+function handleViewerPageSwipe(event, startedX, startedY) {
+  if (state.pointers.size > 0 || state.pointerGestureHadMultiplePointers) return false;
+
+  const scrollMode = isScrollViewerMode();
+  if (scrollMode) {
+    if (isViewerScrollIsolatedZoom() || !isTouchLikePointer(event)) return false;
+  } else if (state.zoom > AUTO_VIEWER_ZOOM + 0.01) {
+    return false;
+  }
+
+  const dx = event.clientX - startedX;
+  const dy = event.clientY - startedY;
+  if (
+    Math.abs(dx) <= VIEWER_PAGE_SWIPE_MIN_DISTANCE
+    || Math.abs(dx) <= Math.abs(dy) * VIEWER_PAGE_SWIPE_AXIS_RATIO
+  ) {
+    return false;
+  }
+
+  event.preventDefault();
+  const direction = dx > 0 ? 1 : -1;
+
+  // A horizontal swipe is a discrete page command, just like the visible
+  // left/right controls and keyboard arrows. It must not enter the continuous
+  // viewer's native smooth-scroll path.
+  moveLightbox(direction);
+  return true;
+}
+
 function endPointerInteraction(event) {
   if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
   const startedX = state.dragStartX;
@@ -127,16 +158,7 @@ function endPointerInteraction(event) {
   state.pointers.delete(event.pointerId);
 
   const handledDoubleTap = handlePotentialDoubleTap(event, startedX, startedY);
-
-  if (!handledDoubleTap && !isScrollViewerMode() && state.pointers.size === 0 && state.zoom <= 1.01) {
-    const dx = event.clientX - startedX;
-    const dy = event.clientY - startedY;
-    if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) * 1.35) {
-      // In the RTL catalog viewer, a left-to-right swipe should advance to the next page.
-      if (dx > 0) moveLightbox(1);
-      else moveLightbox(-1);
-    }
-  }
+  if (!handledDoubleTap) handleViewerPageSwipe(event, startedX, startedY);
 
   const pointers = getPointerList();
   if (pointers.length === 1) {
@@ -145,12 +167,15 @@ function endPointerInteraction(event) {
     state.dragStartY = only.y;
     state.dragStartPanX = state.panX;
     state.dragStartPanY = state.panY;
+  } else if (pointers.length === 0) {
+    state.pointerGestureHadMultiplePointers = false;
   }
 }
 
 function cancelPointerInteraction(event) {
   if (!state.pointers.has(event.pointerId)) return;
   state.pointers.delete(event.pointerId);
+  if (state.pointers.size === 0) state.pointerGestureHadMultiplePointers = false;
 }
 
 function getWheelZoomFactor(event) {

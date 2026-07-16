@@ -244,11 +244,11 @@ function getFavoritesStorage() {
 
 function readViewerLayoutPreference() {
   try {
-    return getFavoritesStorage()?.getItem(VIEWER_LAYOUT_STORAGE_KEY) === VIEWER_LAYOUT_SCROLL
-      ? VIEWER_LAYOUT_SCROLL
-      : VIEWER_LAYOUT_SIDE;
+    return getFavoritesStorage()?.getItem(VIEWER_LAYOUT_STORAGE_KEY) === VIEWER_LAYOUT_SIDE
+      ? VIEWER_LAYOUT_SIDE
+      : VIEWER_LAYOUT_SCROLL;
   } catch (_error) {
-    return VIEWER_LAYOUT_SIDE;
+    return VIEWER_LAYOUT_SCROLL;
   }
 }
 
@@ -257,7 +257,12 @@ function writeViewerLayoutPreference(layoutMode) {
     ? VIEWER_LAYOUT_SCROLL
     : VIEWER_LAYOUT_SIDE;
   try {
-    getFavoritesStorage()?.setItem(VIEWER_LAYOUT_STORAGE_KEY, normalizedMode);
+    const storage = getFavoritesStorage();
+    if (normalizedMode === VIEWER_LAYOUT_SIDE) {
+      storage?.setItem(VIEWER_LAYOUT_STORAGE_KEY, VIEWER_LAYOUT_SIDE);
+    } else {
+      storage?.removeItem(VIEWER_LAYOUT_STORAGE_KEY);
+    }
     return true;
   } catch (_error) {
     return false;
@@ -269,11 +274,14 @@ const favoritesStore = window.BargigFavorites?.createStore?.({ storage: getFavor
 const DOUBLE_TAP_DELAY = 320;
 const DOUBLE_TAP_DISTANCE = 34;
 const TAP_MOVE_TOLERANCE = 14;
+const VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46;
+const VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35;
 const SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO = 0.06;
 const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
 const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
 const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
+const VIEWER_PAGE_SWAP_CLEANUP_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
 
@@ -315,6 +323,7 @@ const state = {
   pinchStartZoom: 1,
   pinchLastMidX: 0,
   pinchLastMidY: 0,
+  pointerGestureHadMultiplePointers: false,
   pointers: new Map(),
   lightboxOpen: false,
   lightboxSource: LIGHTBOX_SOURCE_CATALOG,
@@ -893,17 +902,30 @@ function prepareCatalogImage(url, options = {}) {
   return promise;
 }
 
-function runSingleImageSwapAnimation() {
-  const frame = els.lightboxImageFrame;
-  if (!frame) return;
+function runViewerPageSwapAnimation(element, options = {}) {
+  const { timerKey, root = element?.parentElement } = options;
+  if (!element || !timerKey || !(timerKey in state)) return;
 
-  window.clearTimeout(state.singleImageAnimationTimer);
-  frame.classList.remove("page-swap-enter");
-  void frame.offsetWidth;
-  frame.classList.add("page-swap-enter");
-  state.singleImageAnimationTimer = window.setTimeout(() => {
-    frame.classList.remove("page-swap-enter");
-  }, 240);
+  window.clearTimeout(state[timerKey]);
+  root?.querySelectorAll?.(".page-swap-enter")
+    .forEach((animatedElement) => animatedElement.classList.remove("page-swap-enter"));
+
+  // Restart the exact same entrance animation for both the single-page frame
+  // and the active frame in continuous-scroll mode. Page positioning is
+  // already complete before this reflow, so only the incoming page animates.
+  void element.offsetWidth;
+  element.classList.add("page-swap-enter");
+  state[timerKey] = window.setTimeout(() => {
+    element.classList.remove("page-swap-enter");
+    state[timerKey] = 0;
+  }, VIEWER_PAGE_SWAP_CLEANUP_MS);
+}
+
+function runSingleImageSwapAnimation() {
+  runViewerPageSwapAnimation(els.lightboxImageFrame, {
+    timerKey: "singleImageAnimationTimer",
+    root: els.stageCanvas
+  });
 }
 
 
@@ -5411,20 +5433,13 @@ function runViewerScrollPageSwapAnimation(page) {
   const frame = getViewerScrollPageFrame(page);
   if (!frame) return;
 
-  window.clearTimeout(state.viewerScrollPageAnimationTimer);
-  els.viewerScrollPages
-    ?.querySelectorAll(".viewer-scroll-page.page-swap-enter")
-    .forEach((animatedFrame) => animatedFrame.classList.remove("page-swap-enter"));
-
-  // Repeated page commands jump to their accumulated destination immediately,
-  // then use the same lightweight incoming-page treatment as side navigation.
-  // The layout does not animate and no intermediate pages are traversed.
-  void frame.offsetWidth;
-  frame.classList.add("page-swap-enter");
-  state.viewerScrollPageAnimationTimer = window.setTimeout(() => {
-    frame.classList.remove("page-swap-enter");
-    state.viewerScrollPageAnimationTimer = 0;
-  }, 260);
+  // The target page has already been positioned with an immediate jump. Reuse
+  // the single-page viewer's entrance mechanism so arrows, rail selection and
+  // touch swipes all produce one identical non-scrolling transition.
+  runViewerPageSwapAnimation(frame, {
+    timerKey: "viewerScrollPageAnimationTimer",
+    root: els.viewerScrollPages
+  });
 }
 
 function getViewerScrollZoomAnchor(clientX = null, clientY = null) {
@@ -6485,7 +6500,9 @@ function getViewerOnboardingSteps() {
       eyebrow: "מבט מקרוב",
       title: "הגדלה וגרירת התמונה",
       description: viewerZoomOnboardingCopy(),
-      target: () => els.lightboxImageFrame,
+      target: () => isScrollViewerMode()
+        ? (getViewerScrollPageFrame(state.page) || els.viewerScrollPages)
+        : els.lightboxImageFrame,
       targetRect: getViewerOnboardingImageFocusRect,
       preferredPlacement: "above",
       padding: 0,
@@ -6582,7 +6599,10 @@ function getViewerOnboardingPageRailFocusRect() {
 }
 
 function getViewerOnboardingImageFocusRect() {
-  const source = els.lightboxImageFrame?.getBoundingClientRect?.() || els.stageCanvas?.getBoundingClientRect?.();
+  const activeImageSurface = isScrollViewerMode()
+    ? (getViewerScrollPageFrame(state.page) || els.viewerScrollPages)
+    : els.lightboxImageFrame;
+  const source = activeImageSurface?.getBoundingClientRect?.() || els.stageCanvas?.getBoundingClientRect?.();
   if (!source) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -7004,7 +7024,9 @@ function startPointerInteraction(event) {
     return;
   }
 
+  if (state.pointers.size === 0) state.pointerGestureHadMultiplePointers = false;
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (state.pointers.size >= 2) state.pointerGestureHadMultiplePointers = true;
   if (((!isScrollViewerMode() || isViewerScrollIsolatedZoom()) && viewerCanPan()) || state.pointers.size >= 2) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -7095,6 +7117,35 @@ function handlePotentialDoubleTap(event, startedX, startedY) {
   return true;
 }
 
+function handleViewerPageSwipe(event, startedX, startedY) {
+  if (state.pointers.size > 0 || state.pointerGestureHadMultiplePointers) return false;
+
+  const scrollMode = isScrollViewerMode();
+  if (scrollMode) {
+    if (isViewerScrollIsolatedZoom() || !isTouchLikePointer(event)) return false;
+  } else if (state.zoom > AUTO_VIEWER_ZOOM + 0.01) {
+    return false;
+  }
+
+  const dx = event.clientX - startedX;
+  const dy = event.clientY - startedY;
+  if (
+    Math.abs(dx) <= VIEWER_PAGE_SWIPE_MIN_DISTANCE
+    || Math.abs(dx) <= Math.abs(dy) * VIEWER_PAGE_SWIPE_AXIS_RATIO
+  ) {
+    return false;
+  }
+
+  event.preventDefault();
+  const direction = dx > 0 ? 1 : -1;
+
+  // A horizontal swipe is a discrete page command, just like the visible
+  // left/right controls and keyboard arrows. It must not enter the continuous
+  // viewer's native smooth-scroll path.
+  moveLightbox(direction);
+  return true;
+}
+
 function endPointerInteraction(event) {
   if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
   const startedX = state.dragStartX;
@@ -7102,16 +7153,7 @@ function endPointerInteraction(event) {
   state.pointers.delete(event.pointerId);
 
   const handledDoubleTap = handlePotentialDoubleTap(event, startedX, startedY);
-
-  if (!handledDoubleTap && !isScrollViewerMode() && state.pointers.size === 0 && state.zoom <= 1.01) {
-    const dx = event.clientX - startedX;
-    const dy = event.clientY - startedY;
-    if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) * 1.35) {
-      // In the RTL catalog viewer, a left-to-right swipe should advance to the next page.
-      if (dx > 0) moveLightbox(1);
-      else moveLightbox(-1);
-    }
-  }
+  if (!handledDoubleTap) handleViewerPageSwipe(event, startedX, startedY);
 
   const pointers = getPointerList();
   if (pointers.length === 1) {
@@ -7120,12 +7162,15 @@ function endPointerInteraction(event) {
     state.dragStartY = only.y;
     state.dragStartPanX = state.panX;
     state.dragStartPanY = state.panY;
+  } else if (pointers.length === 0) {
+    state.pointerGestureHadMultiplePointers = false;
   }
 }
 
 function cancelPointerInteraction(event) {
   if (!state.pointers.has(event.pointerId)) return;
   state.pointers.delete(event.pointerId);
+  if (state.pointers.size === 0) state.pointerGestureHadMultiplePointers = false;
 }
 
 function getWheelZoomFactor(event) {
@@ -7365,12 +7410,17 @@ function attachShellEvents() {
       return;
     }
     if (event.key === "Escape") closeLightbox();
-    else if (event.key === "ArrowDown" && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
-    else if (event.key === "ArrowUp" && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
+    else if (["ArrowDown", "PageDown"].includes(event.key) && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
+    else if (["ArrowUp", "PageUp"].includes(event.key) && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
     else if (event.key === "ArrowDown" && panSingleImageBy(0, -getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();
-    else if (event.key === "ArrowRight") moveLightbox(-1);
-    else if (event.key === "ArrowLeft") moveLightbox(1);
+    else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      moveLightbox(-1);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      moveLightbox(1);
+    }
     else if (event.key === "Home") {
       if (isFavoritesLightboxMode()) setFavoriteViewerIndex(0);
       else setLightboxPage(1);

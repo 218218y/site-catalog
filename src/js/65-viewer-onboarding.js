@@ -112,7 +112,9 @@ function getViewerOnboardingSteps() {
       eyebrow: "מבט מקרוב",
       title: "הגדלה וגרירת התמונה",
       description: viewerZoomOnboardingCopy(),
-      target: () => els.lightboxImageFrame,
+      target: () => isScrollViewerMode()
+        ? (getViewerScrollPageFrame(state.page) || els.viewerScrollPages)
+        : els.lightboxImageFrame,
       targetRect: getViewerOnboardingImageFocusRect,
       preferredPlacement: "above",
       padding: 0,
@@ -209,7 +211,10 @@ function getViewerOnboardingPageRailFocusRect() {
 }
 
 function getViewerOnboardingImageFocusRect() {
-  const source = els.lightboxImageFrame?.getBoundingClientRect?.() || els.stageCanvas?.getBoundingClientRect?.();
+  const activeImageSurface = isScrollViewerMode()
+    ? (getViewerScrollPageFrame(state.page) || els.viewerScrollPages)
+    : els.lightboxImageFrame;
+  const source = activeImageSurface?.getBoundingClientRect?.() || els.stageCanvas?.getBoundingClientRect?.();
   if (!source) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;

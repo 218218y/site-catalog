@@ -34,11 +34,11 @@ function getFavoritesStorage() {
 
 function readViewerLayoutPreference() {
   try {
-    return getFavoritesStorage()?.getItem(VIEWER_LAYOUT_STORAGE_KEY) === VIEWER_LAYOUT_SCROLL
-      ? VIEWER_LAYOUT_SCROLL
-      : VIEWER_LAYOUT_SIDE;
+    return getFavoritesStorage()?.getItem(VIEWER_LAYOUT_STORAGE_KEY) === VIEWER_LAYOUT_SIDE
+      ? VIEWER_LAYOUT_SIDE
+      : VIEWER_LAYOUT_SCROLL;
   } catch (_error) {
-    return VIEWER_LAYOUT_SIDE;
+    return VIEWER_LAYOUT_SCROLL;
   }
 }
 
@@ -47,7 +47,12 @@ function writeViewerLayoutPreference(layoutMode) {
     ? VIEWER_LAYOUT_SCROLL
     : VIEWER_LAYOUT_SIDE;
   try {
-    getFavoritesStorage()?.setItem(VIEWER_LAYOUT_STORAGE_KEY, normalizedMode);
+    const storage = getFavoritesStorage();
+    if (normalizedMode === VIEWER_LAYOUT_SIDE) {
+      storage?.setItem(VIEWER_LAYOUT_STORAGE_KEY, VIEWER_LAYOUT_SIDE);
+    } else {
+      storage?.removeItem(VIEWER_LAYOUT_STORAGE_KEY);
+    }
     return true;
   } catch (_error) {
     return false;
@@ -59,11 +64,14 @@ const favoritesStore = window.BargigFavorites?.createStore?.({ storage: getFavor
 const DOUBLE_TAP_DELAY = 320;
 const DOUBLE_TAP_DISTANCE = 34;
 const TAP_MOVE_TOLERANCE = 14;
+const VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46;
+const VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35;
 const SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO = 0.06;
 const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
 const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
 const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
+const VIEWER_PAGE_SWAP_CLEANUP_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
 
@@ -105,6 +113,7 @@ const state = {
   pinchStartZoom: 1,
   pinchLastMidX: 0,
   pinchLastMidY: 0,
+  pointerGestureHadMultiplePointers: false,
   pointers: new Map(),
   lightboxOpen: false,
   lightboxSource: LIGHTBOX_SOURCE_CATALOG,

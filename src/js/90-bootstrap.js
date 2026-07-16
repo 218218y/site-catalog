@@ -115,12 +115,17 @@ function attachShellEvents() {
       return;
     }
     if (event.key === "Escape") closeLightbox();
-    else if (event.key === "ArrowDown" && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
-    else if (event.key === "ArrowUp" && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
+    else if (["ArrowDown", "PageDown"].includes(event.key) && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
+    else if (["ArrowUp", "PageUp"].includes(event.key) && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
     else if (event.key === "ArrowDown" && panSingleImageBy(0, -getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();
-    else if (event.key === "ArrowRight") moveLightbox(-1);
-    else if (event.key === "ArrowLeft") moveLightbox(1);
+    else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      moveLightbox(-1);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      moveLightbox(1);
+    }
     else if (event.key === "Home") {
       if (isFavoritesLightboxMode()) setFavoriteViewerIndex(0);
       else setLightboxPage(1);

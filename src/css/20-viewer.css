@@ -263,7 +263,10 @@
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--site-scrollbar-dark-thumb) var(--site-scrollbar-dark-track);
-  touch-action: pan-x pan-y;
+  /* One-finger vertical movement remains native scrolling. Horizontal touch
+     movement is reserved for the viewer's page-swipe gesture, while two-pointer
+     input continues through the custom pinch-zoom handler. */
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   direction: ltr;
 }
@@ -315,7 +318,7 @@
   direction: ltr;
 }
 .lightbox.viewer-layout-scroll .stage-canvas {
-  touch-action: pan-x pan-y;
+  touch-action: pan-y;
   cursor: default;
 }
 .lightbox.viewer-layout-scroll.viewer-scroll-zoom-isolated .stage-canvas {
@@ -335,19 +338,6 @@
 }
 .viewer-scroll-page.page-swap-enter {
   z-index: 3;
-  animation: viewer-scroll-page-swap var(--image-swap-duration) var(--image-swap-easing) both;
-}
-@keyframes viewer-scroll-page-swap {
-  from {
-    opacity: var(--image-swap-start-opacity);
-    filter: blur(1.5px) brightness(.94);
-    transform: scale(.985);
-  }
-  to {
-    opacity: 1;
-    filter: none;
-    transform: scale(1);
-  }
 }
 .lightbox.viewer-layout-scroll .loading-pill {
   display: none !important;
@@ -928,11 +918,8 @@ a.reader-home:focus-visible {
     animation: none !important;
     opacity: 1;
     filter: none;
-    transform: none;
+    scale: 1;
     transition: none !important;
-  }
-  .lightbox-image-frame.page-swap-enter {
-    transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(var(--single-zoom, 1));
   }
 }
 .reader-header-search {

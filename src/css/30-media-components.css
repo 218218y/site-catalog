@@ -155,10 +155,6 @@
 }
 .lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
 
-.lightbox-image-frame.page-swap-enter {
-  animation: lightbox-page-swap var(--image-swap-duration) var(--image-swap-easing) both;
-}
-
 .lightbox.is-page-loading .lightbox-image-frame {
   filter: brightness(.92);
 }
@@ -168,13 +164,3 @@
   backface-visibility: hidden;
 }
 
-@keyframes lightbox-page-swap {
-  from {
-    opacity: var(--image-swap-start-opacity);
-    transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(calc(var(--single-zoom, 1) * .988));
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) translate(var(--single-pan-x, 0), var(--single-pan-y, 0)) scale(var(--single-zoom, 1));
-  }
-}

@@ -1217,20 +1217,13 @@ function runViewerScrollPageSwapAnimation(page) {
   const frame = getViewerScrollPageFrame(page);
   if (!frame) return;
 
-  window.clearTimeout(state.viewerScrollPageAnimationTimer);
-  els.viewerScrollPages
-    ?.querySelectorAll(".viewer-scroll-page.page-swap-enter")
-    .forEach((animatedFrame) => animatedFrame.classList.remove("page-swap-enter"));
-
-  // Repeated page commands jump to their accumulated destination immediately,
-  // then use the same lightweight incoming-page treatment as side navigation.
-  // The layout does not animate and no intermediate pages are traversed.
-  void frame.offsetWidth;
-  frame.classList.add("page-swap-enter");
-  state.viewerScrollPageAnimationTimer = window.setTimeout(() => {
-    frame.classList.remove("page-swap-enter");
-    state.viewerScrollPageAnimationTimer = 0;
-  }, 260);
+  // The target page has already been positioned with an immediate jump. Reuse
+  // the single-page viewer's entrance mechanism so arrows, rail selection and
+  // touch swipes all produce one identical non-scrolling transition.
+  runViewerPageSwapAnimation(frame, {
+    timerKey: "viewerScrollPageAnimationTimer",
+    root: els.viewerScrollPages
+  });
 }
 
 function getViewerScrollZoomAnchor(clientX = null, clientY = null) {
