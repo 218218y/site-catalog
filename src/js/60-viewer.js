@@ -210,9 +210,10 @@ function applySingleZoom() {
 }
 
 
-function applyZoom() {
+function applyZoom(options = {}) {
   if (isScrollViewerMode()) {
-    els.lightbox?.classList.remove("is-zoomed");
+    applyViewerScrollZoom(options.scrollAnchor || null);
+    els.lightbox?.classList.toggle("is-zoomed", !isAutoViewerZoom());
     syncViewerAutoZoomButtonUi();
     return;
   }
@@ -265,7 +266,10 @@ function refreshLightboxLayoutForTopUiChange(options = {}) {
   syncLightboxTopSafeArea();
 
   if (isScrollViewerMode()) {
-    refreshViewerScrollPageGeometry({ preservePage: true });
+    refreshViewerScrollPageGeometry({
+      preservePage: true,
+      zoomAnchor: getViewerScrollZoomAnchor()
+    });
     return;
   }
 
@@ -733,7 +737,7 @@ function syncViewerFitModeUi() {
 function syncViewerAutoZoomButtonUi() {
   if (!els.viewerAutoZoomBtn) return;
 
-  const showButton = Boolean(state.lightboxOpen && !isScrollViewerMode() && !isAutoViewerZoom());
+  const showButton = Boolean(state.lightboxOpen && !isAutoViewerZoom());
 
   els.viewerAutoZoomBtn.classList.toggle("hidden", !showButton);
   els.viewerAutoZoomBtn.setAttribute("aria-hidden", showButton ? "false" : "true");
@@ -1015,9 +1019,7 @@ function getViewerScrollPageLayout(page) {
   const availableHeight = Math.max(220, container.clientHeight - 34);
   const widthScale = availableWidth / size.width;
   const heightScale = availableHeight / size.height;
-  const scale = state.imageFitMode === VIEWER_FIT_WIDTH
-    ? widthScale
-    : Math.min(heightScale, widthScale);
+  const scale = state.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
 
   return {
     width: Math.max(180, Math.round(size.width * scale)),
@@ -1029,20 +1031,107 @@ function getViewerScrollPageFrame(page) {
   return els.viewerScrollPages?.querySelector?.(`[data-scroll-page="${page}"]`) || null;
 }
 
+function getViewerScrollZoomAnchor(clientX = null, clientY = null) {
+  const container = els.viewerScrollPages;
+  if (!container || !isScrollViewerMode()) return null;
+
+  const containerRect = container.getBoundingClientRect?.();
+  if (!containerRect?.width || !containerRect?.height) return null;
+
+  const viewportX = Number.isFinite(clientX)
+    ? clampValue(clientX - containerRect.left, 0, containerRect.width)
+    : containerRect.width / 2;
+  const viewportY = Number.isFinite(clientY)
+    ? clampValue(clientY - containerRect.top, 0, containerRect.height)
+    : containerRect.height / 2;
+  const pointX = containerRect.left + viewportX;
+  const pointY = containerRect.top + viewportY;
+
+  let frame = document.elementFromPoint?.(pointX, pointY)?.closest?.("[data-scroll-page]") || null;
+  if (!frame || !container.contains(frame)) {
+    frame = getViewerScrollPageFrame(findViewerScrollCenterPage());
+  }
+  if (!frame) return null;
+
+  const frameRect = frame.getBoundingClientRect?.();
+  if (!frameRect?.width || !frameRect?.height) return null;
+
+  return {
+    page: Number.parseInt(frame.dataset.scrollPage, 10) || state.page,
+    ratioX: clampValue((pointX - frameRect.left) / frameRect.width, 0, 1),
+    ratioY: clampValue((pointY - frameRect.top) / frameRect.height, 0, 1),
+    viewportX,
+    viewportY
+  };
+}
+
+function restoreViewerScrollZoomAnchor(anchor) {
+  const container = els.viewerScrollPages;
+  if (!container || !anchor) return false;
+  const frame = getViewerScrollPageFrame(anchor.page);
+  if (!frame) return false;
+
+  const targetLeft = frame.offsetLeft + frame.offsetWidth * anchor.ratioX - anchor.viewportX;
+  const targetTop = frame.offsetTop + frame.offsetHeight * anchor.ratioY - anchor.viewportY;
+  const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+  const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+
+  container.scrollLeft = clampValue(targetLeft, 0, maxLeft);
+  container.scrollTop = clampValue(targetTop, 0, maxTop);
+  return true;
+}
+
+function flushViewerScrollZoom() {
+  const container = els.viewerScrollPages;
+  state.viewerScrollZoomRaf = 0;
+  if (!container || !isScrollViewerMode()) {
+    state.viewerScrollZoomAnchor = null;
+    return;
+  }
+
+  const zoom = getSafeViewerZoom();
+  container.querySelectorAll("[data-scroll-page]").forEach((frame) => {
+    const baseWidth = Number(frame.dataset.scrollBaseWidth);
+    const baseHeight = Number(frame.dataset.scrollBaseHeight);
+    if (!Number.isFinite(baseWidth) || !Number.isFinite(baseHeight)) return;
+    frame.style.setProperty("--viewer-scroll-page-width", `${Math.max(1, Math.round(baseWidth * zoom))}px`);
+    frame.style.setProperty("--viewer-scroll-page-height", `${Math.max(1, Math.round(baseHeight * zoom))}px`);
+  });
+
+  const anchor = state.viewerScrollZoomAnchor;
+  state.viewerScrollZoomAnchor = null;
+  if (anchor) restoreViewerScrollZoomAnchor(anchor);
+}
+
+function applyViewerScrollZoom(anchor = null, options = {}) {
+  if (anchor) state.viewerScrollZoomAnchor = anchor;
+  if (options.immediate) {
+    if (state.viewerScrollZoomRaf) cancelAnimationFrame(state.viewerScrollZoomRaf);
+    flushViewerScrollZoom();
+    return;
+  }
+
+  if (!state.viewerScrollZoomRaf) {
+    state.viewerScrollZoomRaf = requestAnimationFrame(flushViewerScrollZoom);
+  }
+}
+
 function refreshViewerScrollPageGeometry(options = {}) {
   if (!isScrollViewerMode() || !els.viewerScrollPages || !state.catalog) return;
-  const { preservePage = false } = options;
+  const { preservePage = false, zoomAnchor = null } = options;
   const currentPage = state.page;
 
   els.viewerScrollPages.querySelectorAll("[data-scroll-page]").forEach((frame) => {
     const page = Number.parseInt(frame.dataset.scrollPage, 10);
     if (!Number.isFinite(page)) return;
     const layout = getViewerScrollPageLayout(page);
-    frame.style.width = `${layout.width}px`;
-    frame.style.height = `${layout.height}px`;
+    frame.dataset.scrollBaseWidth = String(layout.width);
+    frame.dataset.scrollBaseHeight = String(layout.height);
   });
 
-  if (preservePage) {
+  applyViewerScrollZoom(zoomAnchor, { immediate: true });
+
+  if (preservePage && !zoomAnchor) {
     requestAnimationFrame(() => scrollViewerToPage(currentPage, { behavior: "auto" }));
   }
 }
@@ -1211,6 +1300,9 @@ function setViewerLayoutMode(layoutMode, options = {}) {
   const nextMode = isFavoritesLightboxMode() ? VIEWER_LAYOUT_SIDE : requestedMode;
   const changed = nextMode !== state.viewerLayoutMode;
   state.viewerLayoutMode = nextMode;
+  if (!isFavoritesLightboxMode() && options.persist !== false) {
+    writeViewerLayoutPreference(nextMode);
+  }
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
   state.pointers.clear();
@@ -1339,7 +1431,9 @@ function openLightbox(page = 1, options = {}) {
     state.favoritesReturnFocus = null;
   }
   state.imageFitMode = VIEWER_FIT_HEIGHT;
-  state.viewerLayoutMode = VIEWER_LAYOUT_SIDE;
+  state.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES
+    ? VIEWER_LAYOUT_SIDE
+    : readViewerLayoutPreference();
   state.viewerScrollCatalogId = "";
   state.viewerScrollLoadToken += 1;
   state.page = clampPage(page, state.catalog);
@@ -1382,6 +1476,9 @@ function hideLightboxUi() {
   state.viewerScrollCatalogId = "";
   if (state.viewerScrollRaf) cancelAnimationFrame(state.viewerScrollRaf);
   state.viewerScrollRaf = 0;
+  if (state.viewerScrollZoomRaf) cancelAnimationFrame(state.viewerScrollZoomRaf);
+  state.viewerScrollZoomRaf = 0;
+  state.viewerScrollZoomAnchor = null;
   clearViewerScrollTarget();
   window.clearTimeout(state.singleImageAnimationTimer);
   if (els.viewerScrollPages) els.viewerScrollPages.innerHTML = "";
@@ -1586,6 +1683,15 @@ function zoomSingleContentPointToViewportCenter(point, nextZoom) {
 
 
 function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
+  if (isScrollViewerMode()) {
+    setZoom(nextZoom, {
+      showUi: false,
+      focalClientX: clientX,
+      focalClientY: clientY
+    });
+    return true;
+  }
+
   return zoomSingleContentPointToViewportCenter(
     getSingleContentPointFromClientPoint(clientX, clientY),
     nextZoom
@@ -1604,18 +1710,23 @@ function setZoom(nextZoom, options = {}) {
   const focal = hasFocal
     ? { x: focalClientX, y: focalClientY }
     : getDefaultZoomFocalPoint();
+  const scrollAnchor = isScrollViewerMode()
+    ? getViewerScrollZoomAnchor(focal?.x, focal?.y)
+    : null;
 
   if (isAutoViewerZoom(zoom)) {
     state.zoom = AUTO_VIEWER_ZOOM;
-    resetImagePosition({ queueSingleFitOrigin: true });
+    if (!isScrollViewerMode()) {
+      resetImagePosition({ queueSingleFitOrigin: true });
+    }
   } else {
-    if (focal && Math.abs(zoom - previousZoom) > 0.001) {
+    if (!isScrollViewerMode() && focal && Math.abs(zoom - previousZoom) > 0.001) {
       adjustPanForZoom(zoom, focal);
     }
     state.zoom = zoom;
   }
 
-  applyZoom();
+  applyZoom({ scrollAnchor });
   if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
     showViewerZoomIndicator(state.zoom);
   }
@@ -1682,6 +1793,10 @@ function openCurrentFavoriteInCatalog() {
   state.favoritesViewerPreviousCatalog = null;
   state.favoritesViewerPreviousPage = 1;
   state.favoritesReturnFocus = null;
+  state.viewerLayoutMode = readViewerLayoutPreference();
+  state.zoom = AUTO_VIEWER_ZOOM;
+  resetImagePosition({ queueSingleFitOrigin: true });
+  state.pointers.clear();
 
   renderCatalogDetail();
   renderLightboxPageRail();

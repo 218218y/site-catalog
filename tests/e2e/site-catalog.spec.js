@@ -35,6 +35,7 @@ const CATALOG_COUNT = catalogData.length;
 const PREVIEW_PAGE = Math.min(6, CATALOG_PAGES);
 const ONBOARDING_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_KEY = "bargig.catalog-favorites.v1";
+const VIEWER_LAYOUT_KEY = "bargig.viewer-layout.v1";
 const VISUAL_STYLE = path.join(__dirname, "visual-stability.css");
 
 function catalogImageSvg(pageNumber, thumbnail) {
@@ -56,9 +57,10 @@ async function preparePage(page, options = {}) {
   const failPages = new Set((options.failPages || []).map(Number));
   const onboardingSeen = options.onboardingSeen !== false;
   const resetFavorites = options.resetFavorites !== false;
+  const resetViewerLayout = options.resetViewerLayout !== false;
   const captureClipboard = options.captureClipboard === true;
   const telemetryEvents = Array.isArray(options.telemetryEvents) ? options.telemetryEvents : null;
-  await page.addInitScript(({ onboardingKey, favoritesKey, onboardingSeen, resetFavorites, captureClipboard, enableTelemetry }) => {
+  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, captureClipboard, enableTelemetry }) => {
     if (enableTelemetry) window.__BARGIG_ENABLE_TELEMETRY__ = true;
     if (sessionStorage.getItem("bargig.e2e-onboarding-prepared") !== "1") {
       if (onboardingSeen) localStorage.setItem(onboardingKey, "1");
@@ -68,6 +70,10 @@ async function preparePage(page, options = {}) {
     if (resetFavorites && sessionStorage.getItem("bargig.e2e-storage-prepared") !== "1") {
       localStorage.removeItem(favoritesKey);
       sessionStorage.setItem("bargig.e2e-storage-prepared", "1");
+    }
+    if (resetViewerLayout && sessionStorage.getItem("bargig.e2e-viewer-layout-prepared") !== "1") {
+      localStorage.removeItem(viewerLayoutKey);
+      sessionStorage.setItem("bargig.e2e-viewer-layout-prepared", "1");
     }
     if (captureClipboard) {
       Object.defineProperty(navigator, "clipboard", {
@@ -82,8 +88,10 @@ async function preparePage(page, options = {}) {
   }, {
     onboardingKey: ONBOARDING_KEY,
     favoritesKey: FAVORITES_KEY,
+    viewerLayoutKey: VIEWER_LAYOUT_KEY,
     onboardingSeen,
     resetFavorites,
+    resetViewerLayout,
     captureClipboard,
     enableTelemetry: Boolean(telemetryEvents)
   });
@@ -328,6 +336,46 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-side/);
     await expect(scrollPages).toBeHidden();
     await expect(page.locator("#lightboxImage")).toHaveAttribute("src", new RegExp(`page-${String(startPage < CATALOG_PAGES ? startPage + 1 : startPage).padStart(3, "0")}\.webp`));
+  });
+
+  test("remembers the chosen layout and provides full zoom controls in scroll mode", async ({ page }) => {
+    await preparePage(page);
+    const startPage = Math.min(3, CATALOG_PAGES);
+    await openDirectViewer(page, startPage);
+
+    const toggle = page.locator("#viewerLayoutToggle");
+    const scrollPages = page.locator("#viewerScrollPages");
+    const currentFrame = scrollPages.locator(`[data-scroll-page="${startPage}"]`);
+    const autoZoomButton = page.locator("#viewerAutoZoomBtn");
+
+    await toggle.click();
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("scroll");
+    await page.reload();
+    await waitForApp(page);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    await expect(toggle).toHaveAttribute("data-viewer-layout", "scroll");
+
+    const automaticWidth = await currentFrame.evaluate((element) => element.getBoundingClientRect().width);
+    await page.mouse.move(720, 450);
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, -36);
+    await page.keyboard.up("Control");
+    await expect.poll(() => currentFrame.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(automaticWidth);
+    await expect(autoZoomButton).toBeVisible();
+    await expect(page.locator("#viewerZoomIndicator")).toContainText("%");
+
+    await autoZoomButton.click();
+    await expect(autoZoomButton).toBeHidden();
+    await expect.poll(() => currentFrame.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(Math.round(automaticWidth));
+
+    await page.mouse.move(720, 1);
+    await expect(page.locator("#lightboxBar")).toBeVisible();
+    await toggle.click();
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("side");
+    await page.reload();
+    await waitForApp(page);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-side/);
+    await expect(toggle).toHaveAttribute("data-viewer-layout", "side");
   });
 
   test("shows a stable error state when a catalog image fails", async ({ page }) => {

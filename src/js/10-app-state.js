@@ -13,6 +13,7 @@ const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
 const VIEWER_LAYOUT_SIDE = "side";
 const VIEWER_LAYOUT_SCROLL = "scroll";
+const VIEWER_LAYOUT_STORAGE_KEY = "bargig.viewer-layout.v1";
 const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
@@ -28,6 +29,28 @@ function getFavoritesStorage() {
     return window.localStorage;
   } catch (_error) {
     return null;
+  }
+}
+
+function readViewerLayoutPreference() {
+  try {
+    return getFavoritesStorage()?.getItem(VIEWER_LAYOUT_STORAGE_KEY) === VIEWER_LAYOUT_SCROLL
+      ? VIEWER_LAYOUT_SCROLL
+      : VIEWER_LAYOUT_SIDE;
+  } catch (_error) {
+    return VIEWER_LAYOUT_SIDE;
+  }
+}
+
+function writeViewerLayoutPreference(layoutMode) {
+  const normalizedMode = layoutMode === VIEWER_LAYOUT_SCROLL
+    ? VIEWER_LAYOUT_SCROLL
+    : VIEWER_LAYOUT_SIDE;
+  try {
+    getFavoritesStorage()?.setItem(VIEWER_LAYOUT_STORAGE_KEY, normalizedMode);
+    return true;
+  } catch (_error) {
+    return false;
   }
 }
 
@@ -64,7 +87,7 @@ const state = {
   zoom: 1,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
-  viewerLayoutMode: VIEWER_LAYOUT_SIDE,
+  viewerLayoutMode: readViewerLayoutPreference(),
   singleImageFitOriginPending: false,
   panX: 0,
   panY: 0,
@@ -104,6 +127,8 @@ const state = {
   viewerScrollCatalogId: "",
   viewerScrollLoadToken: 0,
   viewerScrollRaf: 0,
+  viewerScrollZoomRaf: 0,
+  viewerScrollZoomAnchor: null,
   viewerScrollSettleTimer: 0,
   viewerScrollTargetPage: 0,
   catalogImageLoadCache: new Map(),

@@ -7,18 +7,20 @@
  */
 
 function getZoomSurfaceName(surface) {
-  return surface === els.stageCanvas && !isScrollViewerMode() ? "catalog-entry" : "";
+  if (surface === els.stageCanvas && !isScrollViewerMode()) return "catalog-entry";
+  if (surface === els.viewerScrollPages && isScrollViewerMode()) return "catalog-scroll";
+  return "";
 }
 
 function isActiveZoomSurface(surface) {
-  return getZoomSurfaceName(surface) === "catalog-entry";
+  return Boolean(getZoomSurfaceName(surface));
 }
 
 function startPointerInteraction(event) {
   if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
 
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if (viewerCanPan() || state.pointers.size >= 2) {
+  if ((!isScrollViewerMode() && viewerCanPan()) || state.pointers.size >= 2) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -35,6 +37,11 @@ function startPointerInteraction(event) {
     state.pinchStartZoom = state.zoom;
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
+    if (isScrollViewerMode()) {
+      for (const pointerId of state.pointers.keys()) {
+        event.currentTarget.setPointerCapture?.(pointerId);
+      }
+    }
     event.preventDefault();
   }
 }
@@ -49,8 +56,10 @@ function movePointerInteraction(event) {
     const [first, second] = pointers;
     const distance = Math.max(1, pointerDistance(first, second));
     const mid = pointerMidpoint(first, second);
-    state.panX += mid.x - state.pinchLastMidX;
-    state.panY += mid.y - state.pinchLastMidY;
+    if (!isScrollViewerMode()) {
+      state.panX += mid.x - state.pinchLastMidX;
+      state.panY += mid.y - state.pinchLastMidY;
+    }
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
     setZoom(state.pinchStartZoom * (distance / state.pinchStartDistance), {
@@ -109,7 +118,7 @@ function endPointerInteraction(event) {
 
   const handledDoubleTap = handlePotentialDoubleTap(event, startedX, startedY);
 
-  if (!handledDoubleTap && state.pointers.size === 0 && state.zoom <= 1.01) {
+  if (!handledDoubleTap && !isScrollViewerMode() && state.pointers.size === 0 && state.zoom <= 1.01) {
     const dx = event.clientX - startedX;
     const dy = event.clientY - startedY;
     if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) * 1.35) {
@@ -164,6 +173,8 @@ function handleZoomSurfaceWheel(event) {
     return;
   }
 
+  if (isScrollViewerMode()) return;
+
   if (viewerCanPan()) {
     event.preventDefault();
     state.panX -= normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
@@ -194,6 +205,7 @@ function attachZoomSurfaceGestures(surface) {
 
 function attachViewerGestures() {
   attachZoomSurfaceGestures(els.stageCanvas);
+  attachZoomSurfaceGestures(els.viewerScrollPages);
 }
 
 function isLightboxTopInteractiveTarget(target) {

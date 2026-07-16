@@ -20,8 +20,13 @@ for (const html of [template, viewer]) {
 
 assert.match(app, /const VIEWER_LAYOUT_SIDE = "side";/);
 assert.match(app, /const VIEWER_LAYOUT_SCROLL = "scroll";/);
-assert.match(app, /viewerLayoutMode: VIEWER_LAYOUT_SIDE/);
+assert.match(app, /const VIEWER_LAYOUT_STORAGE_KEY = "bargig\.viewer-layout\.v1";/);
+assert.match(app, /function readViewerLayoutPreference\(\)/);
+assert.match(app, /function writeViewerLayoutPreference\(layoutMode\)/);
+assert.match(app, /viewerLayoutMode: readViewerLayoutPreference\(\)/);
+assert.match(app, /state\.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES[\s\S]*?readViewerLayoutPreference\(\)/);
 assert.match(app, /function setViewerLayoutMode\(layoutMode, options = \{\}\)/);
+assert.match(app, /writeViewerLayoutPreference\(nextMode\)/);
 assert.match(app, /function toggleViewerLayoutMode\(\)/);
 assert.match(app, /function renderViewerScrollPages\(\)/);
 assert.match(app, /function loadViewerScrollWindow\(centerPage\)/);
@@ -30,12 +35,20 @@ assert.match(app, /function handleViewerScrollPagesScroll\(\)/);
 assert.match(app, /viewerScrollPages\?\.addEventListener\("scroll", handleViewerScrollPagesScroll, \{ passive: true \}\)/);
 assert.match(app, /scrollToPage: isScrollViewerMode\(\)/);
 assert.match(app, /function scrollViewerByViewport\(direction\)/);
-assert.match(app, /getZoomSurfaceName\(surface\)[\s\S]*?!isScrollViewerMode\(\)/);
+assert.match(app, /getZoomSurfaceName\(surface\)[\s\S]*?surface === els\.viewerScrollPages && isScrollViewerMode\(\)/);
+assert.match(app, /function isActiveZoomSurface\(surface\)\s*\{[\s\S]*?Boolean\(getZoomSurfaceName\(surface\)\)/);
+assert.match(app, /attachZoomSurfaceGestures\(els\.viewerScrollPages\)/);
+assert.match(app, /function getViewerScrollZoomAnchor\(clientX = null, clientY = null\)/);
+assert.match(app, /function applyViewerScrollZoom\(anchor = null, options = \{\}\)/);
+assert.match(app, /const showButton = Boolean\(state\.lightboxOpen && !isAutoViewerZoom\(\)\)/);
 
 assert.match(css, /\.viewer-control-separator\s*\{/);
 assert.match(css, /\.viewer-layout-toggle\[data-viewer-layout="scroll"\]/);
-assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?overflow-y:\s*auto;/);
+assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?overflow-x:\s*auto;[\s\S]*?overflow-y:\s*auto;/);
+assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?touch-action:\s*pan-x pan-y;/);
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?scroll-snap-align:\s*center;/);
-assert.match(css, /\.lightbox\.viewer-layout-scroll \.stage-canvas\s*\{[\s\S]*?touch-action:\s*pan-y;/);
+assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?width:\s*var\(--viewer-scroll-page-width/);
+assert.match(css, /\.lightbox\.viewer-layout-scroll \.stage-canvas\s*\{[\s\S]*?touch-action:\s*pan-x pan-y;/);
+assert.doesNotMatch(css, /\.lightbox\.viewer-layout-scroll \.viewer-zoom-indicator\s*\{[\s\S]*?display:\s*none/);
 
 console.log('viewer_scroll_mode_contract.test.js: PASS');
