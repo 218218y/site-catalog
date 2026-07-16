@@ -23,3 +23,7 @@ __pycache__/
 
 telemetry.env
 ‏‏telemetry.env
+
+# Protect accidentally RTL-prefixed copies of the local telemetry secret file.
+*telemetry.env
+#U200f#U200ftelemetry.env

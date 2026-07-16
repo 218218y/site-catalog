@@ -73,7 +73,9 @@ is available to the Function.
 
 1. In Cloudflare, create an API token with the minimum account analytics read
    permission needed for Analytics Engine SQL queries.
-2. Copy `telemetry.env.example` to `telemetry.env`.
+2. Copy `telemetry.env.example` to a file named exactly `telemetry.env`.
+   If an archive or RTL-aware file manager adds hidden direction marks to the
+   filename, the report detects one unambiguous copy and asks you to rename it.
 3. Fill in the account ID and token. `telemetry.env` is ignored by Git and must
    never be uploaded.
 4. Run:
@@ -85,7 +87,7 @@ telemetry-report.bat
 or:
 
 ```bat
-npm run telemetry:report -- --days 30
+npm run telemetry:report -- 30
 ```
 
 The report shows event totals, opened catalogs, searches/no-result searches,
@@ -124,14 +126,15 @@ CSS custom properties at runtime.
 `default-src` is intentionally set to `'self'` rather than mixing `'none'` with
 compatibility origins that some filtered networks append at the proxy layer.
 Every directive that uses `'none'` keeps it as its only source expression.
-First-party child browsing contexts remain blocked through `child-src 'none'`;
-`frame-src` is intentionally omitted so a network filter can add a narrow local
-frame exception without turning an existing `frame-src 'none'` directive into an
-invalid policy. `frame-ancestors 'none'` still prevents any site from embedding
-this catalog. Do not add filter-specific domains, `unsafe-inline`, or a console-
-reported one-off script hash to the project CSP. Those resources are not part of
-the application and hashes injected by a filtering layer are not a stable site
-contract.
+Frames are limited to `frame-src 'self'`. This keeps the public policy narrow
+while allowing a filtered network to append its own local frame origin without
+creating an invalid `frame-src 'none'` combination. `worker-src` remains explicit,
+and `frame-ancestors 'none'` still prevents any site from embedding this catalog.
+Do not add filter-specific domains, `unsafe-inline`, or a console-reported one-off
+script hash to the project CSP. An enforcement violation is shown as a red browser
+console error by design; changing it to report-only would stop the browser from
+blocking the injected code. Hashes injected by a filtering layer are not a stable
+site contract and can change between pages or sessions.
 
 The HTTPS redirect was moved to `https-redirect.js`, and the 404 page style was
 moved to `404.css`, so the CSP does not need an inline-script exception.

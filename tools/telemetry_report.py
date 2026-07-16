@@ -9,7 +9,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
+import unicodedata
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -17,12 +19,53 @@ from typing import Any, Sequence
 
 DEFAULT_ENV_FILE = "telemetry.env"
 DEFAULT_DATASET = "bargig_catalog_telemetry"
+BIDI_ESCAPE_RE = re.compile(r"#u(?:200e|200f|202a|202b|202c|202d|202e|2066|2067|2068|2069)", re.IGNORECASE)
 API_URL = "https://api.cloudflare.com/client/v4/accounts/{account_id}/analytics_engine/sql"
 
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
+
+
+def normalized_env_filename(name: str) -> str:
+    """Normalize accidental bidirectional-control prefixes in copied filenames.
+
+    Some Windows/archive tools render invisible direction marks as literal strings
+    such as ``#U200f``. Credentials are never renamed automatically, but the report
+    can safely discover the intended file and tell the user to fix its name.
+    """
+
+    without_escaped_marks = BIDI_ESCAPE_RE.sub("", str(name))
+    return "".join(
+        character
+        for character in without_escaped_marks
+        if unicodedata.category(character) != "Cf"
+    )
+
+
+def resolve_env_file(path: Path) -> tuple[Path, bool]:
+    """Return the requested credential file or one unambiguously misnamed copy."""
+
+    if path.is_file():
+        return path, False
+    if path.name.casefold() != DEFAULT_ENV_FILE.casefold() or not path.parent.is_dir():
+        return path, False
+
+    candidates = [
+        candidate
+        for candidate in path.parent.iterdir()
+        if candidate.is_file()
+        and normalized_env_filename(candidate.name).casefold() == DEFAULT_ENV_FILE.casefold()
+    ]
+    if len(candidates) == 1:
+        return candidates[0], True
+    if len(candidates) > 1:
+        raise ValueError(
+            "Found multiple files that look like telemetry.env after removing hidden "
+            "direction marks. Keep one credential file and name it exactly telemetry.env."
+        )
+    return path, False
 
 def load_env_file(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
@@ -81,6 +124,13 @@ def query_api(account_id: str, api_token: str, query: str) -> dict[str, Any]:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
+        if exc.code in (401, 403):
+            raise RuntimeError(
+                f"Cloudflare rejected the report credentials ({exc.code}). Verify that the "
+                "Account ID matches the token scope and that the token has "
+                "Account > Account Analytics > Read permission. "
+                f"Cloudflare response: {detail}"
+            ) from exc
         raise RuntimeError(f"Cloudflare Analytics query failed ({exc.code}): {detail}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Could not reach Cloudflare Analytics API: {exc.reason}") from exc
@@ -168,7 +218,18 @@ def print_report(rows: list[dict[str, Any]], days: int) -> None:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--days", type=int, default=7, help="Report window in days (1-90). Default: 7")
+    parser.add_argument(
+        "days_value",
+        nargs="?",
+        type=int,
+        help="Optional report window in days. Useful with npm: npm run telemetry:report -- 30",
+    )
+    parser.add_argument(
+        "--days",
+        dest="days_option",
+        type=int,
+        help="Report window in days (1-90). Direct Python usage may use --days 30.",
+    )
     parser.add_argument("--env-file", default=DEFAULT_ENV_FILE, help=f"Credential file. Default: {DEFAULT_ENV_FILE}")
     parser.add_argument("--json", action="store_true", help="Print the raw normalized rows as JSON.")
     return parser.parse_args(argv)
@@ -176,9 +237,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    days = max(1, min(90, int(args.days)))
+    requested_days = args.days_option if args.days_option is not None else args.days_value
+    days = max(1, min(90, int(requested_days if requested_days is not None else 7)))
     try:
-        env_file = (project_root() / args.env_file).resolve(strict=False)
+        requested_env_file = Path(args.env_file)
+        if not requested_env_file.is_absolute():
+            requested_env_file = project_root() / requested_env_file
+        env_file, used_compatibility_name = resolve_env_file(requested_env_file.resolve(strict=False))
+        if used_compatibility_name:
+            print(
+                "NOTICE: found the credential file under a name with hidden/escaped "
+                "direction marks. It is being used now; rename it to telemetry.env.",
+                file=sys.stderr,
+            )
         account_id, api_token, dataset = settings(env_file)
         payload = query_api(account_id, api_token, report_query(dataset, days))
         rows = extract_rows(payload)

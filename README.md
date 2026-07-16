@@ -454,7 +454,7 @@ npm run setup:browsers
 https://bargig-furniture.com/api/telemetry
 ```
 
-לקבלת דוח מקומי מעתיקים את `telemetry.env.example` אל `telemetry.env`, ממלאים Account ID ו־API Token לקריאה בלבד, ואז מריצים:
+לקבלת דוח מקומי מעתיקים את `telemetry.env.example` אל `telemetry.env` בשם המדויק הזה, ממלאים Account ID ו־API Token לקריאה בלבד, ואז מריצים. אם Windows או כלי חילוץ הוסיף סימני כיווניות לשם הקובץ, הכלי מזהה עותק יחיד כזה ומציג בקשה לשנות את שמו ל־`telemetry.env`:
 
 ```bat
 telemetry-report.bat
@@ -463,7 +463,7 @@ telemetry-report.bat
 או:
 
 ```bat
-npm run telemetry:report -- --days 30
+npm run telemetry:report -- 30
 ```
 
 הוראות מלאות, מבנה הנתונים ורשימת כותרות האבטחה נמצאים ב־`docs/monitoring-security.md`.

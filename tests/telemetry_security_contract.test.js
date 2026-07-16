@@ -55,7 +55,7 @@ for (const expected of [
   "script-src-attr 'none'",
   "connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com",
   "media-src 'none'",
-  "child-src 'none'",
+  "frame-src 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "https://cdn.bargig-furniture.com"
@@ -83,8 +83,10 @@ for (const directive of cspDirectives) {
     );
   }
 }
-assert.ok(!cspDirectives.some((directive) => directive.startsWith("frame-src ")),
-  "Use child-src 'none' instead of frame-src 'none' so filtered-network compatibility additions remain valid");
+assert.ok(!cspDirectives.some((directive) => directive === "frame-src 'none'"),
+  "Do not combine a filtered-network frame exception with frame-src 'none'");
+assert.ok(!cspDirectives.some((directive) => directive.startsWith("child-src ")),
+  "frame-src and worker-src are explicit; avoid a conflicting child-src fallback");
 
 assert.doesNotMatch(siteTemplate, /<script>\s*/i);
 assert.doesNotMatch(legalTemplate, /<script>\s*/i);

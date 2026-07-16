@@ -56,3 +56,30 @@ def test_example_env_contains_no_credentials() -> None:
     assert "CLOUDFLARE_API_TOKEN=\n" in text
     assert "secret" not in text.lower()
     assert "telemetry.env" in (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_resolve_env_file_accepts_accidental_direction_mark_prefix(tmp_path: Path) -> None:
+    malformed = tmp_path / "#U200f#U200ftelemetry.env"
+    malformed.write_text("CLOUDFLARE_ACCOUNT_ID=a\nCLOUDFLARE_API_TOKEN=b\n", encoding="utf-8")
+    resolved, compatibility = MODULE.resolve_env_file(tmp_path / "telemetry.env")
+    assert resolved == malformed
+    assert compatibility is True
+
+
+def test_parse_args_supports_npm_positional_and_direct_option() -> None:
+    positional = MODULE.parse_args(["30"])
+    assert positional.days_value == 30
+    assert positional.days_option is None
+
+    option = MODULE.parse_args(["--days", "30"])
+    assert option.days_option == 30
+    assert option.days_value is None
+
+
+def test_resolve_env_file_prefers_exact_name(tmp_path: Path) -> None:
+    exact = tmp_path / "telemetry.env"
+    exact.write_text("", encoding="utf-8")
+    (tmp_path / "#U200ftelemetry.env").write_text("", encoding="utf-8")
+    resolved, compatibility = MODULE.resolve_env_file(exact)
+    assert resolved == exact
+    assert compatibility is False

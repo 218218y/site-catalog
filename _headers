@@ -2,8 +2,9 @@
 # Do not replace this with robots.txt Disallow; Google must be able to crawl the page to see noindex.
 # Keep every CSP 'none' directive isolated. Some filtered networks append their own
 # compatibility origins to selected directives; combining those with 'none' makes
-# the directive invalid in browsers. child-src keeps first-party frames blocked,
-# while a filter may still add a narrower frame-src for its own local UI.
+# the directive invalid in browsers. frame-src allows only same-origin frames in the
+# public policy; filtered networks may append their own narrowly scoped frame origin
+# without invalidating the directive. frame-ancestors still blocks clickjacking.
 /*
   X-Robots-Tag: noindex, nofollow, noimageindex, nosnippet, noarchive
   Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -12,7 +13,7 @@
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=(), fullscreen=(self), clipboard-read=(self), clipboard-write=(self)
   X-Permitted-Cross-Domain-Policies: none
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; script-src 'self' https://static.cloudflareinsights.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.bargig-furniture.com; connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com; font-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; child-src 'none'; frame-ancestors 'none'; form-action 'self'; worker-src 'self' blob:
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; script-src 'self' https://static.cloudflareinsights.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.bargig-furniture.com; connect-src 'self' https://cdn.bargig-furniture.com https://cloudflareinsights.com; font-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'self'; frame-ancestors 'none'; form-action 'self'; worker-src 'self' blob:
 
 # HTML/app shell must never be stored by a browser or a custom Cloudflare Cache Rule.
 # Cloudflare serves the public pages both as *.html and as clean extensionless URLs,
