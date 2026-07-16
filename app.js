@@ -5370,6 +5370,41 @@ function resumeViewerScrollFromIsolatedZoom(deltaX = 0, deltaY = 0) {
   return true;
 }
 
+function panViewerScrollIsolatedZoomByWheel(deltaX = 0, deltaY = 0) {
+  if (!isViewerScrollIsolatedZoom()) return false;
+
+  const metrics = getSingleImageDisplayMetrics();
+  if (!metrics) return false;
+
+  const safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0;
+  const safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0;
+  const previousPanX = state.panX;
+  const previousPanY = state.panY;
+
+  // A normal wheel/trackpad gesture first pans the enlarged standalone image.
+  // Only the vertical remainder that cannot be consumed inside the image is
+  // handed back to the continuous viewer, so reaching an edge feels like one
+  // uninterrupted scroll instead of an immediate zoom dismissal.
+  state.panX = previousPanX - safeDeltaX;
+  state.panY = previousPanY - safeDeltaY;
+  clampSinglePan();
+
+  const moved = Math.abs(state.panX - previousPanX) > 0.01 || Math.abs(state.panY - previousPanY) > 0.01;
+  if (moved) {
+    state.singleImageFitOriginPending = false;
+    applySingleZoom();
+  }
+
+  const consumedDeltaY = previousPanY - state.panY;
+  const remainingDeltaY = safeDeltaY - consumedDeltaY;
+  const hasVerticalExitIntent = Math.abs(safeDeltaY) > Math.abs(safeDeltaX) * 0.5;
+  if (hasVerticalExitIntent && Math.abs(remainingDeltaY) > 0.75) {
+    resumeViewerScrollFromIsolatedZoom(0, remainingDeltaY);
+  }
+
+  return true;
+}
+
 function runViewerScrollPageSwapAnimation(page) {
   const frame = getViewerScrollPageFrame(page);
   if (!frame) return;
@@ -5904,34 +5939,38 @@ function closeLightbox(options = {}) {
 
 function setLightboxPage(page, options = {}) {
   if (!state.catalog) return;
+  const nextPage = clampPage(page, state.catalog);
+
+  // Boundary navigation must be a true no-op. Previously the clamped page was
+  // rendered again, which retriggered the scroll-page jump animation even
+  // though the viewer was already on page 1 or on the final page.
+  if (nextPage === state.page) return;
+
   const {
     thumbScrollIntoView = true,
     keepZoom = true,
     resetZoom = false,
     resetPosition = isAutoViewerZoom()
   } = options;
-  const nextPage = clampPage(page, state.catalog);
   const shouldResetZoom = resetZoom || keepZoom === false;
   const shouldResetPosition = shouldResetZoom || resetPosition;
 
-  if (nextPage !== state.page) {
-    hideLightboxFloatingPreview();
-    if (isViewerScrollIsolatedZoom()) {
-      exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
-    } else if (shouldResetZoom) {
-      state.zoom = AUTO_VIEWER_ZOOM;
-    }
-
-    // Auto zoom gets a clean page origin. Manual zoom keeps the same pan between
-    // pages, so moving with arrows or selecting a page does not reopen the next
-    // image unexpectedly higher/lower after the user already positioned it.
-    if (shouldResetPosition) {
-      resetImagePosition({ queueSingleFitOrigin: true });
-    } else if (shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition })) {
-      state.singleImageFitOriginPending = false;
-    }
-    state.pointers.clear();
+  hideLightboxFloatingPreview();
+  if (isViewerScrollIsolatedZoom()) {
+    exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
+  } else if (shouldResetZoom) {
+    state.zoom = AUTO_VIEWER_ZOOM;
   }
+
+  // Auto zoom gets a clean page origin. Manual zoom keeps the same pan between
+  // pages, so moving with arrows or selecting a page does not reopen the next
+  // image unexpectedly higher/lower after the user already positioned it.
+  if (shouldResetPosition) {
+    resetImagePosition({ queueSingleFitOrigin: true });
+  } else if (shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition })) {
+    state.singleImageFitOriginPending = false;
+  }
+  state.pointers.clear();
   state.page = nextPage;
   updateLightbox({
     thumbScrollIntoView,
@@ -7077,7 +7116,7 @@ function handleZoomSurfaceWheel(event) {
     event.preventDefault();
     const deltaX = normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
     const deltaY = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
-    resumeViewerScrollFromIsolatedZoom(deltaX, deltaY);
+    panViewerScrollIsolatedZoomByWheel(deltaX, deltaY);
     return;
   }
 

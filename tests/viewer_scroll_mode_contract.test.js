@@ -43,6 +43,10 @@ assert.match(app, /function applyViewerScrollZoom\(anchor = null, options = \{\}
 assert.match(app, /function isViewerScrollIsolatedZoom\(\)/);
 assert.match(app, /function enterViewerScrollIsolatedZoom\(nextZoom, focalClientX = null, focalClientY = null\)/);
 assert.match(app, /function exitViewerScrollIsolatedZoom\(options = \{\}\)/);
+assert.match(app, /function panViewerScrollIsolatedZoomByWheel\(deltaX = 0, deltaY = 0\)/);
+assert.match(app, /const remainingDeltaY = safeDeltaY - consumedDeltaY;/);
+assert.match(app, /const hasVerticalExitIntent = Math\.abs\(safeDeltaY\) > Math\.abs\(safeDeltaX\) \* 0\.5;/);
+assert.match(app, /if \(nextPage === state\.page\) return;/);
 assert.match(app, /zoom > AUTO_VIEWER_ZOOM \+ 0\.001/);
 assert.match(app, /const zoom = Math\.min\(AUTO_VIEWER_ZOOM, getSafeViewerZoom\(\)\)/);
 assert.match(app, /container\.scrollTop = top;/);

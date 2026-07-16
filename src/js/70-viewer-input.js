@@ -187,7 +187,7 @@ function handleZoomSurfaceWheel(event) {
     event.preventDefault();
     const deltaX = normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
     const deltaY = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
-    resumeViewerScrollFromIsolatedZoom(deltaX, deltaY);
+    panViewerScrollIsolatedZoomByWheel(deltaX, deltaY);
     return;
   }
 

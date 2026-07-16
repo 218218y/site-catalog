@@ -375,7 +375,21 @@ test.describe("critical catalog journeys", () => {
     await expect(autoZoomButton).toBeVisible();
     await expect.poll(() => neighborFrame.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(Math.round(neighborWidth));
 
-    await page.mouse.wheel(0, 240);
+    const isolatedFrame = page.locator("#lightboxImageFrame");
+    const initialPan = await isolatedFrame.evaluate((element) => ({
+      x: Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0,
+      y: Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0
+    }));
+
+    await page.mouse.wheel(0, 80);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
+    await expect.poll(() => isolatedFrame.evaluate((element) => Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0)).not.toBe(initialPan.y);
+
+    await page.mouse.wheel(80, 0);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
+    await expect.poll(() => isolatedFrame.evaluate((element) => Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0)).not.toBe(initialPan.x);
+
+    await page.mouse.wheel(0, 2400);
     await expect(page.locator("#lightbox")).not.toHaveClass(/viewer-scroll-zoom-isolated/);
     await expect(scrollPages).toBeVisible();
     await expect(autoZoomButton).toBeHidden();
@@ -399,6 +413,33 @@ test.describe("critical catalog journeys", () => {
     await waitForApp(page);
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-side/);
     await expect(toggle).toHaveAttribute("data-viewer-layout", "side");
+  });
+
+
+  test("keeps scroll-viewer boundary navigation stationary", async ({ page }) => {
+    await preparePage(page);
+    await openDirectViewer(page, 1);
+    await page.locator("#viewerLayoutToggle").click();
+
+    const scrollPages = page.locator("#viewerScrollPages");
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    const firstTop = await scrollPages.evaluate((element) => element.scrollTop);
+
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
+    await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBe(firstTop);
+    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(0);
+
+    await page.keyboard.press("End");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_PAGES));
+    await page.waitForTimeout(320);
+    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(0);
+    const lastTop = await scrollPages.evaluate((element) => element.scrollTop);
+
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_PAGES));
+    await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBe(lastTop);
+    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(0);
   });
 
   test("shows a stable error state when a catalog image fails", async ({ page }) => {
