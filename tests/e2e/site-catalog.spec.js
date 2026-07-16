@@ -416,6 +416,63 @@ test.describe("critical catalog journeys", () => {
   });
 
 
+  test("toggles isolated zoom with one double-click per gesture in scroll layout", async ({ page }) => {
+    await preparePage(page);
+    const startPage = Math.min(4, CATALOG_PAGES);
+    await openDirectViewer(page, startPage);
+    await page.locator("#viewerLayoutToggle").click();
+
+    const lightbox = page.locator("#lightbox");
+    const scrollPages = page.locator("#viewerScrollPages");
+    const currentFrame = scrollPages.locator(`[data-scroll-page="${startPage}"]`);
+    await expect(currentFrame).toBeVisible();
+
+    await currentFrame.dblclick({ position: { x: 220, y: 180 } });
+    await expect(lightbox).toHaveClass(/viewer-scroll-zoom-isolated/);
+    await expect(scrollPages).toBeHidden();
+    await expect(page.locator("#viewerAutoZoomBtn")).toBeVisible();
+
+    await page.mouse.dblclick(720, 450, { delay: 70 });
+    await expect(lightbox).not.toHaveClass(/viewer-scroll-zoom-isolated/);
+    await expect(scrollPages).toBeVisible();
+    await expect(page.locator("#viewerAutoZoomBtn")).toBeHidden();
+  });
+
+  test("lands repeated vertical page commands on exact scroll-page positions", async ({ page }) => {
+    await preparePage(page);
+    const startPage = Math.min(2, Math.max(1, CATALOG_PAGES - 4));
+    await openDirectViewer(page, startPage);
+    await page.locator("#viewerLayoutToggle").click();
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+
+    const scrollPages = page.locator("#viewerScrollPages");
+    const forwardSteps = Math.min(3, CATALOG_PAGES - startPage);
+    for (let index = 0; index < forwardSteps; index += 1) {
+      await page.keyboard.press("ArrowDown");
+    }
+    const forwardPage = startPage + forwardSteps;
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(forwardPage));
+    await expect.poll(() => scrollPages.evaluate((container, targetPage) => {
+      const frame = container.querySelector(`[data-scroll-page="${targetPage}"]`);
+      if (!frame) return Number.POSITIVE_INFINITY;
+      const expected = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
+      return Math.abs(container.scrollTop - expected);
+    }, forwardPage)).toBeLessThanOrEqual(2);
+
+    const backwardSteps = Math.min(2, forwardPage - 1);
+    for (let index = 0; index < backwardSteps; index += 1) {
+      await page.keyboard.press("ArrowUp");
+    }
+    const backwardPage = forwardPage - backwardSteps;
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(backwardPage));
+    await expect.poll(() => scrollPages.evaluate((container, targetPage) => {
+      const frame = container.querySelector(`[data-scroll-page="${targetPage}"]`);
+      if (!frame) return Number.POSITIVE_INFINITY;
+      const expected = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
+      return Math.abs(container.scrollTop - expected);
+    }, backwardPage)).toBeLessThanOrEqual(2);
+  });
+
   test("keeps scroll-viewer boundary navigation stationary", async ({ page }) => {
     await preparePage(page);
     await openDirectViewer(page, 1);

@@ -205,7 +205,13 @@ function handleZoomSurfaceDoubleClick(event) {
   if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
   if (Date.now() < state.suppressNextDblClickUntil) return;
 
+  // viewerScrollPages is nested inside stageCanvas and both are valid zoom
+  // surfaces in different viewer states. A double-click that enters isolated
+  // scroll zoom makes stageCanvas active before the same bubbling event reaches
+  // it, so without stopping propagation the event is handled twice: zoom in,
+  // then immediately reset to automatic zoom.
   event.preventDefault();
+  event.stopPropagation();
   toggleZoomAtPoint(event.clientX, event.clientY);
 }
 

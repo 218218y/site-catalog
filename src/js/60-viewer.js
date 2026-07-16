@@ -1493,14 +1493,26 @@ function handleViewerScrollPagesScroll() {
 }
 
 function scrollViewerByViewport(direction) {
-  if (!isScrollViewerMode() || !els.viewerScrollPages) return false;
-  clearViewerScrollTarget();
-  const amount = Math.max(160, els.viewerScrollPages.clientHeight * 0.72) * direction;
+  if (!isScrollViewerMode() || !els.viewerScrollPages || !state.catalog) return false;
+
+  const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
+  if (!step) return true;
+
+  // Keyboard page navigation is page-based, not distance-based. Using a
+  // percentage of the viewport made repeated presses accumulate from an
+  // in-flight scroll position and could stop halfway through a page. While a
+  // smooth navigation is running, build the next press from its intended page
+  // so every command has one stable, exact destination.
+  const basePage = state.viewerScrollTargetPage || state.page;
+  const targetPage = clampPage(basePage + step, state.catalog);
+  if (targetPage === basePage) return true;
+
   if (isViewerScrollIsolatedZoom()) {
-    resumeViewerScrollFromIsolatedZoom(0, amount);
-    return true;
+    exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
   }
-  els.viewerScrollPages.scrollBy({ top: amount, behavior: "smooth" });
+
+  loadViewerScrollWindow(targetPage);
+  scrollViewerToPage(targetPage, { behavior: "smooth" });
   return true;
 }
 
