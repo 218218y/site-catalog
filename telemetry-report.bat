@@ -9,7 +9,7 @@ if exist ".venv\Scripts\python.exe" (
   set "PYTHON_EXE=python"
 )
 
-%PYTHON_EXE% tools\telemetry_report.py %*
+%PYTHON_EXE% tools\telemetry_report.py --open %*
 if errorlevel 1 (
   echo.
   echo The telemetry report could not be created. Read the error above.
@@ -18,4 +18,5 @@ if errorlevel 1 (
 )
 
 echo.
+echo The report was saved under reports\telemetry and opened in your browser.
 pause

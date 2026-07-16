@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Print a privacy-first operational report from Cloudflare Analytics Engine.
+"""Create privacy-first operational reports from Cloudflare Analytics Engine.
 
 Credentials are read from telemetry.env by default. The file is intentionally
 ignored by Git and must never be uploaded with the public site.
+
+The default output is an RTL HTML report plus a UTF-8-BOM CSV file under
+reports/telemetry/. This avoids bidirectional text problems in PowerShell and
+creates an archive that can be opened later in a browser or spreadsheet.
 """
 from __future__ import annotations
 
 import argparse
+import csv
+import html
 import json
 import os
 import re
@@ -14,27 +20,48 @@ import sys
 import unicodedata
 import urllib.error
 import urllib.request
+import webbrowser
+from datetime import datetime
 from pathlib import Path
 from typing import Any, NamedTuple, Sequence
 
 DEFAULT_ENV_FILE = "telemetry.env"
 DEFAULT_DATASET = "bargig_catalog_telemetry"
+DEFAULT_OUTPUT_DIR = "reports/telemetry"
 BIDI_ESCAPE_RE = re.compile(r"#u(?:200e|200f|202a|202b|202c|202d|202e|2066|2067|2068|2069)", re.IGNORECASE)
 API_URL = "https://api.cloudflare.com/client/v4/accounts/{account_id}/analytics_engine/sql"
+
+SECTION_TITLES_HE = {
+    "event": "סיכום פעולות",
+    "catalog": "קטלוגים שנפתחו",
+    "search": "חיפושים",
+    "contact": "לחיצות ליצירת קשר",
+    "favorite": "פעולות במועדפים",
+    "error": "שגיאות JavaScript ותמונות",
+}
+
+EVENT_LABELS_HE = {
+    "catalog_open": "פתיחת קטלוג",
+    "search": "חיפוש",
+    "favorite": "פעולה במועדפים",
+    "contact": "לחיצה ליצירת קשר",
+    "js_error": "שגיאת JavaScript",
+    "image_error": "כשל בטעינת תמונה",
+    "phone": "טלפון",
+    "email": "דוא״ל רגיל",
+    "gmail": "Gmail",
+    "add": "הוספה",
+    "remove": "הסרה",
+    "clear": "ניקוי הרשימה",
+}
 
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-
 def normalized_env_filename(name: str) -> str:
-    """Normalize accidental bidirectional-control prefixes in copied filenames.
-
-    Some Windows/archive tools render invisible direction marks as literal strings
-    such as ``#U200f``. Credentials are never renamed automatically, but the report
-    can safely discover the intended file and tell the user to fix its name.
-    """
+    """Normalize accidental bidirectional-control prefixes in copied filenames."""
 
     without_escaped_marks = BIDI_ESCAPE_RE.sub("", str(name))
     return "".join(
@@ -66,6 +93,7 @@ def resolve_env_file(path: Path) -> tuple[Path, bool]:
             "direction marks. Keep one credential file and name it exactly telemetry.env."
         )
     return path, False
+
 
 def load_env_file(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
@@ -115,7 +143,7 @@ def query_api(account_id: str, api_token: str, query: str) -> dict[str, Any]:
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "text/plain; charset=utf-8",
             "Accept": "application/json",
-            "User-Agent": "bargig-catalog-telemetry-report/1.0",
+            "User-Agent": "bargig-catalog-telemetry-report/1.1",
         },
         method="POST",
     )
@@ -142,13 +170,7 @@ class ReportQuery(NamedTuple):
 
 
 def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
-    """Build Analytics Engine-compatible report queries.
-
-    Analytics Engine accepts one SELECT statement per SQL API request. Keep each
-    report section independent and merge the normalized rows in Python instead
-    of relying on UNION/CTE features that are not part of the supported query
-    grammar.
-    """
+    """Build Analytics Engine-compatible report queries."""
 
     interval_days = max(1, min(90, int(days)))
     since = f"timestamp >= NOW() - INTERVAL '{interval_days}' DAY"
@@ -238,18 +260,12 @@ def fetch_report_rows(
             ) from exc
 
         for row in section_rows:
-            normalized = normalize_report_row(report_query.section, row)
-            merged.append(normalized)
+            merged.append(normalize_report_row(report_query.section, row))
     return merged
 
 
 def normalize_report_row(section: str, row: dict[str, Any]) -> dict[str, Any]:
-    """Normalize one Analytics Engine row into the report's shared schema.
-
-    Analytics Engine only accepts physical column names in ``GROUP BY``. Error
-    rows are therefore grouped by ``blob1`` and ``blob9`` in SQL, and the
-    user-facing fallback label is derived here instead of inside the query.
-    """
+    """Normalize one Analytics Engine row into the report's shared schema."""
 
     normalized = dict(row)
     normalized["section"] = section
@@ -275,8 +291,267 @@ def extract_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     raise RuntimeError(f"Unexpected Cloudflare Analytics response: {json.dumps(payload, ensure_ascii=False)[:500]}")
 
 
+def load_catalog_titles(root: Path | None = None) -> dict[str, str]:
+    path = (root or project_root()) / "catalogs.generated.json"
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, list):
+        return {}
+    return {
+        str(item.get("id") or "").strip(): str(item.get("title") or item.get("id") or "").strip()
+        for item in payload
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+
+
+def localized_label(section: str, label: Any, catalog_titles: dict[str, str]) -> str:
+    raw = str(label or "").strip() or "(ריק)"
+    if section == "catalog":
+        return catalog_titles.get(raw, raw)
+    return EVENT_LABELS_HE.get(raw, raw)
+
+
+def numeric_value(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def format_count(value: Any) -> str:
+    number = numeric_value(value)
+    if number.is_integer():
+        return f"{int(number):,}"
+    return f"{number:,.2f}".rstrip("0").rstrip(".")
+
+
+def rows_by_section(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    grouped = {key: [] for key in SECTION_TITLES_HE}
+    for row in rows:
+        section = str(row.get("section") or "")
+        grouped.setdefault(section, []).append(row)
+    return grouped
+
+
+def report_stamp(now: datetime | None = None) -> str:
+    current = now or datetime.now().astimezone()
+    return current.strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def resolve_output_dir(value: str | Path) -> Path:
+    path = Path(value)
+    if not path.is_absolute():
+        path = project_root() / path
+    path.mkdir(parents=True, exist_ok=True)
+    return path.resolve()
+
+
+def report_paths(output_dir: Path, stamp: str, formats: Sequence[str]) -> dict[str, Path]:
+    return {
+        report_format: output_dir / f"telemetry-report-{stamp}.{report_format}"
+        for report_format in formats
+    }
+
+
+def write_csv_report(
+    rows: list[dict[str, Any]],
+    days: int,
+    output_path: Path,
+    catalog_titles: dict[str, str],
+    generated_at: datetime,
+) -> None:
+    """Write an Excel-friendly CSV with a UTF-8 BOM and explicit RTL-safe text."""
+
+    with output_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["דוח פעילות אתר רהיטי ברגיג"])
+        writer.writerow(["טווח", f"{days} ימים אחרונים"])
+        writer.writerow(["נוצר", generated_at.strftime("%d/%m/%Y %H:%M:%S %z")])
+        writer.writerow([])
+        writer.writerow(["סוג נתון", "פריט", "כמות", "ללא תוצאות / מדד נוסף"])
+        for row in rows:
+            section = str(row.get("section") or "")
+            writer.writerow([
+                SECTION_TITLES_HE.get(section, section),
+                localized_label(section, row.get("label"), catalog_titles),
+                format_count(row.get("count")),
+                format_count(row.get("metric")) if numeric_value(row.get("metric")) else "",
+            ])
+
+
+def write_json_report(
+    rows: list[dict[str, Any]],
+    days: int,
+    output_path: Path,
+    generated_at: datetime,
+) -> None:
+    payload = {
+        "generatedAt": generated_at.isoformat(),
+        "days": days,
+        "rows": rows,
+    }
+    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_html_report(
+    rows: list[dict[str, Any]],
+    days: int,
+    output_path: Path,
+    catalog_titles: dict[str, str],
+    generated_at: datetime,
+) -> None:
+    grouped = rows_by_section(rows)
+    event_counts = {
+        str(row.get("label") or ""): numeric_value(row.get("count"))
+        for row in grouped.get("event", [])
+    }
+
+    def card(label: str, value: Any, note: str = "") -> str:
+        return (
+            '<article class="summary-card">'
+            f'<span class="summary-label">{html.escape(label)}</span>'
+            f'<strong>{html.escape(format_count(value))}</strong>'
+            f'<small>{html.escape(note)}</small>'
+            "</article>"
+        )
+
+    summary_cards = "".join([
+        card("פתיחות קטלוג", event_counts.get("catalog_open", 0), "עניין בקטלוגים"),
+        card("חיפושים", event_counts.get("search", 0), "כל החיפושים באתר"),
+        card("פעולות במועדפים", event_counts.get("favorite", 0), "הוספה, הסרה וניקוי"),
+        card("לחיצות ליצירת קשר", event_counts.get("contact", 0), "טלפון ודוא״ל"),
+        card(
+            "שגיאות שנקלטו",
+            event_counts.get("js_error", 0) + event_counts.get("image_error", 0),
+            "JavaScript ותמונות",
+        ),
+    ])
+
+    def section_table(section: str, section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE.get(section, section)
+        metric_title = "חיפושים ללא תוצאה" if section == "search" else "מדד נוסף"
+        if not section_rows:
+            body = '<div class="empty">לא התקבלו נתונים בחלק זה בתקופה שנבחרה.</div>'
+        else:
+            table_rows = []
+            for row in section_rows:
+                label = localized_label(section, row.get("label"), catalog_titles)
+                count = format_count(row.get("count"))
+                metric = format_count(row.get("metric")) if numeric_value(row.get("metric")) else "—"
+                metric_cell = f'<td class="number">{html.escape(metric)}</td>' if section == "search" else ""
+                table_rows.append(
+                    "<tr>"
+                    f'<td>{html.escape(label)}</td>'
+                    f'<td class="number">{html.escape(count)}</td>'
+                    f"{metric_cell}"
+                    "</tr>"
+                )
+            metric_header = f"<th>{metric_title}</th>" if section == "search" else ""
+            body = (
+                '<div class="table-wrap"><table><thead><tr>'
+                "<th>פריט</th><th>כמות</th>"
+                f"{metric_header}</tr></thead><tbody>{''.join(table_rows)}</tbody></table></div>"
+            )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
+
+    ordered_sections = ["catalog", "search", "contact", "favorite", "error"]
+    sections_html = "".join(section_table(section, grouped.get(section, [])) for section in ordered_sections)
+    generated_text = generated_at.strftime("%d/%m/%Y בשעה %H:%M")
+
+    document = f"""<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>דוח פעילות אתר רהיטי ברגיג</title>
+  <style>
+    :root {{ color-scheme: light; --ink:#172033; --muted:#667085; --line:#d9e0ea; --panel:#fff; --soft:#f4f7fb; --accent:#335f93; }}
+    * {{ box-sizing:border-box; }}
+    body {{ margin:0; background:#edf2f7; color:var(--ink); font-family:Arial,"Segoe UI",sans-serif; line-height:1.55; }}
+    main {{ width:min(1120px,calc(100% - 32px)); margin:32px auto; }}
+    .hero {{ background:linear-gradient(135deg,#173a63,#315f93); color:#fff; border-radius:22px; padding:28px 30px; box-shadow:0 18px 45px rgba(28,57,91,.18); }}
+    .hero h1 {{ margin:0 0 6px; font-size:clamp(1.55rem,3vw,2.35rem); }}
+    .hero p {{ margin:0; opacity:.88; }}
+    .summary {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:14px; margin:18px 0; }}
+    .summary-card,.report-section {{ background:var(--panel); border:1px solid var(--line); border-radius:18px; box-shadow:0 10px 28px rgba(35,55,78,.08); }}
+    .summary-card {{ padding:18px; min-height:126px; display:flex; flex-direction:column; justify-content:center; }}
+    .summary-label {{ color:var(--muted); font-weight:700; }}
+    .summary-card strong {{ font-size:2rem; line-height:1.2; margin:4px 0; direction:ltr; text-align:right; }}
+    .summary-card small {{ color:var(--muted); }}
+    .report-section {{ margin:16px 0; padding:20px; }}
+    .report-section h2 {{ margin:0 0 14px; font-size:1.15rem; }}
+    .table-wrap {{ overflow:auto; border:1px solid var(--line); border-radius:13px; }}
+    table {{ width:100%; border-collapse:collapse; background:#fff; }}
+    th,td {{ padding:11px 13px; text-align:right; border-bottom:1px solid #e8edf3; vertical-align:middle; }}
+    th {{ background:var(--soft); color:#344054; font-size:.9rem; white-space:nowrap; }}
+    tbody tr:last-child td {{ border-bottom:0; }}
+    tbody tr:hover {{ background:#f8fbff; }}
+    .number {{ direction:ltr; text-align:left; font-variant-numeric:tabular-nums; white-space:nowrap; }}
+    .empty {{ color:var(--muted); background:var(--soft); border-radius:12px; padding:16px; }}
+    footer {{ color:var(--muted); text-align:center; padding:18px 0 5px; font-size:.9rem; }}
+    @media print {{ body {{ background:#fff; }} main {{ width:100%; margin:0; }} .hero,.summary-card,.report-section {{ box-shadow:none; }} }}
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <h1>דוח פעילות אתר רהיטי ברגיג</h1>
+      <p>{days} הימים האחרונים · נוצר {html.escape(generated_text)}</p>
+    </header>
+    <section class="summary" aria-label="סיכום">{summary_cards}</section>
+    {sections_html}
+    <footer>הדוח מכיל נתונים מצטברים בלבד ואינו כולל מזהה משתמש קבוע.</footer>
+  </main>
+</body>
+</html>
+"""
+    output_path.write_text(document, encoding="utf-8")
+
+
+def create_report_files(
+    rows: list[dict[str, Any]],
+    days: int,
+    output_dir: Path,
+    formats: Sequence[str],
+    *,
+    generated_at: datetime | None = None,
+    catalog_titles: dict[str, str] | None = None,
+) -> dict[str, Path]:
+    current = generated_at or datetime.now().astimezone()
+    unique_formats = tuple(dict.fromkeys(formats))
+    invalid = sorted(set(unique_formats) - {"html", "csv", "json"})
+    if invalid:
+        raise ValueError(f"Unsupported report format(s): {', '.join(invalid)}")
+    paths = report_paths(output_dir, report_stamp(current), unique_formats)
+    titles = catalog_titles if catalog_titles is not None else load_catalog_titles()
+    for report_format, path in paths.items():
+        if report_format == "html":
+            write_html_report(rows, days, path, titles, current)
+        elif report_format == "csv":
+            write_csv_report(rows, days, path, titles, current)
+        else:
+            write_json_report(rows, days, path, current)
+    return paths
+
+
+def open_report(path: Path) -> bool:
+    try:
+        if os.name == "nt":
+            os.startfile(str(path))  # type: ignore[attr-defined]
+            return True
+        return bool(webbrowser.open(path.as_uri()))
+    except (OSError, webbrowser.Error):
+        return False
+
+
 def print_report(rows: list[dict[str, Any]], days: int) -> None:
-    print(f"Bargig catalog telemetry — last {days} day(s)")
+    """Legacy plain-text console report. Prefer the RTL HTML export."""
+
+    print(f"Bargig catalog telemetry - last {days} day(s)")
     print("=" * 54)
     if not rows:
         print("No telemetry events were returned for this period.")
@@ -319,7 +594,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Report window in days (1-90). Direct Python usage may use --days 30.",
     )
     parser.add_argument("--env-file", default=DEFAULT_ENV_FILE, help=f"Credential file. Default: {DEFAULT_ENV_FILE}")
-    parser.add_argument("--json", action="store_true", help="Print the raw normalized rows as JSON.")
+    parser.add_argument(
+        "--output-dir",
+        default=DEFAULT_OUTPUT_DIR,
+        help=f"Directory for generated reports. Default: {DEFAULT_OUTPUT_DIR}",
+    )
+    parser.add_argument(
+        "--format",
+        dest="formats",
+        action="append",
+        choices=("html", "csv", "json"),
+        help="Output format. Repeat for multiple formats. Default: HTML and CSV.",
+    )
+    parser.add_argument("--open", action="store_true", help="Open the generated HTML report after writing it.")
+    parser.add_argument("--console", action="store_true", help="Also print the legacy plain-text report.")
+    parser.add_argument("--json", action="store_true", help="Legacy mode: print normalized rows as JSON to stdout.")
     return parser.parse_args(argv)
 
 
@@ -342,8 +631,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         rows = fetch_report_rows(account_id, api_token, dataset, days)
         if args.json:
             print(json.dumps(rows, ensure_ascii=False, indent=2))
-        else:
+            return 0
+
+        formats = tuple(args.formats or ("html", "csv"))
+        output_dir = resolve_output_dir(args.output_dir)
+        paths = create_report_files(rows, days, output_dir, formats)
+
+        if args.console:
             print_report(rows, days)
+        print(f"Telemetry report created for the last {days} day(s):")
+        for report_format, path in paths.items():
+            print(f"  {report_format.upper()}: {path}")
+
+        html_path = paths.get("html")
+        if args.open and html_path and not open_report(html_path):
+            print("NOTICE: the HTML report was created but could not be opened automatically.", file=sys.stderr)
         return 0
     except Exception as exc:
         print(f"TELEMETRY REPORT FAILED: {exc}", file=sys.stderr)

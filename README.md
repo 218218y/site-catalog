@@ -457,7 +457,7 @@ https://bargig-furniture.com/api/telemetry
 לקבלת דוח מקומי מעתיקים את `telemetry.env.example` אל `telemetry.env` בשם המדויק הזה, ממלאים Account ID ו־API Token לקריאה בלבד, ואז מריצים. אם Windows או כלי חילוץ הוסיף סימני כיווניות לשם הקובץ, הכלי מזהה עותק יחיד כזה ומציג בקשה לשנות את שמו ל־`telemetry.env`:
 
 ```bat
-telemetry-report.bat
+telemetry-report.bat 30
 ```
 
 או:
@@ -466,12 +466,15 @@ telemetry-report.bat
 npm run telemetry:report -- 30
 ```
 
-The report sends one supported `SELECT` per section. Error rows are grouped by
-physical dataset columns and labeled locally, because Analytics Engine only
-accepts column names in `GROUP BY`.
+הדוח אינו מודפס עוד בעברית בתוך PowerShell, מפני שמסופי Windows עלולים להציג טקסט דו־כיווני בצורה הפוכה. בכל הרצה נוצרים תחת `reports/telemetry` שני קבצים מתוארכים:
 
-הוראות מלאות, מבנה הנתונים ורשימת כותרות האבטחה נמצאים ב־`docs/monitoring-security.md`.
+- דוח HTML עברי, מעוצב ומוגדר `dir=rtl`, שנפתח אוטומטית בדפדפן.
+- קובץ CSV בקידוד UTF-8 עם BOM, המתאים לפתיחה ב־Excel.
 
-כלי הדוח שולח ל־Analytics Engine שש שאילתות `SELECT` קטנות — אחת לכל אזור בדוח — ומאחד את התוצאות מקומית. אין שימוש ב־`UNION ALL` או ב־CTE, שאינם חלק מתחביר ה־SELECT הנתמך ב־SQL API של Analytics Engine.
+אפשר להוסיף `--format json` ליצוא JSON, `--console` לתצוגת הטקסט הישנה, או `--output-dir PATH` לשינוי תיקיית היעד. קובצי הדוח מוחרגים מ־Git משום שהם עשויים להכיל נתונים עסקיים מצטברים.
+
+כלי הדוח שולח ל־Analytics Engine שש שאילתות `SELECT` קטנות — אחת לכל אזור בדוח — ומאחד את התוצאות מקומית. אין שימוש ב־`UNION ALL` או ב־CTE. שורות שגיאה מקובצות לפי עמודות dataset ממשיות ומקבלות כותרת קריאה במחשב המקומי, מפני ש־Analytics Engine מאפשר ב־`GROUP BY` שמות עמודות בלבד.
+
+הוראות מלאות, מבנה הנתונים, מצב ההשלמה ורשימת כותרות האבטחה נמצאים ב־`docs/monitoring-security.md`. תכנית ההשקה העתידית לגוגל נמצאת ב־`docs/google-search-launch-plan.md`.
 
 `_headers` כולל כעת CSP מצומצם, מניעת iframe, `nosniff`, מדיניות referrer, Permissions Policy ו־HSTS. קוד הפניית HTTPS עבר ל־`https-redirect.js`, ועיצוב עמוד 404 עבר ל־`404.css`, כדי לאפשר `script-src 'self'` ללא JavaScript inline.

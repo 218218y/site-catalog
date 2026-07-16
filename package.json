@@ -24,7 +24,7 @@
     "test": "python tools/verify_project.py --quick",
     "preverify": "python tools/setup_python_env.py --quiet && node tools/check_playwright_browser.js",
     "verify": "python tools/verify_project.py",
-    "telemetry:report": "python tools/telemetry_report.py"
+    "telemetry:report": "python tools/telemetry_report.py --open"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1"

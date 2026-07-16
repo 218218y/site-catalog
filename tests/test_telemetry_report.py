@@ -181,3 +181,64 @@ def test_resolve_env_file_prefers_exact_name(tmp_path: Path) -> None:
     resolved, compatibility = MODULE.resolve_env_file(exact)
     assert resolved == exact
     assert compatibility is False
+
+
+def sample_report_rows() -> list[dict[str, object]]:
+    return [
+        {"section": "event", "label": "catalog_open", "count": 12, "metric": 0},
+        {"section": "event", "label": "search", "count": 7, "metric": 0},
+        {"section": "catalog", "label": "opening-test", "count": 9, "metric": 0},
+        {"section": "search", "label": "ארון הזזה", "count": 4, "metric": 2},
+        {"section": "contact", "label": "phone", "count": 3, "metric": 0},
+        {"section": "favorite", "label": "add", "count": 5, "metric": 0},
+        {"section": "error", "label": "image_error", "count": 1, "metric": 0},
+    ]
+
+
+def test_create_report_files_writes_rtl_html_and_excel_friendly_csv(tmp_path: Path) -> None:
+    generated_at = MODULE.datetime(2026, 7, 16, 10, 30).astimezone()
+    paths = MODULE.create_report_files(
+        sample_report_rows(),
+        30,
+        tmp_path,
+        ("html", "csv", "json"),
+        generated_at=generated_at,
+        catalog_titles={"opening-test": "ארונות פתיחה לדוגמה"},
+    )
+
+    assert set(paths) == {"html", "csv", "json"}
+    assert all(path.is_file() for path in paths.values())
+    assert "2026-07-16_10-30-00" in paths["html"].name
+
+    html_text = paths["html"].read_text(encoding="utf-8")
+    assert '<html lang="he" dir="rtl">' in html_text
+    assert "דוח פעילות אתר רהיטי ברגיג" in html_text
+    assert "ארונות פתיחה לדוגמה" in html_text
+    assert "ארון הזזה" in html_text
+    assert "חיפושים ללא תוצאה" in html_text
+
+    csv_bytes = paths["csv"].read_bytes()
+    assert csv_bytes.startswith(b"\xef\xbb\xbf")
+    csv_text = csv_bytes.decode("utf-8-sig")
+    assert "סוג נתון,פריט,כמות" in csv_text
+    assert "ארונות פתיחה לדוגמה" in csv_text
+
+    json_payload = json.loads(paths["json"].read_text(encoding="utf-8"))
+    assert json_payload["days"] == 30
+    assert len(json_payload["rows"]) == len(sample_report_rows())
+
+
+def test_default_report_cli_prefers_files_over_rtl_console() -> None:
+    args = MODULE.parse_args(["30", "--open"])
+    assert args.days_value == 30
+    assert args.open is True
+    assert args.console is False
+    assert args.formats is None
+    assert args.output_dir == MODULE.DEFAULT_OUTPUT_DIR
+
+
+def test_report_output_directory_is_created_under_project_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
+    resolved = MODULE.resolve_output_dir("reports/telemetry")
+    assert resolved == (tmp_path / "reports" / "telemetry").resolve()
+    assert resolved.is_dir()

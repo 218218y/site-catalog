@@ -163,3 +163,47 @@ After deployment:
    `card-injection.js` are produced by the local filtering layer, not by this
    repository; do not whitelist them in the public site's policy. Never weaken
    `script-src` or `frame-ancestors` as a shortcut.
+
+## Report files and long-term archive
+
+PowerShell is not used as the primary Hebrew presentation layer. Running
+`telemetry-report.bat 30` or `npm run telemetry:report -- 30` now creates:
+
+- an RTL HTML dashboard under `reports/telemetry` and opens it in the browser;
+- an Excel-friendly UTF-8-BOM CSV beside it.
+
+The filenames contain the generation date and time, so periodic reports can be
+kept as a simple historical archive. Generated reports are ignored by Git and
+must not be uploaded with the public site. Use `--format json` when a machine-
+readable export is needed, `--console` only for diagnostic text output, and
+`--output-dir PATH` to save the report elsewhere.
+
+Because Analytics Engine retains data for a limited period, a monthly export is
+recommended if year-over-year comparisons will matter. The export is aggregated
+and does not contain a persistent visitor identifier.
+
+## Completion status
+
+The monitoring scope planned for the public rollout is complete:
+
+- aggregate visits and Core Web Vitals are covered by Cloudflare Web Analytics;
+- catalog opens, searches/no-result searches, favorites, contact intent,
+  JavaScript errors and image failures are covered by first-party telemetry;
+- duplicate page-view and page-load events are not sent to Analytics Engine;
+- reports can be archived as HTML/CSV;
+- the ingestion endpoint validates a strict schema and remains non-blocking if
+  storage is unavailable.
+
+The security baseline is also complete for the current static architecture:
+HSTS, nosniff, referrer policy, permissions policy, iframe protection, CSP,
+external HTTPS redirect code, and production tests are in place. Remaining
+items are operational rather than missing baseline controls:
+
+1. Review Web Analytics and the telemetry report after meaningful traffic has
+   accumulated, rather than reacting to isolated single samples.
+2. Export one monthly report if data beyond Analytics Engine retention is
+   important.
+3. Add an alert only if error volume becomes high enough to justify it; the
+   current traffic level does not need a separate paid monitoring platform.
+4. Revisit the CSP only when a legitimate new first-party resource is added.
+   Do not relax it to silence scripts injected by a local filtering layer.
