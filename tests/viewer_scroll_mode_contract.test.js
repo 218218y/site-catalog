@@ -40,6 +40,14 @@ assert.match(app, /function isActiveZoomSurface\(surface\)\s*\{[\s\S]*?Boolean\(
 assert.match(app, /attachZoomSurfaceGestures\(els\.viewerScrollPages\)/);
 assert.match(app, /function getViewerScrollZoomAnchor\(clientX = null, clientY = null\)/);
 assert.match(app, /function applyViewerScrollZoom\(anchor = null, options = \{\}\)/);
+assert.match(app, /function isViewerScrollIsolatedZoom\(\)/);
+assert.match(app, /function enterViewerScrollIsolatedZoom\(nextZoom, focalClientX = null, focalClientY = null\)/);
+assert.match(app, /function exitViewerScrollIsolatedZoom\(options = \{\}\)/);
+assert.match(app, /zoom > AUTO_VIEWER_ZOOM \+ 0\.001/);
+assert.match(app, /const zoom = Math\.min\(AUTO_VIEWER_ZOOM, getSafeViewerZoom\(\)\)/);
+assert.match(app, /container\.scrollTop = top;/);
+assert.match(app, /function runViewerScrollPageSwapAnimation\(page\)/);
+assert.match(app, /updateLightbox\(\{[\s\S]*?scrollToPage: isScrollViewerMode\(\)[\s\S]*?scrollBehavior: "auto"/);
 assert.match(app, /const showButton = Boolean\(state\.lightboxOpen && !isAutoViewerZoom\(\)\)/);
 
 assert.match(css, /\.viewer-control-separator\s*\{/);
@@ -49,6 +57,8 @@ assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?touch-action:\s*pan-x pan-y
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?scroll-snap-align:\s*center;/);
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?width:\s*var\(--viewer-scroll-page-width/);
 assert.match(css, /\.lightbox\.viewer-layout-scroll \.stage-canvas\s*\{[\s\S]*?touch-action:\s*pan-x pan-y;/);
+assert.match(css, /\.lightbox\.viewer-layout-scroll\.viewer-scroll-zoom-isolated \.viewer-scroll-pages\s*\{[\s\S]*?visibility:\s*hidden;/);
+assert.match(css, /\.viewer-scroll-page\.page-swap-enter\s*\{/);
 assert.doesNotMatch(css, /\.lightbox\.viewer-layout-scroll \.viewer-zoom-indicator\s*\{[\s\S]*?display:\s*none/);
 
 console.log('viewer_scroll_mode_contract.test.js: PASS');

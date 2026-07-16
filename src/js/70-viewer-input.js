@@ -7,7 +7,7 @@
  */
 
 function getZoomSurfaceName(surface) {
-  if (surface === els.stageCanvas && !isScrollViewerMode()) return "catalog-entry";
+  if (surface === els.stageCanvas && (!isScrollViewerMode() || isViewerScrollIsolatedZoom())) return "catalog-entry";
   if (surface === els.viewerScrollPages && isScrollViewerMode()) return "catalog-scroll";
   return "";
 }
@@ -19,8 +19,18 @@ function isActiveZoomSurface(surface) {
 function startPointerInteraction(event) {
   if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
 
+  if (
+    isViewerScrollIsolatedZoom()
+    && event.currentTarget === els.stageCanvas
+    && !els.lightboxImageFrame?.contains(event.target)
+  ) {
+    event.preventDefault();
+    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
+    return;
+  }
+
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if ((!isScrollViewerMode() && viewerCanPan()) || state.pointers.size >= 2) {
+  if (((!isScrollViewerMode() || isViewerScrollIsolatedZoom()) && viewerCanPan()) || state.pointers.size >= 2) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -56,7 +66,7 @@ function movePointerInteraction(event) {
     const [first, second] = pointers;
     const distance = Math.max(1, pointerDistance(first, second));
     const mid = pointerMidpoint(first, second);
-    if (!isScrollViewerMode()) {
+    if (!isScrollViewerMode() || isViewerScrollIsolatedZoom()) {
       state.panX += mid.x - state.pinchLastMidX;
       state.panY += mid.y - state.pinchLastMidY;
     }
@@ -170,6 +180,14 @@ function handleZoomSurfaceWheel(event) {
       focalClientX: event.clientX,
       focalClientY: event.clientY
     });
+    return;
+  }
+
+  if (isViewerScrollIsolatedZoom()) {
+    event.preventDefault();
+    const deltaX = normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
+    const deltaY = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
+    resumeViewerScrollFromIsolatedZoom(deltaX, deltaY);
     return;
   }
 

@@ -339,6 +339,9 @@ const state = {
   viewerScrollRaf: 0,
   viewerScrollZoomRaf: 0,
   viewerScrollZoomAnchor: null,
+  viewerScrollIsolatedZoom: false,
+  viewerScrollIsolatedPage: 0,
+  viewerScrollPageAnimationTimer: 0,
   viewerScrollSettleTimer: 0,
   viewerScrollTargetPage: 0,
   catalogImageLoadCache: new Map(),
@@ -4263,15 +4266,32 @@ function isScrollViewerMode() {
   return state.viewerLayoutMode === VIEWER_LAYOUT_SCROLL && !isFavoritesLightboxMode();
 }
 
-function getSingleImageDisplayMetrics() {
-  if (isScrollViewerMode()) return null;
+function isViewerScrollIsolatedZoom() {
+  return isScrollViewerMode() && Boolean(state.viewerScrollIsolatedZoom);
+}
+
+function getActiveSingleImageNaturalSize() {
+  if (isViewerScrollIsolatedZoom() && state.catalog) {
+    return pageSize(state.catalog, state.viewerScrollIsolatedPage || state.page);
+  }
+
   const image = els.lightboxImage;
+  if (image?.naturalWidth && image?.naturalHeight) {
+    return { width: image.naturalWidth, height: image.naturalHeight };
+  }
+
+  return null;
+}
+
+function getSingleImageDisplayMetrics() {
+  if (isScrollViewerMode() && !isViewerScrollIsolatedZoom()) return null;
+  const naturalSize = getActiveSingleImageNaturalSize();
   const stage = els.stageCanvas;
-  if (!image?.naturalWidth || !image?.naturalHeight || !stage) return null;
+  if (!naturalSize || !stage) return null;
 
   const safeZoom = getSafeViewerZoom();
-  const width = image.naturalWidth * state.fitScale * safeZoom;
-  const height = image.naturalHeight * state.fitScale * safeZoom;
+  const width = naturalSize.width * state.fitScale * safeZoom;
+  const height = naturalSize.height * state.fitScale * safeZoom;
   return {
     width,
     height,
@@ -4380,11 +4400,11 @@ function primeLightboxFrameForCatalogPage(catalog, page) {
 }
 
 function applySingleZoom() {
-  const image = els.lightboxImage;
   const frame = els.lightboxImageFrame;
-  if (!image?.naturalWidth || !image?.naturalHeight || !frame) return;
+  const naturalSize = getActiveSingleImageNaturalSize();
+  if (!naturalSize || !frame) return;
 
-  applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight);
+  applyLightboxFrameGeometry(naturalSize.width, naturalSize.height);
 
   if (state.singleImageFitOriginPending) {
     applyPendingSingleImageFitOrigin();
@@ -4401,7 +4421,11 @@ function applySingleZoom() {
 
 function applyZoom(options = {}) {
   if (isScrollViewerMode()) {
-    applyViewerScrollZoom(options.scrollAnchor || null);
+    if (isViewerScrollIsolatedZoom()) {
+      applySingleZoom();
+    } else {
+      applyViewerScrollZoom(options.scrollAnchor || null);
+    }
     els.lightbox?.classList.toggle("is-zoomed", !isAutoViewerZoom());
     syncViewerAutoZoomButtonUi();
     return;
@@ -4839,7 +4863,11 @@ function handleLightboxPageRailSelection(button) {
   } else {
     const targetPage = Number(button.dataset.page);
     if (!Number.isFinite(targetPage)) return;
-    setLightboxPage(targetPage, { thumbScrollIntoView: false });
+    setLightboxPage(targetPage, {
+      thumbScrollIntoView: false,
+      scrollBehavior: "auto",
+      animateScrollPage: true
+    });
   }
 
   showPageRailTemporarily(1800, { scrollIntoView: false });
@@ -4968,6 +4996,9 @@ function setViewerFitMode(fitMode, options = {}) {
 
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
+    if (isViewerScrollIsolatedZoom()) {
+      exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
+    }
     state.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: true });
     state.pointers.clear();
@@ -5184,9 +5215,11 @@ function syncViewerLayoutModeUi() {
   }
 
   const scrollMode = isScrollViewerMode();
+  const isolatedZoom = scrollMode && isViewerScrollIsolatedZoom();
   els.lightbox?.classList.toggle("viewer-layout-side", !scrollMode);
   els.lightbox?.classList.toggle("viewer-layout-scroll", scrollMode);
-  els.lightboxImageFrame?.classList.toggle("hidden", scrollMode);
+  els.lightbox?.classList.toggle("viewer-scroll-zoom-isolated", isolatedZoom);
+  els.lightboxImageFrame?.classList.toggle("hidden", scrollMode && !isolatedZoom);
   els.viewerScrollPages?.classList.toggle("hidden", !scrollMode);
 
   const button = els.viewerLayoutToggle;
@@ -5218,6 +5251,137 @@ function getViewerScrollPageLayout(page) {
 
 function getViewerScrollPageFrame(page) {
   return els.viewerScrollPages?.querySelector?.(`[data-scroll-page="${page}"]`) || null;
+}
+
+function getViewerScrollFrameFocal(page, clientX = null, clientY = null) {
+  const frame = getViewerScrollPageFrame(page);
+  const container = els.viewerScrollPages;
+  if (!frame || !container) return null;
+
+  const frameRect = frame.getBoundingClientRect?.();
+  const containerRect = container.getBoundingClientRect?.();
+  if (!frameRect?.width || !frameRect?.height || !containerRect?.width || !containerRect?.height) return null;
+
+  const fallbackX = frameRect.left + frameRect.width / 2;
+  const fallbackY = frameRect.top + frameRect.height / 2;
+  const pointX = Number.isFinite(clientX)
+    ? clampValue(clientX, frameRect.left, frameRect.right)
+    : clampValue(containerRect.left + containerRect.width / 2, frameRect.left, frameRect.right);
+  const pointY = Number.isFinite(clientY)
+    ? clampValue(clientY, frameRect.top, frameRect.bottom)
+    : clampValue(containerRect.top + containerRect.height / 2, frameRect.top, frameRect.bottom);
+
+  return {
+    clientX: Number.isFinite(pointX) ? pointX : fallbackX,
+    clientY: Number.isFinite(pointY) ? pointY : fallbackY,
+    ratioX: clampValue((pointX - frameRect.left) / frameRect.width, 0, 1),
+    ratioY: clampValue((pointY - frameRect.top) / frameRect.height, 0, 1)
+  };
+}
+
+function syncViewerScrollIsolatedZoomUi() {
+  const isolatedZoom = isViewerScrollIsolatedZoom();
+  els.lightbox?.classList.toggle("viewer-scroll-zoom-isolated", isolatedZoom);
+  els.lightboxImageFrame?.classList.toggle("hidden", isScrollViewerMode() && !isolatedZoom);
+}
+
+function prepareViewerScrollIsolatedImage(page) {
+  if (!state.catalog || !els.lightboxImage) return;
+  const targetPage = clampPage(page, state.catalog);
+  const src = pageSrc(state.catalog, targetPage);
+
+  primeLightboxFrameForCatalogPage(state.catalog, targetPage);
+  if (els.lightboxImage.getAttribute("src") !== src) {
+    els.lightboxImage.removeAttribute("src");
+    prepareImagePlaceholder(els.lightboxImage);
+  }
+  showSingleLightboxImage(state.catalog, targetPage, src);
+}
+
+function enterViewerScrollIsolatedZoom(nextZoom, focalClientX = null, focalClientY = null) {
+  if (!isScrollViewerMode() || !state.catalog) return false;
+
+  const page = clampPage(state.page, state.catalog);
+  const focal = getViewerScrollFrameFocal(page, focalClientX, focalClientY);
+  const naturalSize = pageSize(state.catalog, page);
+  const stageRect = els.stageCanvas?.getBoundingClientRect?.();
+  if (!naturalSize || !stageRect) return false;
+
+  state.viewerScrollIsolatedZoom = true;
+  state.viewerScrollIsolatedPage = page;
+  state.singleImageFitOriginPending = false;
+  state.panX = 0;
+  state.panY = 0;
+  syncViewerScrollIsolatedZoomUi();
+
+  const layout = applyLightboxFrameGeometry(naturalSize.width, naturalSize.height);
+  const zoom = clampViewerZoom(nextZoom);
+  if (layout && focal) {
+    const contentX = (focal.ratioX - 0.5) * layout.width;
+    const contentY = (focal.ratioY - 0.5) * layout.height;
+    const centerX = stageRect.left + stageRect.width / 2;
+    const centerY = stageRect.top + stageRect.height / 2;
+    state.panX = focal.clientX - centerX - contentX * zoom;
+    state.panY = focal.clientY - centerY - contentY * zoom;
+  }
+
+  state.zoom = zoom;
+  applySingleZoom();
+  prepareViewerScrollIsolatedImage(page);
+  return true;
+}
+
+function exitViewerScrollIsolatedZoom(options = {}) {
+  if (!state.viewerScrollIsolatedZoom) return false;
+  const { restorePage = true, nextZoom = AUTO_VIEWER_ZOOM } = options;
+
+  state.viewerScrollIsolatedZoom = false;
+  state.viewerScrollIsolatedPage = 0;
+  state.singleImageLoadToken += 1;
+  state.zoom = clampViewerZoom(nextZoom);
+  resetImagePosition();
+  state.pointers.clear();
+  syncViewerScrollIsolatedZoomUi();
+  els.lightboxImageFrame?.classList.remove("page-swap-enter", "is-preparing-swap");
+  setViewerLoading(false);
+  els.lightbox?.classList.remove("is-page-loading");
+  applyViewerScrollZoom(null, { immediate: true });
+  els.lightbox?.classList.toggle("is-zoomed", !isAutoViewerZoom());
+  syncViewerAutoZoomButtonUi();
+
+  if (restorePage) {
+    requestAnimationFrame(() => scrollViewerToPage(state.page, { behavior: "auto" }));
+  }
+  return true;
+}
+
+function resumeViewerScrollFromIsolatedZoom(deltaX = 0, deltaY = 0) {
+  if (!isViewerScrollIsolatedZoom()) return false;
+  exitViewerScrollIsolatedZoom({ restorePage: true, nextZoom: AUTO_VIEWER_ZOOM });
+  requestAnimationFrame(() => {
+    const container = els.viewerScrollPages;
+    if (!container) return;
+    container.scrollBy({
+      left: Number.isFinite(deltaX) ? deltaX : 0,
+      top: Number.isFinite(deltaY) ? deltaY : 0,
+      behavior: "auto"
+    });
+  });
+  return true;
+}
+
+function runViewerScrollPageSwapAnimation(page) {
+  const frame = getViewerScrollPageFrame(page);
+  if (!frame) return;
+
+  window.clearTimeout(state.viewerScrollPageAnimationTimer);
+  frame.classList.remove("page-swap-enter");
+  void frame.offsetWidth;
+  frame.classList.add("page-swap-enter");
+  state.viewerScrollPageAnimationTimer = window.setTimeout(() => {
+    frame.classList.remove("page-swap-enter");
+    state.viewerScrollPageAnimationTimer = 0;
+  }, 260);
 }
 
 function getViewerScrollZoomAnchor(clientX = null, clientY = null) {
@@ -5273,12 +5437,12 @@ function restoreViewerScrollZoomAnchor(anchor) {
 function flushViewerScrollZoom() {
   const container = els.viewerScrollPages;
   state.viewerScrollZoomRaf = 0;
-  if (!container || !isScrollViewerMode()) {
+  if (!container || !isScrollViewerMode() || isViewerScrollIsolatedZoom()) {
     state.viewerScrollZoomAnchor = null;
     return;
   }
 
-  const zoom = getSafeViewerZoom();
+  const zoom = Math.min(AUTO_VIEWER_ZOOM, getSafeViewerZoom());
   container.querySelectorAll("[data-scroll-page]").forEach((frame) => {
     const baseWidth = Number(frame.dataset.scrollBaseWidth);
     const baseHeight = Number(frame.dataset.scrollBaseHeight);
@@ -5402,6 +5566,7 @@ function scrollViewerToPage(page, options = {}) {
   const targetPage = state.catalog ? clampPage(page, state.catalog) : Number(page) || 1;
   const behavior = options.behavior === "smooth" ? "smooth" : "auto";
   const top = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
+  const left = Math.max(0, frame.offsetLeft - Math.max(0, (container.clientWidth - frame.offsetWidth) / 2));
 
   clearViewerScrollTarget();
   if (behavior === "smooth") {
@@ -5411,9 +5576,17 @@ function scrollViewerToPage(page, options = {}) {
       state.viewerScrollTargetPage = 0;
       syncViewerScrollActivePage(findViewerScrollCenterPage());
     }, 760);
+    container.scrollTo({ top, left, behavior: "smooth" });
+  } else {
+    // Direct assignment deliberately bypasses CSS/native smooth scrolling. A
+    // far-away rail selection must not make the browser animate every page in
+    // between or decode them while travelling to the destination.
+    container.scrollTop = top;
+    container.scrollLeft = left;
+    syncViewerScrollActivePage(targetPage);
   }
 
-  container.scrollTo({ top, behavior });
+  if (options.animate) requestAnimationFrame(() => runViewerScrollPageSwapAnimation(targetPage));
   return true;
 }
 
@@ -5480,6 +5653,10 @@ function scrollViewerByViewport(direction) {
   if (!isScrollViewerMode() || !els.viewerScrollPages) return false;
   clearViewerScrollTarget();
   const amount = Math.max(160, els.viewerScrollPages.clientHeight * 0.72) * direction;
+  if (isViewerScrollIsolatedZoom()) {
+    resumeViewerScrollFromIsolatedZoom(0, amount);
+    return true;
+  }
   els.viewerScrollPages.scrollBy({ top: amount, behavior: "smooth" });
   return true;
 }
@@ -5492,6 +5669,8 @@ function setViewerLayoutMode(layoutMode, options = {}) {
   if (!isFavoritesLightboxMode() && options.persist !== false) {
     writeViewerLayoutPreference(nextMode);
   }
+  state.viewerScrollIsolatedZoom = false;
+  state.viewerScrollIsolatedPage = 0;
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
   state.pointers.clear();
@@ -5521,7 +5700,12 @@ function toggleViewerLayoutMode() {
 
 function updateLightbox(options = {}) {
   if (!state.catalog) return;
-  const { thumbScrollIntoView = true, scrollToPage = false, scrollBehavior = "smooth" } = options;
+  const {
+    thumbScrollIntoView = true,
+    scrollToPage = false,
+    scrollBehavior = "auto",
+    animateScrollPage = false
+  } = options;
   let favoriteEntries = null;
 
   if (isFavoritesLightboxMode()) {
@@ -5569,7 +5753,10 @@ function updateLightbox(options = {}) {
     renderViewerScrollPages();
     loadViewerScrollWindow(state.page);
     if (scrollToPage) {
-      requestAnimationFrame(() => scrollViewerToPage(state.page, { behavior: scrollBehavior }));
+      requestAnimationFrame(() => scrollViewerToPage(state.page, {
+        behavior: scrollBehavior,
+        animate: animateScrollPage
+      }));
     }
     updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
     updateHash();
@@ -5625,6 +5812,8 @@ function openLightbox(page = 1, options = {}) {
     : readViewerLayoutPreference();
   state.viewerScrollCatalogId = "";
   state.viewerScrollLoadToken += 1;
+  state.viewerScrollIsolatedZoom = false;
+  state.viewerScrollIsolatedPage = 0;
   state.page = clampPage(page, state.catalog);
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
@@ -5648,7 +5837,11 @@ function openLightbox(page = 1, options = {}) {
   resetLightboxSearch();
   syncLightboxModeUi();
   showTopUiTemporarily(1700);
-  updateLightbox();
+  updateLightbox({
+    scrollToPage: isScrollViewerMode(),
+    scrollBehavior: "auto",
+    animateScrollPage: false
+  });
   scheduleCatalogScrollTopButtonUpdate();
   window.requestAnimationFrame(showViewerOnboardingIfNeeded);
 
@@ -5668,11 +5861,15 @@ function hideLightboxUi() {
   if (state.viewerScrollZoomRaf) cancelAnimationFrame(state.viewerScrollZoomRaf);
   state.viewerScrollZoomRaf = 0;
   state.viewerScrollZoomAnchor = null;
+  state.viewerScrollIsolatedZoom = false;
+  state.viewerScrollIsolatedPage = 0;
+  window.clearTimeout(state.viewerScrollPageAnimationTimer);
+  state.viewerScrollPageAnimationTimer = 0;
   clearViewerScrollTarget();
   window.clearTimeout(state.singleImageAnimationTimer);
   if (els.viewerScrollPages) els.viewerScrollPages.innerHTML = "";
   els.lightbox?.classList.add("hidden");
-  els.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-scroll", "is-page-loading", "is-zoomed");
+  els.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-scroll", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed");
   syncViewerAutoZoomButtonUi();
   hideViewerZoomIndicator();
   els.lightboxImageFrame?.classList.remove("page-swap-enter");
@@ -5719,7 +5916,9 @@ function setLightboxPage(page, options = {}) {
 
   if (nextPage !== state.page) {
     hideLightboxFloatingPreview();
-    if (shouldResetZoom) {
+    if (isViewerScrollIsolatedZoom()) {
+      exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
+    } else if (shouldResetZoom) {
       state.zoom = AUTO_VIEWER_ZOOM;
     }
 
@@ -5737,7 +5936,8 @@ function setLightboxPage(page, options = {}) {
   updateLightbox({
     thumbScrollIntoView,
     scrollToPage: isScrollViewerMode(),
-    scrollBehavior: options.scrollBehavior || "smooth"
+    scrollBehavior: isScrollViewerMode() ? "auto" : (options.scrollBehavior || "smooth"),
+    animateScrollPage: isScrollViewerMode() && options.animateScrollPage !== false
   });
 
 }
@@ -5899,23 +6099,42 @@ function setZoom(nextZoom, options = {}) {
   const focal = hasFocal
     ? { x: focalClientX, y: focalClientY }
     : getDefaultZoomFocalPoint();
-  const scrollAnchor = isScrollViewerMode()
-    ? getViewerScrollZoomAnchor(focal?.x, focal?.y)
-    : null;
 
-  if (isAutoViewerZoom(zoom)) {
-    state.zoom = AUTO_VIEWER_ZOOM;
-    if (!isScrollViewerMode()) {
-      resetImagePosition({ queueSingleFitOrigin: true });
+  if (isScrollViewerMode()) {
+    if (zoom > AUTO_VIEWER_ZOOM + 0.001) {
+      if (!isViewerScrollIsolatedZoom()) {
+        enterViewerScrollIsolatedZoom(zoom, focal?.x, focal?.y);
+      } else {
+        if (focal && Math.abs(zoom - previousZoom) > 0.001) {
+          adjustPanForZoom(zoom, focal);
+        }
+        state.zoom = zoom;
+        applyZoom();
+      }
+    } else {
+      const scrollAnchor = isViewerScrollIsolatedZoom()
+        ? null
+        : getViewerScrollZoomAnchor(focal?.x, focal?.y);
+      if (isViewerScrollIsolatedZoom()) {
+        exitViewerScrollIsolatedZoom({ restorePage: true, nextZoom: zoom });
+      } else {
+        state.zoom = isAutoViewerZoom(zoom) ? AUTO_VIEWER_ZOOM : zoom;
+        applyZoom({ scrollAnchor });
+      }
     }
   } else {
-    if (!isScrollViewerMode() && focal && Math.abs(zoom - previousZoom) > 0.001) {
-      adjustPanForZoom(zoom, focal);
+    if (isAutoViewerZoom(zoom)) {
+      state.zoom = AUTO_VIEWER_ZOOM;
+      resetImagePosition({ queueSingleFitOrigin: true });
+    } else {
+      if (focal && Math.abs(zoom - previousZoom) > 0.001) {
+        adjustPanForZoom(zoom, focal);
+      }
+      state.zoom = zoom;
     }
-    state.zoom = zoom;
+    applyZoom();
   }
 
-  applyZoom({ scrollAnchor });
   if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
     showViewerZoomIndicator(state.zoom);
   }
@@ -6678,7 +6897,7 @@ function attachViewerOnboardingEvents() {
  */
 
 function getZoomSurfaceName(surface) {
-  if (surface === els.stageCanvas && !isScrollViewerMode()) return "catalog-entry";
+  if (surface === els.stageCanvas && (!isScrollViewerMode() || isViewerScrollIsolatedZoom())) return "catalog-entry";
   if (surface === els.viewerScrollPages && isScrollViewerMode()) return "catalog-scroll";
   return "";
 }
@@ -6690,8 +6909,18 @@ function isActiveZoomSurface(surface) {
 function startPointerInteraction(event) {
   if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
 
+  if (
+    isViewerScrollIsolatedZoom()
+    && event.currentTarget === els.stageCanvas
+    && !els.lightboxImageFrame?.contains(event.target)
+  ) {
+    event.preventDefault();
+    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
+    return;
+  }
+
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if ((!isScrollViewerMode() && viewerCanPan()) || state.pointers.size >= 2) {
+  if (((!isScrollViewerMode() || isViewerScrollIsolatedZoom()) && viewerCanPan()) || state.pointers.size >= 2) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -6727,7 +6956,7 @@ function movePointerInteraction(event) {
     const [first, second] = pointers;
     const distance = Math.max(1, pointerDistance(first, second));
     const mid = pointerMidpoint(first, second);
-    if (!isScrollViewerMode()) {
+    if (!isScrollViewerMode() || isViewerScrollIsolatedZoom()) {
       state.panX += mid.x - state.pinchLastMidX;
       state.panY += mid.y - state.pinchLastMidY;
     }
@@ -6841,6 +7070,14 @@ function handleZoomSurfaceWheel(event) {
       focalClientX: event.clientX,
       focalClientY: event.clientY
     });
+    return;
+  }
+
+  if (isViewerScrollIsolatedZoom()) {
+    event.preventDefault();
+    const deltaX = normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
+    const deltaY = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
+    resumeViewerScrollFromIsolatedZoom(deltaX, deltaY);
     return;
   }
 

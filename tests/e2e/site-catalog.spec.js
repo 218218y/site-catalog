@@ -341,14 +341,13 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightboxImage")).toHaveAttribute("src", new RegExp(`page-${String(startPage < CATALOG_PAGES ? startPage + 1 : startPage).padStart(3, "0")}\.webp`));
   });
 
-  test("remembers the chosen layout and provides full zoom controls in scroll mode", async ({ page }) => {
+  test("remembers scroll layout, isolates zoom-in, and jumps directly to selected pages", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(3, CATALOG_PAGES);
     await openDirectViewer(page, startPage);
 
     const toggle = page.locator("#viewerLayoutToggle");
     const scrollPages = page.locator("#viewerScrollPages");
-    const currentFrame = scrollPages.locator(`[data-scroll-page="${startPage}"]`);
     const autoZoomButton = page.locator("#viewerAutoZoomBtn");
 
     await toggle.click();
@@ -357,19 +356,40 @@ test.describe("critical catalog journeys", () => {
     await waitForApp(page);
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
     await expect(toggle).toHaveAttribute("data-viewer-layout", "scroll");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
+    await expect.poll(() => scrollPages.locator(`[data-scroll-page="${startPage}"] img[src]`).count()).toBe(1);
 
+    const currentFrame = scrollPages.locator(`[data-scroll-page="${startPage}"]`);
+    const neighborPage = Math.min(CATALOG_PAGES, startPage + 1);
+    const neighborFrame = scrollPages.locator(`[data-scroll-page="${neighborPage}"]`);
     const automaticWidth = await currentFrame.evaluate((element) => element.getBoundingClientRect().width);
+    const neighborWidth = await neighborFrame.evaluate((element) => element.getBoundingClientRect().width);
+
     await page.mouse.move(720, 450);
     await page.keyboard.down("Control");
     await page.mouse.wheel(0, -36);
     await page.keyboard.up("Control");
-    await expect.poll(() => currentFrame.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(automaticWidth);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
+    await expect(scrollPages).toBeHidden();
+    await expect(page.locator("#lightboxImageFrame")).toBeVisible();
     await expect(autoZoomButton).toBeVisible();
-    await expect(page.locator("#viewerZoomIndicator")).toContainText("%");
+    await expect.poll(() => neighborFrame.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(Math.round(neighborWidth));
 
-    await autoZoomButton.click();
+    await page.mouse.wheel(0, 240);
+    await expect(page.locator("#lightbox")).not.toHaveClass(/viewer-scroll-zoom-isolated/);
+    await expect(scrollPages).toBeVisible();
     await expect(autoZoomButton).toBeHidden();
     await expect.poll(() => currentFrame.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(Math.round(automaticWidth));
+
+    const targetPage = Math.max(1, CATALOG_PAGES - 1);
+    await page.mouse.move(1438, 450);
+    await expect(page.locator("#lightboxPageRail")).toBeVisible();
+    const beforeTop = await scrollPages.evaluate((element) => element.scrollTop);
+    await page.locator(`#lightboxPageThumbs [data-page="${targetPage}"]`).click();
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(targetPage));
+    await expect(scrollPages.locator(`[data-scroll-page="${targetPage}"]`)).toHaveClass(/page-swap-enter/);
+    const afterTop = await scrollPages.evaluate((element) => element.scrollTop);
+    expect(Math.abs(afterTop - beforeTop)).toBeGreaterThan(100);
 
     await page.mouse.move(720, 1);
     await expect(page.locator("#lightboxBar")).toBeVisible();

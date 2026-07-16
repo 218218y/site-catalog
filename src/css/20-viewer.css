@@ -318,6 +318,37 @@
   touch-action: pan-x pan-y;
   cursor: default;
 }
+.lightbox.viewer-layout-scroll.viewer-scroll-zoom-isolated .stage-canvas {
+  touch-action: none;
+  cursor: grab;
+}
+.lightbox.viewer-layout-scroll.viewer-scroll-zoom-isolated .stage-canvas:active {
+  cursor: grabbing;
+}
+.lightbox.viewer-layout-scroll.viewer-scroll-zoom-isolated .viewer-scroll-pages {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.lightbox.viewer-layout-scroll.viewer-scroll-zoom-isolated .lightbox-image-frame {
+  z-index: 5;
+}
+.viewer-scroll-page.page-swap-enter {
+  z-index: 3;
+  animation: viewer-scroll-page-swap var(--image-swap-duration) var(--image-swap-easing) both;
+}
+@keyframes viewer-scroll-page-swap {
+  from {
+    opacity: var(--image-swap-start-opacity);
+    filter: blur(1.5px) brightness(.94);
+    transform: scale(.985);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: scale(1);
+  }
+}
 .lightbox.viewer-layout-scroll .loading-pill {
   display: none !important;
 }
@@ -892,6 +923,7 @@ a.reader-home:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .site-tooltip { transition: none; }
   .page-thumb,
+  .viewer-scroll-page.page-swap-enter,
   .lightbox-image-frame.page-swap-enter {
     animation: none !important;
     opacity: 1;
