@@ -278,6 +278,18 @@
                 <path d="M10.7 18.1a7.4 7.4 0 1 1 5.2-2.16l3.58 3.58a1.18 1.18 0 0 1-1.67 1.67l-3.58-3.58a7.36 7.36 0 0 1-3.53.49Zm0-2.36a5.04 5.04 0 1 0 0-10.08 5.04 5.04 0 0 0 0 10.08Z" />
               </svg>
             </button>
+            <button class="reader-button reader-control-icon-button viewer-layout-toggle" id="viewerLayoutToggle" type="button" aria-label="מעבר לתצוגת גלילה" aria-pressed="false" title="תצוגת גלילה" data-viewer-layout="side">
+              <svg class="viewer-layout-icon viewer-layout-icon-scroll" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect x="6.2" y="3.3" width="11.6" height="5.3" rx="1.1" />
+                <rect x="6.2" y="10.2" width="11.6" height="5.3" rx="1.1" />
+                <path d="M12 17.4v3.2M9.9 18.7 12 20.8l2.1-2.1" />
+              </svg>
+              <svg class="viewer-layout-icon viewer-layout-icon-side" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect x="6.1" y="5.2" width="11.8" height="13.6" rx="1.4" />
+                <path d="m4.2 12 1.9-1.9v3.8L4.2 12Zm15.6 0-1.9 1.9v-3.8l1.9 1.9Z" />
+              </svg>
+            </button>
+            <span class="viewer-control-separator" aria-hidden="true"></span>
             <button class="reader-button reader-control-icon-button viewer-fit-control" id="fitHeightBtn" type="button" aria-label="התאמת התמונה לגובה" aria-pressed="false" title="התאמה לגובה">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M12 3.8 9.8 6h4.4L12 3.8Zm0 16.4 2.2-2.2H9.8l2.2 2.2ZM12 6v12M7.4 7.7h9.2a1.4 1.4 0 0 1 1.4 1.4v5.8a1.4 1.4 0 0 1-1.4 1.4H7.4A1.4 1.4 0 0 1 6 14.9V9.1a1.4 1.4 0 0 1 1.4-1.4Z" />
@@ -286,14 +298,6 @@
             <button class="reader-button reader-control-icon-button viewer-fit-control" id="fitWidthBtn" type="button" aria-label="התאמת התמונה לרוחב" aria-pressed="false" title="התאמה לרוחב">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M3.8 12 6 9.8v4.4L3.8 12Zm16.4 0L18 14.2V9.8l2.2 2.2ZM6 12h12M7.7 7.4v9.2A1.4 1.4 0 0 0 9.1 18h5.8a1.4 1.4 0 0 0 1.4-1.4V7.4A1.4 1.4 0 0 0 14.9 6H9.1a1.4 1.4 0 0 0-1.4 1.4Z" />
-              </svg>
-            </button>
-            <button class="reader-button reader-control-icon-button viewer-fullscreen-toggle" id="fullscreenToggle" type="button" aria-label="כניסה למסך מלא" title="מסך מלא" aria-pressed="false" data-fullscreen-active="false">
-              <svg class="viewer-fullscreen-icon viewer-fullscreen-icon-enter" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M8.2 4.8H5.5a.7.7 0 0 0-.7.7v2.7M15.8 4.8h2.7a.7.7 0 0 1 .7.7v2.7M8.2 19.2H5.5a.7.7 0 0 1-.7-.7v-2.7M15.8 19.2h2.7a.7.7 0 0 0 .7-.7v-2.7" />
-              </svg>
-              <svg class="viewer-fullscreen-icon viewer-fullscreen-icon-exit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M9.2 5.4v2.9a.9.9 0 0 1-.9.9H5.4M14.8 5.4v2.9a.9.9 0 0 0 .9.9h2.9M9.2 18.6v-2.9a.9.9 0 0 0-.9-.9H5.4M14.8 18.6v-2.9a.9.9 0 0 1 .9-.9h2.9" />
               </svg>
             </button>
             <a class="reader-button reader-control-icon-button lightbox-favorites-button hidden" id="lightboxFavoritesButton" href="favorites.html" aria-label="פתיחת מועדפים" title="מועדפים">
@@ -326,6 +330,7 @@
           <div class="lightbox-image-frame" id="lightboxImageFrame">
             <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" decoding="async" />
           </div>
+          <div class="viewer-scroll-pages hidden" id="viewerScrollPages" role="list" aria-label="עמודי הקטלוג בתצוגת גלילה"></div>
         </div>
         <button class="stage-nav stage-next" id="nextPageBtn" type="button" aria-label="העמוד הבא">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -355,6 +360,16 @@
           <path d="m12 3.25 2.64 5.35 5.91.86-4.28 4.17 1.01 5.89L12 16.74l-5.28 2.78 1.01-5.89-4.28-4.17 5.91-.86L12 3.25Z" />
         </svg>
         <span class="visually-hidden">הוספת העמוד למועדפים</span>
+      </button>
+
+      <button class="reader-button viewer-fullscreen-toggle viewer-fullscreen-float" id="fullscreenToggle" type="button" aria-label="כניסה למסך מלא" title="מסך מלא" aria-pressed="false" data-fullscreen-active="false">
+        <svg class="viewer-fullscreen-icon viewer-fullscreen-icon-enter" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M8.2 4.8H5.5a.7.7 0 0 0-.7.7v2.7M15.8 4.8h2.7a.7.7 0 0 1 .7.7v2.7M8.2 19.2H5.5a.7.7 0 0 1-.7-.7v-2.7M15.8 19.2h2.7a.7.7 0 0 0 .7-.7v-2.7" />
+        </svg>
+        <svg class="viewer-fullscreen-icon viewer-fullscreen-icon-exit" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M9.2 5.4v2.9a.9.9 0 0 1-.9.9H5.4M14.8 5.4v2.9a.9.9 0 0 0 .9.9h2.9M9.2 18.6v-2.9a.9.9 0 0 0-.9-.9H5.4M14.8 18.6v-2.9a.9.9 0 0 1 .9-.9h2.9" />
+        </svg>
+        <span class="visually-hidden">מסך מלא</span>
       </button>
 
       <button class="reader-button viewer-auto-zoom-button hidden" id="viewerAutoZoomBtn" type="button" aria-label="חזרה לזום אוטומטי" aria-hidden="true">

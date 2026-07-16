@@ -257,6 +257,26 @@
   .reader-page-frame { border-radius: 12px; }
 }
 
+@media (max-width: 760px) {
+  .viewer-scroll-pages {
+    gap: 9px;
+    padding: 9px 9px 28px;
+    scroll-snap-type: y proximity;
+  }
+  .viewer-scroll-page {
+    max-width: calc(100vw - 20px);
+    border-radius: 8px;
+  }
+  .viewer-scroll-page-number {
+    right: 7px;
+    bottom: 7px;
+    min-width: 27px;
+    height: 27px;
+    padding-inline: 7px;
+    font-size: .76rem;
+  }
+}
+
 @media (max-width: 520px) {
   .global-search-field { --global-search-scope-width: 118px; --global-search-clear-size: 30px; --global-search-control-gap: 5px; }
   .global-search-scope-toggle { min-height: 34px; padding-inline: 9px; font-size: .76rem; }
@@ -272,6 +292,7 @@
   .reader-quick-actions { gap: 4px; }
   .reader-icon-button,
   .reader-control-icon-button { width: 34px; min-width: 34px; min-height: 34px; border-radius: 12px; }
+  .viewer-control-separator { height: 23px; margin-inline: 1px; }
   .reader-search-input { padding-inline: 10px 108px; }
   .reader-search-scope-toggle { padding-inline: 7px; font-size: .7rem; }
   .reader-catalog-menu-toggle { width: 36px; min-width: 36px; min-height: 36px; }
@@ -378,7 +399,7 @@
 .viewer-auto-zoom-button {
   position: fixed;
   z-index: 12;
-  top: var(--viewer-side-control-far-top);
+  top: var(--viewer-side-control-lower-top);
   left: var(--viewer-side-control-edge);
   width: var(--viewer-side-control-size);
   min-width: var(--viewer-side-control-size);

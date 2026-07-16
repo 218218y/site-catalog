@@ -293,6 +293,43 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
   });
 
+  test("switches between side and progressively loaded vertical scroll layouts", async ({ page }) => {
+    await preparePage(page);
+    const startPage = Math.min(4, CATALOG_PAGES);
+    await openDirectViewer(page, startPage);
+
+    const toggle = page.locator("#viewerLayoutToggle");
+    const scrollPages = page.locator("#viewerScrollPages");
+    await expect(toggle).toHaveAttribute("data-viewer-layout", "side");
+
+    await toggle.click();
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    await expect(toggle).toHaveAttribute("data-viewer-layout", "scroll");
+    await expect(toggle).toHaveAttribute("aria-label", "מעבר לתצוגת צדדים");
+    await expect(scrollPages.locator("[data-scroll-page]")).toHaveCount(CATALOG_PAGES);
+    await expect.poll(() => scrollPages.locator("img[src]").count()).toBeLessThanOrEqual(5);
+    await expect.poll(() => scrollPages.locator("img[src]").count()).toBeGreaterThan(0);
+
+    const beforeTop = await scrollPages.evaluate((element) => element.scrollTop);
+    if (startPage < CATALOG_PAGES) {
+      await page.locator("#nextPageBtn").click();
+      await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage + 1));
+      await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBeGreaterThan(beforeTop);
+    }
+
+    await page.mouse.move(720, 1);
+    await expect(page.locator("#lightboxBar")).toBeVisible();
+    await page.locator("#fitWidthBtn").click();
+    await expect(page.locator("#fitWidthBtn")).toHaveAttribute("aria-pressed", "true");
+
+    await page.mouse.move(720, 1);
+    await expect(page.locator("#lightboxBar")).toBeVisible();
+    await toggle.click();
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-side/);
+    await expect(scrollPages).toBeHidden();
+    await expect(page.locator("#lightboxImage")).toHaveAttribute("src", new RegExp(`page-${String(startPage < CATALOG_PAGES ? startPage + 1 : startPage).padStart(3, "0")}\.webp`));
+  });
+
   test("shows a stable error state when a catalog image fails", async ({ page }) => {
     await preparePage(page, { failPages: [2] });
     await page.goto(`/viewer.html?catalog=${CATALOG_ID}&page=2`);

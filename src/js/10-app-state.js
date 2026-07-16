@@ -11,6 +11,8 @@ const MIN_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
 const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
+const VIEWER_LAYOUT_SIDE = "side";
+const VIEWER_LAYOUT_SCROLL = "scroll";
 const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
@@ -62,6 +64,7 @@ const state = {
   zoom: 1,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
+  viewerLayoutMode: VIEWER_LAYOUT_SIDE,
   singleImageFitOriginPending: false,
   panX: 0,
   panY: 0,
@@ -98,6 +101,11 @@ const state = {
   lightboxMobileSearchOpen: false,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
+  viewerScrollCatalogId: "",
+  viewerScrollLoadToken: 0,
+  viewerScrollRaf: 0,
+  viewerScrollSettleTimer: 0,
+  viewerScrollTargetPage: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
@@ -208,6 +216,8 @@ const els = {
   prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"),
   fullscreenToggle: $("fullscreenToggle"),
+  viewerLayoutToggle: $("viewerLayoutToggle"),
+  viewerScrollPages: $("viewerScrollPages"),
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
   viewerAutoZoomBtn: $("viewerAutoZoomBtn"),

@@ -7,7 +7,7 @@
  */
 
 function getZoomSurfaceName(surface) {
-  return surface === els.stageCanvas ? "catalog-entry" : "";
+  return surface === els.stageCanvas && !isScrollViewerMode() ? "catalog-entry" : "";
 }
 
 function isActiveZoomSurface(surface) {

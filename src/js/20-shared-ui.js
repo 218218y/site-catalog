@@ -439,6 +439,7 @@ function showActionToast(message, options = {}) {
 const IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
   ".catalog-image-frame",
   ".lightbox-image-frame",
+  ".viewer-scroll-page-frame",
   ".search-result-thumb-frame",
   ".reader-search-thumb-frame",
   ".favorite-image-frame",
