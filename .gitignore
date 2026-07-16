@@ -21,12 +21,8 @@ __pycache__/
 .pytest_cache/
 *.pyc
 
-telemetry.env
-‏‏telemetry.env
 
-# Protect accidentally RTL-prefixed copies of the local telemetry secret file.
-*telemetry.env
-#U200f#U200ftelemetry.env
 
 # Locally generated telemetry exports. They may contain business-sensitive aggregates.
 reports/telemetry/
+telemetry.env
