@@ -1043,10 +1043,16 @@ function syncViewerLayoutModeUi() {
 function getViewerScrollPageLayout(page) {
   const container = els.viewerScrollPages;
   const size = pageSize(state.catalog, page) || { width: 1400, height: 1000 };
-  if (!container) return { width: 280, height: 200 };
-
-  const availableWidth = Math.max(220, container.clientWidth - 34);
-  const availableHeight = Math.max(220, container.clientHeight - 34);
+  const viewportWidth = container?.clientWidth
+    || els.stageCanvas?.clientWidth
+    || window.innerWidth
+    || 320;
+  const viewportHeight = container?.clientHeight
+    || els.stageCanvas?.clientHeight
+    || window.innerHeight
+    || 480;
+  const availableWidth = Math.max(220, viewportWidth - 34);
+  const availableHeight = Math.max(220, viewportHeight - 34);
   const widthScale = availableWidth / size.width;
   const heightScale = availableHeight / size.height;
   const scale = state.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
@@ -1327,7 +1333,10 @@ function refreshViewerScrollPageGeometry(options = {}) {
   applyViewerScrollZoom(zoomAnchor, { immediate: true });
 
   if (preservePage && !zoomAnchor) {
-    requestAnimationFrame(() => scrollViewerToPage(currentPage, { behavior: "auto" }));
+    // Reading the target offsets after the CSS variables changed forces the
+    // new geometry to be resolved now. Recenter in the same task so an
+    // over-wide fit-height page can never be painted against an edge first.
+    scrollViewerToPage(currentPage, { behavior: "auto" });
   }
 }
 
@@ -1342,11 +1351,15 @@ function renderViewerScrollPages() {
     state.viewerScrollLoadToken += 1;
     state.viewerScrollCatalogId = catalog.id;
     const title = escapeHtml(catalog.title || "קטלוג");
+    const zoom = Math.min(AUTO_VIEWER_ZOOM, getSafeViewerZoom());
     container.innerHTML = Array.from({ length: catalog.pages }, (_unused, index) => {
       const page = index + 1;
       const size = pageSize(catalog, page) || { width: 1400, height: 1000 };
+      const layout = getViewerScrollPageLayout(page);
+      const width = Math.max(1, Math.round(layout.width * zoom));
+      const height = Math.max(1, Math.round(layout.height * zoom));
       return `
-        <div class="viewer-scroll-page viewer-scroll-page-frame image-placeholder-frame image-loading" data-scroll-page="${page}" role="listitem" aria-label="${title}, עמוד ${page}" style="aspect-ratio:${size.width} / ${size.height}">
+        <div class="viewer-scroll-page viewer-scroll-page-frame image-placeholder-frame image-loading" data-scroll-page="${page}" data-scroll-base-width="${layout.width}" data-scroll-base-height="${layout.height}" role="listitem" aria-label="${title}, עמוד ${page}" style="--viewer-scroll-page-width:${width}px;--viewer-scroll-page-height:${height}px;aspect-ratio:${size.width} / ${size.height}">
           <img data-viewer-scroll-image="${page}" alt="${title} - עמוד ${page}" draggable="false" decoding="async" />
           <span class="viewer-scroll-page-number" aria-hidden="true">${page}</span>
         </div>
@@ -1448,7 +1461,12 @@ function scrollViewerToPage(page, options = {}) {
     syncViewerScrollActivePage(targetPage);
   }
 
-  if (options.animate) requestAnimationFrame(() => runViewerScrollPageSwapAnimation(targetPage));
+  // The scroll-mode page change may itself run inside requestAnimationFrame.
+  // Starting the animation in another frame lets the fully visible target page
+  // paint once before it jumps back to the animation's start state. Apply the
+  // class synchronously after positioning so the first paint already contains
+  // the same fade/blur/scale start state as the single-page viewer.
+  if (options.animate) runViewerScrollPageSwapAnimation(targetPage);
   return true;
 }
 
@@ -1562,10 +1580,11 @@ function setViewerLayoutMode(layoutMode, options = {}) {
     setViewerLoading(false);
     els.lightbox?.classList.remove("is-page-loading", "is-zoomed");
     renderViewerScrollPages();
-    requestAnimationFrame(() => {
-      refreshViewerScrollPageGeometry();
-      scrollViewerToPage(state.page, { behavior: options.behavior || "auto" });
+    const positionActivePage = () => scrollViewerToPage(state.page, {
+      behavior: options.behavior || "auto"
     });
+    if (options.behavior === "smooth") requestAnimationFrame(positionActivePage);
+    else positionActivePage();
   } else if (state.lightboxOpen && state.catalog) {
     updateLightbox();
   }
@@ -1632,10 +1651,12 @@ function updateLightbox(options = {}) {
     renderViewerScrollPages();
     loadViewerScrollWindow(state.page);
     if (scrollToPage) {
-      requestAnimationFrame(() => scrollViewerToPage(state.page, {
+      const positionActivePage = () => scrollViewerToPage(state.page, {
         behavior: scrollBehavior,
         animate: animateScrollPage
-      }));
+      });
+      if (scrollBehavior === "smooth") requestAnimationFrame(positionActivePage);
+      else positionActivePage();
     }
     updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
     updateHash();

@@ -77,6 +77,12 @@ assert.match(app, /const zoom = Math\.min\(AUTO_VIEWER_ZOOM, getSafeViewerZoom\(
 assert.match(app, /container\.scrollTop = top;/);
 assert.match(app, /function runViewerScrollPageSwapAnimation\(page\)/);
 assert.match(app, /runViewerScrollPageSwapAnimation\(page\)[\s\S]*?timerKey: "viewerScrollPageAnimationTimer"[\s\S]*?root: els\.viewerScrollPages/);
+assert.match(app, /if \(options\.animate\) runViewerScrollPageSwapAnimation\(targetPage\);/);
+assert.doesNotMatch(app, /if \(options\.animate\) requestAnimationFrame\(\(\) => runViewerScrollPageSwapAnimation/);
+assert.match(app, /data-scroll-base-width="\$\{layout\.width\}"[\s\S]*?--viewer-scroll-page-width:\$\{width\}px;--viewer-scroll-page-height:\$\{height\}px/);
+assert.match(app, /const viewportWidth = container\?\.clientWidth[\s\S]*?els\.stageCanvas\?\.clientWidth[\s\S]*?window\.innerWidth/);
+assert.match(app, /if \(preservePage && !zoomAnchor\) \{[\s\S]*?scrollViewerToPage\(currentPage, \{ behavior: "auto" \}\);/);
+assert.match(app, /const positionActivePage = \(\) => scrollViewerToPage\(state\.page, \{[\s\S]*?animate: animateScrollPage[\s\S]*?if \(scrollBehavior === "smooth"\) requestAnimationFrame\(positionActivePage\);[\s\S]*?else positionActivePage\(\);/);
 assert.match(app, /updateLightbox\(\{[\s\S]*?scrollToPage: isScrollViewerMode\(\)[\s\S]*?scrollBehavior: "auto"/);
 assert.match(app, /const showButton = Boolean\(state\.lightboxOpen && !isAutoViewerZoom\(\)\)/);
 
@@ -86,6 +92,7 @@ assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?overflow-x:\s*auto;[\s\S]*?
 assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?touch-action:\s*pan-y;/);
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?scroll-snap-align:\s*center;/);
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?width:\s*var\(--viewer-scroll-page-width/);
+assert.doesNotMatch(css, /var\(--viewer-scroll-page-width,\s*280px\)|var\(--viewer-scroll-page-height,\s*200px\)/);
 assert.match(css, /\.lightbox\.viewer-layout-scroll \.stage-canvas\s*\{[\s\S]*?touch-action:\s*pan-y;/);
 assert.match(css, /\.lightbox\.viewer-layout-scroll\.viewer-scroll-zoom-isolated \.viewer-scroll-pages\s*\{[\s\S]*?visibility:\s*hidden;/);
 assert.match(css, /\.viewer-scroll-page\.page-swap-enter\s*\{[\s\S]*?z-index:\s*3;/);

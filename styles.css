@@ -2343,8 +2343,11 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .viewer-scroll-page {
   position: relative;
   flex: 0 0 auto;
-  width: var(--viewer-scroll-page-width, 280px);
-  height: var(--viewer-scroll-page-height, 200px);
+  /* Every frame is created with page-specific geometry. A generic 280x200
+     fallback could briefly establish the wrong overflow and centering model
+     for a wide fit-height page before its real dimensions were resolved. */
+  width: var(--viewer-scroll-page-width);
+  height: var(--viewer-scroll-page-height);
   max-width: none;
   margin-inline: auto;
   overflow: hidden;
