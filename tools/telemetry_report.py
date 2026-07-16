@@ -210,10 +210,10 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
         ReportQuery(
             "error",
             query(
-                "if(empty(blob9), blob1, blob9) AS label, "
+                "blob1 AS event_name, blob9 AS error_code, "
                 "SUM(_sample_interval) AS count",
                 "blob1 IN ('js_error', 'image_error')",
-                "if(empty(blob9), blob1, blob9)",
+                "blob1, blob9",
             ),
         ),
     )
@@ -238,13 +238,30 @@ def fetch_report_rows(
             ) from exc
 
         for row in section_rows:
-            normalized = dict(row)
-            normalized["section"] = report_query.section
-            normalized.setdefault("label", "")
-            normalized.setdefault("count", 0)
-            normalized.setdefault("metric", 0)
+            normalized = normalize_report_row(report_query.section, row)
             merged.append(normalized)
     return merged
+
+
+def normalize_report_row(section: str, row: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one Analytics Engine row into the report's shared schema.
+
+    Analytics Engine only accepts physical column names in ``GROUP BY``. Error
+    rows are therefore grouped by ``blob1`` and ``blob9`` in SQL, and the
+    user-facing fallback label is derived here instead of inside the query.
+    """
+
+    normalized = dict(row)
+    normalized["section"] = section
+    if section == "error":
+        error_code = str(normalized.pop("error_code", "") or "").strip()
+        event_name = str(normalized.pop("event_name", "") or "").strip()
+        normalized["label"] = error_code or event_name or "unknown_error"
+    else:
+        normalized.setdefault("label", "")
+    normalized.setdefault("count", 0)
+    normalized.setdefault("metric", 0)
+    return normalized
 
 
 def extract_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:

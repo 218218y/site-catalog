@@ -466,6 +466,10 @@ telemetry-report.bat
 npm run telemetry:report -- 30
 ```
 
+The report sends one supported `SELECT` per section. Error rows are grouped by
+physical dataset columns and labeled locally, because Analytics Engine only
+accepts column names in `GROUP BY`.
+
 הוראות מלאות, מבנה הנתונים ורשימת כותרות האבטחה נמצאים ב־`docs/monitoring-security.md`.
 
 כלי הדוח שולח ל־Analytics Engine שש שאילתות `SELECT` קטנות — אחת לכל אזור בדוח — ומאחד את התוצאות מקומית. אין שימוש ב־`UNION ALL` או ב־CTE, שאינם חלק מתחביר ה־SELECT הנתמך ב־SQL API של Analytics Engine.

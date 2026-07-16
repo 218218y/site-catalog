@@ -97,6 +97,9 @@ report section with a single supported `SELECT`; the Python tool merges the
 normalized rows locally instead of using `UNION ALL` or a CTE. One report run
 therefore performs six small SQL API read requests, one per section. Each query
 uses Analytics Engine's `_sample_interval`, so sampled event counts remain correct.
+Error rows are grouped only by physical Analytics Engine columns (`blob1`, `blob9`);
+the readable fallback label is derived locally because Analytics Engine does not
+allow expressions inside `GROUP BY`.
 Use `--json` for machine-readable output.
 
 Analytics Engine is intended for aggregated operational analytics rather than a

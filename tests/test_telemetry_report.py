@@ -44,8 +44,54 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
     search_query = next(item.sql for item in queries if item.section == "search")
     assert "sumIf(_sample_interval, double1 = 0) AS metric" in search_query
     error_query = next(item.sql for item in queries if item.section == "error")
-    assert "if(empty(blob9), blob1, blob9)" in error_query
+    assert "blob1 AS event_name, blob9 AS error_code" in error_query
+    assert "GROUP BY blob1, blob9" in error_query
+    assert "if(" not in error_query.lower()
 
+
+
+def test_error_rows_are_labeled_locally_without_group_by_expression() -> None:
+    coded = MODULE.normalize_report_row(
+        "error",
+        {"event_name": "js_error", "error_code": "TypeError", "count": 3},
+    )
+    fallback = MODULE.normalize_report_row(
+        "error",
+        {"event_name": "image_error", "error_code": "", "count": 2},
+    )
+
+    assert coded == {
+        "section": "error",
+        "label": "TypeError",
+        "count": 3,
+        "metric": 0,
+    }
+    assert fallback == {
+        "section": "error",
+        "label": "image_error",
+        "count": 2,
+        "metric": 0,
+    }
+
+
+def test_fetch_report_rows_normalizes_error_section(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_query_api(_account_id: str, _token: str, query: str) -> dict[str, object]:
+        if "blob1 AS event_name, blob9 AS error_code" in query:
+            return {
+                "data": [
+                    {"event_name": "js_error", "error_code": "ReferenceError", "count": 4},
+                    {"event_name": "image_error", "error_code": "", "count": 1},
+                ]
+            }
+        return {"data": []}
+
+    monkeypatch.setattr(MODULE, "query_api", fake_query_api)
+    rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
+
+    assert rows == [
+        {"section": "error", "label": "ReferenceError", "count": 4, "metric": 0},
+        {"section": "error", "label": "image_error", "count": 1, "metric": 0},
+    ]
 
 def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
