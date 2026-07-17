@@ -141,7 +141,7 @@
   }
   .reader-header .reader-home { padding: 4px 6px; border-radius: 14px; }
   .reader-logo,
-  .lightbox-brand-lockup .reader-logo { width: 84px; border-radius: 12px; clip-path: inset(0 round 12px); }
+  .lightbox-brand-lockup .reader-logo { width: 84px; }
   .reader-icon-button { width: 36px; min-width: 36px; min-height: 36px; }
   .reader-icon-button svg { width: 18px; height: 18px; }
   .reader-search-toolbar {

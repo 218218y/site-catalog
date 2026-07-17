@@ -34,7 +34,7 @@ for (const filename of pageFiles) {
   assert.doesNotMatch(html, /--bargig-logo-url:/, `${filename} must not define CSS-relative asset URLs inline`);
   assert.doesNotMatch(html, /wp_logo_data\.js|brand-logo\.js|data-wp-logo=/);
   assert.match(headerLogo, /\bsrc="brand-logo-header\.svg"/, `${filename} header must use the transparent header artwork`);
-  assert.match(readerLogo, /\bsrc="brand-logo\.svg"/, `${filename} reader must keep the complete shared logo`);
+  assert.match(readerLogo, /\bsrc="brand-logo-header\.svg"/, `${filename} reader chrome must use the transparent header artwork`);
   for (const tag of [headerLogo, readerLogo]) {
     assert.match(tag, /\bdata-brand-logo="1"/, `${filename} logos must keep the load hook`);
     assert.match(tag, new RegExp(`\\bwidth="${logoWidth}"`), `${filename} logo must reserve its intrinsic width`);
@@ -50,6 +50,8 @@ assert.match(sharedLogoRule[1], /height:\s*auto;/, 'responsive logos must overri
 assert.match(css, /\.brand-mark-frame\s*\{[\s\S]*?width:\s*clamp\([^;]+\);[\s\S]*?aspect-ratio:\s*786\s*\/\s*317;/);
 assert.match(css, /\.brand-mark\s*\{[\s\S]*?width:\s*100%;[\s\S]*?height:\s*auto;/);
 assert.match(css, /--bargig-logo-url:\s*url\(["']brand-logo\.svg["']\);/, 'the source stylesheet must own the local logo dependency');
+assert.match(css, /\.reader-brand-lockup::before\s*\{[\s\S]*?background:\s*var\(--brand-logo-panel-background\);/, 'viewer logo panel must be CSS-owned');
+assert.match(css, /\.reader-brand-lockup \.reader-logo\s*\{[\s\S]*?opacity:\s*var\(--viewer-brand-logo-opacity\);/, 'viewer logo artwork should be softened independently of image watermarks');
 assert.doesNotMatch(css, /\.reader-logo\s*\{[^}]*height:\s*(?!auto\b)[^;}]+/s, 'reader logo must not receive a fixed CSS height');
 
 console.log('header_layout_stability_contract.test.js: PASS');

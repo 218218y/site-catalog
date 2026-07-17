@@ -56,6 +56,13 @@
   --placeholder-highlight: rgba(255,255,255,0.55);
   --header-h: 78px;
   --bargig-logo-url: url("brand-logo.svg");
+  --brand-logo-panel-border: rgba(110, 86, 70, 0.15);
+  --brand-logo-panel-background: linear-gradient(180deg, rgba(255, 254, 252, 0.99), rgba(252, 247, 242, 0.97));
+  --brand-logo-panel-shadow:
+    0 8px 20px rgba(67, 48, 34, 0.13),
+    0 1px 3px rgba(67, 48, 34, 0.08),
+    inset 0 1px 0 rgba(255,255,255,0.98);
+  --viewer-brand-logo-opacity: 0.78;
   --site-scrollbar-size: 8px;
   --site-scrollbar-track: rgba(154, 122, 98, 0.10);
   --site-scrollbar-thumb: rgba(117, 88, 68, 0.34);
@@ -871,13 +878,10 @@ img[data-brand-logo="1"] {
   position: absolute;
   z-index: 0;
   inset: 5.68% 2.42% 5.36%;
-  border: 1px solid rgba(110, 86, 70, 0.15);
+  border: 1px solid var(--brand-logo-panel-border);
   border-radius: 3.9% / 10.3%;
-  background: linear-gradient(180deg, rgba(255, 254, 252, 0.99), rgba(252, 247, 242, 0.97));
-  box-shadow:
-    0 8px 20px rgba(67, 48, 34, 0.13),
-    0 1px 3px rgba(67, 48, 34, 0.08),
-    inset 0 1px 0 rgba(255,255,255,0.98);
+  background: var(--brand-logo-panel-background);
+  box-shadow: var(--brand-logo-panel-shadow);
   pointer-events: none;
 }
 .brand-mark {
@@ -2676,15 +2680,31 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   backdrop-filter: blur(10px);
 }
 
-/* The SVG panel is intentionally translucent for watermarks and exported images.
-   A warm underlay here prevents it from absorbing the viewer toolbar's dark
-   background while keeping the artwork itself unchanged and crisp. */
+/* Viewer chrome uses the transparent logo artwork. Its panel is owned by CSS,
+   just like the main header, so the image never brings the translucent white
+   watermark panel into the warm toolbar and cannot create a doubled white edge. */
+.reader-brand-lockup {
+  position: relative;
+  isolation: isolate;
+}
+.reader-brand-lockup::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 5.68% 2.42% 5.36%;
+  border: 1px solid var(--brand-logo-panel-border);
+  border-radius: 3.9% / 10.3%;
+  background: var(--brand-logo-panel-background);
+  box-shadow: var(--brand-logo-panel-shadow);
+  pointer-events: none;
+}
 .reader-brand-lockup .reader-logo {
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(255, 254, 252, 0.99), rgba(248, 239, 232, 0.97));
-  box-shadow:
-    0 7px 18px rgba(70, 50, 36, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+  position: relative;
+  z-index: 1;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: var(--viewer-brand-logo-opacity);
 }
 .lightbox-brand-lockup .reader-logo {
   width: clamp(90px, 7.5vw, 116px);
@@ -4149,6 +4169,7 @@ a.reader-home:focus-visible {
 .lightbox-image-frame,
 .lightbox-page-thumb-frame,
 .reader-page-frame,
+.viewer-scroll-page-frame,
 .reader-page-thumb-frame,
 .reader-search-thumb-frame {
   position: relative;
@@ -4160,6 +4181,7 @@ a.reader-home:focus-visible {
 .has-bargig-logo .lightbox-image-frame::after,
 .has-bargig-logo .lightbox-page-thumb-frame::after,
 .has-bargig-logo .reader-page-frame::after,
+.has-bargig-logo .viewer-scroll-page-frame::after,
 .has-bargig-logo .reader-page-thumb-frame::after,
 .has-bargig-logo .reader-search-thumb-frame::after,
 .has-bargig-logo .search-result-thumb-frame::after {
@@ -4192,6 +4214,7 @@ a.reader-home:focus-visible {
 }
 
 .has-bargig-logo .reader-page-frame::after,
+.has-bargig-logo .viewer-scroll-page-frame::after,
 .has-bargig-logo .lightbox-image-frame::after {
   width: clamp(82px, 13%, 170px);
   top: clamp(10px, 2%, 24px);
@@ -4966,7 +4989,7 @@ body[data-app-ready="true"] > .site-footer {
   }
   .reader-header .reader-home { padding: 4px 6px; border-radius: 14px; }
   .reader-logo,
-  .lightbox-brand-lockup .reader-logo { width: 84px; border-radius: 12px; clip-path: inset(0 round 12px); }
+  .lightbox-brand-lockup .reader-logo { width: 84px; }
   .reader-icon-button { width: 36px; min-width: 36px; min-height: 36px; }
   .reader-icon-button svg { width: 18px; height: 18px; }
   .reader-search-toolbar {

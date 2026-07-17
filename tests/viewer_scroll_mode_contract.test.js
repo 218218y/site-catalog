@@ -113,6 +113,7 @@ assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?touch-action:\s*pan-y;/);
 assert.doesNotMatch(css, /viewer-wheel-gesture-active/);
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?scroll-snap-align:\s*center;/);
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?width:\s*var\(--viewer-scroll-page-width/);
+assert.match(css, /\.has-bargig-logo \.viewer-scroll-page-frame::after/, 'continuous scroll pages must receive the visible image watermark');
 assert.doesNotMatch(css, /var\(--viewer-scroll-page-width,\s*280px\)|var\(--viewer-scroll-page-height,\s*200px\)/);
 assert.match(css, /\.lightbox\.viewer-layout-scroll \.stage-canvas\s*\{[\s\S]*?touch-action:\s*pan-y;/);
 assert.match(css, /\.lightbox\.viewer-layout-scroll\.viewer-scroll-zoom-isolated \.viewer-scroll-pages\s*\{[\s\S]*?visibility:\s*hidden;/);
