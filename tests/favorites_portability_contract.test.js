@@ -33,6 +33,9 @@ assert.doesNotMatch(app, /headerFullscreenToggle/);
 
 assert.match(app, /const FAVORITES_SHARE_VERSION = 2;/);
 assert.match(app, /function canonicalizeFavoriteShareItems\(/);
+assert.match(app, /function analyzeFavoriteItemMerge\([\s\S]*?newItems[\s\S]*?alreadyExistingItems[\s\S]*?mergedItems/);
+assert.match(app, /function mergeFavoriteItemLists\([\s\S]*?analyzeFavoriteItemMerge\(incoming, existing\)\.mergedItems/);
+assert.match(app, /function syncFavoritesTransferDialogUi\([\s\S]*?analyzeFavoriteItemMerge\(pending\.items, getValidFavoriteItems\(\)\)[\s\S]*?חדשים[\s\S]*?כבר קיימים/);
 assert.match(app, /function encodeFavoritePageRanges\(/);
 assert.match(app, /function decodeFavoritePageRanges\(/);
 assert.match(app, /function buildFavoritesShareToken\([\s\S]*?canonicalizeFavoriteShareItems\([\s\S]*?encodeFavoritePageRanges/);

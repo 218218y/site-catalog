@@ -1529,12 +1529,26 @@ function normalizeFavoriteTransferItems(values) {
   return { items: accepted, rejected };
 }
 
-function mergeFavoriteItemLists(incoming, existing = getValidFavoriteItems()) {
+function analyzeFavoriteItemMerge(incoming, existing = getValidFavoriteItems()) {
   const incomingItems = window.BargigFavorites?.normalizeItems?.(incoming) || [];
+  const existingItems = window.BargigFavorites?.normalizeItems?.(existing) || [];
+  const existingKeys = new Set(existingItems.map(favoriteItemKey).filter(Boolean));
   const incomingKeys = new Set(incomingItems.map(favoriteItemKey).filter(Boolean));
-  const existingItems = (window.BargigFavorites?.normalizeItems?.(existing) || [])
-    .filter((item) => !incomingKeys.has(favoriteItemKey(item)));
-  return [...incomingItems, ...existingItems];
+  const newItems = incomingItems.filter((item) => !existingKeys.has(favoriteItemKey(item)));
+  const alreadyExistingItems = incomingItems.filter((item) => existingKeys.has(favoriteItemKey(item)));
+  const preservedExistingItems = existingItems.filter((item) => !incomingKeys.has(favoriteItemKey(item)));
+
+  return {
+    incomingItems,
+    existingItems,
+    newItems,
+    alreadyExistingItems,
+    mergedItems: [...incomingItems, ...preservedExistingItems]
+  };
+}
+
+function mergeFavoriteItemLists(incoming, existing = getValidFavoriteItems()) {
+  return analyzeFavoriteItemMerge(incoming, existing).mergedItems;
 }
 
 function encodeBase64UrlUtf8(value) {
@@ -1674,15 +1688,18 @@ function cleanFavoritesSelectionFromUrl() {
 function syncFavoritesTransferDialogUi() {
   const pending = state.favoritesTransferPending;
   if (!pending || !els.favoritesTransferOverlay) return;
-  const incomingCount = pending.items.length;
-  const currentCount = getFavoriteEntries().length;
+  const comparison = analyzeFavoriteItemMerge(pending.items, getValidFavoriteItems());
+  const incomingCount = comparison.incomingItems.length;
+  const currentCount = comparison.existingItems.length;
+  const newCount = comparison.newItems.length;
+  const alreadyExistingCount = comparison.alreadyExistingItems.length;
   if (els.favoritesTransferTitle) els.favoritesTransferTitle.textContent = "רשימת מועדפים התקבלה";
   if (els.favoritesTransferDescription) {
     els.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת.";
   }
   if (els.favoritesTransferSummary) {
-    const rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "";
-    els.favoritesTransferSummary.textContent = `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}`;
+    const rejectedText = pending.rejected ? ` · לא זמינים באתר זה: ${pending.rejected}` : "";
+    els.favoritesTransferSummary.textContent = `ברשימה שהתקבלה: ${incomingCount} · חדשים: ${newCount} · כבר קיימים: ${alreadyExistingCount} · שמורים כעת: ${currentCount}${rejectedText}`;
   }
 }
 
@@ -1718,8 +1735,9 @@ function applyFavoritesTransfer(mode) {
     ...item,
     savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : timestamp - index
   }));
+  const comparison = analyzeFavoriteItemMerge(incoming, getValidFavoriteItems());
   const nextItems = mode === "merge"
-    ? mergeFavoriteItemLists(incoming, getValidFavoriteItems())
+    ? comparison.mergedItems
     : incoming;
   favoritesStore.replace(nextItems);
   closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: pending.source === "link" });
@@ -1727,7 +1745,10 @@ function applyFavoritesTransfer(mode) {
   syncFavoriteViewerAfterStoreChange();
   const verb = mode === "merge" ? "מוזגה" : "נטענה";
   const rejectedText = pending.rejected ? ` · ${pending.rejected} לא היו זמינים` : "";
-  showActionToast(`הרשימה ${verb}: ${incoming.length} פריטים${rejectedText}`, { tone: "saved", duration: 2800 });
+  const resultText = mode === "merge"
+    ? `${comparison.newItems.length} חדשים · ${comparison.alreadyExistingItems.length} כבר היו שמורים`
+    : `${incoming.length} פריטים`;
+  showActionToast(`הרשימה ${verb}: ${resultText}${rejectedText}`, { tone: "saved", duration: 2800 });
   requestAnimationFrame(() => els.favoritesGrid?.querySelector(".favorite-card")?.focus?.());
 }
 
@@ -2041,6 +2062,7 @@ function handleFavoritesStorageChange(event) {
   if (!favoritesStore || (event.key !== null && event.key !== favoritesStore.storageKey)) return;
   favoritesStore.reload();
   syncFavoritesUi({ renderPanel: true });
+  if (state.favoritesTransferPending) syncFavoritesTransferDialogUi();
   syncFavoriteViewerAfterStoreChange();
 }
 

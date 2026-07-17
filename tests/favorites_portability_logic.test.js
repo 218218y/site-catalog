@@ -39,7 +39,9 @@ function extractFunction(name) {
 const names = [
   'favoriteItemKey',
   'normalizeFavoriteTransferItems',
+  'analyzeFavoriteItemMerge',
   'mergeFavoriteItemLists',
+  'syncFavoritesTransferDialogUi',
   'encodeBase64UrlUtf8',
   'decodeBase64UrlUtf8',
   'canonicalizeFavoriteShareItems',
@@ -59,6 +61,14 @@ const context = {
   FAVORITES_SHARE_VERSION: 2,
   FAVORITES_SHARE_LEGACY_VERSION: 1,
   catalogs,
+  state: { favoritesTransferPending: null },
+  els: {
+    favoritesTransferOverlay: {},
+    favoritesTransferTitle: { textContent: '' },
+    favoritesTransferDescription: { textContent: '' },
+    favoritesTransferSummary: { textContent: '' }
+  },
+  currentFavoriteItems: [],
   window: {
     BargigFavorites: { normalizeItems },
     btoa: (value) => Buffer.from(value, 'binary').toString('base64'),
@@ -68,7 +78,8 @@ const context = {
   TextDecoder,
   encodeURIComponent,
   decodeURIComponent,
-  findCatalogById: (id) => catalogMap.get(String(id)) || null
+  findCatalogById: (id) => catalogMap.get(String(id)) || null,
+  getValidFavoriteItems: () => context.currentFavoriteItems
 };
 vm.createContext(context);
 vm.runInContext(names.map(extractFunction).join('\n\n'), context);
@@ -128,5 +139,49 @@ assert.deepEqual(JSON.parse(JSON.stringify(merged)), [
   { catalogId: 'catalog-a', page: 2, savedAt: 50 },
   { catalogId: 'catalog-b', page: 1, savedAt: 5 }
 ]);
+
+const comparison = context.analyzeFavoriteItemMerge(
+  [
+    { catalogId: 'catalog-a', page: 2, savedAt: 50 },
+    { catalogId: 'catalog-a', page: 4, savedAt: 40 },
+    { catalogId: 'catalog-b', page: 7, savedAt: 30 }
+  ],
+  [
+    { catalogId: 'catalog-a', page: 2, savedAt: 10 },
+    { catalogId: 'catalog-b', page: 1, savedAt: 5 },
+    { catalogId: 'catalog-b', page: 7, savedAt: 1 }
+  ]
+);
+assert.deepEqual(JSON.parse(JSON.stringify(comparison.newItems)), [
+  { catalogId: 'catalog-a', page: 4, savedAt: 40 }
+]);
+assert.deepEqual(JSON.parse(JSON.stringify(comparison.alreadyExistingItems)), [
+  { catalogId: 'catalog-a', page: 2, savedAt: 50 },
+  { catalogId: 'catalog-b', page: 7, savedAt: 30 }
+]);
+assert.deepEqual(JSON.parse(JSON.stringify(comparison.mergedItems)), [
+  { catalogId: 'catalog-a', page: 2, savedAt: 50 },
+  { catalogId: 'catalog-a', page: 4, savedAt: 40 },
+  { catalogId: 'catalog-b', page: 7, savedAt: 30 },
+  { catalogId: 'catalog-b', page: 1, savedAt: 5 }
+]);
+
+context.currentFavoriteItems = [
+  { catalogId: 'catalog-a', page: 2, savedAt: 10 },
+  { catalogId: 'catalog-b', page: 1, savedAt: 5 }
+];
+context.state.favoritesTransferPending = {
+  items: [
+    { catalogId: 'catalog-a', page: 2, savedAt: 0 },
+    { catalogId: 'catalog-a', page: 4, savedAt: 0 },
+    { catalogId: 'catalog-b', page: 7, savedAt: 0 }
+  ],
+  rejected: 1
+};
+context.syncFavoritesTransferDialogUi();
+assert.equal(
+  context.els.favoritesTransferSummary.textContent,
+  'ברשימה שהתקבלה: 3 · חדשים: 2 · כבר קיימים: 1 · שמורים כעת: 2 · לא זמינים באתר זה: 1'
+);
 
 console.log('favorites_portability_logic.test.js: PASS');
