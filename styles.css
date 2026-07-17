@@ -2450,6 +2450,15 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   box-shadow: 0 18px 68px rgba(0,0,0,0.42);
   contain: layout paint style;
 }
+.lightbox.fit-width .viewer-scroll-pages {
+  /* A fit-width page is normally taller than the viewport. Native scrolling
+     must retain the exact position chosen by wheel, trackpad, or touch rather
+     than snapping the viewport to a page center when the gesture slows down. */
+  scroll-snap-type: none;
+}
+.lightbox.fit-width .viewer-scroll-page {
+  scroll-snap-align: none;
+}
 .viewer-scroll-page > img {
   display: block;
   width: 100%;

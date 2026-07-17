@@ -74,6 +74,14 @@ function isViewerScrollIsolatedZoom() {
   return isScrollViewerMode() && Boolean(state.viewerScrollIsolatedZoom);
 }
 
+function viewerScrollUsesFreePositioning() {
+  return (
+    isScrollViewerMode()
+    && !isViewerScrollIsolatedZoom()
+    && state.imageFitMode === VIEWER_FIT_WIDTH
+  );
+}
+
 function getActiveSingleImageNaturalSize() {
   if (isViewerScrollIsolatedZoom() && state.catalog) {
     return pageSize(state.catalog, state.viewerScrollIsolatedPage || state.page);
@@ -803,6 +811,13 @@ function setViewerFitMode(fitMode, options = {}) {
 
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
+    // A fit-height wheel gesture may still have a delayed page-settlement
+    // callback pending. Cancel the whole command sequence before fit-width
+    // enables native free scrolling, otherwise that stale callback can pull the
+    // reader back to a page center after the user has already continued.
+    clearViewerScrollWheelGesture();
+    clearViewerScrollTarget();
+    resetViewerScrollCommandSequence();
     if (isViewerScrollIsolatedZoom()) {
       exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
     }
@@ -1324,6 +1339,11 @@ function refreshViewerScrollPageGeometry(options = {}) {
   if (!isScrollViewerMode() || !els.viewerScrollPages || !state.catalog) return;
   const { preservePage = false, zoomAnchor = null } = options;
   const currentPage = state.page;
+  const preservedAnchor = zoomAnchor || (
+    preservePage && viewerScrollUsesFreePositioning()
+      ? getViewerScrollZoomAnchor()
+      : null
+  );
 
   els.viewerScrollPages.querySelectorAll("[data-scroll-page]").forEach((frame) => {
     const page = Number.parseInt(frame.dataset.scrollPage, 10);
@@ -1333,9 +1353,9 @@ function refreshViewerScrollPageGeometry(options = {}) {
     frame.dataset.scrollBaseHeight = String(layout.height);
   });
 
-  applyViewerScrollZoom(zoomAnchor, { immediate: true });
+  applyViewerScrollZoom(preservedAnchor, { immediate: true });
 
-  if (preservePage && !zoomAnchor) {
+  if (preservePage && !preservedAnchor) {
     // Reading the target offsets after the CSS variables changed forces the
     // new geometry to be resolved now. Recenter in the same task so an
     // over-wide fit-height page can never be painted against an edge first.
@@ -1559,6 +1579,18 @@ function getViewerScrollWheelRequestedSteps(accumulator) {
 function handleViewerScrollWheel(event) {
   const container = els.viewerScrollPages;
   if (!state.lightboxOpen || !isScrollViewerMode() || isViewerScrollIsolatedZoom() || !state.catalog || !container) {
+    return false;
+  }
+
+  if (viewerScrollUsesFreePositioning()) {
+    // Fit-width pages are intentionally taller than the viewport. Let the
+    // browser consume the complete wheel/trackpad stream so the reader can move
+    // through every part of the current image and continue naturally into the
+    // next one. Clearing page-command state also prevents a previous fit-height
+    // gesture from settling onto an aligned page after native scrolling begins.
+    clearViewerScrollWheelGesture();
+    clearViewerScrollTarget();
+    resetViewerScrollCommandSequence();
     return false;
   }
 

@@ -68,6 +68,7 @@ assert.match(app, /function handleZoomSurfaceDoubleClick\(event\)[\s\S]*?event\.
 assert.match(app, /function getViewerScrollZoomAnchor\(clientX = null, clientY = null\)/);
 assert.match(app, /function applyViewerScrollZoom\(anchor = null, options = \{\}\)/);
 assert.match(app, /function isViewerScrollIsolatedZoom\(\)/);
+assert.match(app, /function viewerScrollUsesFreePositioning\(\)[\s\S]*?state\.imageFitMode === VIEWER_FIT_WIDTH/);
 assert.match(app, /function enterViewerScrollIsolatedZoom\(nextZoom, focalClientX = null, focalClientY = null\)/);
 assert.match(app, /function exitViewerScrollIsolatedZoom\(options = \{\}\)/);
 assert.match(app, /function panViewerScrollIsolatedZoomByWheel\(deltaX = 0, deltaY = 0\)/);
@@ -86,6 +87,7 @@ assert.match(app, /magnitude < VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX/);
 assert.match(app, /Math\.trunc\(magnitude \/ VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX\)/);
 assert.match(app, /Math\.sign\(signedAccumulator\) \* Math\.max\(1, wholePageSteps\)/);
 assert.match(app, /function handleViewerScrollWheel\(event\)/);
+assert.match(app, /function handleViewerScrollWheel\(event\)[\s\S]*?if \(viewerScrollUsesFreePositioning\(\)\) \{[\s\S]*?clearViewerScrollWheelGesture\(\);[\s\S]*?clearViewerScrollTarget\(\);[\s\S]*?return false;/);
 assert.match(app, /getViewerScrollWheelRequestedSteps\([\s\S]*?viewerScrollWheelAccumulator/);
 assert.match(app, /state\.viewerScrollWheelBasePage \+ requestedSteps/);
 assert.match(app, /const gestureStarted = !state\.viewerScrollWheelBasePage;/);
@@ -101,7 +103,10 @@ assert.match(app, /data-scroll-base-width="\$\{layout\.width\}"[\s\S]*?--viewer-
 assert.match(app, /const viewportWidth = container\?\.clientWidth[\s\S]*?els\.stageCanvas\?\.clientWidth[\s\S]*?window\.innerWidth/);
 assert.match(app, /const containerStyle = container \? window\.getComputedStyle\(container\) : null;/);
 assert.match(app, /const availableHeight = Math\.max\(220, viewportHeight - verticalInset \* 2\);/);
-assert.match(app, /if \(preservePage && !zoomAnchor\) \{[\s\S]*?scrollViewerToPage\(currentPage, \{ behavior: "auto" \}\);/);
+assert.match(app, /const preservedAnchor = zoomAnchor \|\| \([\s\S]*?preservePage && viewerScrollUsesFreePositioning\(\)[\s\S]*?getViewerScrollZoomAnchor\(\)/);
+assert.match(app, /applyViewerScrollZoom\(preservedAnchor, \{ immediate: true \}\);/);
+assert.match(app, /if \(preservePage && !preservedAnchor\) \{[\s\S]*?scrollViewerToPage\(currentPage, \{ behavior: "auto" \}\);/);
+assert.match(app, /function setViewerFitMode\(fitMode, options = \{\}\)[\s\S]*?if \(shouldResetView\) \{[\s\S]*?clearViewerScrollWheelGesture\(\);[\s\S]*?clearViewerScrollTarget\(\);[\s\S]*?resetViewerScrollCommandSequence\(\);/);
 assert.match(app, /const positionActivePage = \(\) => scrollViewerToPage\(state\.page, \{[\s\S]*?animate: animateScrollPage[\s\S]*?if \(scrollBehavior === "smooth"\) requestAnimationFrame\(positionActivePage\);[\s\S]*?else positionActivePage\(\);/);
 assert.match(app, /updateLightbox\(\{[\s\S]*?scrollToPage: isScrollViewerMode\(\)[\s\S]*?scrollBehavior: "auto"/);
 assert.match(app, /const showButton = Boolean\(state\.lightboxOpen && !isAutoViewerZoom\(\)\)/);
@@ -112,6 +117,8 @@ assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?overflow-x:\s*auto;[\s\S]*?
 assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?touch-action:\s*pan-y;/);
 assert.doesNotMatch(css, /viewer-wheel-gesture-active/);
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?scroll-snap-align:\s*center;/);
+assert.match(css, /\.lightbox\.fit-width \.viewer-scroll-pages\s*\{[\s\S]*?scroll-snap-type:\s*none;/);
+assert.match(css, /\.lightbox\.fit-width \.viewer-scroll-page\s*\{[\s\S]*?scroll-snap-align:\s*none;/);
 assert.match(css, /\.viewer-scroll-page\s*\{[\s\S]*?width:\s*var\(--viewer-scroll-page-width/);
 assert.match(css, /\.has-bargig-logo \.viewer-scroll-page-frame::after/, 'continuous scroll pages must receive the visible image watermark');
 assert.doesNotMatch(css, /var\(--viewer-scroll-page-width,\s*280px\)|var\(--viewer-scroll-page-height,\s*200px\)/);
