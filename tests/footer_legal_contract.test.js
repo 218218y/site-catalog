@@ -66,7 +66,7 @@ const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 
 assert.match(template, /\{\{SITE_FOOTER\}\}/);
 assert.match(legalTemplate, /\{\{LEGAL_CONTENT\}\}/);
-assert.match(legalTemplate, /<main class="legal-main">/);
+assert.match(legalTemplate, /<main class="legal-main" id="main-content" tabindex="-1">/);
 assert.match(footerFragment, /\{\{FOOTER_VISIT_TITLE\}\}/);
 assert.match(footerFragment, /href="tel:\{\{FOOTER_MOBILE_TEL_HREF\}\}"/);
 assert.match(footerFragment, /href="\{\{FOOTER_GMAIL_HREF\}\}"/);

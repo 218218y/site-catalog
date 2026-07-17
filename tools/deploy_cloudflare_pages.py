@@ -349,6 +349,7 @@ def build_bundle(args: argparse.Namespace) -> int:
         args.dir,
         "--external-assets-url",
         args.external_assets_url,
+        "--verify-remote-assets",
     ]
     return run_streamed(command, project_root())
 
@@ -426,6 +427,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.dir,
                     "--external-assets-url",
                     args.external_assets_url,
+                    "--verify-remote-assets",
                 ]),
                 flush=True,
             )

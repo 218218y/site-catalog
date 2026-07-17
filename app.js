@@ -288,6 +288,7 @@ const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 20;
 const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
 const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
+const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
 
 const boundEventFeatures = new Set();
 
@@ -463,6 +464,9 @@ const els = {
   viewerPageIndicatorDetail: $("viewerPageIndicatorDetail"),
   lightboxImage: $("lightboxImage"),
   lightboxImageFrame: $("lightboxImageFrame"),
+  viewerImageFeedback: $("viewerImageFeedback"),
+  viewerImageFeedbackText: $("viewerImageFeedbackText"),
+  viewerImageRetry: $("viewerImageRetry"),
   lightboxStage: $("lightboxStage"),
   lightboxSideHotspot: $("lightboxSideHotspot"),
   lightboxPageRail: $("lightboxPageRail"),
@@ -757,26 +761,53 @@ function telemetryCatalogImageContext(img, src = "") {
   return { catalogId, pageNumber, detail, value };
 }
 
+function telemetryStableImageFailureKey(value, detail) {
+  const clean = String(value || "")
+    .replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
+    .replace(/[?&]$/, "")
+    .split("#")[0];
+  return `${telemetryCleanText(clean, 220)}|${telemetryCleanText(detail, 50)}`;
+}
+
 function telemetryTrackImageFailure(src, options = {}) {
   const context = telemetryCatalogImageContext(options.img, src);
-  const failureKey = telemetryCleanText(context.value, 240) || `${context.catalogId}|${context.pageNumber}|${context.detail}`;
+  const detail = telemetryCleanText(options.detail || context.detail, 50);
+  const failureKey = telemetryStableImageFailureKey(context.value, detail)
+    || `${context.catalogId}|${context.pageNumber}|${detail}`;
   if (telemetryRuntime.imageFailures.has(failureKey)) return;
   telemetryRuntime.imageFailures.add(failureKey);
+  const source = telemetryCleanText(context.value.split("?")[0].split("#")[0].split("/").pop(), 80);
   telemetryTrack("image_error", {
     catalogId: context.catalogId,
     pageNumber: context.pageNumber,
-    detail: options.detail || context.detail,
-    source: telemetryCleanText(context.value.split("?")[0].split("#")[0].split("/").pop(), 80)
+    detail,
+    source,
+    error: telemetryErrorFingerprint(["image", context.catalogId, context.pageNumber, detail, source])
   }, { immediate: true });
 }
 
+function telemetryErrorSourceScope(filename) {
+  const value = String(filename || "").toLowerCase();
+  if (!value) return "inline";
+  if (/^(?:chrome|moz|safari)-extension:/.test(value)) return "extension";
+  try {
+    const parsed = new URL(value, window.location.href);
+    return parsed.origin === window.location.origin ? "site" : "external";
+  } catch {
+    return "unknown";
+  }
+}
+
 function telemetryTrackRuntimeError(event) {
-  const sourceName = telemetryCleanText(String(event?.filename || "").split("?")[0].split("/").pop(), 80);
+  const filename = String(event?.filename || "");
+  const sourceName = telemetryCleanText(filename.split("?")[0].split("/").pop(), 80);
   const errorName = telemetryCleanText(event?.error?.name || "Error", 40);
   const message = telemetryCleanText(event?.message || event?.error?.message || "JavaScript error", 120);
   telemetryTrack("js_error", {
+    catalogId: state.catalog?.id || "",
     action: errorName,
     detail: message,
+    scope: telemetryErrorSourceScope(filename),
     source: sourceName,
     pageNumber: Number(event?.lineno) || 0,
     secondaryValue: Number(event?.colno) || 0,
@@ -789,8 +820,10 @@ function telemetryTrackUnhandledRejection(event) {
   const errorName = telemetryCleanText(reason?.name || "UnhandledRejection", 40);
   const message = telemetryCleanText(reason?.message || reason || "Unhandled promise rejection", 120);
   telemetryTrack("js_error", {
+    catalogId: state.catalog?.id || "",
     action: errorName,
     detail: message,
+    scope: "promise",
     error: telemetryErrorFingerprint([errorName, message, "promise"]),
     source: "promise"
   }, { immediate: true });
@@ -814,7 +847,9 @@ function telemetryInit() {
 
   window.addEventListener("error", (event) => {
     if (event.target instanceof HTMLImageElement) {
-      telemetryTrackImageFailure(event.target.currentSrc || event.target.src, { img: event.target });
+      if (event.target.dataset.telemetryManaged !== "true") {
+        telemetryTrackImageFailure(event.target.currentSrc || event.target.src, { img: event.target });
+      }
       return;
     }
     telemetryTrackRuntimeError(event);
@@ -873,6 +908,90 @@ function setCatalogImageSource(img, url) {
   if (!img) return;
   applyCatalogImageCrossOrigin(img);
   img.src = url;
+}
+
+function normalizeCatalogImageUrl(url) {
+  const value = String(url || "").trim();
+  if (!value) return "";
+  try {
+    const parsed = new URL(value, window.location.href);
+    parsed.searchParams.delete(CATALOG_IMAGE_RETRY_PARAM);
+    return parsed.href;
+  } catch {
+    return value.replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
+      .replace(/[?&]$/, "");
+  }
+}
+
+function cacheBustedCatalogImageUrl(url) {
+  const value = normalizeCatalogImageUrl(url);
+  if (!value) return "";
+  try {
+    const parsed = new URL(value, window.location.href);
+    parsed.searchParams.set(CATALOG_IMAGE_RETRY_PARAM, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    return parsed.href;
+  } catch {
+    const separator = value.includes("?") ? "&" : "?";
+    return `${value}${separator}${CATALOG_IMAGE_RETRY_PARAM}=${Date.now()}`;
+  }
+}
+
+function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = {}) {
+  const primary = normalizeCatalogImageUrl(primarySrc);
+  const fallback = normalizeCatalogImageUrl(fallbackSrc);
+  const candidates = [];
+  const push = (src, role) => {
+    if (!src || candidates.some((candidate) => candidate.src === src)) return;
+    candidates.push({ src, role, fallback: role === "fallback" });
+  };
+
+  push(options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary, options.forceRefresh ? "manual" : "primary");
+  push(cacheBustedCatalogImageUrl(primary), "retry");
+  if (fallback && fallback !== primary) push(fallback, "fallback");
+  return candidates;
+}
+
+function loadCatalogImageWithRecovery(img, options = {}) {
+  const candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options);
+  const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
+  let index = 0;
+  let stopped = false;
+
+  img.dataset.telemetryManaged = "true";
+
+  const attempt = () => {
+    if (stopped || !isCurrent() || index >= candidates.length) {
+      if (!stopped && isCurrent()) options.onExhausted?.();
+      return;
+    }
+
+    const candidate = candidates[index++];
+    img.dataset.imageLoadPending = "true";
+    prepareImagePlaceholder(img);
+    let settled = false;
+    const settle = (loaded) => {
+      if (settled) return;
+      settled = true;
+      delete img.dataset.imageLoadPending;
+      if (stopped || !isCurrent() || img.getAttribute("src") !== candidate.src) return;
+      if (loaded && img.naturalWidth > 0) {
+        syncImagePlaceholderState(img);
+        options.onSuccess?.(candidate);
+        return;
+      }
+      options.onFailure?.(candidate);
+      attempt();
+    };
+
+    img.addEventListener("load", () => settle(true), { once: true });
+    img.addEventListener("error", () => settle(false), { once: true });
+    options.onAttempt?.(candidate);
+    setCatalogImageSource(img, candidate.src);
+    if (img.complete) queueMicrotask(() => settle(Boolean(img.naturalWidth)));
+  };
+
+  attempt();
+  return () => { stopped = true; };
 }
 
 function prepareCatalogImage(url, options = {}) {
@@ -951,60 +1070,78 @@ function finishSingleImageSwap(token) {
   applyZoom();
 }
 
+function setSingleViewerImageFeedback(mode = "", message = "") {
+  const visible = Boolean(mode && message);
+  els.viewerImageFeedback?.classList.toggle("hidden", !visible);
+  if (els.viewerImageFeedback) els.viewerImageFeedback.dataset.mode = visible ? mode : "";
+  if (els.viewerImageFeedbackText) els.viewerImageFeedbackText.textContent = message;
+  els.viewerImageRetry?.classList.toggle("hidden", !visible);
+  els.lightboxImageFrame?.classList.toggle("image-fallback", mode === "fallback");
+  if (mode !== "error") els.lightboxImageFrame?.classList.remove("image-terminal-error");
+}
+
 function showSingleLightboxImage(catalog, page, src) {
+  const options = arguments[3] || {};
   if (!els.lightboxImage || !catalog || !src) return;
 
   const token = ++state.singleImageLoadToken;
   const image = els.lightboxImage;
-  const currentSrc = image.getAttribute("src") || "";
-  if (currentSrc === src && image.complete && image.naturalWidth) {
+  const primarySrc = normalizeCatalogImageUrl(src);
+  const currentLogicalSrc = image.dataset.logicalSrc || normalizeCatalogImageUrl(image.getAttribute("src") || "");
+  if (!options.forceRefresh && currentLogicalSrc === primarySrc && image.complete && image.naturalWidth && image.dataset.loadedQuality !== "fallback") {
     applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
+    setSingleViewerImageFeedback();
     finishSingleImageSwap(token);
     return;
   }
 
   setViewerLoading(true);
+  setSingleViewerImageFeedback();
   els.lightbox?.classList.add("is-page-loading");
-
-  // The visible image must own the request. The old implementation withheld
-  // its src until a second, hidden Image had loaded and decode() had completed.
-  // A stalled/expensive decode therefore left the real viewer image permanently
-  // empty. Metadata already primes the frame; the load event only corrects it
-  // when the delivered file differs from that metadata.
   els.lightboxImageFrame?.classList.add("is-preparing-swap");
+  els.lightboxImageFrame?.classList.remove("image-terminal-error");
   prepareImagePlaceholder(image);
   image.alt = `${catalog.title} - עמוד ${page}`;
   image.decoding = "async";
   image.fetchPriority = "high";
+  image.dataset.logicalSrc = primarySrc;
 
-  let settled = false;
-  const settle = (loaded) => {
-    if (settled) return;
-    settled = true;
-    if (
-      token !== state.singleImageLoadToken
-      || !state.lightboxOpen
-      || state.catalog !== catalog
-      || state.page !== page
-      || image.getAttribute("src") !== src
-    ) return;
-
-    if (loaded && image.naturalWidth && image.naturalHeight) {
-      applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
-    } else if (!loaded) {
-      telemetryTrackImageFailure(src, { detail: "viewer-single" });
+  loadCatalogImageWithRecovery(image, {
+    primarySrc,
+    fallbackSrc: thumbSrc(catalog, page),
+    forceRefresh: Boolean(options.forceRefresh),
+    isCurrent: () => (
+      token === state.singleImageLoadToken
+      && state.lightboxOpen
+      && state.catalog === catalog
+      && state.page === page
+    ),
+    onFailure: (candidate) => {
+      telemetryTrackImageFailure(candidate.src, {
+        img: image,
+        detail: `viewer-single-${candidate.role}`
+      });
+    },
+    onSuccess: (candidate) => {
+      image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
+      if (image.naturalWidth && image.naturalHeight) {
+        applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
+      }
+      finishSingleImageSwap(token);
+      runSingleImageSwapAnimation();
+      if (candidate.fallback) {
+        setSingleViewerImageFeedback("fallback", "התמונה המלאה לא נטענה. מוצגת תצוגה מוקטנת; אפשר לנסות שוב.");
+      } else {
+        setSingleViewerImageFeedback();
+      }
+    },
+    onExhausted: () => {
+      delete image.dataset.loadedQuality;
+      finishSingleImageSwap(token);
+      els.lightboxImageFrame?.classList.add("image-terminal-error");
+      setSingleViewerImageFeedback("error", "התמונה לא הצליחה להיטען. אפשר לנסות שוב.");
     }
-
-    finishSingleImageSwap(token);
-    if (loaded) runSingleImageSwapAnimation();
-  };
-
-  image.addEventListener("load", () => settle(true), { once: true });
-  image.addEventListener("error", () => settle(false), { once: true });
-  setCatalogImageSource(image, src);
-
-  // Cached images may already be complete before the event loop returns.
-  if (image.complete) queueMicrotask(() => settle(Boolean(image.naturalWidth)));
+  });
 }
 function pad(num) {
   return String(num).padStart(3, "0");
@@ -1317,17 +1454,23 @@ function syncImagePlaceholderState(img) {
   if (!frame) return;
 
   frame.classList.add("image-placeholder-frame");
-  const isReady = Boolean(img.complete && img.naturalWidth > 0);
-  const isError = Boolean(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
+  const pending = img.dataset.imageLoadPending === "true";
+  const isReady = !pending && Boolean(img.complete && img.naturalWidth > 0);
+  const isError = !pending && Boolean(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
   frame.classList.toggle("image-ready", isReady);
   frame.classList.toggle("image-error", isError);
-  frame.classList.toggle("image-loading", !isReady && !isError);
+  frame.classList.toggle("image-loading", pending || (!isReady && !isError));
 }
 
 function prepareImagePlaceholder(img) {
   const frame = imagePlaceholderFrame(img);
   if (!frame) return;
   frame.classList.add("image-placeholder-frame");
+  if (img.dataset.imageLoadPending === "true") {
+    frame.classList.remove("image-ready", "image-error");
+    frame.classList.add("image-loading");
+    return;
+  }
   if (img.complete) {
     syncImagePlaceholderState(img);
     return;
@@ -5645,45 +5788,99 @@ function renderViewerScrollPages() {
   loadViewerScrollWindow(state.page);
 }
 
+function setViewerScrollImageFeedback(frame, page, mode = "") {
+  if (!frame) return;
+  let feedback = frame.querySelector?.("[data-scroll-image-feedback]");
+  if (!mode) {
+    feedback?.remove?.();
+    frame.classList.remove("image-fallback", "image-terminal-error");
+    return;
+  }
+
+  if (!feedback) {
+    feedback = document.createElement("div");
+    feedback.className = "viewer-scroll-image-feedback";
+    feedback.dataset.scrollImageFeedback = "true";
+    feedback.innerHTML = `
+      <span data-scroll-image-feedback-text></span>
+      <button type="button" data-retry-scroll-page="${page}">נסה שוב</button>
+    `;
+    frame.appendChild(feedback);
+  }
+  const text = feedback.querySelector("[data-scroll-image-feedback-text]");
+  if (text) {
+    text.textContent = mode === "fallback"
+      ? "מוצגת תצוגה מוקטנת."
+      : "התמונה לא נטענה.";
+  }
+  frame.classList.toggle("image-fallback", mode === "fallback");
+  frame.classList.toggle("image-terminal-error", mode === "error");
+}
+
 function loadViewerScrollPage(page, priority = "low") {
+  const options = arguments[2] || {};
   if (!isScrollViewerMode() || !state.catalog) return;
   const frame = getViewerScrollPageFrame(page);
   const image = frame?.querySelector?.("[data-viewer-scroll-image]");
   if (!image) return;
 
-  const src = pageSrc(state.catalog, page);
-  if (image.dataset.loadedSrc === src || image.dataset.loadingSrc === src) return;
+  const catalog = state.catalog;
+  const src = normalizeCatalogImageUrl(pageSrc(catalog, page));
+  if (!options.forceRefresh && image.dataset.loadedSrc === src && image.dataset.loadedQuality !== "fallback") return;
+  if (!options.forceRefresh && image.dataset.loadingSrc === src) return;
   image.dataset.loadingSrc = src;
+  image.dataset.logicalSrc = src;
   image.loading = priority === "high" ? "eager" : "lazy";
   image.fetchPriority = priority;
+  setViewerScrollImageFeedback(frame, page);
   prepareImagePlaceholder(image);
 
   const token = state.viewerScrollLoadToken;
-  let settled = false;
-  const settle = (loaded) => {
-    if (settled) return;
-    settled = true;
-    if (token !== state.viewerScrollLoadToken || !isScrollViewerMode() || !state.catalog) return;
-    if (pageSrc(state.catalog, page) !== src || image.getAttribute("src") !== src) return;
-
-    delete image.dataset.loadingSrc;
-    if (loaded) {
+  loadCatalogImageWithRecovery(image, {
+    primarySrc: src,
+    fallbackSrc: thumbSrc(catalog, page),
+    forceRefresh: Boolean(options.forceRefresh),
+    isCurrent: () => (
+      token === state.viewerScrollLoadToken
+      && isScrollViewerMode()
+      && state.catalog === catalog
+      && normalizeCatalogImageUrl(pageSrc(catalog, page)) === src
+    ),
+    onFailure: (candidate) => {
+      telemetryTrackImageFailure(candidate.src, {
+        img: image,
+        detail: `viewer-scroll-${candidate.role}`
+      });
+    },
+    onSuccess: (candidate) => {
+      delete image.dataset.loadingSrc;
       image.dataset.loadedSrc = src;
-    } else {
+      image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
+      syncImagePlaceholderState(image);
+      setViewerScrollImageFeedback(frame, page, candidate.fallback ? "fallback" : "");
+    },
+    onExhausted: () => {
+      delete image.dataset.loadingSrc;
       delete image.dataset.loadedSrc;
-      telemetryTrackImageFailure(src, { detail: "viewer-scroll" });
+      delete image.dataset.loadedQuality;
+      syncImagePlaceholderState(image);
+      setViewerScrollImageFeedback(frame, page, "error");
     }
-    syncImagePlaceholderState(image);
-  };
+  });
+}
 
-  image.addEventListener("load", () => settle(true), { once: true });
-  image.addEventListener("error", () => settle(false), { once: true });
+function handleViewerScrollImageRetry(event) {
+  const button = event.target?.closest?.("[data-retry-scroll-page]");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const page = Number.parseInt(button.dataset.retryScrollPage || "", 10);
+  if (Number.isFinite(page)) loadViewerScrollPage(page, "high", { forceRefresh: true });
+}
 
-  // Assign the request to the element the user actually sees. Preloading with
-  // a separate Image used to gate this assignment and could leave the frame
-  // forever empty when a large WebP decode stalled or memory became tight.
-  setCatalogImageSource(image, src);
-  if (image.complete) queueMicrotask(() => settle(Boolean(image.naturalWidth)));
+function retryCurrentViewerImage() {
+  if (!state.lightboxOpen || !state.catalog) return;
+  showSingleLightboxImage(state.catalog, state.page, pageSrc(state.catalog, state.page), { forceRefresh: true });
 }
 
 function loadViewerScrollWindow(centerPage) {
@@ -6549,6 +6746,8 @@ function attachViewerEvents() {
   });
   els.viewerFavoriteButton?.addEventListener("pointerdown", (event) => event.stopPropagation());
   els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
+  els.viewerImageRetry?.addEventListener("click", retryCurrentViewerImage);
+  els.viewerScrollPages?.addEventListener("click", handleViewerScrollImageRetry);
   els.viewerScrollPages?.addEventListener("scroll", handleViewerScrollPagesScroll, { passive: true });
 
   attachViewerGestures();

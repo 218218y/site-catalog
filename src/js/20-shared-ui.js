@@ -44,6 +44,90 @@ function setCatalogImageSource(img, url) {
   img.src = url;
 }
 
+function normalizeCatalogImageUrl(url) {
+  const value = String(url || "").trim();
+  if (!value) return "";
+  try {
+    const parsed = new URL(value, window.location.href);
+    parsed.searchParams.delete(CATALOG_IMAGE_RETRY_PARAM);
+    return parsed.href;
+  } catch {
+    return value.replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
+      .replace(/[?&]$/, "");
+  }
+}
+
+function cacheBustedCatalogImageUrl(url) {
+  const value = normalizeCatalogImageUrl(url);
+  if (!value) return "";
+  try {
+    const parsed = new URL(value, window.location.href);
+    parsed.searchParams.set(CATALOG_IMAGE_RETRY_PARAM, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    return parsed.href;
+  } catch {
+    const separator = value.includes("?") ? "&" : "?";
+    return `${value}${separator}${CATALOG_IMAGE_RETRY_PARAM}=${Date.now()}`;
+  }
+}
+
+function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = {}) {
+  const primary = normalizeCatalogImageUrl(primarySrc);
+  const fallback = normalizeCatalogImageUrl(fallbackSrc);
+  const candidates = [];
+  const push = (src, role) => {
+    if (!src || candidates.some((candidate) => candidate.src === src)) return;
+    candidates.push({ src, role, fallback: role === "fallback" });
+  };
+
+  push(options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary, options.forceRefresh ? "manual" : "primary");
+  push(cacheBustedCatalogImageUrl(primary), "retry");
+  if (fallback && fallback !== primary) push(fallback, "fallback");
+  return candidates;
+}
+
+function loadCatalogImageWithRecovery(img, options = {}) {
+  const candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options);
+  const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
+  let index = 0;
+  let stopped = false;
+
+  img.dataset.telemetryManaged = "true";
+
+  const attempt = () => {
+    if (stopped || !isCurrent() || index >= candidates.length) {
+      if (!stopped && isCurrent()) options.onExhausted?.();
+      return;
+    }
+
+    const candidate = candidates[index++];
+    img.dataset.imageLoadPending = "true";
+    prepareImagePlaceholder(img);
+    let settled = false;
+    const settle = (loaded) => {
+      if (settled) return;
+      settled = true;
+      delete img.dataset.imageLoadPending;
+      if (stopped || !isCurrent() || img.getAttribute("src") !== candidate.src) return;
+      if (loaded && img.naturalWidth > 0) {
+        syncImagePlaceholderState(img);
+        options.onSuccess?.(candidate);
+        return;
+      }
+      options.onFailure?.(candidate);
+      attempt();
+    };
+
+    img.addEventListener("load", () => settle(true), { once: true });
+    img.addEventListener("error", () => settle(false), { once: true });
+    options.onAttempt?.(candidate);
+    setCatalogImageSource(img, candidate.src);
+    if (img.complete) queueMicrotask(() => settle(Boolean(img.naturalWidth)));
+  };
+
+  attempt();
+  return () => { stopped = true; };
+}
+
 function prepareCatalogImage(url, options = {}) {
   const src = String(url || "");
   if (!src) return Promise.reject(new Error("missing-image-src"));
@@ -120,60 +204,78 @@ function finishSingleImageSwap(token) {
   applyZoom();
 }
 
+function setSingleViewerImageFeedback(mode = "", message = "") {
+  const visible = Boolean(mode && message);
+  els.viewerImageFeedback?.classList.toggle("hidden", !visible);
+  if (els.viewerImageFeedback) els.viewerImageFeedback.dataset.mode = visible ? mode : "";
+  if (els.viewerImageFeedbackText) els.viewerImageFeedbackText.textContent = message;
+  els.viewerImageRetry?.classList.toggle("hidden", !visible);
+  els.lightboxImageFrame?.classList.toggle("image-fallback", mode === "fallback");
+  if (mode !== "error") els.lightboxImageFrame?.classList.remove("image-terminal-error");
+}
+
 function showSingleLightboxImage(catalog, page, src) {
+  const options = arguments[3] || {};
   if (!els.lightboxImage || !catalog || !src) return;
 
   const token = ++state.singleImageLoadToken;
   const image = els.lightboxImage;
-  const currentSrc = image.getAttribute("src") || "";
-  if (currentSrc === src && image.complete && image.naturalWidth) {
+  const primarySrc = normalizeCatalogImageUrl(src);
+  const currentLogicalSrc = image.dataset.logicalSrc || normalizeCatalogImageUrl(image.getAttribute("src") || "");
+  if (!options.forceRefresh && currentLogicalSrc === primarySrc && image.complete && image.naturalWidth && image.dataset.loadedQuality !== "fallback") {
     applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
+    setSingleViewerImageFeedback();
     finishSingleImageSwap(token);
     return;
   }
 
   setViewerLoading(true);
+  setSingleViewerImageFeedback();
   els.lightbox?.classList.add("is-page-loading");
-
-  // The visible image must own the request. The old implementation withheld
-  // its src until a second, hidden Image had loaded and decode() had completed.
-  // A stalled/expensive decode therefore left the real viewer image permanently
-  // empty. Metadata already primes the frame; the load event only corrects it
-  // when the delivered file differs from that metadata.
   els.lightboxImageFrame?.classList.add("is-preparing-swap");
+  els.lightboxImageFrame?.classList.remove("image-terminal-error");
   prepareImagePlaceholder(image);
   image.alt = `${catalog.title} - עמוד ${page}`;
   image.decoding = "async";
   image.fetchPriority = "high";
+  image.dataset.logicalSrc = primarySrc;
 
-  let settled = false;
-  const settle = (loaded) => {
-    if (settled) return;
-    settled = true;
-    if (
-      token !== state.singleImageLoadToken
-      || !state.lightboxOpen
-      || state.catalog !== catalog
-      || state.page !== page
-      || image.getAttribute("src") !== src
-    ) return;
-
-    if (loaded && image.naturalWidth && image.naturalHeight) {
-      applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
-    } else if (!loaded) {
-      telemetryTrackImageFailure(src, { detail: "viewer-single" });
+  loadCatalogImageWithRecovery(image, {
+    primarySrc,
+    fallbackSrc: thumbSrc(catalog, page),
+    forceRefresh: Boolean(options.forceRefresh),
+    isCurrent: () => (
+      token === state.singleImageLoadToken
+      && state.lightboxOpen
+      && state.catalog === catalog
+      && state.page === page
+    ),
+    onFailure: (candidate) => {
+      telemetryTrackImageFailure(candidate.src, {
+        img: image,
+        detail: `viewer-single-${candidate.role}`
+      });
+    },
+    onSuccess: (candidate) => {
+      image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
+      if (image.naturalWidth && image.naturalHeight) {
+        applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
+      }
+      finishSingleImageSwap(token);
+      runSingleImageSwapAnimation();
+      if (candidate.fallback) {
+        setSingleViewerImageFeedback("fallback", "התמונה המלאה לא נטענה. מוצגת תצוגה מוקטנת; אפשר לנסות שוב.");
+      } else {
+        setSingleViewerImageFeedback();
+      }
+    },
+    onExhausted: () => {
+      delete image.dataset.loadedQuality;
+      finishSingleImageSwap(token);
+      els.lightboxImageFrame?.classList.add("image-terminal-error");
+      setSingleViewerImageFeedback("error", "התמונה לא הצליחה להיטען. אפשר לנסות שוב.");
     }
-
-    finishSingleImageSwap(token);
-    if (loaded) runSingleImageSwapAnimation();
-  };
-
-  image.addEventListener("load", () => settle(true), { once: true });
-  image.addEventListener("error", () => settle(false), { once: true });
-  setCatalogImageSource(image, src);
-
-  // Cached images may already be complete before the event loop returns.
-  if (image.complete) queueMicrotask(() => settle(Boolean(image.naturalWidth)));
+  });
 }
 function pad(num) {
   return String(num).padStart(3, "0");
@@ -486,17 +588,23 @@ function syncImagePlaceholderState(img) {
   if (!frame) return;
 
   frame.classList.add("image-placeholder-frame");
-  const isReady = Boolean(img.complete && img.naturalWidth > 0);
-  const isError = Boolean(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
+  const pending = img.dataset.imageLoadPending === "true";
+  const isReady = !pending && Boolean(img.complete && img.naturalWidth > 0);
+  const isError = !pending && Boolean(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
   frame.classList.toggle("image-ready", isReady);
   frame.classList.toggle("image-error", isError);
-  frame.classList.toggle("image-loading", !isReady && !isError);
+  frame.classList.toggle("image-loading", pending || (!isReady && !isError));
 }
 
 function prepareImagePlaceholder(img) {
   const frame = imagePlaceholderFrame(img);
   if (!frame) return;
   frame.classList.add("image-placeholder-frame");
+  if (img.dataset.imageLoadPending === "true") {
+    frame.classList.remove("image-ready", "image-error");
+    frame.classList.add("image-loading");
+    return;
+  }
   if (img.complete) {
     syncImagePlaceholderState(img);
     return;

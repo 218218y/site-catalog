@@ -23,7 +23,8 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
         "search",
         "contact",
         "favorite",
-        "error",
+        "js_error",
+        "image_error",
     ]
 
     for item in queries:
@@ -43,54 +44,47 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
 
     search_query = next(item.sql for item in queries if item.section == "search")
     assert "sumIf(_sample_interval, double1 = 0) AS metric" in search_query
-    error_query = next(item.sql for item in queries if item.section == "error")
-    assert "blob1 AS event_name, blob9 AS error_code" in error_query
-    assert "GROUP BY blob1, blob9" in error_query
-    assert "if(" not in error_query.lower()
+    js_query = next(item.sql for item in queries if item.section == "js_error")
+    assert "blob9 AS fingerprint" in js_query
+    assert "blob8 AS message" in js_query
+    assert "double3 AS line" in js_query
+    assert "GROUP BY blob9, blob7, blob8" in js_query
+    image_query = next(item.sql for item in queries if item.section == "image_error")
+    assert "blob4 AS catalog_id" in image_query
+    assert "blob8 AS failure_stage" in image_query
 
 
-
-def test_error_rows_are_labeled_locally_without_group_by_expression() -> None:
-    coded = MODULE.normalize_report_row(
-        "error",
-        {"event_name": "js_error", "error_code": "TypeError", "count": 3},
+def test_diagnostic_rows_keep_error_context() -> None:
+    js_row = MODULE.normalize_report_row(
+        "js_error",
+        {"fingerprint": "ef21e4fae", "error_name": "TypeError", "message": "boom", "count": 3},
     )
-    fallback = MODULE.normalize_report_row(
-        "error",
-        {"event_name": "image_error", "error_code": "", "count": 2},
+    image_row = MODULE.normalize_report_row(
+        "image_error",
+        {"fingerprint": "", "source": "page-004.webp", "count": 2},
     )
 
-    assert coded == {
-        "section": "error",
-        "label": "TypeError",
-        "count": 3,
-        "metric": 0,
-    }
-    assert fallback == {
-        "section": "error",
-        "label": "image_error",
-        "count": 2,
-        "metric": 0,
-    }
+    assert js_row["label"] == "ef21e4fae"
+    assert js_row["message"] == "boom"
+    assert js_row["section"] == "js_error"
+    assert image_row["label"] == "page-004.webp"
+    assert image_row["section"] == "image_error"
 
 
-def test_fetch_report_rows_normalizes_error_section(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fetch_report_rows_normalizes_diagnostic_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_query_api(_account_id: str, _token: str, query: str) -> dict[str, object]:
-        if "blob1 AS event_name, blob9 AS error_code" in query:
-            return {
-                "data": [
-                    {"event_name": "js_error", "error_code": "ReferenceError", "count": 4},
-                    {"event_name": "image_error", "error_code": "", "count": 1},
-                ]
-            }
+        if "blob8 AS message" in query:
+            return {"data": [{"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4}]}
+        if "blob8 AS failure_stage" in query:
+            return {"data": [{"fingerprint": "", "source": "page-001.webp", "count": 1}]}
         return {"data": []}
 
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
 
     assert rows == [
-        {"section": "error", "label": "ReferenceError", "count": 4, "metric": 0},
-        {"section": "error", "label": "image_error", "count": 1, "metric": 0},
+        {"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4, "section": "js_error", "label": "ef21e4fae", "metric": 0},
+        {"fingerprint": "", "source": "page-001.webp", "count": 1, "section": "image_error", "label": "page-001.webp", "metric": 0},
     ]
 
 def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -109,7 +103,7 @@ def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.M
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
 
-    assert len(calls) == 6
+    assert len(calls) == 7
     assert all("UNION" not in query for query in calls)
     assert rows == [
         {"label": "opening-test", "count": 4, "section": "catalog", "metric": 0},
@@ -191,7 +185,29 @@ def sample_report_rows() -> list[dict[str, object]]:
         {"section": "search", "label": "ארון הזזה", "count": 4, "metric": 2},
         {"section": "contact", "label": "phone", "count": 3, "metric": 0},
         {"section": "favorite", "label": "add", "count": 5, "metric": 0},
-        {"section": "error", "label": "image_error", "count": 1, "metric": 0},
+        {
+            "section": "js_error",
+            "fingerprint": "ef21e4fae",
+            "error_name": "TypeError",
+            "message": "Cannot read properties of undefined",
+            "source": "app.js",
+            "line": 412,
+            "column": 18,
+            "count": 46,
+            "metric": 0,
+            "label": "ef21e4fae",
+        },
+        {
+            "section": "image_error",
+            "fingerprint": "",
+            "catalog_id": "opening-test",
+            "page_number": 4,
+            "failure_stage": "viewer-single-primary",
+            "source": "page-004.webp",
+            "count": 1,
+            "metric": 0,
+            "label": "page-004.webp",
+        },
     ]
 
 
@@ -216,11 +232,14 @@ def test_create_report_files_writes_rtl_html_and_excel_friendly_csv(tmp_path: Pa
     assert "ארונות פתיחה לדוגמה" in html_text
     assert "ארון הזזה" in html_text
     assert "חיפושים ללא תוצאה" in html_text
+    assert "ef21e4fae" in html_text
+    assert "Cannot read properties of undefined" in html_text
+    assert "viewer-single-primary" in html_text
 
     csv_bytes = paths["csv"].read_bytes()
     assert csv_bytes.startswith(b"\xef\xbb\xbf")
     csv_text = csv_bytes.decode("utf-8-sig")
-    assert "סוג נתון,פריט,כמות" in csv_text
+    assert "סוג נתון,פריט / טביעה,כמות" in csv_text
     assert "ארונות פתיחה לדוגמה" in csv_text
 
     json_payload = json.loads(paths["json"].read_text(encoding="utf-8"))

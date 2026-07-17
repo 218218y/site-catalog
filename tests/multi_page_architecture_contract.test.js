@@ -28,7 +28,7 @@ const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.p
 
 assert.match(template, /data-page="\{\{PAGE_MODE\}\}"/);
 const globalSearchIndex = template.indexOf('id="catalogSearch"');
-const mainIndex = template.indexOf('<main id="top">');
+const mainIndex = template.indexOf('<main id="main-content" tabindex="-1">');
 assert.ok(globalSearchIndex >= 0 && globalSearchIndex < mainIndex, 'global search must remain outside page-specific main content');
 assert.doesNotMatch(app, /parseLegacyHash/);
 assert.match(template, /class="back-link catalog-back-button"[\s\S]*?<svg/);

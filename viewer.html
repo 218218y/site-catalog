@@ -18,6 +18,8 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-page="viewer">
+  <a class="skip-link" href="#main-content">דילוג לתוכן הראשי</a>
+  <span class="page-top-anchor" id="top" aria-hidden="true"></span>
   <header class="site-header">
     <div class="brand-lockup">
       <a class="brand" href="index.html" aria-label="רהיטי ברגיג - דף הבית">
@@ -81,7 +83,7 @@
     <div class="search-results hidden" id="globalSearchResults" aria-live="polite" dir="rtl"></div>
   </section>
 
-  <main id="top">
+  <main id="main-content" tabindex="-1">
     <section class="catalogs-section panel reveal" id="catalogs" aria-label="קטלוגים">
       <div class="catalog-category-list" id="catalogGrid"></div>
     </section>
@@ -329,6 +331,10 @@
           <div class="loading-pill hidden" id="viewerLoading">טוען עמוד...</div>
           <div class="lightbox-image-frame" id="lightboxImageFrame">
             <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" decoding="async" />
+          </div>
+          <div class="viewer-image-feedback hidden" id="viewerImageFeedback" role="status" aria-live="polite">
+            <span id="viewerImageFeedbackText">התמונה לא הצליחה להיטען.</span>
+            <button class="viewer-image-retry" id="viewerImageRetry" type="button">נסה שוב</button>
           </div>
           <div class="viewer-scroll-pages hidden" id="viewerScrollPages" role="list" aria-label="עמודי הקטלוג בתצוגת גלילה"></div>
         </div>

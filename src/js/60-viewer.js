@@ -1378,45 +1378,99 @@ function renderViewerScrollPages() {
   loadViewerScrollWindow(state.page);
 }
 
+function setViewerScrollImageFeedback(frame, page, mode = "") {
+  if (!frame) return;
+  let feedback = frame.querySelector?.("[data-scroll-image-feedback]");
+  if (!mode) {
+    feedback?.remove?.();
+    frame.classList.remove("image-fallback", "image-terminal-error");
+    return;
+  }
+
+  if (!feedback) {
+    feedback = document.createElement("div");
+    feedback.className = "viewer-scroll-image-feedback";
+    feedback.dataset.scrollImageFeedback = "true";
+    feedback.innerHTML = `
+      <span data-scroll-image-feedback-text></span>
+      <button type="button" data-retry-scroll-page="${page}">נסה שוב</button>
+    `;
+    frame.appendChild(feedback);
+  }
+  const text = feedback.querySelector("[data-scroll-image-feedback-text]");
+  if (text) {
+    text.textContent = mode === "fallback"
+      ? "מוצגת תצוגה מוקטנת."
+      : "התמונה לא נטענה.";
+  }
+  frame.classList.toggle("image-fallback", mode === "fallback");
+  frame.classList.toggle("image-terminal-error", mode === "error");
+}
+
 function loadViewerScrollPage(page, priority = "low") {
+  const options = arguments[2] || {};
   if (!isScrollViewerMode() || !state.catalog) return;
   const frame = getViewerScrollPageFrame(page);
   const image = frame?.querySelector?.("[data-viewer-scroll-image]");
   if (!image) return;
 
-  const src = pageSrc(state.catalog, page);
-  if (image.dataset.loadedSrc === src || image.dataset.loadingSrc === src) return;
+  const catalog = state.catalog;
+  const src = normalizeCatalogImageUrl(pageSrc(catalog, page));
+  if (!options.forceRefresh && image.dataset.loadedSrc === src && image.dataset.loadedQuality !== "fallback") return;
+  if (!options.forceRefresh && image.dataset.loadingSrc === src) return;
   image.dataset.loadingSrc = src;
+  image.dataset.logicalSrc = src;
   image.loading = priority === "high" ? "eager" : "lazy";
   image.fetchPriority = priority;
+  setViewerScrollImageFeedback(frame, page);
   prepareImagePlaceholder(image);
 
   const token = state.viewerScrollLoadToken;
-  let settled = false;
-  const settle = (loaded) => {
-    if (settled) return;
-    settled = true;
-    if (token !== state.viewerScrollLoadToken || !isScrollViewerMode() || !state.catalog) return;
-    if (pageSrc(state.catalog, page) !== src || image.getAttribute("src") !== src) return;
-
-    delete image.dataset.loadingSrc;
-    if (loaded) {
+  loadCatalogImageWithRecovery(image, {
+    primarySrc: src,
+    fallbackSrc: thumbSrc(catalog, page),
+    forceRefresh: Boolean(options.forceRefresh),
+    isCurrent: () => (
+      token === state.viewerScrollLoadToken
+      && isScrollViewerMode()
+      && state.catalog === catalog
+      && normalizeCatalogImageUrl(pageSrc(catalog, page)) === src
+    ),
+    onFailure: (candidate) => {
+      telemetryTrackImageFailure(candidate.src, {
+        img: image,
+        detail: `viewer-scroll-${candidate.role}`
+      });
+    },
+    onSuccess: (candidate) => {
+      delete image.dataset.loadingSrc;
       image.dataset.loadedSrc = src;
-    } else {
+      image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
+      syncImagePlaceholderState(image);
+      setViewerScrollImageFeedback(frame, page, candidate.fallback ? "fallback" : "");
+    },
+    onExhausted: () => {
+      delete image.dataset.loadingSrc;
       delete image.dataset.loadedSrc;
-      telemetryTrackImageFailure(src, { detail: "viewer-scroll" });
+      delete image.dataset.loadedQuality;
+      syncImagePlaceholderState(image);
+      setViewerScrollImageFeedback(frame, page, "error");
     }
-    syncImagePlaceholderState(image);
-  };
+  });
+}
 
-  image.addEventListener("load", () => settle(true), { once: true });
-  image.addEventListener("error", () => settle(false), { once: true });
+function handleViewerScrollImageRetry(event) {
+  const button = event.target?.closest?.("[data-retry-scroll-page]");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const page = Number.parseInt(button.dataset.retryScrollPage || "", 10);
+  if (Number.isFinite(page)) loadViewerScrollPage(page, "high", { forceRefresh: true });
+}
 
-  // Assign the request to the element the user actually sees. Preloading with
-  // a separate Image used to gate this assignment and could leave the frame
-  // forever empty when a large WebP decode stalled or memory became tight.
-  setCatalogImageSource(image, src);
-  if (image.complete) queueMicrotask(() => settle(Boolean(image.naturalWidth)));
+function retryCurrentViewerImage() {
+  if (!state.lightboxOpen || !state.catalog) return;
+  showSingleLightboxImage(state.catalog, state.page, pageSrc(state.catalog, state.page), { forceRefresh: true });
 }
 
 function loadViewerScrollWindow(centerPage) {
@@ -2282,6 +2336,8 @@ function attachViewerEvents() {
   });
   els.viewerFavoriteButton?.addEventListener("pointerdown", (event) => event.stopPropagation());
   els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
+  els.viewerImageRetry?.addEventListener("click", retryCurrentViewerImage);
+  els.viewerScrollPages?.addEventListener("click", handleViewerScrollImageRetry);
   els.viewerScrollPages?.addEventListener("scroll", handleViewerScrollPagesScroll, { passive: true });
 
   attachViewerGestures();

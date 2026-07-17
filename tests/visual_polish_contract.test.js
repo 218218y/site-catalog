@@ -12,6 +12,8 @@ const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const favorites = fs.readFileSync(path.join(root, 'favorites.html'), 'utf8');
 
 for (const html of [template, viewer]) {
+  assert.match(html, /class="skip-link" href="#main-content"/);
+  assert.match(html, /<main id="main-content" tabindex="-1">/);
   assert.match(html, /id="viewerPageIndicator"[\s\S]*?id="viewerPageIndicatorCurrent"[\s\S]*?id="viewerPageIndicatorTotal"/);
   assert.match(html, /id="lightboxProgress"[^>]*role="progressbar"/);
 }
@@ -23,7 +25,7 @@ for (const html of [template, favorites]) {
 assert.match(app, /function singleImageFitLayout\(/);
 assert.match(app, /function applyLightboxFrameGeometry\(/);
 assert.match(app, /applyLightboxFrameGeometry\(image\.naturalWidth, image\.naturalHeight/);
-assert.match(app, /setCatalogImageSource\(image, src\);/);
+assert.match(app, /loadCatalogImageWithRecovery\(image, \{/);
 assert.match(app, /function initImagePlaceholderObserver\(/);
 assert.match(app, /new MutationObserver/);
 assert.match(app, /showActionToast\("נשמר",|const feedback = added \? "נשמר" : "הוסר"/);
@@ -36,6 +38,8 @@ assert.match(app, /data-empty-search-clear/);
 assert.match(app, /data-lightbox-empty-search-clear/);
 
 assert.match(css, /--radius-card:\s*22px/);
+assert.match(css, /--brand:\s*#8f6d55/);
+assert.match(css, /\.skip-link\s*\{/);
 assert.match(css, /--control-height:\s*42px/);
 assert.match(css, /\.image-placeholder-frame\.image-loading/);
 assert.match(css, /@keyframes image-placeholder-sheen/);

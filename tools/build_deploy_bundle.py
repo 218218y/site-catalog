@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Iterable
 
 from build_site_pages import PAGE_DOCUMENTS, render_site_pages
+from verify_remote_catalog_assets import load_catalogs as load_remote_catalogs, verify_remote_assets
 
 BIG_PAGES_VIEWER_FILE = "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
 
@@ -102,6 +103,7 @@ FINGERPRINT_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404
 HASHED_ASSET_FILENAME_RE = re.compile(
     r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
 )
+SEARCH_INDEX_RUNTIME_RE = re.compile(r'const SEARCH_INDEX_SCRIPT_SRC = "(?P<url>[^"]+)";')
 
 
 @dataclass(frozen=True)
@@ -219,6 +221,34 @@ def rebase_css_asset_urls(source: Path, target_dir: Path, bundle_root: Path) -> 
     rewritten = CSS_URL_RE.sub(replace_url, text)
     if changed:
         source.write_text(rewritten, encoding="utf-8")
+
+
+def fingerprint_search_index(out_dir: Path) -> str:
+    """Fingerprint the dynamically loaded search index and rewrite app.js."""
+
+    search_source = out_dir / "catalogs.search.js"
+    app_source = out_dir / "app.js"
+    if not search_source.is_file() or not app_source.is_file():
+        raise FileNotFoundError("app.js and catalogs.search.js are required before fingerprinting")
+
+    normalize_fingerprinted_text(search_source)
+    target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(search_source)
+    target = out_dir / target_relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        target.unlink()
+    shutil.move(str(search_source), str(target))
+
+    app_text = app_source.read_text(encoding="utf-8", errors="replace")
+    rewritten, replacements = SEARCH_INDEX_RUNTIME_RE.subn(
+        f'const SEARCH_INDEX_SCRIPT_SRC = "{target_relative.as_posix()}";',
+        app_text,
+        count=1,
+    )
+    if replacements != 1:
+        raise ValueError("app.js does not contain one searchable SEARCH_INDEX_SCRIPT_SRC constant")
+    app_source.write_text(rewritten, encoding="utf-8")
+    return target_relative.as_posix()
 
 
 def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
@@ -387,6 +417,31 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
                 )
                 continue
             referenced_assets.add(relative.as_posix())
+
+    app_assets = sorted(asset for asset in referenced_assets if Path(asset).name.startswith("app."))
+    if len(app_assets) != 1:
+        invalid_assets.append(f"expected one fingerprinted app.js reference, found {len(app_assets)}")
+    else:
+        app_text = (out_dir / app_assets[0]).read_text(encoding="utf-8", errors="replace")
+        match = SEARCH_INDEX_RUNTIME_RE.search(app_text)
+        if match is None:
+            invalid_assets.append("fingerprinted app.js is missing SEARCH_INDEX_SCRIPT_SRC")
+        else:
+            dynamic_reference = match.group("url")
+            dynamic_relative = Path(dynamic_reference)
+            dynamic_path = out_dir / dynamic_relative
+            if not dynamic_path.is_file():
+                missing_assets.append(f"app.js -> {dynamic_reference}")
+            elif not dynamic_relative.parts or dynamic_relative.parts[0] != FINGERPRINTED_ASSET_DIR:
+                invalid_assets.append(f"app.js -> {dynamic_reference} (not fingerprinted under static/)")
+            else:
+                dynamic_name = HASHED_ASSET_FILENAME_RE.fullmatch(dynamic_relative.name)
+                if dynamic_name is None or dynamic_name.group("stem") != "catalogs.search":
+                    invalid_assets.append(f"app.js -> {dynamic_reference} (invalid search-index fingerprint)")
+                elif dynamic_name.group("digest") != content_hash(dynamic_path):
+                    invalid_assets.append(f"app.js -> {dynamic_reference} (filename hash does not match file contents)")
+                else:
+                    referenced_assets.add(dynamic_relative.as_posix())
 
     if missing_assets:
         raise FileNotFoundError(
@@ -635,6 +690,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--verify-remote-assets",
+        action="store_true",
+        help="Fail the bundle when any required catalog page/thumbnail is missing from the public R2/CDN URL.",
+    )
+    parser.add_argument(
         "--include-big-pages-viewer",
         action="store_true",
         help=(
@@ -684,7 +744,9 @@ def main() -> int:
                 stats = add_stats(stats, copy_optional_file(root, staging_dir, relative))
 
         stats = add_stats(stats, write_asset_config(staging_dir, args.external_assets_url))
+        fingerprinted_search_index = fingerprint_search_index(staging_dir)
         fingerprinted_assets = fingerprint_bundle_assets(staging_dir)
+        fingerprinted_assets["catalogs.search.js"] = fingerprinted_search_index
         validated_asset_count = validate_fingerprinted_bundle(staging_dir)
 
         print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
@@ -706,6 +768,18 @@ def main() -> int:
             )
         for warning in warnings:
             print(f"[warn] {warning}", file=sys.stderr)
+
+        if args.verify_remote_assets:
+            print("[publish-gate] Verifying every catalog page and thumbnail on the public R2/CDN...")
+            remote_catalogs = load_remote_catalogs(root / "catalogs.generated.json")
+            total_assets, remote_failures = verify_remote_assets(remote_catalogs, args.external_assets_url)
+            if remote_failures:
+                sample = "; ".join(f"{item.url}: {item.reason}" for item in remote_failures[:12])
+                extra = f"; and {len(remote_failures) - 12} more" if len(remote_failures) > 12 else ""
+                raise RuntimeError(
+                    f"Remote asset publication gate failed for {len(remote_failures)} of {total_assets} objects: {sample}{extra}"
+                )
+            print(f"[publish-gate] Passed: {total_assets} required page/thumbnail objects are available.")
 
         replace_output_dir(staging_dir, out_dir)
 

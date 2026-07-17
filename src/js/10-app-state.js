@@ -78,6 +78,7 @@ const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 20;
 const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
 const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
+const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
 
 const boundEventFeatures = new Set();
 
@@ -253,6 +254,9 @@ const els = {
   viewerPageIndicatorDetail: $("viewerPageIndicatorDetail"),
   lightboxImage: $("lightboxImage"),
   lightboxImageFrame: $("lightboxImageFrame"),
+  viewerImageFeedback: $("viewerImageFeedback"),
+  viewerImageFeedbackText: $("viewerImageFeedbackText"),
+  viewerImageRetry: $("viewerImageRetry"),
   lightboxStage: $("lightboxStage"),
   lightboxSideHotspot: $("lightboxSideHotspot"),
   lightboxPageRail: $("lightboxPageRail"),

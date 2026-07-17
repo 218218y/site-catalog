@@ -478,3 +478,23 @@ npm run telemetry:report -- 30
 הוראות מלאות, מבנה הנתונים, מצב ההשלמה ורשימת כותרות האבטחה נמצאים ב־`docs/monitoring-security.md`. תכנית ההשקה העתידית לגוגל נמצאת ב־`docs/google-search-launch-plan.md`.
 
 `_headers` כולל כעת CSP מצומצם, מניעת iframe, `nosniff`, מדיניות referrer, Permissions Policy ו־HSTS. קוד הפניית HTTPS עבר ל־`https-redirect.js`, ועיצוב עמוד 404 עבר ל־`404.css`, כדי לאפשר `script-src 'self'` ללא JavaScript inline.
+
+## שער פרסום לנכסי R2
+
+הפקודות `bundle-site-r2.bat` ו־`tools/deploy_cloudflare_pages.py` מפעילות לפני פרסום בדיקה קשיחה של כל תמונות העמודים וכל התמונות המוקטנות המוגדרות ב־`catalogs.generated.json`. הבדיקה פונה לכתובת ה־CDN הציבורית, מוודאת תגובת `200/206`, ‏`Content-Type` של תמונה ואובייקט שאינו ריק. אם אפילו קובץ נדרש אחד חסר או שה־CDN אינו זמין, הבאנדל/הפרסום נכשל לפני החלפת תיקיית הפריסה ולפני Wrangler.
+
+לבדיקה ידנית בלבד:
+
+```bat
+python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furniture.com
+```
+
+הבנייה המקומית הרגילה `npm run build:deploy` נשארת ללא תלות ברשת. ניתן להפעיל בה את השער במפורש עם `--verify-remote-assets`.
+
+## גרסת אינדקס החיפוש
+
+`catalogs.search.js` נטען דינמית, אך בבאנדל הפריסה הוא מקבל כעת שם בעל hash תחת `static/`, והנתיב החדש נכתב לתוך `app.js` לפני שגם `app.js` מקבל hash. בדיקת הבאנדל מאמתת את שני הקבצים ואת הקשר ביניהם, ולכן דפדפן אינו יכול להישאר עם אינדקס חיפוש ישן לאחר עדכון קטלוגים.
+
+## CI ובדיקות דפדפן
+
+הקובץ `.github/workflows/ci.yml` מריץ ב־GitHub Actions את מסלול האימות המלא בכל push ובכל pull request: התקנת Node ו־Python, התקנת Chromium עם תלויות מערכת, בדיקות חוזה, כל בדיקות Python, מסעות Playwright ובניית באנדל נקי. במקרה כשל נשמרים דוח, trace וצילומי מסך כ־artifact למשך 14 יום.

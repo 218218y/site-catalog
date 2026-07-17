@@ -7,6 +7,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 
 function sourceBetween(startMarker, endMarker) {
   const start = app.indexOf(startMarker);
@@ -16,9 +17,9 @@ function sourceBetween(startMarker, endMarker) {
   return app.slice(start, end);
 }
 
-const preload = sourceBetween(
-  'function prepareCatalogImage(url, options = {})',
-  'function runViewerPageSwapAnimation(element, options = {})'
+const recovery = sourceBetween(
+  'function loadCatalogImageWithRecovery(img, options = {})',
+  'function prepareCatalogImage(url, options = {})'
 );
 const single = sourceBetween(
   'function showSingleLightboxImage(catalog, page, src)',
@@ -29,25 +30,21 @@ const scroll = sourceBetween(
   'function loadViewerScrollWindow(centerPage)'
 );
 
-assert.match(app, /const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;/);
-assert.match(preload, /resolve\(\{[\s\S]*?width: Number\(image\.naturalWidth\)[\s\S]*?height: Number\(image\.naturalHeight\)/);
-assert.doesNotMatch(preload, /image\.decode\(/);
-assert.doesNotMatch(preload, /resolve\(image\)/);
-assert.match(preload, /state\.catalogImageLoadCache\.size >= CATALOG_IMAGE_PRELOAD_CACHE_LIMIT/);
-
-assert.match(single, /setCatalogImageSource\(image, src\);/);
-assert.match(single, /image\.addEventListener\("load", \(\) => settle\(true\)/);
-assert.match(single, /image\.addEventListener\("error", \(\) => settle\(false\)/);
-assert.match(single, /if \(image\.complete\) queueMicrotask\(\(\) => settle\(Boolean\(image\.naturalWidth\)\)\);/);
-assert.doesNotMatch(single, /prepareCatalogImage\(/);
-assert.doesNotMatch(single, /await /);
-
-assert.match(scroll, /image\.loading = priority === "high" \? "eager" : "lazy";/);
-assert.match(scroll, /setCatalogImageSource\(image, src\);/);
-assert.match(scroll, /image\.addEventListener\("load", \(\) => settle\(true\)/);
-assert.match(scroll, /image\.addEventListener\("error", \(\) => settle\(false\)/);
-assert.doesNotMatch(scroll, /prepareCatalogImage\(/);
-
-assert.match(css, /\.lightbox-image-frame\.is-preparing-swap \.lightbox-image\s*\{[\s\S]*?opacity:\s*0;/);
+assert.match(app, /const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";/);
+assert.match(app, /function catalogImageRecoveryCandidates\(/);
+assert.match(recovery, /setCatalogImageSource\(img, candidate\.src\);/);
+assert.match(recovery, /onExhausted/);
+assert.match(app, /fallback: role === "fallback"/);
+assert.match(single, /fallbackSrc: thumbSrc\(catalog, page\)/);
+assert.match(single, /viewer-single-\$\{candidate\.role\}/);
+assert.match(single, /התמונה לא הצליחה להיטען/);
+assert.match(scroll, /fallbackSrc: thumbSrc\(catalog, page\)/);
+assert.match(scroll, /viewer-scroll-\$\{candidate\.role\}/);
+assert.match(scroll, /forceRefresh: true/);
+assert.match(template, /id="viewerImageFeedback"[^>]*role="status"/);
+assert.match(template, /id="viewerImageRetry"/);
+assert.match(css, /\.viewer-image-feedback\s*\{/);
+assert.match(css, /\.viewer-scroll-image-feedback\s*\{/);
+assert.match(css, /\.lightbox-image-frame\.image-terminal-error/);
 
 console.log('viewer_image_loading_contract.test.js: PASS');

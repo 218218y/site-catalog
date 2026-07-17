@@ -37,7 +37,8 @@ SECTION_TITLES_HE = {
     "search": "חיפושים",
     "contact": "לחיצות ליצירת קשר",
     "favorite": "פעולות במועדפים",
-    "error": "שגיאות JavaScript ותמונות",
+    "js_error": "שגיאות JavaScript — פירוט לאבחון",
+    "image_error": "כשלי טעינת תמונות — פירוט לאבחון",
 }
 
 EVENT_LABELS_HE = {
@@ -143,7 +144,7 @@ def query_api(account_id: str, api_token: str, query: str) -> dict[str, Any]:
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "text/plain; charset=utf-8",
             "Accept": "application/json",
-            "User-Agent": "bargig-catalog-telemetry-report/1.1",
+            "User-Agent": "bargig-catalog-telemetry-report/1.2",
         },
         method="POST",
     )
@@ -230,12 +231,26 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
             ),
         ),
         ReportQuery(
-            "error",
+            "js_error",
             query(
-                "blob1 AS event_name, blob9 AS error_code, "
-                "SUM(_sample_interval) AS count",
-                "blob1 IN ('js_error', 'image_error')",
-                "blob1, blob9",
+                "blob9 AS fingerprint, blob7 AS error_name, blob8 AS message, "
+                "blob11 AS source, blob6 AS source_scope, blob2 AS app_page, "
+                "blob3 AS path, blob4 AS catalog_id, double3 AS line, "
+                "double4 AS column, SUM(_sample_interval) AS count",
+                "blob1 = 'js_error'",
+                "blob9, blob7, blob8, blob11, blob6, blob2, blob3, blob4, double3, double4",
+                200,
+            ),
+        ),
+        ReportQuery(
+            "image_error",
+            query(
+                "blob9 AS fingerprint, blob4 AS catalog_id, double3 AS page_number, "
+                "blob8 AS failure_stage, blob11 AS source, blob10 AS viewport, "
+                "blob2 AS app_page, blob3 AS path, SUM(_sample_interval) AS count",
+                "blob1 = 'image_error'",
+                "blob9, blob4, double3, blob8, blob11, blob10, blob2, blob3",
+                200,
             ),
         ),
     )
@@ -265,20 +280,19 @@ def fetch_report_rows(
 
 
 def normalize_report_row(section: str, row: dict[str, Any]) -> dict[str, Any]:
-    """Normalize one Analytics Engine row into the report's shared schema."""
+    """Normalize one Analytics Engine row while preserving diagnostic fields."""
 
     normalized = dict(row)
     normalized["section"] = section
-    if section == "error":
-        error_code = str(normalized.pop("error_code", "") or "").strip()
-        event_name = str(normalized.pop("event_name", "") or "").strip()
-        normalized["label"] = error_code or event_name or "unknown_error"
+    if section == "js_error":
+        normalized["label"] = str(normalized.get("fingerprint") or normalized.get("error_name") or "unknown_js_error")
+    elif section == "image_error":
+        normalized["label"] = str(normalized.get("fingerprint") or normalized.get("source") or "unknown_image_error")
     else:
         normalized.setdefault("label", "")
     normalized.setdefault("count", 0)
     normalized.setdefault("metric", 0)
     return normalized
-
 
 def extract_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(payload.get("data"), list):
@@ -364,24 +378,41 @@ def write_csv_report(
     catalog_titles: dict[str, str],
     generated_at: datetime,
 ) -> None:
-    """Write an Excel-friendly CSV with a UTF-8 BOM and explicit RTL-safe text."""
+    """Write an Excel-friendly CSV that keeps all diagnostic dimensions."""
 
+    columns = [
+        "סוג נתון", "פריט / טביעה", "כמות", "מדד נוסף", "סוג שגיאה", "הודעה",
+        "קובץ", "מקור", "עמוד באתר", "נתיב", "קטלוג", "עמוד בקטלוג",
+        "שורה", "עמודה", "שלב כשל", "גודל מסך",
+    ]
     with output_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["דוח פעילות אתר רהיטי ברגיג"])
         writer.writerow(["טווח", f"{days} ימים אחרונים"])
         writer.writerow(["נוצר", generated_at.strftime("%d/%m/%Y %H:%M:%S %z")])
         writer.writerow([])
-        writer.writerow(["סוג נתון", "פריט", "כמות", "ללא תוצאות / מדד נוסף"])
+        writer.writerow(columns)
         for row in rows:
             section = str(row.get("section") or "")
+            catalog_id = str(row.get("catalog_id") or "")
             writer.writerow([
                 SECTION_TITLES_HE.get(section, section),
                 localized_label(section, row.get("label"), catalog_titles),
                 format_count(row.get("count")),
                 format_count(row.get("metric")) if numeric_value(row.get("metric")) else "",
+                row.get("error_name", ""),
+                row.get("message", ""),
+                row.get("source", ""),
+                row.get("source_scope", ""),
+                row.get("app_page", ""),
+                row.get("path", ""),
+                catalog_titles.get(catalog_id, catalog_id),
+                row.get("page_number", ""),
+                row.get("line", ""),
+                row.get("column", ""),
+                row.get("failure_stage", ""),
+                row.get("viewport", ""),
             ])
-
 
 def write_json_report(
     rows: list[dict[str, Any]],
@@ -431,35 +462,112 @@ def write_html_report(
         ),
     ])
 
+    def empty_section(title: str) -> str:
+        return (
+            f'<section class="report-section"><h2>{html.escape(title)}</h2>'
+            '<div class="empty">לא התקבלו נתונים בחלק זה בתקופה שנבחרה.</div></section>'
+        )
+
     def section_table(section: str, section_rows: list[dict[str, Any]]) -> str:
         title = SECTION_TITLES_HE.get(section, section)
-        metric_title = "חיפושים ללא תוצאה" if section == "search" else "מדד נוסף"
         if not section_rows:
-            body = '<div class="empty">לא התקבלו נתונים בחלק זה בתקופה שנבחרה.</div>'
-        else:
-            table_rows = []
-            for row in section_rows:
-                label = localized_label(section, row.get("label"), catalog_titles)
-                count = format_count(row.get("count"))
-                metric = format_count(row.get("metric")) if numeric_value(row.get("metric")) else "—"
-                metric_cell = f'<td class="number">{html.escape(metric)}</td>' if section == "search" else ""
-                table_rows.append(
-                    "<tr>"
-                    f'<td>{html.escape(label)}</td>'
-                    f'<td class="number">{html.escape(count)}</td>'
-                    f"{metric_cell}"
-                    "</tr>"
-                )
-            metric_header = f"<th>{metric_title}</th>" if section == "search" else ""
-            body = (
-                '<div class="table-wrap"><table><thead><tr>'
-                "<th>פריט</th><th>כמות</th>"
-                f"{metric_header}</tr></thead><tbody>{''.join(table_rows)}</tbody></table></div>"
+            return empty_section(title)
+        table_rows = []
+        for row in section_rows:
+            label = localized_label(section, row.get("label"), catalog_titles)
+            count = format_count(row.get("count"))
+            metric = format_count(row.get("metric")) if numeric_value(row.get("metric")) else "—"
+            metric_cell = f'<td class="number">{html.escape(metric)}</td>' if section == "search" else ""
+            table_rows.append(
+                "<tr>"
+                f'<td>{html.escape(label)}</td>'
+                f'<td class="number">{html.escape(count)}</td>'
+                f"{metric_cell}"
+                "</tr>"
             )
+        metric_header = "<th>חיפושים ללא תוצאה</th>" if section == "search" else ""
+        body = (
+            '<div class="table-wrap"><table><thead><tr>'
+            "<th>פריט</th><th>כמות</th>"
+            f"{metric_header}</tr></thead><tbody>{''.join(table_rows)}</tbody></table></div>"
+        )
         return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
 
-    ordered_sections = ["catalog", "search", "contact", "favorite", "error"]
-    sections_html = "".join(section_table(section, grouped.get(section, [])) for section in ordered_sections)
+    def js_error_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["js_error"]
+        if not section_rows:
+            return empty_section(title)
+        rows_html = []
+        for row in section_rows:
+            catalog_id = str(row.get("catalog_id") or "")
+            catalog_title = catalog_titles.get(catalog_id, catalog_id) or "—"
+            location = ":".join(
+                value for value in (str(row.get("line") or ""), str(row.get("column") or "")) if value
+            ) or "—"
+            rows_html.append(
+                "<tr>"
+                f'<td class="number"><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("error_name") or "—"))}</td>'
+                f'<td class="message">{html.escape(str(row.get("message") or "—"))}</td>'
+                f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("source_scope") or "—"))}</td>'
+                f'<td class="number">{html.escape(location)}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
+                f'<td>{html.escape(catalog_title)}</td>'
+                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
+                "</tr>"
+            )
+        top = max(section_rows, key=lambda row: numeric_value(row.get("count")))
+        callout = (
+            '<div class="diagnostic-callout">'
+            '<strong>הקבוצה החוזרת ביותר:</strong> '
+            f'<code>{html.escape(str(top.get("fingerprint") or "ללא טביעה"))}</code> · '
+            f'{html.escape(format_count(top.get("count")))} מופעים · '
+            f'{html.escape(str(top.get("error_name") or "שגיאה"))}: '
+            f'{html.escape(str(top.get("message") or "ללא הודעה היסטורית"))}'
+            '</div>'
+        )
+        table = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr>'
+            '<th>טביעה</th><th>סוג</th><th>הודעה</th><th>קובץ</th><th>מקור</th>'
+            '<th>שורה:עמודה</th><th>עמוד באתר</th><th>קטלוג</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{callout}{table}</section>'
+
+    def image_error_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["image_error"]
+        if not section_rows:
+            return empty_section(title)
+        rows_html = []
+        for row in section_rows:
+            catalog_id = str(row.get("catalog_id") or "")
+            catalog_title = catalog_titles.get(catalog_id, catalog_id) or "—"
+            rows_html.append(
+                "<tr>"
+                f'<td class="number"><code>{html.escape(str(row.get("fingerprint") or "היסטורי — ללא טביעה"))}</code></td>'
+                f'<td>{html.escape(catalog_title)}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("page_number"))) if numeric_value(row.get("page_number")) else "—"}</td>'
+                f'<td>{html.escape(str(row.get("failure_stage") or "—"))}</td>'
+                f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("viewport") or "—"))}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
+                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
+                "</tr>"
+            )
+        table = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr>'
+            '<th>טביעה</th><th>קטלוג</th><th>עמוד</th><th>שלב הכשל</th>'
+            '<th>קובץ</th><th>מסך</th><th>עמוד באתר</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{table}</section>'
+
+    sections_html = "".join([
+        *(section_table(section, grouped.get(section, [])) for section in ("catalog", "search", "contact", "favorite")),
+        js_error_table(grouped.get("js_error", [])),
+        image_error_table(grouped.get("image_error", [])),
+    ])
     generated_text = generated_at.strftime("%d/%m/%Y בשעה %H:%M")
 
     document = f"""<!doctype html>
@@ -491,6 +599,12 @@ def write_html_report(
     tbody tr:last-child td {{ border-bottom:0; }}
     tbody tr:hover {{ background:#f8fbff; }}
     .number {{ direction:ltr; text-align:left; font-variant-numeric:tabular-nums; white-space:nowrap; }}
+    .strong {{ font-weight:900; }}
+    code {{ direction:ltr; unicode-bidi:embed; font-family:Consolas,"Courier New",monospace; font-size:.9em; }}
+    td.message {{ min-width:260px; max-width:480px; overflow-wrap:anywhere; }}
+    td small {{ color:var(--muted); direction:ltr; unicode-bidi:embed; }}
+    .diagnostic-table table {{ min-width:980px; }}
+    .diagnostic-callout {{ margin:0 0 14px; padding:13px 15px; border:1px solid #b8c8db; border-radius:13px; background:#eef5fd; overflow-wrap:anywhere; }}
     .empty {{ color:var(--muted); background:var(--soft); border-radius:12px; padding:16px; }}
     footer {{ color:var(--muted); text-align:center; padding:18px 0 5px; font-size:.9rem; }}
     @media print {{ body {{ background:#fff; }} main {{ width:100%; margin:0; }} .hero,.summary-card,.report-section {{ box-shadow:none; }} }}
@@ -563,7 +677,8 @@ def print_report(rows: list[dict[str, Any]], days: int) -> None:
         "search": "Searches (metric = no-result count)",
         "contact": "Contact clicks",
         "favorite": "Favorite actions",
-        "error": "Runtime/image errors",
+        "js_error": "JavaScript errors",
+        "image_error": "Image loading errors",
     }
     current = None
     for row in rows:

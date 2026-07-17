@@ -831,12 +831,16 @@ test.describe("critical catalog journeys", () => {
     await expect.poll(() => page.evaluate(() => window.__viewerSwipeSmoothScrollCalls)).toEqual([]);
   });
 
-  test("shows a stable error state when a catalog image fails", async ({ page }) => {
+  test("falls back to the thumbnail when a full catalog image fails", async ({ page }) => {
     await preparePage(page, { failPages: [2] });
     await page.goto(`/viewer.html?catalog=${CATALOG_ID}&page=2`);
     await waitForApp(page);
 
-    await expect(page.locator('#viewerScrollPages [data-scroll-page="2"]')).toHaveClass(/image-error/);
+    const frame = page.locator('#viewerScrollPages [data-scroll-page="2"]');
+    await expect(frame).toHaveClass(/image-ready/);
+    await expect(frame).toHaveClass(/image-fallback/);
+    await expect(frame.locator("[data-scroll-image-feedback]")).toContainText("מוצגת תצוגה מוקטנת");
+    await expect(frame.locator("[data-retry-scroll-page="2"]")).toBeVisible();
     await expect(page.locator("#viewerLoading")).toBeHidden();
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
   });

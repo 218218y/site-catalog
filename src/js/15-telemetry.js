@@ -239,26 +239,53 @@ function telemetryCatalogImageContext(img, src = "") {
   return { catalogId, pageNumber, detail, value };
 }
 
+function telemetryStableImageFailureKey(value, detail) {
+  const clean = String(value || "")
+    .replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
+    .replace(/[?&]$/, "")
+    .split("#")[0];
+  return `${telemetryCleanText(clean, 220)}|${telemetryCleanText(detail, 50)}`;
+}
+
 function telemetryTrackImageFailure(src, options = {}) {
   const context = telemetryCatalogImageContext(options.img, src);
-  const failureKey = telemetryCleanText(context.value, 240) || `${context.catalogId}|${context.pageNumber}|${context.detail}`;
+  const detail = telemetryCleanText(options.detail || context.detail, 50);
+  const failureKey = telemetryStableImageFailureKey(context.value, detail)
+    || `${context.catalogId}|${context.pageNumber}|${detail}`;
   if (telemetryRuntime.imageFailures.has(failureKey)) return;
   telemetryRuntime.imageFailures.add(failureKey);
+  const source = telemetryCleanText(context.value.split("?")[0].split("#")[0].split("/").pop(), 80);
   telemetryTrack("image_error", {
     catalogId: context.catalogId,
     pageNumber: context.pageNumber,
-    detail: options.detail || context.detail,
-    source: telemetryCleanText(context.value.split("?")[0].split("#")[0].split("/").pop(), 80)
+    detail,
+    source,
+    error: telemetryErrorFingerprint(["image", context.catalogId, context.pageNumber, detail, source])
   }, { immediate: true });
 }
 
+function telemetryErrorSourceScope(filename) {
+  const value = String(filename || "").toLowerCase();
+  if (!value) return "inline";
+  if (/^(?:chrome|moz|safari)-extension:/.test(value)) return "extension";
+  try {
+    const parsed = new URL(value, window.location.href);
+    return parsed.origin === window.location.origin ? "site" : "external";
+  } catch {
+    return "unknown";
+  }
+}
+
 function telemetryTrackRuntimeError(event) {
-  const sourceName = telemetryCleanText(String(event?.filename || "").split("?")[0].split("/").pop(), 80);
+  const filename = String(event?.filename || "");
+  const sourceName = telemetryCleanText(filename.split("?")[0].split("/").pop(), 80);
   const errorName = telemetryCleanText(event?.error?.name || "Error", 40);
   const message = telemetryCleanText(event?.message || event?.error?.message || "JavaScript error", 120);
   telemetryTrack("js_error", {
+    catalogId: state.catalog?.id || "",
     action: errorName,
     detail: message,
+    scope: telemetryErrorSourceScope(filename),
     source: sourceName,
     pageNumber: Number(event?.lineno) || 0,
     secondaryValue: Number(event?.colno) || 0,
@@ -271,8 +298,10 @@ function telemetryTrackUnhandledRejection(event) {
   const errorName = telemetryCleanText(reason?.name || "UnhandledRejection", 40);
   const message = telemetryCleanText(reason?.message || reason || "Unhandled promise rejection", 120);
   telemetryTrack("js_error", {
+    catalogId: state.catalog?.id || "",
     action: errorName,
     detail: message,
+    scope: "promise",
     error: telemetryErrorFingerprint([errorName, message, "promise"]),
     source: "promise"
   }, { immediate: true });
@@ -296,7 +325,9 @@ function telemetryInit() {
 
   window.addEventListener("error", (event) => {
     if (event.target instanceof HTMLImageElement) {
-      telemetryTrackImageFailure(event.target.currentSrc || event.target.src, { img: event.target });
+      if (event.target.dataset.telemetryManaged !== "true") {
+        telemetryTrackImageFailure(event.target.currentSrc || event.target.src, { img: event.target });
+      }
       return;
     }
     telemetryTrackRuntimeError(event);

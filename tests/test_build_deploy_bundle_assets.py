@@ -133,11 +133,18 @@ def test_atomic_output_replacement_publishes_only_complete_staging_bundle(tmp_pa
 def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None:
     out = tmp_path / "bundle"
     out.mkdir()
-    source = out / "app.js"
-    source.write_text("window.current = true;\n", encoding="utf-8")
-    current_name = f"app.{MODULE.content_hash(source)}.js"
     static = out / "static"
     static.mkdir()
+    search = static / "catalogs.search.222222222222.js"
+    search.write_text("window.search = true;\n", encoding="utf-8")
+    valid_search_name = f"catalogs.search.{MODULE.content_hash(search)}.js"
+    search.rename(static / valid_search_name)
+    source = out / "app.js"
+    source.write_text(
+        f'const SEARCH_INDEX_SCRIPT_SRC = "static/{valid_search_name}";\nwindow.current = true;\n',
+        encoding="utf-8",
+    )
+    current_name = f"app.{MODULE.content_hash(source)}.js"
     source.rename(static / current_name)
     for html_name in MODULE.FINGERPRINT_HTML_FILES:
         (out / html_name).write_text(
@@ -223,3 +230,33 @@ def test_css_rebase_rejects_missing_local_dependencies(tmp_path: Path) -> None:
 
     with pytest.raises(FileNotFoundError, match="missing.svg"):
         MODULE.rebase_css_asset_urls(css, root / "static", root)
+
+
+def test_search_index_is_fingerprinted_before_app_bundle(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    out.mkdir()
+    (out / "catalogs.search.js").write_text("window.BARGIG_SEARCH = [];\n", encoding="utf-8")
+    (out / "app.js").write_text('const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";\n', encoding="utf-8")
+
+    relative = MODULE.fingerprint_search_index(out)
+
+    assert relative.startswith("static/catalogs.search.")
+    assert (out / relative).is_file()
+    assert not (out / "catalogs.search.js").exists()
+    assert f'const SEARCH_INDEX_SCRIPT_SRC = "{relative}";' in (out / "app.js").read_text(encoding="utf-8")
+
+
+def test_search_index_validation_rejects_missing_dynamic_asset(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    out.mkdir()
+    static = out / "static"
+    static.mkdir()
+    app = out / "app.js"
+    app.write_text('const SEARCH_INDEX_SCRIPT_SRC = "static/catalogs.search.111111111111.js";\n', encoding="utf-8")
+    app_name = f"app.{MODULE.content_hash(app)}.js"
+    app.rename(static / app_name)
+    for html_name in MODULE.FINGERPRINT_HTML_FILES:
+        (out / html_name).write_text(f'<script src="static/{app_name}"></script>', encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="catalogs.search"):
+        MODULE.validate_fingerprinted_bundle(out)

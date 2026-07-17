@@ -691,3 +691,88 @@
   .legal-document-content { padding-inline: 19px; }
   .legal-document-content section + section { margin-top: 26px; padding-top: 24px; }
 }
+
+/* Image recovery feedback is deliberately attached to the affected page. It
+   stays compact, keyboard reachable and readable above both the full-size
+   viewer and continuous-scroll placeholders. */
+.viewer-image-feedback {
+  position: absolute;
+  z-index: 14;
+  inset-inline: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  transform: translateX(50%);
+  width: min(520px, calc(100% - 28px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid rgba(117, 88, 68, .28);
+  border-radius: 14px;
+  color: #2f251d;
+  background: rgba(255, 250, 246, .96);
+  box-shadow: 0 13px 34px rgba(47, 37, 29, .22);
+  backdrop-filter: blur(12px);
+  text-align: center;
+  font-weight: 800;
+}
+.viewer-image-feedback[data-mode="error"] {
+  border-color: rgba(137, 46, 46, .32);
+  background: rgba(255, 244, 244, .97);
+}
+.viewer-image-retry,
+.viewer-scroll-image-feedback button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--brand-dark);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.viewer-image-retry:focus-visible,
+.viewer-scroll-image-feedback button:focus-visible {
+  outline: 3px solid rgba(117, 88, 68, .34);
+  outline-offset: 3px;
+}
+.lightbox-image-frame.image-fallback > img,
+.viewer-scroll-page-frame.image-fallback > img {
+  image-rendering: auto;
+}
+.lightbox-image-frame.image-terminal-error > img,
+.viewer-scroll-page-frame.image-terminal-error > img {
+  opacity: 0;
+}
+.viewer-scroll-image-feedback {
+  position: absolute;
+  z-index: 4;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: min(300px, calc(100% - 24px));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(117, 88, 68, .24);
+  border-radius: 13px;
+  color: #2f251d;
+  background: rgba(255, 250, 246, .95);
+  box-shadow: 0 10px 28px rgba(47, 37, 29, .16);
+  text-align: center;
+  font-weight: 800;
+}
+.viewer-scroll-image-feedback button { min-height: 36px; }
+
+@media (max-width: 640px) {
+  .viewer-image-feedback {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .viewer-image-retry { width: 100%; }
+}
