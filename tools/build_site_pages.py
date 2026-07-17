@@ -151,7 +151,12 @@ def render_site_pages(
             site_footer=site_footer,
             legal_content=legal_content,
         ).replace("\r\n", "\n").replace("\r", "\n")
-        target.write_bytes(rendered.replace("\n", "\r\n").encode("utf-8"))
+        # Generated public pages use one canonical LF representation on every
+        # platform. GitHub checks out text files with LF, while many Windows
+        # worktrees use CRLF; writing CRLF here made byte-for-byte --check
+        # verification report false stale-page failures in CI even when the
+        # rendered HTML was otherwise identical.
+        target.write_text(rendered, encoding="utf-8", newline="\n")
         written.append(target)
     return written
 

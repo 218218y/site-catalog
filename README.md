@@ -479,17 +479,21 @@ npm run telemetry:report -- 30
 
 `_headers` כולל כעת CSP מצומצם, מניעת iframe, `nosniff`, מדיניות referrer, Permissions Policy ו־HSTS. קוד הפניית HTTPS עבר ל־`https-redirect.js`, ועיצוב עמוד 404 עבר ל־`404.css`, כדי לאפשר `script-src 'self'` ללא JavaScript inline.
 
-## שער פרסום לנכסי R2
+## בדיקה ידנית של נכסי R2
 
-הפקודות `bundle-site-r2.bat` ו־`tools/deploy_cloudflare_pages.py` מפעילות לפני פרסום בדיקה קשיחה של כל תמונות העמודים וכל התמונות המוקטנות המוגדרות ב־`catalogs.generated.json`. הבדיקה פונה לכתובת ה־CDN הציבורית, מוודאת תגובת `200/206`, ‏`Content-Type` של תמונה ואובייקט שאינו ריק. אם אפילו קובץ נדרש אחד חסר או שה־CDN אינו זמין, הבאנדל/הפרסום נכשל לפני החלפת תיקיית הפריסה ולפני Wrangler.
+בניית הבאנדל והפרסום הרגיל אינם תלויים עוד בבדיקת רשת של 1,444 תמונות. הבאנדל נבנה מתוך המטא־דאטה המקומי, מאמת את כל קובצי האתר ואת קישורי ה־CSS/JavaScript, ולא נחסם בגלל תקלה זמנית ב־CDN, סינון רשת או timeout. בדיקת R2 נשארה ככלי תחזוקה מפורש שאפשר להריץ לפני או אחרי סנכרון תמונות:
 
-לבדיקה ידנית בלבד:
+```bat
+npm run verify:r2
+```
+
+או ישירות:
 
 ```bat
 python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furniture.com
 ```
 
-הבנייה המקומית הרגילה `npm run build:deploy` נשארת ללא תלות ברשת. ניתן להפעיל בה את השער במפורש עם `--verify-remote-assets`.
+מי שמעוניין בשער קשיח בהרצה ידנית של בונה הבאנדל עדיין יכול להוסיף `--verify-remote-assets`, אך `bundle-site-r2.bat` ופרסום Cloudflare הרגיל אינם מוסיפים אותו אוטומטית.
 
 ## גרסת אינדקס החיפוש
 
@@ -497,4 +501,4 @@ python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furni
 
 ## CI ובדיקות דפדפן
 
-הקובץ `.github/workflows/ci.yml` מריץ ב־GitHub Actions את מסלול האימות המלא בכל push ובכל pull request: התקנת Node ו־Python, התקנת Chromium עם תלויות מערכת, בדיקות חוזה, כל בדיקות Python, מסעות Playwright ובניית באנדל נקי. במקרה כשל נשמרים דוח, trace וצילומי מסך כ־artifact למשך 14 יום.
+הקובץ `.github/workflows/ci.yml` מריץ ב־GitHub Actions את מסלול האימות המלא בכל push ובכל pull request: התקנת Node ו־Python, התקנת Chromium עם תלויות מערכת, בדיקות חוזה, כל בדיקות Python, מסעות Playwright ובניית באנדל נקי. בדיקות Playwright אינן דורשות את תמונות הקטלוגים ב־GitHub: הן מיירטות בקשות אל `assets/pages` ומחזירות תמונות SVG סינתטיות, כולל תרחישי כשל יזומים. במקרה כשל נשמרים דוח, trace וצילומי מסך כ־artifact למשך 14 יום.

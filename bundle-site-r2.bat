@@ -14,10 +14,10 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-%PYTHON_EXE% tools\build_deploy_bundle.py --external-assets-url "https://cdn.bargig-furniture.com" --verify-remote-assets %*
+%PYTHON_EXE% tools\build_deploy_bundle.py --external-assets-url "https://cdn.bargig-furniture.com" %*
 if errorlevel 1 (
   echo.
-  echo R2 bundle failed. Make sure catalogs.generated.js exists and the external image URL is correct.
+  echo R2 bundle failed. Read the exact build error above.
   pause
   exit /b 1
 )

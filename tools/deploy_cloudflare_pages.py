@@ -21,16 +21,15 @@ shell execution in the browser.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
 
+from build_deploy_bundle import validate_fingerprinted_bundle
 from build_site_pages import PAGE_DOCUMENTS
 
 DEFAULT_BUNDLE_DIR = "dist/site-upload-r2"
@@ -43,11 +42,6 @@ TELEMETRY_FUNCTION_FILE = "functions/api/telemetry.js"
 TELEMETRY_BINDING = "SITE_TELEMETRY"
 PUBLIC_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
 REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "_headers")
-HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
-FINGERPRINTED_ASSET_DIR = "static"
-HASHED_ASSET_FILENAME_RE = re.compile(
-    r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
-)
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -207,12 +201,14 @@ def apply_r2_cors(npx: str, bucket: str, cors_file: str, root: Path) -> int:
     return returncode
 
 
-def file_content_hash(path: Path, length: int = 12) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:length]
-
-
 def validate_bundle(bundle_dir: Path) -> None:
-    """Validate one clean, internally consistent deployment bundle."""
+    """Validate one clean, internally consistent deployment bundle.
+
+    Asset validation is intentionally delegated to the exact same validator
+    used while building the bundle. Keeping one source of truth prevents the
+    deploy step from drifting behind new runtime-loaded assets such as the
+    fingerprinted search index referenced from app.js rather than HTML.
+    """
 
     if not bundle_dir.is_dir():
         raise FileNotFoundError(
@@ -226,66 +222,7 @@ def validate_bundle(bundle_dir: Path) -> None:
             "Create a fresh R2 bundle before deploying."
         )
 
-    referenced_assets: set[str] = set()
-    missing_assets: list[str] = []
-    invalid_assets: list[str] = []
-    for html_name in PUBLIC_HTML_FILES:
-        html = (bundle_dir / html_name).read_text(encoding="utf-8", errors="replace")
-        for match in HTML_ASSET_RE.finditer(html):
-            reference = match.group(1).strip()
-            if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:", "data:", "blob:")):
-                continue
-            reference_path = reference.split("?", 1)[0].split("#", 1)[0]
-            if Path(reference_path).suffix.lower() not in {".css", ".js"}:
-                continue
-
-            relative = Path(reference_path)
-            if relative.is_absolute() or ".." in relative.parts:
-                invalid_assets.append(f"{html_name} -> {reference_path} (unsafe path)")
-                continue
-            asset_path = bundle_dir / relative
-            if not asset_path.is_file():
-                missing_assets.append(f"{html_name} -> {reference_path}")
-                continue
-            if not relative.parts or relative.parts[0] != FINGERPRINTED_ASSET_DIR:
-                invalid_assets.append(f"{html_name} -> {reference_path} (not under static/)")
-                continue
-
-            filename_match = HASHED_ASSET_FILENAME_RE.fullmatch(relative.name)
-            if filename_match is None:
-                invalid_assets.append(f"{html_name} -> {reference_path} (invalid hash filename)")
-                continue
-            if filename_match.group("digest") != file_content_hash(asset_path):
-                invalid_assets.append(f"{html_name} -> {reference_path} (hash/content mismatch)")
-                continue
-            referenced_assets.add(relative.as_posix())
-
-    if missing_assets:
-        raise FileNotFoundError(
-            f"Bundle folder is incomplete: {rel_to_root(bundle_dir)}. "
-            f"Public HTML references missing CSS/JS assets: {', '.join(sorted(set(missing_assets)))}. "
-            "Create a fresh R2 bundle before deploying."
-        )
-    if invalid_assets:
-        raise ValueError(
-            f"Bundle folder is inconsistent: {rel_to_root(bundle_dir)}. "
-            f"Invalid CSS/JS references: {', '.join(sorted(set(invalid_assets)))}."
-        )
-
-    static_dir = bundle_dir / FINGERPRINTED_ASSET_DIR
-    deployed_assets = {
-        path.relative_to(bundle_dir).as_posix()
-        for path in static_dir.rglob("*")
-        if path.is_file() and path.suffix.lower() in {".css", ".js"}
-    } if static_dir.is_dir() else set()
-    stale_assets = sorted(deployed_assets - referenced_assets)
-    if stale_assets:
-        raise ValueError(
-            f"Bundle folder contains stale fingerprinted files that are not referenced by the current HTML: "
-            f"{', '.join(stale_assets)}. Rebuild the bundle; old generations must not be deployed."
-        )
-    if not referenced_assets:
-        raise ValueError("Bundle validation found no fingerprinted CSS/JS references in public HTML.")
+    validate_fingerprinted_bundle(bundle_dir)
 
 
 
@@ -349,7 +286,6 @@ def build_bundle(args: argparse.Namespace) -> int:
         args.dir,
         "--external-assets-url",
         args.external_assets_url,
-        "--verify-remote-assets",
     ]
     return run_streamed(command, project_root())
 
@@ -427,7 +363,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.dir,
                     "--external-assets-url",
                     args.external_assets_url,
-                    "--verify-remote-assets",
                 ]),
                 flush=True,
             )

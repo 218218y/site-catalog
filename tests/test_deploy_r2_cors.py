@@ -83,6 +83,7 @@ def test_pages_deploy_dry_run_never_reads_or_changes_r2_cors(
     output = capsys.readouterr().out
     assert "tools/build_deploy_bundle.py" in output
     assert "wrangler pages deploy" in output
+    assert "--verify-remote-assets" not in output
     assert "--branch" not in output
     assert "environment: production" in output
     assert "wrangler r2 bucket cors" not in output
@@ -198,7 +199,10 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
     static_dir = bundle_dir / "static"
     static_dir.mkdir()
 
-    app_content = b"window.test = true;\n"
+    search_content = b"window.BARGIG_SEARCH = [];\n"
+    search_name = f"catalogs.search.{hashlib.sha256(search_content).hexdigest()[:12]}.js"
+    (static_dir / search_name).write_bytes(search_content)
+    app_content = f'const SEARCH_INDEX_SCRIPT_SRC = "static/{search_name}";\nwindow.test = true;\n'.encode("utf-8")
     style_content = b"body {}\n"
     app_name = f"app.{hashlib.sha256(app_content).hexdigest()[:12]}.js"
     style_name = f"styles.{hashlib.sha256(style_content).hexdigest()[:12]}.css"
@@ -221,6 +225,14 @@ def test_bundle_validation_checks_every_public_document(tmp_path: Path) -> None:
     MODULE.validate_bundle(bundle_dir)
 
 
+def test_bundle_validation_accepts_runtime_loaded_search_index(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+
+    MODULE.validate_bundle(bundle_dir)
+    assert len(list((bundle_dir / "static").glob("catalogs.search.*.js"))) == 1
+
+
 def test_bundle_validation_rejects_missing_asset_in_non_index_page(tmp_path: Path) -> None:
     bundle_dir = tmp_path / "bundle"
     write_minimal_bundle(bundle_dir, ("viewer.html", "static/missing-transition.js"))
@@ -234,8 +246,27 @@ def test_bundle_validation_rejects_unreferenced_old_generation(tmp_path: Path) -
     write_minimal_bundle(bundle_dir)
     (bundle_dir / "static" / "app.111111111111.js").write_text("window.old = true;\n", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="old generations must not be deployed"):
+    with pytest.raises(ValueError, match="stale or unreferenced"):
         MODULE.validate_bundle(bundle_dir)
+
+
+def test_normal_deploy_bundle_build_does_not_require_remote_r2_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(command: list[str], cwd: Path) -> int:
+        captured.append(list(command))
+        return 0
+
+    monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
+    monkeypatch.setattr(MODULE, "run_streamed", fake_run)
+    args = MODULE.parse_args(["--dir", "bundle"])
+
+    assert MODULE.build_bundle(args) == 0
+    assert len(captured) == 1
+    assert "--verify-remote-assets" not in captured[0]
 
 
 def test_pages_runtime_config_requires_telemetry_binding(tmp_path: Path) -> None:
