@@ -74,6 +74,9 @@ const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const VIEWER_PAGE_SWAP_CLEANUP_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
+const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
+const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
+const VIEWER_SCROLL_WHEEL_ELASTIC_RATIO = 0.42;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
 
 const boundEventFeatures = new Set();
@@ -146,6 +149,10 @@ const state = {
   viewerScrollSettleTimer: 0,
   viewerScrollTargetPage: 0,
   viewerScrollLastCommandAt: 0,
+  viewerScrollWheelAccumulator: 0,
+  viewerScrollWheelBasePage: 0,
+  viewerScrollWheelTargetPage: 0,
+  viewerScrollWheelSettleTimer: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,

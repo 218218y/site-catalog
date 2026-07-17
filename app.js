@@ -284,6 +284,9 @@ const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const VIEWER_PAGE_SWAP_CLEANUP_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
+const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
+const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
+const VIEWER_SCROLL_WHEEL_ELASTIC_RATIO = 0.42;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
 
 const boundEventFeatures = new Set();
@@ -356,6 +359,10 @@ const state = {
   viewerScrollSettleTimer: 0,
   viewerScrollTargetPage: 0,
   viewerScrollLastCommandAt: 0,
+  viewerScrollWheelAccumulator: 0,
+  viewerScrollWheelBasePage: 0,
+  viewerScrollWheelTargetPage: 0,
+  viewerScrollWheelSettleTimer: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
@@ -5697,6 +5704,115 @@ function resetViewerScrollCommandSequence() {
   state.viewerScrollLastCommandAt = 0;
 }
 
+function clearViewerScrollWheelGesture() {
+  window.clearTimeout(state.viewerScrollWheelSettleTimer);
+  state.viewerScrollWheelSettleTimer = 0;
+  state.viewerScrollWheelAccumulator = 0;
+  state.viewerScrollWheelBasePage = 0;
+  state.viewerScrollWheelTargetPage = 0;
+  els.viewerScrollPages?.classList.remove("viewer-wheel-gesture-active");
+}
+
+function getViewerScrollPagePosition(page) {
+  const container = els.viewerScrollPages;
+  const frame = getViewerScrollPageFrame(page);
+  if (!container || !frame) return null;
+
+  return {
+    top: Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2)),
+    // Center pages on the horizontal viewport even when fit-height makes them
+    // wider than the container. Clamping the size difference before subtracting
+    // it leaves over-wide pages at scrollLeft 0 and exposes only one side.
+    left: Math.max(0, frame.offsetLeft + (frame.offsetWidth - container.clientWidth) / 2)
+  };
+}
+
+function settleViewerScrollWheelGesture() {
+  const targetPage = state.viewerScrollWheelTargetPage || state.page;
+  clearViewerScrollWheelGesture();
+  if (!isScrollViewerMode() || !state.catalog) return;
+  loadViewerScrollWindow(targetPage);
+  scrollViewerToPage(targetPage, { behavior: "smooth" });
+}
+
+function normalizeViewerScrollWheelDelta(event) {
+  const rawDelta = Number(event?.deltaY) || 0;
+  const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
+
+  // One page-mode unit already represents one deliberate page command. Line
+  // and pixel modes are normalized through the shared pixel converter so a
+  // three-line mouse detent (~108 px) and a 100 px precision-wheel stream carry
+  // the same intent instead of following browser-specific native distances.
+  if (event?.deltaMode === pageMode) return rawDelta * VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX;
+  return normalizeWheelDeltaToPixels(rawDelta, event?.deltaMode, els.viewerScrollPages?.clientHeight || 0);
+}
+
+function handleViewerScrollWheel(event) {
+  const container = els.viewerScrollPages;
+  if (!state.lightboxOpen || !isScrollViewerMode() || isViewerScrollIsolatedZoom() || !state.catalog || !container) {
+    return false;
+  }
+
+  const deltaY = normalizeViewerScrollWheelDelta(event);
+  const deltaX = normalizeWheelDeltaToPixels(
+    Number(event?.deltaX) || 0,
+    event?.deltaMode,
+    container.clientWidth
+  );
+  if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 0.01) return false;
+
+  // Preserve deliberate horizontal panning for fit-height pages that overflow
+  // sideways. Every vertically dominant wheel stream—mouse or touchpad—uses
+  // the exact same page-intent accumulator below.
+  if (Math.abs(deltaX) > Math.abs(deltaY)) return false;
+
+  event.preventDefault();
+
+  if (!state.viewerScrollWheelBasePage) {
+    const intendedPage = state.viewerScrollTargetPage || findViewerScrollCenterPage() || state.page;
+    clearViewerScrollTarget();
+    state.viewerScrollWheelBasePage = clampPage(intendedPage, state.catalog);
+    state.viewerScrollWheelTargetPage = state.viewerScrollWheelBasePage;
+    state.viewerScrollWheelAccumulator = 0;
+    container.classList.add("viewer-wheel-gesture-active");
+  }
+
+  state.viewerScrollWheelAccumulator += deltaY;
+  const requestedSteps = Math.trunc(
+    state.viewerScrollWheelAccumulator / VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX
+  );
+  const targetPage = clampPage(state.viewerScrollWheelBasePage + requestedSteps, state.catalog);
+  const appliedSteps = targetPage - state.viewerScrollWheelBasePage;
+  const elasticRemainder = clampValue(
+    state.viewerScrollWheelAccumulator - appliedSteps * VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX,
+    -VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX + 1,
+    VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX - 1
+  );
+  const previousTargetPage = state.viewerScrollWheelTargetPage;
+  state.viewerScrollWheelTargetPage = targetPage;
+
+  loadViewerScrollWindow(targetPage);
+  const position = getViewerScrollPagePosition(targetPage);
+  if (position) {
+    const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+    container.scrollTop = clampValue(
+      position.top + elasticRemainder * VIEWER_SCROLL_WHEEL_ELASTIC_RATIO,
+      0,
+      maxScrollTop
+    );
+    container.scrollLeft = position.left;
+  }
+  syncViewerScrollActivePage(targetPage);
+  if (targetPage !== previousTargetPage) runViewerScrollPageSwapAnimation(targetPage);
+
+  window.clearTimeout(state.viewerScrollWheelSettleTimer);
+  state.viewerScrollWheelSettleTimer = window.setTimeout(
+    settleViewerScrollWheelGesture,
+    VIEWER_SCROLL_WHEEL_SETTLE_MS
+  );
+  return true;
+}
+
 function shouldJumpViewerScrollCommand(options = {}) {
   const now = performance.now();
   const elapsed = state.viewerScrollLastCommandAt > 0
@@ -5715,16 +5831,14 @@ function shouldJumpViewerScrollCommand(options = {}) {
 
 function scrollViewerToPage(page, options = {}) {
   const container = els.viewerScrollPages;
-  const frame = getViewerScrollPageFrame(page);
-  if (!container || !frame) return false;
+  if (!container) return false;
   const targetPage = state.catalog ? clampPage(page, state.catalog) : Number(page) || 1;
   const behavior = options.behavior === "smooth" ? "smooth" : "auto";
-  const top = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
-  // Center pages on the horizontal viewport even when fit-height makes them
-  // wider than the container. Clamping the size difference before subtracting
-  // it leaves over-wide pages at scrollLeft 0 and exposes only one side.
-  const left = Math.max(0, frame.offsetLeft + (frame.offsetWidth - container.clientWidth) / 2);
+  const position = getViewerScrollPagePosition(targetPage);
+  if (!position) return false;
+  const { top, left } = position;
 
+  clearViewerScrollWheelGesture();
   clearViewerScrollTarget();
   if (behavior === "smooth") {
     state.viewerScrollTargetPage = targetPage;
@@ -5854,6 +5968,7 @@ function setViewerLayoutMode(layoutMode, options = {}) {
   state.pointers.clear();
   hideViewerZoomIndicator();
   state.singleImageLoadToken += 1;
+  clearViewerScrollWheelGesture();
   clearViewerScrollTarget();
   resetViewerScrollCommandSequence();
   syncViewerLayoutModeUi();
@@ -6047,6 +6162,7 @@ function hideLightboxUi() {
   state.viewerScrollIsolatedPage = 0;
   window.clearTimeout(state.viewerScrollPageAnimationTimer);
   state.viewerScrollPageAnimationTimer = 0;
+  clearViewerScrollWheelGesture();
   clearViewerScrollTarget();
   resetViewerScrollCommandSequence();
   window.clearTimeout(state.singleImageAnimationTimer);
@@ -7288,7 +7404,10 @@ function handleZoomSurfaceWheel(event) {
     return;
   }
 
-  if (isScrollViewerMode()) return;
+  if (isScrollViewerMode()) {
+    handleViewerScrollWheel(event);
+    return;
+  }
 
   if (viewerCanPan()) {
     event.preventDefault();

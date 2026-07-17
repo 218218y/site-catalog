@@ -636,6 +636,75 @@ test.describe("critical catalog journeys", () => {
     await expect.poll(() => page.evaluate(() => window.__viewerE2eSmoothScrollCalls)).toEqual(["smooth", "smooth"]);
   });
 
+  test("normalizes mouse-wheel and precision-touchpad streams through one page path", async ({ page }) => {
+    await preparePage(page);
+    const startPage = Math.min(3, Math.max(1, CATALOG_PAGES - 6));
+    await openDirectViewer(page, startPage);
+
+    const scrollPages = page.locator("#viewerScrollPages");
+    const alignedDistance = (targetPage) => scrollPages.evaluate((container, pageNumber) => {
+      const frame = container.querySelector(`[data-scroll-page="${pageNumber}"]`);
+      if (!frame) return Number.POSITIVE_INFINITY;
+      const expected = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
+      return Math.abs(container.scrollTop - expected);
+    }, targetPage);
+    const dispatchWheelStream = (deltas, deltaMode = 0) => scrollPages.evaluate((container, payload) => {
+      let everyEventCanceled = true;
+      payload.deltas.forEach((deltaY) => {
+        const event = new WheelEvent("wheel", {
+          deltaX: 0,
+          deltaY,
+          deltaMode: payload.deltaMode,
+          bubbles: true,
+          cancelable: true
+        });
+        everyEventCanceled = !container.dispatchEvent(event) && everyEventCanceled;
+      });
+      return {
+        everyEventCanceled,
+        gestureActive: container.classList.contains("viewer-wheel-gesture-active"),
+        scrollTop: container.scrollTop
+      };
+    }, { deltas, deltaMode });
+
+    const startTop = await scrollPages.evaluate((container) => container.scrollTop);
+    const smallGesture = await dispatchWheelStream([40]);
+    expect(smallGesture.everyEventCanceled).toBe(true);
+    expect(smallGesture.gestureActive).toBe(true);
+    expect(Math.abs(smallGesture.scrollTop - startTop)).toBeGreaterThan(1);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
+    await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
+    await expect(scrollPages).not.toHaveClass(/viewer-wheel-gesture-active/);
+
+    const granularTarget = Math.min(CATALOG_PAGES, startPage + 1);
+    await dispatchWheelStream(Array(10).fill(10));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(granularTarget));
+    await expect.poll(() => alignedDistance(granularTarget)).toBeLessThanOrEqual(2);
+
+    await page.keyboard.press("PageUp");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
+    await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
+
+    await dispatchWheelStream([100]);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(granularTarget));
+    await expect.poll(() => alignedDistance(granularTarget)).toBeLessThanOrEqual(2);
+
+    const lineModeTarget = Math.min(CATALOG_PAGES, granularTarget + 1);
+    await dispatchWheelStream([3], 1);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(lineModeTarget));
+    await expect.poll(() => alignedDistance(lineModeTarget)).toBeLessThanOrEqual(2);
+
+    const largeTarget = Math.min(CATALOG_PAGES, lineModeTarget + 2);
+    await dispatchWheelStream([240]);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(largeTarget));
+    await expect.poll(() => alignedDistance(largeTarget)).toBeLessThanOrEqual(2);
+
+    const repeatedTarget = Math.min(CATALOG_PAGES, largeTarget + 3);
+    await dispatchWheelStream([100, 100, 100]);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(repeatedTarget));
+    await expect.poll(() => alignedDistance(repeatedTarget)).toBeLessThanOrEqual(2);
+  });
+
   test("keeps scroll-viewer boundary navigation stationary", async ({ page }) => {
     await preparePage(page);
     await openDirectViewer(page, 1);

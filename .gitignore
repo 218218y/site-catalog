@@ -20,8 +20,8 @@ r2.env
 __pycache__/
 .pytest_cache/
 *.pyc
-
-
+telemetry.env
+r2.env
 
 # Locally generated telemetry exports. They may contain business-sensitive aggregates.
 reports/telemetry/

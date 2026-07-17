@@ -216,7 +216,10 @@ function handleZoomSurfaceWheel(event) {
     return;
   }
 
-  if (isScrollViewerMode()) return;
+  if (isScrollViewerMode()) {
+    handleViewerScrollWheel(event);
+    return;
+  }
 
   if (viewerCanPan()) {
     event.preventDefault();

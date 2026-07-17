@@ -270,6 +270,13 @@
   -webkit-overflow-scrolling: touch;
   direction: ltr;
 }
+.viewer-scroll-pages.viewer-wheel-gesture-active {
+  /* Wheel and precision-touchpad input share one deterministic page-intent
+     controller. Native proximity snapping is suspended only while that
+     controller applies its small elastic preview offset; it is restored for
+     touch scrolling, scrollbar dragging, and the final exact settlement. */
+  scroll-snap-type: none;
+}
 .viewer-scroll-page {
   position: relative;
   flex: 0 0 auto;
