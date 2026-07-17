@@ -55,6 +55,12 @@
   Cache-Control: no-store, max-age=0, must-revalidate
 /privacy.html
   Cache-Control: no-store, max-age=0, must-revalidate
+/accessibility
+  Cache-Control: no-store, max-age=0, must-revalidate
+/accessibility/
+  Cache-Control: no-store, max-age=0, must-revalidate
+/accessibility.html
+  Cache-Control: no-store, max-age=0, must-revalidate
 
 /404
   Cache-Control: no-store, max-age=0, must-revalidate

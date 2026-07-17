@@ -206,8 +206,14 @@ function finishSingleImageSwap(token) {
 
 function setSingleViewerImageFeedback(mode = "", message = "") {
   const visible = Boolean(mode && message);
+  const isError = mode === "error";
   els.viewerImageFeedback?.classList.toggle("hidden", !visible);
-  if (els.viewerImageFeedback) els.viewerImageFeedback.dataset.mode = visible ? mode : "";
+  if (els.viewerImageFeedback) {
+    els.viewerImageFeedback.dataset.mode = visible ? mode : "";
+    els.viewerImageFeedback.dataset.state = visible ? (isError ? "error" : "warning") : "";
+    els.viewerImageFeedback.setAttribute("role", isError ? "alert" : "status");
+    els.viewerImageFeedback.setAttribute("aria-live", isError ? "assertive" : "polite");
+  }
   if (els.viewerImageFeedbackText) els.viewerImageFeedbackText.textContent = message;
   els.viewerImageRetry?.classList.toggle("hidden", !visible);
   els.lightboxImageFrame?.classList.toggle("image-fallback", mode === "fallback");
@@ -230,6 +236,7 @@ function showSingleLightboxImage(catalog, page, src) {
   }
 
   setViewerLoading(true);
+  els.lightboxImageFrame?.setAttribute("aria-busy", "true");
   setSingleViewerImageFeedback();
   els.lightbox?.classList.add("is-page-loading");
   els.lightboxImageFrame?.classList.add("is-preparing-swap");
@@ -262,6 +269,7 @@ function showSingleLightboxImage(catalog, page, src) {
         applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
       }
       finishSingleImageSwap(token);
+      els.lightboxImageFrame?.setAttribute("aria-busy", "false");
       runSingleImageSwapAnimation();
       if (candidate.fallback) {
         setSingleViewerImageFeedback("fallback", "התמונה המלאה לא נטענה. מוצגת תצוגה מוקטנת; אפשר לנסות שוב.");
@@ -272,6 +280,7 @@ function showSingleLightboxImage(catalog, page, src) {
     onExhausted: () => {
       delete image.dataset.loadedQuality;
       finishSingleImageSwap(token);
+      els.lightboxImageFrame?.setAttribute("aria-busy", "false");
       els.lightboxImageFrame?.classList.add("image-terminal-error");
       setSingleViewerImageFeedback("error", "התמונה לא הצליחה להיטען. אפשר לנסות שוב.");
     }

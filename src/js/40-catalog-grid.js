@@ -27,14 +27,26 @@ function initRevealObserver() {
 
 function renderEmptyState() {
   const html = `
-    <article class="empty-state">
-      <strong>עדיין אין קטלוגים להצגה</strong>
-      <p>ברגע שיועלו קטלוגים, הם יופיעו כאן לבחירה ולצפייה.</p>
+    <article class="empty-state ui-state" data-state="empty" role="status">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M5 4.5h11.2A2.8 2.8 0 0 1 19 7.3v12.2H7.8A2.8 2.8 0 0 1 5 16.7V4.5Z"/><path d="M7.8 19.5A2.8 2.8 0 0 1 5 16.7c0-1.55 1.25-2.8 2.8-2.8H19"/></svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>עדיין אין קטלוגים להצגה</strong>
+        <p>ברגע שיועלו קטלוגים, הם יופיעו כאן לבחירה ולצפייה.</p>
+      </div>
     </article>
   `;
 
-  if (els.catalogGrid) els.catalogGrid.innerHTML = html;
-  if (els.pageGrid) els.pageGrid.innerHTML = html;
+  if (els.catalogGrid) {
+    els.catalogGrid.innerHTML = html;
+    els.catalogGrid.setAttribute("aria-busy", "false");
+    if (els.catalogLoadStatus) els.catalogLoadStatus.textContent = "אין קטלוגים זמינים כעת.";
+  }
+  if (els.pageGrid) {
+    els.pageGrid.innerHTML = html;
+    els.pageGrid.setAttribute("aria-busy", "false");
+  }
   if (els.catalogCount) els.catalogCount.textContent = "0";
   if (els.pageCount) els.pageCount.textContent = "0";
   renderCategoryNav([]);
@@ -826,6 +838,11 @@ function renderCatalogCards() {
 
   els.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
   els.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
+  els.catalogGrid.setAttribute("aria-busy", "false");
+  if (els.catalogLoadStatus) {
+    const count = catalogs.length;
+    els.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
+  }
 
   bindCatalogCardEvents();
   syncCatalogCategoryFocusFromHash({ animate: false });
@@ -861,7 +878,9 @@ function renderPageGrid() {
       </article>
     `);
   }
+  els.pageGrid.setAttribute("aria-busy", "true");
   els.pageGrid.innerHTML = cards.join("");
+  els.pageGrid.setAttribute("aria-busy", "false");
 
   els.pageGrid.querySelectorAll("[data-open-page]").forEach((button) => {
     button.addEventListener("click", () => openLightbox(Number(button.dataset.openPage)));

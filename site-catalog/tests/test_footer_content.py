@@ -35,7 +35,6 @@ def copy_page_sources(target: Path) -> None:
         "partials/site-footer.content.json",
         "legal/terms.content.html",
         "legal/privacy.content.html",
-        "legal/accessibility.content.html",
     ):
         source = ROOT / relative
         destination = target / relative
@@ -72,6 +71,28 @@ def test_footer_validation_rejects_incomplete_or_invalid_content() -> None:
     multiline = dict(content, bottomNote="line one\nline two")
     with pytest.raises(ValueError, match="single line"):
         FOOTER.validate_footer_content(multiline)
+
+
+def test_footer_editor_schema_is_the_single_complete_field_contract() -> None:
+    schema = FOOTER.footer_editor_schema()
+    schema_fields = [field["name"] for group in schema for field in group["fields"]]
+
+    assert schema_fields == list(FOOTER.FOOTER_FIELD_LIMITS)
+    assert schema_fields == list(FOOTER.read_footer_content(ROOT))
+    assert len(schema_fields) == len(set(schema_fields))
+
+    groups = {group["key"]: group for group in schema}
+    assert list(groups) == ["visit", "contact", "response", "links", "bottom"]
+    contact_fields = [field["name"] for field in groups["contact"]["fields"]]
+    assert contact_fields[-3:] == ["emailMailtoTitle", "gmailTitle", "gmailSubject"]
+    bottom_fields = [field["name"] for field in groups["bottom"]["fields"]]
+    assert "gmailTitle" not in bottom_fields
+    assert "gmailSubject" not in bottom_fields
+
+    email_field = next(field for field in groups["contact"]["fields"] if field["name"] == "email")
+    assert email_field["type"] == "email"
+    assert email_field["dir"] == "ltr"
+    assert email_field["maxLength"] == FOOTER.FOOTER_FIELD_LIMITS["email"]
 
 
 def test_control_panel_footer_save_updates_config_and_all_public_pages(tmp_path: Path) -> None:

@@ -82,6 +82,19 @@ PAGE_DOCUMENTS = (
         legal_updated="15 ביולי 2026",
         legal_summary="המדיניות מתארת את המידע שנשמר במכשיר, מידע שנמסר בפנייה והשימוש בספקי התשתית הנדרשים להפעלת האתר.",
     ),
+    PageDocument(
+        "accessibility.html",
+        "accessibility",
+        "הצהרת נגישות | רהיטי ברגיג",
+        "מידע על התאמות הנגישות באתר הקטלוגים של רהיטי ברגיג ודרכי פנייה בנושא נגישות.",
+        "accessibility.html",
+        template_filename="legal.template.html",
+        content_filename="legal/accessibility.content.html",
+        legal_eyebrow="שימוש שוויוני ונוח",
+        legal_heading="הצהרת נגישות",
+        legal_updated="17 ביולי 2026",
+        legal_summary="הצהרה זו מפרטת את התאמות הנגישות באתר, מגבלות ידועות, חלופות נגישות ודרכי פנייה לקבלת סיוע.",
+    ),
 )
 
 

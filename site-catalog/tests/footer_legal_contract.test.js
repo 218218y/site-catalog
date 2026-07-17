@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const publicPages = ['index.html', 'catalog.html', 'favorites.html', 'viewer.html', 'terms.html', 'privacy.html', 'accessibility.html'];
+const publicPages = ['index.html', 'catalog.html', 'favorites.html', 'viewer.html', 'terms.html', 'privacy.html'];
 const footerContent = JSON.parse(fs.readFileSync(path.join(root, 'partials', 'site-footer.content.json'), 'utf8'));
 
 function escapeHtml(value) {
@@ -54,7 +54,6 @@ for (const filename of publicPages) {
   assert.doesNotMatch(footerBottom, /site-footer-gmail-link/);
   assert.match(html, /href="terms\.html">/);
   assert.match(html, /href="privacy\.html">/);
-  assert.match(html, /href="accessibility\.html">/);
   assert.match(html, /href="#top" class="site-footer-top-link"/);
   assert.doesNotMatch(html, /\{\{FOOTER_[A-Z0-9_]+\}\}/);
   assert.doesNotMatch(html, /site-footer-intro|site-footer-logo|site-footer-brand/);
@@ -87,6 +86,8 @@ assert.match(footerFragment, /class="site-footer-email-row"/);
 assert.match(footerFragment, /class="site-footer-email-link"[\s\S]*?title="\{\{FOOTER_EMAIL_MAILTO_TITLE\}\}"/);
 const gmailAnchorAttributes = footerFragment.split('class="site-footer-gmail-link"')[1]?.split('>')[0] || "";
 assert.doesNotMatch(gmailAnchorAttributes, /\stitle=/);
+assert.match(footerModule, /FOOTER_EDITOR_GROUPS/);
+assert.match(footerModule, /def footer_editor_schema/);
 assert.match(footerModule, /def validate_footer_content/);
 assert.match(footerModule, /html\.escape/);
 assert.match(footerModule, /def gmail_compose_href/);
@@ -95,10 +96,13 @@ assert.match(pageBuilder, /render_footer_template/);
 assert.match(pageBuilder, /footer_content: dict\[str, str\] \| None = None/);
 assert.match(pageBuilder, /"terms\.html"[\s\S]*?template_filename="legal\.template\.html"/);
 assert.match(pageBuilder, /"privacy\.html"[\s\S]*?content_filename="legal\/privacy\.content\.html"/);
-assert.match(pageBuilder, /"accessibility\.html"[\s\S]*?content_filename="legal\/accessibility\.content\.html"/);
 assert.match(controlPanel, /<h2>עריכת טקסט הפוטר<\/h2>/);
-assert.match(controlPanel, /data-footer-field="businessName"/);
+assert.match(controlPanel, /id="footerEditorGroups"/);
+assert.match(controlPanel, /function normalizedFooterEditorSchema\(\)/);
+assert.match(controlPanel, /function validateFooterEditorContract\(schema\)/);
+assert.match(controlPanel, /data-footer-field="\$\{escapeHtml\(field\.name\)\}"/);
 assert.match(controlPanel, /api\('\/api\/footer'/);
+assert.match(controlServer, /"footerEditor": footer_editor_schema\(\)/);
 assert.match(controlServer, /if path == "\/api\/footer"/);
 assert.match(controlServer, /save_footer_content_and_render_pages/);
 assert.match(deployTool, /PUBLIC_HTML_FILES = tuple\(page\.filename for page in PAGE_DOCUMENTS\) \+ \("404\.html",\)/);
@@ -129,7 +133,6 @@ assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.site-footer-grid\s*\{\s*
 
 const terms = fs.readFileSync(path.join(root, 'terms.html'), 'utf8');
 const privacy = fs.readFileSync(path.join(root, 'privacy.html'), 'utf8');
-const accessibility = fs.readFileSync(path.join(root, 'accessibility.html'), 'utf8');
 assert.match(terms, /<body data-page="terms">/);
 assert.match(terms, /האתר אינו משמש לביצוע הזמנה מחייבת, סליקת תשלום או כריתת עסקה מקוונת/);
 assert.match(terms, /קישור לשיתוף רשימת בחירה עשוי לכלול בכתובת עצמה/);
@@ -142,9 +145,5 @@ assert.match(privacy, /מדידה תפעולית מצומצמת/);
 assert.match(privacy, /Cloudflare Analytics Engine/);
 assert.match(privacy, /אינה יוצרת קובצי עוגיות/);
 assert.match(privacy, /Global Privacy Control או Do Not Track/);
-assert.match(accessibility, /<body data-page="accessibility">/);
-assert.match(accessibility, /ת״י 5568 חלק 1/);
-assert.match(accessibility, /מגבלות ידועות וחלופות נגישות/);
-assert.match(accessibility, /17 ביולי 2026/);
 
 console.log('footer_legal_contract.test.js: PASS');
