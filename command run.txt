@@ -2,6 +2,9 @@ npm run build:frontend
 npm test
 npm run verify
 
+לבדוק אם התמונות באתר קיימות כולם r2
+npm run verify:r2
+
 נכון לעכשיו האתר מוגדר להיות מוסתר מחיפוש גוגל
 
 התקנה מקומית ראשונה
