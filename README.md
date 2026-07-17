@@ -2,7 +2,7 @@
 
 הפרויקט מוגדר למסלול עבודה אחד וברור:
 
-- האתר מחולק לארבעה מסמכי אפליקציה: `index.html`, `catalog.html`, `favorites.html`, `viewer.html`, ולשלושה מסמכי מידע: `terms.html`, `privacy.html`, `accessibility.html`.
+- האתר מחולק לארבעה מסמכי אפליקציה: `index.html`, `catalog.html`, `favorites.html`, `viewer.html`, ולשני מסמכים משפטיים: `terms.html`, `privacy.html`.
 - כל הקטלוגים משתמשים באותו `catalog.html` ובאותו `viewer.html` עם כתובת ייחודית לפי `catalog` ו-`page`; אין שכפול HTML לכל קטלוג.
 - `site.template.html` ו-`legal.template.html` הם מקורות ה-HTML המשותפים, ו-`tools/build_site_pages.py` מייצר מהם את ששת הדפים הציבוריים.
 - `partials/site-footer.html` שומר את מבנה ועיצוב הפוטר, ו-`partials/site-footer.content.json` שומר רק את הטקסטים והפרטים הניתנים לעריכה.
@@ -21,7 +21,6 @@ favorites.html                    המועדפים כדף עצמאי
 viewer.html?catalog=<id>&page=<n> צפייה במסך מלא
 terms.html                         תנאי שימוש
 privacy.html                       מדיניות פרטיות
-accessibility.html                 הצהרת נגישות
 ```
 
 לא עורכים ידנית את קובצי ה-HTML שנוצרו. עורכים את התבניות והחלקים המשותפים ואז מריצים:

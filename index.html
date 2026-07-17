@@ -85,8 +85,7 @@
 
   <main id="main-content" tabindex="-1">
     <section class="catalogs-section panel reveal" id="catalogs" aria-label="קטלוגים">
-      <p class="visually-hidden" id="catalogLoadStatus" role="status" aria-live="polite" aria-atomic="true">טוען קטלוגים...</p>
-      <div class="catalog-category-list" id="catalogGrid" aria-busy="true"></div>
+      <div class="catalog-category-list" id="catalogGrid"></div>
     </section>
 
     <section class="catalog-detail panel hidden reveal" id="catalogDetail" aria-labelledby="catalogDetailTitle">
@@ -128,7 +127,7 @@
 
       <div class="gallery-separator" aria-hidden="true"></div>
 
-      <div class="page-grid" id="pageGrid" aria-busy="false"></div>
+      <div class="page-grid" id="pageGrid"></div>
     </section>
 
   </main>
@@ -168,8 +167,8 @@
         </div>
       </header>
       <div class="favorites-grid" id="favoritesGrid"></div>
-      <div class="favorites-empty empty-state ui-state hidden" id="favoritesEmpty" data-state="empty" role="status" aria-live="polite">
-        <span class="empty-state-icon ui-state-icon favorites-empty-icon" aria-hidden="true">
+      <div class="favorites-empty empty-state hidden" id="favoritesEmpty">
+        <span class="empty-state-icon favorites-empty-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
             <path d="m12 3.4 2.55 5.17 5.71.83-4.13 4.03.98 5.69L12 16.43l-5.11 2.69.98-5.69L3.74 9.4l5.71-.83L12 3.4Z"></path>
           </svg>
@@ -349,14 +348,11 @@
 
       <div class="lightbox-stage" id="lightboxStage">
         <div class="stage-canvas" id="stageCanvas" tabindex="-1">
-          <div class="loading-pill hidden" id="viewerLoading" role="status" aria-live="polite" aria-atomic="true">טוען עמוד...</div>
-          <div class="lightbox-image-frame" id="lightboxImageFrame" aria-busy="false">
+          <div class="loading-pill hidden" id="viewerLoading">טוען עמוד...</div>
+          <div class="lightbox-image-frame" id="lightboxImageFrame">
             <img id="lightboxImage" class="lightbox-image" alt="עמוד קטלוג מוגדל" draggable="false" decoding="async" />
           </div>
-          <div class="viewer-image-feedback ui-state hidden" id="viewerImageFeedback" data-state="error" role="status" aria-live="polite" aria-atomic="true">
-            <span class="viewer-image-feedback-icon ui-state-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
-            </span>
+          <div class="viewer-image-feedback hidden" id="viewerImageFeedback" role="status" aria-live="polite">
             <span id="viewerImageFeedbackText">התמונה לא הצליחה להיטען.</span>
             <button class="viewer-image-retry" id="viewerImageRetry" type="button">נסה שוב</button>
           </div>
@@ -374,7 +370,7 @@
         </button>
       </div>
 
-      <button class="reader-button favorite-open-catalog-button hidden" id="favoriteOpenCatalogButton" type="button" aria-label="פתיחת התמונה בתוך הקטלוג המלא" aria-hidden="true" tabindex="-1" title="פתיחה בקטלוג המלא">
+      <button class="reader-button favorite-open-catalog-button hidden" id="favoriteOpenCatalogButton" type="button" aria-label="פתיחת התמונה בתוך הקטלוג המלא" aria-hidden="true" title="פתיחה בקטלוג המלא">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M8.5 5.5H5.8a2 2 0 0 0-2 2v10.7a2 2 0 0 0 2 2h10.7a2 2 0 0 0 2-2v-2.7" />
           <path d="M13.2 3.8h7v7" />
@@ -449,7 +445,7 @@
         <span class="visually-hidden">מסך מלא</span>
       </button>
 
-      <button class="reader-button viewer-auto-zoom-button hidden" id="viewerAutoZoomBtn" type="button" aria-label="חזרה לזום אוטומטי" aria-hidden="true" tabindex="-1">
+      <button class="reader-button viewer-auto-zoom-button hidden" id="viewerAutoZoomBtn" type="button" aria-label="חזרה לזום אוטומטי" aria-hidden="true">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M5.25 9V5.25H9" />
           <path d="M15 5.25h3.75V9" />
@@ -581,7 +577,6 @@
           <div class="site-footer-link-list">
             <a href="terms.html">תנאי שימוש</a>
             <a href="privacy.html">מדיניות פרטיות</a>
-            <a href="accessibility.html">הצהרת נגישות</a>
             <a href="#top" class="site-footer-top-link">
               <span>חזרה למעלה</span>
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 6-5.5 5.5M12 6l5.5 5.5M12 6v12"/></svg>
