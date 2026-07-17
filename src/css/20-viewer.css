@@ -38,6 +38,10 @@
   --viewer-menu-item-hover-bg: linear-gradient(90deg, rgba(217, 186, 163, 0.46), rgba(255,255,255,0.5));
   --viewer-control-shadow: 0 12px 28px rgba(70, 50, 36, 0.12), inset 0 1px 0 rgba(255,255,255,0.9);
   --viewer-control-hover-shadow: 0 16px 36px rgba(70, 50, 36, 0.17), inset 0 1px 0 rgba(255,255,255,0.96);
+  --viewer-chrome-scrollbar-size: 10px;
+  --viewer-chrome-scrollbar-track: rgba(117, 88, 68, 0.12);
+  --viewer-chrome-scrollbar-thumb: rgba(117, 88, 68, 0.56);
+  --viewer-chrome-scrollbar-thumb-hover: rgba(117, 88, 68, 0.74);
   --viewer-side-control-bg: var(--viewer-control-bg);
   --viewer-side-control-border: var(--viewer-chrome-border);
   --viewer-side-control-shadow: var(--viewer-control-shadow);
@@ -623,7 +627,7 @@
   direction: ltr;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: var(--site-scrollbar-dark-thumb) var(--site-scrollbar-dark-track);
+  scrollbar-color: var(--viewer-chrome-scrollbar-thumb) var(--viewer-chrome-scrollbar-track);
   padding: 2px 6px 14px 2px;
 }
 .lightbox-page-thumb {
@@ -993,20 +997,35 @@ a.reader-home:focus-visible {
   overflow: visible;
 }
 .reader-search-field {
+  --reader-search-control-height: 42px;
+  --reader-search-field-radius: 16px;
+  --reader-search-scope-width: 136px;
   position: relative;
   min-width: 0;
   width: 100%;
-}
-.reader-search-input {
-  width: 100%;
-  min-height: 42px;
-  padding: 0 16px 0 142px;
-  border-radius: 16px;
+  height: var(--reader-search-control-height);
+  min-height: var(--reader-search-control-height);
+  display: flex;
+  align-items: stretch;
+  overflow: visible;
   border: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.14));
+  border-radius: var(--reader-search-field-radius);
   color: var(--viewer-chrome-text, #fff);
   background: var(--viewer-control-bg, linear-gradient(180deg, rgba(255,255,255,0.135), rgba(255,255,255,0.08)));
-  outline: 0;
   box-shadow: var(--viewer-control-inner-shadow, inset 0 1px 0 rgba(255,255,255,0.08));
+}
+.reader-search-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0 var(--reader-search-field-radius) var(--reader-search-field-radius) 0;
+  color: inherit;
+  background: transparent;
+  outline: 0;
+  box-shadow: none;
 }
 .reader-search-input::-webkit-search-cancel-button,
 .reader-search-input::-webkit-search-decoration {
@@ -1015,7 +1034,7 @@ a.reader-home:focus-visible {
 }
 .reader-search-input::placeholder { color: var(--viewer-chrome-muted, rgba(255,255,255,0.62)); }
 .reader-search-input:disabled { opacity: .55; }
-.reader-search-field:focus-within .reader-search-input {
+.reader-search-field:focus-within {
   border-color: var(--viewer-chrome-border-strong, rgba(217, 186, 163, 0.52));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.94), 0 0 0 3px rgba(143, 109, 85, 0.14);
 }
@@ -1057,22 +1076,26 @@ a.reader-home:focus-visible {
   fill: currentColor;
 }
 .reader-search-scope-wrap {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  top: 50%;
-  left: 5px;
-  transform: translateY(-50%);
+  flex: 0 0 var(--reader-search-scope-width);
+  width: var(--reader-search-scope-width);
+  min-width: 0;
+  align-self: stretch;
 }
 .reader-search-scope-toggle {
-  min-height: 32px;
+  --reader-button-min-height: var(--reader-search-control-height);
+  width: 100%;
+  height: 100%;
   padding: 0 10px;
-  border-radius: 12px;
+  border-width: 0 1px 0 0;
+  border-radius: var(--reader-search-field-radius) 0 0 var(--reader-search-field-radius);
   gap: 5px;
   white-space: nowrap;
   font-size: .82rem;
   background: var(--viewer-control-soft-bg, rgba(11,9,8,0.42));
   border-color: var(--viewer-chrome-border, rgba(255,255,255,0.14));
-  box-shadow: var(--viewer-control-inner-shadow, inset 0 1px 0 rgba(255,255,255,0.08));
+  box-shadow: none;
 }
 .reader-search-scope-toggle:hover,
 .reader-search-scope-toggle[aria-expanded="true"] {
@@ -1441,7 +1464,7 @@ a.reader-home:focus-visible {
   direction: ltr;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: var(--site-scrollbar-dark-thumb) var(--site-scrollbar-dark-track);
+  scrollbar-color: var(--viewer-chrome-scrollbar-thumb) var(--viewer-chrome-scrollbar-track);
   padding: 2px 6px 14px 2px;
 }
 

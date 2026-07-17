@@ -229,7 +229,7 @@ function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
 function lightboxSearchPlaceholder() {
   if (getLightboxSearchScope() === "all") return "חיפוש דגם בכל הקטלוגים...";
   const title = String(state.catalog?.title || "").trim();
-  return title ? `חיפוש דגם בקטלוג הזה: ${title}` : "חיפוש דגם בקטלוג הזה...";
+  return title ? `חיפוש ב: ${title}` : "חיפוש ב...";
 }
 
 function closeLightboxSearchScopeMenu() {

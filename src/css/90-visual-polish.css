@@ -11,7 +11,7 @@
 .reader-button,
 .reader-control-icon-button,
 .reader-icon-button {
-  min-height: var(--control-height);
+  min-height: var(--reader-button-min-height, var(--control-height));
   transition-duration: var(--motion-fast);
   transition-timing-function: var(--motion-easing);
 }

@@ -714,6 +714,55 @@ html.viewer-open body {
   background: var(--site-scrollbar-dark-thumb-hover);
   background-clip: content-box;
 }
+
+/* The viewer canvas remains dark, but its chrome surfaces are now warm and
+   light. Give those scroll containers their own semantic scrollbar treatment
+   instead of inheriting the former dark-viewer (light thumb) palette. */
+:where(
+  .reader-catalog-menu,
+  .reader-search-results,
+  .lightbox-page-thumbs,
+  .reader-page-thumbs
+) {
+  scrollbar-color:
+    var(--viewer-chrome-scrollbar-thumb, var(--site-scrollbar-thumb))
+    var(--viewer-chrome-scrollbar-track, var(--site-scrollbar-track));
+}
+:where(
+  .reader-catalog-menu,
+  .reader-search-results,
+  .lightbox-page-thumbs,
+  .reader-page-thumbs
+)::-webkit-scrollbar {
+  width: var(--viewer-chrome-scrollbar-size, var(--site-scrollbar-size));
+  height: var(--viewer-chrome-scrollbar-size, var(--site-scrollbar-size));
+}
+:where(
+  .reader-catalog-menu,
+  .reader-search-results,
+  .lightbox-page-thumbs,
+  .reader-page-thumbs
+)::-webkit-scrollbar-track {
+  background: var(--viewer-chrome-scrollbar-track, var(--site-scrollbar-track));
+}
+:where(
+  .reader-catalog-menu,
+  .reader-search-results,
+  .lightbox-page-thumbs,
+  .reader-page-thumbs
+)::-webkit-scrollbar-thumb {
+  background: var(--viewer-chrome-scrollbar-thumb, var(--site-scrollbar-thumb));
+  background-clip: content-box;
+}
+:where(
+  .reader-catalog-menu,
+  .reader-search-results,
+  .lightbox-page-thumbs,
+  .reader-page-thumbs
+)::-webkit-scrollbar-thumb:hover {
+  background: var(--viewer-chrome-scrollbar-thumb-hover, var(--site-scrollbar-thumb-hover));
+  background-clip: content-box;
+}
 a { color: inherit; text-decoration: none; }
 button, select, input, textarea { font: inherit; }
 button { cursor: pointer; }
@@ -2136,6 +2185,10 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   --viewer-menu-item-hover-bg: linear-gradient(90deg, rgba(217, 186, 163, 0.46), rgba(255,255,255,0.5));
   --viewer-control-shadow: 0 12px 28px rgba(70, 50, 36, 0.12), inset 0 1px 0 rgba(255,255,255,0.9);
   --viewer-control-hover-shadow: 0 16px 36px rgba(70, 50, 36, 0.17), inset 0 1px 0 rgba(255,255,255,0.96);
+  --viewer-chrome-scrollbar-size: 10px;
+  --viewer-chrome-scrollbar-track: rgba(117, 88, 68, 0.12);
+  --viewer-chrome-scrollbar-thumb: rgba(117, 88, 68, 0.56);
+  --viewer-chrome-scrollbar-thumb-hover: rgba(117, 88, 68, 0.74);
   --viewer-side-control-bg: var(--viewer-control-bg);
   --viewer-side-control-border: var(--viewer-chrome-border);
   --viewer-side-control-shadow: var(--viewer-control-shadow);
@@ -2721,7 +2774,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   direction: ltr;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: var(--site-scrollbar-dark-thumb) var(--site-scrollbar-dark-track);
+  scrollbar-color: var(--viewer-chrome-scrollbar-thumb) var(--viewer-chrome-scrollbar-track);
   padding: 2px 6px 14px 2px;
 }
 .lightbox-page-thumb {
@@ -3091,20 +3144,35 @@ a.reader-home:focus-visible {
   overflow: visible;
 }
 .reader-search-field {
+  --reader-search-control-height: 42px;
+  --reader-search-field-radius: 16px;
+  --reader-search-scope-width: 136px;
   position: relative;
   min-width: 0;
   width: 100%;
-}
-.reader-search-input {
-  width: 100%;
-  min-height: 42px;
-  padding: 0 16px 0 142px;
-  border-radius: 16px;
+  height: var(--reader-search-control-height);
+  min-height: var(--reader-search-control-height);
+  display: flex;
+  align-items: stretch;
+  overflow: visible;
   border: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.14));
+  border-radius: var(--reader-search-field-radius);
   color: var(--viewer-chrome-text, #fff);
   background: var(--viewer-control-bg, linear-gradient(180deg, rgba(255,255,255,0.135), rgba(255,255,255,0.08)));
-  outline: 0;
   box-shadow: var(--viewer-control-inner-shadow, inset 0 1px 0 rgba(255,255,255,0.08));
+}
+.reader-search-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0 var(--reader-search-field-radius) var(--reader-search-field-radius) 0;
+  color: inherit;
+  background: transparent;
+  outline: 0;
+  box-shadow: none;
 }
 .reader-search-input::-webkit-search-cancel-button,
 .reader-search-input::-webkit-search-decoration {
@@ -3113,7 +3181,7 @@ a.reader-home:focus-visible {
 }
 .reader-search-input::placeholder { color: var(--viewer-chrome-muted, rgba(255,255,255,0.62)); }
 .reader-search-input:disabled { opacity: .55; }
-.reader-search-field:focus-within .reader-search-input {
+.reader-search-field:focus-within {
   border-color: var(--viewer-chrome-border-strong, rgba(217, 186, 163, 0.52));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.94), 0 0 0 3px rgba(143, 109, 85, 0.14);
 }
@@ -3155,22 +3223,26 @@ a.reader-home:focus-visible {
   fill: currentColor;
 }
 .reader-search-scope-wrap {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  top: 50%;
-  left: 5px;
-  transform: translateY(-50%);
+  flex: 0 0 var(--reader-search-scope-width);
+  width: var(--reader-search-scope-width);
+  min-width: 0;
+  align-self: stretch;
 }
 .reader-search-scope-toggle {
-  min-height: 32px;
+  --reader-button-min-height: var(--reader-search-control-height);
+  width: 100%;
+  height: 100%;
   padding: 0 10px;
-  border-radius: 12px;
+  border-width: 0 1px 0 0;
+  border-radius: var(--reader-search-field-radius) 0 0 var(--reader-search-field-radius);
   gap: 5px;
   white-space: nowrap;
   font-size: .82rem;
   background: var(--viewer-control-soft-bg, rgba(11,9,8,0.42));
   border-color: var(--viewer-chrome-border, rgba(255,255,255,0.14));
-  box-shadow: var(--viewer-control-inner-shadow, inset 0 1px 0 rgba(255,255,255,0.08));
+  box-shadow: none;
 }
 .reader-search-scope-toggle:hover,
 .reader-search-scope-toggle[aria-expanded="true"] {
@@ -3539,7 +3611,7 @@ a.reader-home:focus-visible {
   direction: ltr;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: var(--site-scrollbar-dark-thumb) var(--site-scrollbar-dark-track);
+  scrollbar-color: var(--viewer-chrome-scrollbar-thumb) var(--viewer-chrome-scrollbar-track);
   padding: 2px 6px 14px 2px;
 }
 
@@ -4904,9 +4976,13 @@ body[data-app-ready="true"] > .site-footer {
   .reader-catalog-menu-toggle { width: 38px; min-width: 38px; min-height: 38px; border-radius: 13px; }
   .reader-catalog-menu-toggle svg { width: 18px; height: 18px; }
   .reader-header-search .reader-search-box { border-radius: 16px; }
-  .reader-search-input { padding-inline: 12px 118px; }
-  .reader-search-scope-wrap { left: 4px; }
-  .reader-search-scope-toggle { min-height: 30px; padding-inline: 8px; font-size: .75rem; border-radius: 11px; }
+  .reader-search-field {
+    --reader-search-control-height: 38px;
+    --reader-search-field-radius: 15px;
+    --reader-search-scope-width: 112px;
+  }
+  .reader-search-input { padding-inline: 12px; }
+  .reader-search-scope-toggle { padding-inline: 8px; font-size: .75rem; }
   .reader-search-scope-menu { left: 0; width: 178px; }
   .reader-header-search .reader-search-clear,
   .lightbox-search-clear {
@@ -4914,7 +4990,6 @@ body[data-app-ready="true"] > .site-footer {
     min-height: 38px;
     font-size: .82rem;
   }
-  .reader-search-input { min-height: 38px; }
   .reader-search-results,
   .reader-catalog-menu { max-height: calc(100vh - 70px); }
   .reader-catalog-menu { width: calc(100% - 16px); }
@@ -5045,7 +5120,8 @@ body[data-app-ready="true"] > .site-footer {
   .reader-icon-button,
   .reader-control-icon-button { width: 34px; min-width: 34px; min-height: 34px; border-radius: 12px; }
   .viewer-control-separator { height: 23px; margin-inline: 1px; }
-  .reader-search-input { padding-inline: 10px 108px; }
+  .reader-search-field { --reader-search-scope-width: 104px; }
+  .reader-search-input { padding-inline: 10px; }
   .reader-search-scope-toggle { padding-inline: 7px; font-size: .7rem; }
   .reader-catalog-menu-toggle { width: 36px; min-width: 36px; min-height: 36px; }
 }
@@ -5073,8 +5149,9 @@ body[data-app-ready="true"] > .site-footer {
 }
 
 @media (max-width: 420px) {
-  .reader-search-input { padding-inline: 9px 96px; font-size: .9rem; }
-  .reader-search-scope-toggle { max-width: 94px; overflow: hidden; text-overflow: ellipsis; }
+  .reader-search-field { --reader-search-scope-width: 94px; }
+  .reader-search-input { padding-inline: 9px; font-size: .9rem; }
+  .reader-search-scope-toggle { overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* Keep catalog surfaces isolated for painting without lazy layout activation during scroll. */
@@ -6034,7 +6111,7 @@ body[data-page="viewer"] {
 .reader-button,
 .reader-control-icon-button,
 .reader-icon-button {
-  min-height: var(--control-height);
+  min-height: var(--reader-button-min-height, var(--control-height));
   transition-duration: var(--motion-fast);
   transition-timing-function: var(--motion-easing);
 }

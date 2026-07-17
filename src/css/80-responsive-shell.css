@@ -151,9 +151,13 @@
   .reader-catalog-menu-toggle { width: 38px; min-width: 38px; min-height: 38px; border-radius: 13px; }
   .reader-catalog-menu-toggle svg { width: 18px; height: 18px; }
   .reader-header-search .reader-search-box { border-radius: 16px; }
-  .reader-search-input { padding-inline: 12px 118px; }
-  .reader-search-scope-wrap { left: 4px; }
-  .reader-search-scope-toggle { min-height: 30px; padding-inline: 8px; font-size: .75rem; border-radius: 11px; }
+  .reader-search-field {
+    --reader-search-control-height: 38px;
+    --reader-search-field-radius: 15px;
+    --reader-search-scope-width: 112px;
+  }
+  .reader-search-input { padding-inline: 12px; }
+  .reader-search-scope-toggle { padding-inline: 8px; font-size: .75rem; }
   .reader-search-scope-menu { left: 0; width: 178px; }
   .reader-header-search .reader-search-clear,
   .lightbox-search-clear {
@@ -161,7 +165,6 @@
     min-height: 38px;
     font-size: .82rem;
   }
-  .reader-search-input { min-height: 38px; }
   .reader-search-results,
   .reader-catalog-menu { max-height: calc(100vh - 70px); }
   .reader-catalog-menu { width: calc(100% - 16px); }
@@ -292,7 +295,8 @@
   .reader-icon-button,
   .reader-control-icon-button { width: 34px; min-width: 34px; min-height: 34px; border-radius: 12px; }
   .viewer-control-separator { height: 23px; margin-inline: 1px; }
-  .reader-search-input { padding-inline: 10px 108px; }
+  .reader-search-field { --reader-search-scope-width: 104px; }
+  .reader-search-input { padding-inline: 10px; }
   .reader-search-scope-toggle { padding-inline: 7px; font-size: .7rem; }
   .reader-catalog-menu-toggle { width: 36px; min-width: 36px; min-height: 36px; }
 }
@@ -320,8 +324,9 @@
 }
 
 @media (max-width: 420px) {
-  .reader-search-input { padding-inline: 9px 96px; font-size: .9rem; }
-  .reader-search-scope-toggle { max-width: 94px; overflow: hidden; text-overflow: ellipsis; }
+  .reader-search-field { --reader-search-scope-width: 94px; }
+  .reader-search-input { padding-inline: 9px; font-size: .9rem; }
+  .reader-search-scope-toggle { overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* Keep catalog surfaces isolated for painting without lazy layout activation during scroll. */
