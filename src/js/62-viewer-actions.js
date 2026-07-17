@@ -75,7 +75,6 @@ function syncViewerInquiryUi() {
   if (els.viewerInquiryButton) {
     const label = `בירור על הדגם — ${reference.title}, עמוד ${reference.page}`;
     els.viewerInquiryButton.setAttribute("aria-label", label);
-    setTooltipText(els.viewerInquiryButton, label, { updateDefault: true });
   }
 
   if (els.viewerInquiryPreview) {

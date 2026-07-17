@@ -6,12 +6,14 @@ const path = require("node:path");
 
 const root = path.join(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
+assert.doesNotMatch(app, /setTooltipText\(els\.viewerInquiryButton/, "inquiry button must not be registered with the tooltip manager");
 const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const template = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
 
 for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.html"]) {
   const html = fs.readFileSync(path.join(root, relative), "utf8");
   assert.match(html, /id="viewerInquiryButton"[^>]*aria-controls="viewerInquiryOverlay"/, relative);
+  assert.doesNotMatch(html, /id="viewerInquiryButton"[^>]*(?:title|data-tooltip)=/, `${relative}: inquiry button must not expose a floating tooltip`);
   assert.match(html, /id="viewerInquiryOverlay"[^>]*aria-hidden="true"/, relative);
   assert.match(html, /id="viewerMobileMoreToggle"[^>]*aria-controls="viewerMobileMoreMenu"/, relative);
   assert.match(html, /id="viewerOnboardingCounter">1 מתוך 3</, relative);
