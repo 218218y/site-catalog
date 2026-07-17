@@ -1490,7 +1490,7 @@ function getViewerScrollWheelRequestedSteps(accumulator) {
   // The first committed page deliberately has a lower activation threshold so
   // a precision touchpad does not need to land inside a narrow 100–199 px band.
   // After activation, every additional page keeps the original 100 px cadence:
-  // 70–199 => one page, 200–299 => two pages, 300–399 => three pages, and so on.
+  // 20–199 => one page, 200–299 => two pages, 300–399 => three pages, and so on.
   const wholePageSteps = Math.trunc(magnitude / VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX);
   return Math.sign(signedAccumulator) * Math.max(1, wholePageSteps);
 }

@@ -284,7 +284,7 @@ const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const VIEWER_PAGE_SWAP_CLEANUP_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
 const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
-const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 70;
+const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 20;
 const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
 const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
@@ -5757,7 +5757,7 @@ function getViewerScrollWheelRequestedSteps(accumulator) {
   // The first committed page deliberately has a lower activation threshold so
   // a precision touchpad does not need to land inside a narrow 100–199 px band.
   // After activation, every additional page keeps the original 100 px cadence:
-  // 70–199 => one page, 200–299 => two pages, 300–399 => three pages, and so on.
+  // 20–199 => one page, 200–299 => two pages, 300–399 => three pages, and so on.
   const wholePageSteps = Math.trunc(magnitude / VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX);
   return Math.sign(signedAccumulator) * Math.max(1, wholePageSteps);
 }
