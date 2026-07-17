@@ -29,15 +29,15 @@
   --viewer-chrome-border-strong: rgba(117, 88, 68, 0.34);
   --viewer-chrome-shadow: 0 20px 52px rgba(70, 50, 36, 0.2), inset 0 1px 0 rgba(255,255,255,0.92);
   --viewer-control-text: var(--brand-dark);
-  --viewer-control-bg: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(239,225,213,0.82));
-  --viewer-control-hover-bg: linear-gradient(180deg, #fff, rgba(232, 213, 199, 0.96));
-  --viewer-control-active-bg: linear-gradient(180deg, rgba(235, 210, 190, 0.98), rgba(217, 186, 163, 0.9));
-  --viewer-control-soft-bg: rgba(255,255,255,0.7);
-  --viewer-control-soft-hover-bg: rgba(255,255,255,0.96);
-  --viewer-control-inner-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
-  --viewer-menu-item-hover-bg: linear-gradient(90deg, rgba(217, 186, 163, 0.46), rgba(255,255,255,0.5));
-  --viewer-control-shadow: 0 12px 28px rgba(70, 50, 36, 0.12), inset 0 1px 0 rgba(255,255,255,0.9);
-  --viewer-control-hover-shadow: 0 16px 36px rgba(70, 50, 36, 0.17), inset 0 1px 0 rgba(255,255,255,0.96);
+  --viewer-control-bg: linear-gradient(180deg, rgba(249, 239, 231, 0.98), rgba(236, 219, 205, 0.94));
+  --viewer-control-hover-bg: linear-gradient(180deg, rgba(238, 217, 201, 0.99), rgba(225, 196, 175, 0.97));
+  --viewer-control-active-bg: linear-gradient(180deg, rgba(224, 194, 171, 0.99), rgba(207, 168, 139, 0.96));
+  --viewer-control-soft-bg: rgba(247, 237, 229, 0.9);
+  --viewer-control-soft-hover-bg: rgba(235, 214, 198, 0.97);
+  --viewer-control-inner-shadow: none;
+  --viewer-menu-item-hover-bg: linear-gradient(90deg, rgba(217, 186, 163, 0.56), rgba(239, 222, 208, 0.72));
+  --viewer-control-shadow: 0 12px 28px rgba(70, 50, 36, 0.12);
+  --viewer-control-hover-shadow: 0 16px 36px rgba(70, 50, 36, 0.17);
   --viewer-chrome-scrollbar-size: 10px;
   --viewer-chrome-scrollbar-track: rgba(117, 88, 68, 0.12);
   --viewer-chrome-scrollbar-thumb: rgba(117, 88, 68, 0.56);
@@ -824,7 +824,7 @@
   background: var(--viewer-control-bg, rgba(255,255,255,0.105));
   border: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.16));
   font-weight: 800;
-  box-shadow: var(--viewer-control-shadow, inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 26px rgba(0,0,0,0.16));
+  box-shadow: var(--viewer-control-shadow, 0 10px 26px rgba(0,0,0,0.16));
   transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
 }
 .reader-home {
@@ -863,7 +863,7 @@ button.reader-brand-lockup {
   background: var(--viewer-control-hover-bg, rgba(255,255,255,0.17));
   border-color: var(--viewer-chrome-border-strong, rgba(255,255,255,0.24));
   transform: translateY(-1px);
-  box-shadow: var(--viewer-control-hover-shadow, inset 0 1px 0 rgba(255,255,255,0.1), 0 14px 32px rgba(0,0,0,0.24));
+  box-shadow: var(--viewer-control-hover-shadow, 0 14px 32px rgba(0,0,0,0.24));
 }
 .reader-brand-lockup:hover {
   transform: none;
@@ -1028,7 +1028,7 @@ a.reader-home:focus-visible {
   border-radius: var(--reader-search-field-radius);
   color: var(--viewer-chrome-text, #fff);
   background: var(--viewer-control-bg, linear-gradient(180deg, rgba(255,255,255,0.135), rgba(255,255,255,0.08)));
-  box-shadow: var(--viewer-control-inner-shadow, inset 0 1px 0 rgba(255,255,255,0.08));
+  box-shadow: var(--viewer-control-inner-shadow, none);
 }
 .reader-search-input {
   min-width: 0;
@@ -1052,7 +1052,7 @@ a.reader-home:focus-visible {
 .reader-search-input:disabled { opacity: .55; }
 .reader-search-field:focus-within {
   border-color: var(--viewer-chrome-border-strong, rgba(217, 186, 163, 0.52));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.94), 0 0 0 3px rgba(143, 109, 85, 0.14);
+  box-shadow: 0 0 0 3px rgba(143, 109, 85, 0.14);
 }
 
 .reader-search-toolbar {
@@ -1261,7 +1261,7 @@ a.reader-home:focus-visible {
   font: inherit;
   text-align: right;
   cursor: pointer;
-  box-shadow: var(--viewer-control-inner-shadow, inset 0 1px 0 rgba(255,255,255,0.06));
+  box-shadow: var(--viewer-control-inner-shadow, none);
   transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
 }
 .reader-catalog-menu-item:hover,

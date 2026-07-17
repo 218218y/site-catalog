@@ -28,6 +28,7 @@ FOOTER_FIELD_LIMITS: "OrderedDict[str, int]" = OrderedDict(
         ("phone", 80),
         ("emailLabel", 80),
         ("email", 254),
+        ("emailMailtoTitle", 160),
         ("responseTitle", 120),
         ("responseHours", 160),
         ("responseNote", 240),
@@ -145,6 +146,10 @@ def render_footer_template(template: str, content: Mapping[str, Any]) -> str:
         "{{FOOTER_EMAIL_LABEL}}": escaped["emailLabel"],
         "{{FOOTER_EMAIL}}": escaped["email"],
         "{{FOOTER_EMAIL_MAILTO_HREF}}": html.escape(values["email"], quote=True),
+        "{{FOOTER_EMAIL_MAILTO_TITLE}}": escaped["emailMailtoTitle"],
+        "{{FOOTER_EMAIL_MAILTO_ARIA_LABEL}}": html.escape(
+            f"{values['emailMailtoTitle']}: {values['email']}", quote=True
+        ),
         "{{FOOTER_RESPONSE_TITLE}}": escaped["responseTitle"],
         "{{FOOTER_RESPONSE_HOURS}}": escaped["responseHours"],
         "{{FOOTER_RESPONSE_NOTE}}": escaped["responseNote"],

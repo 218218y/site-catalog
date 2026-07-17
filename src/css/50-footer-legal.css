@@ -141,13 +141,15 @@ body[data-app-ready="true"] > .site-footer {
     background var(--motion-fast) ease,
     box-shadow var(--motion-fast) ease;
 }
-.site-footer-contact-list a {
+.site-footer-contact-list > a,
+.site-footer-email-row {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
   gap: 7px;
   align-items: center;
 }
-.site-footer-contact-list a span {
+.site-footer-contact-list > a > span,
+.site-footer-contact-label {
   color: var(--muted);
   font-size: .74rem;
   font-weight: 700;
@@ -156,17 +158,37 @@ body[data-app-ready="true"] > .site-footer {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.site-footer-contact-list .site-footer-email-link {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1px;
+.site-footer-email-row {
+  min-width: 0;
   align-items: start;
-  padding-block: 5px;
 }
-.site-footer-email-link span {
-  line-height: 1.15;
+.site-footer-contact-label {
+  padding-block: 7px;
+  line-height: 1.2;
+}
+.site-footer-email-actions {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+.site-footer-contact-list .site-footer-email-actions a {
+  width: 100%;
+  min-height: 31px;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+.site-footer-contact-list .site-footer-email-link {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  color: #55483f;
+  background: transparent;
+  border-color: rgba(110, 86, 70, 0.08);
 }
 .site-footer-email-link bdi {
-  color: #55483f;
+  color: inherit;
   font-size: .79rem;
   font-weight: 800;
   line-height: 1.25;
@@ -225,6 +247,7 @@ body[data-app-ready="true"] > .site-footer {
 .site-footer-bottom p { margin: 0; }
 .site-footer-bottom p:last-child { text-align: left; }
 .site-footer-contact-list .site-footer-gmail-link {
+  display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
   gap: 7px;
   align-items: center;
