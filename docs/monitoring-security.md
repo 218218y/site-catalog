@@ -27,9 +27,9 @@ bundle.
 | Event | Purpose | Main fields |
 |---|---|---|
 | `catalog_open` | Catalog interest | catalog, page number, source |
-| `search` | Search quality | query, scope, result count |
+| `search` | Completed-search quality | query, scope, result count, submit/result-open |
 | `favorite` | Feature usage | add/remove/clear, catalog/page, count |
-| `contact` | Contact intent | phone/email/Gmail |
+| `contact` | Contact intent | phone/email/Gmail/copy, source, catalog/page when available |
 | `js_error` | Runtime stability | coarse error name/message fingerprint, file, line |
 | `image_error` | Missing/broken catalog images | catalog/page, image role |
 
@@ -90,8 +90,9 @@ or:
 npm run telemetry:report -- 30
 ```
 
-The report shows event totals, opened catalogs, searches/no-result searches,
-contact and favorite actions, and runtime/image errors. Page traffic and Core
+The report shows event totals, opened catalogs, completed searches/no-result searches,
+contact and favorite actions, and runtime/image errors. Typing prefixes are not reported; a
+search event is emitted only after Enter/submit or after opening a result. Page traffic and Core
 Web Vitals remain in Cloudflare Web Analytics. The SQL API is called once per
 report section with a single supported `SELECT`; the Python tool merges the
 normalized rows locally instead of using `UNION ALL` or a CTE. One report run
@@ -199,7 +200,7 @@ and does not contain a persistent visitor identifier.
 The monitoring scope planned for the public rollout is complete:
 
 - aggregate visits and Core Web Vitals are covered by Cloudflare Web Analytics;
-- catalog opens, searches/no-result searches, favorites, contact intent,
+- catalog opens, completed searches/no-result searches, favorites, contact intent,
   JavaScript errors and image failures are covered by first-party telemetry;
 - duplicate page-view and page-load events are not sent to Analytics Engine;
 - reports can be archived as HTML/CSV;

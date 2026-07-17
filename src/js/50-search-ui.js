@@ -367,6 +367,19 @@ function getLightboxSearchResults(query, limit = 24) {
   return Array.isArray(results) ? results : [];
 }
 
+function trackCompletedLightboxSearch(completion, query = els.lightboxSearchInput?.value || "") {
+  const rawQuery = String(query || "").trim();
+  const scope = getLightboxSearchScope();
+  const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+  telemetryTrackSearch(rawQuery, results.length, {
+    surface: "viewer",
+    scope,
+    catalogId: scope === "all" ? "" : state.catalog?.id,
+    completion
+  });
+  return results;
+}
+
 function openLightboxSearchResult(result) {
   if (!result) return false;
 
@@ -392,8 +405,8 @@ function openLightboxSearchResult(result) {
 function submitLightboxSearch() {
   const rawQuery = String(els.lightboxSearchInput?.value || "").trim();
   renderLightboxSearchResults(rawQuery);
-  const firstResult = getLightboxSearchResults(rawQuery, 1)[0];
-  return openLightboxSearchResult(firstResult);
+  const results = trackCompletedLightboxSearch("submit", rawQuery);
+  return openLightboxSearchResult(results[0]);
 }
 
 function initLightboxSearchStatus() {
@@ -708,11 +721,6 @@ function renderLightboxSearchResults(query) {
 
   const scope = getLightboxSearchScope();
   const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
-  telemetryTrackSearch(rawQuery, results.length, {
-    surface: "viewer",
-    scope,
-    catalogId: scope === "all" ? "" : state.catalog?.id
-  });
   updateLightboxSearchResultsLayout(results.length);
   els.lightboxSearchResults.classList.remove("hidden");
 
@@ -758,6 +766,7 @@ function renderLightboxSearchResults(query) {
 
   els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
     button.addEventListener("click", () => {
+      trackCompletedLightboxSearch("result-open");
       hideSearchFloatingPreview();
       openLightboxSearchResult({
         catalogId: button.dataset.lightboxSearchCatalog,
@@ -837,6 +846,18 @@ function getGlobalSearchResults(query, limit = 72) {
   return Array.isArray(results) ? results : [];
 }
 
+function trackCompletedGlobalSearch(completion, query = els.globalSearchInput?.value || "") {
+  const rawQuery = String(query || "").trim();
+  const category = getGlobalSearchCategory();
+  const results = getGlobalSearchResults(rawQuery, 72);
+  telemetryTrackSearch(rawQuery, results.length, {
+    surface: "global",
+    scope: category || "all",
+    completion
+  });
+  return results;
+}
+
 function openGlobalSearchResult(result) {
   if (!result) return false;
   hideSearchFloatingPreview();
@@ -848,8 +869,8 @@ function openGlobalSearchResult(result) {
 function submitGlobalSearch() {
   const rawQuery = String(els.globalSearchInput?.value || "").trim();
   renderSearchResults(rawQuery);
-  const firstResult = getGlobalSearchResults(rawQuery, 1)[0];
-  return openGlobalSearchResult(firstResult);
+  const results = trackCompletedGlobalSearch("submit", rawQuery);
+  return openGlobalSearchResult(results[0]);
 }
 
 function renderSearchResults(query) {
@@ -876,10 +897,6 @@ function renderSearchResults(query) {
   }
 
   const results = getGlobalSearchResults(rawQuery, 72);
-  telemetryTrackSearch(rawQuery, results.length, {
-    surface: "global",
-    scope: category || "all"
-  });
   if (!results.length) {
     els.globalSearchResults.classList.remove("hidden");
     els.globalSearchResults.innerHTML = searchEmptyStateMarkup(
@@ -920,6 +937,7 @@ function renderSearchResults(query) {
 
   els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
     button.addEventListener("click", () => {
+      trackCompletedGlobalSearch("result-open");
       openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
     });
   });

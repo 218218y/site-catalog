@@ -10,6 +10,7 @@
  *   - src/js/40-catalog-grid.js
  *   - src/js/50-search-ui.js
  *   - src/js/60-viewer.js
+ *   - src/js/62-viewer-actions.js
  *   - src/js/65-viewer-onboarding.js
  *   - src/js/70-viewer-input.js
  *   - src/js/90-bootstrap.js
@@ -319,6 +320,9 @@ const state = {
   globalSearchOpen: false,
   lightboxSearchScope: "catalog",
   lightboxMobileSearchOpen: false,
+  viewerMobileMoreOpen: false,
+  viewerInquiryOpen: false,
+  viewerInquiryReturnFocus: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
   viewerScrollCatalogId: "",
@@ -454,11 +458,29 @@ const els = {
   fitWidthBtn: $("fitWidthBtn"),
   viewerAutoZoomBtn: $("viewerAutoZoomBtn"),
   viewerFavoriteButton: $("viewerFavoriteButton"),
+  viewerInquiryButton: $("viewerInquiryButton"),
+  viewerInquiryOverlay: $("viewerInquiryOverlay"),
+  viewerInquiryBackdrop: $("viewerInquiryBackdrop"),
+  viewerInquiryClose: $("viewerInquiryClose"),
+  viewerInquiryCatalog: $("viewerInquiryCatalog"),
+  viewerInquiryPage: $("viewerInquiryPage"),
+  viewerInquiryPreview: $("viewerInquiryPreview"),
+  viewerInquiryActions: $("viewerInquiryActions"),
+  viewerInquiryMobile: $("viewerInquiryMobile"),
+  viewerInquiryMobileLabel: $("viewerInquiryMobileLabel"),
+  viewerInquiryPhone: $("viewerInquiryPhone"),
+  viewerInquiryPhoneLabel: $("viewerInquiryPhoneLabel"),
+  viewerInquiryEmail: $("viewerInquiryEmail"),
+  viewerInquiryEmailLabel: $("viewerInquiryEmailLabel"),
+  viewerInquiryCopy: $("viewerInquiryCopy"),
   viewerZoomIndicator: $("viewerZoomIndicator"),
   lightboxSearchInput: $("lightboxSearchInput"),
   lightboxSearchPanel: $("lightboxSearchPanel"),
   lightboxMobileSearchToggle: $("lightboxMobileSearchToggle"),
   lightboxMobileSearchClose: $("lightboxMobileSearchClose"),
+  viewerMobileMoreToggle: $("viewerMobileMoreToggle"),
+  viewerMobileMoreMenu: $("viewerMobileMoreMenu"),
+  viewerMobileFavoritesLink: $("viewerMobileFavoritesLink"),
   lightboxSearchResults: $("lightboxSearchResults"),
   lightboxSearchStatus: $("lightboxSearchStatus"),
   lightboxSearchClear: $("lightboxSearchClear"),
@@ -505,7 +527,7 @@ const TELEMETRY_SCHEMA_VERSION = 1;
 const TELEMETRY_BATCH_LIMIT = 20;
 const TELEMETRY_QUEUE_LIMIT = 60;
 const TELEMETRY_FLUSH_DELAY_MS = 900;
-const TELEMETRY_SEARCH_DELAY_MS = 850;
+const TELEMETRY_SEARCH_DEDUP_MS = 1200;
 const TELEMETRY_ALLOWED_HOSTS = new Set([
   "bargig-furniture.com",
   "www.bargig-furniture.com"
@@ -526,7 +548,6 @@ const telemetryRuntime = {
   flushing: false,
   catalogKey: "",
   catalogAt: 0,
-  searchTimers: new Map(),
   searchKeys: new Map(),
   imageFailures: new Set(),
   initialized: false
@@ -688,27 +709,35 @@ function telemetryTrackCatalogOpen(catalog, page, source = LIGHTBOX_SOURCE_CATAL
 }
 
 function telemetryTrackSearch(query, resultCount, options = {}) {
-  if (!telemetryIsEnabled()) return;
+  if (!telemetryIsEnabled()) return false;
   const cleanQuery = telemetryCleanText(query, 80);
-  if (cleanQuery.length < 2) return;
+  if (cleanQuery.length < 2) return false;
 
   const surface = telemetryCleanText(options.surface || "global", 30);
   const scope = telemetryCleanText(options.scope || "all", 50);
   const catalogId = telemetryCleanText(options.catalogId, 100);
-  const key = `${cleanQuery}|${resultCount}|${scope}|${catalogId}`;
-  window.clearTimeout(telemetryRuntime.searchTimers.get(surface));
-  telemetryRuntime.searchTimers.set(surface, window.setTimeout(() => {
-    telemetryRuntime.searchTimers.delete(surface);
-    if (telemetryRuntime.searchKeys.get(surface) === key) return;
-    telemetryRuntime.searchKeys.set(surface, key);
-    telemetryTrack("search", {
-      query: cleanQuery,
-      scope,
-      catalogId,
-      source: surface,
-      value: Math.max(0, Number(resultCount) || 0)
-    });
-  }, TELEMETRY_SEARCH_DELAY_MS));
+  const completion = telemetryCleanText(options.completion || "submit", 30);
+  const count = Math.max(0, Number(resultCount) || 0);
+  const key = `${surface}|${cleanQuery}|${count}|${scope}|${catalogId}|${completion}`;
+  const now = Date.now();
+  const previous = telemetryRuntime.searchKeys.get(key) || 0;
+  if (now - previous < TELEMETRY_SEARCH_DEDUP_MS) return false;
+  telemetryRuntime.searchKeys.set(key, now);
+
+  if (telemetryRuntime.searchKeys.size > 80) {
+    for (const [storedKey, timestamp] of telemetryRuntime.searchKeys) {
+      if (now - timestamp > 60_000) telemetryRuntime.searchKeys.delete(storedKey);
+    }
+  }
+
+  return telemetryTrack("search", {
+    query: cleanQuery,
+    scope,
+    catalogId,
+    source: surface,
+    action: completion,
+    value: count
+  });
 }
 
 function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 0) {
@@ -804,11 +833,18 @@ function telemetryHandleDocumentClick(event) {
   const link = event.target?.closest?.("a[href]");
   if (!link) return;
   const href = String(link.getAttribute("href") || "").trim();
-  let action = "";
-  if (href.startsWith("tel:")) action = "phone";
-  else if (href.startsWith("mailto:")) action = "email";
-  else if (link.classList.contains("site-footer-gmail-link") || /mail\.google\.com/i.test(href)) action = "gmail";
-  if (action) telemetryTrack("contact", { action, source: "footer" }, { immediate: true });
+  let action = telemetryCleanText(link.dataset.contactAction, 50);
+  if (!action && href.startsWith("tel:")) action = "phone";
+  else if (!action && href.startsWith("mailto:")) action = "email";
+  else if (!action && (link.classList.contains("site-footer-gmail-link") || /mail\.google\.com/i.test(href))) action = "gmail";
+  if (action) {
+    telemetryTrack("contact", {
+      action,
+      source: link.dataset.contactSource || "footer",
+      catalogId: link.dataset.contactCatalogId || "",
+      pageNumber: link.dataset.contactPage || 0
+    }, { immediate: true });
+  }
 }
 
 function telemetryInit() {
@@ -3690,6 +3726,19 @@ function getLightboxSearchResults(query, limit = 24) {
   return Array.isArray(results) ? results : [];
 }
 
+function trackCompletedLightboxSearch(completion, query = els.lightboxSearchInput?.value || "") {
+  const rawQuery = String(query || "").trim();
+  const scope = getLightboxSearchScope();
+  const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+  telemetryTrackSearch(rawQuery, results.length, {
+    surface: "viewer",
+    scope,
+    catalogId: scope === "all" ? "" : state.catalog?.id,
+    completion
+  });
+  return results;
+}
+
 function openLightboxSearchResult(result) {
   if (!result) return false;
 
@@ -3715,8 +3764,8 @@ function openLightboxSearchResult(result) {
 function submitLightboxSearch() {
   const rawQuery = String(els.lightboxSearchInput?.value || "").trim();
   renderLightboxSearchResults(rawQuery);
-  const firstResult = getLightboxSearchResults(rawQuery, 1)[0];
-  return openLightboxSearchResult(firstResult);
+  const results = trackCompletedLightboxSearch("submit", rawQuery);
+  return openLightboxSearchResult(results[0]);
 }
 
 function initLightboxSearchStatus() {
@@ -4031,11 +4080,6 @@ function renderLightboxSearchResults(query) {
 
   const scope = getLightboxSearchScope();
   const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
-  telemetryTrackSearch(rawQuery, results.length, {
-    surface: "viewer",
-    scope,
-    catalogId: scope === "all" ? "" : state.catalog?.id
-  });
   updateLightboxSearchResultsLayout(results.length);
   els.lightboxSearchResults.classList.remove("hidden");
 
@@ -4081,6 +4125,7 @@ function renderLightboxSearchResults(query) {
 
   els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
     button.addEventListener("click", () => {
+      trackCompletedLightboxSearch("result-open");
       hideSearchFloatingPreview();
       openLightboxSearchResult({
         catalogId: button.dataset.lightboxSearchCatalog,
@@ -4160,6 +4205,18 @@ function getGlobalSearchResults(query, limit = 72) {
   return Array.isArray(results) ? results : [];
 }
 
+function trackCompletedGlobalSearch(completion, query = els.globalSearchInput?.value || "") {
+  const rawQuery = String(query || "").trim();
+  const category = getGlobalSearchCategory();
+  const results = getGlobalSearchResults(rawQuery, 72);
+  telemetryTrackSearch(rawQuery, results.length, {
+    surface: "global",
+    scope: category || "all",
+    completion
+  });
+  return results;
+}
+
 function openGlobalSearchResult(result) {
   if (!result) return false;
   hideSearchFloatingPreview();
@@ -4171,8 +4228,8 @@ function openGlobalSearchResult(result) {
 function submitGlobalSearch() {
   const rawQuery = String(els.globalSearchInput?.value || "").trim();
   renderSearchResults(rawQuery);
-  const firstResult = getGlobalSearchResults(rawQuery, 1)[0];
-  return openGlobalSearchResult(firstResult);
+  const results = trackCompletedGlobalSearch("submit", rawQuery);
+  return openGlobalSearchResult(results[0]);
 }
 
 function renderSearchResults(query) {
@@ -4199,10 +4256,6 @@ function renderSearchResults(query) {
   }
 
   const results = getGlobalSearchResults(rawQuery, 72);
-  telemetryTrackSearch(rawQuery, results.length, {
-    surface: "global",
-    scope: category || "all"
-  });
   if (!results.length) {
     els.globalSearchResults.classList.remove("hidden");
     els.globalSearchResults.innerHTML = searchEmptyStateMarkup(
@@ -4243,6 +4296,7 @@ function renderSearchResults(query) {
 
   els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
     button.addEventListener("click", () => {
+      trackCompletedGlobalSearch("result-open");
       openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
     });
   });
@@ -4627,10 +4681,10 @@ function showTopUiTemporarily(delay = 2200) {
   if (!els.lightbox) return;
   window.clearTimeout(state.uiHideTimer);
   els.lightbox.classList.add("show-ui");
-  if (state.topUiPinned) return;
+  if (state.topUiPinned || state.viewerMobileMoreOpen) return;
   if (delay > 0) {
     state.uiHideTimer = window.setTimeout(() => {
-      if (!state.topUiPinned) els.lightbox.classList.remove("show-ui");
+      if (!state.topUiPinned && !state.viewerMobileMoreOpen) els.lightbox.classList.remove("show-ui");
     }, delay);
   }
 }
@@ -4687,6 +4741,7 @@ function syncTopUiPinnedUi() {
   els.lightbox?.classList.toggle("top-ui-pinned", pinned);
   if (pinned) els.lightbox?.classList.add("show-ui");
   syncLightboxTopSafeArea();
+  syncViewerMobileMoreMenuState();
 
   if (!els.lightboxPinTopBar) return;
   els.lightboxPinTopBar.dataset.pinned = pinned ? "true" : "false";
@@ -4719,7 +4774,7 @@ function pointInRect(point, rect, padding = 0) {
 }
 
 function shouldKeepTopUiOpenForPointer(event = null) {
-  if (state.topUiPinned) return true;
+  if (state.topUiPinned || state.viewerMobileMoreOpen) return true;
   const point = getViewportPointer(event);
   if (!point || !els.lightboxBar) return false;
 
@@ -4738,11 +4793,11 @@ function shouldKeepTopUiOpenForPointer(event = null) {
 }
 
 function scheduleTopUiClose(event = null) {
-  if (!els.lightbox || !state.lightboxOpen || state.topUiPinned) return;
+  if (!els.lightbox || !state.lightboxOpen || state.topUiPinned || state.viewerMobileMoreOpen) return;
   if (shouldKeepTopUiOpenForPointer(event)) return;
   window.clearTimeout(state.uiHideTimer);
   state.uiHideTimer = window.setTimeout(() => {
-    if (!state.topUiPinned) els.lightbox?.classList.remove("show-ui");
+    if (!state.topUiPinned && !state.viewerMobileMoreOpen) els.lightbox?.classList.remove("show-ui");
   }, 420);
 }
 
@@ -5133,6 +5188,7 @@ function syncViewerFitModeUi() {
   }
 
   syncViewerAutoZoomButtonUi();
+  syncViewerMobileMoreMenuState();
 }
 
 
@@ -6085,6 +6141,7 @@ function syncViewerScrollActivePage(page) {
   els.prevPageBtn.disabled = state.page <= 1;
   els.nextPageBtn.disabled = state.page >= state.catalog.pages;
   syncViewerFavoriteButtonUi();
+  syncViewerInquiryUi();
   updateLightboxThumbs({ scrollIntoView: false });
   updateHash();
 }
@@ -6149,6 +6206,8 @@ function updateLightbox(options = {}) {
   const catalog = state.catalog;
   state.page = clampPage(state.page, catalog);
   syncLightboxModeUi();
+  syncViewerInquiryUi();
+  syncViewerMobileMoreMenuState();
 
   els.lightboxTitle.textContent = catalog.title;
   if (favoriteEntries) {
@@ -6248,6 +6307,8 @@ function openLightbox(page = 1, options = {}) {
   resetImagePosition({ queueSingleFitOrigin: true });
   state.pointers.clear();
   hideViewerZoomIndicator();
+  closeViewerInquiry({ restoreFocus: false });
+  closeViewerMobileMoreMenu();
   state.lightboxOpen = true;
   telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
@@ -6278,6 +6339,8 @@ function openLightbox(page = 1, options = {}) {
 
 function hideLightboxUi() {
   closeViewerOnboarding({ restoreFocus: false });
+  closeViewerInquiry({ restoreFocus: false });
+  closeViewerMobileMoreMenu();
   state.lightboxOpen = false;
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
@@ -6711,6 +6774,335 @@ function attachViewerEvents() {
 }
 /* ===== END SOURCE: src/js/60-viewer.js ===== */
 
+/* ===== BEGIN SOURCE: src/js/62-viewer-actions.js ===== */
+/**
+ * Source module: 62-viewer-actions.js
+ * Viewer inquiry workflow and compact mobile utility menu.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
+
+const MOBILE_VIEWER_TOOLBAR_MEDIA = "(max-width: 760px)";
+
+function isMobileViewerToolbarMode() {
+  return Boolean(window.matchMedia?.(MOBILE_VIEWER_TOOLBAR_MEDIA).matches);
+}
+
+function viewerInquiryFooterContacts() {
+  const links = Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"));
+  const phoneLinks = links.filter((link) => String(link.getAttribute("href") || "").startsWith("tel:"));
+  const emailLink = links.find((link) => String(link.getAttribute("href") || "").startsWith("mailto:")) || null;
+  return {
+    mobile: phoneLinks[0] || null,
+    phone: phoneLinks[1] || null,
+    email: emailLink
+  };
+}
+
+function viewerInquiryReference() {
+  if (!state.catalog) return null;
+  const page = clampPage(state.page, state.catalog);
+  const url = absoluteDocumentUrl(viewerDocumentUrl(state.catalog.id, page));
+  const title = String(state.catalog.title || "קטלוג").trim() || "קטלוג";
+  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(state.catalog.pages) || 1)}`;
+  const subject = `בירור על דגם – ${title}, עמוד ${page}`;
+  const text = [
+    "שלום,",
+    "רציתי לברר לגבי הדגם הבא:",
+    `קטלוג: ${title}`,
+    `עמוד: ${page}`,
+    `קישור ישיר: ${url}`
+  ].join("\n");
+  return { catalog: state.catalog, page, title, pageLabel, subject, text, url };
+}
+
+function viewerInquiryPhoneLabel(link) {
+  const value = link?.querySelector?.("bdi")?.textContent || link?.textContent || "";
+  return String(value).replace(/\s+/g, " ").trim();
+}
+
+function syncViewerInquiryLink(link, sourceLink, labelElement, reference, action) {
+  if (!link) return;
+  const href = String(sourceLink?.getAttribute?.("href") || "").trim();
+  const label = viewerInquiryPhoneLabel(sourceLink);
+  const available = Boolean(href);
+  link.classList.toggle("hidden", !available);
+  link.setAttribute("aria-hidden", available ? "false" : "true");
+  if (!available) {
+    link.removeAttribute("href");
+    return;
+  }
+  link.href = href;
+  link.dataset.contactSource = "viewer-inquiry";
+  link.dataset.contactAction = action;
+  link.dataset.contactCatalogId = reference?.catalog?.id || "";
+  link.dataset.contactPage = String(reference?.page || 0);
+  link.title = reference ? `${label} · ${reference.title}, עמוד ${reference.page}` : label;
+  if (labelElement) labelElement.textContent = label;
+}
+
+function syncViewerInquiryUi() {
+  const reference = viewerInquiryReference();
+  if (!reference) return;
+
+  const contacts = viewerInquiryFooterContacts();
+  if (els.viewerInquiryCatalog) els.viewerInquiryCatalog.textContent = reference.title;
+  if (els.viewerInquiryPage) els.viewerInquiryPage.textContent = reference.pageLabel;
+  if (els.viewerInquiryButton) {
+    const label = `בירור על הדגם — ${reference.title}, עמוד ${reference.page}`;
+    els.viewerInquiryButton.setAttribute("aria-label", label);
+    setTooltipText(els.viewerInquiryButton, label, { updateDefault: true });
+  }
+
+  if (els.viewerInquiryPreview) {
+    const preview = thumbSrc(reference.catalog, reference.page) || pageSrc(reference.catalog, reference.page);
+    if (els.viewerInquiryPreview.getAttribute("src") !== preview) {
+      els.viewerInquiryPreview.src = preview;
+    }
+    els.viewerInquiryPreview.alt = `${reference.title}, עמוד ${reference.page}`;
+  }
+
+  syncViewerInquiryLink(
+    els.viewerInquiryMobile,
+    contacts.mobile,
+    els.viewerInquiryMobileLabel,
+    reference,
+    "mobile"
+  );
+  syncViewerInquiryLink(
+    els.viewerInquiryPhone,
+    contacts.phone,
+    els.viewerInquiryPhoneLabel,
+    reference,
+    "phone"
+  );
+
+  if (els.viewerInquiryEmail) {
+    const emailHref = String(contacts.email?.getAttribute?.("href") || "").trim();
+    const emailAddress = emailHref.replace(/^mailto:/i, "").split("?")[0];
+    const available = Boolean(emailAddress);
+    els.viewerInquiryEmail.classList.toggle("hidden", !available);
+    els.viewerInquiryEmail.setAttribute("aria-hidden", available ? "false" : "true");
+    if (available) {
+      const query = new URLSearchParams({ subject: reference.subject, body: reference.text });
+      els.viewerInquiryEmail.href = `mailto:${emailAddress}?${query.toString()}`;
+      els.viewerInquiryEmail.dataset.contactSource = "viewer-inquiry";
+      els.viewerInquiryEmail.dataset.contactAction = "email";
+      els.viewerInquiryEmail.dataset.contactCatalogId = reference.catalog.id;
+      els.viewerInquiryEmail.dataset.contactPage = String(reference.page);
+      els.viewerInquiryEmail.title = `${emailAddress} · ${reference.title}, עמוד ${reference.page}`;
+      if (els.viewerInquiryEmailLabel) els.viewerInquiryEmailLabel.textContent = emailAddress;
+    } else {
+      els.viewerInquiryEmail.removeAttribute("href");
+    }
+  }
+}
+
+function getViewerInquiryFocusableElements() {
+  if (!els.viewerInquiryOverlay) return [];
+  return Array.from(els.viewerInquiryOverlay.querySelectorAll(
+    'button:not([disabled]), a[href]:not(.hidden), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.closest?.(".hidden"));
+}
+
+function openViewerInquiry() {
+  if (!state.lightboxOpen || !state.catalog || !els.viewerInquiryOverlay) return;
+  if (state.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
+  closeViewerMobileMoreMenu();
+  if (state.lightboxMobileSearchOpen) {
+    setLightboxMobileSearchOpen(false, { hideResults: true });
+  }
+  syncViewerInquiryUi();
+  state.viewerInquiryOpen = true;
+  state.viewerInquiryReturnFocus = document.activeElement || els.viewerInquiryButton;
+  els.viewerInquiryOverlay.classList.remove("hidden");
+  els.viewerInquiryOverlay.setAttribute("aria-hidden", "false");
+  els.viewerInquiryButton?.setAttribute("aria-expanded", "true");
+  window.requestAnimationFrame(() => {
+    if (!state.viewerInquiryOpen) return;
+    els.viewerInquiryOverlay?.classList.add("visible");
+    (els.viewerInquiryClose || getViewerInquiryFocusableElements()[0])?.focus?.({ preventScroll: true });
+  });
+}
+
+function closeViewerInquiry(options = {}) {
+  if (!state.viewerInquiryOpen && els.viewerInquiryOverlay?.classList.contains("hidden")) return;
+  const { restoreFocus = true } = options;
+  const returnFocus = state.viewerInquiryReturnFocus;
+  state.viewerInquiryOpen = false;
+  state.viewerInquiryReturnFocus = null;
+  els.viewerInquiryOverlay?.classList.remove("visible");
+  els.viewerInquiryOverlay?.setAttribute("aria-hidden", "true");
+  els.viewerInquiryButton?.setAttribute("aria-expanded", "false");
+  window.setTimeout(() => {
+    if (!state.viewerInquiryOpen) els.viewerInquiryOverlay?.classList.add("hidden");
+  }, 180);
+  if (restoreFocus) (returnFocus || els.viewerInquiryButton)?.focus?.({ preventScroll: true });
+}
+
+function handleViewerInquiryKeydown(event) {
+  if (!state.viewerInquiryOpen) return false;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeViewerInquiry();
+    return true;
+  }
+  if (event.key !== "Tab") return true;
+
+  const focusable = getViewerInquiryFocusableElements();
+  if (!focusable.length) {
+    event.preventDefault();
+    return true;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+  return true;
+}
+
+async function copyViewerInquiryReference() {
+  const reference = viewerInquiryReference();
+  if (!reference) return;
+  try {
+    await copyTextToClipboard(reference.text);
+    telemetryTrack("contact", {
+      action: "copy",
+      source: "viewer-inquiry",
+      catalogId: reference.catalog.id,
+      pageNumber: reference.page
+    }, { immediate: true });
+    showActionToast("פרטי הדגם הועתקו", { tone: "link" });
+    closeViewerInquiry();
+  } catch (_error) {
+    window.prompt("אפשר להעתיק את פרטי הדגם מכאן:", reference.text);
+  }
+}
+
+function syncViewerMobileMoreMenuState() {
+  const menu = els.viewerMobileMoreMenu;
+  if (!menu) return;
+  const fitMode = normalizeViewerFitMode(state.imageFitMode);
+  const pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]');
+  const heightItem = menu.querySelector('[data-viewer-mobile-action="fit-height"]');
+  const widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]');
+  const pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
+
+  pinItem?.setAttribute("aria-checked", state.topUiPinned ? "true" : "false");
+  pinItem?.classList.toggle("active", state.topUiPinned);
+  if (pinLabel) pinLabel.textContent = state.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
+  heightItem?.setAttribute("aria-checked", fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
+  heightItem?.classList.toggle("active", fitMode === VIEWER_FIT_HEIGHT);
+  widthItem?.setAttribute("aria-checked", fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
+  widthItem?.classList.toggle("active", fitMode === VIEWER_FIT_WIDTH);
+  if (els.viewerMobileFavoritesLink) els.viewerMobileFavoritesLink.href = favoritesDocumentUrl();
+}
+
+function setViewerMobileMoreOpen(open, options = {}) {
+  const shouldOpen = Boolean(open && state.lightboxOpen && isMobileViewerToolbarMode());
+  state.viewerMobileMoreOpen = shouldOpen;
+  syncViewerMobileMoreMenuState();
+  els.viewerMobileMoreMenu?.classList.toggle("hidden", !shouldOpen);
+  els.viewerMobileMoreMenu?.classList.toggle("visible", shouldOpen);
+  els.viewerMobileMoreToggle?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  els.viewerMobileMoreToggle?.classList.toggle("is-active", shouldOpen);
+  els.lightbox?.classList.toggle("mobile-more-open", shouldOpen);
+
+  if (shouldOpen) {
+    showTopUiTemporarily(0);
+    window.requestAnimationFrame(() => {
+      els.viewerMobileMoreMenu?.querySelector('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]')?.focus?.({ preventScroll: true });
+    });
+  } else if (options.returnFocus) {
+    els.viewerMobileMoreToggle?.focus?.({ preventScroll: true });
+  }
+}
+
+function closeViewerMobileMoreMenu(options = {}) {
+  setViewerMobileMoreOpen(false, options);
+}
+
+function getViewerMobileMoreItems() {
+  if (!els.viewerMobileMoreMenu) return [];
+  return Array.from(els.viewerMobileMoreMenu.querySelectorAll(
+    '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'
+  )).filter((item) => !item.classList.contains("hidden") && item.getAttribute("aria-hidden") !== "true");
+}
+
+function handleViewerMobileMoreKeydown(event) {
+  if (!state.viewerMobileMoreOpen) return;
+  const items = getViewerMobileMoreItems();
+  if (!items.length) return;
+
+  const currentIndex = Math.max(0, items.indexOf(document.activeElement));
+  let nextIndex = -1;
+  if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % items.length;
+  else if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
+  else if (event.key === "Home") nextIndex = 0;
+  else if (event.key === "End") nextIndex = items.length - 1;
+  else return;
+
+  event.preventDefault();
+  items[nextIndex]?.focus?.({ preventScroll: true });
+}
+
+function handleViewerMobileMoreAction(event) {
+  const item = event.target.closest?.("[data-viewer-mobile-action]");
+  if (!item || !els.viewerMobileMoreMenu?.contains(item)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const action = item.dataset.viewerMobileAction;
+
+  if (action === "download") downloadCurrentLightboxImage();
+  else if (action === "pin") toggleTopUiPinned();
+  else if (action === "fit-height") setViewerFitMode(VIEWER_FIT_HEIGHT, { showUi: false });
+  else if (action === "fit-width") setViewerFitMode(VIEWER_FIT_WIDTH, { showUi: false });
+
+  syncViewerMobileMoreMenuState();
+  closeViewerMobileMoreMenu({ returnFocus: true });
+}
+
+function attachViewerActionEvents() {
+  els.viewerInquiryButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openViewerInquiry();
+  });
+  els.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
+  els.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
+  els.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference());
+  els.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown);
+  [els.viewerInquiryMobile, els.viewerInquiryPhone, els.viewerInquiryEmail].forEach((link) => {
+    link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: false }), 0));
+  });
+
+  els.viewerMobileMoreToggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setViewerMobileMoreOpen(!state.viewerMobileMoreOpen, { returnFocus: state.viewerMobileMoreOpen });
+  });
+  els.viewerMobileMoreMenu?.addEventListener("click", handleViewerMobileMoreAction);
+  els.viewerMobileMoreMenu?.addEventListener("keydown", handleViewerMobileMoreKeydown);
+  els.viewerMobileFavoritesLink?.addEventListener("click", () => closeViewerMobileMoreMenu());
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!state.viewerMobileMoreOpen) return;
+    if (els.viewerMobileMoreMenu?.contains(event.target) || els.viewerMobileMoreToggle?.contains(event.target)) return;
+    closeViewerMobileMoreMenu();
+  }, { passive: true });
+
+  window.addEventListener("resize", () => {
+    if (!isMobileViewerToolbarMode()) closeViewerMobileMoreMenu();
+  });
+}
+/* ===== END SOURCE: src/js/62-viewer-actions.js ===== */
+
 /* ===== BEGIN SOURCE: src/js/65-viewer-onboarding.js ===== */
 /**
  * Source module: 65-viewer-onboarding.js
@@ -6765,54 +7157,11 @@ function viewerZoomOnboardingCopy() {
 function getViewerOnboardingSteps() {
   return [
     {
-      id: "top-bar",
-      eyebrow: "כלי הצפייה",
-      title: "הסרגל העליון",
-      description: "הזיזו את הסמן או געו בקצה העליון כדי לפתוח אותו. כאן נמצאים החיפוש, השיתוף, הורדת התמונה וכלי התצוגה.",
-      note: "במחשב משולב אפשר להשתמש במגע, בעכבר ובמקלדת במקביל — ההסבר מתאים לכל דרכי הקלט.",
-      target: () => els.lightboxBar?.querySelector?.(".lightbox-reader-header") || els.lightboxBar,
-      targetRect: getViewerOnboardingTopBarFocusRect,
-      preferredPlacement: "below",
-      padding: 0,
-      viewportMargin: 0,
-      radius: 0,
-      revealTopBar: true,
-      gesture: "top-edge"
-    },
-    {
-      id: "pin-top-bar",
-      eyebrow: "גישה קבועה לכלים",
-      title: "נעיצת הסרגל העליון",
-      description: "לחיצה על סמל הנעץ משאירה את הסרגל פתוח. לחיצה נוספת מחזירה אותו למצב שנפתח רק כשמתקרבים לקצה העליון.",
-      note: "אפשר ללחוץ על כפתור הנעץ האמיתי כבר עכשיו.",
-      target: () => els.lightboxPinTopBar,
-      targetRect: getViewerOnboardingPinFocusRect,
-      floatingTarget: () => els.lightboxPinTopBar,
-      preferredPlacement: "below",
-      padding: 0,
-      viewportMargin: 0,
-      radius: 25,
-      revealTopBar: true,
-      gesture: "tap"
-    },
-    {
-      id: "page-rail",
-      eyebrow: "מעבר מהיר",
-      title: "סרגל העמודים הימני",
-      description: "הזיזו את הסמן או געו בקצה הימני כדי לפתוח את כל העמודים. לחיצה על תמונה ממוזערת מעבירה מיד לעמוד שבחרתם.",
-      target: () => els.lightboxPageRail,
-      targetRect: getViewerOnboardingPageRailFocusRect,
-      preferredPlacement: "left",
-      padding: 7,
-      radius: 18,
-      revealPageRail: true,
-      gesture: "right-edge"
-    },
-    {
       id: "page-navigation",
-      eyebrow: "עמוד קדימה ואחורה",
+      eyebrow: "צפייה פשוטה",
       title: "מעבר בין עמודים",
       description: viewerNavigationOnboardingCopy(),
+      note: "למעבר מהיר לעמוד רחוק, פתחו את סרגל התמונות הממוזערות מהקצה הימני.",
       target: () => els.stageCanvas,
       targetRect: getViewerOnboardingNavigationFocusRect,
       floatingTarget: () => els.nextPageBtn,
@@ -6836,16 +7185,16 @@ function getViewerOnboardingSteps() {
       gesture: viewerHasTouchCapability() ? "pinch" : "double-tap"
     },
     {
-      id: "favorite",
-      eyebrow: "לשמור להמשך",
-      title: "הוספה למועדפים",
-      description: "לחצו על הכוכב כדי לשמור את העמוד. תוכלו לפתוח אחר כך את כל העמודים ששמרתם מתוך אזור המועדפים.",
-      note: "לשיתוף קישור מדויק לעמוד השתמשו בכפתור השיתוף שבסרגל העליון.",
-      target: () => els.viewerFavoriteButton,
-      floatingTarget: () => els.viewerFavoriteButton,
+      id: "inquiry",
+      eyebrow: "מצאתם דגם מתאים?",
+      title: "שמירה, שיתוף ובירור",
+      description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
+      note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
+      target: () => els.viewerInquiryButton,
+      floatingTarget: () => els.viewerInquiryButton,
       preferredPlacement: "left",
-      padding: 10,
-      radius: 18,
+      padding: 8,
+      radius: 24,
       gesture: "tap"
     }
   ];
@@ -7191,7 +7540,7 @@ function renderViewerOnboardingStep(options = {}) {
   }
   if (els.viewerOnboardingPrevious) els.viewerOnboardingPrevious.disabled = state.viewerOnboardingStep === 0;
   if (els.viewerOnboardingNext) {
-    els.viewerOnboardingNext.textContent = state.viewerOnboardingStep === steps.length - 1 ? "סיום והתחלה" : "הבא";
+    els.viewerOnboardingNext.textContent = state.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא";
   }
   if (els.viewerOnboardingDots) {
     els.viewerOnboardingDots.innerHTML = steps.map((_, index) => (
@@ -7710,6 +8059,15 @@ function attachShellEvents() {
       return;
     }
     if (!state.lightboxOpen) return;
+    if (state.viewerInquiryOpen) {
+      handleViewerInquiryKeydown(event);
+      return;
+    }
+    if (event.key === "Escape" && state.viewerMobileMoreOpen) {
+      event.preventDefault();
+      closeViewerMobileMoreMenu({ returnFocus: true });
+      return;
+    }
     if (state.viewerOnboardingOpen) {
       handleViewerOnboardingKeydown(event);
       return;
@@ -7765,6 +8123,7 @@ function attachEvents() {
   bindFeatureEventsOnce("search-ui", attachSearchUiEvents);
   bindFeatureEventsOnce("shell", attachShellEvents);
   bindFeatureEventsOnce("favorites-share", attachFavoritesShareEvents);
+  bindFeatureEventsOnce("viewer-actions", attachViewerActionEvents);
   bindFeatureEventsOnce("viewer-onboarding", attachViewerOnboardingEvents);
   bindFeatureEventsOnce("viewer", attachViewerEvents);
   bindFeatureEventsOnce("navigation", attachNavigationEvents);

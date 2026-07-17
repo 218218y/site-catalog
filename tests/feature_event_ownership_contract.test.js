@@ -13,6 +13,7 @@ const favorites = read("src/js/30-favorites-share.js");
 const catalog = read("src/js/40-catalog-grid.js");
 const search = read("src/js/50-search-ui.js");
 const viewer = read("src/js/60-viewer.js");
+const viewerActions = read("src/js/62-viewer-actions.js");
 const onboarding = read("src/js/65-viewer-onboarding.js");
 const input = read("src/js/70-viewer-input.js");
 const bootstrap = read("src/js/90-bootstrap.js");
@@ -30,13 +31,14 @@ assert.match(favorites, /function attachFavoritesShareEvents\(/);
 assert.match(catalog, /function attachCatalogGridEvents\(/);
 assert.match(search, /function attachSearchUiEvents\(/);
 assert.match(viewer, /function attachViewerEvents\(/);
+assert.match(viewerActions, /function attachViewerActionEvents\(/);
 assert.match(onboarding, /function attachViewerOnboardingEvents\(/);
 assert.match(input, /function attachViewerGestures\(/);
 
 assert.doesNotMatch(bootstrap, /els\.globalSearchInput\?\.addEventListener/);
 assert.doesNotMatch(bootstrap, /els\.viewerOnboardingNext\?\.addEventListener/);
 assert.doesNotMatch(bootstrap, /els\.prevPageBtn\?\.addEventListener/);
-assert.match(bootstrap, /function attachEvents\(\) \{[\s\S]*?attachCatalogGridEvents[\s\S]*?attachSearchUiEvents[\s\S]*?attachViewerEvents/);
+assert.match(bootstrap, /function attachEvents\(\) \{[\s\S]*?attachCatalogGridEvents[\s\S]*?attachSearchUiEvents[\s\S]*?attachViewerActionEvents[\s\S]*?attachViewerEvents/);
 assert.ok(bootstrap.split(/\r?\n/).length < 330, "composition root should stay compact");
 
 assert.doesNotMatch(viewer, /function getViewerOnboardingStorage\(/);

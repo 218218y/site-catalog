@@ -24,7 +24,8 @@
 | `40-catalog-grid.js` | רשימת קטלוגים, קטגוריות ותצוגה מקדימה |
 | `50-search-ui.js` | טעינת אינדקס, חיפוש ראשי וחיפוש בצופה |
 | `60-viewer.js` | מחזור חיי הצופה, טעינת עמוד, פריסה, סרגלים ומצב zoom |
-| `65-viewer-onboarding.js` | סיור הכניסה, spotlight, focus וניקוי מצב ההדרכה |
+| `62-viewer-actions.js` | בירור על דגם, תפריט „עוד” במובייל וסנכרון פעולות הצופה |
+| `65-viewer-onboarding.js` | סיור הכניסה המקוצר, spotlight, focus וניקוי מצב ההדרכה |
 | `70-viewer-input.js` | pointer, pan, pinch, wheel, double tap ומחוות |
 | `90-bootstrap.js` | composition root, הכנת route ואתחול בלבד |
 
@@ -53,6 +54,7 @@ function attachSearchUiEvents() {
 | `06-shell-components.css` | מעטפת האתר, header, controls ורכיבים משותפים |
 | `10-catalog.css` | קטלוגים ותצוגות רשימה |
 | `20-viewer.css` | הצופה הקבוע |
+| `25-viewer-actions.css` | חלון בירור על דגם ותפריט הפעולות המשניות במובייל |
 | `30-media-components.css` | מדיה ורכיבי תמונה משותפים |
 | `40-catalog-refinements.css` | ליטושי קטלוג ממוקדים |
 | `50-footer-legal.css` | footer ודפים משפטיים |

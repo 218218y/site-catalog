@@ -46,6 +46,7 @@ def test_frontend_manifest_uses_reviewed_feature_modules() -> None:
         "src/js/40-catalog-grid.js",
         "src/js/50-search-ui.js",
         "src/js/60-viewer.js",
+        "src/js/62-viewer-actions.js",
         "src/js/65-viewer-onboarding.js",
         "src/js/70-viewer-input.js",
         "src/js/90-bootstrap.js",
@@ -56,6 +57,7 @@ def test_frontend_manifest_uses_reviewed_feature_modules() -> None:
         "src/css/06-shell-components.css",
         "src/css/10-catalog.css",
         "src/css/20-viewer.css",
+        "src/css/25-viewer-actions.css",
         "src/css/30-media-components.css",
         "src/css/40-catalog-refinements.css",
         "src/css/50-footer-legal.css",
@@ -84,6 +86,7 @@ def test_generated_bundle_preserves_declared_module_order() -> None:
     assert "function renderCatalogCards" in module_sources["src/js/40-catalog-grid.js"]
     assert "function renderSearchResults" in module_sources["src/js/50-search-ui.js"]
     assert "function openLightbox" in module_sources["src/js/60-viewer.js"]
+    assert "function openViewerInquiry" in module_sources["src/js/62-viewer-actions.js"]
     assert "function showViewerOnboardingIfNeeded" in module_sources["src/js/65-viewer-onboarding.js"]
     assert "function startPointerInteraction" in module_sources["src/js/70-viewer-input.js"]
     assert "let initResult = true;" in module_sources["src/js/90-bootstrap.js"]

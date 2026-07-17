@@ -280,6 +280,37 @@
                 <path d="M10.7 18.1a7.4 7.4 0 1 1 5.2-2.16l3.58 3.58a1.18 1.18 0 0 1-1.67 1.67l-3.58-3.58a7.36 7.36 0 0 1-3.53.49Zm0-2.36a5.04 5.04 0 1 0 0-10.08 5.04 5.04 0 0 0 0 10.08Z" />
               </svg>
             </button>
+            <div class="viewer-mobile-more-wrap">
+              <button class="reader-button reader-control-icon-button viewer-mobile-more-toggle" id="viewerMobileMoreToggle" type="button" aria-label="פתיחת כלים נוספים" title="כלים נוספים" aria-haspopup="menu" aria-expanded="false" aria-controls="viewerMobileMoreMenu">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <circle cx="5" cy="12" r="1.5"></circle>
+                  <circle cx="12" cy="12" r="1.5"></circle>
+                  <circle cx="19" cy="12" r="1.5"></circle>
+                </svg>
+              </button>
+              <div class="viewer-mobile-more-menu hidden" id="viewerMobileMoreMenu" role="menu" aria-label="כלים נוספים לצפייה">
+                <button type="button" role="menuitem" data-viewer-mobile-action="download">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5v11m0 0 4-4m-4 4-4-4M5 18.5h14" /></svg>
+                  <span>הורדת תמונה</span>
+                </button>
+                <button type="button" role="menuitemcheckbox" data-viewer-mobile-action="pin" aria-checked="false">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.7 3.4 20.6 9.3 17.2 10.5 13.7 14 14.4 18.2 12.9 19.7 9.4 16.2 4.9 20.7 3.3 19.1 7.8 14.6 4.3 11.1 5.8 9.6 10 10.3 13.5 6.8 14.7 3.4Z" /></svg>
+                  <span data-viewer-mobile-pin-label>נעיצת הסרגל</span>
+                </button>
+                <button type="button" role="menuitemradio" data-viewer-mobile-action="fit-height" aria-checked="true">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.8 9.8 6h4.4L12 3.8Zm0 16.4 2.2-2.2H9.8l2.2 2.2ZM12 6v12M7.4 7.7h9.2a1.4 1.4 0 0 1 1.4 1.4v5.8a1.4 1.4 0 0 1-1.4 1.4H7.4A1.4 1.4 0 0 1 6 14.9V9.1a1.4 1.4 0 0 1 1.4-1.4Z" /></svg>
+                  <span>התאמה לגובה</span>
+                </button>
+                <button type="button" role="menuitemradio" data-viewer-mobile-action="fit-width" aria-checked="false">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.8 12 6 9.8v4.4L3.8 12Zm16.4 0L18 14.2V9.8l2.2 2.2ZM6 12h12M7.7 7.4v9.2A1.4 1.4 0 0 0 9.1 18h5.8a1.4 1.4 0 0 0 1.4-1.4V7.4A1.4 1.4 0 0 0 14.9 6H9.1a1.4 1.4 0 0 0-1.4 1.4Z" /></svg>
+                  <span>התאמה לרוחב</span>
+                </button>
+                <a role="menuitem" id="viewerMobileFavoritesLink" href="favorites.html">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 3.25 2.64 5.35 5.91.86-4.28 4.17 1.01 5.89L12 16.74l-5.28 2.78 1.01-5.89-4.28-4.17 5.91-.86L12 3.25Z" /></svg>
+                  <span>המועדפים שלי</span>
+                </a>
+              </div>
+            </div>
             <span class="viewer-control-separator" aria-hidden="true"></span>
             <button class="reader-button reader-control-icon-button viewer-fit-control" id="fitHeightBtn" type="button" aria-label="התאמת התמונה לגובה" aria-pressed="false" title="התאמה לגובה">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -357,6 +388,53 @@
         <span class="visually-hidden">הוספת העמוד למועדפים</span>
       </button>
 
+      <button class="reader-button viewer-inquiry-button" id="viewerInquiryButton" type="button" aria-label="בירור על הדגם בעמוד הנוכחי" title="בירור על הדגם" aria-haspopup="dialog" aria-expanded="false" aria-controls="viewerInquiryOverlay">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5.2 4.5h13.6a2 2 0 0 1 2 2v8.2a2 2 0 0 1-2 2h-7.1L7 20v-3.3H5.2a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z" />
+          <path d="M8 9.2h8M8 12.4h5.2" />
+        </svg>
+        <span>בירור על הדגם</span>
+      </button>
+
+      <div class="viewer-inquiry-overlay hidden" id="viewerInquiryOverlay" aria-hidden="true">
+        <div class="viewer-inquiry-backdrop" id="viewerInquiryBackdrop"></div>
+        <section class="viewer-inquiry-dialog" role="dialog" aria-modal="true" aria-labelledby="viewerInquiryTitle" aria-describedby="viewerInquiryDescription">
+          <button class="viewer-inquiry-close" id="viewerInquiryClose" type="button" aria-label="סגירת חלון הבירור" title="סגירה">×</button>
+          <div class="viewer-inquiry-heading">
+            <span>פרטי העמוד מצורפים אוטומטית</span>
+            <h2 id="viewerInquiryTitle">בירור על הדגם</h2>
+            <p id="viewerInquiryDescription">בחרו דרך פנייה. שם הקטלוג, מספר העמוד והקישור המדויק ייכללו בפרטים.</p>
+          </div>
+          <div class="viewer-inquiry-reference">
+            <span class="viewer-inquiry-preview-frame catalog-image-frame">
+              <img id="viewerInquiryPreview" alt="" decoding="async" />
+            </span>
+            <div class="viewer-inquiry-reference-copy">
+              <strong id="viewerInquiryCatalog">קטלוג</strong>
+              <span id="viewerInquiryPage">עמוד 1</span>
+            </div>
+          </div>
+          <div class="viewer-inquiry-actions" id="viewerInquiryActions">
+            <a class="viewer-inquiry-action primary" id="viewerInquiryMobile" href="#" data-contact-source="viewer-inquiry" data-contact-action="mobile">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.3 3.8h2.4l1.2 4.1-1.7 1.4a14.5 14.5 0 0 0 5.5 5.5l1.4-1.7 4.1 1.2v2.4a3 3 0 0 1-3.2 3C10.2 19 5 13.8 4.3 7a3 3 0 0 1 3-3.2Z" /></svg>
+              <span><small>חיוג לנייד</small><bdi id="viewerInquiryMobileLabel" dir="ltr"></bdi></span>
+            </a>
+            <a class="viewer-inquiry-action" id="viewerInquiryPhone" href="#" data-contact-source="viewer-inquiry" data-contact-action="phone">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.3 3.8h2.4l1.2 4.1-1.7 1.4a14.5 14.5 0 0 0 5.5 5.5l1.4-1.7 4.1 1.2v2.4a3 3 0 0 1-3.2 3C10.2 19 5 13.8 4.3 7a3 3 0 0 1 3-3.2Z" /></svg>
+              <span><small>טלפון נוסף</small><bdi id="viewerInquiryPhoneLabel" dir="ltr"></bdi></span>
+            </a>
+            <a class="viewer-inquiry-action" id="viewerInquiryEmail" href="#" data-contact-source="viewer-inquiry" data-contact-action="email">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 6.2h15a1.8 1.8 0 0 1 1.8 1.8v8a1.8 1.8 0 0 1-1.8 1.8h-15A1.8 1.8 0 0 1 2.7 16V8a1.8 1.8 0 0 1 1.8-1.8Zm-.9 1.2 8.4 6.1 8.4-6.1" /></svg>
+              <span><small>שליחת מייל</small><bdi id="viewerInquiryEmailLabel" dir="ltr"></bdi></span>
+            </a>
+            <button class="viewer-inquiry-action" id="viewerInquiryCopy" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7.2V5.8A2.3 2.3 0 0 1 10.3 3.5h7.9a2.3 2.3 0 0 1 2.3 2.3v7.9a2.3 2.3 0 0 1-2.3 2.3h-1.4M5.8 8h7.9a2.3 2.3 0 0 1 2.3 2.3v7.9a2.3 2.3 0 0 1-2.3 2.3H5.8a2.3 2.3 0 0 1-2.3-2.3v-7.9A2.3 2.3 0 0 1 5.8 8Z" /></svg>
+              <span><small>להעברה בדרך אחרת</small><strong>העתקת פרטי הדגם</strong></span>
+            </button>
+          </div>
+        </section>
+      </div>
+
       <button class="reader-button viewer-fullscreen-toggle viewer-fullscreen-float" id="fullscreenToggle" type="button" aria-label="כניסה למסך מלא" title="מסך מלא" aria-pressed="false" data-fullscreen-active="false">
         <svg class="viewer-fullscreen-icon viewer-fullscreen-icon-enter" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M8.2 4.8H5.5a.7.7 0 0 0-.7.7v2.7M15.8 4.8h2.7a.7.7 0 0 1 .7.7v2.7M8.2 19.2H5.5a.7.7 0 0 1-.7-.7v-2.7M15.8 19.2h2.7a.7.7 0 0 0 .7-.7v-2.7" />
@@ -404,7 +482,7 @@
 
         <section class="viewer-onboarding-callout" id="viewerOnboardingCard" tabindex="-1" data-placement="below">
           <div class="viewer-onboarding-callout-head">
-            <span class="viewer-onboarding-counter" id="viewerOnboardingCounter">1 מתוך 6</span>
+            <span class="viewer-onboarding-counter" id="viewerOnboardingCounter">1 מתוך 3</span>
             <button class="viewer-onboarding-skip" id="viewerOnboardingSkip" type="button" aria-label="דלג על ההסבר" title="דלג על ההסבר">×</button>
           </div>
           <div class="viewer-onboarding-heading">

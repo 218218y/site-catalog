@@ -12,7 +12,7 @@ const TELEMETRY_SCHEMA_VERSION = 1;
 const TELEMETRY_BATCH_LIMIT = 20;
 const TELEMETRY_QUEUE_LIMIT = 60;
 const TELEMETRY_FLUSH_DELAY_MS = 900;
-const TELEMETRY_SEARCH_DELAY_MS = 850;
+const TELEMETRY_SEARCH_DEDUP_MS = 1200;
 const TELEMETRY_ALLOWED_HOSTS = new Set([
   "bargig-furniture.com",
   "www.bargig-furniture.com"
@@ -33,7 +33,6 @@ const telemetryRuntime = {
   flushing: false,
   catalogKey: "",
   catalogAt: 0,
-  searchTimers: new Map(),
   searchKeys: new Map(),
   imageFailures: new Set(),
   initialized: false
@@ -195,27 +194,35 @@ function telemetryTrackCatalogOpen(catalog, page, source = LIGHTBOX_SOURCE_CATAL
 }
 
 function telemetryTrackSearch(query, resultCount, options = {}) {
-  if (!telemetryIsEnabled()) return;
+  if (!telemetryIsEnabled()) return false;
   const cleanQuery = telemetryCleanText(query, 80);
-  if (cleanQuery.length < 2) return;
+  if (cleanQuery.length < 2) return false;
 
   const surface = telemetryCleanText(options.surface || "global", 30);
   const scope = telemetryCleanText(options.scope || "all", 50);
   const catalogId = telemetryCleanText(options.catalogId, 100);
-  const key = `${cleanQuery}|${resultCount}|${scope}|${catalogId}`;
-  window.clearTimeout(telemetryRuntime.searchTimers.get(surface));
-  telemetryRuntime.searchTimers.set(surface, window.setTimeout(() => {
-    telemetryRuntime.searchTimers.delete(surface);
-    if (telemetryRuntime.searchKeys.get(surface) === key) return;
-    telemetryRuntime.searchKeys.set(surface, key);
-    telemetryTrack("search", {
-      query: cleanQuery,
-      scope,
-      catalogId,
-      source: surface,
-      value: Math.max(0, Number(resultCount) || 0)
-    });
-  }, TELEMETRY_SEARCH_DELAY_MS));
+  const completion = telemetryCleanText(options.completion || "submit", 30);
+  const count = Math.max(0, Number(resultCount) || 0);
+  const key = `${surface}|${cleanQuery}|${count}|${scope}|${catalogId}|${completion}`;
+  const now = Date.now();
+  const previous = telemetryRuntime.searchKeys.get(key) || 0;
+  if (now - previous < TELEMETRY_SEARCH_DEDUP_MS) return false;
+  telemetryRuntime.searchKeys.set(key, now);
+
+  if (telemetryRuntime.searchKeys.size > 80) {
+    for (const [storedKey, timestamp] of telemetryRuntime.searchKeys) {
+      if (now - timestamp > 60_000) telemetryRuntime.searchKeys.delete(storedKey);
+    }
+  }
+
+  return telemetryTrack("search", {
+    query: cleanQuery,
+    scope,
+    catalogId,
+    source: surface,
+    action: completion,
+    value: count
+  });
 }
 
 function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 0) {
@@ -311,11 +318,18 @@ function telemetryHandleDocumentClick(event) {
   const link = event.target?.closest?.("a[href]");
   if (!link) return;
   const href = String(link.getAttribute("href") || "").trim();
-  let action = "";
-  if (href.startsWith("tel:")) action = "phone";
-  else if (href.startsWith("mailto:")) action = "email";
-  else if (link.classList.contains("site-footer-gmail-link") || /mail\.google\.com/i.test(href)) action = "gmail";
-  if (action) telemetryTrack("contact", { action, source: "footer" }, { immediate: true });
+  let action = telemetryCleanText(link.dataset.contactAction, 50);
+  if (!action && href.startsWith("tel:")) action = "phone";
+  else if (!action && href.startsWith("mailto:")) action = "email";
+  else if (!action && (link.classList.contains("site-footer-gmail-link") || /mail\.google\.com/i.test(href))) action = "gmail";
+  if (action) {
+    telemetryTrack("contact", {
+      action,
+      source: link.dataset.contactSource || "footer",
+      catalogId: link.dataset.contactCatalogId || "",
+      pageNumber: link.dataset.contactPage || 0
+    }, { immediate: true });
+  }
 }
 
 function telemetryInit() {

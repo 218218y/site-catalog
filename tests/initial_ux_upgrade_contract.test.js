@@ -3,7 +3,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
@@ -35,24 +34,13 @@ assert.match(app, /function shareOrCopyCurrentLink\([\s\S]*?currentVisibleDocume
 assert.match(app, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
 assert.match(app, /VIEWER_ONBOARDING_STORAGE_KEY = "bargig\.viewer-onboarding\.v2"/);
 assert.match(app, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouchPoints[\s\S]*?ontouchstart/);
-assert.match(app, /function getViewerOnboardingSteps\([\s\S]*?סרגל העליון[\s\S]*?נעיצת הסרגל העליון[\s\S]*?סרגל העמודים הימני[\s\S]*?מעבר בין עמודים[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?הוספה למועדפים/);
-assert.match(app, /function getViewerOnboardingTopBarFocusRect\([\s\S]*?lightbox-reader-header/);
-assert.match(app, /id: "top-bar"[\s\S]*?viewportMargin: 0[\s\S]*?radius: 0/);
-assert.match(app, /id: "pin-top-bar"[\s\S]*?targetRect: getViewerOnboardingPinFocusRect[\s\S]*?floatingTarget: \(\) => els\.lightboxPinTopBar[\s\S]*?padding: 0[\s\S]*?viewportMargin: 0[\s\S]*?radius: 25/);
-assert.match(app, /function getViewerOnboardingPinFocusRect\(\)[\s\S]*?desiredPadding = 12[\s\S]*?horizontalPadding[\s\S]*?verticalPadding[\s\S]*?source\.top - verticalPadding[\s\S]*?source\.bottom \+ verticalPadding/);
-const pinFocusFunctionSource = app.match(/(function getViewerOnboardingPinFocusRect\(\) \{[\s\S]*?\r?\n\})\r?\n\r?\nfunction getViewerOnboardingNavigationFocusRect/)?.[1];
-assert.ok(pinFocusFunctionSource, "pin focus rectangle function should be extractable");
-const measuredPinRect = { left: 120, top: 9, right: 160, bottom: 49, width: 40, height: 40 };
-const symmetricPinRect = vm.runInNewContext(`${pinFocusFunctionSource}; getViewerOnboardingPinFocusRect();`, {
-  els: { lightboxPinTopBar: { getBoundingClientRect: () => measuredPinRect } },
-  window: { innerWidth: 1000, innerHeight: 700 },
-  document: { documentElement: { clientWidth: 1000, clientHeight: 700 } }
-});
-assert.equal(measuredPinRect.top - symmetricPinRect.top, symmetricPinRect.bottom - measuredPinRect.bottom);
-assert.equal(measuredPinRect.left - symmetricPinRect.left, symmetricPinRect.right - measuredPinRect.right);
-assert.deepEqual(JSON.parse(JSON.stringify(symmetricPinRect)), { left: 108, top: 0, right: 172, bottom: 58, width: 64, height: 58 });
+assert.match(app, /function getViewerOnboardingSteps\([\s\S]*?id: "page-navigation"[\s\S]*?מעבר בין עמודים[\s\S]*?id: "zoom"[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?id: "inquiry"[\s\S]*?שמירה, שיתוף ובירור/);
+assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "top-bar"/);
+assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "pin-top-bar"/);
+assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "page-rail"/);
 assert.match(app, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTarget: \(\) => els\.nextPageBtn/);
-assert.match(app, /id: "favorite"[\s\S]*?target: \(\) => els\.viewerFavoriteButton[\s\S]*?floatingTarget: \(\) => els\.viewerFavoriteButton/);
+assert.match(app, /id: "inquiry"[\s\S]*?target: \(\) => els\.viewerInquiryButton[\s\S]*?floatingTarget: \(\) => els\.viewerInquiryButton/);
+assert.match(app, /viewerOnboardingNext\.textContent = state\.viewerOnboardingStep === steps\.length - 1 \? "סיום" : "הבא"/);
 assert.match(app, /function syncViewerOnboardingFloatingTargetState\([\s\S]*?"data-favorite-active"/);
 assert.match(app, /function updateViewerOnboardingFloatingTarget\([\s\S]*?cloneNode\(true\)[\s\S]*?source\.click\(\)/);
 assert.match(app, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
@@ -68,11 +56,7 @@ assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.brand-copy-link\s*\{[\s\
 assert.match(css, /\.viewer-onboarding-spotlight\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?border:\s*2px solid/);
 assert.match(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?z-index:\s*2 !important;[\s\S]*?right:\s*auto !important;[\s\S]*?bottom:\s*auto !important;[\s\S]*?pointer-events:\s*auto !important;/);
 assert.match(css, /\.viewer-onboarding:not\(\.layout-ready\) \.viewer-onboarding-callout[\s\S]*?visibility:\s*hidden;/);
-const pinFloatingRule = css.match(/\.viewer-onboarding-floating-target\[data-tour-step="pin-top-bar"\]\s*\{([\s\S]*?)\}/);
-assert.ok(pinFloatingRule, "pin floating target rule should exist");
-assert.match(pinFloatingRule[1], /0 0 0 5px rgba\(217,186,163,0\.28\)/);
-assert.doesNotMatch(pinFloatingRule[1], /0 0 0 2px rgba\(255,255,255,0\.98\)/, "pin button edge must keep its normal border");
-assert.match(css, /\.viewer-onboarding-floating-target\[data-tour-step="favorite"\][\s\S]*?background:\s*rgba\(151, 106, 36, 0\.9\) !important;[\s\S]*?border-color:\s*rgba\(255, 225, 157, 0\.62\) !important;/);
+assert.match(css, /\.viewer-inquiry-button\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?border-radius:\s*999px;/);
 assert.doesNotMatch(css, /\.viewer-onboarding-floating-target\s*\{[\s\S]*?inset:\s*auto !important;/);
 assert.doesNotMatch(css, /\.thumbs-hotspot|\.lightbox-thumbs|\.lightbox-thumb/);
 assert.match(css, /\.viewer-onboarding-callout\s*\{[\s\S]*?border-radius:\s*24px;/);

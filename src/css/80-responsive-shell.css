@@ -298,26 +298,25 @@
 }
 
 @media (max-width: 480px) {
-  .lightbox { --reader-mobile-toolbar-height: 102px; }
+  .lightbox { --reader-mobile-toolbar-height: 58px; }
   .reader-header,
   .reader-header.lightbox-reader-header {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "brand"
-      "actions";
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "brand actions";
+    gap: 5px;
   }
   .reader-brand-actions {
-    width: 100%;
-    justify-self: stretch;
-    justify-content: space-between;
+    width: auto;
+    min-width: 0;
+    justify-self: start;
+    justify-content: flex-start;
   }
   .lightbox-actions {
-    width: 100%;
-    justify-self: stretch;
-    justify-content: center;
+    width: auto;
+    justify-self: end;
+    justify-content: flex-end;
   }
-  .lightbox-top-hotspot { height: 102px; }
+  .lightbox-top-hotspot { height: 58px; }
 }
 
 @media (max-width: 420px) {

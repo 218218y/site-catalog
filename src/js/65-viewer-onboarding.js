@@ -51,54 +51,11 @@ function viewerZoomOnboardingCopy() {
 function getViewerOnboardingSteps() {
   return [
     {
-      id: "top-bar",
-      eyebrow: "כלי הצפייה",
-      title: "הסרגל העליון",
-      description: "הזיזו את הסמן או געו בקצה העליון כדי לפתוח אותו. כאן נמצאים החיפוש, השיתוף, הורדת התמונה וכלי התצוגה.",
-      note: "במחשב משולב אפשר להשתמש במגע, בעכבר ובמקלדת במקביל — ההסבר מתאים לכל דרכי הקלט.",
-      target: () => els.lightboxBar?.querySelector?.(".lightbox-reader-header") || els.lightboxBar,
-      targetRect: getViewerOnboardingTopBarFocusRect,
-      preferredPlacement: "below",
-      padding: 0,
-      viewportMargin: 0,
-      radius: 0,
-      revealTopBar: true,
-      gesture: "top-edge"
-    },
-    {
-      id: "pin-top-bar",
-      eyebrow: "גישה קבועה לכלים",
-      title: "נעיצת הסרגל העליון",
-      description: "לחיצה על סמל הנעץ משאירה את הסרגל פתוח. לחיצה נוספת מחזירה אותו למצב שנפתח רק כשמתקרבים לקצה העליון.",
-      note: "אפשר ללחוץ על כפתור הנעץ האמיתי כבר עכשיו.",
-      target: () => els.lightboxPinTopBar,
-      targetRect: getViewerOnboardingPinFocusRect,
-      floatingTarget: () => els.lightboxPinTopBar,
-      preferredPlacement: "below",
-      padding: 0,
-      viewportMargin: 0,
-      radius: 25,
-      revealTopBar: true,
-      gesture: "tap"
-    },
-    {
-      id: "page-rail",
-      eyebrow: "מעבר מהיר",
-      title: "סרגל העמודים הימני",
-      description: "הזיזו את הסמן או געו בקצה הימני כדי לפתוח את כל העמודים. לחיצה על תמונה ממוזערת מעבירה מיד לעמוד שבחרתם.",
-      target: () => els.lightboxPageRail,
-      targetRect: getViewerOnboardingPageRailFocusRect,
-      preferredPlacement: "left",
-      padding: 7,
-      radius: 18,
-      revealPageRail: true,
-      gesture: "right-edge"
-    },
-    {
       id: "page-navigation",
-      eyebrow: "עמוד קדימה ואחורה",
+      eyebrow: "צפייה פשוטה",
       title: "מעבר בין עמודים",
       description: viewerNavigationOnboardingCopy(),
+      note: "למעבר מהיר לעמוד רחוק, פתחו את סרגל התמונות הממוזערות מהקצה הימני.",
       target: () => els.stageCanvas,
       targetRect: getViewerOnboardingNavigationFocusRect,
       floatingTarget: () => els.nextPageBtn,
@@ -122,16 +79,16 @@ function getViewerOnboardingSteps() {
       gesture: viewerHasTouchCapability() ? "pinch" : "double-tap"
     },
     {
-      id: "favorite",
-      eyebrow: "לשמור להמשך",
-      title: "הוספה למועדפים",
-      description: "לחצו על הכוכב כדי לשמור את העמוד. תוכלו לפתוח אחר כך את כל העמודים ששמרתם מתוך אזור המועדפים.",
-      note: "לשיתוף קישור מדויק לעמוד השתמשו בכפתור השיתוף שבסרגל העליון.",
-      target: () => els.viewerFavoriteButton,
-      floatingTarget: () => els.viewerFavoriteButton,
+      id: "inquiry",
+      eyebrow: "מצאתם דגם מתאים?",
+      title: "שמירה, שיתוף ובירור",
+      description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
+      note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
+      target: () => els.viewerInquiryButton,
+      floatingTarget: () => els.viewerInquiryButton,
       preferredPlacement: "left",
-      padding: 10,
-      radius: 18,
+      padding: 8,
+      radius: 24,
       gesture: "tap"
     }
   ];
@@ -477,7 +434,7 @@ function renderViewerOnboardingStep(options = {}) {
   }
   if (els.viewerOnboardingPrevious) els.viewerOnboardingPrevious.disabled = state.viewerOnboardingStep === 0;
   if (els.viewerOnboardingNext) {
-    els.viewerOnboardingNext.textContent = state.viewerOnboardingStep === steps.length - 1 ? "סיום והתחלה" : "הבא";
+    els.viewerOnboardingNext.textContent = state.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא";
   }
   if (els.viewerOnboardingDots) {
     els.viewerOnboardingDots.innerHTML = steps.map((_, index) => (

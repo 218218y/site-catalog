@@ -291,6 +291,38 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightbox")).toBeVisible();
   });
 
+  test("prepares an exact catalog-page inquiry and copies it for contact", async ({ page }) => {
+    await preparePage(page, { captureClipboard: true });
+    const inquiryPage = Math.min(5, CATALOG_PAGES);
+    await openDirectViewer(page, inquiryPage);
+
+    await page.locator("#viewerInquiryButton").click();
+    const dialog = page.locator("#viewerInquiryOverlay");
+    await expect(dialog).toHaveAttribute("aria-hidden", "false");
+    await expect(page.locator("#viewerInquiryCatalog")).toHaveText(testCatalog.title);
+    await expect(page.locator("#viewerInquiryPage")).toContainText(`עמוד ${inquiryPage}`);
+
+    const emailDetails = await page.locator("#viewerInquiryEmail").evaluate((link) => {
+      const url = new URL(link.href);
+      return {
+        subject: url.searchParams.get("subject"),
+        body: url.searchParams.get("body")
+      };
+    });
+    expect(emailDetails.subject).toContain(testCatalog.title);
+    expect(emailDetails.subject).toContain(`עמוד ${inquiryPage}`);
+    expect(emailDetails.body).toContain(`קטלוג: ${testCatalog.title}`);
+    expect(emailDetails.body).toContain(`עמוד: ${inquiryPage}`);
+    expect(emailDetails.body).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+
+    await page.locator("#viewerInquiryCopy").click();
+    await expect(dialog).toBeHidden();
+    const copied = await page.evaluate(() => window.__bargigE2eClipboard || "");
+    expect(copied).toContain(`קטלוג: ${testCatalog.title}`);
+    expect(copied).toContain(`עמוד: ${inquiryPage}`);
+    expect(copied).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+  });
+
   test("persists a favorite through reload and shows it on the favorites page", async ({ page }) => {
     await preparePage(page);
     await openDirectViewer(page, 3);
@@ -840,7 +872,7 @@ test.describe("critical catalog journeys", () => {
     const tour = page.locator("#viewerOnboarding");
     await expect(tour).toHaveAttribute("aria-hidden", "false");
     await expect(tour).toHaveClass(/layout-ready/);
-    await expect(page.locator("#viewerOnboardingCounter")).toHaveText("1 מתוך 6");
+    await expect(page.locator("#viewerOnboardingCounter")).toHaveText("1 מתוך 3");
     await expect(page.locator("#viewerOnboardingCard")).toBeInViewport();
 
     await page.locator("#viewerOnboardingSkip").click();
@@ -862,19 +894,31 @@ test.describe("critical catalog journeys", () => {
 
     await page.locator("#globalSearchOpen").click();
     await page.locator("#globalSearchInput").fill("פתיחת");
-    await expect(page.locator("#globalSearchResults [data-search-catalog]").first()).toBeVisible();
-    await expect.poll(() => events.map((event) => event.name), { timeout: 3500 }).toContain("search");
-    await page.locator("#globalSearchClose").click();
-
-    await page.locator(".catalog-open-button").first().click();
+    const firstSearchResult = page.locator("#globalSearchResults [data-search-catalog]").first();
+    await expect(firstSearchResult).toBeVisible();
+    await page.waitForTimeout(1100);
+    expect(events.filter((event) => event.name === "search")).toHaveLength(0);
+    await firstSearchResult.click();
     await expectCurrentViewerImageReady(page);
+    await expect.poll(() => events.filter((event) => event.name === "search").length, { timeout: 3500 }).toBe(1);
+    const completedSearch = events.find((event) => event.name === "search");
+    expect(completedSearch.action).toBe("result-open");
+    expect(completedSearch.query).toBe("פתיחת");
+
     await page.locator("#viewerFavoriteButton").click();
+    await page.locator("#viewerInquiryButton").click();
+    await page.locator("#viewerInquiryCopy").click();
     await page.waitForTimeout(1200);
 
     const names = events.map((event) => event.name);
     expect(names).toContain("search");
     expect(names).toContain("catalog_open");
     expect(names).toContain("favorite");
+    expect(names).toContain("contact");
+    const inquiryContact = events.find((event) => event.name === "contact" && event.action === "copy");
+    expect(inquiryContact?.source).toBe("viewer-inquiry");
+    expect(inquiryContact?.catalogId).toBe(CATALOG_ID);
+    expect(inquiryContact?.pageNumber).toBeGreaterThanOrEqual(1);
     expect(names).not.toContain("page_view");
     expect(names).not.toContain("page_load");
     expect(names).not.toContain("first_catalog_image");
@@ -961,6 +1005,16 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=1`));
   await expectCurrentViewerImageReady(page);
   await expectViewerFrameCentered(page);
+  await expect(page.locator("#viewerMobileMoreToggle")).toBeVisible();
+  await expect(page.locator("#lightboxScreenshot")).toBeHidden();
+  await expect(page.locator("#lightboxPinTopBar")).toBeHidden();
+  await expect(page.locator("#fitHeightBtn")).toBeHidden();
+  await page.locator("#viewerMobileMoreToggle").click();
+  await expect(page.locator("#viewerMobileMoreMenu")).toBeVisible();
+  await expect(page.locator('[data-viewer-mobile-action="download"]')).toBeVisible();
+  await expect(page.locator('[data-viewer-mobile-action="fit-width"]')).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#viewerMobileMoreMenu")).toBeHidden();
   await page.locator("#nextPageBtn").click();
   await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
 

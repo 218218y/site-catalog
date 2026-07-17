@@ -444,7 +444,7 @@ npm run setup:browsers
 
 ## ניטור תפעולי ואבטחת האתר
 
-האתר כולל מערכת ניטור מצומצמת ושומרת פרטיות. הממשק שולח אירועים מאושרים בלבד אל `/api/telemetry`, ו־Cloudflare Pages Function שומר אותם ב־Workers Analytics Engine. Cloudflare Web Analytics מודד ביקורים ומדדי ביצועים מצטברים. המערכת המותאמת מודדת רק פתיחת קטלוגים, חיפושים ותוצאותיהם, שימוש במועדפים, לחיצות יצירת קשר ושגיאות JavaScript/תמונה, כדי לא לאסוף את אותם נתונים פעמיים. היא אינה יוצרת עוגיות או מזהה מבקר מתמשך, ואינה שולחת IP, User-Agent, referrer מלא או stack של שגיאה. Global Privacy Control ו־Do Not Track מכבים את המדידה בדפדפן.
+האתר כולל מערכת ניטור מצומצמת ושומרת פרטיות. הממשק שולח אירועים מאושרים בלבד אל `/api/telemetry`, ו־Cloudflare Pages Function שומר אותם ב־Workers Analytics Engine. Cloudflare Web Analytics מודד ביקורים ומדדי ביצועים מצטברים. המערכת המותאמת מודדת רק פתיחת קטלוגים, חיפושים שהושלמו ותוצאותיהם, שימוש במועדפים, פעולות יצירת קשר ושגיאות JavaScript/תמונה, כדי לא לאסוף את אותם נתונים פעמיים. הקלדה חלקית אינה נרשמת כחיפוש; אירוע נוצר רק בשליחה עם Enter או בפתיחת תוצאה. היא אינה יוצרת עוגיות או מזהה מבקר מתמשך, ואינה שולחת IP, User-Agent, referrer מלא או stack של שגיאה. Global Privacy Control ו־Do Not Track מכבים את המדידה בדפדפן.
 
 הגדרת Cloudflare נמצאת ב־`wrangler.jsonc`, וה־Function נמצא ב־`functions/api/telemetry.js`. כלי ההעלאה בודק שהפרויקט, תיקיית הפלט וה־binding `SITE_TELEMETRY` תואמים לפני שהוא מפעיל את Wrangler.
 

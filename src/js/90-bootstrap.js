@@ -86,6 +86,15 @@ function attachShellEvents() {
       return;
     }
     if (!state.lightboxOpen) return;
+    if (state.viewerInquiryOpen) {
+      handleViewerInquiryKeydown(event);
+      return;
+    }
+    if (event.key === "Escape" && state.viewerMobileMoreOpen) {
+      event.preventDefault();
+      closeViewerMobileMoreMenu({ returnFocus: true });
+      return;
+    }
     if (state.viewerOnboardingOpen) {
       handleViewerOnboardingKeydown(event);
       return;
@@ -141,6 +150,7 @@ function attachEvents() {
   bindFeatureEventsOnce("search-ui", attachSearchUiEvents);
   bindFeatureEventsOnce("shell", attachShellEvents);
   bindFeatureEventsOnce("favorites-share", attachFavoritesShareEvents);
+  bindFeatureEventsOnce("viewer-actions", attachViewerActionEvents);
   bindFeatureEventsOnce("viewer-onboarding", attachViewerOnboardingEvents);
   bindFeatureEventsOnce("viewer", attachViewerEvents);
   bindFeatureEventsOnce("navigation", attachNavigationEvents);

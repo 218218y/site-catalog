@@ -33,6 +33,7 @@ const jsSources = [
   ['src/js/40-catalog-grid.js', /function renderCatalogCards/],
   ['src/js/50-search-ui.js', /function renderSearchResults/],
   ['src/js/60-viewer.js', /function openLightbox/],
+  ['src/js/62-viewer-actions.js', /function openViewerInquiry/],
   ['src/js/65-viewer-onboarding.js', /function showViewerOnboardingIfNeeded/],
   ['src/js/70-viewer-input.js', /function startPointerInteraction/],
   ['src/js/90-bootstrap.js', /function attachEvents/]
@@ -48,6 +49,7 @@ assert.equal((app.match(/initResult = init\(\);/g) || []).length, 1);
 assert.equal((app.match(/function attachEvents\(/g) || []).length, 1);
 assert.match(app, /function bindFeatureEventsOnce\(/);
 assert.match(app, /bindFeatureEventsOnce\("catalog-grid", attachCatalogGridEvents\)/);
+assert.match(app, /bindFeatureEventsOnce\("viewer-actions", attachViewerActionEvents\)/);
 assert.match(app, /bindFeatureEventsOnce\("viewer-onboarding", attachViewerOnboardingEvents\)/);
 assert.match(app, /bindFeatureEventsOnce\("viewer", attachViewerEvents\)/);
 

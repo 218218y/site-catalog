@@ -246,10 +246,10 @@ function showTopUiTemporarily(delay = 2200) {
   if (!els.lightbox) return;
   window.clearTimeout(state.uiHideTimer);
   els.lightbox.classList.add("show-ui");
-  if (state.topUiPinned) return;
+  if (state.topUiPinned || state.viewerMobileMoreOpen) return;
   if (delay > 0) {
     state.uiHideTimer = window.setTimeout(() => {
-      if (!state.topUiPinned) els.lightbox.classList.remove("show-ui");
+      if (!state.topUiPinned && !state.viewerMobileMoreOpen) els.lightbox.classList.remove("show-ui");
     }, delay);
   }
 }
@@ -306,6 +306,7 @@ function syncTopUiPinnedUi() {
   els.lightbox?.classList.toggle("top-ui-pinned", pinned);
   if (pinned) els.lightbox?.classList.add("show-ui");
   syncLightboxTopSafeArea();
+  syncViewerMobileMoreMenuState();
 
   if (!els.lightboxPinTopBar) return;
   els.lightboxPinTopBar.dataset.pinned = pinned ? "true" : "false";
@@ -338,7 +339,7 @@ function pointInRect(point, rect, padding = 0) {
 }
 
 function shouldKeepTopUiOpenForPointer(event = null) {
-  if (state.topUiPinned) return true;
+  if (state.topUiPinned || state.viewerMobileMoreOpen) return true;
   const point = getViewportPointer(event);
   if (!point || !els.lightboxBar) return false;
 
@@ -357,11 +358,11 @@ function shouldKeepTopUiOpenForPointer(event = null) {
 }
 
 function scheduleTopUiClose(event = null) {
-  if (!els.lightbox || !state.lightboxOpen || state.topUiPinned) return;
+  if (!els.lightbox || !state.lightboxOpen || state.topUiPinned || state.viewerMobileMoreOpen) return;
   if (shouldKeepTopUiOpenForPointer(event)) return;
   window.clearTimeout(state.uiHideTimer);
   state.uiHideTimer = window.setTimeout(() => {
-    if (!state.topUiPinned) els.lightbox?.classList.remove("show-ui");
+    if (!state.topUiPinned && !state.viewerMobileMoreOpen) els.lightbox?.classList.remove("show-ui");
   }, 420);
 }
 
@@ -752,6 +753,7 @@ function syncViewerFitModeUi() {
   }
 
   syncViewerAutoZoomButtonUi();
+  syncViewerMobileMoreMenuState();
 }
 
 
@@ -1704,6 +1706,7 @@ function syncViewerScrollActivePage(page) {
   els.prevPageBtn.disabled = state.page <= 1;
   els.nextPageBtn.disabled = state.page >= state.catalog.pages;
   syncViewerFavoriteButtonUi();
+  syncViewerInquiryUi();
   updateLightboxThumbs({ scrollIntoView: false });
   updateHash();
 }
@@ -1768,6 +1771,8 @@ function updateLightbox(options = {}) {
   const catalog = state.catalog;
   state.page = clampPage(state.page, catalog);
   syncLightboxModeUi();
+  syncViewerInquiryUi();
+  syncViewerMobileMoreMenuState();
 
   els.lightboxTitle.textContent = catalog.title;
   if (favoriteEntries) {
@@ -1867,6 +1872,8 @@ function openLightbox(page = 1, options = {}) {
   resetImagePosition({ queueSingleFitOrigin: true });
   state.pointers.clear();
   hideViewerZoomIndicator();
+  closeViewerInquiry({ restoreFocus: false });
+  closeViewerMobileMoreMenu();
   state.lightboxOpen = true;
   telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
@@ -1897,6 +1904,8 @@ function openLightbox(page = 1, options = {}) {
 
 function hideLightboxUi() {
   closeViewerOnboarding({ restoreFocus: false });
+  closeViewerInquiry({ restoreFocus: false });
+  closeViewerMobileMoreMenu();
   state.lightboxOpen = false;
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
