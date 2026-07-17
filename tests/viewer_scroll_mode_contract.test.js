@@ -11,25 +11,19 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 
 for (const html of [template, viewer]) {
-  assert.match(html, /id="lightboxMobileSearchToggle"[\s\S]*?id="viewerLayoutToggle"[\s\S]*?class="viewer-control-separator"[\s\S]*?id="fitHeightBtn"/);
-  assert.match(html, /id="viewerLayoutToggle"[^>]*aria-label="מעבר לתצוגת צדדים"[^>]*aria-pressed="true"[^>]*data-viewer-layout="scroll"/);
-  assert.match(html, /class="viewer-layout-icon viewer-layout-icon-scroll"/);
-  assert.match(html, /class="viewer-layout-icon viewer-layout-icon-side"/);
+  assert.match(html, /id="lightboxMobileSearchToggle"[\s\S]*?class="viewer-control-separator"[\s\S]*?id="fitHeightBtn"/);
+  assert.doesNotMatch(html, /id="viewerLayoutToggle"/);
+  assert.doesNotMatch(html, /viewer-layout-icon-(?:scroll|side)/);
   assert.match(html, /id="viewerScrollPages"[^>]*role="list"/);
 }
 
 assert.match(app, /const VIEWER_LAYOUT_SIDE = "side";/);
 assert.match(app, /const VIEWER_LAYOUT_SCROLL = "scroll";/);
-assert.match(app, /const VIEWER_LAYOUT_STORAGE_KEY = "bargig\.viewer-layout\.v1";/);
-assert.match(app, /function readViewerLayoutPreference\(\)/);
-assert.match(app, /getItem\(VIEWER_LAYOUT_STORAGE_KEY\) === VIEWER_LAYOUT_SIDE[\s\S]*?\? VIEWER_LAYOUT_SIDE[\s\S]*?: VIEWER_LAYOUT_SCROLL/);
-assert.match(app, /function writeViewerLayoutPreference\(layoutMode\)/);
-assert.match(app, /normalizedMode === VIEWER_LAYOUT_SIDE[\s\S]*?setItem\(VIEWER_LAYOUT_STORAGE_KEY, VIEWER_LAYOUT_SIDE\)[\s\S]*?removeItem\(VIEWER_LAYOUT_STORAGE_KEY\)/);
-assert.match(app, /viewerLayoutMode: readViewerLayoutPreference\(\)/);
-assert.match(app, /state\.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES[\s\S]*?readViewerLayoutPreference\(\)/);
-assert.match(app, /function setViewerLayoutMode\(layoutMode, options = \{\}\)/);
-assert.match(app, /writeViewerLayoutPreference\(nextMode\)/);
-assert.match(app, /function toggleViewerLayoutMode\(\)/);
+assert.match(app, /viewerLayoutMode: VIEWER_LAYOUT_SCROLL/);
+assert.match(app, /const requiredMode = favoritesMode \? VIEWER_LAYOUT_SIDE : VIEWER_LAYOUT_SCROLL;/);
+assert.match(app, /state\.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES[\s\S]*?\? VIEWER_LAYOUT_SIDE[\s\S]*?: VIEWER_LAYOUT_SCROLL/);
+assert.doesNotMatch(app, /VIEWER_LAYOUT_STORAGE_KEY|readViewerLayoutPreference|writeViewerLayoutPreference/);
+assert.doesNotMatch(app, /viewerLayoutToggle|toggleViewerLayoutMode|setViewerLayoutMode/);
 assert.match(app, /function renderViewerScrollPages\(\)/);
 assert.match(app, /function loadViewerScrollWindow\(centerPage\)/);
 assert.match(app, /for \(let page = Math\.max\(1, center - 2\); page <= Math\.min\(state\.catalog\.pages, center \+ 2\); page \+= 1\)/);
@@ -113,7 +107,7 @@ assert.match(app, /updateLightbox\(\{[\s\S]*?scrollToPage: isScrollViewerMode\(\
 assert.match(app, /const showButton = Boolean\(state\.lightboxOpen && !isAutoViewerZoom\(\)\)/);
 
 assert.match(css, /\.viewer-control-separator\s*\{/);
-assert.match(css, /\.viewer-layout-toggle\[data-viewer-layout="scroll"\]/);
+assert.doesNotMatch(css, /viewer-layout-toggle|viewer-layout-icon/);
 assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?overflow-x:\s*auto;[\s\S]*?overflow-y:\s*auto;/);
 assert.match(css, /\.viewer-scroll-pages\s*\{[\s\S]*?touch-action:\s*pan-y;/);
 assert.doesNotMatch(css, /viewer-wheel-gesture-active/);

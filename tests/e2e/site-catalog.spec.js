@@ -62,9 +62,10 @@ async function preparePage(page, options = {}) {
   const onboardingSeen = options.onboardingSeen !== false;
   const resetFavorites = options.resetFavorites !== false;
   const resetViewerLayout = options.resetViewerLayout !== false;
+  const legacyViewerLayout = options.legacyViewerLayout === "side" ? "side" : "";
   const captureClipboard = options.captureClipboard === true;
   const telemetryEvents = Array.isArray(options.telemetryEvents) ? options.telemetryEvents : null;
-  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, captureClipboard, enableTelemetry }) => {
+  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, legacyViewerLayout, captureClipboard, enableTelemetry }) => {
     if (enableTelemetry) window.__BARGIG_ENABLE_TELEMETRY__ = true;
     if (sessionStorage.getItem("bargig.e2e-onboarding-prepared") !== "1") {
       if (onboardingSeen) localStorage.setItem(onboardingKey, "1");
@@ -79,6 +80,7 @@ async function preparePage(page, options = {}) {
       localStorage.removeItem(viewerLayoutKey);
       sessionStorage.setItem("bargig.e2e-viewer-layout-prepared", "1");
     }
+    if (legacyViewerLayout) localStorage.setItem(viewerLayoutKey, legacyViewerLayout);
     if (captureClipboard) {
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
@@ -96,6 +98,7 @@ async function preparePage(page, options = {}) {
     onboardingSeen,
     resetFavorites,
     resetViewerLayout,
+    legacyViewerLayout,
     captureClipboard,
     enableTelemetry: Boolean(telemetryEvents)
   });
@@ -427,16 +430,14 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
   });
 
-  test("starts in progressively loaded scroll layout and can switch to side layout", async ({ page }) => {
+  test("starts in progressively loaded scroll layout without a layout switch control", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(4, CATALOG_PAGES);
     await openDirectViewer(page, startPage);
 
-    const toggle = page.locator("#viewerLayoutToggle");
     const scrollPages = page.locator("#viewerScrollPages");
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
-    await expect(toggle).toHaveAttribute("data-viewer-layout", "scroll");
-    await expect(toggle).toHaveAttribute("aria-label", "מעבר לתצוגת צדדים");
+    await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
     await expect(scrollPages.locator("[data-scroll-page]")).toHaveCount(CATALOG_PAGES);
     await expect.poll(() => scrollPages.locator("img[src]").count()).toBeLessThanOrEqual(5);
     await expect.poll(() => scrollPages.locator("img[src]").count()).toBeGreaterThan(0);
@@ -452,29 +453,25 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightboxBar")).toBeVisible();
     await page.locator("#fitWidthBtn").click();
     await expect(page.locator("#fitWidthBtn")).toHaveAttribute("aria-pressed", "true");
-
-    await page.mouse.move(720, 1);
-    await expect(page.locator("#lightboxBar")).toBeVisible();
-    await toggle.click();
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-side/);
-    await expect(scrollPages).toBeHidden();
-    await expect(page.locator("#lightboxImage")).toHaveAttribute("src", new RegExp(`page-${String(startPage < CATALOG_PAGES ? startPage + 1 : startPage).padStart(3, "0")}\.webp`));
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    await expect(scrollPages).toBeVisible();
   });
 
-  test("defaults to scroll, remembers only side override, isolates zoom, and jumps to selected pages", async ({ page }) => {
-    await preparePage(page);
+  test("ignores a legacy side preference, isolates zoom, and jumps to selected pages", async ({ page }) => {
+    await preparePage(page, { legacyViewerLayout: "side" });
     const startPage = Math.min(3, CATALOG_PAGES);
     await openDirectViewer(page, startPage);
 
-    const toggle = page.locator("#viewerLayoutToggle");
     const scrollPages = page.locator("#viewerScrollPages");
     const autoZoomButton = page.locator("#viewerAutoZoomBtn");
 
-    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBeNull();
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("side");
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
     await page.reload();
     await waitForApp(page);
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
-    await expect(toggle).toHaveAttribute("data-viewer-layout", "scroll");
+    await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
     await expect.poll(() => scrollPages.locator(`[data-scroll-page="${startPage}"] img[src]`).count()).toBe(1);
 
@@ -528,19 +525,10 @@ test.describe("critical catalog journeys", () => {
 
     await page.mouse.move(720, 1);
     await expect(page.locator("#lightboxBar")).toBeVisible();
-    await toggle.click();
-    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("side");
-    await page.reload();
-    await waitForApp(page);
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-side/);
-    await expect(toggle).toHaveAttribute("data-viewer-layout", "side");
-
-    await toggle.click();
-    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBeNull();
-    await page.reload();
-    await waitForApp(page);
+    await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
-    await expect(toggle).toHaveAttribute("data-viewer-layout", "scroll");
+    await expect(scrollPages).toBeVisible();
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("side");
   });
 
 
@@ -840,7 +828,7 @@ test.describe("critical catalog journeys", () => {
     await expect(frame).toHaveClass(/image-ready/);
     await expect(frame).toHaveClass(/image-fallback/);
     await expect(frame.locator("[data-scroll-image-feedback]")).toContainText("מוצגת תצוגה מוקטנת");
-    await expect(frame.locator("[data-retry-scroll-page="2"]")).toBeVisible();
+    await expect(frame.locator('[data-retry-scroll-page="2"]')).toBeVisible();
     await expect(page.locator("#viewerLoading")).toBeHidden();
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
   });

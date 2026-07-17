@@ -223,7 +223,6 @@ const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
 const VIEWER_LAYOUT_SIDE = "side";
 const VIEWER_LAYOUT_SCROLL = "scroll";
-const VIEWER_LAYOUT_STORAGE_KEY = "bargig.viewer-layout.v1";
 const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
@@ -239,33 +238,6 @@ function getFavoritesStorage() {
     return window.localStorage;
   } catch (_error) {
     return null;
-  }
-}
-
-function readViewerLayoutPreference() {
-  try {
-    return getFavoritesStorage()?.getItem(VIEWER_LAYOUT_STORAGE_KEY) === VIEWER_LAYOUT_SIDE
-      ? VIEWER_LAYOUT_SIDE
-      : VIEWER_LAYOUT_SCROLL;
-  } catch (_error) {
-    return VIEWER_LAYOUT_SCROLL;
-  }
-}
-
-function writeViewerLayoutPreference(layoutMode) {
-  const normalizedMode = layoutMode === VIEWER_LAYOUT_SCROLL
-    ? VIEWER_LAYOUT_SCROLL
-    : VIEWER_LAYOUT_SIDE;
-  try {
-    const storage = getFavoritesStorage();
-    if (normalizedMode === VIEWER_LAYOUT_SIDE) {
-      storage?.setItem(VIEWER_LAYOUT_STORAGE_KEY, VIEWER_LAYOUT_SIDE);
-    } else {
-      storage?.removeItem(VIEWER_LAYOUT_STORAGE_KEY);
-    }
-    return true;
-  } catch (_error) {
-    return false;
   }
 }
 
@@ -311,7 +283,7 @@ const state = {
   zoom: 1,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
-  viewerLayoutMode: readViewerLayoutPreference(),
+  viewerLayoutMode: VIEWER_LAYOUT_SCROLL,
   singleImageFitOriginPending: false,
   panX: 0,
   panY: 0,
@@ -477,7 +449,6 @@ const els = {
   prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"),
   fullscreenToggle: $("fullscreenToggle"),
-  viewerLayoutToggle: $("viewerLayoutToggle"),
   viewerScrollPages: $("viewerScrollPages"),
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
@@ -4476,10 +4447,6 @@ function normalizeViewerFitMode(fitMode) {
   return fitMode === VIEWER_FIT_WIDTH ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
 }
 
-function normalizeViewerLayoutMode(layoutMode) {
-  return layoutMode === VIEWER_LAYOUT_SCROLL ? VIEWER_LAYOUT_SCROLL : VIEWER_LAYOUT_SIDE;
-}
-
 function isScrollViewerMode() {
   return state.viewerLayoutMode === VIEWER_LAYOUT_SCROLL && !isFavoritesLightboxMode();
 }
@@ -5428,8 +5395,13 @@ function syncLightboxProgress(current, total, title, options = {}) {
 
 function syncViewerLayoutModeUi() {
   const favoritesMode = isFavoritesLightboxMode();
-  if (favoritesMode && state.viewerLayoutMode !== VIEWER_LAYOUT_SIDE) {
-    state.viewerLayoutMode = VIEWER_LAYOUT_SIDE;
+  const requiredMode = favoritesMode ? VIEWER_LAYOUT_SIDE : VIEWER_LAYOUT_SCROLL;
+
+  // Layout is a source-level product rule, not a user preference: ordinary
+  // catalogs always use continuous scrolling, while favorites retain the
+  // side-by-side viewer until that dedicated flow is redesigned.
+  if (state.viewerLayoutMode !== requiredMode) {
+    state.viewerLayoutMode = requiredMode;
   }
 
   const scrollMode = isScrollViewerMode();
@@ -5439,15 +5411,6 @@ function syncViewerLayoutModeUi() {
   els.lightbox?.classList.toggle("viewer-scroll-zoom-isolated", isolatedZoom);
   els.lightboxImageFrame?.classList.toggle("hidden", scrollMode && !isolatedZoom);
   els.viewerScrollPages?.classList.toggle("hidden", !scrollMode);
-
-  const button = els.viewerLayoutToggle;
-  if (!button) return;
-  button.classList.toggle("hidden", favoritesMode);
-  button.dataset.viewerLayout = scrollMode ? VIEWER_LAYOUT_SCROLL : VIEWER_LAYOUT_SIDE;
-  button.setAttribute("aria-pressed", scrollMode ? "true" : "false");
-  const label = scrollMode ? "מעבר לתצוגת צדדים" : "מעבר לתצוגת גלילה";
-  button.setAttribute("aria-label", label);
-  setTooltipText(button, label, { updateDefault: true });
 }
 
 function getViewerScrollPageLayout(page) {
@@ -6162,46 +6125,6 @@ function scrollViewerByViewport(direction, options = {}) {
   return true;
 }
 
-function setViewerLayoutMode(layoutMode, options = {}) {
-  const requestedMode = normalizeViewerLayoutMode(layoutMode);
-  const nextMode = isFavoritesLightboxMode() ? VIEWER_LAYOUT_SIDE : requestedMode;
-  const changed = nextMode !== state.viewerLayoutMode;
-  state.viewerLayoutMode = nextMode;
-  if (!isFavoritesLightboxMode() && options.persist !== false) {
-    writeViewerLayoutPreference(nextMode);
-  }
-  state.viewerScrollIsolatedZoom = false;
-  state.viewerScrollIsolatedPage = 0;
-  state.zoom = AUTO_VIEWER_ZOOM;
-  resetImagePosition({ queueSingleFitOrigin: true });
-  state.pointers.clear();
-  hideViewerZoomIndicator();
-  state.singleImageLoadToken += 1;
-  clearViewerScrollWheelGesture();
-  clearViewerScrollTarget();
-  resetViewerScrollCommandSequence();
-  syncViewerLayoutModeUi();
-
-  if (isScrollViewerMode()) {
-    setViewerLoading(false);
-    els.lightbox?.classList.remove("is-page-loading", "is-zoomed");
-    renderViewerScrollPages();
-    const positionActivePage = () => scrollViewerToPage(state.page, {
-      behavior: options.behavior || "auto"
-    });
-    if (options.behavior === "smooth") requestAnimationFrame(positionActivePage);
-    else positionActivePage();
-  } else if (state.lightboxOpen && state.catalog) {
-    updateLightbox();
-  }
-
-  if (changed && options.showUi !== false) showTopUiTemporarily(1800);
-}
-
-function toggleViewerLayoutMode() {
-  setViewerLayoutMode(isScrollViewerMode() ? VIEWER_LAYOUT_SIDE : VIEWER_LAYOUT_SCROLL);
-}
-
 function updateLightbox(options = {}) {
   if (!state.catalog) return;
   const {
@@ -6315,7 +6238,7 @@ function openLightbox(page = 1, options = {}) {
   state.imageFitMode = VIEWER_FIT_HEIGHT;
   state.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES
     ? VIEWER_LAYOUT_SIDE
-    : readViewerLayoutPreference();
+    : VIEWER_LAYOUT_SCROLL;
   state.viewerScrollCatalogId = "";
   state.viewerScrollLoadToken += 1;
   state.viewerScrollIsolatedZoom = false;
@@ -6360,7 +6283,7 @@ function hideLightboxUi() {
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
   state.viewerScrollLoadToken += 1;
-  state.viewerLayoutMode = VIEWER_LAYOUT_SIDE;
+  state.viewerLayoutMode = VIEWER_LAYOUT_SCROLL;
   state.viewerScrollCatalogId = "";
   if (state.viewerScrollRaf) cancelAnimationFrame(state.viewerScrollRaf);
   state.viewerScrollRaf = 0;
@@ -6728,7 +6651,6 @@ function attachViewerEvents() {
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
   els.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
   els.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.fullscreenToggle));
-  els.viewerLayoutToggle?.addEventListener("click", toggleViewerLayoutMode);
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
   els.fitHeightBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_HEIGHT));

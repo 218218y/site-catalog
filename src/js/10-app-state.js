@@ -13,7 +13,6 @@ const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
 const VIEWER_LAYOUT_SIDE = "side";
 const VIEWER_LAYOUT_SCROLL = "scroll";
-const VIEWER_LAYOUT_STORAGE_KEY = "bargig.viewer-layout.v1";
 const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
@@ -29,33 +28,6 @@ function getFavoritesStorage() {
     return window.localStorage;
   } catch (_error) {
     return null;
-  }
-}
-
-function readViewerLayoutPreference() {
-  try {
-    return getFavoritesStorage()?.getItem(VIEWER_LAYOUT_STORAGE_KEY) === VIEWER_LAYOUT_SIDE
-      ? VIEWER_LAYOUT_SIDE
-      : VIEWER_LAYOUT_SCROLL;
-  } catch (_error) {
-    return VIEWER_LAYOUT_SCROLL;
-  }
-}
-
-function writeViewerLayoutPreference(layoutMode) {
-  const normalizedMode = layoutMode === VIEWER_LAYOUT_SCROLL
-    ? VIEWER_LAYOUT_SCROLL
-    : VIEWER_LAYOUT_SIDE;
-  try {
-    const storage = getFavoritesStorage();
-    if (normalizedMode === VIEWER_LAYOUT_SIDE) {
-      storage?.setItem(VIEWER_LAYOUT_STORAGE_KEY, VIEWER_LAYOUT_SIDE);
-    } else {
-      storage?.removeItem(VIEWER_LAYOUT_STORAGE_KEY);
-    }
-    return true;
-  } catch (_error) {
-    return false;
   }
 }
 
@@ -101,7 +73,7 @@ const state = {
   zoom: 1,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
-  viewerLayoutMode: readViewerLayoutPreference(),
+  viewerLayoutMode: VIEWER_LAYOUT_SCROLL,
   singleImageFitOriginPending: false,
   panX: 0,
   panY: 0,
@@ -267,7 +239,6 @@ const els = {
   prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"),
   fullscreenToggle: $("fullscreenToggle"),
-  viewerLayoutToggle: $("viewerLayoutToggle"),
   viewerScrollPages: $("viewerScrollPages"),
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
