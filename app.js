@@ -373,6 +373,7 @@ const state = {
 const els = {
   splash: $("splashScreen"),
   catalogGrid: $("catalogGrid"),
+  catalogLoadStatus: $("catalogLoadStatus"),
   categoryNav: $("categoryNav"),
   mobileCategoryMenuToggle: $("mobileCategoryMenuToggle"),
   mobileCategoryMenu: $("mobileCategoryMenu"),
@@ -1076,8 +1077,14 @@ function finishSingleImageSwap(token) {
 
 function setSingleViewerImageFeedback(mode = "", message = "") {
   const visible = Boolean(mode && message);
+  const isError = mode === "error";
   els.viewerImageFeedback?.classList.toggle("hidden", !visible);
-  if (els.viewerImageFeedback) els.viewerImageFeedback.dataset.mode = visible ? mode : "";
+  if (els.viewerImageFeedback) {
+    els.viewerImageFeedback.dataset.mode = visible ? mode : "";
+    els.viewerImageFeedback.dataset.state = visible ? (isError ? "error" : "warning") : "";
+    els.viewerImageFeedback.setAttribute("role", isError ? "alert" : "status");
+    els.viewerImageFeedback.setAttribute("aria-live", isError ? "assertive" : "polite");
+  }
   if (els.viewerImageFeedbackText) els.viewerImageFeedbackText.textContent = message;
   els.viewerImageRetry?.classList.toggle("hidden", !visible);
   els.lightboxImageFrame?.classList.toggle("image-fallback", mode === "fallback");
@@ -1100,6 +1107,7 @@ function showSingleLightboxImage(catalog, page, src) {
   }
 
   setViewerLoading(true);
+  els.lightboxImageFrame?.setAttribute("aria-busy", "true");
   setSingleViewerImageFeedback();
   els.lightbox?.classList.add("is-page-loading");
   els.lightboxImageFrame?.classList.add("is-preparing-swap");
@@ -1132,6 +1140,7 @@ function showSingleLightboxImage(catalog, page, src) {
         applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
       }
       finishSingleImageSwap(token);
+      els.lightboxImageFrame?.setAttribute("aria-busy", "false");
       runSingleImageSwapAnimation();
       if (candidate.fallback) {
         setSingleViewerImageFeedback("fallback", "התמונה המלאה לא נטענה. מוצגת תצוגה מוקטנת; אפשר לנסות שוב.");
@@ -1142,6 +1151,7 @@ function showSingleLightboxImage(catalog, page, src) {
     onExhausted: () => {
       delete image.dataset.loadedQuality;
       finishSingleImageSwap(token);
+      els.lightboxImageFrame?.setAttribute("aria-busy", "false");
       els.lightboxImageFrame?.classList.add("image-terminal-error");
       setSingleViewerImageFeedback("error", "התמונה לא הצליחה להיטען. אפשר לנסות שוב.");
     }
@@ -2367,14 +2377,26 @@ function initRevealObserver() {
 
 function renderEmptyState() {
   const html = `
-    <article class="empty-state">
-      <strong>עדיין אין קטלוגים להצגה</strong>
-      <p>ברגע שיועלו קטלוגים, הם יופיעו כאן לבחירה ולצפייה.</p>
+    <article class="empty-state ui-state" data-state="empty" role="status">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M5 4.5h11.2A2.8 2.8 0 0 1 19 7.3v12.2H7.8A2.8 2.8 0 0 1 5 16.7V4.5Z"/><path d="M7.8 19.5A2.8 2.8 0 0 1 5 16.7c0-1.55 1.25-2.8 2.8-2.8H19"/></svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>עדיין אין קטלוגים להצגה</strong>
+        <p>ברגע שיועלו קטלוגים, הם יופיעו כאן לבחירה ולצפייה.</p>
+      </div>
     </article>
   `;
 
-  if (els.catalogGrid) els.catalogGrid.innerHTML = html;
-  if (els.pageGrid) els.pageGrid.innerHTML = html;
+  if (els.catalogGrid) {
+    els.catalogGrid.innerHTML = html;
+    els.catalogGrid.setAttribute("aria-busy", "false");
+    if (els.catalogLoadStatus) els.catalogLoadStatus.textContent = "אין קטלוגים זמינים כעת.";
+  }
+  if (els.pageGrid) {
+    els.pageGrid.innerHTML = html;
+    els.pageGrid.setAttribute("aria-busy", "false");
+  }
   if (els.catalogCount) els.catalogCount.textContent = "0";
   if (els.pageCount) els.pageCount.textContent = "0";
   renderCategoryNav([]);
@@ -3166,6 +3188,11 @@ function renderCatalogCards() {
 
   els.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
   els.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
+  els.catalogGrid.setAttribute("aria-busy", "false");
+  if (els.catalogLoadStatus) {
+    const count = catalogs.length;
+    els.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
+  }
 
   bindCatalogCardEvents();
   syncCatalogCategoryFocusFromHash({ animate: false });
@@ -3201,7 +3228,9 @@ function renderPageGrid() {
       </article>
     `);
   }
+  els.pageGrid.setAttribute("aria-busy", "true");
   els.pageGrid.innerHTML = cards.join("");
+  els.pageGrid.setAttribute("aria-busy", "false");
 
   els.pageGrid.querySelectorAll("[data-open-page]").forEach((button) => {
     button.addEventListener("click", () => openLightbox(Number(button.dataset.openPage)));
@@ -4032,12 +4061,12 @@ function updateLightboxSearchResultsLayout(count = 0) {
 function searchEmptyStateMarkup(query, message, options = {}) {
   const reader = options.reader === true;
   const wrapperClass = reader
-    ? "reader-search-empty lightbox-search-empty empty-state empty-state-dark"
-    : "search-empty empty-state";
+    ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark"
+    : "search-empty empty-state ui-state";
   const actionAttribute = reader ? "data-lightbox-empty-search-clear" : "data-empty-search-clear";
   return `
-    <article class="${wrapperClass}">
-      <span class="empty-state-icon" aria-hidden="true">
+    <article class="${wrapperClass}" data-state="empty" role="status">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" focusable="false">
           <circle cx="10.5" cy="10.5" r="5.8"></circle>
           <path d="m15 15 4.2 4.2M8.2 8.2l4.6 4.6M12.8 8.2l-4.6 4.6"></path>
@@ -4050,6 +4079,36 @@ function searchEmptyStateMarkup(query, message, options = {}) {
       <button class="button soft empty-state-action" type="button" ${actionAttribute}>נקה וחפש מחדש</button>
     </article>
   `;
+}
+
+function searchIndexErrorMarkup(options = {}) {
+  const reader = options.reader === true;
+  const wrapperClass = reader
+    ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark"
+    : "search-empty empty-state ui-state";
+  const retryAttribute = reader ? "data-lightbox-search-index-retry" : "data-global-search-index-retry";
+  return `
+    <article class="${wrapperClass}" data-state="error" role="alert">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>החיפוש אינו זמין כרגע</strong>
+        <p>אינדקס החיפוש לא הצליח להיטען. אפשר לנסות שוב בלי לרענן את העמוד.</p>
+      </div>
+      <button class="button soft empty-state-action" type="button" ${retryAttribute}>נסה לטעון שוב</button>
+    </article>
+  `;
+}
+
+function retrySearchIndexLoad(options = {}) {
+  state.searchIndexLoadPromise = null;
+  state.searchIndexLoadState = "idle";
+  const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
+  existing?.remove?.();
+  ensureSearchIndexLoaded().catch(() => {});
+  if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
+  else renderSearchResults(els.globalSearchInput?.value || "");
 }
 
 function renderLightboxSearchResults(query) {
@@ -4069,9 +4128,16 @@ function renderLightboxSearchResults(query) {
   }
 
   if (!state.catalog || !catalogSearch?.hasIndex?.()) {
-    els.lightboxSearchResults.classList.add("hidden");
-    els.lightboxSearchResults.innerHTML = "";
-    els.lightboxSearchStatus.textContent = "אין אינדקס חיפוש פעיל לקטלוג הזה.";
+    if (state.catalog && state.searchIndexLoadState === "error") {
+      els.lightboxSearchResults.classList.remove("hidden");
+      els.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: true });
+      els.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: true }));
+      els.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.";
+    } else {
+      els.lightboxSearchResults.classList.add("hidden");
+      els.lightboxSearchResults.innerHTML = "";
+      els.lightboxSearchStatus.textContent = "אין אינדקס חיפוש פעיל לקטלוג הזה.";
+    }
     return;
   }
 
@@ -4256,8 +4322,14 @@ function renderSearchResults(query) {
   const category = getGlobalSearchCategory();
 
   if (!catalogSearch?.hasIndex?.({ category })) {
-    els.globalSearchResults.classList.add("hidden");
-    els.globalSearchResults.innerHTML = "";
+    if (state.searchIndexLoadState === "error") {
+      els.globalSearchResults.classList.remove("hidden");
+      els.globalSearchResults.innerHTML = searchIndexErrorMarkup();
+      els.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad());
+    } else {
+      els.globalSearchResults.classList.add("hidden");
+      els.globalSearchResults.innerHTML = "";
+    }
     return;
   }
 
@@ -5206,6 +5278,7 @@ function syncViewerAutoZoomButtonUi() {
 
   els.viewerAutoZoomBtn.classList.toggle("hidden", !showButton);
   els.viewerAutoZoomBtn.setAttribute("aria-hidden", showButton ? "false" : "true");
+  els.viewerAutoZoomBtn.setAttribute("tabindex", showButton ? "0" : "-1");
   els.viewerAutoZoomBtn.setAttribute("aria-label", "חזרה לזום אוטומטי");
 
   // Keep the button itself icon-only and stationary; the clear explanation lives
@@ -5267,6 +5340,7 @@ function syncLightboxModeUi() {
   els.lightbox?.classList.toggle("favorites-viewer-mode", favoritesMode);
   els.favoriteOpenCatalogButton?.classList.toggle("hidden", !favoritesMode);
   els.favoriteOpenCatalogButton?.setAttribute("aria-hidden", favoritesMode ? "false" : "true");
+  els.favoriteOpenCatalogButton?.setAttribute("tabindex", favoritesMode ? "0" : "-1");
   els.prevPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הקודם" : "העמוד הקודם");
   els.nextPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הבא" : "העמוד הבא");
   syncViewerLayoutModeUi();
@@ -5825,9 +5899,13 @@ function setViewerScrollImageFeedback(frame, page, mode = "") {
 
   if (!feedback) {
     feedback = document.createElement("div");
-    feedback.className = "viewer-scroll-image-feedback";
+    feedback.className = "viewer-scroll-image-feedback ui-state";
     feedback.dataset.scrollImageFeedback = "true";
+    feedback.setAttribute("aria-atomic", "true");
     feedback.innerHTML = `
+      <span class="viewer-scroll-feedback-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
+      </span>
       <span data-scroll-image-feedback-text></span>
       <button type="button" data-retry-scroll-page="${page}">נסה שוב</button>
     `;
@@ -5839,8 +5917,12 @@ function setViewerScrollImageFeedback(frame, page, mode = "") {
       ? "מוצגת תצוגה מוקטנת."
       : "התמונה לא נטענה.";
   }
+  const isError = mode === "error";
+  feedback.dataset.state = isError ? "error" : "warning";
+  feedback.setAttribute("role", isError ? "alert" : "status");
+  feedback.setAttribute("aria-live", isError ? "assertive" : "polite");
   frame.classList.toggle("image-fallback", mode === "fallback");
-  frame.classList.toggle("image-terminal-error", mode === "error");
+  frame.classList.toggle("image-terminal-error", isError);
 }
 
 function loadViewerScrollPage(page, priority = "low") {
@@ -5856,6 +5938,7 @@ function loadViewerScrollPage(page, priority = "low") {
   if (!options.forceRefresh && image.dataset.loadingSrc === src) return;
   image.dataset.loadingSrc = src;
   image.dataset.logicalSrc = src;
+  frame.setAttribute("aria-busy", "true");
   image.loading = priority === "high" ? "eager" : "lazy";
   image.fetchPriority = priority;
   setViewerScrollImageFeedback(frame, page);
@@ -5883,6 +5966,7 @@ function loadViewerScrollPage(page, priority = "low") {
       image.dataset.loadedSrc = src;
       image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
       syncImagePlaceholderState(image);
+      frame.setAttribute("aria-busy", "false");
       setViewerScrollImageFeedback(frame, page, candidate.fallback ? "fallback" : "");
     },
     onExhausted: () => {
@@ -5890,6 +5974,7 @@ function loadViewerScrollPage(page, priority = "low") {
       delete image.dataset.loadedSrc;
       delete image.dataset.loadedQuality;
       syncImagePlaceholderState(image);
+      frame.setAttribute("aria-busy", "false");
       setViewerScrollImageFeedback(frame, page, "error");
     }
   });

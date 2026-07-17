@@ -162,6 +162,7 @@ const state = {
 const els = {
   splash: $("splashScreen"),
   catalogGrid: $("catalogGrid"),
+  catalogLoadStatus: $("catalogLoadStatus"),
   categoryNav: $("categoryNav"),
   mobileCategoryMenuToggle: $("mobileCategoryMenuToggle"),
   mobileCategoryMenu: $("mobileCategoryMenu"),

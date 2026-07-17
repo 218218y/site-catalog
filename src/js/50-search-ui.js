@@ -676,12 +676,12 @@ function updateLightboxSearchResultsLayout(count = 0) {
 function searchEmptyStateMarkup(query, message, options = {}) {
   const reader = options.reader === true;
   const wrapperClass = reader
-    ? "reader-search-empty lightbox-search-empty empty-state empty-state-dark"
-    : "search-empty empty-state";
+    ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark"
+    : "search-empty empty-state ui-state";
   const actionAttribute = reader ? "data-lightbox-empty-search-clear" : "data-empty-search-clear";
   return `
-    <article class="${wrapperClass}">
-      <span class="empty-state-icon" aria-hidden="true">
+    <article class="${wrapperClass}" data-state="empty" role="status">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" focusable="false">
           <circle cx="10.5" cy="10.5" r="5.8"></circle>
           <path d="m15 15 4.2 4.2M8.2 8.2l4.6 4.6M12.8 8.2l-4.6 4.6"></path>
@@ -694,6 +694,36 @@ function searchEmptyStateMarkup(query, message, options = {}) {
       <button class="button soft empty-state-action" type="button" ${actionAttribute}>נקה וחפש מחדש</button>
     </article>
   `;
+}
+
+function searchIndexErrorMarkup(options = {}) {
+  const reader = options.reader === true;
+  const wrapperClass = reader
+    ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark"
+    : "search-empty empty-state ui-state";
+  const retryAttribute = reader ? "data-lightbox-search-index-retry" : "data-global-search-index-retry";
+  return `
+    <article class="${wrapperClass}" data-state="error" role="alert">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>החיפוש אינו זמין כרגע</strong>
+        <p>אינדקס החיפוש לא הצליח להיטען. אפשר לנסות שוב בלי לרענן את העמוד.</p>
+      </div>
+      <button class="button soft empty-state-action" type="button" ${retryAttribute}>נסה לטעון שוב</button>
+    </article>
+  `;
+}
+
+function retrySearchIndexLoad(options = {}) {
+  state.searchIndexLoadPromise = null;
+  state.searchIndexLoadState = "idle";
+  const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
+  existing?.remove?.();
+  ensureSearchIndexLoaded().catch(() => {});
+  if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
+  else renderSearchResults(els.globalSearchInput?.value || "");
 }
 
 function renderLightboxSearchResults(query) {
@@ -713,9 +743,16 @@ function renderLightboxSearchResults(query) {
   }
 
   if (!state.catalog || !catalogSearch?.hasIndex?.()) {
-    els.lightboxSearchResults.classList.add("hidden");
-    els.lightboxSearchResults.innerHTML = "";
-    els.lightboxSearchStatus.textContent = "אין אינדקס חיפוש פעיל לקטלוג הזה.";
+    if (state.catalog && state.searchIndexLoadState === "error") {
+      els.lightboxSearchResults.classList.remove("hidden");
+      els.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: true });
+      els.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: true }));
+      els.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.";
+    } else {
+      els.lightboxSearchResults.classList.add("hidden");
+      els.lightboxSearchResults.innerHTML = "";
+      els.lightboxSearchStatus.textContent = "אין אינדקס חיפוש פעיל לקטלוג הזה.";
+    }
     return;
   }
 
@@ -900,8 +937,14 @@ function renderSearchResults(query) {
   const category = getGlobalSearchCategory();
 
   if (!catalogSearch?.hasIndex?.({ category })) {
-    els.globalSearchResults.classList.add("hidden");
-    els.globalSearchResults.innerHTML = "";
+    if (state.searchIndexLoadState === "error") {
+      els.globalSearchResults.classList.remove("hidden");
+      els.globalSearchResults.innerHTML = searchIndexErrorMarkup();
+      els.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad());
+    } else {
+      els.globalSearchResults.classList.add("hidden");
+      els.globalSearchResults.innerHTML = "";
+    }
     return;
   }
 

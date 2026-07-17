@@ -128,6 +128,10 @@ def verification_steps(
                 "Generated site pages are current",
                 (python, "tools/build_site_pages.py", "--check"),
             ),
+            VerificationStep(
+                "Static accessibility audit",
+                (python, "tools/audit_accessibility.py"),
+            ),
             VerificationStep("Generated JavaScript syntax", ("node", "--check", "app.js")),
         ))
         steps.extend(

@@ -764,6 +764,7 @@ function syncViewerAutoZoomButtonUi() {
 
   els.viewerAutoZoomBtn.classList.toggle("hidden", !showButton);
   els.viewerAutoZoomBtn.setAttribute("aria-hidden", showButton ? "false" : "true");
+  els.viewerAutoZoomBtn.setAttribute("tabindex", showButton ? "0" : "-1");
   els.viewerAutoZoomBtn.setAttribute("aria-label", "חזרה לזום אוטומטי");
 
   // Keep the button itself icon-only and stationary; the clear explanation lives
@@ -825,6 +826,7 @@ function syncLightboxModeUi() {
   els.lightbox?.classList.toggle("favorites-viewer-mode", favoritesMode);
   els.favoriteOpenCatalogButton?.classList.toggle("hidden", !favoritesMode);
   els.favoriteOpenCatalogButton?.setAttribute("aria-hidden", favoritesMode ? "false" : "true");
+  els.favoriteOpenCatalogButton?.setAttribute("tabindex", favoritesMode ? "0" : "-1");
   els.prevPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הקודם" : "העמוד הקודם");
   els.nextPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הבא" : "העמוד הבא");
   syncViewerLayoutModeUi();
@@ -1383,9 +1385,13 @@ function setViewerScrollImageFeedback(frame, page, mode = "") {
 
   if (!feedback) {
     feedback = document.createElement("div");
-    feedback.className = "viewer-scroll-image-feedback";
+    feedback.className = "viewer-scroll-image-feedback ui-state";
     feedback.dataset.scrollImageFeedback = "true";
+    feedback.setAttribute("aria-atomic", "true");
     feedback.innerHTML = `
+      <span class="viewer-scroll-feedback-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
+      </span>
       <span data-scroll-image-feedback-text></span>
       <button type="button" data-retry-scroll-page="${page}">נסה שוב</button>
     `;
@@ -1397,8 +1403,12 @@ function setViewerScrollImageFeedback(frame, page, mode = "") {
       ? "מוצגת תצוגה מוקטנת."
       : "התמונה לא נטענה.";
   }
+  const isError = mode === "error";
+  feedback.dataset.state = isError ? "error" : "warning";
+  feedback.setAttribute("role", isError ? "alert" : "status");
+  feedback.setAttribute("aria-live", isError ? "assertive" : "polite");
   frame.classList.toggle("image-fallback", mode === "fallback");
-  frame.classList.toggle("image-terminal-error", mode === "error");
+  frame.classList.toggle("image-terminal-error", isError);
 }
 
 function loadViewerScrollPage(page, priority = "low") {
@@ -1414,6 +1424,7 @@ function loadViewerScrollPage(page, priority = "low") {
   if (!options.forceRefresh && image.dataset.loadingSrc === src) return;
   image.dataset.loadingSrc = src;
   image.dataset.logicalSrc = src;
+  frame.setAttribute("aria-busy", "true");
   image.loading = priority === "high" ? "eager" : "lazy";
   image.fetchPriority = priority;
   setViewerScrollImageFeedback(frame, page);
@@ -1441,6 +1452,7 @@ function loadViewerScrollPage(page, priority = "low") {
       image.dataset.loadedSrc = src;
       image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
       syncImagePlaceholderState(image);
+      frame.setAttribute("aria-busy", "false");
       setViewerScrollImageFeedback(frame, page, candidate.fallback ? "fallback" : "");
     },
     onExhausted: () => {
@@ -1448,6 +1460,7 @@ function loadViewerScrollPage(page, priority = "low") {
       delete image.dataset.loadedSrc;
       delete image.dataset.loadedQuality;
       syncImagePlaceholderState(image);
+      frame.setAttribute("aria-busy", "false");
       setViewerScrollImageFeedback(frame, page, "error");
     }
   });

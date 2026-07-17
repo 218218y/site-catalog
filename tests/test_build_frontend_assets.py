@@ -64,6 +64,7 @@ def test_frontend_manifest_uses_reviewed_feature_modules() -> None:
         "src/css/80-responsive-shell.css",
         "src/css/85-favorites-routing.css",
         "src/css/90-visual-polish.css",
+        "src/css/95-accessibility-consistency.css",
     )
     for relative in (*MODULE.JS_MODULES, *MODULE.CSS_MODULES):
         assert (ROOT / relative).is_file(), relative

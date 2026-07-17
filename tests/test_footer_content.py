@@ -35,6 +35,7 @@ def copy_page_sources(target: Path) -> None:
         "partials/site-footer.content.json",
         "legal/terms.content.html",
         "legal/privacy.content.html",
+        "legal/accessibility.content.html",
     ):
         source = ROOT / relative
         destination = target / relative
