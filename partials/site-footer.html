@@ -22,7 +22,24 @@
           <div class="site-footer-contact-list">
             <a href="tel:{{FOOTER_MOBILE_TEL_HREF}}"><span>{{FOOTER_MOBILE_LABEL}}</span><bdi dir="ltr">{{FOOTER_MOBILE}}</bdi></a>
             <a href="tel:{{FOOTER_PHONE_TEL_HREF}}"><span>{{FOOTER_PHONE_LABEL}}</span><bdi dir="ltr">{{FOOTER_PHONE}}</bdi></a>
-            <a href="mailto:{{FOOTER_EMAIL_MAILTO_HREF}}"><span>{{FOOTER_EMAIL_LABEL}}</span><bdi dir="ltr">{{FOOTER_EMAIL}}</bdi></a>
+            <a class="site-footer-email-link" href="mailto:{{FOOTER_EMAIL_MAILTO_HREF}}">
+              <span>{{FOOTER_EMAIL_LABEL}}</span>
+              <bdi dir="ltr">{{FOOTER_EMAIL}}</bdi>
+            </a>
+            <a
+              class="site-footer-gmail-link"
+              href="{{FOOTER_GMAIL_HREF}}"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="{{FOOTER_GMAIL_ARIA_LABEL}}"
+              title="{{FOOTER_GMAIL_TITLE}}"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4.75 6.75h14.5v10.5H4.75z"/>
+                <path d="m5.25 7.25 6.75 5.1 6.75-5.1"/>
+              </svg>
+              <span>{{FOOTER_GMAIL_TITLE}}</span>
+            </a>
           </div>
         </div>
       </section>
@@ -58,19 +75,6 @@
 
     <div class="site-footer-bottom">
       <p>© {{FOOTER_BUSINESS_NAME}} · {{FOOTER_REGISTRATION_LABEL}} <bdi dir="ltr">{{FOOTER_REGISTRATION_NUMBER}}</bdi> · {{FOOTER_RIGHTS_TEXT}}</p>
-      <a
-        class="site-footer-gmail-link"
-        href="{{FOOTER_GMAIL_HREF}}"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="{{FOOTER_GMAIL_ARIA_LABEL}}"
-        title="{{FOOTER_GMAIL_TITLE}}"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M4.75 6.75h14.5v10.5H4.75z"/>
-          <path d="m5.25 7.25 6.75 5.1 6.75-5.1"/>
-        </svg>
-      </a>
       <p>{{FOOTER_BOTTOM_NOTE}}</p>
     </div>
   </div>

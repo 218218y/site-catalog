@@ -23,6 +23,11 @@ assert.match(template, /id="viewerInquiryGmail"/);
 assert.match(template, /id="viewerInquiryEmail"/);
 assert.match(template, /id="viewerInquiryShare"/);
 assert.match(template, /id="viewerInquiryCopy"/);
+const inquiryActions = template.match(/<div class="viewer-inquiry-actions" id="viewerInquiryActions">([\s\S]*?)<\/div>/)?.[1] || "";
+assert.doesNotMatch(inquiryActions, /<small>/);
+for (const label of ["שליחה דרך Gmail", "פתיחה בתוכנת דואר", "שיתוף פרטי הדגם", "העתקת ההודעה והקישור"]) {
+  assert.ok(inquiryActions.includes(`<strong>${label}</strong>`), `missing compact inquiry label: ${label}`);
+}
 assert.doesNotMatch(template.match(/id="viewerInquiryGmail"[^>]*>/)?.[0] || "", /title=|data-tooltip=/);
 assert.doesNotMatch(template.match(/id="viewerInquiryEmail"[^>]*>/)?.[0] || "", /title=|data-tooltip=/);
 assert.doesNotMatch(template, /id="viewerInquiryMobile"|id="viewerInquiryPhone"/);
@@ -61,7 +66,9 @@ assert.doesNotMatch(app, /TELEMETRY_SEARCH_DELAY_MS|searchTimers/);
 
 assert.match(css, /\.viewer-inquiry-button\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?min-height:\s*46px;/);
 assert.match(css, /\.viewer-inquiry-dialog\s*\{[\s\S]*?color:\s*var\(--ink\);[\s\S]*?linear-gradient\(180deg, rgba\(255,253,251/);
+assert.match(css, /\.viewer-inquiry-action\s*\{[\s\S]*?min-height:\s*56px;/);
 assert.match(css, /\.viewer-inquiry-action\.primary\s*\{[\s\S]*?linear-gradient\(135deg, var\(--brand\), var\(--brand-dark\)\)/);
+assert.doesNotMatch(css, /\.viewer-inquiry-action small\s*\{/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]*?#lightboxPinTopBar,[\s\S]*?display:\s*none !important;/);
 assert.match(css, /@media \(max-width: 480px\)[\s\S]*?grid-template-areas:\s*"brand actions";/);
 

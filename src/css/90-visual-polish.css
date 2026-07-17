@@ -670,9 +670,6 @@
     padding: 9px 2px 1px;
   }
   .site-footer-bottom p:last-child { text-align: right; }
-  .site-footer-gmail-link {
-    justify-self: center;
-  }
 
   .legal-site-header {
     width: calc(100% - 18px);
