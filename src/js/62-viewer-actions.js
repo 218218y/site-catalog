@@ -12,15 +12,14 @@ function isMobileViewerToolbarMode() {
   return Boolean(window.matchMedia?.(MOBILE_VIEWER_TOOLBAR_MEDIA).matches);
 }
 
-function viewerInquiryFooterContacts() {
-  const links = Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"));
-  const phoneLinks = links.filter((link) => String(link.getAttribute("href") || "").startsWith("tel:"));
-  const emailLink = links.find((link) => String(link.getAttribute("href") || "").startsWith("mailto:")) || null;
-  return {
-    mobile: phoneLinks[0] || null,
-    phone: phoneLinks[1] || null,
-    email: emailLink
-  };
+function viewerInquiryFooterEmail() {
+  return Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"))
+    .find((link) => String(link.getAttribute("href") || "").startsWith("mailto:")) || null;
+}
+
+function viewerInquiryEmailAddress() {
+  const emailHref = String(viewerInquiryFooterEmail()?.getAttribute?.("href") || "").trim();
+  return emailHref.replace(/^mailto:/i, "").split("?")[0].trim();
 }
 
 function viewerInquiryReference() {
@@ -30,25 +29,29 @@ function viewerInquiryReference() {
   const title = String(state.catalog.title || "קטלוג").trim() || "קטלוג";
   const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(state.catalog.pages) || 1)}`;
   const subject = `בירור על דגם – ${title}, עמוד ${page}`;
-  const text = [
+  const shareText = [
     "שלום,",
     "רציתי לברר לגבי הדגם הבא:",
     `קטלוג: ${title}`,
-    `עמוד: ${page}`,
-    `קישור ישיר: ${url}`
+    `עמוד: ${page}`
   ].join("\n");
-  return { catalog: state.catalog, page, title, pageLabel, subject, text, url };
+  const text = `${shareText}\nקישור ישיר: ${url}`;
+  return { catalog: state.catalog, page, title, pageLabel, subject, shareText, text, url };
 }
 
-function viewerInquiryPhoneLabel(link) {
-  const value = link?.querySelector?.("bdi")?.textContent || link?.textContent || "";
-  return String(value).replace(/\s+/g, " ").trim();
+function viewerInquiryGmailUrl(emailAddress, reference) {
+  const query = new URLSearchParams({
+    view: "cm",
+    fs: "1",
+    to: emailAddress,
+    su: reference.subject,
+    body: reference.text
+  });
+  return `https://mail.google.com/mail/?${query.toString()}`;
 }
 
-function syncViewerInquiryLink(link, sourceLink, labelElement, reference, action) {
+function syncViewerInquiryContactLink(link, href, reference, action) {
   if (!link) return;
-  const href = String(sourceLink?.getAttribute?.("href") || "").trim();
-  const label = viewerInquiryPhoneLabel(sourceLink);
   const available = Boolean(href);
   link.classList.toggle("hidden", !available);
   link.setAttribute("aria-hidden", available ? "false" : "true");
@@ -59,17 +62,14 @@ function syncViewerInquiryLink(link, sourceLink, labelElement, reference, action
   link.href = href;
   link.dataset.contactSource = "viewer-inquiry";
   link.dataset.contactAction = action;
-  link.dataset.contactCatalogId = reference?.catalog?.id || "";
-  link.dataset.contactPage = String(reference?.page || 0);
-  link.title = reference ? `${label} · ${reference.title}, עמוד ${reference.page}` : label;
-  if (labelElement) labelElement.textContent = label;
+  link.dataset.contactCatalogId = reference.catalog.id;
+  link.dataset.contactPage = String(reference.page);
 }
 
 function syncViewerInquiryUi() {
   const reference = viewerInquiryReference();
   if (!reference) return;
 
-  const contacts = viewerInquiryFooterContacts();
   if (els.viewerInquiryCatalog) els.viewerInquiryCatalog.textContent = reference.title;
   if (els.viewerInquiryPage) els.viewerInquiryPage.textContent = reference.pageLabel;
   if (els.viewerInquiryButton) {
@@ -86,39 +86,33 @@ function syncViewerInquiryUi() {
     els.viewerInquiryPreview.alt = `${reference.title}, עמוד ${reference.page}`;
   }
 
-  syncViewerInquiryLink(
-    els.viewerInquiryMobile,
-    contacts.mobile,
-    els.viewerInquiryMobileLabel,
+  const emailAddress = viewerInquiryEmailAddress();
+  const emailAvailable = Boolean(emailAddress);
+  if (els.viewerInquiryEmailLabel) els.viewerInquiryEmailLabel.textContent = emailAddress;
+
+  const mailtoQuery = new URLSearchParams({ subject: reference.subject, body: reference.text });
+  syncViewerInquiryContactLink(
+    els.viewerInquiryEmail,
+    emailAvailable ? `mailto:${emailAddress}?${mailtoQuery.toString()}` : "",
     reference,
-    "mobile"
+    "email"
   );
-  syncViewerInquiryLink(
-    els.viewerInquiryPhone,
-    contacts.phone,
-    els.viewerInquiryPhoneLabel,
+  syncViewerInquiryContactLink(
+    els.viewerInquiryGmail,
+    emailAvailable ? viewerInquiryGmailUrl(emailAddress, reference) : "",
     reference,
-    "phone"
+    "gmail"
   );
 
   if (els.viewerInquiryEmail) {
-    const emailHref = String(contacts.email?.getAttribute?.("href") || "").trim();
-    const emailAddress = emailHref.replace(/^mailto:/i, "").split("?")[0];
-    const available = Boolean(emailAddress);
-    els.viewerInquiryEmail.classList.toggle("hidden", !available);
-    els.viewerInquiryEmail.setAttribute("aria-hidden", available ? "false" : "true");
-    if (available) {
-      const query = new URLSearchParams({ subject: reference.subject, body: reference.text });
-      els.viewerInquiryEmail.href = `mailto:${emailAddress}?${query.toString()}`;
-      els.viewerInquiryEmail.dataset.contactSource = "viewer-inquiry";
-      els.viewerInquiryEmail.dataset.contactAction = "email";
-      els.viewerInquiryEmail.dataset.contactCatalogId = reference.catalog.id;
-      els.viewerInquiryEmail.dataset.contactPage = String(reference.page);
-      els.viewerInquiryEmail.title = `${emailAddress} · ${reference.title}, עמוד ${reference.page}`;
-      if (els.viewerInquiryEmailLabel) els.viewerInquiryEmailLabel.textContent = emailAddress;
-    } else {
-      els.viewerInquiryEmail.removeAttribute("href");
-    }
+    els.viewerInquiryEmail.title = emailAvailable
+      ? `פתיחה בתוכנת הדואר המוגדרת · ${emailAddress}`
+      : "לא הוגדרה כתובת דואר";
+  }
+  if (els.viewerInquiryGmail) {
+    els.viewerInquiryGmail.title = emailAvailable
+      ? `פתיחת הודעה חדשה ב-Gmail אל ${emailAddress}`
+      : "לא הוגדרה כתובת דואר";
   }
 }
 
@@ -205,6 +199,56 @@ async function copyViewerInquiryReference() {
     closeViewerInquiry();
   } catch (_error) {
     window.prompt("אפשר להעתיק את פרטי הדגם מכאן:", reference.text);
+  }
+}
+
+async function shareViewerInquiryReference() {
+  const reference = viewerInquiryReference();
+  if (!reference) return;
+
+  const shareData = {
+    title: reference.subject,
+    text: reference.shareText,
+    url: reference.url
+  };
+  let canUseNativeShare = typeof navigator.share === "function";
+  if (canUseNativeShare && typeof navigator.canShare === "function") {
+    try {
+      canUseNativeShare = navigator.canShare(shareData);
+    } catch (_error) {
+      canUseNativeShare = false;
+    }
+  }
+
+  if (canUseNativeShare) {
+    try {
+      await navigator.share(shareData);
+      telemetryTrack("contact", {
+        action: "share",
+        source: "viewer-inquiry",
+        catalogId: reference.catalog.id,
+        pageNumber: reference.page
+      }, { immediate: true });
+      closeViewerInquiry({ restoreFocus: false });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+
+  try {
+    await copyTextToClipboard(reference.text);
+    telemetryTrack("contact", {
+      action: "share",
+      detail: "copy-fallback",
+      source: "viewer-inquiry",
+      catalogId: reference.catalog.id,
+      pageNumber: reference.page
+    }, { immediate: true });
+    showActionToast("אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו", { tone: "link" });
+    closeViewerInquiry();
+  } catch (_error) {
+    window.prompt("אפשר להעתיק ולשתף את פרטי הדגם מכאן:", reference.text);
   }
 }
 
@@ -299,9 +343,10 @@ function attachViewerActionEvents() {
   });
   els.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
   els.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
+  els.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference());
   els.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference());
   els.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown);
-  [els.viewerInquiryMobile, els.viewerInquiryPhone, els.viewerInquiryEmail].forEach((link) => {
+  [els.viewerInquiryGmail, els.viewerInquiryEmail].forEach((link) => {
     link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: false }), 0));
   });
 

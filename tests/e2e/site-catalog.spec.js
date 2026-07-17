@@ -64,8 +64,9 @@ async function preparePage(page, options = {}) {
   const resetViewerLayout = options.resetViewerLayout !== false;
   const legacyViewerLayout = options.legacyViewerLayout === "side" ? "side" : "";
   const captureClipboard = options.captureClipboard === true;
+  const captureShare = options.captureShare === true;
   const telemetryEvents = Array.isArray(options.telemetryEvents) ? options.telemetryEvents : null;
-  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, legacyViewerLayout, captureClipboard, enableTelemetry }) => {
+  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, legacyViewerLayout, captureClipboard, captureShare, enableTelemetry }) => {
     if (enableTelemetry) window.__BARGIG_ENABLE_TELEMETRY__ = true;
     if (sessionStorage.getItem("bargig.e2e-onboarding-prepared") !== "1") {
       if (onboardingSeen) localStorage.setItem(onboardingKey, "1");
@@ -91,6 +92,18 @@ async function preparePage(page, options = {}) {
         }
       });
     }
+    if (captureShare) {
+      Object.defineProperty(navigator, "canShare", {
+        configurable: true,
+        value: () => true
+      });
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: async (payload) => {
+          window.__bargigE2eShare = { ...payload };
+        }
+      });
+    }
   }, {
     onboardingKey: ONBOARDING_KEY,
     favoritesKey: FAVORITES_KEY,
@@ -100,6 +113,7 @@ async function preparePage(page, options = {}) {
     resetViewerLayout,
     legacyViewerLayout,
     captureClipboard,
+    captureShare,
     enableTelemetry: Boolean(telemetryEvents)
   });
 
@@ -167,6 +181,12 @@ async function expectCurrentViewerImageReady(page) {
     const surface = await currentViewerSurface(page);
     return surface.getAttribute("class");
   }).toMatch(/image-ready/);
+}
+
+async function revealViewerTopToolbar(page) {
+  await page.locator("#topHotspot").hover({ position: { x: 18, y: 4 } });
+  await expect(page.locator("#lightbox")).toHaveClass(/show-ui/);
+  await expect(page.locator("#lightboxCopyLink")).toBeInViewport();
 }
 
 async function expectViewerFrameCentered(page, tolerance = 1.5) {
@@ -291,8 +311,8 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightbox")).toBeVisible();
   });
 
-  test("prepares an exact catalog-page inquiry and copies it for contact", async ({ page }) => {
-    await preparePage(page, { captureClipboard: true });
+  test("prepares an exact catalog-page inquiry for Gmail, sharing, and copying", async ({ page }) => {
+    await preparePage(page, { captureClipboard: true, captureShare: true });
     const inquiryPage = Math.min(5, CATALOG_PAGES);
     await openDirectViewer(page, inquiryPage);
 
@@ -301,20 +321,48 @@ test.describe("critical catalog journeys", () => {
     await expect(dialog).toHaveAttribute("aria-hidden", "false");
     await expect(page.locator("#viewerInquiryCatalog")).toHaveText(testCatalog.title);
     await expect(page.locator("#viewerInquiryPage")).toContainText(`עמוד ${inquiryPage}`);
+    await expect(page.locator("#viewerInquiryMobile")).toHaveCount(0);
+    await expect(page.locator("#viewerInquiryPhone")).toHaveCount(0);
 
     const emailDetails = await page.locator("#viewerInquiryEmail").evaluate((link) => {
       const url = new URL(link.href);
       return {
+        protocol: url.protocol,
         subject: url.searchParams.get("subject"),
         body: url.searchParams.get("body")
       };
     });
+    expect(emailDetails.protocol).toBe("mailto:");
     expect(emailDetails.subject).toContain(testCatalog.title);
     expect(emailDetails.subject).toContain(`עמוד ${inquiryPage}`);
     expect(emailDetails.body).toContain(`קטלוג: ${testCatalog.title}`);
     expect(emailDetails.body).toContain(`עמוד: ${inquiryPage}`);
     expect(emailDetails.body).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
 
+    const gmailDetails = await page.locator("#viewerInquiryGmail").evaluate((link) => {
+      const url = new URL(link.href);
+      return {
+        host: url.host,
+        view: url.searchParams.get("view"),
+        to: url.searchParams.get("to"),
+        subject: url.searchParams.get("su"),
+        body: url.searchParams.get("body")
+      };
+    });
+    expect(gmailDetails.host).toBe("mail.google.com");
+    expect(gmailDetails.view).toBe("cm");
+    expect(gmailDetails.to).toContain("@");
+    expect(gmailDetails.subject).toContain(testCatalog.title);
+    expect(gmailDetails.body).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+
+    await page.locator("#viewerInquiryShare").click();
+    await expect(dialog).toBeHidden();
+    const shared = await page.evaluate(() => window.__bargigE2eShare || null);
+    expect(shared?.title).toContain(testCatalog.title);
+    expect(shared?.text).toContain(`עמוד: ${inquiryPage}`);
+    expect(shared?.url).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+
+    await page.locator("#viewerInquiryButton").click();
     await page.locator("#viewerInquiryCopy").click();
     await expect(dialog).toBeHidden();
     const copied = await page.evaluate(() => window.__bargigE2eClipboard || "");
@@ -408,6 +456,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("5");
     await expect(page.locator('#viewerScrollPages [data-scroll-page="5"] img')).toHaveAttribute("src", /page-005\.webp/);
 
+    await revealViewerTopToolbar(page);
     await page.locator("#lightboxCopyLink").click();
     await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).toContain(`viewer.html?catalog=${CATALOG_ID}&page=5`);
     await expect(page.locator("#siteActionToast")).toContainText("הקישור הועתק");

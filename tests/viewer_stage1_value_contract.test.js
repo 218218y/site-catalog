@@ -19,7 +19,10 @@ for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.
 
 assert.match(template, /id="viewerInquiryCatalog"/);
 assert.match(template, /id="viewerInquiryPage"/);
+assert.match(template, /id="viewerInquiryGmail"[^>]*mail\.google\.com|id="viewerInquiryGmail"/);
+assert.match(template, /id="viewerInquiryShare"/);
 assert.match(template, /id="viewerInquiryCopy"/);
+assert.doesNotMatch(template, /id="viewerInquiryMobile"|id="viewerInquiryPhone"/);
 assert.match(template, /data-viewer-mobile-action="download"/);
 assert.match(template, /data-viewer-mobile-action="fit-height"/);
 assert.match(template, /data-viewer-mobile-action="fit-width"/);
@@ -30,6 +33,8 @@ assert.match(app, /`קטלוג: \$\{title\}`/);
 assert.match(app, /`עמוד: \$\{page\}`/);
 assert.match(app, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryCatalog\.textContent = reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);
 assert.match(app, /new URLSearchParams\(\{ subject: reference\.subject, body: reference\.text \}\)/);
+assert.match(app, /function viewerInquiryGmailUrl\([\s\S]*?mail\.google\.com\/mail\/\?/);
+assert.match(app, /function shareViewerInquiryReference\([\s\S]*?navigator\.share\(shareData\)[\s\S]*?action: "share"/);
 assert.match(app, /function copyViewerInquiryReference\([\s\S]*?copyTextToClipboard\(reference\.text\)[\s\S]*?action: "copy"[\s\S]*?source: "viewer-inquiry"/);
 assert.match(app, /function syncViewerScrollActivePage\([\s\S]*?syncViewerInquiryUi\(\)/);
 assert.match(app, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)[\s\S]*?syncViewerMobileMoreMenuState\(\)/);
@@ -43,10 +48,11 @@ assert.ok(globalRender, "global search renderer should be extractable");
 assert.doesNotMatch(lightboxRender, /telemetryTrackSearch/);
 assert.doesNotMatch(globalRender, /telemetryTrackSearch/);
 assert.match(app, /function submitLightboxSearch\([\s\S]*?trackCompletedLightboxSearch\("submit", rawQuery\)/);
-assert.match(app, /function submitGlobalSearch\([\s\S]*?trackCompletedGlobalSearch\("submit", rawQuery\)/);
+assert.match(app, /function submitGlobalSearch\([\s\S]*?trackCompletedGlobalSearch\("submit", rawQuery, \{ immediate: true \}\)/);
 assert.match(app, /trackCompletedLightboxSearch\("result-open"\)/);
-assert.match(app, /trackCompletedGlobalSearch\("result-open"\)/);
-assert.match(app, /function telemetryTrackSearch\([\s\S]*?completion = telemetryCleanText\(options\.completion \|\| "submit"[\s\S]*?action: completion/);
+assert.match(app, /trackCompletedGlobalSearch\("result-open", undefined, \{ immediate: true \}\)/);
+assert.match(app, /function flushGlobalSearchTelemetryBeforeNavigation\([\s\S]*?telemetryFlush\(\)/);
+assert.match(app, /function telemetryTrackSearch\([\s\S]*?completion = telemetryCleanText\(options\.completion \|\| "submit"[\s\S]*?action: completion[\s\S]*?immediate: options\.immediate === true/);
 assert.doesNotMatch(app, /TELEMETRY_SEARCH_DELAY_MS|searchTimers/);
 
 assert.match(css, /\.viewer-inquiry-button\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?min-height:\s*46px;/);

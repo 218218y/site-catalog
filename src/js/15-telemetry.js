@@ -222,7 +222,7 @@ function telemetryTrackSearch(query, resultCount, options = {}) {
     source: surface,
     action: completion,
     value: count
-  });
+  }, { immediate: options.immediate === true });
 }
 
 function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 0) {

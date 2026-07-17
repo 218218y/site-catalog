@@ -846,16 +846,24 @@ function getGlobalSearchResults(query, limit = 72) {
   return Array.isArray(results) ? results : [];
 }
 
-function trackCompletedGlobalSearch(completion, query = els.globalSearchInput?.value || "") {
+function trackCompletedGlobalSearch(completion, query = els.globalSearchInput?.value || "", options = {}) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
   const results = getGlobalSearchResults(rawQuery, 72);
   telemetryTrackSearch(rawQuery, results.length, {
     surface: "global",
     scope: category || "all",
-    completion
+    completion,
+    immediate: options.immediate === true
   });
   return results;
+}
+
+function flushGlobalSearchTelemetryBeforeNavigation() {
+  // Search-result clicks leave the current document immediately. Start a
+  // keepalive request synchronously instead of relying on the delayed batch
+  // timer or on pagehide, both of which can be skipped by fast navigations.
+  telemetryFlush().catch(() => {});
 }
 
 function openGlobalSearchResult(result) {
@@ -869,7 +877,8 @@ function openGlobalSearchResult(result) {
 function submitGlobalSearch() {
   const rawQuery = String(els.globalSearchInput?.value || "").trim();
   renderSearchResults(rawQuery);
-  const results = trackCompletedGlobalSearch("submit", rawQuery);
+  const results = trackCompletedGlobalSearch("submit", rawQuery, { immediate: true });
+  flushGlobalSearchTelemetryBeforeNavigation();
   return openGlobalSearchResult(results[0]);
 }
 
@@ -937,7 +946,8 @@ function renderSearchResults(query) {
 
   els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
     button.addEventListener("click", () => {
-      trackCompletedGlobalSearch("result-open");
+      trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
+      flushGlobalSearchTelemetryBeforeNavigation();
       openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
     });
   });
