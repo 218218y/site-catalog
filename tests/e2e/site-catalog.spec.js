@@ -650,6 +650,7 @@ test.describe("critical catalog journeys", () => {
     }, targetPage);
     const dispatchWheelStream = (deltas, deltaMode = 0) => scrollPages.evaluate((container, payload) => {
       let everyEventCanceled = true;
+      const scrollTops = [];
       payload.deltas.forEach((deltaY) => {
         const event = new WheelEvent("wheel", {
           deltaX: 0,
@@ -659,25 +660,29 @@ test.describe("critical catalog journeys", () => {
           cancelable: true
         });
         everyEventCanceled = !container.dispatchEvent(event) && everyEventCanceled;
+        scrollTops.push(container.scrollTop);
       });
       return {
         everyEventCanceled,
-        gestureActive: container.classList.contains("viewer-wheel-gesture-active"),
-        scrollTop: container.scrollTop
+        scrollTop: container.scrollTop,
+        scrollTops
       };
     }, { deltas, deltaMode });
 
     const startTop = await scrollPages.evaluate((container) => container.scrollTop);
     const smallGesture = await dispatchWheelStream([40]);
     expect(smallGesture.everyEventCanceled).toBe(true);
-    expect(smallGesture.gestureActive).toBe(true);
-    expect(Math.abs(smallGesture.scrollTop - startTop)).toBeGreaterThan(1);
+    expect(Math.abs(smallGesture.scrollTop - startTop)).toBeLessThanOrEqual(2);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
     await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
-    await expect(scrollPages).not.toHaveClass(/viewer-wheel-gesture-active/);
+    await page.waitForTimeout(180);
 
     const granularTarget = Math.min(CATALOG_PAGES, startPage + 1);
-    await dispatchWheelStream(Array(10).fill(10));
+    const granularGesture = await dispatchWheelStream(Array(10).fill(10));
+    expect(granularGesture.everyEventCanceled).toBe(true);
+    for (const intermediateTop of granularGesture.scrollTops.slice(0, -1)) {
+      expect(Math.abs(intermediateTop - startTop)).toBeLessThanOrEqual(2);
+    }
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(granularTarget));
     await expect.poll(() => alignedDistance(granularTarget)).toBeLessThanOrEqual(2);
 

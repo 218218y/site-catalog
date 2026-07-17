@@ -1443,7 +1443,6 @@ function clearViewerScrollWheelGesture() {
   state.viewerScrollWheelAccumulator = 0;
   state.viewerScrollWheelBasePage = 0;
   state.viewerScrollWheelTargetPage = 0;
-  els.viewerScrollPages?.classList.remove("viewer-wheel-gesture-active");
 }
 
 function getViewerScrollPagePosition(page) {
@@ -1465,7 +1464,10 @@ function settleViewerScrollWheelGesture() {
   clearViewerScrollWheelGesture();
   if (!isScrollViewerMode() || !state.catalog) return;
   loadViewerScrollWindow(targetPage);
-  scrollViewerToPage(targetPage, { behavior: "smooth" });
+  // Wheel and precision-touchpad gestures are page commands. Settlement must
+  // preserve the exact page position rather than introduce a native smooth
+  // scroll after the final input event.
+  scrollViewerToPage(targetPage);
 }
 
 function normalizeViewerScrollWheelDelta(event) {
@@ -1501,13 +1503,13 @@ function handleViewerScrollWheel(event) {
 
   event.preventDefault();
 
-  if (!state.viewerScrollWheelBasePage) {
+  const gestureStarted = !state.viewerScrollWheelBasePage;
+  if (gestureStarted) {
     const intendedPage = state.viewerScrollTargetPage || findViewerScrollCenterPage() || state.page;
     clearViewerScrollTarget();
     state.viewerScrollWheelBasePage = clampPage(intendedPage, state.catalog);
     state.viewerScrollWheelTargetPage = state.viewerScrollWheelBasePage;
     state.viewerScrollWheelAccumulator = 0;
-    container.classList.add("viewer-wheel-gesture-active");
   }
 
   state.viewerScrollWheelAccumulator += deltaY;
@@ -1515,25 +1517,22 @@ function handleViewerScrollWheel(event) {
     state.viewerScrollWheelAccumulator / VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX
   );
   const targetPage = clampPage(state.viewerScrollWheelBasePage + requestedSteps, state.catalog);
-  const appliedSteps = targetPage - state.viewerScrollWheelBasePage;
-  const elasticRemainder = clampValue(
-    state.viewerScrollWheelAccumulator - appliedSteps * VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX,
-    -VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX + 1,
-    VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX - 1
-  );
   const previousTargetPage = state.viewerScrollWheelTargetPage;
   state.viewerScrollWheelTargetPage = targetPage;
 
-  loadViewerScrollWindow(targetPage);
-  const position = getViewerScrollPagePosition(targetPage);
-  if (position) {
-    const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-    container.scrollTop = clampValue(
-      position.top + elasticRemainder * VIEWER_SCROLL_WHEEL_ELASTIC_RATIO,
-      0,
-      maxScrollTop
-    );
-    container.scrollLeft = position.left;
+  // Pixel-mode touchpads report one gesture as many small wheel events, while a
+  // mouse detent often reaches the page threshold in a single event. Those
+  // sub-threshold values are input intent only: applying them to scrollTop made
+  // touchpads visibly drag the current image before the same page swap that a
+  // mouse performs immediately. Keep the viewport locked to an exact page and
+  // move it only when the shared accumulator commits one or more whole steps.
+  if (gestureStarted || targetPage !== previousTargetPage) {
+    loadViewerScrollWindow(targetPage);
+    const position = getViewerScrollPagePosition(targetPage);
+    if (position) {
+      container.scrollTop = position.top;
+      container.scrollLeft = position.left;
+    }
   }
   syncViewerScrollActivePage(targetPage);
   if (targetPage !== previousTargetPage) runViewerScrollPageSwapAnimation(targetPage);
