@@ -18,15 +18,16 @@
   position: relative;
   order: 10;
   overflow: visible;
-  color: #ffd779;
-  border-color: rgba(255, 224, 157, 0.34);
-  background: rgba(143, 102, 37, 0.42);
+  color: #a56f16;
+  border-color: rgba(165, 111, 22, 0.28);
+  background: linear-gradient(180deg, rgba(255,248,225,0.98), rgba(241,218,163,0.86));
+  box-shadow: 0 12px 28px rgba(111, 77, 27, 0.14), inset 0 1px 0 rgba(255,255,255,0.92);
 }
 .lightbox-favorites-button:hover,
 .lightbox-favorites-button:focus-visible {
-  color: #ffe49b;
-  border-color: rgba(255, 224, 157, 0.52);
-  background: rgba(143, 102, 37, 0.62);
+  color: #81520d;
+  border-color: rgba(165, 111, 22, 0.42);
+  background: linear-gradient(180deg, #fffdf4, rgba(237,205,132,0.96));
 }
 .lightbox-favorites-button svg {
   width: 20px;
@@ -39,7 +40,7 @@
 .header-favorites-count.lightbox-favorites-count {
   top: -7px;
   left: -7px;
-  border-color: rgba(18, 14, 11, 0.94);
+  border-color: rgba(252, 246, 241, 0.98);
 }
 .header-favorites-count {
   position: absolute;
@@ -309,7 +310,7 @@
   padding: 0 !important;
   transform: translateY(-50%);
   border-radius: 999px;
-  color: #fff;
+  color: var(--viewer-side-control-color);
   background: var(--viewer-side-control-bg) !important;
   border-color: var(--viewer-side-control-border) !important;
   box-shadow: var(--viewer-side-control-shadow);
@@ -332,9 +333,10 @@
   transition: fill .16s ease, color .16s ease, filter .16s ease;
 }
 .viewer-favorite-button[data-favorite-active="true"] {
-  color: #ffd779;
-  background: rgba(143, 102, 37, 0.74) !important;
-  border-color: rgba(255, 224, 157, 0.58) !important;
+  color: #8a590d;
+  background: linear-gradient(180deg, rgba(255,248,225,0.99), rgba(235,199,116,0.94)) !important;
+  border-color: rgba(165, 111, 22, 0.48) !important;
+  box-shadow: 0 14px 34px rgba(111, 77, 27, 0.2), inset 0 1px 0 rgba(255,255,255,0.94);
 }
 .viewer-favorite-button[data-favorite-active="true"] svg {
   fill: currentColor;

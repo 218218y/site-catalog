@@ -252,8 +252,9 @@
   .viewer-mobile-more-toggle { display: inline-flex; }
   .viewer-mobile-more-toggle svg { fill: currentColor; stroke: none; }
   .viewer-mobile-more-toggle.is-active {
-    background: rgba(217,186,163,.3) !important;
-    border-color: rgba(255,255,255,.34) !important;
+    color: var(--ink);
+    background: var(--viewer-control-active-bg) !important;
+    border-color: var(--viewer-chrome-border-strong) !important;
   }
   .viewer-mobile-more-menu {
     position: absolute;
@@ -265,10 +266,10 @@
     gap: 4px;
     padding: 8px;
     border-radius: 18px;
-    color: #fff;
-    background: linear-gradient(165deg, rgba(34,28,24,.99), rgba(10,9,8,.985));
-    border: 1px solid rgba(255,255,255,.15);
-    box-shadow: 0 24px 68px rgba(0,0,0,.54), inset 0 1px 0 rgba(255,255,255,.09);
+    color: var(--viewer-chrome-text);
+    background: var(--viewer-chrome-surface);
+    border: 1px solid var(--viewer-chrome-border);
+    box-shadow: var(--viewer-chrome-shadow);
     backdrop-filter: blur(18px);
     opacity: 0;
     transform: translateY(-6px) scale(.98);
@@ -292,7 +293,7 @@
     padding: 8px 11px;
     border: 0;
     border-radius: 13px;
-    color: #fff;
+    color: var(--viewer-chrome-text);
     background: transparent;
     font: inherit;
     font-size: .87rem;
@@ -305,8 +306,8 @@
   .viewer-mobile-more-menu a:hover,
   .viewer-mobile-more-menu a:focus-visible,
   .viewer-mobile-more-menu .active {
-    color: #fff;
-    background: rgba(255,255,255,.12);
+    color: var(--viewer-chrome-text);
+    background: rgba(255,255,255,.84);
   }
   .viewer-mobile-more-menu svg {
     width: 20px;

@@ -168,11 +168,11 @@
   justify-content: center;
   gap: 6px;
   padding: 0 14px;
-  border: 1px solid rgba(255,255,255,0.22);
+  border: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.22));
   border-radius: 999px;
-  color: rgba(255,255,255,0.82);
-  background: rgba(15,12,10,0.76);
-  box-shadow: 0 12px 34px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+  color: var(--viewer-chrome-muted, rgba(255,255,255,0.82));
+  background: var(--viewer-chrome-surface, rgba(15,12,10,0.76));
+  box-shadow: var(--viewer-control-shadow, 0 12px 34px rgba(0,0,0,0.3));
   backdrop-filter: blur(14px);
   opacity: 0;
   visibility: hidden;
@@ -204,21 +204,21 @@
 }
 
 .viewer-page-indicator strong {
-  color: #fff;
+  color: var(--viewer-chrome-text, #fff);
   font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
 }
 
 .viewer-page-indicator-separator {
-  color: rgba(255,255,255,0.56);
+  color: var(--viewer-chrome-muted, rgba(255,255,255,0.56));
   font-size: .76rem;
 }
 
 .viewer-page-indicator-detail {
   margin-inline-start: 4px;
   padding-inline-start: 10px;
-  border-inline-start: 1px solid rgba(255,255,255,0.2);
-  color: rgba(255,255,255,0.7);
+  border-inline-start: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.2));
+  color: var(--viewer-chrome-muted, rgba(255,255,255,0.7));
   font-size: .76rem;
 }
 
@@ -278,12 +278,12 @@
 }
 
 .viewer-favorite-button.reader-icon-button-done {
-  color: #ffe08e;
-  border-color: rgba(255,224,142,.68) !important;
+  color: #8a590d;
+  border-color: rgba(165,111,22,.56) !important;
   box-shadow:
     var(--viewer-side-control-shadow),
-    0 0 0 5px rgba(255,216,121,.12),
-    0 0 24px rgba(255,216,121,.24);
+    0 0 0 5px rgba(235,199,116,.14),
+    0 0 24px rgba(165,111,22,.2);
 }
 
 /* Empty states use the same structure in search and favorites. */
