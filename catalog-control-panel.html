@@ -227,6 +227,7 @@
     .footer-editor-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; align-items: start; }
     .footer-editor-group { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: #fbfcff; }
     .footer-editor-group legend { padding: 0 8px; font-weight: 850; color: #1e3a8a; }
+    .footer-editor-group-description { margin: 0 0 12px; color: var(--muted); line-height: 1.5; }
     .footer-fields { display: grid; gap: 11px; }
     .footer-field { display: grid; gap: 6px; }
     .footer-field label { font-weight: 750; color: #344054; }
@@ -346,65 +347,7 @@
       </div>
       <div class="card-body footer-editor">
         <div class="notice">השמירה מעדכנת את <span dir="ltr">partials/site-footer.content.json</span> ובונה מיד מחדש את כל ששת קובצי ה־HTML הציבוריים. מספרי הטלפון והמייל מעדכנים גם את קישורי החיוג, המייל ו־Gmail, כך שאין צורך לערוך HTML ידנית.</div>
-        <div class="footer-editor-groups">
-          <fieldset class="footer-editor-group">
-            <legend>כתובת וביקור</legend>
-            <div class="footer-fields">
-              <div class="footer-field"><label for="footerVisitTitle">כותרת הכרטיס</label><input id="footerVisitTitle" type="text" maxlength="120" required data-footer-field="visitTitle" /></div>
-              <div class="footer-field"><label for="footerAddress">כתובת עד לפני מספר הקומה</label><input id="footerAddress" type="text" maxlength="240" required data-footer-field="address" /></div>
-              <div class="footer-field"><label for="footerAddressFloor">מספר קומה</label><input id="footerAddressFloor" type="text" dir="ltr" maxlength="80" required data-footer-field="addressFloor" /><small>נשמר בנפרד כדי שמספר שלילי יוצג נכון בתוך טקסט עברי.</small></div>
-              <div class="footer-field"><label for="footerVisitingHours">ימי ושעות ביקור</label><input id="footerVisitingHours" type="text" maxlength="160" required data-footer-field="visitingHours" /></div>
-              <div class="footer-field"><label for="footerVisitNote">הערה מתחת לשעות</label><input id="footerVisitNote" type="text" maxlength="240" required data-footer-field="visitNote" /></div>
-            </div>
-          </fieldset>
-
-          <fieldset class="footer-editor-group">
-            <legend>יצירת קשר</legend>
-            <div class="footer-fields">
-              <div class="footer-field"><label for="footerContactTitle">כותרת הכרטיס</label><input id="footerContactTitle" type="text" maxlength="120" required data-footer-field="contactTitle" /></div>
-              <div class="footer-field"><label for="footerMobileLabel">תווית הנייד</label><input id="footerMobileLabel" type="text" maxlength="80" required data-footer-field="mobileLabel" /></div>
-              <div class="footer-field"><label for="footerMobile">מספר נייד</label><input id="footerMobile" type="tel" dir="ltr" maxlength="80" required data-footer-field="mobile" /><small>קישור החיוג נבנה אוטומטית מהמספר.</small></div>
-              <div class="footer-field"><label for="footerPhoneLabel">תווית הטלפון</label><input id="footerPhoneLabel" type="text" maxlength="80" required data-footer-field="phoneLabel" /></div>
-              <div class="footer-field"><label for="footerPhone">מספר טלפון</label><input id="footerPhone" type="tel" dir="ltr" maxlength="80" required data-footer-field="phone" /></div>
-              <div class="footer-field"><label for="footerEmailLabel">תווית המייל</label><input id="footerEmailLabel" type="text" maxlength="80" required data-footer-field="emailLabel" /></div>
-              <div class="footer-field"><label for="footerEmail">כתובת מייל</label><input id="footerEmail" type="email" dir="ltr" maxlength="254" required data-footer-field="email" /><small>מתעדכן גם בקישור המייל ובכפתור Gmail.</small></div>
-              <div class="footer-field"><label for="footerEmailMailtoTitle">כיתוב צף לקישור תוכנת הדואר</label><input id="footerEmailMailtoTitle" type="text" maxlength="160" required data-footer-field="emailMailtoTitle" /></div>
-            </div>
-          </fieldset>
-
-          <fieldset class="footer-editor-group">
-            <legend>שעות מענה</legend>
-            <div class="footer-fields">
-              <div class="footer-field"><label for="footerResponseTitle">כותרת הכרטיס</label><input id="footerResponseTitle" type="text" maxlength="120" required data-footer-field="responseTitle" /></div>
-              <div class="footer-field"><label for="footerResponseHours">שעות מענה</label><input id="footerResponseHours" type="text" dir="ltr" maxlength="160" required data-footer-field="responseHours" /></div>
-              <div class="footer-field"><label for="footerResponseNote">הסבר מתחת לשעות</label><input id="footerResponseNote" type="text" maxlength="240" required data-footer-field="responseNote" /></div>
-            </div>
-          </fieldset>
-
-          <fieldset class="footer-editor-group">
-            <legend>קישורים שימושיים</legend>
-            <div class="footer-fields">
-              <div class="footer-field"><label for="footerLinksTitle">כותרת הכרטיס</label><input id="footerLinksTitle" type="text" maxlength="120" required data-footer-field="linksTitle" /></div>
-              <div class="footer-field"><label for="footerTermsLabel">טקסט קישור תנאי שימוש</label><input id="footerTermsLabel" type="text" maxlength="120" required data-footer-field="termsLabel" /></div>
-              <div class="footer-field"><label for="footerPrivacyLabel">טקסט קישור פרטיות</label><input id="footerPrivacyLabel" type="text" maxlength="120" required data-footer-field="privacyLabel" /></div>
-              <div class="footer-field"><label for="footerAccessibilityLabel">טקסט קישור נגישות</label><input id="footerAccessibilityLabel" type="text" maxlength="120" required data-footer-field="accessibilityLabel" /></div>
-              <div class="footer-field"><label for="footerTopLabel">טקסט חזרה למעלה</label><input id="footerTopLabel" type="text" maxlength="120" required data-footer-field="topLabel" /></div>
-            </div>
-          </fieldset>
-
-          <fieldset class="footer-editor-group">
-            <legend>שורה תחתונה והגדרות Gmail</legend>
-            <div class="footer-fields">
-              <div class="footer-field"><label for="footerBusinessName">שם העסק</label><input id="footerBusinessName" type="text" maxlength="160" required data-footer-field="businessName" /></div>
-              <div class="footer-field"><label for="footerRegistrationLabel">תווית מספר העסק</label><input id="footerRegistrationLabel" type="text" maxlength="80" required data-footer-field="registrationLabel" /></div>
-              <div class="footer-field"><label for="footerRegistrationNumber">מספר העסק</label><input id="footerRegistrationNumber" type="text" dir="ltr" maxlength="80" required data-footer-field="registrationNumber" /></div>
-              <div class="footer-field"><label for="footerRightsText">טקסט זכויות</label><input id="footerRightsText" type="text" maxlength="160" required data-footer-field="rightsText" /></div>
-              <div class="footer-field"><label for="footerGmailTitle">טקסט קישור Gmail</label><input id="footerGmailTitle" type="text" maxlength="160" required data-footer-field="gmailTitle" /></div>
-              <div class="footer-field"><label for="footerGmailSubject">נושא הודעת Gmail</label><input id="footerGmailSubject" type="text" maxlength="240" required data-footer-field="gmailSubject" /></div>
-              <div class="footer-field"><label for="footerBottomNote">הטקסט האחרון בפוטר</label><input id="footerBottomNote" type="text" maxlength="240" required data-footer-field="bottomNote" /></div>
-            </div>
-          </fieldset>
-        </div>
+        <div class="footer-editor-groups" id="footerEditorGroups" aria-live="polite"></div>
         <div class="footer-actions">
           <button class="footer-save-btn" id="saveFooter" type="button">שמור ועדכן את כל הדפים</button>
           <span class="toast" id="footerSaveStatus"></span>
@@ -448,7 +391,7 @@
   </div>
 
   <script>
-    const state = { catalogs: [], footer: {}, actions: [], counts: {}, pdfFiles: [], pdfUploadCatalogIndex: null, deleteDialogIndex: null, pendingAssetDeletes: [], activeJobId: null, polling: null };
+    const state = { catalogs: [], footer: {}, footerEditor: { groups: [] }, actions: [], counts: {}, pdfFiles: [], pdfUploadCatalogIndex: null, deleteDialogIndex: null, pendingAssetDeletes: [], activeJobId: null, polling: null };
     const els = {
       stats: document.getElementById('stats'),
       rows: document.getElementById('catalogRows'),
@@ -458,7 +401,7 @@
       saveStatus: document.getElementById('saveStatus'),
       footerSave: document.getElementById('saveFooter'),
       footerSaveStatus: document.getElementById('footerSaveStatus'),
-      footerFields: Array.from(document.querySelectorAll('[data-footer-field]')),
+      footerEditorGroups: document.getElementById('footerEditorGroups'),
       jobStatus: document.getElementById('jobStatus'),
       jobLog: document.getElementById('jobLog'),
       jobHistory: document.getElementById('jobHistory'),
@@ -513,6 +456,7 @@
       state.catalogs = (data.catalogs || []).map(catalog => ({ ...catalog, originalId: catalog.originalId || catalog.id }));
       state.actions = data.actions || [];
       state.footer = data.footer || {};
+      state.footerEditor = data.footerEditor || { groups: [] };
       state.counts = data.counts || {};
       state.pdfFiles = data.pdfFiles || [];
       state.pendingAssetDeletes = [];
@@ -535,16 +479,51 @@
     }
 
 
+    function footerFields() {
+      return Array.from(els.footerEditorGroups.querySelectorAll('[data-footer-field]'));
+    }
+
+    function footerFieldMarkup(field) {
+      const key = String(field.key || '');
+      const inputId = `footer-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+      const direction = field.dir ? ` dir="${escapeHtml(field.dir)}"` : '';
+      const required = field.required === false ? '' : ' required';
+      const help = field.help ? `<small>${escapeHtml(field.help)}</small>` : '';
+      return `<div class="footer-field">
+        <label for="${escapeHtml(inputId)}">${escapeHtml(field.label || key)}</label>
+        <input
+          id="${escapeHtml(inputId)}"
+          type="${escapeHtml(field.type || 'text')}"
+          maxlength="${escapeHtml(field.maxLength || 240)}"
+          data-footer-field="${escapeHtml(key)}"
+          value="${escapeHtml(state.footer[key] ?? '')}"${direction}${required}
+        />
+        ${help}
+      </div>`;
+    }
+
     function renderFooterEditor() {
-      els.footerSave.disabled = false;
-      for (const input of els.footerFields) {
-        input.value = state.footer[input.dataset.footerField] ?? '';
+      const groups = Array.isArray(state.footerEditor && state.footerEditor.groups)
+        ? state.footerEditor.groups
+        : [];
+      if (!groups.length) {
+        els.footerEditorGroups.innerHTML = '<div class="notice">מבנה שדות הפוטר לא התקבל מהשרת. רענן את לוח הבקרה לאחר הפעלת catalog-control-panel.bat.</div>';
+        els.footerSave.disabled = true;
+        setFooterSaveStatus('לא ניתן לערוך את הפוטר בלי סכמת שדות תקינה.', 'err');
+        return;
       }
+
+      els.footerEditorGroups.innerHTML = groups.map(group => `<fieldset class="footer-editor-group" data-footer-group="${escapeHtml(group.id || '')}">
+        <legend>${escapeHtml(group.title || '')}</legend>
+        <p class="footer-editor-group-description">${escapeHtml(group.description || '')}</p>
+        <div class="footer-fields">${(group.fields || []).map(footerFieldMarkup).join('')}</div>
+      </fieldset>`).join('');
+      els.footerSave.disabled = false;
       setFooterSaveStatus('', '');
     }
 
     function collectFooterContent() {
-      return Object.fromEntries(els.footerFields.map(input => [input.dataset.footerField, input.value]));
+      return Object.fromEntries(footerFields().map(input => [input.dataset.footerField, input.value]));
     }
 
     function setFooterSaveStatus(text, kind) {
@@ -553,7 +532,7 @@
     }
 
     async function saveFooter() {
-      const invalid = els.footerFields.find(input => !input.reportValidity());
+      const invalid = footerFields().find(input => !input.reportValidity());
       if (invalid) {
         invalid.focus();
         return;
@@ -1105,9 +1084,11 @@
     els.filter.addEventListener('input', renderCatalogs);
     els.save.addEventListener('click', saveCatalogs);
     els.footerSave.addEventListener('click', saveFooter);
-    for (const input of els.footerFields) {
-      input.addEventListener('input', () => setFooterSaveStatus('יש שינויים שלא נשמרו בפוטר.', ''));
-    }
+    els.footerEditorGroups.addEventListener('input', event => {
+      if (event.target.closest('[data-footer-field]')) {
+        setFooterSaveStatus('יש שינויים שלא נשמרו בפוטר.', '');
+      }
+    });
     els.refresh.addEventListener('click', () => {
       loadState().catch(showLoadError);
     });

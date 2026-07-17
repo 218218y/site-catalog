@@ -35,6 +35,7 @@ if str(TOOLS_DIR) not in sys.path:
 from build_site_pages import PAGE_DOCUMENTS, render_site_pages
 from footer_content import (
     FOOTER_CONTENT_RELATIVE_PATH,
+    footer_editor_schema,
     read_footer_content,
     serialize_footer_content,
     validate_footer_content,
@@ -1078,6 +1079,7 @@ def state_payload() -> dict[str, Any]:
     return {
         "catalogs": [normalize_catalog_for_ui(item) for item in config],
         "footer": read_footer_content(PROJECT_ROOT),
+        "footerEditor": footer_editor_schema(),
         "counts": {
             "catalogs": len(config),
             "pdfs": len(iter_pdf_files()),

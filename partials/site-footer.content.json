@@ -12,6 +12,8 @@
   "emailLabel": "מייל",
   "email": "bargig218@gmail.com",
   "emailMailtoTitle": "פתיחה בתוכנת דואר",
+  "gmailTitle": "שליחה דרך Gmail",
+  "gmailSubject": "פנייה מאתר רהיטי ברגיג",
   "responseTitle": "שעות מענה",
   "responseHours": "11:00–13:00",
   "responseNote": "לבירורים, תיאום ביקור וקבלת פרטים נוספים",
@@ -24,7 +26,5 @@
   "registrationLabel": "ע.מ.",
   "registrationNumber": "301276861",
   "rightsText": "כל הזכויות שמורות",
-  "gmailTitle": "שליחה דרך Gmail",
-  "gmailSubject": "פנייה מאתר רהיטי ברגיג",
   "bottomNote": "האתר מיועד לצפייה בקטלוגים וליצירת קשר"
 }

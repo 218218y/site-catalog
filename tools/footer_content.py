@@ -29,6 +29,8 @@ FOOTER_FIELD_LIMITS: "OrderedDict[str, int]" = OrderedDict(
         ("emailLabel", 80),
         ("email", 254),
         ("emailMailtoTitle", 160),
+        ("gmailTitle", 160),
+        ("gmailSubject", 240),
         ("responseTitle", 120),
         ("responseHours", 160),
         ("responseNote", 240),
@@ -41,11 +43,179 @@ FOOTER_FIELD_LIMITS: "OrderedDict[str, int]" = OrderedDict(
         ("registrationLabel", 80),
         ("registrationNumber", 80),
         ("rightsText", 160),
-        ("gmailTitle", 160),
-        ("gmailSubject", 240),
         ("bottomNote", 240),
     )
 )
+
+# The control panel consumes this schema directly. Keeping the field presentation
+# next to the validated model prevents the editor from drifting away from the
+# actual footer structure when cards or labels change.
+_FOOTER_EDITOR_GROUPS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "visit",
+        "title": "כרטיס 1 · כתובת וביקור",
+        "description": "מקביל לכרטיס הכתובת והשעות שמופיע ראשון בפוטר.",
+        "fields": (
+            {"key": "visitTitle", "label": "כותרת הכרטיס"},
+            {"key": "address", "label": "כתובת עד לפני מספר הקומה"},
+            {
+                "key": "addressFloor",
+                "label": "מספר הקומה",
+                "dir": "ltr",
+                "help": "נשמר בנפרד כדי שמספר שלילי יוצג נכון בתוך טקסט עברי.",
+            },
+            {"key": "visitingHours", "label": "ימי ושעות ביקור"},
+            {"key": "visitNote", "label": "הערה מתחת לשעות הביקור"},
+        ),
+    },
+    {
+        "id": "contact",
+        "title": "כרטיס 2 · יצירת קשר",
+        "description": "כל מה שמופיע בכרטיס הקשר, כולל שורת המייל והקישור ל־Gmail.",
+        "fields": (
+            {"key": "contactTitle", "label": "כותרת הכרטיס"},
+            {"key": "mobileLabel", "label": "תווית מספר הנייד"},
+            {
+                "key": "mobile",
+                "label": "מספר נייד",
+                "type": "tel",
+                "dir": "ltr",
+                "help": "קישור החיוג נבנה אוטומטית מהמספר.",
+            },
+            {"key": "phoneLabel", "label": "תווית מספר הטלפון"},
+            {
+                "key": "phone",
+                "label": "מספר טלפון",
+                "type": "tel",
+                "dir": "ltr",
+                "help": "קישור החיוג נבנה אוטומטית מהמספר.",
+            },
+            {"key": "emailLabel", "label": "תווית כתובת המייל"},
+            {
+                "key": "email",
+                "label": "כתובת מייל",
+                "type": "email",
+                "dir": "ltr",
+                "help": "מתעדכנת גם בקישור לתוכנת הדואר וגם בקישור ל־Gmail.",
+            },
+            {
+                "key": "emailMailtoTitle",
+                "label": "כיתוב צף לכתובת המייל",
+                "help": "מופיע בריחוף על כתובת המייל ומסביר שהיא נפתחת בתוכנת הדואר.",
+            },
+            {
+                "key": "gmailTitle",
+                "label": "טקסט הקישור ל־Gmail",
+                "help": "זהו הטקסט שמופיע מתחת לכתובת המייל בתוך כרטיס יצירת הקשר.",
+            },
+            {
+                "key": "gmailSubject",
+                "label": "נושא הודעת Gmail",
+                "help": "נכנס לשדה הנושא בחלון Gmail ואינו מוצג כטקסט בפוטר עצמו.",
+            },
+        ),
+    },
+    {
+        "id": "response",
+        "title": "כרטיס 3 · שעות מענה",
+        "description": "מקביל לכרטיס שעות המענה וההסבר שמתחתיהן.",
+        "fields": (
+            {"key": "responseTitle", "label": "כותרת הכרטיס"},
+            {"key": "responseHours", "label": "שעות מענה", "dir": "ltr"},
+            {"key": "responseNote", "label": "הסבר מתחת לשעות המענה"},
+        ),
+    },
+    {
+        "id": "links",
+        "title": "כרטיס 4 · מידע שימושי",
+        "description": "מקביל לכרטיס הקישורים שמופיע אחרון ברשת הכרטיסים.",
+        "fields": (
+            {"key": "linksTitle", "label": "כותרת הכרטיס"},
+            {"key": "termsLabel", "label": "טקסט קישור תנאי שימוש"},
+            {"key": "privacyLabel", "label": "טקסט קישור מדיניות פרטיות"},
+            {"key": "accessibilityLabel", "label": "טקסט קישור הצהרת נגישות"},
+            {"key": "topLabel", "label": "טקסט הקישור חזרה למעלה"},
+        ),
+    },
+    {
+        "id": "bottom",
+        "title": "השורה התחתונה",
+        "description": "שתי שורות הסיום שמתחת לארבעת הכרטיסים בפוטר.",
+        "fields": (
+            {"key": "businessName", "label": "שם העסק"},
+            {"key": "registrationLabel", "label": "תווית מספר העסק"},
+            {"key": "registrationNumber", "label": "מספר העסק", "dir": "ltr"},
+            {"key": "rightsText", "label": "טקסט זכויות"},
+            {
+                "key": "bottomNote",
+                "label": "טקסט הסיום",
+                "help": "מופיע בשורה הנפרדת בצד השני של השורה התחתונה.",
+            },
+        ),
+    },
+)
+
+
+def footer_editor_schema() -> dict[str, list[dict[str, Any]]]:
+    """Return the validated footer-editor structure consumed by the control panel."""
+
+    groups: list[dict[str, Any]] = []
+    seen_fields: list[str] = []
+    allowed_input_types = {"text", "email", "tel"}
+
+    for group in _FOOTER_EDITOR_GROUPS:
+        group_id = str(group.get("id", "")).strip()
+        title = str(group.get("title", "")).strip()
+        description = str(group.get("description", "")).strip()
+        raw_fields = group.get("fields")
+        if not group_id or not title or not description or not isinstance(raw_fields, tuple) or not raw_fields:
+            raise RuntimeError("Invalid footer editor group definition")
+
+        fields: list[dict[str, Any]] = []
+        for raw_field in raw_fields:
+            key = str(raw_field.get("key", "")).strip()
+            label = str(raw_field.get("label", "")).strip()
+            input_type = str(raw_field.get("type", "text")).strip()
+            direction = str(raw_field.get("dir", "")).strip()
+            help_text = str(raw_field.get("help", "")).strip()
+            if key not in FOOTER_FIELD_LIMITS:
+                raise RuntimeError(f"Unknown footer editor field: {key}")
+            if key in seen_fields:
+                raise RuntimeError(f"Duplicate footer editor field: {key}")
+            if not label or input_type not in allowed_input_types:
+                raise RuntimeError(f"Invalid footer editor metadata for: {key}")
+            if direction not in {"", "ltr", "rtl"}:
+                raise RuntimeError(f"Invalid footer editor direction for: {key}")
+
+            field = {
+                "key": key,
+                "label": label,
+                "type": input_type,
+                "maxLength": FOOTER_FIELD_LIMITS[key],
+                "required": True,
+            }
+            if direction:
+                field["dir"] = direction
+            if help_text:
+                field["help"] = help_text
+            fields.append(field)
+            seen_fields.append(key)
+
+        groups.append(
+            {
+                "id": group_id,
+                "title": title,
+                "description": description,
+                "fields": fields,
+            }
+        )
+
+    expected_order = list(FOOTER_FIELD_LIMITS)
+    if set(seen_fields) != set(expected_order):
+        missing = [field for field in expected_order if field not in seen_fields]
+        raise RuntimeError(f"Footer editor schema is missing fields: {', '.join(missing)}")
+
+    return {"groups": groups}
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FOOTER_TOKEN_RE = re.compile(r"\{\{FOOTER_[A-Z0-9_]+\}\}")

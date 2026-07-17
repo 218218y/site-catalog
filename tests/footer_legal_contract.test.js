@@ -88,6 +88,7 @@ assert.match(footerFragment, /class="site-footer-email-link"[\s\S]*?title="\{\{F
 const gmailAnchorAttributes = footerFragment.split('class="site-footer-gmail-link"')[1]?.split('>')[0] || "";
 assert.doesNotMatch(gmailAnchorAttributes, /\stitle=/);
 assert.match(footerModule, /def validate_footer_content/);
+assert.match(footerModule, /def footer_editor_schema/);
 assert.match(footerModule, /html\.escape/);
 assert.match(footerModule, /def gmail_compose_href/);
 assert.match(pageBuilder, /read_footer_content/);
@@ -97,10 +98,13 @@ assert.match(pageBuilder, /"terms\.html"[\s\S]*?template_filename="legal\.templa
 assert.match(pageBuilder, /"privacy\.html"[\s\S]*?content_filename="legal\/privacy\.content\.html"/);
 assert.match(pageBuilder, /"accessibility\.html"[\s\S]*?content_filename="legal\/accessibility\.content\.html"/);
 assert.match(controlPanel, /<h2>עריכת טקסט הפוטר<\/h2>/);
-assert.match(controlPanel, /data-footer-field="businessName"/);
+assert.match(controlPanel, /id="footerEditorGroups"/);
+assert.match(controlPanel, /function footerFieldMarkup/);
+assert.match(controlPanel, /data-footer-field="\$\{escapeHtml\(key\)\}"/);
 assert.match(controlPanel, /api\('\/api\/footer'/);
 assert.match(controlServer, /if path == "\/api\/footer"/);
 assert.match(controlServer, /save_footer_content_and_render_pages/);
+assert.match(controlServer, /"footerEditor": footer_editor_schema\(\)/);
 assert.match(deployTool, /PUBLIC_HTML_FILES = tuple\(page\.filename for page in PAGE_DOCUMENTS\) \+ \("404\.html",\)/);
 assert.match(css, /\.site-footer-grid\s*\{[\s\S]*?grid-template-columns:/);
 assert.match(css, /\.site-footer-bottom\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);

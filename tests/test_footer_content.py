@@ -43,6 +43,36 @@ def copy_page_sources(target: Path) -> None:
         shutil.copy2(source, destination)
 
 
+
+def test_footer_editor_schema_matches_footer_structure_and_limits() -> None:
+    schema = FOOTER.footer_editor_schema()
+    groups = schema["groups"]
+
+    assert [group["id"] for group in groups] == ["visit", "contact", "response", "links", "bottom"]
+    fields = [field for group in groups for field in group["fields"]]
+    keys = [field["key"] for field in fields]
+
+    assert keys == list(FOOTER.FOOTER_FIELD_LIMITS)
+    assert len(keys) == len(set(keys))
+    assert {field["key"]: field["maxLength"] for field in fields} == dict(FOOTER.FOOTER_FIELD_LIMITS)
+
+    contact_group = next(group for group in groups if group["id"] == "contact")
+    assert [field["key"] for field in contact_group["fields"]] == [
+        "contactTitle",
+        "mobileLabel",
+        "mobile",
+        "phoneLabel",
+        "phone",
+        "emailLabel",
+        "email",
+        "emailMailtoTitle",
+        "gmailTitle",
+        "gmailSubject",
+    ]
+    assert next(field for field in contact_group["fields"] if field["key"] == "gmailSubject")["help"].endswith(
+        "ואינו מוצג כטקסט בפוטר עצמו."
+    )
+
 def test_footer_template_escapes_text_and_builds_links() -> None:
     content = FOOTER.read_footer_content(ROOT)
     content["visitTitle"] = '<script>alert("x")</script>'
