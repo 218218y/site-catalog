@@ -668,41 +668,64 @@ test.describe("critical catalog journeys", () => {
         scrollTops
       };
     }, { deltas, deltaMode });
+    const settleWheelGesture = () => page.waitForTimeout(180);
 
     const startTop = await scrollPages.evaluate((container) => container.scrollTop);
-    const smallGesture = await dispatchWheelStream([40]);
-    expect(smallGesture.everyEventCanceled).toBe(true);
-    expect(Math.abs(smallGesture.scrollTop - startTop)).toBeLessThanOrEqual(2);
+    const accidentalGesture = await dispatchWheelStream([20]);
+    expect(accidentalGesture.everyEventCanceled).toBe(true);
+    expect(Math.abs(accidentalGesture.scrollTop - startTop)).toBeLessThanOrEqual(2);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
     await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
-    await page.waitForTimeout(180);
+    await settleWheelGesture();
 
-    const granularTarget = Math.min(CATALOG_PAGES, startPage + 1);
-    const granularGesture = await dispatchWheelStream(Array(10).fill(10));
+    const firstPageTarget = Math.min(CATALOG_PAGES, startPage + 1);
+    const granularGesture = await dispatchWheelStream(Array(7).fill(10));
     expect(granularGesture.everyEventCanceled).toBe(true);
     for (const intermediateTop of granularGesture.scrollTops.slice(0, -1)) {
       expect(Math.abs(intermediateTop - startTop)).toBeLessThanOrEqual(2);
     }
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(granularTarget));
-    await expect.poll(() => alignedDistance(granularTarget)).toBeLessThanOrEqual(2);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(firstPageTarget));
+    await expect.poll(() => alignedDistance(firstPageTarget)).toBeLessThanOrEqual(2);
+    await settleWheelGesture();
 
-    await page.keyboard.press("PageUp");
+    await dispatchWheelStream([-20]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
     await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
+    await settleWheelGesture();
 
-    await dispatchWheelStream([100]);
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(granularTarget));
-    await expect.poll(() => alignedDistance(granularTarget)).toBeLessThanOrEqual(2);
+    const wideSinglePageGesture = await dispatchWheelStream([199]);
+    expect(wideSinglePageGesture.everyEventCanceled).toBe(true);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(firstPageTarget));
+    await expect.poll(() => alignedDistance(firstPageTarget)).toBeLessThanOrEqual(2);
+    await settleWheelGesture();
 
-    const lineModeTarget = Math.min(CATALOG_PAGES, granularTarget + 1);
+    await dispatchWheelStream([-199]);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
+    await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
+    await settleWheelGesture();
+
+    const twoPageTarget = Math.min(CATALOG_PAGES, startPage + 2);
+    await dispatchWheelStream([200]);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(twoPageTarget));
+    await expect.poll(() => alignedDistance(twoPageTarget)).toBeLessThanOrEqual(2);
+    await settleWheelGesture();
+
+    await dispatchWheelStream([-200]);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
+    await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
+    await settleWheelGesture();
+
+    const lineModeTarget = Math.min(CATALOG_PAGES, startPage + 1);
     await dispatchWheelStream([3], 1);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(lineModeTarget));
     await expect.poll(() => alignedDistance(lineModeTarget)).toBeLessThanOrEqual(2);
+    await settleWheelGesture();
 
     const largeTarget = Math.min(CATALOG_PAGES, lineModeTarget + 2);
     await dispatchWheelStream([240]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(largeTarget));
     await expect.poll(() => alignedDistance(largeTarget)).toBeLessThanOrEqual(2);
+    await settleWheelGesture();
 
     const repeatedTarget = Math.min(CATALOG_PAGES, largeTarget + 3);
     await dispatchWheelStream([100, 100, 100]);
