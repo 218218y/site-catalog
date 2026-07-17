@@ -257,7 +257,6 @@ const els = {
   viewerInquiryActions: $("viewerInquiryActions"),
   viewerInquiryGmail: $("viewerInquiryGmail"),
   viewerInquiryEmail: $("viewerInquiryEmail"),
-  viewerInquiryEmailLabel: $("viewerInquiryEmailLabel"),
   viewerInquiryShare: $("viewerInquiryShare"),
   viewerInquiryCopy: $("viewerInquiryCopy"),
   viewerZoomIndicator: $("viewerZoomIndicator"),

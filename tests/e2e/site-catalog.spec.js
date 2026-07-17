@@ -311,7 +311,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightbox")).toBeVisible();
   });
 
-  test("prepares an exact catalog-page inquiry for Gmail, sharing, and copying", async ({ page }) => {
+  test("offers direct Gmail, system sharing, email, and copying for an exact catalog page", async ({ page }) => {
     await preparePage(page, { captureClipboard: true, captureShare: true });
     const inquiryPage = Math.min(5, CATALOG_PAGES);
     await openDirectViewer(page, inquiryPage);
@@ -323,13 +323,16 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerInquiryPage")).toContainText(`עמוד ${inquiryPage}`);
     await expect(page.locator("#viewerInquiryMobile")).toHaveCount(0);
     await expect(page.locator("#viewerInquiryPhone")).toHaveCount(0);
+    await expect(page.locator("#viewerInquiryActions .viewer-inquiry-action")).toHaveCount(4);
 
     const emailDetails = await page.locator("#viewerInquiryEmail").evaluate((link) => {
       const url = new URL(link.href);
       return {
         protocol: url.protocol,
         subject: url.searchParams.get("subject"),
-        body: url.searchParams.get("body")
+        body: url.searchParams.get("body"),
+        title: link.getAttribute("title"),
+        tooltip: link.getAttribute("data-tooltip")
       };
     });
     expect(emailDetails.protocol).toBe("mailto:");
@@ -338,6 +341,8 @@ test.describe("critical catalog journeys", () => {
     expect(emailDetails.body).toContain(`קטלוג: ${testCatalog.title}`);
     expect(emailDetails.body).toContain(`עמוד: ${inquiryPage}`);
     expect(emailDetails.body).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+    expect(emailDetails.title).toBeNull();
+    expect(emailDetails.tooltip).toBeNull();
 
     const gmailDetails = await page.locator("#viewerInquiryGmail").evaluate((link) => {
       const url = new URL(link.href);
@@ -346,19 +351,26 @@ test.describe("critical catalog journeys", () => {
         view: url.searchParams.get("view"),
         to: url.searchParams.get("to"),
         subject: url.searchParams.get("su"),
-        body: url.searchParams.get("body")
+        body: url.searchParams.get("body"),
+        title: link.getAttribute("title"),
+        tooltip: link.getAttribute("data-tooltip")
       };
     });
     expect(gmailDetails.host).toBe("mail.google.com");
     expect(gmailDetails.view).toBe("cm");
     expect(gmailDetails.to).toContain("@");
     expect(gmailDetails.subject).toContain(testCatalog.title);
+    expect(gmailDetails.body).toContain(`קטלוג: ${testCatalog.title}`);
+    expect(gmailDetails.body).toContain(`עמוד: ${inquiryPage}`);
     expect(gmailDetails.body).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+    expect(gmailDetails.title).toBeNull();
+    expect(gmailDetails.tooltip).toBeNull();
 
     await page.locator("#viewerInquiryShare").click();
     await expect(dialog).toBeHidden();
     const shared = await page.evaluate(() => window.__bargigE2eShare || null);
     expect(shared?.title).toContain(testCatalog.title);
+    expect(shared?.text).toContain(`קטלוג: ${testCatalog.title}`);
     expect(shared?.text).toContain(`עמוד: ${inquiryPage}`);
     expect(shared?.url).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
 

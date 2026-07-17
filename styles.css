@@ -3726,21 +3726,23 @@ a.reader-home:focus-visible {
 .viewer-inquiry-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(4,3,3,.7);
-  backdrop-filter: blur(8px);
+  background: rgba(27,20,16,.48);
+  backdrop-filter: blur(9px);
 }
 .viewer-inquiry-dialog {
   position: relative;
   z-index: 1;
-  width: min(620px, 100%);
+  width: min(560px, 100%);
   max-height: min(760px, calc(100dvh - 36px));
   overflow: auto;
   padding: 26px;
   border-radius: 28px;
-  color: #fff;
-  background: linear-gradient(165deg, rgba(36,28,23,.985), rgba(13,11,9,.985));
-  border: 1px solid rgba(255,255,255,.17);
-  box-shadow: 0 34px 100px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.12);
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top right, rgba(217,186,163,.32), transparent 38%),
+    linear-gradient(180deg, rgba(255,253,251,.99), rgba(247,238,231,.985));
+  border: 1px solid rgba(255,255,255,.84);
+  box-shadow: 0 34px 100px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.96);
   transform: translateY(10px) scale(.985);
   transition: transform .18s ease;
 }
@@ -3755,20 +3757,24 @@ a.reader-home:focus-visible {
   place-items: center;
   padding: 0;
   border-radius: 999px;
-  color: #fff;
-  background: rgba(255,255,255,.09);
-  border: 1px solid rgba(255,255,255,.14);
+  color: var(--muted);
+  background: rgba(255,255,255,.68);
+  border: 1px solid rgba(117,88,68,.15);
   font-size: 1.45rem;
   line-height: 1;
   cursor: pointer;
 }
 .viewer-inquiry-close:hover,
-.viewer-inquiry-close:focus-visible { background: rgba(255,255,255,.18); }
+.viewer-inquiry-close:focus-visible {
+  color: var(--ink);
+  background: #fff;
+  border-color: rgba(117,88,68,.24);
+}
 .viewer-inquiry-heading { padding-inline-end: 48px; }
 .viewer-inquiry-heading > span {
   display: block;
   margin-bottom: 5px;
-  color: #e1c1a9;
+  color: var(--brand-dark);
   font-size: .8rem;
   font-weight: 900;
   letter-spacing: .02em;
@@ -3780,7 +3786,7 @@ a.reader-home:focus-visible {
 }
 .viewer-inquiry-heading p {
   margin: 8px 0 0;
-  color: rgba(255,255,255,.72);
+  color: var(--muted);
   line-height: 1.6;
 }
 .viewer-inquiry-reference {
@@ -3791,8 +3797,9 @@ a.reader-home:focus-visible {
   margin-top: 20px;
   padding: 12px;
   border-radius: 20px;
-  background: rgba(255,255,255,.075);
-  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.62);
+  border: 1px solid rgba(117,88,68,.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.88);
 }
 .viewer-inquiry-preview-frame {
   position: relative;
@@ -3822,7 +3829,7 @@ a.reader-home:focus-visible {
   font-size: 1rem;
 }
 .viewer-inquiry-reference-copy span {
-  color: #e1c1a9;
+  color: var(--brand-dark);
   font-size: .88rem;
   font-weight: 900;
 }
@@ -3840,24 +3847,33 @@ a.reader-home:focus-visible {
   gap: 11px;
   padding: 10px 13px;
   border-radius: 17px;
-  color: #fff;
-  background: rgba(255,255,255,.09);
-  border: 1px solid rgba(255,255,255,.14);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  color: var(--ink);
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(117,88,68,.14);
+  box-shadow: 0 8px 22px rgba(74,52,39,.08), inset 0 1px 0 rgba(255,255,255,.94);
   text-align: right;
   cursor: pointer;
   transition: background .16s ease, border-color .16s ease, transform .16s ease;
 }
 .viewer-inquiry-action.primary {
-  background: rgba(143,109,85,.4);
-  border-color: rgba(225,193,169,.38);
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  border-color: rgba(91,65,48,.2);
+  box-shadow: 0 12px 28px rgba(91,65,48,.22), inset 0 1px 0 rgba(255,255,255,.2);
 }
 .viewer-inquiry-action:hover,
 .viewer-inquiry-action:focus-visible {
-  color: #fff;
-  background: rgba(255,255,255,.16);
-  border-color: rgba(255,255,255,.28);
+  color: var(--ink);
+  background: #fff;
+  border-color: rgba(117,88,68,.28);
+  box-shadow: 0 12px 28px rgba(74,52,39,.12), inset 0 1px 0 rgba(255,255,255,.96);
   transform: translateY(-1px);
+}
+.viewer-inquiry-action.primary:hover,
+.viewer-inquiry-action.primary:focus-visible {
+  color: #fff;
+  background: linear-gradient(135deg, #9d775d, #644936);
+  border-color: rgba(91,65,48,.28);
 }
 .viewer-inquiry-action svg {
   width: 23px;
@@ -3875,10 +3891,11 @@ a.reader-home:focus-visible {
   gap: 2px;
 }
 .viewer-inquiry-action small {
-  color: rgba(255,255,255,.64);
+  color: var(--muted);
   font-size: .73rem;
   font-weight: 800;
 }
+.viewer-inquiry-action.primary small { color: rgba(255,255,255,.78); }
 .viewer-inquiry-action bdi,
 .viewer-inquiry-action strong {
   overflow: hidden;

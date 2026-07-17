@@ -32,7 +32,7 @@ assert.match(spec, /persists a favorite through reload/);
 assert.match(spec, /shares favorites to a clean browser context/);
 assert.match(spec, /first-run viewer tour once/);
 assert.match(spec, /shares the exact page/);
-assert.match(spec, /prepares an exact catalog-page inquiry/);
+assert.match(spec, /offers direct Gmail, system sharing, email, and copying/);
 assert.match(spec, /events\.filter\(\(event\) => event\.name === "search"\)\)\.toHaveLength\(0\)/);
 assert.match(spec, /completedSearch\.action\)\.toBe\("result-open"\)/);
 assert.match(spec, /#viewerMobileMoreToggle/);

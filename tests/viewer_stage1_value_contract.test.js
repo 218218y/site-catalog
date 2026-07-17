@@ -19,9 +19,12 @@ for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.
 
 assert.match(template, /id="viewerInquiryCatalog"/);
 assert.match(template, /id="viewerInquiryPage"/);
-assert.match(template, /id="viewerInquiryGmail"[^>]*mail\.google\.com|id="viewerInquiryGmail"/);
+assert.match(template, /id="viewerInquiryGmail"/);
+assert.match(template, /id="viewerInquiryEmail"/);
 assert.match(template, /id="viewerInquiryShare"/);
 assert.match(template, /id="viewerInquiryCopy"/);
+assert.doesNotMatch(template.match(/id="viewerInquiryGmail"[^>]*>/)?.[0] || "", /title=|data-tooltip=/);
+assert.doesNotMatch(template.match(/id="viewerInquiryEmail"[^>]*>/)?.[0] || "", /title=|data-tooltip=/);
 assert.doesNotMatch(template, /id="viewerInquiryMobile"|id="viewerInquiryPhone"/);
 assert.match(template, /data-viewer-mobile-action="download"/);
 assert.match(template, /data-viewer-mobile-action="fit-height"/);
@@ -34,7 +37,8 @@ assert.match(app, /`עמוד: \$\{page\}`/);
 assert.match(app, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryCatalog\.textContent = reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);
 assert.match(app, /new URLSearchParams\(\{ subject: reference\.subject, body: reference\.text \}\)/);
 assert.match(app, /function viewerInquiryGmailUrl\([\s\S]*?mail\.google\.com\/mail\/\?/);
-assert.match(app, /function shareViewerInquiryReference\([\s\S]*?navigator\.share\(shareData\)[\s\S]*?action: "share"/);
+assert.match(app, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?navigator\.share\(shareData\)[\s\S]*?action: "share"/);
+assert.doesNotMatch(app, /viewerInquiry(?:Gmail|Email)\.title\s*=|setTooltipText\(els\.viewerInquiry(?:Gmail|Email)/);
 assert.match(app, /function copyViewerInquiryReference\([\s\S]*?copyTextToClipboard\(reference\.text\)[\s\S]*?action: "copy"[\s\S]*?source: "viewer-inquiry"/);
 assert.match(app, /function syncViewerScrollActivePage\([\s\S]*?syncViewerInquiryUi\(\)/);
 assert.match(app, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)[\s\S]*?syncViewerMobileMoreMenuState\(\)/);
@@ -56,6 +60,8 @@ assert.match(app, /function telemetryTrackSearch\([\s\S]*?completion = telemetry
 assert.doesNotMatch(app, /TELEMETRY_SEARCH_DELAY_MS|searchTimers/);
 
 assert.match(css, /\.viewer-inquiry-button\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?min-height:\s*46px;/);
+assert.match(css, /\.viewer-inquiry-dialog\s*\{[\s\S]*?color:\s*var\(--ink\);[\s\S]*?linear-gradient\(180deg, rgba\(255,253,251/);
+assert.match(css, /\.viewer-inquiry-action\.primary\s*\{[\s\S]*?linear-gradient\(135deg, var\(--brand\), var\(--brand-dark\)\)/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]*?#lightboxPinTopBar,[\s\S]*?display:\s*none !important;/);
 assert.match(css, /@media \(max-width: 480px\)[\s\S]*?grid-template-areas:\s*"brand actions";/);
 

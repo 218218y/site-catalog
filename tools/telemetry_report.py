@@ -457,7 +457,7 @@ def write_html_report(
         card("פתיחות קטלוג", event_counts.get("catalog_open", 0), "עניין בקטלוגים"),
         card("חיפושים", event_counts.get("search", 0), "חיפושים שהושלמו באתר"),
         card("פעולות במועדפים", event_counts.get("favorite", 0), "הוספה, הסרה וניקוי"),
-        card("פעולות ליצירת קשר", event_counts.get("contact", 0), "Gmail, דוא״ל, שיתוף והעתקת פרטים"),
+        card("פעולות ליצירת קשר", event_counts.get("contact", 0), "שיתוף והעתקת פרטי דגם"),
         card(
             "שגיאות שנקלטו",
             event_counts.get("js_error", 0) + event_counts.get("image_error", 0),

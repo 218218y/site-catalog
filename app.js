@@ -468,7 +468,6 @@ const els = {
   viewerInquiryActions: $("viewerInquiryActions"),
   viewerInquiryGmail: $("viewerInquiryGmail"),
   viewerInquiryEmail: $("viewerInquiryEmail"),
-  viewerInquiryEmailLabel: $("viewerInquiryEmailLabel"),
   viewerInquiryShare: $("viewerInquiryShare"),
   viewerInquiryCopy: $("viewerInquiryCopy"),
   viewerZoomIndicator: $("viewerZoomIndicator"),
@@ -6873,8 +6872,6 @@ function syncViewerInquiryUi() {
 
   const emailAddress = viewerInquiryEmailAddress();
   const emailAvailable = Boolean(emailAddress);
-  if (els.viewerInquiryEmailLabel) els.viewerInquiryEmailLabel.textContent = emailAddress;
-
   const mailtoQuery = new URLSearchParams({ subject: reference.subject, body: reference.text });
   syncViewerInquiryContactLink(
     els.viewerInquiryEmail,
@@ -6888,17 +6885,6 @@ function syncViewerInquiryUi() {
     reference,
     "gmail"
   );
-
-  if (els.viewerInquiryEmail) {
-    els.viewerInquiryEmail.title = emailAvailable
-      ? `פתיחה בתוכנת הדואר המוגדרת · ${emailAddress}`
-      : "לא הוגדרה כתובת דואר";
-  }
-  if (els.viewerInquiryGmail) {
-    els.viewerInquiryGmail.title = emailAvailable
-      ? `פתיחת הודעה חדשה ב-Gmail אל ${emailAddress}`
-      : "לא הוגדרה כתובת דואר";
-  }
 }
 
 function getViewerInquiryFocusableElements() {
@@ -6991,6 +6977,10 @@ async function shareViewerInquiryReference() {
   const reference = viewerInquiryReference();
   if (!reference) return;
 
+  // Keep URL and text as separate Web Share fields. On Windows/Chrome this
+  // preserves the wider set of registered share targets (including Gmail).
+  // Targets may choose which fields they consume, so the dedicated Gmail and
+  // copy actions remain the reliable paths for the complete prepared message.
   const shareData = {
     title: reference.subject,
     text: reference.shareText,
