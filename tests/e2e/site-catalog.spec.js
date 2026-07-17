@@ -184,7 +184,7 @@ async function expectCurrentViewerImageReady(page) {
 }
 
 async function revealViewerTopToolbar(page) {
-  await page.locator("#topHotspot").hover({ position: { x: 18, y: 4 } });
+  await page.mouse.move(18, 4);
   await expect(page.locator("#lightbox")).toHaveClass(/show-ui/);
   await expect(page.locator("#lightboxCopyLink")).toBeInViewport();
 }
@@ -949,7 +949,7 @@ test.describe("critical catalog journeys", () => {
 
   test("emits privacy-safe operational telemetry for a real journey", async ({ page }) => {
     const events = [];
-    await preparePage(page, { telemetryEvents: events });
+    await preparePage(page, { telemetryEvents: events, captureClipboard: true });
     await page.goto("/index.html");
     await waitForApp(page);
 
@@ -957,6 +957,8 @@ test.describe("critical catalog journeys", () => {
     await page.locator("#globalSearchInput").fill("פתיחת");
     const firstSearchResult = page.locator("#globalSearchResults [data-search-catalog]").first();
     await expect(firstSearchResult).toBeVisible();
+    const openedCatalogId = await firstSearchResult.getAttribute("data-search-catalog");
+    expect(openedCatalogId).toBeTruthy();
     await page.waitForTimeout(1100);
     expect(events.filter((event) => event.name === "search")).toHaveLength(0);
     await firstSearchResult.click();
@@ -969,7 +971,11 @@ test.describe("critical catalog journeys", () => {
     await page.locator("#viewerFavoriteButton").click();
     await page.locator("#viewerInquiryButton").click();
     await page.locator("#viewerInquiryCopy").click();
-    await page.waitForTimeout(1200);
+    await expect(page.locator("#viewerInquiryOverlay")).toBeHidden();
+    await expect.poll(
+      () => events.some((event) => event.name === "contact" && event.action === "copy"),
+      { timeout: 3500 }
+    ).toBe(true);
 
     const names = events.map((event) => event.name);
     expect(names).toContain("search");
@@ -978,7 +984,7 @@ test.describe("critical catalog journeys", () => {
     expect(names).toContain("contact");
     const inquiryContact = events.find((event) => event.name === "contact" && event.action === "copy");
     expect(inquiryContact?.source).toBe("viewer-inquiry");
-    expect(inquiryContact?.catalogId).toBe(CATALOG_ID);
+    expect(inquiryContact?.catalogId).toBe(openedCatalogId);
     expect(inquiryContact?.pageNumber).toBeGreaterThanOrEqual(1);
     expect(names).not.toContain("page_view");
     expect(names).not.toContain("page_load");
