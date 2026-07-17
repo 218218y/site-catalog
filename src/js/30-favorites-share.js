@@ -231,8 +231,13 @@ function syncFavoritesTransferDialogUi() {
     els.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת.";
   }
   if (els.favoritesTransferSummary) {
-    const rejectedText = pending.rejected ? ` · לא זמינים באתר זה: ${pending.rejected}` : "";
-    els.favoritesTransferSummary.textContent = `ברשימה שהתקבלה: ${incomingCount} · חדשים: ${newCount} · כבר קיימים: ${alreadyExistingCount} · שמורים כעת: ${currentCount}${rejectedText}`;
+    const rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "";
+    const existingLabel = alreadyExistingCount === 1 ? "קיים" : "קיימים";
+    const newLabel = newCount === 1 ? "חדש" : "חדשים";
+    const overlapText = alreadyExistingCount > 0
+      ? `\nמתוכם ${alreadyExistingCount} ${existingLabel} ו-${newCount} ${newLabel}`
+      : "";
+    els.favoritesTransferSummary.textContent = `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}${overlapText}`;
   }
 }
 

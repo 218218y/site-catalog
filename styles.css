@@ -6191,6 +6191,7 @@ body[data-page="viewer"] {
   background: rgba(255, 255, 255, .62);
   font-size: .86rem;
   font-weight: 760;
+  white-space: pre-line;
 }
 
 .favorites-transfer-actions {

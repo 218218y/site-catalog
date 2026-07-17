@@ -168,11 +168,30 @@ assert.deepEqual(JSON.parse(JSON.stringify(comparison.mergedItems)), [
 
 context.currentFavoriteItems = [
   { catalogId: 'catalog-a', page: 2, savedAt: 10 },
-  { catalogId: 'catalog-b', page: 1, savedAt: 5 }
+  { catalogId: 'catalog-b', page: 1, savedAt: 5 },
+  { catalogId: 'catalog-a', page: 8, savedAt: 4 },
+  { catalogId: 'catalog-b', page: 9, savedAt: 3 }
 ];
 context.state.favoritesTransferPending = {
   items: [
     { catalogId: 'catalog-a', page: 2, savedAt: 0 },
+    { catalogId: 'catalog-b', page: 1, savedAt: 0 },
+    { catalogId: 'catalog-a', page: 4, savedAt: 0 }
+  ],
+  rejected: 0
+};
+context.syncFavoritesTransferDialogUi();
+assert.equal(
+  context.els.favoritesTransferSummary.textContent,
+  '3 פריטים ברשימה שהתקבלה · 4 פריטים שמורים כעת\n' +
+    'מתוכם 2 קיימים ו-1 חדש'
+);
+
+context.currentFavoriteItems = [
+  { catalogId: 'catalog-b', page: 1, savedAt: 5 }
+];
+context.state.favoritesTransferPending = {
+  items: [
     { catalogId: 'catalog-a', page: 4, savedAt: 0 },
     { catalogId: 'catalog-b', page: 7, savedAt: 0 }
   ],
@@ -181,7 +200,8 @@ context.state.favoritesTransferPending = {
 context.syncFavoritesTransferDialogUi();
 assert.equal(
   context.els.favoritesTransferSummary.textContent,
-  'ברשימה שהתקבלה: 3 · חדשים: 2 · כבר קיימים: 1 · שמורים כעת: 2 · לא זמינים באתר זה: 1'
+  '2 פריטים ברשימה שהתקבלה · 1 פריטים שמורים כעת · 1 פריטים לא היו זמינים באתר זה',
+  'the original summary must remain unchanged and single-line when there is no overlap'
 );
 
 console.log('favorites_portability_logic.test.js: PASS');

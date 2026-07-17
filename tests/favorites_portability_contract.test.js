@@ -35,7 +35,7 @@ assert.match(app, /const FAVORITES_SHARE_VERSION = 2;/);
 assert.match(app, /function canonicalizeFavoriteShareItems\(/);
 assert.match(app, /function analyzeFavoriteItemMerge\([\s\S]*?newItems[\s\S]*?alreadyExistingItems[\s\S]*?mergedItems/);
 assert.match(app, /function mergeFavoriteItemLists\([\s\S]*?analyzeFavoriteItemMerge\(incoming, existing\)\.mergedItems/);
-assert.match(app, /function syncFavoritesTransferDialogUi\([\s\S]*?analyzeFavoriteItemMerge\(pending\.items, getValidFavoriteItems\(\)\)[\s\S]*?חדשים[\s\S]*?כבר קיימים/);
+assert.match(app, /function syncFavoritesTransferDialogUi\([\s\S]*?analyzeFavoriteItemMerge\(pending\.items, getValidFavoriteItems\(\)\)[\s\S]*?alreadyExistingCount > 0[\s\S]*?מתוכם[\s\S]*?פריטים ברשימה שהתקבלה/);
 assert.match(app, /function encodeFavoritePageRanges\(/);
 assert.match(app, /function decodeFavoritePageRanges\(/);
 assert.match(app, /function buildFavoritesShareToken\([\s\S]*?canonicalizeFavoriteShareItems\([\s\S]*?encodeFavoritePageRanges/);
@@ -47,6 +47,7 @@ assert.match(css, /\.favorites-title-row\s*\{[\s\S]*?flex-wrap:\s*nowrap;/);
 assert.match(css, /\.favorites-share-inline\s*\{/);
 assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.favorites-share-inline span\s*\{[\s\S]*?display:\s*none;/);
 assert.match(css, /\.favorites-transfer-overlay\s*\{/);
+assert.match(css, /\.favorites-transfer-summary\s*\{[\s\S]*?white-space:\s*pre-line;/);
 assert.doesNotMatch(css, /\.favorites-toolbar|\.favorite-order-controls|\.favorite-drag-handle|\.favorites-grid\.is-reordering/);
 
 console.log('favorites_portability_contract.test.js: PASS');
