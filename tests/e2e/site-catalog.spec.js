@@ -175,6 +175,48 @@ async function expectViewerFrameCentered(page, tolerance = 1.5) {
   })).toBeLessThanOrEqual(tolerance);
 }
 
+// The production class exists for only 240 ms. Observe it before the action
+// instead of asserting its current state after other Playwright waits finish.
+const PAGE_SWAP_OBSERVED_ATTRIBUTE = "data-e2e-page-swap-observed";
+const PAGE_SWAP_COUNT_ATTRIBUTE = "data-e2e-page-swap-count";
+
+async function armPageSwapObservation(frame) {
+  await frame.evaluate((element, attributes) => {
+    element.removeAttribute(attributes.observed);
+    element.removeAttribute(attributes.count);
+
+    const recordActiveSwap = () => {
+      if (!element.classList.contains("page-swap-enter")) return false;
+      const root = element.parentElement || document;
+      element.setAttribute(attributes.observed, "true");
+      element.setAttribute(attributes.count, String(root.querySelectorAll(".page-swap-enter").length));
+      return true;
+    };
+
+    if (recordActiveSwap()) return;
+    const observer = new MutationObserver(() => {
+      if (!recordActiveSwap()) return;
+      observer.disconnect();
+    });
+    observer.observe(element, { attributes: true, attributeFilter: ["class"] });
+  }, {
+    observed: PAGE_SWAP_OBSERVED_ATTRIBUTE,
+    count: PAGE_SWAP_COUNT_ATTRIBUTE
+  });
+}
+
+async function expectPageSwapObserved(frame) {
+  await expect(frame).toHaveAttribute(PAGE_SWAP_OBSERVED_ATTRIBUTE, "true");
+  await expect(frame).toHaveAttribute(PAGE_SWAP_COUNT_ATTRIBUTE, "1");
+  await frame.evaluate((element, attributes) => {
+    element.removeAttribute(attributes.observed);
+    element.removeAttribute(attributes.count);
+  }, {
+    observed: PAGE_SWAP_OBSERVED_ATTRIBUTE,
+    count: PAGE_SWAP_COUNT_ATTRIBUTE
+  });
+}
+
 test.describe("critical catalog journeys", () => {
   test("serves the restrictive security policy without breaking the app", async ({ page }) => {
     await preparePage(page);
@@ -476,9 +518,11 @@ test.describe("critical catalog journeys", () => {
     await page.mouse.move(1438, 450);
     await expect(page.locator("#lightboxPageRail")).toBeVisible();
     const beforeTop = await scrollPages.evaluate((element) => element.scrollTop);
+    const targetFrame = scrollPages.locator(`[data-scroll-page="${targetPage}"]`);
+    await armPageSwapObservation(targetFrame);
     await page.locator(`#lightboxPageThumbs [data-page="${targetPage}"]`).click();
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(targetPage));
-    await expect(scrollPages.locator(`[data-scroll-page="${targetPage}"]`)).toHaveClass(/page-swap-enter/);
+    await expectPageSwapObserved(targetFrame);
     const afterTop = await scrollPages.evaluate((element) => element.scrollTop);
     expect(Math.abs(afterTop - beforeTop)).toBeGreaterThan(100);
 
@@ -541,6 +585,9 @@ test.describe("critical catalog journeys", () => {
     });
 
     const forwardSteps = Math.min(3, CATALOG_PAGES - startPage);
+    const forwardPage = startPage + forwardSteps;
+    const forwardFrame = scrollPages.locator(`[data-scroll-page="${forwardPage}"]`);
+    if (forwardSteps > 1) await armPageSwapObservation(forwardFrame);
     if (forwardSteps > 0) await page.keyboard.press("ArrowDown");
     for (let index = 1; index < forwardSteps; index += 1) {
       await page.evaluate(() => {
@@ -552,11 +599,7 @@ test.describe("critical catalog journeys", () => {
         }));
       });
     }
-    const forwardPage = startPage + forwardSteps;
-    if (forwardSteps > 1) {
-      await expect(scrollPages.locator(`[data-scroll-page="${forwardPage}"]`)).toHaveClass(/page-swap-enter/);
-      await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(1);
-    }
+    if (forwardSteps > 1) await expectPageSwapObserved(forwardFrame);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(forwardPage));
     await expect.poll(() => scrollPages.evaluate((container, targetPage) => {
       const frame = container.querySelector(`[data-scroll-page="${targetPage}"]`);
@@ -568,6 +611,9 @@ test.describe("critical catalog journeys", () => {
 
     await page.waitForTimeout(320);
     const backwardSteps = Math.min(2, forwardPage - 1);
+    const backwardPage = forwardPage - backwardSteps;
+    const backwardFrame = scrollPages.locator(`[data-scroll-page="${backwardPage}"]`);
+    if (backwardSteps > 1) await armPageSwapObservation(backwardFrame);
     if (backwardSteps > 0) await page.keyboard.press("ArrowUp");
     for (let index = 1; index < backwardSteps; index += 1) {
       await page.evaluate(() => {
@@ -579,11 +625,7 @@ test.describe("critical catalog journeys", () => {
         }));
       });
     }
-    const backwardPage = forwardPage - backwardSteps;
-    if (backwardSteps > 1) {
-      await expect(scrollPages.locator(`[data-scroll-page="${backwardPage}"]`)).toHaveClass(/page-swap-enter/);
-      await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(1);
-    }
+    if (backwardSteps > 1) await expectPageSwapObserved(backwardFrame);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(backwardPage));
     await expect.poll(() => scrollPages.evaluate((container, targetPage) => {
       const frame = container.querySelector(`[data-scroll-page="${targetPage}"]`);
@@ -642,6 +684,9 @@ test.describe("critical catalog journeys", () => {
       };
     });
 
+    const nextPage = Math.min(CATALOG_PAGES, startPage + 1);
+    const nextFrame = scrollPages.locator(`[data-scroll-page="${nextPage}"]`);
+    await armPageSwapObservation(nextFrame);
     await scrollPages.dispatchEvent("pointerdown", {
       pointerId: 71,
       pointerType: "touch",
@@ -660,12 +705,12 @@ test.describe("critical catalog journeys", () => {
       bubbles: true,
       cancelable: true
     });
-    const nextPage = Math.min(CATALOG_PAGES, startPage + 1);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(nextPage));
-    await expect(scrollPages.locator(`[data-scroll-page="${nextPage}"]`)).toHaveClass(/page-swap-enter/);
-    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(1);
+    await expectPageSwapObserved(nextFrame);
     await expect.poll(() => page.evaluate(() => window.__viewerSwipeSmoothScrollCalls)).toEqual([]);
 
+    const startFrame = scrollPages.locator(`[data-scroll-page="${startPage}"]`);
+    await armPageSwapObservation(startFrame);
     await scrollPages.dispatchEvent("pointerdown", {
       pointerId: 72,
       pointerType: "touch",
@@ -685,8 +730,7 @@ test.describe("critical catalog journeys", () => {
       cancelable: true
     });
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
-    await expect(scrollPages.locator(`[data-scroll-page="${startPage}"]`)).toHaveClass(/page-swap-enter/);
-    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(1);
+    await expectPageSwapObserved(startFrame);
     await expect.poll(() => page.evaluate(() => window.__viewerSwipeSmoothScrollCalls)).toEqual([]);
   });
 
