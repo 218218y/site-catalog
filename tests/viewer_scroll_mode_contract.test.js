@@ -37,7 +37,7 @@ assert.match(app, /function handleViewerScrollPagesScroll\(\)/);
 assert.match(app, /viewerScrollPages\?\.addEventListener\("scroll", handleViewerScrollPagesScroll, \{ passive: true \}\)/);
 assert.match(app, /scrollToPage: isScrollViewerMode\(\)/);
 assert.match(app, /const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;/);
-assert.match(app, /const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 20;/);
+assert.match(app, /const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 70;/);
 assert.match(app, /const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;/);
 assert.match(app, /const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;/);
 assert.doesNotMatch(app, /VIEWER_SCROLL_WHEEL_ELASTIC_RATIO|elasticRemainder/);

@@ -671,7 +671,7 @@ test.describe("critical catalog journeys", () => {
     const settleWheelGesture = () => page.waitForTimeout(180);
 
     const startTop = await scrollPages.evaluate((container) => container.scrollTop);
-    const accidentalGesture = await dispatchWheelStream([20]);
+    const accidentalGesture = await dispatchWheelStream([69]);
     expect(accidentalGesture.everyEventCanceled).toBe(true);
     expect(Math.abs(accidentalGesture.scrollTop - startTop)).toBeLessThanOrEqual(2);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
@@ -688,7 +688,7 @@ test.describe("critical catalog journeys", () => {
     await expect.poll(() => alignedDistance(firstPageTarget)).toBeLessThanOrEqual(2);
     await settleWheelGesture();
 
-    await dispatchWheelStream([-20]);
+    await dispatchWheelStream([-70]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
     await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
     await settleWheelGesture();
