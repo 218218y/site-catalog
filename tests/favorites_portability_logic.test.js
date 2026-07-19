@@ -87,7 +87,7 @@ vm.runInContext(names.map(extractFunction).join('\n\n'), context);
 const firstOrder = [
   { catalogId: 'catalog-b', page: 7, savedAt: 30 },
   { catalogId: 'catalog-a', page: 4, savedAt: 20 },
-  { catalogId: 'catalog-a', page: 2, savedAt: 10 },
+  { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'הערה מקומית' },
   { catalogId: 'catalog-a', page: 3, savedAt: 5 }
 ];
 const secondOrder = [...firstOrder].reverse();
@@ -131,12 +131,12 @@ assert.deepEqual(JSON.parse(JSON.stringify(legacyDecoded.items)), [
 const merged = context.mergeFavoriteItemLists(
   [{ catalogId: 'catalog-a', page: 2, savedAt: 50 }],
   [
-    { catalogId: 'catalog-a', page: 2, savedAt: 10 },
+    { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'הערה מקומית' },
     { catalogId: 'catalog-b', page: 1, savedAt: 5 }
   ]
 );
 assert.deepEqual(JSON.parse(JSON.stringify(merged)), [
-  { catalogId: 'catalog-a', page: 2, savedAt: 50 },
+  { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'הערה מקומית' },
   { catalogId: 'catalog-b', page: 1, savedAt: 5 }
 ]);
 
@@ -147,7 +147,7 @@ const comparison = context.analyzeFavoriteItemMerge(
     { catalogId: 'catalog-b', page: 7, savedAt: 30 }
   ],
   [
-    { catalogId: 'catalog-a', page: 2, savedAt: 10 },
+    { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'לשמור' },
     { catalogId: 'catalog-b', page: 1, savedAt: 5 },
     { catalogId: 'catalog-b', page: 7, savedAt: 1 }
   ]
@@ -160,9 +160,9 @@ assert.deepEqual(JSON.parse(JSON.stringify(comparison.alreadyExistingItems)), [
   { catalogId: 'catalog-b', page: 7, savedAt: 30 }
 ]);
 assert.deepEqual(JSON.parse(JSON.stringify(comparison.mergedItems)), [
-  { catalogId: 'catalog-a', page: 2, savedAt: 50 },
+  { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'לשמור' },
   { catalogId: 'catalog-a', page: 4, savedAt: 40 },
-  { catalogId: 'catalog-b', page: 7, savedAt: 30 },
+  { catalogId: 'catalog-b', page: 7, savedAt: 1 },
   { catalogId: 'catalog-b', page: 1, savedAt: 5 }
 ]);
 

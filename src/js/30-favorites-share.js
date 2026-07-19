@@ -27,11 +27,15 @@ function getFavoriteEntries() {
 
 
 function getValidFavoriteItems() {
-  return getFavoriteEntries().map(({ catalogId, catalog, page, savedAt }) => ({
-    catalogId: String(catalogId || catalog?.id || ""),
-    page,
-    savedAt: Number(savedAt) > 0 ? Number(savedAt) : 0
-  }));
+  return getFavoriteEntries().map(({ catalogId, catalog, page, savedAt, note }) => {
+    const item = {
+      catalogId: String(catalogId || catalog?.id || ""),
+      page,
+      savedAt: Number(savedAt) > 0 ? Number(savedAt) : 0
+    };
+    if (String(note || "").trim()) item.note = String(note).trim();
+    return item;
+  });
 }
 
 function favoriteItemKey(item) {
@@ -63,12 +67,21 @@ function normalizeFavoriteTransferItems(values) {
 }
 
 function analyzeFavoriteItemMerge(incoming, existing = getValidFavoriteItems()) {
-  const incomingItems = window.BargigFavorites?.normalizeItems?.(incoming) || [];
+  const incomingItems = normalizeFavoriteTransferItems(incoming).items;
   const existingItems = window.BargigFavorites?.normalizeItems?.(existing) || [];
-  const existingKeys = new Set(existingItems.map(favoriteItemKey).filter(Boolean));
+  const existingByKey = new Map(existingItems.map((item) => [favoriteItemKey(item), item]));
   const incomingKeys = new Set(incomingItems.map(favoriteItemKey).filter(Boolean));
-  const newItems = incomingItems.filter((item) => !existingKeys.has(favoriteItemKey(item)));
-  const alreadyExistingItems = incomingItems.filter((item) => existingKeys.has(favoriteItemKey(item)));
+  const newItems = incomingItems.filter((item) => !existingByKey.has(favoriteItemKey(item)));
+  const alreadyExistingItems = incomingItems.filter((item) => existingByKey.has(favoriteItemKey(item)));
+  const mergedIncomingItems = incomingItems.map((item) => {
+    const existingItem = existingByKey.get(favoriteItemKey(item));
+    if (!existingItem) return item;
+    return {
+      ...item,
+      savedAt: Number(existingItem.savedAt) > 0 ? Number(existingItem.savedAt) : Number(item.savedAt) || 0,
+      ...(String(existingItem.note || "").trim() ? { note: String(existingItem.note).trim() } : {})
+    };
+  });
   const preservedExistingItems = existingItems.filter((item) => !incomingKeys.has(favoriteItemKey(item)));
 
   return {
@@ -76,7 +89,7 @@ function analyzeFavoriteItemMerge(incoming, existing = getValidFavoriteItems()) 
     existingItems,
     newItems,
     alreadyExistingItems,
-    mergedItems: [...incomingItems, ...preservedExistingItems]
+    mergedItems: [...mergedIncomingItems, ...preservedExistingItems]
   };
 }
 
@@ -430,34 +443,7 @@ function syncViewerFavoriteButtonUi() {
 }
 
 function renderFavoritesPanel(entries = getFavoriteEntries()) {
-  if (!els.favoritesGrid) return;
-  const count = entries.length;
-  if (els.favoritesCount) els.favoritesCount.textContent = String(count);
-  els.favoritesClearButton?.classList.toggle("hidden", count === 0);
-  els.favoritesEmpty?.classList.toggle("hidden", count !== 0);
-  syncFavoritesShareButton(count);
-
-  els.favoritesGrid.innerHTML = entries.map(({ catalog, page }) => {
-    const identityCatalog = escapeHtml(catalog.id);
-    const title = escapeHtml(catalog.title || "קטלוג");
-    const image = pageSrc(catalog, page);
-    return `
-      <article class="favorite-card" data-favorite-catalog="${identityCatalog}" data-favorite-page="${page}">
-        <button class="favorite-preview-button" type="button" data-open-favorite="1" aria-label="פתיחת ${title}, עמוד ${page}">
-          <span class="favorite-image-frame catalog-image-frame"${pageAspectStyle(catalog, page)}>
-            <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(image)} />
-          </span>
-          <span class="favorite-card-meta">
-            <strong>${title}</strong>
-            <span>עמוד ${page}</span>
-          </span>
-        </button>
-        <button class="favorite-remove-button" type="button" data-remove-favorite="1" aria-label="הסרת ${title}, עמוד ${page} מהמועדפים" title="הסרה מהמועדפים">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" /></svg>
-        </button>
-      </article>
-    `;
-  }).join("");
+  renderFavoritesWorkspace(entries);
 }
 
 function syncFavoritesShortcut(button, countElement, count) {
@@ -470,6 +456,7 @@ function syncFavoritesShortcut(button, countElement, count) {
 function syncFavoritesUi(options = {}) {
   const { renderPanel = state.favoritesOpen } = options;
   const entries = getFavoriteEntries();
+  pruneFavoritesWorkspaceState(entries);
   const count = entries.length;
   syncFavoritesShortcut(els.headerFavoritesButton, els.headerFavoritesCount, count);
   syncFavoritesShortcut(els.lightboxFavoritesButton, els.lightboxFavoritesCount, count);
@@ -570,7 +557,10 @@ function toggleCurrentPageFavorite() {
 function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
   const removed = favoritesStore.remove({ catalogId, page });
-  if (removed !== false) telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
+  if (removed !== false) {
+    state.favoritesSelectedKeys.delete(favoriteItemKey({ catalogId, page }));
+    telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
+  }
   syncFavoritesUi({ renderPanel: true });
   if (removed !== false) showActionToast("הוסר", { tone: "removed" });
 }
@@ -579,12 +569,15 @@ function clearAllFavorites() {
   if (!favoritesStore || !getFavoriteEntries().length) return;
   if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
   favoritesStore.clear();
+  state.favoritesSelectedKeys.clear();
+  state.favoritesFilterCatalogId = "";
   telemetryTrackFavorite("clear", "", 0, 0);
   syncFavoritesUi({ renderPanel: true });
   showActionToast("כל המועדפים הוסרו", { tone: "removed" });
 }
 
 function handleFavoritesGridClick(event) {
+  if (handleFavoritesWorkspaceGridClick(event)) return;
   const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
   if (!card || !els.favoritesGrid?.contains(card)) return;
   const catalogId = card.dataset.favoriteCatalog;
@@ -599,6 +592,7 @@ function handleFavoritesGridClick(event) {
 function handleFavoritesStorageChange(event) {
   if (!favoritesStore || (event.key !== null && event.key !== favoritesStore.storageKey)) return;
   favoritesStore.reload();
+  pruneFavoritesWorkspaceState(getFavoriteEntries());
   syncFavoritesUi({ renderPanel: true });
   if (state.favoritesTransferPending) syncFavoritesTransferDialogUi();
   syncFavoriteViewerAfterStoreChange();
@@ -703,6 +697,7 @@ function attachFavoritesShareEvents() {
   els.favoritesClearButton?.addEventListener("click", clearAllFavorites);
   els.favoritesShareButton?.addEventListener("click", () => shareFavoritesList());
   els.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
+  attachFavoritesWorkspaceEvents();
   els.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
   els.favoritesTransferBackdrop?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
   els.favoritesTransferCancel?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));

@@ -188,7 +188,34 @@
           </button>
         </div>
       </header>
+      <div class="favorites-tools hidden" id="favoritesTools">
+        <div class="favorites-filter-group">
+          <label for="favoritesCatalogFilter">סינון לפי קטלוג</label>
+          <select id="favoritesCatalogFilter" aria-describedby="favoritesVisibleCount">
+            <option value="">כל הקטלוגים</option>
+          </select>
+          <span class="favorites-visible-count" id="favoritesVisibleCount">0 פריטים</span>
+        </div>
+        <button class="button soft favorites-select-all" id="favoritesSelectAllVisible" type="button" aria-pressed="false">סימון כל המוצגים</button>
+        <div class="favorites-selection-bar hidden" id="favoritesSelectionBar" role="status" aria-live="polite">
+          <span><strong id="favoritesSelectionCount">0</strong> מסומנים</span>
+          <button class="button soft" id="favoritesShareSelected" type="button">שיתוף הבחירה</button>
+          <button class="button primary" id="favoritesCompareSelected" type="button" disabled>השוואה</button>
+          <small>להשוואה: 2–4 פריטים</small>
+          <button class="favorites-selection-clear" id="favoritesClearSelection" type="button">ביטול סימון</button>
+        </div>
+      </div>
       <div class="favorites-grid" id="favoritesGrid"></div>
+      <div class="favorites-filtered-empty empty-state ui-state hidden" id="favoritesFilteredEmpty" data-state="empty" role="status" aria-live="polite">
+        <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        </span>
+        <div class="empty-state-copy">
+          <strong>אין מועדפים בקטלוג שנבחר</strong>
+          <p>אפשר לבחור קטלוג אחר או לחזור להצגת כל המועדפים.</p>
+        </div>
+        <button class="button soft empty-state-action" id="favoritesResetFilter" type="button">הצגת כל המועדפים</button>
+      </div>
       <div class="favorites-empty empty-state ui-state hidden" id="favoritesEmpty" data-state="empty" role="status" aria-live="polite">
         <span class="empty-state-icon ui-state-icon favorites-empty-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
@@ -221,6 +248,45 @@
         <button class="button soft" id="favoritesTransferReplace" type="button">החלפת הרשימה הקיימת</button>
         <button class="button soft favorites-transfer-cancel" id="favoritesTransferCancel" type="button">ביטול</button>
       </div>
+    </section>
+  </div>
+
+  <div class="favorite-note-overlay hidden" id="favoriteNoteOverlay" aria-hidden="true">
+    <div class="favorite-note-backdrop" id="favoriteNoteBackdrop"></div>
+    <section class="favorite-note-dialog" role="dialog" aria-modal="true" aria-labelledby="favoriteNoteTitle" aria-describedby="favoriteNoteContext">
+      <button class="favorite-note-close" id="favoriteNoteClose" type="button" aria-label="סגירת עריכת ההערה">×</button>
+      <span class="favorite-note-eyebrow">הערה פרטית</span>
+      <h2 id="favoriteNoteTitle">הוספת הערה</h2>
+      <p id="favoriteNoteContext"></p>
+      <label for="favoriteNoteInput">מה חשוב לזכור לגבי הדגם?</label>
+      <textarea id="favoriteNoteInput" maxlength="280" rows="5" placeholder="לדוגמה: לחדר הילדים, לבדוק ברוחב 180"></textarea>
+      <div class="favorite-note-footer">
+        <span id="favoriteNoteCount">0/280</span>
+        <div>
+          <button class="button soft" id="favoriteNoteCancel" type="button">ביטול</button>
+          <button class="button primary" id="favoriteNoteSave" type="button">שמירת הערה</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="favorites-compare-overlay hidden" id="favoritesCompareOverlay" aria-hidden="true">
+    <div class="favorites-compare-backdrop" id="favoritesCompareBackdrop"></div>
+    <section class="favorites-compare-dialog" role="dialog" aria-modal="true" aria-labelledby="favoritesCompareTitle" aria-describedby="favoritesCompareDescription">
+      <header class="favorites-compare-header">
+        <div>
+          <span>השוואת דגמים</span>
+          <h2 id="favoritesCompareTitle">הדגמים שבחרת</h2>
+          <p id="favoritesCompareDescription">2 דגמים מוצגים זה לצד זה</p>
+        </div>
+        <button class="favorites-compare-close" id="favoritesCompareClose" type="button" aria-label="סגירת ההשוואה">×</button>
+      </header>
+      <div class="favorites-compare-grid" id="favoritesCompareGrid"></div>
+      <footer class="favorites-compare-actions">
+        <a class="button primary favorites-compare-inquiry" id="favoritesCompareGmail" href="#" target="_blank" rel="noopener noreferrer">בירור מרוכז ב-Gmail</a>
+        <button class="button soft" id="favoritesCompareShare" type="button">שיתוף ההשוואה</button>
+        <button class="button soft" id="favoritesCompareCopy" type="button">העתקת הפרטים</button>
+      </footer>
     </section>
   </div>
 

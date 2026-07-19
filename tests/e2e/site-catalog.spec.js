@@ -36,6 +36,10 @@ const FAVORITE_CATALOG_TRANSITION_ID = favoriteCatalogTransitionCatalog.id;
 const FAVORITE_CATALOG_TRANSITION_PAGES = Math.max(1, Number(favoriteCatalogTransitionCatalog.pages) || 1);
 const FAVORITE_CATALOG_TRANSITION_PAGE = Math.min(4, FAVORITE_CATALOG_TRANSITION_PAGES);
 const CATALOG_COUNT = catalogData.length;
+const FAVORITES_WORKSPACE_CATALOGS = catalogData.slice(0, 2).map((catalog) => ({
+  id: catalog.id,
+  page: Math.min(2, Math.max(1, Number(catalog.pages) || 1))
+}));
 const PREVIEW_PAGE = Math.min(6, CATALOG_PAGES);
 const ONBOARDING_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_KEY = "bargig.catalog-favorites.v1";
@@ -1049,6 +1053,50 @@ test("shares favorites to a clean browser context without relying on local stora
 
   await consumerContext.close();
   await producerContext.close();
+});
+
+
+
+test("favorites workspace supports notes, ordering, filtering, selection, and comparison", async ({ page }) => {
+  test.skip(FAVORITES_WORKSPACE_CATALOGS.length < 2, "E2E requires at least two catalogs for filtering.");
+  const items = [
+    { catalogId: FAVORITES_WORKSPACE_CATALOGS[0].id, page: 1, savedAt: 30 },
+    { catalogId: FAVORITES_WORKSPACE_CATALOGS[1].id, page: FAVORITES_WORKSPACE_CATALOGS[1].page, savedAt: 20 },
+    { catalogId: FAVORITES_WORKSPACE_CATALOGS[0].id, page: FAVORITES_WORKSPACE_CATALOGS[0].page, savedAt: 10 }
+  ];
+  await preparePage(page, { resetFavorites: false, captureClipboard: true, captureShare: true });
+  await page.addInitScript(({ key, favorites }) => {
+    localStorage.setItem(key, JSON.stringify({ version: 2, items: favorites }));
+  }, { key: FAVORITES_KEY, favorites: items });
+  await page.goto("/favorites.html");
+  await waitForApp(page);
+
+  await expect(page.locator("#favoritesGrid .favorite-card")).toHaveCount(3);
+  const firstCard = page.locator("#favoritesGrid .favorite-card").first();
+  await firstCard.locator("[data-edit-favorite-note]").click();
+  await page.locator("#favoriteNoteInput").fill("לבדוק ברוחב 180");
+  await page.locator("#favoriteNoteSave").click();
+  await expect(firstCard.locator(".favorite-note-text")).toContainText("לבדוק ברוחב 180");
+
+  await page.locator("#favoritesGrid [data-select-favorite]").nth(0).check();
+  await page.locator("#favoritesGrid [data-select-favorite]").nth(1).check();
+  await expect(page.locator("#favoritesSelectionCount")).toHaveText("2");
+  await expect(page.locator("#favoritesCompareSelected")).toBeEnabled();
+  await page.locator("#favoritesCompareSelected").click();
+  await expect(page.locator("#favoritesCompareGrid .favorites-compare-card")).toHaveCount(2);
+  await expect(page.locator("#favoritesCompareGrid")).toContainText("לבדוק ברוחב 180");
+  await page.locator("#favoritesCompareCopy").click();
+  await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).toContain("לבדוק ברוחב 180");
+  await page.locator("#favoritesCompareClose").click();
+
+  const firstIdentityBefore = await page.locator("#favoritesGrid .favorite-card").first().evaluate((card) => `${card.dataset.favoriteCatalog}:${card.dataset.favoritePage}`);
+  await page.locator("#favoritesGrid .favorite-card").first().locator('[data-move-favorite="1"]').click();
+  const secondIdentityAfter = await page.locator("#favoritesGrid .favorite-card").nth(1).evaluate((card) => `${card.dataset.favoriteCatalog}:${card.dataset.favoritePage}`);
+  expect(secondIdentityAfter).toBe(firstIdentityBefore);
+
+  await page.locator("#favoritesCatalogFilter").selectOption(FAVORITES_WORKSPACE_CATALOGS[1].id);
+  await expect(page.locator("#favoritesGrid .favorite-card")).toHaveCount(1);
+  await expect(page.locator("#favoritesVisibleCount")).toContainText("1 מתוך 3");
 });
 
 test("mobile home and viewer survive portrait and landscape orientation", async ({ browser }) => {

@@ -183,6 +183,8 @@ function prepareDocumentRoute(nextPage) {
   if (nextPage !== "favorites" && state.favoritesTransferPending) {
     closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: true });
   }
+  if (nextPage !== "favorites" && state.favoriteNoteEditingKey) closeFavoriteNoteEditor({ restoreFocus: false });
+  if (nextPage !== "favorites" && state.favoritesCompareOpen) closeFavoritesCompare({ restoreFocus: false });
   if (nextPage !== "favorites" && (state.favoritesOpen || els.favoritesPanel?.classList.contains("favorites-standalone-page"))) {
     hideFavoritesPanelUi();
   }

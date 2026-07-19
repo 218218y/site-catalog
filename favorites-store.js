@@ -2,8 +2,16 @@
   "use strict";
 
   const STORAGE_KEY = "bargig.catalog-favorites.v1";
-  const STORAGE_VERSION = 1;
+  const STORAGE_VERSION = 2;
   const MAX_ITEMS = 500;
+  const MAX_NOTE_LENGTH = 280;
+
+  function normalizeNote(value) {
+    const normalized = String(value || "")
+      .replace(/\r\n?/g, "\n")
+      .trim();
+    return normalized.slice(0, MAX_NOTE_LENGTH);
+  }
 
   function normalizeItem(value) {
     if (!value || typeof value !== "object") return null;
@@ -11,11 +19,14 @@
     const page = Number.parseInt(value.page, 10);
     const savedAt = Number(value.savedAt);
     if (!catalogId || !Number.isFinite(page) || page < 1) return null;
-    return {
+    const item = {
       catalogId,
       page,
       savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : 0
     };
+    const note = normalizeNote(value.note);
+    if (note) item.note = note;
+    return item;
   }
 
   function itemKey(item) {
@@ -45,7 +56,6 @@
     if (!rawValue) return [];
     try {
       const payload = JSON.parse(rawValue);
-      if (Array.isArray(payload)) return normalizeItems(payload);
       if (!payload || typeof payload !== "object") return [];
       if (payload.version !== STORAGE_VERSION) return [];
       return normalizeItems(payload.items);
@@ -106,8 +116,36 @@
         const normalized = normalizeItem(item);
         if (!normalized) return false;
         const key = itemKey(normalized);
-        const nextItems = [normalized, ...memoryItems.filter((candidate) => itemKey(candidate) !== key)];
+        const existing = memoryItems.find((candidate) => itemKey(candidate) === key);
+        const merged = existing ? { ...existing, ...normalized } : normalized;
+        const nextItems = [merged, ...memoryItems.filter((candidate) => itemKey(candidate) !== key)];
         persist(nextItems);
+        return true;
+      },
+      update(item, patch) {
+        const key = itemKey(item);
+        if (!key || !patch || typeof patch !== "object") return false;
+        const index = memoryItems.findIndex((candidate) => itemKey(candidate) === key);
+        if (index < 0) return false;
+        const current = memoryItems[index];
+        const next = normalizeItem({ ...current, ...patch });
+        if (!next) return false;
+        const nextItems = memoryItems.slice();
+        nextItems[index] = next;
+        persist(nextItems);
+        return true;
+      },
+      setNote(item, note) {
+        return this.update(item, { note: normalizeNote(note) });
+      },
+      reorder(keys) {
+        if (!Array.isArray(keys)) return false;
+        const normalizedKeys = keys.map((value) => String(value || "")).filter(Boolean);
+        if (normalizedKeys.length !== memoryItems.length) return false;
+        const currentByKey = new Map(memoryItems.map((item) => [itemKey(item), item]));
+        if (new Set(normalizedKeys).size !== memoryItems.length) return false;
+        if (normalizedKeys.some((key) => !currentByKey.has(key))) return false;
+        persist(normalizedKeys.map((key) => currentByKey.get(key)));
         return true;
       },
       remove(item) {
@@ -142,8 +180,11 @@
     STORAGE_KEY,
     STORAGE_VERSION,
     MAX_ITEMS,
+    MAX_NOTE_LENGTH,
+    normalizeNote,
     normalizeItem,
     normalizeItems,
+    itemKey,
     parsePayload,
     serializePayload,
     createStore

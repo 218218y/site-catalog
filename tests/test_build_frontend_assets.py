@@ -43,6 +43,7 @@ def test_frontend_manifest_uses_reviewed_feature_modules() -> None:
         "src/js/15-telemetry.js",
         "src/js/20-shared-ui.js",
         "src/js/30-favorites-share.js",
+        "src/js/35-favorites-workspace.js",
         "src/js/40-catalog-grid.js",
         "src/js/50-search-ui.js",
         "src/js/60-viewer.js",
@@ -63,6 +64,7 @@ def test_frontend_manifest_uses_reviewed_feature_modules() -> None:
         "src/css/50-footer-legal.css",
         "src/css/80-responsive-shell.css",
         "src/css/85-favorites-routing.css",
+        "src/css/87-favorites-workspace.css",
         "src/css/90-visual-polish.css",
         "src/css/95-accessibility-consistency.css",
         "src/css/97-seo-foundation.css",
@@ -85,6 +87,7 @@ def test_generated_bundle_preserves_declared_module_order() -> None:
     assert "const state =" in module_sources["src/js/10-app-state.js"]
     assert "function telemetryInit" in module_sources["src/js/15-telemetry.js"]
     assert "function shareFavoritesList" in module_sources["src/js/30-favorites-share.js"]
+    assert "function renderFavoritesWorkspace" in module_sources["src/js/35-favorites-workspace.js"]
     assert "function renderCatalogCards" in module_sources["src/js/40-catalog-grid.js"]
     assert "function renderSearchResults" in module_sources["src/js/50-search-ui.js"]
     assert "function openLightbox" in module_sources["src/js/60-viewer.js"]

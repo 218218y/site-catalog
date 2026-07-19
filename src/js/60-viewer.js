@@ -1890,7 +1890,8 @@ function updateLightbox(options = {}) {
 function syncDocumentLock() {
   const modalFavoritesOpen = state.favoritesOpen && !isAppPage("favorites");
   const transferOpen = Boolean(state.favoritesTransferPending);
-  document.body.classList.toggle("no-scroll", state.lightboxOpen || modalFavoritesOpen || transferOpen);
+  const favoritesWorkspaceDialogOpen = Boolean(state.favoriteNoteEditingKey || state.favoritesCompareOpen);
+  document.body.classList.toggle("no-scroll", state.lightboxOpen || modalFavoritesOpen || transferOpen || favoritesWorkspaceDialogOpen);
   document.documentElement.classList.toggle("viewer-open", state.lightboxOpen);
 }
 
