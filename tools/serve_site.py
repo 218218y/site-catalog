@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build and serve the exact private deployment artifact for local preview.
+"""Serve the already-built private site artifact for local preview.
 
-The source tree is deliberately not used as the web root. Local preview and
-Cloudflare deployment both run from a complete generated bundle containing the
-same clean category, catalog and per-page routes. This prevents local-only URL
-fallbacks and keeps stale generated route folders out of the source directory.
+The source tree is deliberately not used as the web root. The canonical build
+command creates both dist/site-upload-r2 and dist/site-local from one validated
+artifact. This server normally performs no build; --build-first is available
+only as an explicit maintenance option.
 """
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8080, help="Local port. Default: 8080")
     parser.add_argument("--out", default=DEFAULT_OUT, help=f"Generated preview folder. Default: {DEFAULT_OUT}")
     parser.add_argument("--asset-base-url", default=DEFAULT_ASSET_BASE_URL, help="Catalog image CDN/R2 base URL")
-    parser.add_argument("--no-build", action="store_true", help="Serve an already-built preview folder")
+    parser.add_argument("--build-first", action="store_true", help="Explicitly rebuild the preview before serving")
     return parser.parse_args(argv)
 
 
@@ -76,10 +76,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     root = project_root()
     try:
         out_dir = resolve_output(root, args.out)
-        if not args.no_build:
+        if args.build_first:
             build_preview(root, out_dir, str(args.asset_base_url).strip())
         if not (out_dir / "index.html").is_file():
-            raise FileNotFoundError(f"Preview is missing {out_dir / 'index.html'}; build it before serving")
+            raise FileNotFoundError(
+                f"Preview is missing {out_dir / 'index.html'}. Run bundle-site-r2.bat once, then start the server again"
+            )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

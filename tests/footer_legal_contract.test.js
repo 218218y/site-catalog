@@ -105,7 +105,7 @@ assert.match(controlPanel, /api\('\/api\/footer'/);
 assert.match(controlServer, /if path == "\/api\/footer"/);
 assert.match(controlServer, /save_footer_content_and_render_pages/);
 assert.match(controlServer, /"footerEditor": footer_editor_schema\(\)/);
-assert.match(deployTool, /PUBLIC_HTML_FILES = tuple\(page\.filename for page in PAGE_DOCUMENTS\) \+ \("404\.html",\)/);
+assert.match(deployTool, /PUBLIC_HTML_FILES = tuple\([\s\S]*?TECHNICAL_SHELL_FILENAMES[\s\S]*?\) \+ \("404\.html",\)/);
 assert.match(css, /\.site-footer-grid\s*\{[\s\S]*?grid-template-columns:/);
 assert.match(css, /\.site-footer-bottom\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
 assert.match(css, /\.site-footer-contact-list\s*\{[\s\S]*?--footer-contact-inline-padding:\s*8px;[\s\S]*?--footer-contact-label-width:\s*44px;/);

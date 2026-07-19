@@ -111,12 +111,24 @@ ACTIONS: dict[str, Action] = {
     ),
     "bundle_r2": Action(
         "יצירת באנדל R2",
-        "יוצר dist/site-upload-r2 כשהתמונות נטענות מה-CDN הקבוע.",
-        ["tools/build_deploy_bundle.py", "--external-assets-url", "https://cdn.bargig-furniture.com"],
+        "בונה רק כשיש שינוי, ומעדכן מאותו תוצר את dist/site-upload-r2 ואת dist/site-local.",
+        [
+            "tools/build_deploy_bundle.py",
+            "--out",
+            "dist/site-upload-r2",
+            "--seo-mode",
+            "private",
+            "--external-assets-url",
+            "https://cdn.bargig-furniture.com",
+            "--skip-if-current",
+            "--mirror-to",
+            "dist/site-local",
+            "--clean-legacy-artifacts",
+        ],
     ),
     "cloudflare_pages_deploy": Action(
         "העלאת באנדל ל-Cloudflare",
-        "יוצר תמיד באנדל R2 טרי, מאמת אותו מקומית ומעלה אותו ישירות ל-production של Cloudflare Pages בפרויקט bargig-catlog. הפעולה מסתיימת כש-Wrangler מדווח שההעלאה הצליחה, בלי להשוות מול האתר הציבורי.",
+        "מאמת שהבאנדל הקיים שלם ותואם למקורות, ואז מעלה אותו ל-production בלי לבנות מחדש. אם היו שינויים יש להריץ קודם יצירת באנדל R2.",
         ["tools/deploy_cloudflare_pages.py"],
     ),
 }

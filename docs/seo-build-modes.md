@@ -97,7 +97,7 @@ npm run build:deploy:public
 ## סביבת פיתוח מקומית זהה לפריסה
 
 תיקיית המקור של הפרויקט אינה משמשת עוד כ־web root. הפעלה דרך
-`start-server.bat` בונה אתר פרטי מלא לתוך `dist/site-local` ומגישה אותו משם.
+`bundle-site-r2.bat` בונה את האתר הפרטי המלא פעם אחת אל `dist/site-upload-r2` ומעדכן מאותו תוצר את `dist/site-local`. `start-server.bat` רק מגיש את `dist/site-local` ואינו בונה מחדש.
 אותו מחולל ואותו מבנה תיקיות משמשים לבאנדל Cloudflare Pages, ולכן כתובות כמו
 `/catalog/<id>/` ו־`/catalog/<id>/page/<n>/` נבדקות מקומית בדיוק כפי שהן נפרסות.
 

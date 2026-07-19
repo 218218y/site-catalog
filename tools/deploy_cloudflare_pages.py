@@ -2,9 +2,11 @@
 """Deploy the generated static site bundle to Cloudflare Pages.
 
 Default flow executed from the project root:
-    1. Rebuild dist/site-upload-r2 from the current source files.
-    2. Validate every HTML -> CSS/JS reference in that fresh bundle.
-    3. Deploy the same validated folder with Wrangler.
+    1. Validate that dist/site-upload-r2 is complete and still matches the current sources.
+    2. Deploy that exact validated folder with Wrangler.
+
+Building is deliberately a separate action (bundle-site-r2.bat). Use
+--build-first only when an explicit combined build-and-deploy operation is desired.
 
 The deploy finishes when Wrangler reports success. It intentionally performs
 no request to the public website after upload, because filtering/proxy layers
@@ -29,8 +31,12 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from build_deploy_bundle import validate_fingerprinted_bundle
-from build_site_pages import PAGE_DOCUMENTS
+from build_deploy_bundle import (
+    build_options_payload,
+    validate_current_artifact,
+    validate_fingerprinted_bundle,
+)
+from build_site_pages import PAGE_DOCUMENTS, TECHNICAL_SHELL_FILENAMES
 
 DEFAULT_BUNDLE_DIR = "dist/site-upload-r2"
 DEFAULT_PROJECT_NAME = "bargig-catlog"
@@ -40,8 +46,11 @@ DEFAULT_R2_CORS_FILE = "r2-cors.json"
 WRANGLER_CONFIG_FILE = "wrangler.jsonc"
 TELEMETRY_FUNCTION_FILE = "functions/api/telemetry.js"
 TELEMETRY_BINDING = "SITE_TELEMETRY"
-PUBLIC_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
-REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "_headers")
+PUBLIC_HTML_FILES = tuple(
+    page.filename for page in PAGE_DOCUMENTS
+    if page.filename not in TECHNICAL_SHELL_FILENAMES
+) + ("404.html",)
+REQUIRED_BUNDLE_FILES = (*PUBLIC_HTML_FILES, "_headers", "robots.txt")
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -213,7 +222,7 @@ def validate_bundle(bundle_dir: Path) -> None:
     if not bundle_dir.is_dir():
         raise FileNotFoundError(
             f"Bundle folder does not exist: {rel_to_root(bundle_dir)}. "
-            "The deploy command must create a fresh bundle before uploading."
+            "Run bundle-site-r2.bat before uploading."
         )
     missing = [relative for relative in REQUIRED_BUNDLE_FILES if not (bundle_dir / relative).is_file()]
     if missing:
@@ -291,6 +300,12 @@ def build_bundle(args: argparse.Namespace) -> int:
     ]
     if args.confirm_public_indexing:
         command.append("--confirm-public-indexing")
+    command.extend([
+        "--skip-if-current",
+        "--mirror-to",
+        "dist/site-local",
+        "--clean-legacy-artifacts",
+    ])
     return run_streamed(command, project_root())
 
 
@@ -306,18 +321,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--build-first",
         action="store_true",
-        help="Compatibility alias. A fresh R2 bundle is now created before every normal deploy.",
+        help="Explicitly build/update the upload and local artifacts before deploying. Normal deploy only validates.",
     )
     parser.add_argument(
         "--external-assets-url",
         default=DEFAULT_R2_ASSET_BASE_URL,
-        help=f"R2/CDN image base URL written into the fresh bundle. Default: {DEFAULT_R2_ASSET_BASE_URL}",
+        help=f"Expected R2/CDN image base URL recorded for the existing bundle. Default: {DEFAULT_R2_ASSET_BASE_URL}",
     )
     parser.add_argument(
         "--seo-mode",
         choices=("private", "public"),
         default="private",
-        help="SEO/indexing mode for the fresh bundle. Default: private.",
+        help="Expected SEO/indexing mode of the existing bundle. Default: private.",
     )
     parser.add_argument(
         "--confirm-public-indexing",
@@ -368,29 +383,27 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         bundle_dir = ensure_inside_project(root / args.dir)
         runtime_config = validate_pages_runtime_config(root, bundle_dir, args.project_name)
-        print("Creating one fresh, validated R2 bundle before Cloudflare Pages deploy...", flush=True)
-        if args.dry_run:
-            print(
-                quote_command([
-                    sys.executable,
-                    "tools/build_deploy_bundle.py",
-                    "--out",
-                    args.dir,
-                    "--external-assets-url",
-                    args.external_assets_url,
-                    "--seo-mode",
-                    args.seo_mode,
-                    *(["--confirm-public-indexing"] if args.confirm_public_indexing else []),
-                ]),
-                flush=True,
-            )
-        else:
+        if args.build_first:
+            print("Updating the validated site artifacts before Cloudflare Pages deploy...", flush=True)
             build_code = build_bundle(args)
             if build_code != 0:
                 print(f"\nERROR: Bundle creation failed with return code {build_code}.", file=sys.stderr)
                 return build_code
+        else:
+            print("Validating the existing Cloudflare Pages bundle without rebuilding...", flush=True)
 
         validate_bundle(bundle_dir)
+        current_options = build_options_payload(
+            external_assets_url=args.external_assets_url,
+            seo_mode=args.seo_mode,
+            confirm_public_indexing=args.confirm_public_indexing,
+        )
+        try:
+            validate_current_artifact(root, bundle_dir, options=current_options)
+        except (FileNotFoundError, ValueError) as exc:
+            raise ValueError(
+                f"{exc} Run bundle-site-r2.bat once, then run the upload command again."
+            ) from exc
         preview_branch = str(args.preview_branch or "").strip() or None
         wrangler_command = build_pages_deploy_command(
             npx,
@@ -419,7 +432,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if returncode == 0:
             print("\nCloudflare Pages deploy finished successfully.", flush=True)
             print(
-                "The fresh bundle passed local validation and Wrangler completed the upload; "
+                "The existing bundle passed source and file validation and Wrangler completed the upload; "
                 "no public website comparison was performed.",
                 flush=True,
             )

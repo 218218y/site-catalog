@@ -35,10 +35,11 @@ import shutil
 import sys
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from build_site_pages import PAGE_DOCUMENTS, render_site_pages
+from build_site_pages import PAGE_DOCUMENTS, TECHNICAL_SHELL_FILENAMES, render_site_pages
 from verify_remote_catalog_assets import load_catalogs as load_remote_catalogs, verify_remote_assets
 
 BIG_PAGES_VIEWER_FILE = "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
@@ -106,6 +107,45 @@ HASHED_ASSET_FILENAME_RE = re.compile(
 )
 SEARCH_INDEX_RUNTIME_RE = re.compile(r'const SEARCH_INDEX_SCRIPT_SRC = "(?P<url>[^"]+)";')
 
+ARTIFACT_STATE_SCHEMA = 2
+ARTIFACT_STATE_SUFFIX = ".build.json"
+BUILD_SIGNATURE_VERSION = "site-bundle-v3"
+LEGACY_ARTIFACT_DIRS = ("dist/seo-private", "dist/seo-public")
+BUILD_INPUT_FILES = (
+    "_headers.template",
+    "_redirects",
+    "404.html",
+    "404.css",
+    "https-redirect.js",
+    "site.template.html",
+    "legal.template.html",
+    "seo-page.template.html",
+    "seo.config.json",
+    "catalog-taxonomy.config.json",
+    "catalogs.generated.json",
+    "catalogs.generated.js",
+    "catalogs.search.js",
+    "catalogs.search.json",
+    "catalog-search.js",
+    "tooltip-manager.js",
+    "favorites-store.js",
+    "site-routes.js",
+    "catalog-snapshot.js",
+    "favicon-loader.js",
+    "brand-logo.svg",
+    "brand-logo-header.svg",
+    "social-share-default.png",
+    "site.webmanifest",
+)
+BUILD_INPUT_DIRS = ("src", "partials", "legal")
+BUILD_TOOL_FILES = (
+    "tools/build_deploy_bundle.py",
+    "tools/build_site_pages.py",
+    "tools/build_frontend_assets.py",
+    "tools/seo_site.py",
+    "tools/footer_content.py",
+)
+
 
 @dataclass(frozen=True)
 class CopyStats:
@@ -134,6 +174,277 @@ def format_bytes(size: int) -> str:
             return f"{value:.1f} {unit}"
         value /= 1024
     return f"{size} B"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def artifact_state_path(out_dir: Path) -> Path:
+    return out_dir.with_name(f"{out_dir.name}{ARTIFACT_STATE_SUFFIX}")
+
+
+def discover_build_input_paths(root: Path, *, include_big_pages_viewer: bool = False) -> list[Path]:
+    paths: set[Path] = set()
+    for relative in (*BUILD_INPUT_FILES, *BUILD_TOOL_FILES):
+        path = root / relative
+        if path.is_file():
+            paths.add(path)
+
+    for directory_name in BUILD_INPUT_DIRS:
+        directory = root / directory_name
+        if directory.is_dir():
+            paths.update(path for path in directory.rglob("*") if path.is_file())
+
+    for relative in discover_web_app_assets(root):
+        path = root / relative
+        if path.is_file():
+            paths.add(path)
+
+    if include_big_pages_viewer:
+        helper = root / BIG_PAGES_VIEWER_FILE
+        if helper.is_file():
+            paths.add(helper)
+
+    return sorted(paths, key=lambda path: path.relative_to(root).as_posix())
+
+
+def build_options_payload(
+    *,
+    external_assets_url: str,
+    seo_mode: str,
+    confirm_public_indexing: bool = False,
+    include_json: bool = False,
+    include_big_pages_viewer: bool = False,
+) -> dict[str, object]:
+    return {
+        "signatureVersion": BUILD_SIGNATURE_VERSION,
+        "externalAssetsUrl": normalize_base_url(external_assets_url),
+        "seoMode": str(seo_mode),
+        "confirmPublicIndexing": bool(confirm_public_indexing),
+        "includeJson": bool(include_json),
+        "includeBigPagesViewer": bool(include_big_pages_viewer),
+    }
+
+
+def build_input_hashes(
+    root: Path,
+    *,
+    include_big_pages_viewer: bool = False,
+) -> dict[str, str]:
+    return {
+        path.relative_to(root).as_posix(): sha256_file(path)
+        for path in discover_build_input_paths(
+            root, include_big_pages_viewer=include_big_pages_viewer
+        )
+    }
+
+
+def source_signature(inputs: dict[str, str], options: dict[str, object]) -> str:
+    payload = json.dumps(
+        {"inputs": inputs, "options": options},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def artifact_inventory(out_dir: Path) -> dict[str, dict[str, object]]:
+    if not out_dir.is_dir():
+        return {}
+    inventory: dict[str, dict[str, object]] = {}
+    for path in sorted(iter_files(out_dir), key=lambda item: item.relative_to(out_dir).as_posix()):
+        stat = path.stat()
+        inventory[path.relative_to(out_dir).as_posix()] = {
+            "sha256": sha256_file(path),
+            "size": stat.st_size,
+            "mtimeNs": stat.st_mtime_ns,
+        }
+    return inventory
+
+
+def load_artifact_state(out_dir: Path) -> dict[str, object] | None:
+    path = artifact_state_path(out_dir)
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("schema") != ARTIFACT_STATE_SCHEMA:
+        return None
+    return payload
+
+
+def write_artifact_state(
+    root: Path,
+    out_dir: Path,
+    *,
+    inputs: dict[str, str],
+    options: dict[str, object],
+) -> dict[str, object]:
+    state = {
+        "schema": ARTIFACT_STATE_SCHEMA,
+        "sourceSignature": source_signature(inputs, options),
+        "options": options,
+        "inputs": inputs,
+        "outputFiles": artifact_inventory(out_dir),
+        "builtAtUtc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    path = artifact_state_path(out_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    temporary.replace(path)
+    return state
+
+
+def changed_build_inputs(previous: object, current: dict[str, str]) -> list[str]:
+    old = previous if isinstance(previous, dict) else {}
+    names = sorted(set(old) | set(current))
+    return [name for name in names if old.get(name) != current.get(name)]
+
+
+def validate_artifact_inventory(
+    out_dir: Path,
+    expected: object,
+    *,
+    full_hash: bool = True,
+) -> None:
+    if not isinstance(expected, dict) or not expected:
+        raise ValueError(f"Artifact state has no output inventory: {rel_to_root(out_dir)}")
+    current_paths = {
+        path.relative_to(out_dir).as_posix(): path
+        for path in iter_files(out_dir)
+    }
+    expected_names = set(expected)
+    current_names = set(current_paths)
+    missing = sorted(expected_names - current_names)
+    extra = sorted(current_names - expected_names)
+    changed: list[str] = []
+    for name in sorted(expected_names & current_names):
+        record = expected.get(name)
+        path = current_paths[name]
+        if isinstance(record, str):
+            if full_hash and sha256_file(path) != record:
+                changed.append(name)
+            continue
+        if not isinstance(record, dict):
+            changed.append(name)
+            continue
+        stat = path.stat()
+        if stat.st_size != record.get("size"):
+            changed.append(name)
+            continue
+        if not full_hash and stat.st_mtime_ns == record.get("mtimeNs"):
+            continue
+        if sha256_file(path) != record.get("sha256"):
+            changed.append(name)
+    if missing or extra or changed:
+        details: list[str] = []
+        if missing:
+            details.append("missing: " + ", ".join(missing[:8]))
+        if extra:
+            details.append("unexpected: " + ", ".join(extra[:8]))
+        if changed:
+            details.append("changed: " + ", ".join(changed[:8]))
+        raise ValueError(
+            f"Artifact files do not match the recorded build: {rel_to_root(out_dir)} ({'; '.join(details)})"
+        )
+
+
+def validate_current_artifact(
+    root: Path,
+    out_dir: Path,
+    *,
+    options: dict[str, object],
+    full_inventory: bool = True,
+) -> dict[str, object]:
+    if not out_dir.is_dir():
+        raise FileNotFoundError(f"Built site folder does not exist: {rel_to_root(out_dir)}")
+    state = load_artifact_state(out_dir)
+    if state is None:
+        raise ValueError(
+            f"Built site has no currentness record: {rel_to_root(out_dir)}. Rebuild it once."
+        )
+    inputs = build_input_hashes(
+        root,
+        include_big_pages_viewer=bool(options.get("includeBigPagesViewer")),
+    )
+    expected_signature = source_signature(inputs, options)
+    if state.get("sourceSignature") != expected_signature or state.get("options") != options:
+        changed = changed_build_inputs(state.get("inputs"), inputs)
+        summary = ", ".join(changed[:10]) if changed else "build options changed"
+        raise ValueError(
+            f"Built site is stale: {rel_to_root(out_dir)}. Changed inputs: {summary}"
+        )
+    validate_artifact_inventory(out_dir, state.get("outputFiles"), full_hash=full_inventory)
+    if full_inventory:
+        validate_fingerprinted_bundle(out_dir)
+    return state
+
+
+def artifact_is_current(
+    root: Path,
+    out_dir: Path,
+    *,
+    options: dict[str, object],
+) -> tuple[bool, str]:
+    try:
+        validate_current_artifact(root, out_dir, options=options, full_inventory=False)
+    except (FileNotFoundError, ValueError) as exc:
+        return False, str(exc)
+    return True, "current"
+
+
+def mirror_artifact(root: Path, source_dir: Path, target_dir: Path) -> bool:
+    source_state = load_artifact_state(source_dir)
+    if source_state is None:
+        raise ValueError(f"Cannot mirror an artifact without build state: {rel_to_root(source_dir)}")
+
+    target_state = load_artifact_state(target_dir)
+    if target_state and target_state.get("sourceSignature") == source_state.get("sourceSignature"):
+        try:
+            validate_artifact_inventory(target_dir, source_state.get("outputFiles"), full_hash=False)
+            print(f"[mirror] Already current: {rel_to_root(target_dir)}")
+            return False
+        except (FileNotFoundError, ValueError):
+            pass
+
+    staging = staging_output_dir(target_dir)
+    clean_output_dir(staging)
+    shutil.copytree(source_dir, staging, dirs_exist_ok=True)
+    replace_output_dir(staging, target_dir)
+    target_state_path = artifact_state_path(target_dir)
+    target_state_path.write_text(
+        json.dumps(source_state, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    print(f"[mirror] Updated from the same validated build: {rel_to_root(target_dir)}")
+    return True
+
+
+def clean_legacy_artifacts(root: Path) -> list[str]:
+    removed: list[str] = []
+    for relative in LEGACY_ARTIFACT_DIRS:
+        path = ensure_safe_output_dir(root, root / relative)
+        if path.exists():
+            shutil.rmtree(path)
+            removed.append(relative)
+        state = artifact_state_path(path)
+        if state.exists():
+            state.unlink()
+    return removed
 
 
 def normalize_base_url(url: str) -> str:
@@ -720,6 +1031,22 @@ def parse_args() -> argparse.Namespace:
             "Do not use this for the public site unless you intentionally want that helper exposed."
         ),
     )
+    parser.add_argument(
+        "--skip-if-current",
+        action="store_true",
+        help="Reuse the validated artifact when no build input or option changed.",
+    )
+    parser.add_argument(
+        "--mirror-to",
+        action="append",
+        default=[],
+        help="After validation/build, atomically mirror the exact artifact to another dist folder. Repeatable.",
+    )
+    parser.add_argument(
+        "--clean-legacy-artifacts",
+        action="store_true",
+        help="Remove obsolete dist/seo-private and dist/seo-public folders after a successful build.",
+    )
     args = parser.parse_args()
     try:
         args.external_assets_url = normalize_base_url(args.external_assets_url)
@@ -733,8 +1060,42 @@ def main() -> int:
     root = project_root()
     out_dir = ensure_safe_output_dir(root, root / args.out)
     staging_dir = ensure_safe_output_dir(root, staging_output_dir(out_dir))
+    mirror_dirs = [ensure_safe_output_dir(root, root / value) for value in args.mirror_to]
+    if any(path == out_dir for path in mirror_dirs):
+        print("\nERROR: --mirror-to must point to a different output folder.", file=sys.stderr)
+        return 1
+
+    options = build_options_payload(
+        external_assets_url=args.external_assets_url,
+        seo_mode=args.seo_mode,
+        confirm_public_indexing=args.confirm_public_indexing,
+        include_json=args.include_json,
+        include_big_pages_viewer=args.include_big_pages_viewer,
+    )
 
     try:
+        inputs = build_input_hashes(
+            root, include_big_pages_viewer=args.include_big_pages_viewer
+        )
+        if args.skip_if_current:
+            current, reason = artifact_is_current(root, out_dir, options=options)
+            if current:
+                state = load_artifact_state(out_dir) or {}
+                output_files = state.get("outputFiles")
+                file_count = len(output_files) if isinstance(output_files, dict) else 0
+                print(f"[build] No source or configuration changes detected; reusing {rel_to_root(out_dir)} ({file_count} files).")
+                for mirror_dir in mirror_dirs:
+                    mirror_artifact(root, out_dir, mirror_dir)
+                if args.clean_legacy_artifacts:
+                    for relative in clean_legacy_artifacts(root):
+                        print(f"[cleanup] Removed obsolete generated folder: {relative}")
+                if args.zip:
+                    zip_path = out_dir.with_suffix(".zip")
+                    zip_stats = create_zip_from_folder(out_dir, zip_path)
+                    print(f"ZIP: {rel_to_root(zip_path)} ({zip_stats.files} files, {format_bytes(zip_path.stat().st_size)})")
+                return 0
+            print(f"[build] Rebuild required: {reason}")
+
         clean_output_dir(staging_dir)
 
         deploy_files = list(DEPLOY_FILES)
@@ -774,7 +1135,7 @@ def main() -> int:
         validated_asset_count = validate_fingerprinted_bundle(staging_dir)
 
         print(f"[seo] Build mode: {args.seo_mode}")
-        print(f"[seo] Clean category, catalog and page-sharing routes were generated.")
+        print("[seo] Clean category, catalog and page-sharing routes were generated.")
         print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
         print("[assets] assets/pages was intentionally not copied into the Cloudflare Pages upload folder.")
         if fingerprinted_assets:
@@ -808,6 +1169,13 @@ def main() -> int:
             print(f"[publish-gate] Passed: {total_assets} required page/thumbnail objects are available.")
 
         replace_output_dir(staging_dir, out_dir)
+        state = write_artifact_state(root, out_dir, inputs=inputs, options=options)
+        validate_artifact_inventory(out_dir, state.get("outputFiles"))
+        for mirror_dir in mirror_dirs:
+            mirror_artifact(root, out_dir, mirror_dir)
+        if args.clean_legacy_artifacts:
+            for relative in clean_legacy_artifacts(root):
+                print(f"[cleanup] Removed obsolete generated folder: {relative}")
 
         print("\nDone.")
         print(f"Upload folder: {rel_to_root(out_dir)}")

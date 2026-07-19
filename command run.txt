@@ -103,3 +103,13 @@ rclone copy "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" "r2:bargig-c
 rclone delete "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" --dry-run -v
 rclone delete "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" -P
 
+
+
+זרימת עבודה נוכחית
+-------------------
+1. אחרי שינוי באתר או בקטלוגים: bundle-site-r2.bat
+   הפקודה בונה רק אם נדרש ומעדכנת גם dist\site-upload-r2 וגם dist\site-local.
+2. צפייה מקומית: start-server.bat
+   הפקודה רק מפעילה שרת על dist\site-local ואינה בונה או פותחת לוח שליטה.
+3. העלאה: bundle-site-r2-upload cloudflare.bat
+   הפקודה מאמתת את הבאנדל הקיים ומעלה אותו בלי לבנות מחדש.

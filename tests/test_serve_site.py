@@ -29,3 +29,8 @@ def test_local_preview_refuses_source_root_and_external_paths(tmp_path: Path) ->
         MODULE.resolve_output(ROOT, ".")
     with pytest.raises(ValueError, match="inside the project"):
         MODULE.resolve_output(ROOT, str(tmp_path / "outside"))
+
+
+def test_server_does_not_build_unless_explicitly_requested() -> None:
+    assert MODULE.parse_args([]).build_first is False
+    assert MODULE.parse_args(["--build-first"]).build_first is True

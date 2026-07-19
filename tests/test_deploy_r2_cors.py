@@ -78,10 +78,12 @@ def test_pages_deploy_dry_run_never_reads_or_changes_r2_cors(
     write_minimal_bundle(bundle_dir)
     monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
     monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "validate_current_artifact", lambda *args, **kwargs: {})
 
     assert MODULE.main(["--dir", "bundle", "--dry-run"]) == 0
     output = capsys.readouterr().out
-    assert "tools/build_deploy_bundle.py" in output
+    assert "Validating the existing Cloudflare Pages bundle without rebuilding" in output
+    assert "tools/build_deploy_bundle.py" not in output
     assert "wrangler pages deploy" in output
     assert "--verify-remote-assets" not in output
     assert "--branch" not in output
@@ -90,9 +92,10 @@ def test_pages_deploy_dry_run_never_reads_or_changes_r2_cors(
     assert "R2 CORS" not in output
 
 
-def test_deploy_interface_does_not_allow_skipping_the_fresh_build() -> None:
-    with pytest.raises(SystemExit):
-        MODULE.parse_args(["--no-build"])
+def test_deploy_interface_validates_existing_bundle_by_default() -> None:
+    args = MODULE.parse_args([])
+    assert args.build_first is False
+    assert MODULE.parse_args(["--build-first"]).build_first is True
 
 
 def test_production_pages_command_does_not_pass_branch() -> None:
@@ -132,7 +135,7 @@ def test_production_deploy_finishes_after_wrangler_success_without_public_check(
     write_minimal_bundle(bundle_dir)
     monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
     monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
-    monkeypatch.setattr(MODULE, "build_bundle", lambda args: 0)
+    monkeypatch.setattr(MODULE, "validate_current_artifact", lambda *args, **kwargs: {})
 
     captured_commands: list[list[str]] = []
 
@@ -170,6 +173,7 @@ def test_dry_run_reports_no_post_deploy_website_comparison(
     write_minimal_bundle(bundle_dir)
     monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
     monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "validate_current_artifact", lambda *args, **kwargs: {})
 
     assert MODULE.main(["--dir", "bundle", "--dry-run"]) == 0
     output = capsys.readouterr().out
@@ -195,6 +199,7 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
         encoding="utf-8",
     )
     (bundle_dir / "_headers").write_text("/*\n  X-Robots-Tag: noindex\n", encoding="utf-8")
+    (bundle_dir / "robots.txt").write_text("User-agent: *\n", encoding="utf-8")
     (bundle_dir / "404.html").write_text("<!doctype html><title>404</title>", encoding="utf-8")
     static_dir = bundle_dir / "static"
     static_dir.mkdir()
@@ -235,9 +240,9 @@ def test_bundle_validation_accepts_runtime_loaded_search_index(tmp_path: Path) -
 
 def test_bundle_validation_rejects_missing_asset_in_non_index_page(tmp_path: Path) -> None:
     bundle_dir = tmp_path / "bundle"
-    write_minimal_bundle(bundle_dir, ("viewer.html", "static/missing-transition.js"))
+    write_minimal_bundle(bundle_dir, ("privacy.html", "static/missing-transition.js"))
 
-    with pytest.raises(FileNotFoundError, match=r"viewer\.html -> static/missing-transition\.js"):
+    with pytest.raises(FileNotFoundError, match=r"privacy\.html -> static/missing-transition\.js"):
         MODULE.validate_bundle(bundle_dir)
 
 
@@ -267,6 +272,34 @@ def test_normal_deploy_bundle_build_does_not_require_remote_r2_verification(
     assert MODULE.build_bundle(args) == 0
     assert len(captured) == 1
     assert "--verify-remote-assets" not in captured[0]
+    assert "--skip-if-current" in captured[0]
+    assert captured[0][captured[0].index("--mirror-to") + 1] == "dist/site-local"
+
+
+def test_deploy_bundle_does_not_require_removed_technical_shells(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    assert "catalog.html" not in MODULE.REQUIRED_BUNDLE_FILES
+    assert "viewer.html" not in MODULE.REQUIRED_BUNDLE_FILES
+    MODULE.validate_bundle(bundle_dir)
+
+
+def test_default_deploy_does_not_call_builder(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle_dir = tmp_path / "bundle"
+    write_minimal_bundle(bundle_dir)
+    monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
+    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "validate_current_artifact", lambda *args, **kwargs: {})
+    monkeypatch.setattr(MODULE, "run_streamed", lambda command, cwd: 0)
+    monkeypatch.setattr(
+        MODULE,
+        "build_bundle",
+        lambda args: (_ for _ in ()).throw(AssertionError("builder must not run")),
+    )
+    assert MODULE.main(["--dir", "bundle"]) == 0
 
 
 def test_pages_runtime_config_requires_telemetry_binding(tmp_path: Path) -> None:

@@ -257,3 +257,85 @@ def test_search_index_validation_rejects_missing_dynamic_asset(tmp_path: Path) -
 
     with pytest.raises(FileNotFoundError, match="catalogs.search"):
         MODULE.validate_fingerprinted_bundle(out)
+
+
+def test_artifact_state_detects_source_changes_without_rebuilding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "project"
+    out = root / "dist" / "site-upload-r2"
+    source = root / "src" / "input.js"
+    write_asset(root, "src/input.js", b"one")
+    write_asset(out, "index.html", b"<!doctype html>")
+
+    monkeypatch.setattr(
+        MODULE,
+        "discover_build_input_paths",
+        lambda project_root, include_big_pages_viewer=False: [source],
+    )
+    monkeypatch.setattr(MODULE, "validate_fingerprinted_bundle", lambda path: 0)
+    options = MODULE.build_options_payload(
+        external_assets_url="https://cdn.example.com",
+        seo_mode="private",
+    )
+    inputs = MODULE.build_input_hashes(root)
+    MODULE.write_artifact_state(root, out, inputs=inputs, options=options)
+
+    current, reason = MODULE.artifact_is_current(root, out, options=options)
+    assert current is True
+    assert reason == "current"
+    assert MODULE.artifact_state_path(out).parent == out.parent
+    assert not (out / MODULE.artifact_state_path(out).name).exists()
+
+    source.write_bytes(b"two")
+    current, reason = MODULE.artifact_is_current(root, out, options=options)
+    assert current is False
+    assert "src/input.js" in reason
+
+
+def test_mirror_artifact_reuses_one_validated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / "project"
+    source_dir = root / "dist" / "site-upload-r2"
+    target_dir = root / "dist" / "site-local"
+    source_input = root / "src" / "input.js"
+    write_asset(root, "src/input.js", b"source")
+    write_asset(source_dir, "index.html", b"<!doctype html><title>same</title>")
+
+    monkeypatch.setattr(
+        MODULE,
+        "discover_build_input_paths",
+        lambda project_root, include_big_pages_viewer=False: [source_input],
+    )
+    monkeypatch.setattr(MODULE, "validate_fingerprinted_bundle", lambda path: 0)
+    options = MODULE.build_options_payload(
+        external_assets_url="https://cdn.example.com",
+        seo_mode="private",
+    )
+    MODULE.write_artifact_state(
+        root,
+        source_dir,
+        inputs=MODULE.build_input_hashes(root),
+        options=options,
+    )
+
+    assert MODULE.mirror_artifact(root, source_dir, target_dir) is True
+    assert (target_dir / "index.html").read_bytes() == (source_dir / "index.html").read_bytes()
+    assert MODULE.load_artifact_state(target_dir)["sourceSignature"] == MODULE.load_artifact_state(source_dir)["sourceSignature"]
+    assert MODULE.mirror_artifact(root, source_dir, target_dir) is False
+
+
+def test_legacy_seo_artifacts_are_removed_without_touching_canonical_outputs(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    write_asset(root, "dist/seo-private/old.html")
+    write_asset(root, "dist/seo-public/old.html")
+    write_asset(root, "dist/site-upload-r2/index.html")
+    write_asset(root, "dist/site-local/index.html")
+
+    removed = MODULE.clean_legacy_artifacts(root)
+
+    assert removed == ["dist/seo-private", "dist/seo-public"]
+    assert not (root / "dist/seo-private").exists()
+    assert not (root / "dist/seo-public").exists()
+    assert (root / "dist/site-upload-r2/index.html").is_file()
+    assert (root / "dist/site-local/index.html").is_file()

@@ -3,35 +3,25 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-echo.
-echo מה לפתוח?
-echo [1] main site only  - http://localhost:8080
-echo [2] control panel only - http://127.0.0.1:8765/catalog-control-panel.html
-echo [3] both
-choice /C 123 /N /M "בחר 1/2/3: "
-if errorlevel 3 goto both
-if errorlevel 2 goto control
-goto site
+if exist ".venv\Scripts\python.exe" (
+  set "PYTHON_EXE=.venv\Scripts\python.exe"
+) else (
+  where py >nul 2>nul
+  if not errorlevel 1 (
+    set "PYTHON_EXE=py -3"
+  ) else (
+    set "PYTHON_EXE=python"
+  )
+)
 
-:site
-echo Building and serving the complete private site artifact...
+echo Starting the already-built local website...
+echo Web root: dist\site-local
 echo.
-python tools\serve_site.py --port 8080
+%PYTHON_EXE% tools\serve_site.py --port 8080
 if errorlevel 1 (
-  echo Local site build or server startup failed.
+  echo.
+  echo The local site could not be started. Run bundle-site-r2.bat once to create or update it.
   pause
   exit /b 1
 )
-pause
-exit /b
-
-:control
-call catalog-control-panel.bat
-exit /b %errorlevel%
-
-:both
-echo Building the complete private site artifact and starting it in a separate window...
-start "Catalog Website 8080" cmd /k "cd /d ""%~dp0"" && python tools\serve_site.py --port 8080"
-echo Opening catalog control panel in this window...
-call catalog-control-panel.bat
-exit /b %errorlevel%
+exit /b 0

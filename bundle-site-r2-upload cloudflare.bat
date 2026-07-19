@@ -14,10 +14,12 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-%PYTHON_EXE% tools\deploy_cloudflare_pages.py --seo-mode private %*
+echo Validating the existing bundle and uploading it without rebuilding...
+echo.
+%PYTHON_EXE% tools\deploy_cloudflare_pages.py --dir dist/site-upload-r2 --seo-mode private %*
 if errorlevel 1 (
   echo.
-  echo The Cloudflare operation did not complete successfully. Read the exact build or deploy error above.
+  echo The Cloudflare operation did not complete successfully. If sources changed, run bundle-site-r2.bat first.
   pause
   exit /b 1
 )

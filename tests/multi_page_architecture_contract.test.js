@@ -38,7 +38,7 @@ assert.match(app, /els\.globalSearchOpen\?\.addEventListener\("click"[\s\S]*?set
 assert.match(css, /\.catalog-back-button\s*\{[\s\S]*?border-radius:\s*999px;/);
 assert.match(pageBuilder, /PAGE_DOCUMENTS = \(/);
 assert.match(pageBuilder, /render_site_pages/);
-assert.match(builder, /from build_site_pages import PAGE_DOCUMENTS, render_site_pages/);
+assert.match(builder, /from build_site_pages import PAGE_DOCUMENTS, TECHNICAL_SHELL_FILENAMES, render_site_pages/);
 assert.match(builder, /function discover_bundle_html|def discover_bundle_html/);
 assert.match(builder, /html_paths = discover_bundle_html\(out_dir\)/);
 assert.match(app, /navigateTo\(viewerDocumentUrl\(state\.catalog\.id, page, \{ source \}\)\)/);

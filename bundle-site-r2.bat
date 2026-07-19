@@ -14,16 +14,17 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-%PYTHON_EXE% tools\build_deploy_bundle.py --seo-mode private --external-assets-url "https://cdn.bargig-furniture.com" %*
+%PYTHON_EXE% tools\build_deploy_bundle.py --out dist/site-upload-r2 --seo-mode private --external-assets-url "https://cdn.bargig-furniture.com" --skip-if-current --mirror-to dist/site-local --clean-legacy-artifacts %*
 if errorlevel 1 (
   echo.
-  echo R2 bundle failed. Read the exact build error above.
+  echo Site bundle failed. Read the exact build error above.
   pause
   exit /b 1
 )
 
 echo.
 echo Ready to upload: dist\site-upload-r2
+echo Ready for local preview: dist\site-local
 echo Images are loaded from Cloudflare R2, not from the Cloudflare Pages upload folder.
 echo.
 pause
