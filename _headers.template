@@ -6,8 +6,7 @@
 # limited to script elements (not inline event attributes) and explicit NetFree hosts.
 # frame-ancestors and X-Frame-Options still prevent other sites from embedding us.
 /*
-  X-Robots-Tag: noindex, nofollow, noimageindex, nosnippet, noarchive
-  Strict-Transport-Security: max-age=31536000; includeSubDomains
+{{GLOBAL_INDEXING_HEADER}}  Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer

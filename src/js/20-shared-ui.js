@@ -327,22 +327,17 @@ function subcategorySectionId(category, categoryIndex, subcategory, subcategoryI
   return `${categorySectionId(category, categoryIndex)}-sub-${categorySlug(subcategory)}-${subcategoryIndex + 1}`;
 }
 
-const CATALOG_CATEGORY_SHARE_SLUGS = new Map([
-  ["ארונות פתיחה", "opening-wardrobes"],
-  ["ארונות הזזה", "sliding-wardrobes"],
-  ["חדרי ילדים", "kids"],
-  ["חדרי שינה", "bedrooms"],
-  ["ספריות קודש", "libraries"]
-]);
-
-const CATALOG_SUBCATEGORY_SHARE_SLUGS = new Map([
-  ["חדרי ילדים קומפלט", "kids-rooms"],
-  ["מיטות נגר", "wood-beds"],
-  ["היי ריזר", "hi-riser"],
-  ["מרופדים עיצוב אישי", "custom-upholstered"],
-  ["מרופדים", "upholstered"],
-  ["חדרי שינה", "bedrooms"]
-]);
+const catalogTaxonomy = window.BARGIG_CATALOG_TAXONOMY || { categories: [], subcategories: [] };
+const CATALOG_CATEGORY_SHARE_SLUGS = new Map(
+  (Array.isArray(catalogTaxonomy.categories) ? catalogTaxonomy.categories : [])
+    .map((item) => [String(item?.name || "").trim(), String(item?.slug || "").trim()])
+    .filter(([name, slug]) => name && slug)
+);
+const CATALOG_SUBCATEGORY_SHARE_SLUGS = new Map(
+  (Array.isArray(catalogTaxonomy.subcategories) ? catalogTaxonomy.subcategories : [])
+    .map((item) => [String(item?.name || "").trim(), String(item?.slug || "").trim()])
+    .filter(([name, slug]) => name && slug)
+);
 
 function normalizeShareRouteToken(value) {
   return String(value || "")

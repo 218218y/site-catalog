@@ -71,7 +71,7 @@ function navigateTo(relativeUrl, options = {}) {
 
   let targetUrl = null;
   try {
-    targetUrl = new URL(target, window.location.href);
+    targetUrl = new URL(target, document.baseURI || window.location.href);
   } catch (_error) {
     targetUrl = null;
   }
@@ -81,8 +81,8 @@ function navigateTo(relativeUrl, options = {}) {
     return;
   }
 
-  if (options.replace) window.location.replace(target);
-  else window.location.assign(target);
+  if (options.replace) window.location.replace(targetUrl?.href || target);
+  else window.location.assign(targetUrl?.href || target);
 }
 
 function navigateBack() {
@@ -142,24 +142,70 @@ function viewerDocumentUrl(catalogId, page = 1, options = {}) {
   return siteRoutes?.viewerUrl?.(catalogId, page, options) || `viewer.html?catalog=${encodeURIComponent(String(catalogId || ""))}&page=${Math.max(1, Number.parseInt(page, 10) || 1)}`;
 }
 
+function categoryDocumentUrl(categorySlugValue, subcategorySlugValue = "") {
+  return siteRoutes?.categoryUrl?.(categorySlugValue, subcategorySlugValue) || homeDocumentUrl();
+}
+
 function absoluteDocumentUrl(relativeUrl) {
-  return new URL(relativeUrl, window.location.href).href;
+  return new URL(relativeUrl, document.baseURI || window.location.href).href;
+}
+
+function setMetadataContent(selector, value, attribute = "content") {
+  const element = document.querySelector(selector);
+  if (element && value) element.setAttribute(attribute, value);
+}
+
+function currentDocumentMetadata(catalog = state?.catalog || null) {
+  const brand = "רהיטי ברגיג";
+  if (isAppPage("catalog") && catalog) {
+    return {
+      title: `${catalog.title} | קטלוג ריהוט | ${brand}`,
+      description: `${catalog.description || "קטלוג ריהוט"}. צפייה נוחה ב־${catalog.pages} עמודי הקטלוג.`,
+      url: absoluteDocumentUrl(catalogDocumentUrl(catalog.id)),
+      image: coverThumbSrc(catalog),
+      imageAlt: `שער ${catalog.title}`
+    };
+  }
+  if (isAppPage("viewer") && catalog) {
+    return {
+      title: `${catalog.title} — עמוד ${state.page} | ${brand}`,
+      description: `צפייה בעמוד ${state.page} מתוך ${catalog.pages} בקטלוג ${catalog.title}.`,
+      url: absoluteDocumentUrl(viewerDocumentUrl(catalog.id, state.page)),
+      image: pageSrc(catalog, state.page),
+      imageAlt: `${catalog.title} — עמוד ${state.page}`
+    };
+  }
+  if (isAppPage("favorites")) {
+    return {
+      title: `המועדפים שלי | ${brand}`,
+      description: "עמודי הקטלוג ששמרת במועדפים לצפייה ולהשוואה נוחה.",
+      url: absoluteDocumentUrl(favoritesDocumentUrl())
+    };
+  }
+  return {
+    title: `קטלוגים | ${brand}`,
+    description: "גלריית הקטלוגים של רהיטי ברגיג — בחירת קטלוג, חיפוש מהיר ופתיחה נוחה.",
+    url: absoluteDocumentUrl(homeDocumentUrl())
+  };
 }
 
 function updateDocumentMetadata(catalog = state?.catalog || null) {
-  const brand = "רהיטי ברגיג";
-  if (isAppPage("catalog") && catalog) {
-    document.title = `${catalog.title} | ${brand}`;
-  } else if (isAppPage("viewer") && catalog) {
-    document.title = `${catalog.title} — עמוד ${state.page} | ${brand}`;
-  } else if (isAppPage("favorites")) {
-    document.title = `המועדפים שלי | ${brand}`;
-  } else {
-    document.title = `קטלוגים | ${brand}`;
+  const metadata = currentDocumentMetadata(catalog);
+  document.title = metadata.title;
+  setMetadataContent('meta[name="description"]', metadata.description);
+  setMetadataContent('link[rel="canonical"]', metadata.url, "href");
+  setMetadataContent('meta[property="og:title"]', metadata.title);
+  setMetadataContent('meta[property="og:description"]', metadata.description);
+  setMetadataContent('meta[property="og:url"]', metadata.url);
+  setMetadataContent('meta[name="twitter:title"]', metadata.title);
+  setMetadataContent('meta[name="twitter:description"]', metadata.description);
+  if (metadata.image) {
+    setMetadataContent('meta[property="og:image"]', metadata.image);
+    setMetadataContent('meta[property="og:image:secure_url"]', metadata.image);
+    setMetadataContent('meta[property="og:image:alt"]', metadata.imageAlt || metadata.title);
+    setMetadataContent('meta[name="twitter:image"]', metadata.image);
+    setMetadataContent('meta[name="twitter:image:alt"]', metadata.imageAlt || metadata.title);
   }
-
-  const canonical = document.querySelector('link[rel="canonical"]');
-  if (canonical) canonical.href = window.location.href.split("#")[0];
 }
 
 function attachNavigationEvents() {

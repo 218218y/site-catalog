@@ -14,7 +14,7 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-%PYTHON_EXE% tools\build_deploy_bundle.py --external-assets-url "https://cdn.bargig-furniture.com" %*
+%PYTHON_EXE% tools\build_deploy_bundle.py --seo-mode private --external-assets-url "https://cdn.bargig-furniture.com" %*
 if errorlevel 1 (
   echo.
   echo R2 bundle failed. Read the exact build error above.

@@ -286,7 +286,11 @@ def build_bundle(args: argparse.Namespace) -> int:
         args.dir,
         "--external-assets-url",
         args.external_assets_url,
+        "--seo-mode",
+        args.seo_mode,
     ]
+    if args.confirm_public_indexing:
+        command.append("--confirm-public-indexing")
     return run_streamed(command, project_root())
 
 
@@ -308,6 +312,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--external-assets-url",
         default=DEFAULT_R2_ASSET_BASE_URL,
         help=f"R2/CDN image base URL written into the fresh bundle. Default: {DEFAULT_R2_ASSET_BASE_URL}",
+    )
+    parser.add_argument(
+        "--seo-mode",
+        choices=("private", "public"),
+        default="private",
+        help="SEO/indexing mode for the fresh bundle. Default: private.",
+    )
+    parser.add_argument(
+        "--confirm-public-indexing",
+        action="store_true",
+        help="Required together with --seo-mode public.",
     )
     parser.add_argument(
         "--r2-bucket",
@@ -363,6 +378,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.dir,
                     "--external-assets-url",
                     args.external_assets_url,
+                    "--seo-mode",
+                    args.seo_mode,
+                    *(["--confirm-public-indexing"] if args.confirm_public_indexing else []),
                 ]),
                 flush=True,
             )
@@ -383,6 +401,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         print("Cloudflare Pages deploy settings:", flush=True)
         print(f"  folder: {rel_to_root(bundle_dir)}", flush=True)
+        print(f"  SEO mode: {args.seo_mode}", flush=True)
         print(f"  project: {args.project_name}", flush=True)
         print(f"  telemetry: {TELEMETRY_BINDING} -> {runtime_config['analytics_engine_datasets'][0]['dataset']}", flush=True)
         print(

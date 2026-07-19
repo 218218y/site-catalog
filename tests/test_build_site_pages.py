@@ -18,7 +18,7 @@ SPEC.loader.exec_module(MODULE)
 
 def test_generated_site_pages_match_their_sources() -> None:
     checked = MODULE.check_site_pages(ROOT)
-    assert len(checked) == len(MODULE.PAGE_DOCUMENTS)
+    assert len(checked) == len(MODULE.PAGE_DOCUMENTS) + 2
     assert all(path.is_file() for path in checked)
     assert all(b"\r\n" not in path.read_bytes() for path in checked)
 

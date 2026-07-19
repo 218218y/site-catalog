@@ -503,3 +503,26 @@ python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furni
 ## CI ובדיקות דפדפן
 
 הקובץ `.github/workflows/ci.yml` מריץ ב־GitHub Actions את מסלול האימות המלא בכל push ובכל pull request: התקנת Node ו־Python, התקנת Chromium עם תלויות מערכת, בדיקות חוזה, כל בדיקות Python, מסעות Playwright ובניית באנדל נקי. בדיקות Playwright אינן דורשות את תמונות הקטלוגים ב־GitHub: הן מיירטות בקשות אל `assets/pages` ומחזירות תמונות SVG סינתטיות, כולל תרחישי כשל יזומים. במקרה כשל נשמרים דוח, trace וצילומי מסך כ־artifact למשך 14 יום.
+
+## הכנה עתידית לחיפוש Google ושיתוף עשיר
+
+האתר כולל כעת בנייה דו־מצבית. ברירת המחדל היא `private`, ולכן גם באנדל הפריסה
+הרגיל נשאר חסום לאינדוקס ואינו יוצר sitemap. עמודי קטגוריה, קטלוג ועמוד מדויק
+כן נוצרים עם כתובות נקיות, canonical, Open Graph, תמונת שיתוף ו־JSON-LD, כדי
+שאפשר יהיה לבדוק את כל התשתית בלי לפתוח את האתר לחיפוש.
+
+```bat
+npm run build:seo:private
+npm run build:deploy:private
+```
+
+מצב ציבורי דורש אישור מפורש נוסף ואינו אמור לשמש לפני יום ההשקה:
+
+```bat
+npm run build:seo:public
+npm run build:deploy:public
+```
+
+הגדרות הדומיין ופרטי העסק נמצאות ב־`seo.config.json`; הטקסונומיה והכתובות של
+הקטגוריות נמצאות ב־`catalog-taxonomy.config.json`. פירוט מלא נמצא ב־
+`docs/seo-build-modes.md`.

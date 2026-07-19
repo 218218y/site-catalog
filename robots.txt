@@ -1,4 +1,4 @@
-# Search engines must be allowed to crawl during the private/staging period so they can see the noindex rule.
-# Indexing is blocked by X-Robots-Tag in _headers and by meta robots in the HTML pages.
+# Generated from seo.config.json. Do not edit this deployed copy by hand.
+# Private mode: crawlers may fetch pages so they can observe the noindex response.
 User-agent: *
 Allow: /

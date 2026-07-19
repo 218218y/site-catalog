@@ -3,15 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {{BASE_TAG}}
   <script src="https-redirect.js"></script>
-  <meta name="robots" content="noindex, nofollow, noimageindex, nosnippet, noarchive" />
+  <meta name="robots" content="{{ROBOTS_CONTENT}}" />
   <meta name="theme-color" content="#8b6f5a" />
   <link rel="manifest" href="site.webmanifest" />
   <link rel="icon" href="favicon.ico" sizes="any" data-site-favicon="1" />
   <script src="favicon-loader.js" defer></script>
+  {{ROUTE_PRELOAD}}
   <title>{{PAGE_TITLE}}</title>
   <meta name="description" content="{{PAGE_DESCRIPTION}}" />
-  <link rel="canonical" href="https://bargig-furniture.com/{{CANONICAL_PATH}}" />
+  <link rel="canonical" href="{{CANONICAL_URL}}" />
+  {{SOCIAL_METADATA}}
+  {{STRUCTURED_DATA}}
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-page="{{PAGE_MODE}}">

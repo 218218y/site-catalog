@@ -192,7 +192,7 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
     const targetId = categorySectionId(group.category, index);
     const sharePath = catalogCategorySharePath(group.category, index);
     return {
-      href: buildCategoryShareRouteHash(sharePath),
+      href: categoryDocumentUrl(sharePath),
       targetId,
       sharePath,
       label: group.category
@@ -612,17 +612,18 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   const safeCatalogId = escapeHtml(catalog.id);
   const safeTitle = escapeHtml(catalog.title);
   const safeHeadingLevel = headingLevel === 4 ? 4 : 3;
+  const catalogHref = escapeHtml(catalogDocumentUrl(catalog.id));
   return `
     <article class="catalog-card">
-      <button class="catalog-cover-frame catalog-image-frame catalog-cover-button" type="button" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
+      <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
         <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
         <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
-      </button>
+      </a>
       <div class="catalog-body">
-        <h${safeHeadingLevel}>${safeTitle}</h${safeHeadingLevel}>
+        <h${safeHeadingLevel}><a href="${catalogHref}" data-open-catalog-preview="${safeCatalogId}">${safeTitle}</a></h${safeHeadingLevel}>
         <p>${escapeHtml(catalog.description || "")}</p>
         <div class="catalog-actions" role="group" aria-label="פעולות עבור ${safeTitle}">
-          <button class="button primary catalog-open-button" type="button" data-open-catalog-entry="${safeCatalogId}">פתיחת הקטלוג</button>
+          <a class="button primary catalog-open-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}">פתיחת הקטלוג</a>
           <button class="button soft catalog-preview-button" type="button" data-open-catalog-preview="${safeCatalogId}">תצוגה מקדימה</button>
         </div>
       </div>
@@ -636,7 +637,7 @@ function renderCatalogSubcategoryNav(segment) {
   const buttons = segment.subcategories.map((group, index) => {
     const targetId = subcategorySectionId(segment.category, segment.groupIndex, group.subcategory, index);
     const sharePath = catalogSubcategorySharePath(segment.category, segment.groupIndex, group.subcategory, index);
-    return `<a class="catalog-subcategory-nav-link" href="${escapeHtml(buildCategoryShareRouteHash(sharePath))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}">${escapeHtml(group.subcategory)}</a>`;
+    return `<a class="catalog-subcategory-nav-link" href="${escapeHtml(categoryDocumentUrl(categoryShareSlug(segment.category, segment.groupIndex), subcategoryShareSlug(group.subcategory, index)))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}">${escapeHtml(group.subcategory)}</a>`;
   }).join("");
 
   return `
@@ -809,13 +810,19 @@ function openCatalogEntry(catalogId, page = 1) {
 function bindCatalogCardEvents() {
   if (!els.catalogGrid) return;
 
-  els.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((button) => {
-    button.addEventListener("click", () => openCatalogEntry(button.dataset.openCatalogEntry));
+  els.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((control) => {
+    control.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openCatalogEntry(control.dataset.openCatalogEntry);
+    });
   });
 
-  els.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((button) => {
-    button.addEventListener("click", () => {
-      openCatalog(button.dataset.openCatalogPreview, { scroll: true });
+  els.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((control) => {
+    control.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openCatalog(control.dataset.openCatalogPreview, { scroll: true });
     });
   });
 }
@@ -865,7 +872,7 @@ function renderPageGrid() {
   for (let page = 1; page <= catalog.pages; page += 1) {
     cards.push(`
       <article class="page-card">
-        <button class="page-button" type="button" data-open-page="${page}">
+        <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
           <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
             <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
@@ -874,7 +881,7 @@ function renderPageGrid() {
             <span class="page-card-title">עמוד ${page}</span>
             <span class="page-card-hint">לחץ להגדלה</span>
           </div>
-        </button>
+        </a>
       </article>
     `);
   }
@@ -882,8 +889,12 @@ function renderPageGrid() {
   els.pageGrid.innerHTML = cards.join("");
   els.pageGrid.setAttribute("aria-busy", "false");
 
-  els.pageGrid.querySelectorAll("[data-open-page]").forEach((button) => {
-    button.addEventListener("click", () => openLightbox(Number(button.dataset.openPage)));
+  els.pageGrid.querySelectorAll("[data-open-page]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openLightbox(Number(link.dataset.openPage));
+    });
   });
 }
 

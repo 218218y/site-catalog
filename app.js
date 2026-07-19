@@ -94,7 +94,7 @@ function navigateTo(relativeUrl, options = {}) {
 
   let targetUrl = null;
   try {
-    targetUrl = new URL(target, window.location.href);
+    targetUrl = new URL(target, document.baseURI || window.location.href);
   } catch (_error) {
     targetUrl = null;
   }
@@ -104,8 +104,8 @@ function navigateTo(relativeUrl, options = {}) {
     return;
   }
 
-  if (options.replace) window.location.replace(target);
-  else window.location.assign(target);
+  if (options.replace) window.location.replace(targetUrl?.href || target);
+  else window.location.assign(targetUrl?.href || target);
 }
 
 function navigateBack() {
@@ -165,24 +165,70 @@ function viewerDocumentUrl(catalogId, page = 1, options = {}) {
   return siteRoutes?.viewerUrl?.(catalogId, page, options) || `viewer.html?catalog=${encodeURIComponent(String(catalogId || ""))}&page=${Math.max(1, Number.parseInt(page, 10) || 1)}`;
 }
 
+function categoryDocumentUrl(categorySlugValue, subcategorySlugValue = "") {
+  return siteRoutes?.categoryUrl?.(categorySlugValue, subcategorySlugValue) || homeDocumentUrl();
+}
+
 function absoluteDocumentUrl(relativeUrl) {
-  return new URL(relativeUrl, window.location.href).href;
+  return new URL(relativeUrl, document.baseURI || window.location.href).href;
+}
+
+function setMetadataContent(selector, value, attribute = "content") {
+  const element = document.querySelector(selector);
+  if (element && value) element.setAttribute(attribute, value);
+}
+
+function currentDocumentMetadata(catalog = state?.catalog || null) {
+  const brand = "רהיטי ברגיג";
+  if (isAppPage("catalog") && catalog) {
+    return {
+      title: `${catalog.title} | קטלוג ריהוט | ${brand}`,
+      description: `${catalog.description || "קטלוג ריהוט"}. צפייה נוחה ב־${catalog.pages} עמודי הקטלוג.`,
+      url: absoluteDocumentUrl(catalogDocumentUrl(catalog.id)),
+      image: coverThumbSrc(catalog),
+      imageAlt: `שער ${catalog.title}`
+    };
+  }
+  if (isAppPage("viewer") && catalog) {
+    return {
+      title: `${catalog.title} — עמוד ${state.page} | ${brand}`,
+      description: `צפייה בעמוד ${state.page} מתוך ${catalog.pages} בקטלוג ${catalog.title}.`,
+      url: absoluteDocumentUrl(viewerDocumentUrl(catalog.id, state.page)),
+      image: pageSrc(catalog, state.page),
+      imageAlt: `${catalog.title} — עמוד ${state.page}`
+    };
+  }
+  if (isAppPage("favorites")) {
+    return {
+      title: `המועדפים שלי | ${brand}`,
+      description: "עמודי הקטלוג ששמרת במועדפים לצפייה ולהשוואה נוחה.",
+      url: absoluteDocumentUrl(favoritesDocumentUrl())
+    };
+  }
+  return {
+    title: `קטלוגים | ${brand}`,
+    description: "גלריית הקטלוגים של רהיטי ברגיג — בחירת קטלוג, חיפוש מהיר ופתיחה נוחה.",
+    url: absoluteDocumentUrl(homeDocumentUrl())
+  };
 }
 
 function updateDocumentMetadata(catalog = state?.catalog || null) {
-  const brand = "רהיטי ברגיג";
-  if (isAppPage("catalog") && catalog) {
-    document.title = `${catalog.title} | ${brand}`;
-  } else if (isAppPage("viewer") && catalog) {
-    document.title = `${catalog.title} — עמוד ${state.page} | ${brand}`;
-  } else if (isAppPage("favorites")) {
-    document.title = `המועדפים שלי | ${brand}`;
-  } else {
-    document.title = `קטלוגים | ${brand}`;
+  const metadata = currentDocumentMetadata(catalog);
+  document.title = metadata.title;
+  setMetadataContent('meta[name="description"]', metadata.description);
+  setMetadataContent('link[rel="canonical"]', metadata.url, "href");
+  setMetadataContent('meta[property="og:title"]', metadata.title);
+  setMetadataContent('meta[property="og:description"]', metadata.description);
+  setMetadataContent('meta[property="og:url"]', metadata.url);
+  setMetadataContent('meta[name="twitter:title"]', metadata.title);
+  setMetadataContent('meta[name="twitter:description"]', metadata.description);
+  if (metadata.image) {
+    setMetadataContent('meta[property="og:image"]', metadata.image);
+    setMetadataContent('meta[property="og:image:secure_url"]', metadata.image);
+    setMetadataContent('meta[property="og:image:alt"]', metadata.imageAlt || metadata.title);
+    setMetadataContent('meta[name="twitter:image"]', metadata.image);
+    setMetadataContent('meta[name="twitter:image:alt"]', metadata.imageAlt || metadata.title);
   }
-
-  const canonical = document.querySelector('link[rel="canonical"]');
-  if (canonical) canonical.href = window.location.href.split("#")[0];
 }
 
 function attachNavigationEvents() {
@@ -1198,22 +1244,17 @@ function subcategorySectionId(category, categoryIndex, subcategory, subcategoryI
   return `${categorySectionId(category, categoryIndex)}-sub-${categorySlug(subcategory)}-${subcategoryIndex + 1}`;
 }
 
-const CATALOG_CATEGORY_SHARE_SLUGS = new Map([
-  ["ארונות פתיחה", "opening-wardrobes"],
-  ["ארונות הזזה", "sliding-wardrobes"],
-  ["חדרי ילדים", "kids"],
-  ["חדרי שינה", "bedrooms"],
-  ["ספריות קודש", "libraries"]
-]);
-
-const CATALOG_SUBCATEGORY_SHARE_SLUGS = new Map([
-  ["חדרי ילדים קומפלט", "kids-rooms"],
-  ["מיטות נגר", "wood-beds"],
-  ["היי ריזר", "hi-riser"],
-  ["מרופדים עיצוב אישי", "custom-upholstered"],
-  ["מרופדים", "upholstered"],
-  ["חדרי שינה", "bedrooms"]
-]);
+const catalogTaxonomy = window.BARGIG_CATALOG_TAXONOMY || { categories: [], subcategories: [] };
+const CATALOG_CATEGORY_SHARE_SLUGS = new Map(
+  (Array.isArray(catalogTaxonomy.categories) ? catalogTaxonomy.categories : [])
+    .map((item) => [String(item?.name || "").trim(), String(item?.slug || "").trim()])
+    .filter(([name, slug]) => name && slug)
+);
+const CATALOG_SUBCATEGORY_SHARE_SLUGS = new Map(
+  (Array.isArray(catalogTaxonomy.subcategories) ? catalogTaxonomy.subcategories : [])
+    .map((item) => [String(item?.name || "").trim(), String(item?.slug || "").trim()])
+    .filter(([name, slug]) => name && slug)
+);
 
 function normalizeShareRouteToken(value) {
   return String(value || "")
@@ -2542,7 +2583,7 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
     const targetId = categorySectionId(group.category, index);
     const sharePath = catalogCategorySharePath(group.category, index);
     return {
-      href: buildCategoryShareRouteHash(sharePath),
+      href: categoryDocumentUrl(sharePath),
       targetId,
       sharePath,
       label: group.category
@@ -2962,17 +3003,18 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   const safeCatalogId = escapeHtml(catalog.id);
   const safeTitle = escapeHtml(catalog.title);
   const safeHeadingLevel = headingLevel === 4 ? 4 : 3;
+  const catalogHref = escapeHtml(catalogDocumentUrl(catalog.id));
   return `
     <article class="catalog-card">
-      <button class="catalog-cover-frame catalog-image-frame catalog-cover-button" type="button" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
+      <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
         <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
         <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
-      </button>
+      </a>
       <div class="catalog-body">
-        <h${safeHeadingLevel}>${safeTitle}</h${safeHeadingLevel}>
+        <h${safeHeadingLevel}><a href="${catalogHref}" data-open-catalog-preview="${safeCatalogId}">${safeTitle}</a></h${safeHeadingLevel}>
         <p>${escapeHtml(catalog.description || "")}</p>
         <div class="catalog-actions" role="group" aria-label="פעולות עבור ${safeTitle}">
-          <button class="button primary catalog-open-button" type="button" data-open-catalog-entry="${safeCatalogId}">פתיחת הקטלוג</button>
+          <a class="button primary catalog-open-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}">פתיחת הקטלוג</a>
           <button class="button soft catalog-preview-button" type="button" data-open-catalog-preview="${safeCatalogId}">תצוגה מקדימה</button>
         </div>
       </div>
@@ -2986,7 +3028,7 @@ function renderCatalogSubcategoryNav(segment) {
   const buttons = segment.subcategories.map((group, index) => {
     const targetId = subcategorySectionId(segment.category, segment.groupIndex, group.subcategory, index);
     const sharePath = catalogSubcategorySharePath(segment.category, segment.groupIndex, group.subcategory, index);
-    return `<a class="catalog-subcategory-nav-link" href="${escapeHtml(buildCategoryShareRouteHash(sharePath))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}">${escapeHtml(group.subcategory)}</a>`;
+    return `<a class="catalog-subcategory-nav-link" href="${escapeHtml(categoryDocumentUrl(categoryShareSlug(segment.category, segment.groupIndex), subcategoryShareSlug(group.subcategory, index)))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}">${escapeHtml(group.subcategory)}</a>`;
   }).join("");
 
   return `
@@ -3159,13 +3201,19 @@ function openCatalogEntry(catalogId, page = 1) {
 function bindCatalogCardEvents() {
   if (!els.catalogGrid) return;
 
-  els.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((button) => {
-    button.addEventListener("click", () => openCatalogEntry(button.dataset.openCatalogEntry));
+  els.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((control) => {
+    control.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openCatalogEntry(control.dataset.openCatalogEntry);
+    });
   });
 
-  els.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((button) => {
-    button.addEventListener("click", () => {
-      openCatalog(button.dataset.openCatalogPreview, { scroll: true });
+  els.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((control) => {
+    control.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openCatalog(control.dataset.openCatalogPreview, { scroll: true });
     });
   });
 }
@@ -3215,7 +3263,7 @@ function renderPageGrid() {
   for (let page = 1; page <= catalog.pages; page += 1) {
     cards.push(`
       <article class="page-card">
-        <button class="page-button" type="button" data-open-page="${page}">
+        <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
           <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
             <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
@@ -3224,7 +3272,7 @@ function renderPageGrid() {
             <span class="page-card-title">עמוד ${page}</span>
             <span class="page-card-hint">לחץ להגדלה</span>
           </div>
-        </button>
+        </a>
       </article>
     `);
   }
@@ -3232,8 +3280,12 @@ function renderPageGrid() {
   els.pageGrid.innerHTML = cards.join("");
   els.pageGrid.setAttribute("aria-busy", "false");
 
-  els.pageGrid.querySelectorAll("[data-open-page]").forEach((button) => {
-    button.addEventListener("click", () => openLightbox(Number(button.dataset.openPage)));
+  els.pageGrid.querySelectorAll("[data-open-page]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openLightbox(Number(link.dataset.openPage));
+    });
   });
 }
 

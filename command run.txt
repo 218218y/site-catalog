@@ -2,6 +2,12 @@ npm run build:frontend
 npm test
 npm run verify
 
+
+בנייה ציבורית
+npm run build:seo:public
+העלאה ציבורית
+npm run build:deploy:public
+
 לבדוק אם התמונות באתר קיימות כולם r2
 npm run verify:r2
 

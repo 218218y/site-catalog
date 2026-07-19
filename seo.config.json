@@ -1,0 +1,18 @@
+{
+  "defaultMode": "private",
+  "siteUrl": "https://bargig-furniture.com",
+  "assetBaseUrl": "https://cdn.bargig-furniture.com",
+  "siteName": "רהיטי ברגיג",
+  "locale": "he_IL",
+  "defaultShareImage": "social-share-default.png",
+  "business": {
+    "schemaType": "FurnitureStore",
+    "streetAddress": "הרב מצליח 5, קומה -1",
+    "addressLocality": "בני ברק",
+    "addressCountry": "IL",
+    "openingDays": ["Sunday", "Monday", "Tuesday"],
+    "opens": "21:00",
+    "closes": "23:00",
+    "appointmentOnly": true
+  }
+}

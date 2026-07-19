@@ -19,7 +19,7 @@ assert.match(css, /--icon-stroke-width:\s*1\.8/);
 assert.match(css, /\.ui-state\[data-state="error"\]/);
 assert.match(css, /@media \(forced-colors: active\)/);
 assert.match(template, /id="catalogLoadStatus" role="status" aria-live="polite"/);
-assert.match(template, /id="catalogGrid" aria-busy="true"/);
+assert.match(template, /id="catalogGrid" aria-busy="\{\{CATALOG_GRID_BUSY\}\}"/);
 assert.match(template, /id="viewerImageFeedback"[\s\S]*?aria-atomic="true"/);
 assert.match(app, /setAttribute\("role", isError \? "alert" : "status"\)/);
 assert.match(app, /function searchIndexErrorMarkup\(/);

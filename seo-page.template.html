@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="he" dir="rtl" class="has-bargig-logo">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="/" />
+  <script src="https-redirect.js"></script>
+  <meta name="robots" content="{{ROBOTS_CONTENT}}" />
+  <meta name="theme-color" content="#8b6f5a" />
+  <link rel="preconnect" href="https://cdn.bargig-furniture.com" crossorigin />
+  <link rel="dns-prefetch" href="//cdn.bargig-furniture.com" />
+  <link rel="preload" href="brand-logo.svg" as="image" type="image/svg+xml" />
+  {{ROUTE_PRELOAD}}
+  <link rel="manifest" href="site.webmanifest" />
+  <link rel="icon" href="favicon.ico" sizes="any" data-site-favicon="1" />
+  <script src="favicon-loader.js" defer></script>
+  <title>{{PAGE_TITLE}}</title>
+  <meta name="description" content="{{PAGE_DESCRIPTION}}" />
+  <link rel="canonical" href="{{CANONICAL_URL}}" />
+  {{SOCIAL_METADATA}}
+  {{STRUCTURED_DATA}}
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="seo-category">
+  <a class="skip-link" href="#main-content">דילוג לתוכן הראשי</a>
+  <span class="page-top-anchor" id="top" aria-hidden="true"></span>
+  <header class="seo-site-header">
+    <a class="brand seo-site-brand" href="/" aria-label="רהיטי ברגיג — דף הבית">
+      <span class="brand-mark-frame" aria-hidden="true">
+        <img class="brand-mark" src="brand-logo-header.svg" width="786" height="317" alt="" decoding="async" />
+      </span>
+      <span class="brand-text">
+        <strong>רהיטי ברגיג</strong>
+        <small>גלריית קטלוגים</small>
+      </span>
+    </a>
+    <nav class="seo-category-nav" aria-label="קטגוריות קטלוגים">
+      {{CATEGORY_NAVIGATION}}
+    </nav>
+    <a class="button soft seo-home-link" href="/">כל הקטלוגים</a>
+  </header>
+
+  <main class="seo-landing-main" id="main-content" tabindex="-1">
+    <nav class="seo-breadcrumbs" aria-label="פירורי לחם">
+      {{BREADCRUMBS}}
+    </nav>
+
+    <header class="seo-landing-hero">
+      <span class="seo-landing-eyebrow">{{PAGE_EYEBROW}}</span>
+      <h1>{{PAGE_HEADING}}</h1>
+      <p>{{PAGE_INTRO}}</p>
+      <div class="seo-landing-stats" aria-label="פרטי הקטגוריה">
+        <span><strong>{{CATALOG_COUNT}}</strong> קטלוגים</span>
+        <span><strong>{{PAGE_COUNT}}</strong> עמודים לצפייה</span>
+      </div>
+    </header>
+
+    {{SUBCATEGORY_NAVIGATION}}
+
+    <section class="seo-catalog-list" aria-labelledby="seoCatalogListTitle">
+      <div class="seo-section-heading">
+        <h2 id="seoCatalogListTitle">קטלוגים בקטגוריה</h2>
+        <p>בחרו קטלוג כדי לצפות בכל העמודים או לפתוח דגם בעמוד מדויק.</p>
+      </div>
+      <div class="catalog-grid seo-catalog-grid">
+        {{CATALOG_CARDS}}
+      </div>
+    </section>
+  </main>
+
+  {{SITE_FOOTER}}
+</body>
+</html>

@@ -36,6 +36,11 @@ def copy_page_sources(target: Path) -> None:
         "legal/terms.content.html",
         "legal/privacy.content.html",
         "legal/accessibility.content.html",
+        "seo.config.json",
+        "catalog-taxonomy.config.json",
+        "catalog-taxonomy.generated.js",
+        "catalogs.generated.json",
+        "_headers.template",
     ):
         source = ROOT / relative
         destination = target / relative

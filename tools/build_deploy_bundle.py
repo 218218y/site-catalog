@@ -44,7 +44,6 @@ from verify_remote_catalog_assets import load_catalogs as load_remote_catalogs, 
 BIG_PAGES_VIEWER_FILE = "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
 
 DEPLOY_FILES = [
-    "_headers",
     "_redirects",
     "404.html",
     "404.css",
@@ -61,11 +60,12 @@ DEPLOY_FILES = [
     "brand-logo-header.svg",
     "favicon-loader.js",
     "catalogs.generated.js",
+    "catalog-taxonomy.generated.js",
     "catalogs.search.js",
+    "social-share-default.png",
 ]
 
 OPTIONAL_DEPLOY_FILES = [
-    "robots.txt",
     "site.webmanifest",
     "manifest.webmanifest",
 ]
@@ -99,6 +99,7 @@ GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 FINGERPRINTED_ASSET_DIR = "static"
 FINGERPRINTED_EXTENSIONS = {".css", ".js"}
+# Root documents retained for unit-test fixtures; deploy fingerprinting discovers nested HTML dynamically.
 FINGERPRINT_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
 HASHED_ASSET_FILENAME_RE = re.compile(
     r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
@@ -251,13 +252,18 @@ def fingerprint_search_index(out_dir: Path) -> str:
     return target_relative.as_posix()
 
 
+def discover_bundle_html(out_dir: Path) -> list[Path]:
+    """Return every deployed HTML document, including generated clean routes."""
+
+    return sorted(path for path in out_dir.rglob("*.html") if path.is_file())
+
+
 def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
     """Fingerprint shared CSS/JS once and rewrite every public HTML document."""
 
-    html_paths = [out_dir / filename for filename in FINGERPRINT_HTML_FILES]
-    missing = [path.name for path in html_paths if not path.is_file()]
-    if missing:
-        raise FileNotFoundError(f"Cannot fingerprint bundle because HTML documents are missing: {', '.join(missing)}")
+    html_paths = discover_bundle_html(out_dir)
+    if not html_paths:
+        raise FileNotFoundError("Cannot fingerprint bundle because no HTML documents were generated")
 
     references: list[str] = []
     for html_path in html_paths:
@@ -379,10 +385,11 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
     missing_assets: list[str] = []
     invalid_assets: list[str] = []
 
-    for html_name in FINGERPRINT_HTML_FILES:
-        html_path = out_dir / html_name
-        if not html_path.is_file():
-            raise FileNotFoundError(f"Public HTML document is missing from bundle: {html_name}")
+    html_paths = discover_bundle_html(out_dir)
+    if not html_paths:
+        raise FileNotFoundError("Deployment bundle contains no HTML documents")
+    for html_path in html_paths:
+        html_name = html_path.relative_to(out_dir).as_posix()
         html = html_path.read_text(encoding="utf-8", errors="replace")
         for match in HTML_ASSET_ATTR_RE.finditer(html):
             raw_reference = match.group("url").strip()
@@ -575,8 +582,8 @@ def add_stats(left: CopyStats, right: CopyStats) -> CopyStats:
 
 def referenced_html_assets(root: Path) -> set[str]:
     references: set[str] = set()
-    for html_name in FINGERPRINT_HTML_FILES:
-        path = root / html_name
+    for page in (*PAGE_DOCUMENTS,):
+        path = root / page.filename
         if not path.is_file():
             continue
         content = path.read_text(encoding="utf-8", errors="replace")
@@ -584,7 +591,7 @@ def referenced_html_assets(root: Path) -> set[str]:
             reference = match.group(1).strip()
             if not reference or reference.startswith(("http://", "https://", "//", "#", "mailto:")):
                 continue
-            references.add(reference.split("?", 1)[0].split("#", 1)[0])
+            references.add(reference.split("?", 1)[0].split("#", 1)[0].lstrip("/"))
     return references
 
 
@@ -690,6 +697,17 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--seo-mode",
+        choices=("private", "public"),
+        default="private",
+        help="SEO/indexing mode. Default: private. Public mode requires --confirm-public-indexing.",
+    )
+    parser.add_argument(
+        "--confirm-public-indexing",
+        action="store_true",
+        help="Required safety confirmation before producing an indexable public bundle.",
+    )
+    parser.add_argument(
         "--verify-remote-assets",
         action="store_true",
         help="Fail the bundle when any required catalog page/thumbnail is missing from the public R2/CDN URL.",
@@ -727,7 +745,13 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-        rendered_pages = render_site_pages(root, staging_dir)
+        rendered_pages = render_site_pages(
+            root,
+            staging_dir,
+            seo_mode=args.seo_mode,
+            include_seo_routes=True,
+            confirm_public_indexing=args.confirm_public_indexing,
+        )
         stats = CopyStats(
             files=len(rendered_pages),
             bytes=sum(path.stat().st_size for path in rendered_pages),
@@ -749,6 +773,8 @@ def main() -> int:
         fingerprinted_assets["catalogs.search.js"] = fingerprinted_search_index
         validated_asset_count = validate_fingerprinted_bundle(staging_dir)
 
+        print(f"[seo] Build mode: {args.seo_mode}")
+        print(f"[seo] Clean category, catalog and page-sharing routes were generated.")
         print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
         print("[assets] assets/pages was intentionally not copied into the Cloudflare Pages upload folder.")
         if fingerprinted_assets:

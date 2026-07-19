@@ -6,6 +6,9 @@
   const PAGE_FAVORITES = "favorites";
   const PAGE_VIEWER = "viewer";
   const FAVORITES_SOURCE = "favorites";
+  const CLEAN_CATALOG_SEGMENT = "catalog";
+  const CLEAN_CATEGORY_SEGMENT = "category";
+  const CLEAN_PAGE_SEGMENT = "page";
 
   const DOCUMENTS = Object.freeze({
     [PAGE_HOME]: "index.html",
@@ -24,29 +27,66 @@
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   }
 
-  function documentNameFromPath(pathname) {
-    const segments = String(pathname || "")
+  function safeRouteToken(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function pathnameSegments(pathname) {
+    return String(pathname || "")
       .split("/")
-      .map((segment) => segment.trim().toLowerCase())
+      .map((segment) => segment.trim())
       .filter(Boolean);
-    return segments.pop() || DOCUMENTS[PAGE_HOME];
   }
 
   function documentRouteName(filename) {
     return String(filename || "").trim().toLowerCase().replace(/\.html$/, "");
   }
 
+  function cleanCatalogRouteMatch(pathname) {
+    const segments = pathnameSegments(pathname);
+    const lowered = segments.map((segment) => segment.toLowerCase());
+    const catalogIndex = lowered.lastIndexOf(CLEAN_CATALOG_SEGMENT);
+    if (catalogIndex < 0 || catalogIndex + 1 >= segments.length) return null;
+
+    const catalogId = safeRouteToken(segments[catalogIndex + 1]);
+    if (!catalogId) return null;
+    const trailing = lowered.slice(catalogIndex + 2);
+    if (!trailing.length) {
+      return { page: PAGE_CATALOG, catalogId, currentPage: 1, baseSegments: segments.slice(0, catalogIndex) };
+    }
+    if (trailing.length === 2 && trailing[0] === CLEAN_PAGE_SEGMENT) {
+      return {
+        page: PAGE_VIEWER,
+        catalogId,
+        currentPage: positiveInteger(trailing[1], 1),
+        baseSegments: segments.slice(0, catalogIndex)
+      };
+    }
+    return null;
+  }
+
+  function legacyDocumentMatch(pathname) {
+    const segments = pathnameSegments(pathname);
+    const last = String(segments[segments.length - 1] || "").toLowerCase();
+    const routeName = documentRouteName(last);
+    if (!last || routeName === "index") {
+      return { page: PAGE_HOME, baseSegments: last ? segments.slice(0, -1) : segments };
+    }
+    const match = Object.entries(DOCUMENTS).find(([, filename]) => (
+      filename === last || documentRouteName(filename) === routeName
+    ));
+    return match ? { page: match[0], baseSegments: segments.slice(0, -1) } : null;
+  }
+
   function matchPageFromLocation(locationLike, declaredPage = "") {
     if (String(declaredPage || "").trim()) return normalizePage(declaredPage);
-
-    const documentName = documentNameFromPath(locationLike?.pathname);
-    const routeName = documentRouteName(documentName);
-    if (!routeName || routeName === "index") return PAGE_HOME;
-
-    const match = Object.entries(DOCUMENTS).find(([, filename]) => (
-      filename === documentName || documentRouteName(filename) === routeName
-    ));
-    return match?.[0] || "";
+    return cleanCatalogRouteMatch(locationLike?.pathname)?.page
+      || legacyDocumentMatch(locationLike?.pathname)?.page
+      || "";
   }
 
   function pageFromLocation(locationLike, declaredPage = "") {
@@ -54,19 +94,27 @@
   }
 
   function basePathFromLocation(locationLike, declaredPage = "") {
-    const pathname = String(locationLike?.pathname || "/");
-    const segments = pathname.split("/").filter(Boolean);
-    const page = matchPageFromLocation(locationLike, declaredPage);
+    const clean = cleanCatalogRouteMatch(locationLike?.pathname);
+    const legacy = clean ? null : legacyDocumentMatch(locationLike?.pathname);
+    let baseSegments = clean?.baseSegments || legacy?.baseSegments || [];
 
-    if (page && segments.length) {
-      const lastSegment = segments[segments.length - 1].toLowerCase();
-      const expectedDocument = DOCUMENTS[page];
-      const expectedRoute = documentRouteName(expectedDocument);
-      const isPageSegment = lastSegment === expectedDocument || documentRouteName(lastSegment) === expectedRoute;
-      if (isPageSegment) segments.pop();
+    // A declared application page can be used on a generated clean route. If
+    // neither route parser matched, preserve the containing directory rather
+    // than treating the unknown final segment as part of the app base.
+    if (!clean && !legacy && String(declaredPage || "").trim()) {
+      const segments = pathnameSegments(locationLike?.pathname);
+      baseSegments = segments.slice(0, -1);
     }
+    return baseSegments.length ? `/${baseSegments.join("/")}/` : "/";
+  }
 
-    return segments.length ? `/${segments.join("/")}/` : "/";
+  function runtimeBasePath() {
+    return basePathFromLocation(global.location || { pathname: "/" }, global.document?.body?.dataset?.page || "");
+  }
+
+  function joinBasePath(relativePath) {
+    const base = runtimeBasePath();
+    return `${base}${String(relativePath || "").replace(/^\/+/, "")}`;
   }
 
   function isDocumentLocation(locationLike) {
@@ -75,15 +123,11 @@
 
   function isSameAppDocumentLocation(currentLocationLike, targetLocationLike, declaredCurrentPage = "") {
     if (!isDocumentLocation(targetLocationLike)) return false;
-
     const currentOrigin = String(currentLocationLike?.origin || "");
     const targetOrigin = String(targetLocationLike?.origin || "");
     if (currentOrigin && targetOrigin && currentOrigin !== targetOrigin) return false;
-
-    const currentBasePath = basePathFromLocation(currentLocationLike, declaredCurrentPage);
-    const targetPage = matchPageFromLocation(targetLocationLike);
-    const targetBasePath = basePathFromLocation(targetLocationLike, targetPage);
-    return currentBasePath === targetBasePath;
+    return basePathFromLocation(currentLocationLike, declaredCurrentPage)
+      === basePathFromLocation(targetLocationLike, matchPageFromLocation(targetLocationLike));
   }
 
   function buildRelativeUrl(page, params = {}) {
@@ -94,16 +138,25 @@
       search.set(key, String(value));
     });
     const query = search.toString();
-    return query ? `${filename}?${query}` : filename;
+    return `${joinBasePath(filename)}${query ? `?${query}` : ""}`;
   }
 
   function homeUrl() {
-    return buildRelativeUrl(PAGE_HOME);
+    return runtimeBasePath();
   }
 
   function catalogUrl(catalogId) {
-    const normalizedCatalogId = String(catalogId || "").trim();
-    return buildRelativeUrl(PAGE_CATALOG, { catalog: normalizedCatalogId });
+    const normalizedCatalogId = safeRouteToken(catalogId);
+    return normalizedCatalogId
+      ? joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/`)
+      : buildRelativeUrl(PAGE_CATALOG);
+  }
+
+  function categoryUrl(categorySlug, subcategorySlug = "") {
+    const category = safeRouteToken(categorySlug);
+    const subcategory = safeRouteToken(subcategorySlug);
+    if (!category) return homeUrl();
+    return joinBasePath(`${CLEAN_CATEGORY_SEGMENT}/${category}/${subcategory ? `${subcategory}/` : ""}`);
   }
 
   function favoritesUrl() {
@@ -111,20 +164,31 @@
   }
 
   function viewerUrl(catalogId, page = 1, options = {}) {
-    return buildRelativeUrl(PAGE_VIEWER, {
-      catalog: String(catalogId || ""),
-      page: positiveInteger(page),
-      source: options.source === FAVORITES_SOURCE ? FAVORITES_SOURCE : ""
-    });
+    const normalizedCatalogId = safeRouteToken(catalogId);
+    if (!normalizedCatalogId) return buildRelativeUrl(PAGE_VIEWER);
+    const base = joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/${CLEAN_PAGE_SEGMENT}/${positiveInteger(page)}/`);
+    return options.source === FAVORITES_SOURCE ? `${base}?source=${FAVORITES_SOURCE}` : base;
   }
 
   function parseLocation(locationLike, declaredPage = "") {
-    const page = pageFromLocation(locationLike, declaredPage);
     const search = new URLSearchParams(String(locationLike?.search || ""));
-    const catalogId = String(search.get("catalog") || "").trim();
-    const currentPage = positiveInteger(search.get("page"), 1);
-    const source = search.get("source") === FAVORITES_SOURCE ? FAVORITES_SOURCE : "catalog";
-    return { page, catalogId, currentPage, source };
+    const clean = cleanCatalogRouteMatch(locationLike?.pathname);
+    if (clean) {
+      return {
+        page: clean.page,
+        catalogId: clean.catalogId,
+        currentPage: clean.currentPage,
+        source: search.get("source") === FAVORITES_SOURCE ? FAVORITES_SOURCE : "catalog"
+      };
+    }
+
+    const page = pageFromLocation(locationLike, declaredPage);
+    return {
+      page,
+      catalogId: String(search.get("catalog") || "").trim(),
+      currentPage: positiveInteger(search.get("page"), 1),
+      source: search.get("source") === FAVORITES_SOURCE ? FAVORITES_SOURCE : "catalog"
+    };
   }
 
   global.BargigRoutes = Object.freeze({
@@ -143,6 +207,7 @@
     buildRelativeUrl,
     homeUrl,
     catalogUrl,
+    categoryUrl,
     favoritesUrl,
     viewerUrl,
     parseLocation

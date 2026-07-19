@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  
   <script src="https-redirect.js"></script>
   <meta name="robots" content="noindex, nofollow, noimageindex, nosnippet, noarchive" />
   <meta name="theme-color" content="#8b6f5a" />
@@ -12,9 +13,27 @@
   <link rel="manifest" href="site.webmanifest" />
   <link rel="icon" href="favicon.ico" sizes="any" data-site-favicon="1" />
   <script src="favicon-loader.js" defer></script>
+  
   <title>צפייה בקטלוג | רהיטי ברגיג</title>
   <meta name="description" content="צפייה במסך מלא בעמודי הקטלוגים של רהיטי ברגיג." />
   <link rel="canonical" href="https://bargig-furniture.com/viewer.html" />
+  <meta property="og:type" content="website" />
+<meta property="og:site_name" content="רהיטי ברגיג" />
+<meta property="og:locale" content="he_IL" />
+<meta property="og:title" content="צפייה בקטלוג | רהיטי ברגיג" />
+<meta property="og:description" content="צפייה במסך מלא בעמודי הקטלוגים של רהיטי ברגיג." />
+<meta property="og:url" content="https://bargig-furniture.com/viewer.html" />
+<meta property="og:image" content="https://bargig-furniture.com/social-share-default.png" />
+<meta property="og:image:secure_url" content="https://bargig-furniture.com/social-share-default.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="רהיטי ברגיג — גלריית קטלוגים" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="צפייה בקטלוג | רהיטי ברגיג" />
+<meta name="twitter:description" content="צפייה במסך מלא בעמודי הקטלוגים של רהיטי ברגיג." />
+<meta name="twitter:image" content="https://bargig-furniture.com/social-share-default.png" />
+<meta name="twitter:image:alt" content="רהיטי ברגיג — גלריית קטלוגים" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://bargig-furniture.com/viewer.html#webpage","url":"https://bargig-furniture.com/viewer.html","name":"צפייה בקטלוג | רהיטי ברגיג","description":"צפייה במסך מלא בעמודי הקטלוגים של רהיטי ברגיג.","inLanguage":"he","isPartOf":{"@id":"https://bargig-furniture.com/#website"},"primaryImageOfPage":{"@type":"ImageObject","url":"https://bargig-furniture.com/social-share-default.png"}}</script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-page="viewer">
@@ -84,7 +103,7 @@
   </section>
 
   <main id="main-content" tabindex="-1">
-    <section class="catalogs-section panel reveal" id="catalogs" aria-label="קטלוגים">
+    <section class="catalogs-section panel reveal hidden" id="catalogs" aria-label="קטלוגים">
       <p class="visually-hidden" id="catalogLoadStatus" role="status" aria-live="polite" aria-atomic="true">טוען קטלוגים...</p>
       <div class="catalog-category-list" id="catalogGrid" aria-busy="true"></div>
     </section>
@@ -104,8 +123,8 @@
               </div>
 
               <div class="catalog-title-block">
-                <h2 id="catalogDetailTitle">בחרו קטלוג</h2>
-                <p id="catalogDescription" class="catalog-description">כאן יופיע תיאור קצר של הקטלוג.</p>
+                <h2 id="catalogDetailTitle">קטלוג</h2>
+                <p id="catalogDescription" class="catalog-description">בחרו קטלוג לצפייה בעמודים.</p>
               </div>
             </div>
 
@@ -113,7 +132,7 @@
               <div class="detail-catalog-picker">
                 <span class="detail-catalog-picker-label">מעבר לקטלוג אחר</span>
                 <button class="button soft detail-catalog-menu-toggle" id="catalogMenuToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="catalogMenu">
-                  <span id="catalogMenuToggleText">בחר קטלוג</span>
+                  <span id="catalogMenuToggleText">בחירת קטלוג</span>
                   <span aria-hidden="true">⌄</span>
                 </button>
                 <div class="reader-catalog-menu detail-catalog-menu hidden" id="catalogMenu" role="menu" aria-label="החלפת קטלוג"></div>
@@ -132,6 +151,8 @@
     </section>
 
   </main>
+
+  <noscript><p class="noscript-message">יש להפעיל JavaScript כדי להשתמש במציג הקטלוגים.</p></noscript>
 
   <button class="catalog-scroll-top-float" id="scrollToTopBtn" type="button" aria-label="חזרה לראש הקטלוג" aria-hidden="true" tabindex="-1">
     <svg class="catalog-scroll-top-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -601,6 +622,7 @@
   <script src="catalog-snapshot.js"></script>
   <script src="catalog-assets.config.js"></script>
   <script src="catalogs.generated.js"></script>
+  <script src="catalog-taxonomy.generated.js"></script>
   <script src="catalog-search.js"></script>
   <script src="tooltip-manager.js"></script>
   <script src="favorites-store.js"></script>

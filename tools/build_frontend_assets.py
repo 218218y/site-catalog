@@ -57,6 +57,7 @@ CSS_MODULES: tuple[str, ...] = (
     "src/css/85-favorites-routing.css",
     "src/css/90-visual-polish.css",
     "src/css/95-accessibility-consistency.css",
+    "src/css/97-seo-foundation.css",
 )
 
 GENERATED_FILES: tuple[str, ...] = ("app.js", "styles.css")

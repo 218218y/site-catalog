@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {{BASE_TAG}}
   <script src="https-redirect.js"></script>
-  <meta name="robots" content="noindex, nofollow, noimageindex, nosnippet, noarchive" />
+  <meta name="robots" content="{{ROBOTS_CONTENT}}" />
   <meta name="theme-color" content="#8b6f5a" />
   <link rel="preconnect" href="https://cdn.bargig-furniture.com" crossorigin />
   <link rel="dns-prefetch" href="//cdn.bargig-furniture.com" />
@@ -12,12 +13,15 @@
   <link rel="manifest" href="site.webmanifest" />
   <link rel="icon" href="favicon.ico" sizes="any" data-site-favicon="1" />
   <script src="favicon-loader.js" defer></script>
+  {{ROUTE_PRELOAD}}
   <title>{{PAGE_TITLE}}</title>
   <meta name="description" content="{{PAGE_DESCRIPTION}}" />
-  <link rel="canonical" href="https://bargig-furniture.com/{{CANONICAL_PATH}}" />
+  <link rel="canonical" href="{{CANONICAL_URL}}" />
+  {{SOCIAL_METADATA}}
+  {{STRUCTURED_DATA}}
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body data-page="{{PAGE_MODE}}">
+<body data-page="{{PAGE_MODE}}"{{BODY_DATA_ATTRIBUTES}}>
   <a class="skip-link" href="#main-content">דילוג לתוכן הראשי</a>
   <span class="page-top-anchor" id="top" aria-hidden="true"></span>
   <header class="site-header">
@@ -38,7 +42,7 @@
       </button>
     </div>
 
-    <nav class="top-nav" id="categoryNav" aria-label="ניווט קטגוריות קטלוגים"></nav>
+    <nav class="top-nav" id="categoryNav" aria-label="ניווט קטגוריות קטלוגים">{{INITIAL_CATEGORY_NAV}}</nav>
     <button class="top-search-button" id="globalSearchOpen" type="button" aria-label="פתיחת חיפוש דגם" aria-expanded="false" aria-controls="catalogSearch" title="חיפוש דגם">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M10.7 18.1a7.4 7.4 0 1 1 5.2-2.16l3.58 3.58a1.18 1.18 0 0 1-1.67 1.67l-3.58-3.58a7.36 7.36 0 0 1-3.53.49Zm0-2.36a5.04 5.04 0 1 0 0-10.08 5.04 5.04 0 0 0 0 10.08Z" />
@@ -57,7 +61,7 @@
         </svg>
         <span>קטגוריות</span>
       </button>
-      <div class="mobile-category-menu hidden" id="mobileCategoryMenu" role="menu" aria-label="קטגוריות קטלוגים"></div>
+      <div class="mobile-category-menu hidden" id="mobileCategoryMenu" role="menu" aria-label="קטגוריות קטלוגים">{{INITIAL_MOBILE_CATEGORY_NAV}}</div>
     </div>
   </header>
 
@@ -84,12 +88,12 @@
   </section>
 
   <main id="main-content" tabindex="-1">
-    <section class="catalogs-section panel reveal" id="catalogs" aria-label="קטלוגים">
+    <section class="catalogs-section panel reveal{{CATALOGS_SECTION_EXTRA_CLASS}}" id="catalogs" aria-label="קטלוגים">
       <p class="visually-hidden" id="catalogLoadStatus" role="status" aria-live="polite" aria-atomic="true">טוען קטלוגים...</p>
-      <div class="catalog-category-list" id="catalogGrid" aria-busy="true"></div>
+      <div class="catalog-category-list" id="catalogGrid" aria-busy="{{CATALOG_GRID_BUSY}}">{{INITIAL_CATALOG_GRID}}</div>
     </section>
 
-    <section class="catalog-detail panel hidden reveal" id="catalogDetail" aria-labelledby="catalogDetailTitle">
+    <section class="catalog-detail panel{{CATALOG_DETAIL_EXTRA_CLASS}} reveal" id="catalogDetail" aria-labelledby="catalogDetailTitle">
       <div class="catalog-hero">
         <div class="catalog-intro">
           <div class="catalog-detail-head">
@@ -104,8 +108,8 @@
               </div>
 
               <div class="catalog-title-block">
-                <h2 id="catalogDetailTitle">בחרו קטלוג</h2>
-                <p id="catalogDescription" class="catalog-description">כאן יופיע תיאור קצר של הקטלוג.</p>
+                <h2 id="catalogDetailTitle">{{CATALOG_DETAIL_TITLE}}</h2>
+                <p id="catalogDescription" class="catalog-description">{{CATALOG_DETAIL_DESCRIPTION}}</p>
               </div>
             </div>
 
@@ -113,7 +117,7 @@
               <div class="detail-catalog-picker">
                 <span class="detail-catalog-picker-label">מעבר לקטלוג אחר</span>
                 <button class="button soft detail-catalog-menu-toggle" id="catalogMenuToggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="catalogMenu">
-                  <span id="catalogMenuToggleText">בחר קטלוג</span>
+                  <span id="catalogMenuToggleText">{{CATALOG_MENU_LABEL}}</span>
                   <span aria-hidden="true">⌄</span>
                 </button>
                 <div class="reader-catalog-menu detail-catalog-menu hidden" id="catalogMenu" role="menu" aria-label="החלפת קטלוג"></div>
@@ -128,10 +132,12 @@
 
       <div class="gallery-separator" aria-hidden="true"></div>
 
-      <div class="page-grid" id="pageGrid" aria-busy="false"></div>
+      <div class="page-grid" id="pageGrid" aria-busy="false">{{INITIAL_PAGE_GRID}}</div>
     </section>
 
   </main>
+
+  {{NOSCRIPT_CONTENT}}
 
   <button class="catalog-scroll-top-float" id="scrollToTopBtn" type="button" aria-label="חזרה לראש הקטלוג" aria-hidden="true" tabindex="-1">
     <svg class="catalog-scroll-top-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -512,6 +518,7 @@
   <script src="catalog-snapshot.js"></script>
   <script src="catalog-assets.config.js"></script>
   <script src="catalogs.generated.js"></script>
+  <script src="catalog-taxonomy.generated.js"></script>
   <script src="catalog-search.js"></script>
   <script src="tooltip-manager.js"></script>
   <script src="favorites-store.js"></script>

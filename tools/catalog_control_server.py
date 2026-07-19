@@ -229,6 +229,7 @@ def save_footer_content_and_render_pages(
             staged_root,
             build_assets=False,
             footer_content=normalized,
+            include_indexing_files=False,
         )
         staged_bytes = {
             page.relative_to(staged_root): page.read_bytes()

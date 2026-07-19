@@ -14,7 +14,7 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-%PYTHON_EXE% tools\deploy_cloudflare_pages.py %*
+%PYTHON_EXE% tools\deploy_cloudflare_pages.py --seo-mode private %*
 if errorlevel 1 (
   echo.
   echo The Cloudflare operation did not complete successfully. Read the exact build or deploy error above.

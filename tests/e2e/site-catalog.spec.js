@@ -161,7 +161,7 @@ async function waitForApp(page) {
 }
 
 async function openDirectViewer(page, pageNumber = 1) {
-  await page.goto(`/viewer.html?catalog=${CATALOG_ID}&page=${pageNumber}`);
+  await page.goto(`/catalog/${CATALOG_ID}/page/${pageNumber}/`);
   await waitForApp(page);
   await expect(page.locator("#lightbox")).toBeVisible();
   await expectCurrentViewerImageReady(page);
@@ -271,7 +271,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator(".catalog-card")).toHaveCount(CATALOG_COUNT);
     await page.locator(".catalog-open-button").first().click();
 
-    await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=1`));
+    await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/1/$`));
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
 
     await page.locator("#nextPageBtn").click();
@@ -286,12 +286,12 @@ test.describe("critical catalog journeys", () => {
     await waitForApp(page);
 
     await page.locator("[data-open-catalog-preview]").first().click();
-    await expect(page).toHaveURL(new RegExp(`catalog\\.html\\?catalog=${CATALOG_ID}`));
+    await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/$`));
     await waitForApp(page);
     await expect(page.locator("#pageGrid .page-card")).toHaveCount(CATALOG_PAGES);
 
     await page.locator(`[data-open-page="${PREVIEW_PAGE}"]`).click();
-    await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=${PREVIEW_PAGE}`));
+    await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/${PREVIEW_PAGE}/$`));
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(PREVIEW_PAGE));
     await expectCurrentViewerImageReady(page);
   });
@@ -307,7 +307,7 @@ test.describe("critical catalog journeys", () => {
     await expect(results.first()).toBeVisible();
     await results.first().click();
 
-    await expect(page).toHaveURL(/viewer\.html\?catalog=[^&]+&page=\d+/);
+    await expect(page).toHaveURL(/\/catalog\/[^/]+\/page\/\d+\/$/);
     await expect(page.locator("#lightbox")).toBeVisible();
   });
 
@@ -340,7 +340,7 @@ test.describe("critical catalog journeys", () => {
     expect(emailDetails.subject).toContain(`עמוד ${inquiryPage}`);
     expect(emailDetails.body).toContain(`קטלוג: ${testCatalog.title}`);
     expect(emailDetails.body).toContain(`עמוד: ${inquiryPage}`);
-    expect(emailDetails.body).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+    expect(emailDetails.body).toContain(`/catalog/${CATALOG_ID}/page/${inquiryPage}/`);
     expect(emailDetails.title).toBeNull();
     expect(emailDetails.tooltip).toBeNull();
 
@@ -362,7 +362,7 @@ test.describe("critical catalog journeys", () => {
     expect(gmailDetails.subject).toContain(testCatalog.title);
     expect(gmailDetails.body).toContain(`קטלוג: ${testCatalog.title}`);
     expect(gmailDetails.body).toContain(`עמוד: ${inquiryPage}`);
-    expect(gmailDetails.body).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+    expect(gmailDetails.body).toContain(`/catalog/${CATALOG_ID}/page/${inquiryPage}/`);
     expect(gmailDetails.title).toBeNull();
     expect(gmailDetails.tooltip).toBeNull();
 
@@ -372,7 +372,7 @@ test.describe("critical catalog journeys", () => {
     expect(shared?.title).toContain(testCatalog.title);
     expect(shared?.text).toContain(`קטלוג: ${testCatalog.title}`);
     expect(shared?.text).toContain(`עמוד: ${inquiryPage}`);
-    expect(shared?.url).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+    expect(shared?.url).toContain(`/catalog/${CATALOG_ID}/page/${inquiryPage}/`);
 
     await page.locator("#viewerInquiryButton").click();
     await page.locator("#viewerInquiryCopy").click();
@@ -380,7 +380,7 @@ test.describe("critical catalog journeys", () => {
     const copied = await page.evaluate(() => window.__bargigE2eClipboard || "");
     expect(copied).toContain(`קטלוג: ${testCatalog.title}`);
     expect(copied).toContain(`עמוד: ${inquiryPage}`);
-    expect(copied).toContain(`/viewer.html?catalog=${CATALOG_ID}&page=${inquiryPage}`);
+    expect(copied).toContain(`/catalog/${CATALOG_ID}/page/${inquiryPage}/`);
   });
 
   test("persists a favorite through reload and shows it on the favorites page", async ({ page }) => {
@@ -402,7 +402,7 @@ test.describe("critical catalog journeys", () => {
 
   test("re-enters the full scroll catalog at the saved favorite instead of showing a blank frame", async ({ page }) => {
     await preparePage(page);
-    await page.goto(`/viewer.html?catalog=${FAVORITE_CATALOG_TRANSITION_ID}&page=${FAVORITE_CATALOG_TRANSITION_PAGE}`);
+    await page.goto(`/catalog/${FAVORITE_CATALOG_TRANSITION_ID}/page/${FAVORITE_CATALOG_TRANSITION_PAGE}/`);
     await waitForApp(page);
     await expect(page.locator("#lightbox")).toBeVisible();
     await expectCurrentViewerImageReady(page);
@@ -419,7 +419,7 @@ test.describe("critical catalog journeys", () => {
     await favoriteCard.locator("[data-open-favorite]").click();
 
     await expect(page).toHaveURL(new RegExp(
-      `viewer[.]html[?]catalog=${FAVORITE_CATALOG_TRANSITION_ID}&page=${FAVORITE_CATALOG_TRANSITION_PAGE}&source=favorites`
+      `/catalog/${FAVORITE_CATALOG_TRANSITION_ID}/page/${FAVORITE_CATALOG_TRANSITION_PAGE}/[?]source=favorites$`
     ));
     await expect(page.locator("#lightbox")).toHaveClass(/favorites-viewer-mode/);
     await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
@@ -427,7 +427,7 @@ test.describe("critical catalog journeys", () => {
     await page.locator("#favoriteOpenCatalogButton").click();
 
     await expect(page).toHaveURL(new RegExp(
-      `viewer[.]html[?]catalog=${FAVORITE_CATALOG_TRANSITION_ID}&page=${FAVORITE_CATALOG_TRANSITION_PAGE}$`
+      `/catalog/${FAVORITE_CATALOG_TRANSITION_ID}/page/${FAVORITE_CATALOG_TRANSITION_PAGE}/$`
     ));
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
     await expect(page.locator("#lightbox")).not.toHaveClass(/favorites-viewer-mode/);
@@ -470,11 +470,11 @@ test.describe("critical catalog journeys", () => {
 
     await revealViewerTopToolbar(page);
     await page.locator("#lightboxCopyLink").click();
-    await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).toContain(`viewer.html?catalog=${CATALOG_ID}&page=5`);
+    await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).toContain(`/catalog/${CATALOG_ID}/page/5/`);
     await expect(page.locator("#siteActionToast")).toContainText("הקישור הועתק");
 
     await page.locator("#lightboxHomeLink").click();
-    await expect(page).toHaveURL(/index\.html$/);
+    await expect(page).toHaveURL(/\/$/);
     await expect(page.locator("body")).toHaveAttribute("data-page", "home");
     await expect(page.locator("#fullscreenToggle")).toBeHidden();
   });
@@ -491,13 +491,13 @@ test.describe("critical catalog journeys", () => {
     await page.locator("#viewerFavoriteButton").click();
 
     await page.locator("#lightboxHomeLink").evaluate((link) => link.click());
-    await expect(page).toHaveURL(/index\.html$/);
+    await expect(page).toHaveURL(/\/$/);
     await expect(page.locator("body")).toHaveAttribute("data-page", "home");
     await expect(page.locator("#lightbox")).toBeHidden();
     await expect(page.locator("#fullscreenToggle")).toBeHidden();
 
     await page.locator("[data-open-catalog-preview]").first().click();
-    await expect(page).toHaveURL(new RegExp(`catalog\\.html\\?catalog=${CATALOG_ID}`));
+    await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/$`));
     await expect(page.locator("body")).toHaveAttribute("data-page", "catalog");
     await expect(page.locator("#pageGrid .page-card")).toHaveCount(CATALOG_PAGES);
     await expect(page.locator("#fullscreenToggle")).toBeHidden();
@@ -914,7 +914,7 @@ test.describe("critical catalog journeys", () => {
 
   test("falls back to the thumbnail when a full catalog image fails", async ({ page }) => {
     await preparePage(page, { failPages: [2] });
-    await page.goto(`/viewer.html?catalog=${CATALOG_ID}&page=2`);
+    await page.goto(`/catalog/${CATALOG_ID}/page/2/`);
     await waitForApp(page);
 
     const frame = page.locator('#viewerScrollPages [data-scroll-page="2"]');
@@ -1069,7 +1069,7 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   expect(overflow).toBeLessThanOrEqual(1);
 
   await page.locator(".catalog-open-button").first().click();
-  await expect(page).toHaveURL(new RegExp(`viewer\\.html\\?catalog=${CATALOG_ID}&page=1`));
+  await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/1/$`));
   await expectCurrentViewerImageReady(page);
   await expectViewerFrameCentered(page);
   await expect(page.locator("#viewerMobileMoreToggle")).toBeVisible();
