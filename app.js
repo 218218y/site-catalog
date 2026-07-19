@@ -408,8 +408,7 @@ const state = {
   viewerOnboardingShownThisSession: false,
   viewerOnboardingStep: 0,
   viewerOnboardingTarget: null,
-  viewerOnboardingFloatingTarget: null,
-  viewerOnboardingFloatingSource: null,
+  viewerOnboardingFloatingTargets: [],
   viewerOnboardingRestoreUi: null,
   viewerOnboardingLayoutRaf: 0,
   viewerOnboardingLayoutTimer: 0,
@@ -7353,9 +7352,9 @@ function viewerHasTouchCapability() {
 
 function viewerNavigationOnboardingCopy() {
   if (viewerHasTouchCapability()) {
-    return "במסך מגע החליקו ימינה או שמאלה. אפשר גם ללחוץ על החצים שבצדי המסך או להשתמש במקשי החצים במקלדת.";
+    return "במסך מגע החליקו למעלה או למטה בגלילה הרציפה, או ימינה ושמאלה למעבר ישיר. אפשר גם ללחוץ על החצים שבצדי המסך או להשתמש במקשי החצים למעלה, למטה, ימינה ושמאלה במקלדת.";
   }
-  return "לחצו על החצים שבצדי המסך או השתמשו במקשי החצים במקלדת.";
+  return "גללו למעלה או למטה, לחצו על החצים שבצדי המסך, או השתמשו במקשי החצים למעלה, למטה, ימינה ושמאלה במקלדת.";
 }
 
 function viewerZoomOnboardingCopy() {
@@ -7375,11 +7374,14 @@ function getViewerOnboardingSteps() {
       note: "למעבר מהיר לעמוד רחוק, פתחו את סרגל התמונות הממוזערות מהקצה הימני.",
       target: () => els.stageCanvas,
       targetRect: getViewerOnboardingNavigationFocusRect,
-      floatingTarget: () => els.nextPageBtn,
+      floatingTargets: () => [
+        { source: els.nextPageBtn, id: "next-page" },
+        { source: els.prevPageBtn, id: "previous-page" }
+      ],
       preferredPlacement: "above",
       padding: 0,
       radius: 26,
-      gesture: "swipe"
+      gesture: "swipe-both"
     },
     {
       id: "zoom",
@@ -7402,7 +7404,10 @@ function getViewerOnboardingSteps() {
       description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
       note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
       target: () => els.viewerInquiryButton,
-      floatingTarget: () => els.viewerInquiryButton,
+      floatingTargets: () => [
+        { source: els.viewerInquiryButton, id: "inquiry" },
+        { source: els.viewerFavoriteButton, id: "favorite" }
+      ],
       preferredPlacement: "left",
       padding: 8,
       radius: 24,
@@ -7509,13 +7514,14 @@ function getViewerOnboardingFocusableElements() {
   const controls = Array.from(els.viewerOnboarding.querySelectorAll(
     'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )).filter((element) => !element.closest?.(".hidden"));
-  const target = state.viewerOnboardingFloatingTarget || state.viewerOnboardingTarget;
-  const targetControls = target
-    ? [
-        ...(target.matches?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') ? [target] : []),
-        ...Array.from(target.querySelectorAll?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') || [])
-      ]
-    : [];
+  const targets = [
+    ...(state.viewerOnboardingFloatingTargets || []).map((entry) => entry.clone),
+    state.viewerOnboardingTarget
+  ].filter(Boolean);
+  const targetControls = targets.flatMap((target) => [
+    ...(target.matches?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') ? [target] : []),
+    ...Array.from(target.querySelectorAll?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') || [])
+  ]);
   return [...new Set([...controls, ...targetControls])];
 }
 
@@ -7605,10 +7611,9 @@ function calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, prefe
   };
 }
 
-function removeViewerOnboardingFloatingTarget() {
-  state.viewerOnboardingFloatingTarget?.remove?.();
-  state.viewerOnboardingFloatingTarget = null;
-  state.viewerOnboardingFloatingSource = null;
+function removeViewerOnboardingFloatingTargets() {
+  (state.viewerOnboardingFloatingTargets || []).forEach((entry) => entry.clone?.remove?.());
+  state.viewerOnboardingFloatingTargets = [];
 }
 
 function sanitizeViewerOnboardingFloatingTarget(clone) {
@@ -7629,41 +7634,68 @@ function syncViewerOnboardingFloatingTargetState(source, clone) {
   clone.disabled = Boolean(source.disabled);
 }
 
-function updateViewerOnboardingFloatingTarget(step) {
-  const source = step.floatingTarget?.() || null;
-  if (!source || !els.viewerOnboarding) {
-    removeViewerOnboardingFloatingTarget();
+function getViewerOnboardingFloatingTargetDefinitions(step) {
+  const configured = step.floatingTargets?.()
+    || (step.floatingTarget ? [{ source: step.floatingTarget(), id: "primary" }] : []);
+  return configured.map((entry, index) => {
+    const source = entry?.source || entry;
+    if (!source) return null;
+    return {
+      source,
+      id: String(entry?.id || `target-${index + 1}`)
+    };
+  }).filter(Boolean);
+}
+
+function viewerOnboardingFloatingTargetsMatch(step, definitions) {
+  const current = state.viewerOnboardingFloatingTargets || [];
+  return current.length === definitions.length && current.every((entry, index) => (
+    entry.source === definitions[index].source
+    && entry.id === definitions[index].id
+    && entry.stepId === step.id
+  ));
+}
+
+function updateViewerOnboardingFloatingTargets(step) {
+  const definitions = getViewerOnboardingFloatingTargetDefinitions(step);
+  if (!definitions.length || !els.viewerOnboarding) {
+    removeViewerOnboardingFloatingTargets();
     return;
   }
 
-  let clone = state.viewerOnboardingFloatingTarget;
-  if (!clone || state.viewerOnboardingFloatingSource !== source || clone.dataset.tourStep !== step.id) {
-    removeViewerOnboardingFloatingTarget();
-    clone = source.cloneNode(true);
-    sanitizeViewerOnboardingFloatingTarget(clone);
-    clone.classList.add("viewer-onboarding-floating-target");
-    clone.dataset.tourStep = step.id;
-    clone.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      source.click();
-      window.requestAnimationFrame(() => {
-        if (!state.viewerOnboardingOpen || state.viewerOnboardingFloatingTarget !== clone) return;
-        syncViewerOnboardingFloatingTargetState(source, clone);
-        scheduleViewerOnboardingLayout(30);
+  if (!viewerOnboardingFloatingTargetsMatch(step, definitions)) {
+    removeViewerOnboardingFloatingTargets();
+    state.viewerOnboardingFloatingTargets = definitions.map(({ source, id }) => {
+      const clone = source.cloneNode(true);
+      sanitizeViewerOnboardingFloatingTarget(clone);
+      clone.classList.add("viewer-onboarding-floating-target");
+      clone.dataset.tourStep = step.id;
+      clone.dataset.tourTarget = id;
+      clone.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        source.click();
+        window.requestAnimationFrame(() => {
+          const isCurrentClone = (state.viewerOnboardingFloatingTargets || [])
+            .some((entry) => entry.clone === clone);
+          if (!state.viewerOnboardingOpen || !isCurrentClone) return;
+          syncViewerOnboardingFloatingTargetState(source, clone);
+          scheduleViewerOnboardingLayout(30);
+        });
       });
+      els.viewerOnboarding.appendChild(clone);
+      return { source, clone, id, stepId: step.id };
     });
-    els.viewerOnboarding.appendChild(clone);
-    state.viewerOnboardingFloatingTarget = clone;
-    state.viewerOnboardingFloatingSource = source;
   }
 
-  syncViewerOnboardingFloatingTargetState(source, clone);
-  const rect = source.getBoundingClientRect();
-  clone.style.left = `${rect.left}px`;
-  clone.style.top = `${rect.top}px`;
-  clone.style.width = `${rect.width}px`;
-  clone.style.height = `${rect.height}px`;
+  state.viewerOnboardingFloatingTargets.forEach(({ source, clone }) => {
+    syncViewerOnboardingFloatingTargetState(source, clone);
+    const rect = source.getBoundingClientRect();
+    clone.style.left = `${rect.left}px`;
+    clone.style.top = `${rect.top}px`;
+    clone.style.width = `${rect.width}px`;
+    clone.style.height = `${rect.height}px`;
+  });
 }
 
 function layoutViewerOnboarding() {
@@ -7682,7 +7714,7 @@ function layoutViewerOnboarding() {
   );
   if (!targetRect) return;
 
-  updateViewerOnboardingFloatingTarget(step);
+  updateViewerOnboardingFloatingTargets(step);
 
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -7732,8 +7764,10 @@ function renderViewerOnboardingStep(options = {}) {
   const step = steps[state.viewerOnboardingStep];
   if (!step) return;
 
-  if (state.viewerOnboardingFloatingTarget?.dataset?.tourStep !== step.id) {
-    removeViewerOnboardingFloatingTarget();
+  const floatingTargetsBelongToStep = (state.viewerOnboardingFloatingTargets || [])
+    .every((entry) => entry.stepId === step.id);
+  if (!floatingTargetsBelongToStep) {
+    removeViewerOnboardingFloatingTargets();
   }
 
   els.lightbox?.classList.toggle("viewer-tour-show-top-ui", Boolean(step.revealTopBar));
@@ -7795,7 +7829,7 @@ function closeViewerOnboarding(options = {}) {
   const { restoreFocus = true, remember = true } = options;
   state.viewerOnboardingOpen = false;
   state.viewerOnboardingTarget = null;
-  removeViewerOnboardingFloatingTarget();
+  removeViewerOnboardingFloatingTargets();
   window.cancelAnimationFrame(state.viewerOnboardingLayoutRaf);
   window.clearTimeout(state.viewerOnboardingLayoutTimer);
   if (remember) markViewerOnboardingSeen();

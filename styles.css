@@ -270,10 +270,9 @@ body:not([data-page="viewer"]) > main {
 }
 
 /* The side favorite control normally uses deliberately dark viewer chrome.
-   During its tour step a real cloned control sits above the shade and receives
-   a warm, high-contrast treatment, while retaining the button's actual shape
-   and active/inactive star state. */
-.viewer-onboarding-floating-target[data-tour-step="favorite"] {
+   When it participates in a composite tour step, its dedicated target id keeps
+   the warm, high-contrast treatment independent from the step's primary button. */
+.viewer-onboarding-floating-target[data-tour-target="favorite"] {
   color: #fff4cf !important;
   background: rgba(151, 106, 36, 0.9) !important;
   border-color: rgba(255, 225, 157, 0.62) !important;
@@ -283,8 +282,13 @@ body:not([data-page="viewer"]) > main {
     0 0 0 7px rgba(203, 151, 70, 0.24),
     0 18px 46px rgba(0,0,0,0.46) !important;
 }
-.viewer-onboarding-floating-target[data-tour-step="favorite"] svg {
+.viewer-onboarding-floating-target[data-tour-target="favorite"] svg {
+  fill: rgba(255, 244, 207, 0.34) !important;
+  stroke: #fff4cf !important;
   filter: drop-shadow(0 0 8px rgba(255, 224, 145, 0.46));
+}
+.viewer-onboarding-floating-target[data-tour-target="favorite"][data-favorite-active="true"] svg {
+  fill: #fff4cf !important;
 }
 .viewer-onboarding-floating-target.stage-nav:hover,
 .viewer-onboarding-floating-target.stage-nav:focus-visible,
@@ -491,6 +495,42 @@ body:not([data-page="viewer"]) > main {
   background: currentColor;
   box-shadow: -6px 0 0 -1px currentColor, 6px 0 0 -1px currentColor;
 }
+.viewer-onboarding-spotlight[data-gesture="swipe-both"] .viewer-onboarding-gesture {
+  width: 54px;
+  height: 54px;
+  left: calc(50% - 27px);
+  top: calc(50% - 27px);
+  animation: viewerTourSwipeBoth 3.1s cubic-bezier(.45,.04,.2,1) infinite;
+}
+.viewer-onboarding-spotlight[data-gesture="swipe-both"] .viewer-onboarding-gesture > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 5px rgba(255,255,255,0.1);
+}
+.viewer-onboarding-spotlight[data-gesture="swipe-both"] .viewer-onboarding-gesture::before,
+.viewer-onboarding-spotlight[data-gesture="swipe-both"] .viewer-onboarding-gesture::after {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  color: rgba(255,255,255,0.94);
+  font-size: 1.32rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 2px 7px rgba(0,0,0,0.34);
+}
+.viewer-onboarding-spotlight[data-gesture="swipe-both"] .viewer-onboarding-gesture::before {
+  content: "↔";
+  top: 1px;
+  animation: viewerTourSwipeHorizontalCue 3.1s ease-in-out infinite;
+}
+.viewer-onboarding-spotlight[data-gesture="swipe-both"] .viewer-onboarding-gesture::after {
+  content: "↕";
+  bottom: 1px;
+  animation: viewerTourSwipeVerticalCue 3.1s ease-in-out infinite;
+}
 .viewer-onboarding-spotlight[data-gesture="top-edge"] .viewer-onboarding-gesture {
   top: 8px;
   animation: viewerTourTopEdge 1.8s ease-in-out infinite;
@@ -580,6 +620,22 @@ body:not([data-page="viewer"]) > main {
 @keyframes viewerTourSwipe {
   0%, 100% { transform: translateX(26px); }
   50% { transform: translateX(-26px); }
+}
+@keyframes viewerTourSwipeBoth {
+  0%, 8%, 100% { transform: translate(25px, 0); }
+  25% { transform: translate(-25px, 0); }
+  42%, 50% { transform: translate(0, 0); }
+  66% { transform: translate(0, 23px); }
+  83% { transform: translate(0, -23px); }
+  96% { transform: translate(0, 0); }
+}
+@keyframes viewerTourSwipeHorizontalCue {
+  0%, 42%, 100% { opacity: 1; }
+  52%, 94% { opacity: .28; }
+}
+@keyframes viewerTourSwipeVerticalCue {
+  0%, 42%, 100% { opacity: .28; }
+  52%, 94% { opacity: 1; }
 }
 @keyframes viewerTourTopEdge {
   0%, 100% { transform: translateY(0); }
