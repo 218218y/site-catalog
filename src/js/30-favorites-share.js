@@ -346,6 +346,7 @@ function handleFavoritesTransferKeydown(event) {
   if (!state.favoritesTransferPending || !els.favoritesTransferOverlay) return;
   if (event.key === "Escape") {
     event.preventDefault();
+    event.stopPropagation();
     closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" });
     return;
   }

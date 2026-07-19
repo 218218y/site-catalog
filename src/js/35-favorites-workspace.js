@@ -375,6 +375,7 @@ function favoriteWorkspaceFocusable(container) {
 function trapFavoriteWorkspaceDialogFocus(event, container, closeCallback) {
   if (event.key === "Escape") {
     event.preventDefault();
+    event.stopPropagation();
     closeCallback();
     return true;
   }

@@ -20,7 +20,7 @@ assert.match(app, /function setLightboxMobileSearchOpen\(open, options = \{\}\)/
 assert.match(app, /els\.lightbox\?\.classList\.toggle\("mobile-search-open", isOpen\)/);
 assert.match(app, /lightboxMobileSearchToggle: \$\("lightboxMobileSearchToggle"\)/);
 assert.match(app, /lightboxMobileSearchClose: \$\("lightboxMobileSearchClose"\)/);
-assert.match(app, /event\.key === "Escape" && state\.viewerMobileMoreOpen/);
+assert.match(app, /function handleTopLayerEscape\(event\)[\s\S]*?state\.viewerMobileMoreOpen[\s\S]*?closeViewerMobileMoreMenu\(\{ returnFocus: true \}\)/);
 assert.match(app, /function setViewerMobileMoreOpen\(open, options = \{\}\)/);
 assert.match(app, /bindFeatureEventsOnce\("viewer-actions", attachViewerActionEvents\)/);
 

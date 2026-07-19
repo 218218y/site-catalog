@@ -1694,6 +1694,82 @@ function findCatalogById(id) {
   const catalogId = String(id || "");
   return catalogs.find((item) => String(item.id || "") === catalogId) || null;
 }
+
+function handleTopLayerEscape(event) {
+  if (event.key !== "Escape" || event.defaultPrevented) return false;
+
+  const closeLayer = (callback) => {
+    event.preventDefault();
+    callback();
+    return true;
+  };
+
+  // Escape always dismisses the innermost active layer first. This order is
+  // intentionally shared by every route so one key press cannot close a child
+  // dialog and then continue into its parent screen during event bubbling.
+  if (state.favoriteNoteEditingKey) {
+    return closeLayer(() => closeFavoriteNoteEditor());
+  }
+  if (state.favoritesTransferPending) {
+    return closeLayer(() => closeFavoritesTransferDialog({
+      cleanUrl: state.favoritesTransferPending?.source === "link"
+    }));
+  }
+  if (state.favoritesOpen) {
+    return closeLayer(() => closeFavoritesPanel());
+  }
+  if (isMobileCategoryMenuOpen()) {
+    return closeLayer(() => closeMobileCategoryMenu({ focusButton: true }));
+  }
+  if (isGlobalSearchPanelOpen()) {
+    if (els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
+      return closeLayer(() => closeGlobalSearchScopeMenu());
+    }
+    return closeLayer(() => closeGlobalSearchPanel({ focusButton: true }));
+  }
+  if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
+    return closeLayer(() => closeDetailCatalogMenu());
+  }
+  if (!state.lightboxOpen) return false;
+
+  if (state.viewerInquiryOpen) {
+    return closeLayer(() => closeViewerInquiry());
+  }
+  if (state.viewerMobileMoreOpen) {
+    return closeLayer(() => closeViewerMobileMoreMenu({ returnFocus: true }));
+  }
+  if (state.viewerOnboardingOpen) {
+    return closeLayer(() => closeViewerOnboarding());
+  }
+  if (state.lightboxMobileSearchOpen) {
+    return closeLayer(() => setLightboxMobileSearchOpen(false, {
+      returnFocus: true,
+      hideResults: true
+    }));
+  }
+  if (
+    (els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) ||
+    (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden"))
+  ) {
+    return closeLayer(() => {
+      closeLightboxCatalogMenu();
+      closeLightboxSearchScopeMenu();
+    });
+  }
+  if (isBrowserFullscreenActive()) {
+    return closeLayer(() => {
+      exitBrowserFullscreen().catch(() => {});
+    });
+  }
+
+  const target = event.target;
+  const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+  if (isTyping) {
+    return closeLayer(() => hideLightboxSearchResults({ blurTopUiFocus: true }));
+  }
+
+  return closeLayer(() => closeLightbox());
+}
 /* ===== END SOURCE: src/js/20-shared-ui.js ===== */
 
 /* ===== BEGIN SOURCE: src/js/30-favorites-share.js ===== */
@@ -2045,6 +2121,7 @@ function handleFavoritesTransferKeydown(event) {
   if (!state.favoritesTransferPending || !els.favoritesTransferOverlay) return;
   if (event.key === "Escape") {
     event.preventDefault();
+    event.stopPropagation();
     closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" });
     return;
   }
@@ -2762,6 +2839,7 @@ function favoriteWorkspaceFocusable(container) {
 function trapFavoriteWorkspaceDialogFocus(event, container, closeCallback) {
   if (event.key === "Escape") {
     event.preventDefault();
+    event.stopPropagation();
     closeCallback();
     return true;
   }
@@ -7588,6 +7666,7 @@ function handleViewerInquiryKeydown(event) {
   if (!state.viewerInquiryOpen) return false;
   if (event.key === "Escape") {
     event.preventDefault();
+    event.stopPropagation();
     closeViewerInquiry();
     return true;
   }
@@ -8900,70 +8979,26 @@ function attachShellEvents() {
   }, { passive: true });
 
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.favoritesOpen) {
-      event.preventDefault();
-      closeFavoritesPanel();
-      return;
-    }
-    if (event.key === "Escape" && isMobileCategoryMenuOpen()) {
-      event.preventDefault();
-      closeMobileCategoryMenu({ focusButton: true });
-      return;
-    }
-    if (event.key === "Escape" && isGlobalSearchPanelOpen()) {
-      event.preventDefault();
-      if (els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
-        closeGlobalSearchScopeMenu();
-        return;
-      }
-      closeGlobalSearchPanel({ focusButton: true });
-      return;
-    }
-    if (event.key === "Escape" && els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
-      event.preventDefault();
-      closeDetailCatalogMenu();
-      return;
-    }
+    // Nested dialogs handle their own focus trap before the event reaches
+    // window. Respect an event they already consumed, then use the shared
+    // hierarchy for every remaining Escape press.
+    if (event.defaultPrevented) return;
+    if (handleTopLayerEscape(event)) return;
     if (!state.lightboxOpen) return;
     if (state.viewerInquiryOpen) {
       handleViewerInquiryKeydown(event);
-      return;
-    }
-    if (event.key === "Escape" && state.viewerMobileMoreOpen) {
-      event.preventDefault();
-      closeViewerMobileMoreMenu({ returnFocus: true });
       return;
     }
     if (state.viewerOnboardingOpen) {
       handleViewerOnboardingKeydown(event);
       return;
     }
-    if (event.key === "Escape" && state.lightboxMobileSearchOpen) {
-      event.preventDefault();
-      setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
-      return;
-    }
-    if (event.key === "Escape" && ((els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) || (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden")))) {
-      event.preventDefault();
-      closeLightboxCatalogMenu();
-      closeLightboxSearchScopeMenu();
-      return;
-    }
-    if (event.key === "Escape" && isBrowserFullscreenActive()) {
-      event.preventDefault();
-      exitBrowserFullscreen().catch(() => {});
-      return;
-    }
+
     const target = event.target;
     const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-    if (isTyping) {
-      if (event.key === "Escape") {
-        hideLightboxSearchResults({ blurTopUiFocus: true });
-      }
-      return;
-    }
-    if (event.key === "Escape") closeLightbox();
-    else if (["ArrowDown", "PageDown"].includes(event.key) && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
+    if (isTyping) return;
+
+    if (["ArrowDown", "PageDown"].includes(event.key) && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
     else if (["ArrowUp", "PageUp"].includes(event.key) && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
     else if (event.key === "ArrowDown" && panSingleImageBy(0, -getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();

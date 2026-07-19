@@ -750,3 +750,79 @@ function findCatalogById(id) {
   const catalogId = String(id || "");
   return catalogs.find((item) => String(item.id || "") === catalogId) || null;
 }
+
+function handleTopLayerEscape(event) {
+  if (event.key !== "Escape" || event.defaultPrevented) return false;
+
+  const closeLayer = (callback) => {
+    event.preventDefault();
+    callback();
+    return true;
+  };
+
+  // Escape always dismisses the innermost active layer first. This order is
+  // intentionally shared by every route so one key press cannot close a child
+  // dialog and then continue into its parent screen during event bubbling.
+  if (state.favoriteNoteEditingKey) {
+    return closeLayer(() => closeFavoriteNoteEditor());
+  }
+  if (state.favoritesTransferPending) {
+    return closeLayer(() => closeFavoritesTransferDialog({
+      cleanUrl: state.favoritesTransferPending?.source === "link"
+    }));
+  }
+  if (state.favoritesOpen) {
+    return closeLayer(() => closeFavoritesPanel());
+  }
+  if (isMobileCategoryMenuOpen()) {
+    return closeLayer(() => closeMobileCategoryMenu({ focusButton: true }));
+  }
+  if (isGlobalSearchPanelOpen()) {
+    if (els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
+      return closeLayer(() => closeGlobalSearchScopeMenu());
+    }
+    return closeLayer(() => closeGlobalSearchPanel({ focusButton: true }));
+  }
+  if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
+    return closeLayer(() => closeDetailCatalogMenu());
+  }
+  if (!state.lightboxOpen) return false;
+
+  if (state.viewerInquiryOpen) {
+    return closeLayer(() => closeViewerInquiry());
+  }
+  if (state.viewerMobileMoreOpen) {
+    return closeLayer(() => closeViewerMobileMoreMenu({ returnFocus: true }));
+  }
+  if (state.viewerOnboardingOpen) {
+    return closeLayer(() => closeViewerOnboarding());
+  }
+  if (state.lightboxMobileSearchOpen) {
+    return closeLayer(() => setLightboxMobileSearchOpen(false, {
+      returnFocus: true,
+      hideResults: true
+    }));
+  }
+  if (
+    (els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) ||
+    (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden"))
+  ) {
+    return closeLayer(() => {
+      closeLightboxCatalogMenu();
+      closeLightboxSearchScopeMenu();
+    });
+  }
+  if (isBrowserFullscreenActive()) {
+    return closeLayer(() => {
+      exitBrowserFullscreen().catch(() => {});
+    });
+  }
+
+  const target = event.target;
+  const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+  if (isTyping) {
+    return closeLayer(() => hideLightboxSearchResults({ blurTopUiFocus: true }));
+  }
+
+  return closeLayer(() => closeLightbox());
+}

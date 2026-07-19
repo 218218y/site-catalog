@@ -61,70 +61,26 @@ function attachShellEvents() {
   }, { passive: true });
 
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.favoritesOpen) {
-      event.preventDefault();
-      closeFavoritesPanel();
-      return;
-    }
-    if (event.key === "Escape" && isMobileCategoryMenuOpen()) {
-      event.preventDefault();
-      closeMobileCategoryMenu({ focusButton: true });
-      return;
-    }
-    if (event.key === "Escape" && isGlobalSearchPanelOpen()) {
-      event.preventDefault();
-      if (els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
-        closeGlobalSearchScopeMenu();
-        return;
-      }
-      closeGlobalSearchPanel({ focusButton: true });
-      return;
-    }
-    if (event.key === "Escape" && els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
-      event.preventDefault();
-      closeDetailCatalogMenu();
-      return;
-    }
+    // Nested dialogs handle their own focus trap before the event reaches
+    // window. Respect an event they already consumed, then use the shared
+    // hierarchy for every remaining Escape press.
+    if (event.defaultPrevented) return;
+    if (handleTopLayerEscape(event)) return;
     if (!state.lightboxOpen) return;
     if (state.viewerInquiryOpen) {
       handleViewerInquiryKeydown(event);
-      return;
-    }
-    if (event.key === "Escape" && state.viewerMobileMoreOpen) {
-      event.preventDefault();
-      closeViewerMobileMoreMenu({ returnFocus: true });
       return;
     }
     if (state.viewerOnboardingOpen) {
       handleViewerOnboardingKeydown(event);
       return;
     }
-    if (event.key === "Escape" && state.lightboxMobileSearchOpen) {
-      event.preventDefault();
-      setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
-      return;
-    }
-    if (event.key === "Escape" && ((els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) || (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden")))) {
-      event.preventDefault();
-      closeLightboxCatalogMenu();
-      closeLightboxSearchScopeMenu();
-      return;
-    }
-    if (event.key === "Escape" && isBrowserFullscreenActive()) {
-      event.preventDefault();
-      exitBrowserFullscreen().catch(() => {});
-      return;
-    }
+
     const target = event.target;
     const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-    if (isTyping) {
-      if (event.key === "Escape") {
-        hideLightboxSearchResults({ blurTopUiFocus: true });
-      }
-      return;
-    }
-    if (event.key === "Escape") closeLightbox();
-    else if (["ArrowDown", "PageDown"].includes(event.key) && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
+    if (isTyping) return;
+
+    if (["ArrowDown", "PageDown"].includes(event.key) && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
     else if (["ArrowUp", "PageUp"].includes(event.key) && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
     else if (event.key === "ArrowDown" && panSingleImageBy(0, -getSingleKeyboardPanStep())) event.preventDefault();
     else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();

@@ -148,6 +148,7 @@ function handleViewerInquiryKeydown(event) {
   if (!state.viewerInquiryOpen) return false;
   if (event.key === "Escape") {
     event.preventDefault();
+    event.stopPropagation();
     closeViewerInquiry();
     return true;
   }
