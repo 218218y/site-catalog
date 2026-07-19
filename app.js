@@ -2033,12 +2033,12 @@ function syncFavoritesShareButton(count = getFavoriteEntries().length) {
   const hasItems = count > 0;
   els.favoritesShareButton.disabled = !hasItems;
   els.favoritesShareButton.setAttribute("aria-label", hasItems
-    ? `שיתוף רשימת המועדפים, ${count} עמודים שמורים`
-    : "שיתוף רשימת המועדפים — אין עדיין עמודים שמורים");
+    ? `העתקת קישור לרשימת המועדפים, ${count} עמודים שמורים`
+    : "העתקת קישור לרשימת המועדפים — אין עדיין עמודים שמורים");
 }
 
 async function shareFavoritesList() {
-  await shareFavoriteWorkspaceEntries(favoriteWorkspaceActionEntries(), els.favoritesShareButton);
+  await copyFavoriteWorkspaceLink(favoriteWorkspaceShareLinkEntries(), els.favoritesShareButton);
 }
 
 function handleFavoritesTransferKeydown(event) {
@@ -2425,6 +2425,11 @@ function favoriteWorkspaceActionEntries(entries = getFavoriteEntries()) {
   return selectedEntries.length ? selectedEntries : favoriteWorkspaceVisibleEntries(entries);
 }
 
+function favoriteWorkspaceShareLinkEntries(entries = getFavoriteEntries()) {
+  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
+  return selectedEntries.length ? selectedEntries : entries;
+}
+
 function pruneFavoritesWorkspaceState(entries = getFavoriteEntries()) {
   const validKeys = new Set(entries.map(favoriteWorkspaceEntryKey).filter(Boolean));
   for (const key of state.favoritesSelectedKeys) {
@@ -2482,6 +2487,7 @@ function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   const selectedCount = selectedEntries.length;
   const actionEntries = selectedCount ? selectedEntries : visibleEntries;
+  const shareEntries = selectedCount ? selectedEntries : entries;
   const hasEntries = entries.length > 0;
   const actionLabel = favoriteWorkspaceActionLabel(entries, visibleEntries);
 
@@ -2494,10 +2500,12 @@ function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
   }
 
   if (els.favoritesShareButton) {
-    els.favoritesShareButton.disabled = actionEntries.length === 0;
-    els.favoritesShareButton.setAttribute("aria-label", actionEntries.length
-      ? `שיתוף ${actionLabel}`
-      : "שיתוף רשימת המועדפים — אין עדיין פריטים");
+    els.favoritesShareButton.disabled = shareEntries.length === 0;
+    els.favoritesShareButton.setAttribute("aria-label", shareEntries.length
+      ? (selectedCount
+        ? `העתקת קישור עבור ${selectedCount} פריטים שסומנו`
+        : `העתקת קישור לכל ${entries.length} המועדפים`)
+      : "העתקת קישור למועדפים — אין עדיין פריטים");
   }
   if (els.favoritesShareLabel) {
     els.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה";
@@ -2683,37 +2691,15 @@ function favoriteWorkspaceSelectionUrl(entries) {
   return buildFavoritesShareUrl(entries.map((entry) => ({ catalogId: entry.catalog.id, page: entry.page })));
 }
 
-async function shareFavoriteWorkspaceEntries(entries, button = null) {
+async function copyFavoriteWorkspaceLink(entries, button = null) {
   if (!entries.length) return;
   const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
-  const text = favoriteWorkspaceMessage(entries);
-  const shareData = {
-    title: `${entries.length} דגמים לבחירה`,
-    text,
-    url: selectionUrl
-  };
-  let canUseNativeShare = typeof navigator.share === "function";
-  if (canUseNativeShare && typeof navigator.canShare === "function") {
-    try {
-      canUseNativeShare = navigator.canShare(shareData);
-    } catch (_error) {
-      canUseNativeShare = false;
-    }
-  }
-  if (canUseNativeShare) {
-    try {
-      await navigator.share(shareData);
-      return;
-    } catch (error) {
-      if (error?.name === "AbortError") return;
-    }
-  }
   try {
-    await copyTextToClipboard(`${text}\n\nרשימת הבחירה: ${selectionUrl}`);
-    if (button) flashActionButton(button, "הועתק");
-    showActionToast("פרטי הרשימה והקישורים הועתקו", { tone: "link" });
+    await copyTextToClipboard(selectionUrl);
+    if (button) flashActionButton(button, "הקישור הועתק");
+    showActionToast("קישור המועדפים הועתק", { tone: "link" });
   } catch (_error) {
-    window.prompt("אפשר להעתיק את פרטי הרשימה מכאן:", `${text}\n\nרשימת הבחירה: ${selectionUrl}`);
+    window.prompt("אפשר להעתיק את קישור המועדפים מכאן:", selectionUrl);
   }
 }
 

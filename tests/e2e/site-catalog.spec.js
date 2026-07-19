@@ -1097,7 +1097,11 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   expect((selectedBody.match(/https?:\/\//g) || []).length).toBe(2);
 
   await page.locator("#favoritesShareButton").click();
-  await expect.poll(() => page.evaluate(() => window.__bargigE2eShare?.text || window.__bargigE2eClipboard || "")).toContain("לבדוק ברוחב 180");
+  await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).not.toBe("");
+  const copiedSelectionUrl = await page.evaluate(() => window.__bargigE2eClipboard || "");
+  expect(copiedSelectionUrl).toContain("favorites.html?selection=");
+  expect(copiedSelectionUrl).not.toContain("לבדוק ברוחב 180");
+  expect(await page.evaluate(() => window.__bargigE2eShare || null)).toBeNull();
 
   const firstIdentityBefore = await page.locator("#favoritesGrid .favorite-card").first().evaluate((card) => `${card.dataset.favoriteCatalog}:${card.dataset.favoritePage}`);
   await page.locator("#favoritesGrid .favorite-card").first().locator('[data-move-favorite="1"]').click();
@@ -1111,6 +1115,14 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   const filteredGmailHref = await page.locator("#favoritesBulkGmail").getAttribute("href");
   const filteredBody = new URL(filteredGmailHref).searchParams.get("body") || "";
   expect((filteredBody.match(/https?:\/\//g) || []).length).toBe(1);
+
+  await page.evaluate(() => { window.__bargigE2eClipboard = ""; });
+  await page.locator("#favoritesShareButton").click();
+  await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).not.toBe("");
+  const copiedFullListUrl = await page.evaluate(() => window.__bargigE2eClipboard || "");
+  const copiedToken = new URL(copiedFullListUrl).searchParams.get("selection") || "";
+  const parsedCopiedList = await page.evaluate((token) => parseFavoritesShareToken(token), copiedToken);
+  expect(parsedCopiedList.items).toHaveLength(3);
 });
 
 test("mobile home and viewer survive portrait and landscape orientation", async ({ browser }) => {

@@ -334,12 +334,12 @@ function syncFavoritesShareButton(count = getFavoriteEntries().length) {
   const hasItems = count > 0;
   els.favoritesShareButton.disabled = !hasItems;
   els.favoritesShareButton.setAttribute("aria-label", hasItems
-    ? `שיתוף רשימת המועדפים, ${count} עמודים שמורים`
-    : "שיתוף רשימת המועדפים — אין עדיין עמודים שמורים");
+    ? `העתקת קישור לרשימת המועדפים, ${count} עמודים שמורים`
+    : "העתקת קישור לרשימת המועדפים — אין עדיין עמודים שמורים");
 }
 
 async function shareFavoritesList() {
-  await shareFavoriteWorkspaceEntries(favoriteWorkspaceActionEntries(), els.favoritesShareButton);
+  await copyFavoriteWorkspaceLink(favoriteWorkspaceShareLinkEntries(), els.favoritesShareButton);
 }
 
 function handleFavoritesTransferKeydown(event) {
