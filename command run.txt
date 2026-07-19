@@ -1,5 +1,5 @@
 npm run build:frontend
-python tools/build_site_pages.py
+npm run build:pages
 npm test
 npm run verify
 
