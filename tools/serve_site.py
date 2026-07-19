@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Serve the already-built private site artifact for local preview.
+"""Serve a validated private site artifact for local preview.
 
-The source tree is deliberately not used as the web root. The canonical build
-command creates both dist/site-upload-r2 and dist/site-local from one validated
-artifact. This server normally performs no build; --build-first is available
-only as an explicit maintenance option.
+The source tree is deliberately not used as the web root. ``start-server.bat``
+asks this server to verify that ``dist/site-local`` matches the current source
+and lets the user rebuild or deliberately continue with the older artifact.
+Direct CLI usage keeps the historical no-check default unless ``--ensure-current``
+is supplied.
 """
 from __future__ import annotations
 
@@ -15,6 +16,8 @@ import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Sequence
+
+from build_deploy_bundle import artifact_is_current, build_options_payload
 
 DEFAULT_OUT = "dist/site-local"
 DEFAULT_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
@@ -46,11 +49,73 @@ def build_preview(root: Path, out_dir: Path, asset_base_url: str) -> None:
         "private",
         "--external-assets-url",
         asset_base_url,
+        "--skip-if-current",
     ]
-    print("Building the complete private local site...", flush=True)
+    print("Updating the complete private local site only if needed...", flush=True)
     completed = subprocess.run(command, cwd=root, check=False)
     if completed.returncode != 0:
         raise RuntimeError("Local site build failed; the server was not started")
+
+
+def preview_currentness(root: Path, out_dir: Path, asset_base_url: str) -> tuple[bool, str]:
+    options = build_options_payload(
+        external_assets_url=asset_base_url,
+        seo_mode="private",
+    )
+    return artifact_is_current(root, out_dir, options=options)
+
+
+def prompt_stale_action(reason: str, *, allow_old: bool = True) -> str:
+    print("\nThe local preview is not current:")
+    print(f"  {reason}")
+    if allow_old:
+        print("\nChoose: [U]pdate now (recommended), [O]pen the older build, or [C]ancel.")
+    else:
+        print("\nNo older preview exists. Choose [U]pdate now or [C]ancel.")
+    while True:
+        try:
+            answer = input("Selection [U/o/c]: " if allow_old else "Selection [U/c]: ").strip().lower()
+        except EOFError:
+            return "cancel"
+        if answer in {"", "u", "update", "y", "yes"}:
+            return "build"
+        if allow_old and answer in {"o", "open", "n", "no", "serve"}:
+            return "serve"
+        if answer in {"c", "cancel", "q", "quit"}:
+            return "cancel"
+
+
+def ensure_preview_current(
+    root: Path,
+    out_dir: Path,
+    asset_base_url: str,
+    policy: str,
+) -> bool:
+    current, reason = preview_currentness(root, out_dir, asset_base_url)
+    if current:
+        print("Local preview bundle is current.")
+        return True
+
+    action = policy
+    if policy == "ask":
+        action = prompt_stale_action(reason, allow_old=(out_dir / "index.html").is_file())
+    elif policy == "error":
+        raise RuntimeError(f"Local preview is stale: {reason}")
+
+    if action == "build":
+        build_preview(root, out_dir, asset_base_url)
+        current_after_build, remaining_reason = preview_currentness(root, out_dir, asset_base_url)
+        if not current_after_build:
+            raise RuntimeError(
+                f"Local preview was built but still failed the currentness check: {remaining_reason}"
+            )
+        return True
+    if action == "serve":
+        if not (out_dir / "index.html").is_file():
+            raise FileNotFoundError("No older local preview exists to serve")
+        print("Warning: serving the older local artifact by explicit choice.")
+        return True
+    return False
 
 
 class PreviewRequestHandler(SimpleHTTPRequestHandler):
@@ -68,6 +133,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out", default=DEFAULT_OUT, help=f"Generated preview folder. Default: {DEFAULT_OUT}")
     parser.add_argument("--asset-base-url", default=DEFAULT_ASSET_BASE_URL, help="Catalog image CDN/R2 base URL")
     parser.add_argument("--build-first", action="store_true", help="Explicitly rebuild the preview before serving")
+    parser.add_argument(
+        "--ensure-current",
+        choices=("ask", "build", "error", "serve"),
+        help=(
+            "Verify the local artifact before serving. 'ask' offers update/open-old/cancel; "
+            "'build' updates automatically; 'error' refuses stale output; 'serve' only warns."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -78,6 +151,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         out_dir = resolve_output(root, args.out)
         if args.build_first:
             build_preview(root, out_dir, str(args.asset_base_url).strip())
+        elif args.ensure_current:
+            should_continue = ensure_preview_current(
+                root,
+                out_dir,
+                str(args.asset_base_url).strip(),
+                args.ensure_current,
+            )
+            if not should_continue:
+                print("Local server start was cancelled.")
+                return 0
         if not (out_dir / "index.html").is_file():
             raise FileNotFoundError(
                 f"Preview is missing {out_dir / 'index.html'}. Run bundle-site-r2.bat once, then start the server again"

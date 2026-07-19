@@ -52,6 +52,10 @@ from seo_site import (
 )
 
 TOKEN_RE = re.compile(r"\{\{[A-Z0-9_]+\}\}")
+HTML_ASSET_ATTR_RE = re.compile(
+    r"(?P<prefix><(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*[\"'])(?P<url>[^\"']+)(?P<suffix>[\"'])",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -152,6 +156,49 @@ def read_required_text(root: Path, relative_path: str) -> str:
     if not path.is_file():
         raise FileNotFoundError(f"Required site source is missing: {relative_path}")
     return path.read_text(encoding="utf-8")
+
+
+def split_url_reference(reference: str) -> tuple[str, str]:
+    """Return the path and preserved query/fragment suffix of an asset URL."""
+
+    for index, character in enumerate(reference):
+        if character in "?#":
+            return reference[:index], reference[index:]
+    return reference, ""
+
+
+def rewrite_html_asset_references(document: str, rewrites: Mapping[str, str] | None) -> str:
+    """Apply already-computed deploy asset fingerprints before writing HTML.
+
+    Deployment builds can fingerprint the shared CSS/JavaScript files before
+    rendering the hundreds of catalog-page documents. Rendering the final URLs
+    directly avoids writing every HTML file once and then reopening it solely
+    to replace ``app.js``/``styles.css`` references.
+    """
+
+    if not rewrites:
+        return document
+
+    def replace_reference(match: re.Match[str]) -> str:
+        raw_reference = match.group("url")
+        reference_path, suffix = split_url_reference(raw_reference)
+        replacement = rewrites.get(reference_path)
+        if not replacement:
+            return match.group(0)
+        return f"{match.group('prefix')}{replacement}{suffix}{match.group('suffix')}"
+
+    return HTML_ASSET_ATTR_RE.sub(replace_reference, document)
+
+
+def read_template(
+    root: Path,
+    relative_path: str,
+    asset_rewrites: Mapping[str, str] | None = None,
+) -> str:
+    return rewrite_html_asset_references(
+        read_required_text(root, relative_path),
+        asset_rewrites,
+    )
 
 
 def read_catalogs(root: Path) -> list[dict[str, Any]]:
@@ -377,8 +424,15 @@ def render_base_document(
     site_footer: str,
     mode: str,
     catalogs: Sequence[Mapping[str, Any]],
+    asset_rewrites: Mapping[str, str] | None = None,
 ) -> Path:
-    template = templates.setdefault(page.template_filename, read_required_text(root, page.template_filename))
+    if page.template_filename not in templates:
+        templates[page.template_filename] = read_template(
+            root,
+            page.template_filename,
+            asset_rewrites,
+        )
+    template = templates[page.template_filename]
     seo = page_seo(config, taxonomy, footer_content, page, mode, catalogs)
     replacements = common_page_replacements(seo, config)
     replacements.update({"{{SITE_FOOTER}}": site_footer})
@@ -706,9 +760,10 @@ def render_seo_routes(
     site_footer: str,
     mode: str,
     catalogs: Sequence[Mapping[str, Any]],
+    asset_rewrites: Mapping[str, str] | None = None,
 ) -> tuple[list[Path], list[dict[str, str]]]:
-    site_template = read_required_text(root, "site.template.html")
-    category_template = read_required_text(root, "seo-page.template.html")
+    site_template = read_template(root, "site.template.html", asset_rewrites)
+    category_template = read_template(root, "seo-page.template.html", asset_rewrites)
     written: list[Path] = []
     sitemap_entries: list[dict[str, str]] = []
 
@@ -785,6 +840,7 @@ def render_site_pages(
     output_dir: Path | None = None,
     *,
     build_assets: bool = True,
+    build_taxonomy: bool = True,
     footer_content: dict[str, str] | None = None,
     seo_mode: str | None = None,
     include_seo_routes: bool = False,
@@ -792,10 +848,12 @@ def render_site_pages(
     clean_output: bool = False,
     confirm_public_indexing: bool = False,
     include_indexing_files: bool = True,
+    asset_rewrites: Mapping[str, str] | None = None,
 ) -> list[Path]:
     if build_assets:
         build_frontend_assets(root)
-    build_taxonomy_asset(root)
+    if build_taxonomy:
+        build_taxonomy_asset(root)
 
     config = load_seo_config(root)
     mode = resolve_seo_mode(root, seo_mode)
@@ -835,6 +893,7 @@ def render_site_pages(
                 site_footer=site_footer,
                 mode=mode,
                 catalogs=catalogs,
+                asset_rewrites=asset_rewrites,
             )
         )
 
@@ -855,6 +914,7 @@ def render_site_pages(
             site_footer=site_footer,
             mode=mode,
             catalogs=catalogs,
+            asset_rewrites=asset_rewrites,
         )
         written.extend(route_paths)
         sitemap_entries.extend(route_entries)

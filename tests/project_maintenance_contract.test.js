@@ -24,8 +24,9 @@ assert.match(packageJson.scripts["build:local"], /--mirror-to dist\/site-local/)
 assert.equal(packageJson.scripts.dev, "python tools/serve_site.py");
 assert.equal(packageJson.scripts.serve, "python tools/serve_site.py");
 assert.match(localServer, /--build-first/);
+assert.match(localServer, /--ensure-current/);
 assert.match(localServer, /dist\/site-local/);
-assert.match(startServer, /tools\\serve_site\.py --port 8080/);
+assert.match(startServer, /tools\\serve_site\.py --port 8080 --ensure-current ask/);
 assert.doesNotMatch(startServer, /catalog-control-panel/);
 assert.doesNotMatch(startServer, /build_deploy_bundle/);
 assert.doesNotMatch(startServer, /python -m http\.server/);

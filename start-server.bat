@@ -14,13 +14,13 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-echo Starting the already-built local website...
+echo Checking whether the local website matches the current source...
 echo Web root: dist\site-local
 echo.
-%PYTHON_EXE% tools\serve_site.py --port 8080
+%PYTHON_EXE% tools\serve_site.py --port 8080 --ensure-current ask
 if errorlevel 1 (
   echo.
-  echo The local site could not be started. Run bundle-site-r2.bat once to create or update it.
+  echo The local site could not be checked, updated, or started. Read the exact error above.
   pause
   exit /b 1
 )

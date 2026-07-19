@@ -33,13 +33,21 @@ import os
 import re
 import shutil
 import sys
+import time
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping, Sequence
 
-from build_site_pages import PAGE_DOCUMENTS, TECHNICAL_SHELL_FILENAMES, render_site_pages
+from build_frontend_assets import build_frontend_assets
+from build_site_pages import (
+    PAGE_DOCUMENTS,
+    TECHNICAL_SHELL_FILENAMES,
+    render_site_pages,
+    rewrite_html_asset_references,
+)
+from seo_site import build_taxonomy_asset
 from verify_remote_catalog_assets import load_catalogs as load_remote_catalogs, verify_remote_assets
 
 BIG_PAGES_VIEWER_FILE = "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
@@ -102,6 +110,12 @@ FINGERPRINTED_ASSET_DIR = "static"
 FINGERPRINTED_EXTENSIONS = {".css", ".js"}
 # Root documents retained for unit-test fixtures; deploy fingerprinting discovers nested HTML dynamically.
 FINGERPRINT_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
+FINGERPRINT_SOURCE_HTML_FILES = tuple(
+    dict.fromkeys(
+        [page.template_filename for page in PAGE_DOCUMENTS]
+        + ["seo-page.template.html", "404.html"]
+    )
+)
 HASHED_ASSET_FILENAME_RE = re.compile(
     r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
 )
@@ -368,6 +382,7 @@ def validate_current_artifact(
     *,
     options: dict[str, object],
     full_inventory: bool = True,
+    inputs: dict[str, str] | None = None,
 ) -> dict[str, object]:
     if not out_dir.is_dir():
         raise FileNotFoundError(f"Built site folder does not exist: {rel_to_root(out_dir)}")
@@ -376,13 +391,13 @@ def validate_current_artifact(
         raise ValueError(
             f"Built site has no currentness record: {rel_to_root(out_dir)}. Rebuild it once."
         )
-    inputs = build_input_hashes(
+    current_inputs = inputs or build_input_hashes(
         root,
         include_big_pages_viewer=bool(options.get("includeBigPagesViewer")),
     )
-    expected_signature = source_signature(inputs, options)
+    expected_signature = source_signature(current_inputs, options)
     if state.get("sourceSignature") != expected_signature or state.get("options") != options:
-        changed = changed_build_inputs(state.get("inputs"), inputs)
+        changed = changed_build_inputs(state.get("inputs"), current_inputs)
         summary = ", ".join(changed[:10]) if changed else "build options changed"
         raise ValueError(
             f"Built site is stale: {rel_to_root(out_dir)}. Changed inputs: {summary}"
@@ -398,9 +413,16 @@ def artifact_is_current(
     out_dir: Path,
     *,
     options: dict[str, object],
+    inputs: dict[str, str] | None = None,
 ) -> tuple[bool, str]:
     try:
-        validate_current_artifact(root, out_dir, options=options, full_inventory=False)
+        validate_current_artifact(
+            root,
+            out_dir,
+            options=options,
+            full_inventory=False,
+            inputs=inputs,
+        )
     except (FileNotFoundError, ValueError) as exc:
         return False, str(exc)
     return True, "current"
@@ -569,16 +591,11 @@ def discover_bundle_html(out_dir: Path) -> list[Path]:
     return sorted(path for path in out_dir.rglob("*.html") if path.is_file())
 
 
-def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
-    """Fingerprint shared CSS/JS once and rewrite every public HTML document."""
-
-    html_paths = discover_bundle_html(out_dir)
-    if not html_paths:
-        raise FileNotFoundError("Cannot fingerprint bundle because no HTML documents were generated")
+def referenced_fingerprint_assets(documents: Iterable[str]) -> list[str]:
+    """Return unique local CSS/JS references in first-seen order."""
 
     references: list[str] = []
-    for html_path in html_paths:
-        html = html_path.read_text(encoding="utf-8", errors="replace")
+    for html in documents:
         for match in HTML_ASSET_ATTR_RE.finditer(html):
             raw_reference = match.group("url").strip()
             reference_path, _suffix = split_url_reference(raw_reference)
@@ -590,6 +607,11 @@ def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
                 continue
             if reference_path not in references:
                 references.append(reference_path)
+    return references
+
+
+def fingerprint_asset_references(out_dir: Path, references: Sequence[str]) -> dict[str, str]:
+    """Move referenced CSS/JS into ``static/`` and return their rewrite map."""
 
     static_dir = out_dir / FINGERPRINTED_ASSET_DIR
     rewrite_map: dict[str, str] = {}
@@ -609,21 +631,91 @@ def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
         shutil.move(str(source), str(target))
         rewrite_map[Path(reference).as_posix()] = target_relative.as_posix()
 
-    if rewrite_map:
-        def replace_reference(match: re.Match[str]) -> str:
-            raw_reference = match.group("url")
-            reference_path, suffix = split_url_reference(raw_reference)
-            replacement = rewrite_map.get(reference_path)
-            if not replacement:
-                return match.group(0)
-            return f"{match.group('prefix')}{replacement}{suffix}{match.group('suffix')}"
-
-        for html_path in html_paths:
-            html = html_path.read_text(encoding="utf-8", errors="replace")
-            html_path.write_text(HTML_ASSET_ATTR_RE.sub(replace_reference, html), encoding="utf-8")
-
     if static_dir.exists() and not any(static_dir.iterdir()):
         static_dir.rmdir()
+    return rewrite_map
+
+
+def source_html_documents(
+    root: Path,
+    *,
+    include_big_pages_viewer: bool = False,
+) -> list[str]:
+    """Read the small set of source HTML documents that define deploy references.
+
+    Every generated category/catalog/page document comes from these templates.
+    Discovering assets here lets the builder fingerprint once before rendering
+    hundreds of pages, so each final HTML file is written only once.
+    """
+
+    relative_paths = list(FINGERPRINT_SOURCE_HTML_FILES)
+    if include_big_pages_viewer:
+        relative_paths.append(BIG_PAGES_VIEWER_FILE)
+    documents: list[str] = []
+    for relative in dict.fromkeys(relative_paths):
+        path = root / relative
+        if not path.is_file():
+            raise FileNotFoundError(f"Required HTML source is missing: {relative}")
+        documents.append(path.read_text(encoding="utf-8", errors="replace"))
+    return documents
+
+
+def rewrite_existing_bundle_html(out_dir: Path, rewrite_map: Mapping[str, str]) -> int:
+    """Rewrite copied standalone HTML files after assets were fingerprinted."""
+
+    changed = 0
+    for html_path in discover_bundle_html(out_dir):
+        original = html_path.read_text(encoding="utf-8", errors="replace")
+        rewritten = rewrite_html_asset_references(original, rewrite_map)
+        if rewritten == original:
+            continue
+        html_path.write_text(rewritten, encoding="utf-8")
+        changed += 1
+    return changed
+
+
+def fingerprint_source_assets(
+    root: Path,
+    out_dir: Path,
+    *,
+    include_big_pages_viewer: bool = False,
+) -> dict[str, str]:
+    """Fingerprint deploy assets before generated HTML is rendered."""
+
+    references = referenced_fingerprint_assets(
+        source_html_documents(
+            root,
+            include_big_pages_viewer=include_big_pages_viewer,
+        )
+    )
+    return fingerprint_asset_references(out_dir, references)
+
+
+def fingerprint_bundle_assets(out_dir: Path) -> dict[str, str]:
+    """Fingerprint shared CSS/JS and rewrite already-generated HTML.
+
+    This compatibility path remains useful for isolated tests and callers that
+    already have a complete raw bundle. The normal deploy build fingerprints
+    from source templates before rendering to avoid duplicate HTML writes.
+    """
+
+    html_paths = discover_bundle_html(out_dir)
+    if not html_paths:
+        raise FileNotFoundError("Cannot fingerprint bundle because no HTML documents were generated")
+
+    references = referenced_fingerprint_assets(
+        html_path.read_text(encoding="utf-8", errors="replace")
+        for html_path in html_paths
+    )
+    rewrite_map = fingerprint_asset_references(out_dir, references)
+
+    if rewrite_map:
+        for html_path in html_paths:
+            html = html_path.read_text(encoding="utf-8", errors="replace")
+            html_path.write_text(
+                rewrite_html_asset_references(html, rewrite_map),
+                encoding="utf-8",
+            )
     return rewrite_map
 
 
@@ -1064,6 +1156,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    total_started = time.perf_counter()
     args = parse_args()
     root = project_root()
     out_dir = ensure_safe_output_dir(root, root / args.out)
@@ -1082,11 +1175,17 @@ def main() -> int:
     )
 
     try:
+        currentness_started = time.perf_counter()
         inputs = build_input_hashes(
             root, include_big_pages_viewer=args.include_big_pages_viewer
         )
         if args.skip_if_current:
-            current, reason = artifact_is_current(root, out_dir, options=options)
+            current, reason = artifact_is_current(
+                root,
+                out_dir,
+                options=options,
+                inputs=inputs,
+            )
             if current:
                 state = load_artifact_state(out_dir) or {}
                 output_files = state.get("outputFiles")
@@ -1101,10 +1200,18 @@ def main() -> int:
                     zip_path = out_dir.with_suffix(".zip")
                     zip_stats = create_zip_from_folder(out_dir, zip_path)
                     print(f"ZIP: {rel_to_root(zip_path)} ({zip_stats.files} files, {format_bytes(zip_path.stat().st_size)})")
+                print(f"[timing] Currentness check and reuse: {time.perf_counter() - currentness_started:.2f}s")
                 return 0
             print(f"[build] Rebuild required: {reason}")
 
         clean_output_dir(staging_dir)
+        asset_stage_started = time.perf_counter()
+
+        # Build the two generated source assets before copying deploy inputs.
+        # The shared browser files are fingerprinted from the small template set
+        # first, then every generated route is rendered directly with final URLs.
+        build_frontend_assets(root)
+        build_taxonomy_asset(root)
 
         deploy_files = list(DEPLOY_FILES)
         if args.include_big_pages_viewer:
@@ -1114,17 +1221,7 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-        rendered_pages = render_site_pages(
-            root,
-            staging_dir,
-            seo_mode=args.seo_mode,
-            include_seo_routes=True,
-            confirm_public_indexing=args.confirm_public_indexing,
-        )
-        stats = CopyStats(
-            files=len(rendered_pages),
-            bytes=sum(path.stat().st_size for path in rendered_pages),
-        )
+        stats = CopyStats(files=0, bytes=0)
         for relative in deploy_files:
             if relative == "catalog-assets.config.js":
                 continue
@@ -1138,8 +1235,36 @@ def main() -> int:
 
         stats = add_stats(stats, write_asset_config(staging_dir, args.external_assets_url))
         fingerprinted_search_index = fingerprint_search_index(staging_dir)
-        fingerprinted_assets = fingerprint_bundle_assets(staging_dir)
+        fingerprinted_assets = fingerprint_source_assets(
+            root,
+            staging_dir,
+            include_big_pages_viewer=args.include_big_pages_viewer,
+        )
         fingerprinted_assets["catalogs.search.js"] = fingerprinted_search_index
+        rewrite_existing_bundle_html(staging_dir, fingerprinted_assets)
+        asset_stage_seconds = time.perf_counter() - asset_stage_started
+
+        page_render_started = time.perf_counter()
+        rendered_pages = render_site_pages(
+            root,
+            staging_dir,
+            build_assets=False,
+            build_taxonomy=False,
+            seo_mode=args.seo_mode,
+            include_seo_routes=True,
+            confirm_public_indexing=args.confirm_public_indexing,
+            asset_rewrites=fingerprinted_assets,
+        )
+        stats = add_stats(
+            stats,
+            CopyStats(
+                files=len(rendered_pages),
+                bytes=sum(path.stat().st_size for path in rendered_pages),
+            ),
+        )
+        page_render_seconds = time.perf_counter() - page_render_started
+
+        finalize_started = time.perf_counter()
         validated_asset_count = validate_fingerprinted_bundle(staging_dir)
 
         print(f"[seo] Build mode: {args.seo_mode}")
@@ -1178,9 +1303,16 @@ def main() -> int:
 
         replace_output_dir(staging_dir, out_dir)
         state = write_artifact_state(root, out_dir, inputs=inputs, options=options)
-        validate_artifact_inventory(out_dir, state.get("outputFiles"))
+        # write_artifact_state just hashed every output file. Rechecking hashes
+        # immediately would reopen all generated pages for no additional safety;
+        # size/mtime verification still detects any concurrent replacement.
+        validate_artifact_inventory(out_dir, state.get("outputFiles"), full_hash=False)
+        finalize_seconds = time.perf_counter() - finalize_started
+
+        mirror_started = time.perf_counter()
         for mirror_dir in mirror_dirs:
             mirror_artifact(root, out_dir, mirror_dir)
+        mirror_seconds = time.perf_counter() - mirror_started
         if args.clean_legacy_artifacts:
             for relative in clean_legacy_artifacts(root):
                 print(f"[cleanup] Removed obsolete generated folder: {relative}")
@@ -1202,6 +1334,14 @@ def main() -> int:
                 "and can be cached immutably."
             )
         print("Runtime: direct contact links stay static; the privacy-first telemetry endpoint is deployed separately from functions/ by Wrangler.")
+        print(
+            "[timing] "
+            f"assets {asset_stage_seconds:.2f}s; "
+            f"pages {page_render_seconds:.2f}s; "
+            f"validate/state {finalize_seconds:.2f}s; "
+            f"mirror {mirror_seconds:.2f}s; "
+            f"total {time.perf_counter() - total_started:.2f}s"
+        )
 
         if args.zip:
             zip_path = out_dir.with_suffix(".zip")
