@@ -7,7 +7,14 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'site-routes.js'), 'utf8');
-const context = { globalThis: {}, URLSearchParams, URL };
+const context = {
+  globalThis: {
+    document: { body: { dataset: { page: 'home' } } },
+    location: { pathname: '/', search: '', origin: 'http://localhost:8080' }
+  },
+  URLSearchParams,
+  URL
+};
 vm.createContext(context);
 vm.runInContext(source, context);
 const routes = context.globalThis.BargigRoutes;
@@ -32,16 +39,12 @@ assert.deepEqual(
   { page: 'viewer', catalogId: 'opening-tbi-2026', currentPage: 9, source: 'favorites' }
 );
 assert.deepEqual(
-  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog.html', search: '?catalog=abc' }, 'catalog'))),
-  { page: 'catalog', catalogId: 'abc', currentPage: 1, source: 'catalog' }
+  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog.html', search: '?catalog=ignored' }, 'catalog'))),
+  { page: 'catalog', catalogId: '', currentPage: 1, source: 'catalog' }
 );
 assert.deepEqual(
-  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/viewer.html', search: '?catalog=abc&page=9&source=favorites' }, 'viewer'))),
-  { page: 'viewer', catalogId: 'abc', currentPage: 9, source: 'favorites' }
-);
-assert.deepEqual(
-  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog', search: '?catalog=clean-url' }))),
-  { page: 'catalog', catalogId: 'clean-url', currentPage: 1, source: 'catalog' }
+  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/viewer.html', search: '?catalog=ignored&page=9&source=favorites' }, 'viewer'))),
+  { page: 'viewer', catalogId: '', currentPage: 1, source: 'favorites' }
 );
 assert.equal(routes.pageFromLocation({ pathname: '/favorites/' }), 'favorites');
 assert.equal(routes.pageFromLocation({ pathname: '/' }), 'home');
@@ -86,26 +89,6 @@ assert.equal(
   ),
   false
 );
-
-const legacyContext = {
-  globalThis: {
-    document: { body: { dataset: { page: 'home', cleanRoutes: 'false' } } },
-    location: { pathname: '/', search: '', origin: 'http://localhost:8080' }
-  },
-  URLSearchParams,
-  URL
-};
-vm.createContext(legacyContext);
-vm.runInContext(source, legacyContext);
-const legacyRoutes = legacyContext.globalThis.BargigRoutes;
-
-assert.equal(legacyRoutes.cleanRoutesEnabled(), false);
-assert.equal(legacyRoutes.catalogUrl('opening-tbi-2026'), '/catalog.html?catalog=opening-tbi-2026');
-assert.equal(legacyRoutes.categoryUrl('opening-wardrobes'), '/#cat/opening-wardrobes');
-assert.equal(legacyRoutes.categoryUrl('kids', 'kids-rooms'), '/#cat/kids/kids-rooms');
-assert.equal(
-  legacyRoutes.viewerUrl('opening-tbi-2026', 7, { source: 'favorites' }),
-  '/viewer.html?catalog=opening-tbi-2026&page=7&source=favorites'
-);
+assert.equal(typeof routes.cleanRoutesEnabled, 'undefined', 'legacy route-mode switch must be removed');
 
 console.log('site_routes.test.js: PASS');

@@ -25,12 +25,6 @@
   Cache-Control: no-store, max-age=0, must-revalidate
 /index.html
   Cache-Control: no-store, max-age=0, must-revalidate
-/catalog
-  Cache-Control: no-store, max-age=0, must-revalidate
-/catalog/
-  Cache-Control: no-store, max-age=0, must-revalidate
-/catalog.html
-  Cache-Control: no-store, max-age=0, must-revalidate
 /catalog/*
   Cache-Control: no-store, max-age=0, must-revalidate
 /category/*
@@ -40,12 +34,6 @@
 /favorites/
   Cache-Control: no-store, max-age=0, must-revalidate
 /favorites.html
-  Cache-Control: no-store, max-age=0, must-revalidate
-/viewer
-  Cache-Control: no-store, max-age=0, must-revalidate
-/viewer/
-  Cache-Control: no-store, max-age=0, must-revalidate
-/viewer.html
   Cache-Control: no-store, max-age=0, must-revalidate
 /terms
   Cache-Control: no-store, max-age=0, must-revalidate

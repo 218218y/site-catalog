@@ -19,9 +19,12 @@ assert.equal(packageJson.scripts["pretest:e2e:update"], "node tools/check_playwr
 assert.doesNotMatch(packageLock, /applied-caas-gateway|internal\.api\.openai/i);
 assert.equal(packageJson.scripts["test:js"], "python tools/verify_project.py --javascript-only");
 assert.equal(packageJson.scripts["test:python"], "python tools/verify_project.py --python-only");
-assert.equal(packageJson.scripts.build, "python tools/build_site_pages.py");
+assert.equal(packageJson.scripts.build, "npm run build:local");
 
 assert.match(config, /webServer/);
+assert.equal(packageJson.scripts["build:e2e"], "python tools/build_deploy_bundle.py --out dist/site-e2e --seo-mode private");
+assert.match(config, /npm run build:e2e/);
+assert.match(config, /--root dist\/site-e2e/);
 assert.match(config, /tests\/e2e/);
 assert.match(config, /trace:\s*"retain-on-failure"/);
 assert.match(config, /toHaveScreenshot/);

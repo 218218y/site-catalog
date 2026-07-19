@@ -16,7 +16,7 @@ echo Existing converted catalogs are skipped only when the source PDF and settin
 echo Catalogs removed from catalogs.config.json were removed from assets\pages and the generated search index.
 echo Catalogs whose source PDF is missing were removed from catalogs.config.json, assets\pages and the generated search index.
 echo To rebuild every remaining PDF, run convert-catalogs-force.bat
-echo Open index.html or run start-server.bat
+echo Run start-server.bat to build and preview the complete site with clean URLs
 echo.
 pause
 exit /b 0

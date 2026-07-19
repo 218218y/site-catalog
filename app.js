@@ -154,7 +154,7 @@ function homeDocumentUrl() {
 }
 
 function catalogDocumentUrl(catalogId) {
-  return siteRoutes?.catalogUrl?.(catalogId) || `catalog.html?catalog=${encodeURIComponent(String(catalogId || ""))}`;
+  return siteRoutes?.catalogUrl?.(catalogId) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/`;
 }
 
 function favoritesDocumentUrl() {
@@ -162,7 +162,7 @@ function favoritesDocumentUrl() {
 }
 
 function viewerDocumentUrl(catalogId, page = 1, options = {}) {
-  return siteRoutes?.viewerUrl?.(catalogId, page, options) || `viewer.html?catalog=${encodeURIComponent(String(catalogId || ""))}&page=${Math.max(1, Number.parseInt(page, 10) || 1)}`;
+  return siteRoutes?.viewerUrl?.(catalogId, page, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${Math.max(1, Number.parseInt(page, 10) || 1)}/`;
 }
 
 function categoryDocumentUrl(categorySlugValue, subcategorySlugValue = "") {

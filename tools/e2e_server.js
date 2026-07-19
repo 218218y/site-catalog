@@ -5,8 +5,9 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const ROOT = path.resolve(__dirname, "..");
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_PORT = 4173;
+const DEFAULT_ROOT = path.join(PROJECT_ROOT, "dist", "site-e2e");
 const MIME_TYPES = new Map([
   [".html", "text/html; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
@@ -22,9 +23,22 @@ const MIME_TYPES = new Map([
   [".txt", "text/plain; charset=utf-8"]
 ]);
 
+function parseOptions(argv) {
+  const portIndex = argv.indexOf("--port");
+  const portCandidate = portIndex >= 0 ? Number(argv[portIndex + 1]) : Number(process.env.PORT);
+  const rootIndex = argv.indexOf("--root");
+  const rootCandidate = rootIndex >= 0 ? String(argv[rootIndex + 1] || "") : String(process.env.SITE_ROOT || "");
+  return {
+    port: Number.isInteger(portCandidate) && portCandidate > 0 && portCandidate < 65536 ? portCandidate : DEFAULT_PORT,
+    root: path.resolve(PROJECT_ROOT, rootCandidate || DEFAULT_ROOT)
+  };
+}
+
+const options = parseOptions(process.argv.slice(2));
+const SERVER_ROOT = options.root;
 
 function readRootSecurityHeaders() {
-  const headerFile = path.join(ROOT, "_headers");
+  const headerFile = path.join(SERVER_ROOT, "_headers");
   const result = {};
   if (!fs.existsSync(headerFile)) return result;
   const lines = fs.readFileSync(headerFile, "utf8").split(/\r?\n/);
@@ -41,19 +55,13 @@ function readRootSecurityHeaders() {
 
 const ROOT_SECURITY_HEADERS = readRootSecurityHeaders();
 
-function parsePort(argv) {
-  const index = argv.indexOf("--port");
-  const candidate = index >= 0 ? Number(argv[index + 1]) : Number(process.env.PORT);
-  return Number.isInteger(candidate) && candidate > 0 && candidate < 65536 ? candidate : DEFAULT_PORT;
-}
-
 function safeFilePath(requestUrl) {
   const url = new URL(requestUrl, "http://127.0.0.1");
   let pathname = decodeURIComponent(url.pathname || "/");
   if (pathname === "/") pathname = "/index.html";
   const relative = pathname.replace(/^\/+/, "");
-  const resolved = path.resolve(ROOT, relative);
-  if (resolved !== ROOT && !resolved.startsWith(`${ROOT}${path.sep}`)) return null;
+  const resolved = path.resolve(SERVER_ROOT, relative);
+  if (resolved !== SERVER_ROOT && !resolved.startsWith(`${SERVER_ROOT}${path.sep}`)) return null;
   return resolved;
 }
 
@@ -67,19 +75,39 @@ function writeResponse(response, status, headers, body = "") {
   response.end(body);
 }
 
+function resolveFile(filePath, callback) {
+  fs.stat(filePath, (statError, stats) => {
+    if (!statError && stats.isDirectory()) {
+      const indexFile = path.join(filePath, "index.html");
+      fs.stat(indexFile, (indexError, indexStats) => {
+        callback(!indexError && indexStats.isFile() ? indexFile : null);
+      });
+      return;
+    }
+    callback(!statError && stats.isFile() ? filePath : null);
+  });
+}
+
 function serveFile(request, response) {
-  const filePath = safeFilePath(request.url || "/");
-  if (!filePath) {
+  const requestedPath = safeFilePath(request.url || "/");
+  if (!requestedPath) {
     writeResponse(response, 400, { "Content-Type": "text/plain; charset=utf-8" }, "Bad request");
     return;
   }
 
-  fs.stat(filePath, (statError, stats) => {
-    if (statError || !stats.isFile()) {
-      writeResponse(response, 404, { "Content-Type": "text/plain; charset=utf-8" }, "Not found");
+  resolveFile(requestedPath, (filePath) => {
+    if (!filePath) {
+      const errorPage = path.join(SERVER_ROOT, "404.html");
+      if (fs.existsSync(errorPage)) {
+        const body = fs.readFileSync(errorPage);
+        writeResponse(response, 404, { "Content-Type": "text/html; charset=utf-8" }, request.method === "HEAD" ? "" : body);
+      } else {
+        writeResponse(response, 404, { "Content-Type": "text/plain; charset=utf-8" }, "Not found");
+      }
       return;
     }
 
+    const stats = fs.statSync(filePath);
     const contentType = MIME_TYPES.get(path.extname(filePath).toLowerCase()) || "application/octet-stream";
     response.writeHead(200, {
       "Content-Type": contentType,
@@ -106,7 +134,11 @@ function serveFile(request, response) {
   });
 }
 
-const port = parsePort(process.argv.slice(2));
+if (!fs.existsSync(path.join(SERVER_ROOT, "index.html"))) {
+  process.stderr.write(`E2E site root is not built: ${SERVER_ROOT}\n`);
+  process.exit(1);
+}
+
 const server = http.createServer((request, response) => {
   if (!request.method || !["GET", "HEAD"].includes(request.method)) {
     writeResponse(response, 405, { Allow: "GET, HEAD", "Content-Type": "text/plain; charset=utf-8" }, "Method not allowed");
@@ -124,6 +156,7 @@ function shutdown(signal) {
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-server.listen(port, "127.0.0.1", () => {
-  process.stdout.write(`E2E server listening on http://127.0.0.1:${port}\n`);
+server.listen(options.port, "127.0.0.1", () => {
+  process.stdout.write(`E2E server listening on http://127.0.0.1:${options.port}\n`);
+  process.stdout.write(`Serving generated site: ${SERVER_ROOT}\n`);
 });

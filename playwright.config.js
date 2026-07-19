@@ -50,8 +50,8 @@ module.exports = defineConfig({
     launchOptions
   },
   webServer: {
-    command: "node tools/e2e_server.js --port 4173",
-    url: "http://127.0.0.1:4173/index.html",
+    command: "npm run build:e2e && node tools/e2e_server.js --port 4173 --root dist/site-e2e",
+    url: "http://127.0.0.1:4173/",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000
   }

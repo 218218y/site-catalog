@@ -9,11 +9,20 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), 
 const builder = fs.readFileSync(path.join(root, "tools", "build_frontend_assets.py"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
 const architecture = fs.readFileSync(path.join(root, "docs", "frontend-architecture.md"), "utf8");
+const localServer = fs.readFileSync(path.join(root, "tools", "serve_site.py"), "utf8");
+const startServer = fs.readFileSync(path.join(root, "start-server.bat"), "utf8");
 
 assert.equal(packageJson.private, true);
 assert.equal(packageJson.scripts["setup:python"], "python tools/setup_python_env.py");
 assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
-assert.equal(packageJson.scripts.build, "python tools/build_site_pages.py");
+assert.equal(packageJson.scripts.build, "npm run build:local");
+assert.equal(packageJson.scripts["build:local"], "python tools/build_deploy_bundle.py --out dist/site-local --seo-mode private");
+assert.equal(packageJson.scripts.dev, "python tools/serve_site.py");
+assert.equal(packageJson.scripts.serve, "python tools/serve_site.py --no-build");
+assert.match(localServer, /build_deploy_bundle\.py/);
+assert.match(localServer, /dist\/site-local/);
+assert.match(startServer, /tools\\serve_site\.py/);
+assert.doesNotMatch(startServer, /python -m http\.server/);
 assert.equal(packageJson.scripts["test:js"], "python tools/verify_project.py --javascript-only");
 assert.equal(packageJson.scripts["test:python"], "python tools/verify_project.py --python-only");
 assert.equal(packageJson.scripts["test:e2e"], "playwright test");

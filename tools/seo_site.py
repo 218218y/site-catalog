@@ -9,7 +9,7 @@ The website is deliberately built in one of two explicit modes:
 
 ``public``
     Only stable landing pages become indexable. Utility pages, favorites,
-    legacy application shells and per-page sharing routes remain noindex.
+    technical application shells and per-page sharing routes remain noindex.
 
 The default mode comes from ``seo.config.json`` and must remain ``private``
 until a public build is explicitly confirmed by the caller.
@@ -413,6 +413,7 @@ def local_business_json_ld(
     config: SeoConfig,
     footer: Mapping[str, str],
     taxonomy: Taxonomy,
+    catalogs: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     business = config.business
     schema_type = str(business.get("schemaType", "LocalBusiness")).strip() or "LocalBusiness"
@@ -439,6 +440,11 @@ def local_business_json_ld(
             }
         )
 
+    active_category_names = {
+        str(item.get("category", "")).strip()
+        for item in catalogs
+        if str(item.get("category", "")).strip()
+    }
     offer_catalog = {
         "@type": "OfferCatalog",
         "name": "קטלוגי ריהוט",
@@ -449,6 +455,7 @@ def local_business_json_ld(
                 "url": absolute_url(config, category_path(category)),
             }
             for category in taxonomy.categories
+            if category.name in active_category_names
         ],
     }
     result: dict[str, Any] = {

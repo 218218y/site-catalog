@@ -94,15 +94,43 @@ npm run build:deploy:public
 5. לבדוק JSON-LD בכלי הבדיקה של Google.
 6. לפתוח Search Console ולשלוח את `sitemap.xml` רק לאחר ההעלאה הציבורית.
 
-## Local source pages versus generated clean routes
+## סביבת פיתוח מקומית זהה לפריסה
 
-The checked-in root pages intentionally use the legacy static URLs
-`catalog.html?catalog=...` and `viewer.html?catalog=...&page=...`. This keeps the
-normal local server compatible with plain static servers such as
-`python -m http.server`, where nested clean-route files are not present.
+תיקיית המקור של הפרויקט אינה משמשת עוד כ־web root. הפעלה דרך
+`start-server.bat` בונה אתר פרטי מלא לתוך `dist/site-local` ומגישה אותו משם.
+אותו מחולל ואותו מבנה תיקיות משמשים לבאנדל Cloudflare Pages, ולכן כתובות כמו
+`/catalog/<id>/` ו־`/catalog/<id>/page/<n>/` נבדקות מקומית בדיוק כפי שהן נפרסות.
 
-A deploy/SEO bundle generated with `--include-seo-routes` contains the matching
-`catalog/<id>/index.html` and `catalog/<id>/page/<n>/index.html` files. Those
-pages declare `data-clean-routes="true"`, so browser navigation and sharing use
-the clean public URLs. The source-root pages declare `data-clean-routes="false"`
-and never navigate to a route that does not exist beside them.
+אין מסלול ניווט חלופי עם `catalog.html?catalog=...` או
+`viewer.html?catalog=...&page=...`. קובצי `catalog.html` ו־`viewer.html` שבשורש הם תוצרי shell לבדיקות
+בנייה בלבד: הם אינם מועתקים ל־preview המלא או לבאנדל הפריסה ואינם משמשים ככתובות תאימות.
+
+פקודות שימוש:
+
+```bat
+start-server.bat
+```
+
+או:
+
+```bat
+npm run dev
+```
+
+לבנייה בלבד ללא שרת:
+
+```bat
+npm run build:local
+```
+
+## עדכון אוטומטי לאחר שינוי קטלוגים
+
+כל בניית preview או deploy קוראת מחדש את `catalogs.generated.json` ואת
+`catalog-taxonomy.config.json`, מוחקת את תוצר הבנייה הקודם ויוצרת מחדש את כל
+עמודי הקטלוג, העמודים המדויקים, עמודי הקטגוריות וה־sitemap הציבורי. לכן הוספה,
+שינוי שם, שינוי מספר עמודים, שינוי שיוך או מחיקה אינם דורשים טיפול SEO ידני.
+
+קטלוג חדש בקטגוריה קיימת נכנס אוטומטית. יצירת קטגוריה או תת־קטגוריה חדשה כן
+מחייבת פעם אחת להוסיף לה slug ותיאור ב־`catalog-taxonomy.config.json`; הבנייה
+נכשלת במפורש אם הנתונים האלה חסרים, במקום להמציא אותם. קטגוריה קיימת שאין בה
+עוד קטלוגים מושמטת אוטומטית מהניווט ומהעמודים המחוללים.

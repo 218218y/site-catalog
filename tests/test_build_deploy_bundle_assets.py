@@ -163,15 +163,9 @@ def test_public_html_routes_keep_original_cache_policy_and_include_404() -> None
         "/",
         "/index",
         "/index.html",
-        "/catalog",
-        "/catalog/",
-        "/catalog.html",
         "/favorites",
         "/favorites/",
         "/favorites.html",
-        "/viewer",
-        "/viewer/",
-        "/viewer.html",
         "/terms",
         "/terms/",
         "/terms.html",
@@ -183,6 +177,9 @@ def test_public_html_routes_keep_original_cache_policy_and_include_404() -> None
     ):
         assert f"{route}\n  Cache-Control: no-store, max-age=0, must-revalidate" in headers
 
+    assert "/catalog/*\n  Cache-Control: no-store, max-age=0, must-revalidate" in headers
+    assert "/catalog.html\n" not in headers
+    assert "/viewer.html\n" not in headers
     assert "/static/*\n  Cache-Control: public, max-age=31536000, immutable" in headers
     assert "/assets/pages/*\n  Cache-Control: public, max-age=31536000, immutable" in headers
     assert "Cloudflare-CDN-Cache-Control" not in headers

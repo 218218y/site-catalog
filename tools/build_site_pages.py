@@ -13,6 +13,7 @@ import argparse
 import html
 import json
 import re
+import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -143,6 +144,8 @@ PAGE_DOCUMENTS = (
     ),
 )
 
+TECHNICAL_SHELL_FILENAMES = frozenset({"catalog.html", "viewer.html"})
+
 
 def read_required_text(root: Path, relative_path: str) -> str:
     path = root / relative_path
@@ -212,6 +215,7 @@ def page_seo(
     footer_content: Mapping[str, str],
     page: PageDocument,
     mode: str,
+    catalogs: Sequence[Mapping[str, Any]],
 ) -> Any:
     canonical = absolute_url(config, page.canonical_path)
     image = default_share_image_url(config)
@@ -225,7 +229,7 @@ def page_seo(
         )
     ]
     if page.mode == "home":
-        json_ld = [web_site_json_ld(config), local_business_json_ld(config, footer_content, taxonomy), *json_ld]
+        json_ld = [web_site_json_ld(config), local_business_json_ld(config, footer_content, taxonomy, catalogs), *json_ld]
     return create_seo_page(
         config,
         mode=mode,
@@ -252,26 +256,57 @@ def common_page_replacements(seo: Any, config: SeoConfig, *, base_tag: str = "",
     }
 
 
-def local_category_href(category: TaxonomyCategory) -> str:
-    return f"index.html#cat/{category.slug}"
+def catalogs_for_category(
+    catalogs: Sequence[Mapping[str, Any]],
+    category_name: str,
+    subcategory_name: str | None = None,
+) -> list[Mapping[str, Any]]:
+    selected = [
+        item for item in catalogs
+        if str(item.get("category", "")).strip() == category_name
+    ]
+    if subcategory_name is not None:
+        selected = [
+            item for item in selected
+            if str(item.get("subcategory", "")).strip() == subcategory_name
+        ]
+    return selected
 
 
-def local_catalog_href(catalog_id: str) -> str:
-    return f"catalog.html?catalog={catalog_id}"
+def active_categories(
+    taxonomy: Taxonomy,
+    catalogs: Sequence[Mapping[str, Any]],
+) -> tuple[TaxonomyCategory, ...]:
+    return tuple(
+        category for category in taxonomy.categories
+        if catalogs_for_category(catalogs, category.name)
+    )
+
+
+def active_subcategories(
+    taxonomy: Taxonomy,
+    catalogs: Sequence[Mapping[str, Any]],
+    category: TaxonomyCategory,
+) -> tuple[TaxonomySubcategory, ...]:
+    return tuple(
+        subcategory for subcategory in taxonomy.subcategories
+        if subcategory.category == category.name
+        and catalogs_for_category(catalogs, category.name, subcategory.name)
+    )
 
 
 def static_home_navigation(
     taxonomy: Taxonomy,
+    catalogs: Sequence[Mapping[str, Any]],
     *,
     mobile: bool = False,
-    clean_routes_enabled: bool = True,
 ) -> str:
     role = ' role="menuitem"' if mobile else ""
     return "\n".join(
-        f'<a href="{html.escape((f"/{category_path(category)}" if clean_routes_enabled else local_category_href(category)), quote=True)}" '
+        f'<a href="/{category_path(category)}" '
         f'data-category="{html.escape(category.name, quote=True)}"{role}>'
         f'{html.escape(category.name)}</a>'
-        for category in taxonomy.categories
+        for category in active_categories(taxonomy, catalogs)
     )
 
 
@@ -279,19 +314,12 @@ def static_home_catalog_grid(
     catalogs: Sequence[Mapping[str, Any]],
     taxonomy: Taxonomy,
     config: SeoConfig,
-    *,
-    clean_routes_enabled: bool = True,
 ) -> str:
     sections: list[str] = []
-    for category in taxonomy.categories:
-        category_catalogs = [
-            item for item in catalogs
-            if str(item.get("category", "")).strip() == category.name
-        ]
-        if not category_catalogs:
-            continue
-        cards = "\n".join(catalog_card(item, config, clean_routes_enabled=clean_routes_enabled) for item in category_catalogs)
-        category_href = f"/{category_path(category)}" if clean_routes_enabled else local_category_href(category)
+    for category in active_categories(taxonomy, catalogs):
+        category_catalogs = catalogs_for_category(catalogs, category.name)
+        cards = "\n".join(catalog_card(item, config) for item in category_catalogs)
+        category_href = f"/{category_path(category)}"
         sections.append(
             '<section class="catalog-category-section" '
             f'data-category-section="{html.escape(category.name, quote=True)}">'
@@ -312,24 +340,22 @@ def default_site_shell_replacements(
     taxonomy: Taxonomy | None = None,
     catalogs: Sequence[Mapping[str, Any]] = (),
     config: SeoConfig | None = None,
-    clean_routes_enabled: bool = False,
 ) -> dict[str, str]:
     home_ready = page.mode == "home" and taxonomy is not None and config is not None
     return {
         "{{PAGE_MODE}}": page.mode,
-        "{{CLEAN_ROUTES_ENABLED}}": "true" if clean_routes_enabled else "false",
         "{{BODY_DATA_ATTRIBUTES}}": "",
         "{{SITE_FOOTER}}": site_footer,
         "{{INITIAL_CATEGORY_NAV}}": static_home_navigation(
-            taxonomy, clean_routes_enabled=clean_routes_enabled
+            taxonomy, catalogs
         ) if home_ready else "",
         "{{INITIAL_MOBILE_CATEGORY_NAV}}": static_home_navigation(
-            taxonomy, mobile=True, clean_routes_enabled=clean_routes_enabled
+            taxonomy, catalogs, mobile=True
         ) if home_ready else "",
         "{{CATALOGS_SECTION_EXTRA_CLASS}}": "" if page.mode == "home" else " hidden",
         "{{CATALOG_GRID_BUSY}}": "false" if home_ready else "true",
         "{{INITIAL_CATALOG_GRID}}": static_home_catalog_grid(
-            catalogs, taxonomy, config, clean_routes_enabled=clean_routes_enabled
+            catalogs, taxonomy, config
         ) if home_ready else "",
         "{{CATALOG_DETAIL_EXTRA_CLASS}}": "" if page.mode == "catalog" else " hidden",
         "{{CATALOG_DETAIL_TITLE}}": "קטלוג",
@@ -338,7 +364,6 @@ def default_site_shell_replacements(
         "{{INITIAL_PAGE_GRID}}": "",
         "{{NOSCRIPT_CONTENT}}": '<noscript><p class="noscript-message">יש להפעיל JavaScript כדי להשתמש במציג הקטלוגים.</p></noscript>',
     }
-
 
 def render_base_document(
     root: Path,
@@ -352,10 +377,9 @@ def render_base_document(
     site_footer: str,
     mode: str,
     catalogs: Sequence[Mapping[str, Any]],
-    clean_routes_enabled: bool,
 ) -> Path:
     template = templates.setdefault(page.template_filename, read_required_text(root, page.template_filename))
-    seo = page_seo(config, taxonomy, footer_content, page, mode)
+    seo = page_seo(config, taxonomy, footer_content, page, mode, catalogs)
     replacements = common_page_replacements(seo, config)
     replacements.update({"{{SITE_FOOTER}}": site_footer})
 
@@ -367,7 +391,6 @@ def render_base_document(
                 taxonomy=taxonomy,
                 catalogs=catalogs,
                 config=config,
-                clean_routes_enabled=clean_routes_enabled,
             )
         )
     else:
@@ -387,9 +410,9 @@ def render_base_document(
     return write_generated_text(target, replace_tokens(template, replacements, label=page.filename))
 
 
-def category_navigation(taxonomy: Taxonomy, *, active_slug: str = "") -> str:
+def category_navigation(taxonomy: Taxonomy, catalogs: Sequence[Mapping[str, Any]], *, active_slug: str = "") -> str:
     links = []
-    for category in taxonomy.categories:
+    for category in active_categories(taxonomy, catalogs):
         current = ' aria-current="page"' if category.slug == active_slug else ""
         links.append(
             f'<a href="/{category_path(category)}"{current}>{html.escape(category.name)}</a>'
@@ -397,13 +420,13 @@ def category_navigation(taxonomy: Taxonomy, *, active_slug: str = "") -> str:
     return "\n".join(links)
 
 
-def catalog_card(catalog: Mapping[str, Any], config: SeoConfig, *, clean_routes_enabled: bool = True) -> str:
+def catalog_card(catalog: Mapping[str, Any], config: SeoConfig) -> str:
     catalog_id = str(catalog.get("id", "")).strip()
     title = str(catalog.get("title", "קטלוג")).strip()
     description = str(catalog.get("description", "")).strip()
     page_count = max(0, int(catalog.get("pages", 0) or 0))
     image = catalog_cover_url(config, catalog)
-    href = f"/{catalog_path(catalog_id)}" if clean_routes_enabled else local_catalog_href(catalog_id)
+    href = f"/{catalog_path(catalog_id)}"
     escaped_href = html.escape(href, quote=True)
     return f"""
 <article class="catalog-card seo-catalog-card">
@@ -444,11 +467,7 @@ def render_category_route(
     catalogs: Sequence[Mapping[str, Any]],
 ) -> tuple[Path, dict[str, str]]:
     if subcategory:
-        selected = [
-            item for item in catalogs
-            if str(item.get("category", "")).strip() == category.name
-            and str(item.get("subcategory", "")).strip() == subcategory.name
-        ]
+        selected = catalogs_for_category(catalogs, category.name, subcategory.name)
         route_path = subcategory_path(category, subcategory)
         title = f"{subcategory.name} — {category.name} | {config.site_name}"
         heading = subcategory.name
@@ -456,7 +475,7 @@ def render_category_route(
         eyebrow = category.name
         breadcrumbs = [("כל הקטלוגים", "/"), (category.name, f"/{category_path(category)}"), (subcategory.name, f"/{route_path}")]
     else:
-        selected = [item for item in catalogs if str(item.get("category", "")).strip() == category.name]
+        selected = catalogs_for_category(catalogs, category.name)
         route_path = category_path(category)
         title = f"{category.name} — קטלוגים | {config.site_name}"
         heading = category.name
@@ -509,7 +528,7 @@ def render_category_route(
         indexable_public=True,
         json_ld=json_ld,
     )
-    subcategories = [item for item in taxonomy.subcategories if item.category == category.name]
+    subcategories = list(active_subcategories(taxonomy, catalogs, category))
     if not subcategory and subcategories:
         subnav = '<nav class="seo-subcategory-nav" aria-label="תתי קטגוריות"><strong>סינון לפי סוג:</strong>' + "".join(
             f'<a href="/{subcategory_path(category, item)}">{html.escape(item.name)}</a>' for item in subcategories
@@ -520,7 +539,7 @@ def render_category_route(
     replacements = common_page_replacements(seo, config, base_tag='<base href="/" />')
     replacements.update(
         {
-            "{{CATEGORY_NAVIGATION}}": category_navigation(taxonomy, active_slug=category.slug),
+            "{{CATEGORY_NAVIGATION}}": category_navigation(taxonomy, catalogs, active_slug=category.slug),
             "{{BREADCRUMBS}}": breadcrumb_markup(breadcrumbs),
             "{{PAGE_EYEBROW}}": html.escape(eyebrow),
             "{{PAGE_HEADING}}": html.escape(heading),
@@ -600,7 +619,7 @@ def render_catalog_route(
     )
     synthetic_page = PageDocument("", "catalog", title, description, route_path)
     replacements = common_page_replacements(seo, config, base_tag='<base href="/" />', route_preload=image_preload(image))
-    replacements.update(default_site_shell_replacements(synthetic_page, site_footer, taxonomy=taxonomy, catalogs=(), config=config, clean_routes_enabled=True))
+    replacements.update(default_site_shell_replacements(synthetic_page, site_footer, taxonomy=taxonomy, catalogs=(), config=config))
     replacements.update(
         {
             "{{BODY_DATA_ATTRIBUTES}}": f' data-catalog-id="{html.escape(catalog_id, quote=True)}"',
@@ -655,7 +674,7 @@ def render_catalog_page_route(
     )
     synthetic_page = PageDocument("", "viewer", title, description, route_path)
     replacements = common_page_replacements(seo, config, base_tag='<base href="/" />', route_preload=image_preload(image))
-    replacements.update(default_site_shell_replacements(synthetic_page, site_footer, clean_routes_enabled=True))
+    replacements.update(default_site_shell_replacements(synthetic_page, site_footer))
     replacements.update(
         {
             "{{BODY_DATA_ATTRIBUTES}}": (
@@ -693,7 +712,7 @@ def render_seo_routes(
     written: list[Path] = []
     sitemap_entries: list[dict[str, str]] = []
 
-    for category in taxonomy.categories:
+    for category in active_categories(taxonomy, catalogs):
         path, entry = render_category_route(
             root,
             target_root,
@@ -709,7 +728,7 @@ def render_seo_routes(
         )
         written.append(path)
         sitemap_entries.append(entry)
-        for subcategory in (item for item in taxonomy.subcategories if item.category == category.name):
+        for subcategory in active_subcategories(taxonomy, catalogs, category):
             path, entry = render_category_route(
                 root,
                 target_root,
@@ -769,6 +788,8 @@ def render_site_pages(
     footer_content: dict[str, str] | None = None,
     seo_mode: str | None = None,
     include_seo_routes: bool = False,
+    include_technical_shells: bool | None = None,
+    clean_output: bool = False,
     confirm_public_indexing: bool = False,
     include_indexing_files: bool = True,
 ) -> list[Path]:
@@ -784,6 +805,11 @@ def render_site_pages(
     validate_taxonomy_catalog_coverage(taxonomy, catalogs)
 
     target_root = output_dir or root
+    if clean_output:
+        if output_dir is None or target_root.resolve() == root.resolve():
+            raise ValueError("Refusing to clean the project source root")
+        if target_root.exists():
+            shutil.rmtree(target_root)
     target_root.mkdir(parents=True, exist_ok=True)
     footer_template = read_required_text(root, "partials/site-footer.html").strip()
     normalized_footer_content = (
@@ -792,8 +818,11 @@ def render_site_pages(
     site_footer = render_footer_template(footer_template, normalized_footer_content)
     templates: dict[str, str] = {}
     written: list[Path] = []
+    emit_technical_shells = (not include_seo_routes) if include_technical_shells is None else include_technical_shells
 
     for page in PAGE_DOCUMENTS:
+        if not emit_technical_shells and page.filename in TECHNICAL_SHELL_FILENAMES:
+            continue
         written.append(
             render_base_document(
                 root,
@@ -806,7 +835,6 @@ def render_site_pages(
                 site_footer=site_footer,
                 mode=mode,
                 catalogs=catalogs,
-                clean_routes_enabled=include_seo_routes,
             )
         )
 
@@ -837,6 +865,52 @@ def render_site_pages(
     return written
 
 
+def staging_output_dir(out_dir: Path) -> Path:
+    return out_dir.with_name(f".{out_dir.name}.building")
+
+
+def replace_output_dir(staging_dir: Path, out_dir: Path) -> None:
+    backup_dir = out_dir.with_name(f".{out_dir.name}.previous")
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+
+    moved_previous = False
+    try:
+        if out_dir.exists():
+            out_dir.rename(backup_dir)
+            moved_previous = True
+        staging_dir.rename(out_dir)
+    except Exception:
+        if moved_previous and not out_dir.exists() and backup_dir.exists():
+            backup_dir.rename(out_dir)
+        raise
+    else:
+        if backup_dir.exists():
+            shutil.rmtree(backup_dir)
+
+
+def render_site_pages_atomic(
+    root: Path,
+    output_dir: Path,
+    **kwargs: Any,
+) -> list[Path]:
+    if output_dir.resolve() == root.resolve():
+        raise ValueError("Refusing to replace the project source root")
+    staging = staging_output_dir(output_dir)
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True, exist_ok=True)
+    try:
+        staged_paths = render_site_pages(root, staging, clean_output=False, **kwargs)
+        relative_paths = [path.relative_to(staging) for path in staged_paths]
+        replace_output_dir(staging, output_dir)
+        return [output_dir / relative for relative in relative_paths]
+    except Exception:
+        if staging.exists():
+            shutil.rmtree(staging)
+        raise
+
+
 def check_site_pages(root: Path) -> tuple[Path, ...]:
     build_frontend_assets(root, check=True)
     build_taxonomy_asset(root, check=True)
@@ -861,8 +935,15 @@ def check_site_pages(root: Path) -> tuple[Path, ...]:
             seo_mode="private",
             include_seo_routes=True,
         )
-        expected_route_count = sum(int(item.get("pages", 0) or 0) for item in read_catalogs(root))
-        expected_route_count += len(read_catalogs(root)) + len(load_taxonomy(root).categories) + len(load_taxonomy(root).subcategories)
+        current_catalogs = read_catalogs(root)
+        current_taxonomy = load_taxonomy(root)
+        expected_route_count = sum(int(item.get("pages", 0) or 0) for item in current_catalogs)
+        expected_route_count += len(current_catalogs)
+        expected_route_count += len(active_categories(current_taxonomy, current_catalogs))
+        expected_route_count += sum(
+            len(active_subcategories(current_taxonomy, current_catalogs, category))
+            for category in active_categories(current_taxonomy, current_catalogs)
+        )
         generated_route_html = [path for path in complete if path.suffix == ".html" and path.parent != complete_root]
         if len(generated_route_html) != expected_route_count:
             raise RuntimeError(
@@ -894,15 +975,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     root = Path(__file__).resolve().parents[1]
     output = (root / args.out).resolve() if args.out else None
     try:
-        paths = check_site_pages(root) if args.check else tuple(
-            render_site_pages(
+        if args.check:
+            paths = check_site_pages(root)
+        elif output and args.include_seo_routes:
+            paths = tuple(render_site_pages_atomic(
+                root,
+                output,
+                seo_mode=args.seo_mode,
+                include_seo_routes=True,
+                confirm_public_indexing=args.confirm_public_indexing,
+            ))
+        else:
+            paths = tuple(render_site_pages(
                 root,
                 output,
                 seo_mode=args.seo_mode,
                 include_seo_routes=args.include_seo_routes,
                 confirm_public_indexing=args.confirm_public_indexing,
-            )
-        )
+            ))
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {exc}")
         return 1

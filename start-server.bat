@@ -14,19 +14,14 @@ if errorlevel 2 goto control
 goto site
 
 :site
-echo Building frontend modules and public pages...
-python tools\build_site_pages.py
+echo Building and serving the complete private site artifact...
+echo.
+python tools\serve_site.py --port 8080
 if errorlevel 1 (
-  echo Frontend build failed.
+  echo Local site build or server startup failed.
   pause
   exit /b 1
 )
-echo.
-echo Starting local website at http://localhost:8080
-echo שים לב: לוח השליטה לא עובד דרך השרת הזה, כי אין כאן API.
-echo כדי לפתוח את לוח השליטה הפעל catalog-control-panel.bat או בחר 2 בתפריט הזה.
-echo.
-python -m http.server 8080
 pause
 exit /b
 
@@ -35,16 +30,8 @@ call catalog-control-panel.bat
 exit /b %errorlevel%
 
 :both
-echo Building frontend modules and public pages...
-python tools\build_site_pages.py
-if errorlevel 1 (
-  echo Frontend build failed.
-  pause
-  exit /b 1
-)
-echo.
-echo Starting local website in a separate window at http://localhost:8080
-start "Catalog Website 8080" cmd /k "cd /d ""%~dp0"" && echo Starting local website at http://localhost:8080 && python -m http.server 8080"
+echo Building the complete private site artifact and starting it in a separate window...
+start "Catalog Website 8080" cmd /k "cd /d ""%~dp0"" && python tools\serve_site.py --port 8080"
 echo Opening catalog control panel in this window...
 call catalog-control-panel.bat
 exit /b %errorlevel%

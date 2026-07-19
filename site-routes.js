@@ -69,7 +69,7 @@
     return null;
   }
 
-  function legacyDocumentMatch(pathname) {
+  function shellDocumentMatch(pathname) {
     const segments = pathnameSegments(pathname);
     const last = String(segments[segments.length - 1] || "").toLowerCase();
     const routeName = documentRouteName(last);
@@ -85,7 +85,7 @@
   function matchPageFromLocation(locationLike, declaredPage = "") {
     if (String(declaredPage || "").trim()) return normalizePage(declaredPage);
     return cleanCatalogRouteMatch(locationLike?.pathname)?.page
-      || legacyDocumentMatch(locationLike?.pathname)?.page
+      || shellDocumentMatch(locationLike?.pathname)?.page
       || "";
   }
 
@@ -95,28 +95,14 @@
 
   function basePathFromLocation(locationLike, declaredPage = "") {
     const clean = cleanCatalogRouteMatch(locationLike?.pathname);
-    const legacy = clean ? null : legacyDocumentMatch(locationLike?.pathname);
-    let baseSegments = clean?.baseSegments || legacy?.baseSegments || [];
+    const shell = clean ? null : shellDocumentMatch(locationLike?.pathname);
+    let baseSegments = clean?.baseSegments || shell?.baseSegments || [];
 
-    // A declared application page can be used on a generated clean route. If
-    // neither route parser matched, preserve the containing directory rather
-    // than treating the unknown final segment as part of the app base.
-    if (!clean && !legacy && String(declaredPage || "").trim()) {
+    if (!clean && !shell && String(declaredPage || "").trim()) {
       const segments = pathnameSegments(locationLike?.pathname);
       baseSegments = segments.slice(0, -1);
     }
     return baseSegments.length ? `/${baseSegments.join("/")}/` : "/";
-  }
-
-  function cleanRoutesEnabled() {
-    const declared = String(global.document?.body?.dataset?.cleanRoutes || "").trim().toLowerCase();
-    if (declared === "false") return false;
-
-    // Generated deploy pages opt in explicitly. Older cached deploy pages did
-    // not have the marker, so the backwards-compatible default remains true.
-    // Checked-in local pages always declare false because nested route files
-    // are intentionally not generated beside the source documents.
-    return true;
   }
 
   function runtimeBasePath() {
@@ -158,21 +144,15 @@
 
   function catalogUrl(catalogId) {
     const normalizedCatalogId = safeRouteToken(catalogId);
-    if (!normalizedCatalogId) return buildRelativeUrl(PAGE_CATALOG);
-    if (!cleanRoutesEnabled()) {
-      return buildRelativeUrl(PAGE_CATALOG, { catalog: normalizedCatalogId });
-    }
-    return joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/`);
+    return normalizedCatalogId
+      ? joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/`)
+      : homeUrl();
   }
 
   function categoryUrl(categorySlug, subcategorySlug = "") {
     const category = safeRouteToken(categorySlug);
     const subcategory = safeRouteToken(subcategorySlug);
     if (!category) return homeUrl();
-    if (!cleanRoutesEnabled()) {
-      const route = `${category}${subcategory ? `/${subcategory}` : ""}`;
-      return `${homeUrl()}#cat/${route}`;
-    }
     return joinBasePath(`${CLEAN_CATEGORY_SEGMENT}/${category}/${subcategory ? `${subcategory}/` : ""}`);
   }
 
@@ -182,15 +162,8 @@
 
   function viewerUrl(catalogId, page = 1, options = {}) {
     const normalizedCatalogId = safeRouteToken(catalogId);
-    if (!normalizedCatalogId) return buildRelativeUrl(PAGE_VIEWER);
+    if (!normalizedCatalogId) return homeUrl();
     const currentPage = positiveInteger(page);
-    if (!cleanRoutesEnabled()) {
-      return buildRelativeUrl(PAGE_VIEWER, {
-        catalog: normalizedCatalogId,
-        page: currentPage,
-        source: options.source === FAVORITES_SOURCE ? FAVORITES_SOURCE : ""
-      });
-    }
     const base = joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/${CLEAN_PAGE_SEGMENT}/${currentPage}/`);
     return options.source === FAVORITES_SOURCE ? `${base}?source=${FAVORITES_SOURCE}` : base;
   }
@@ -207,12 +180,11 @@
       };
     }
 
-    const page = pageFromLocation(locationLike, declaredPage);
     return {
-      page,
-      catalogId: String(search.get("catalog") || "").trim(),
-      currentPage: positiveInteger(search.get("page"), 1),
-      source: search.get("source") === FAVORITES_SOURCE ? FAVORITES_SOURCE : "catalog"
+      page: pageFromLocation(locationLike, declaredPage),
+      catalogId: "",
+      currentPage: 1,
+      source: FAVORITES_SOURCE === search.get("source") ? FAVORITES_SOURCE : "catalog"
     };
   }
 
@@ -227,7 +199,6 @@
     matchPageFromLocation,
     pageFromLocation,
     basePathFromLocation,
-    cleanRoutesEnabled,
     isDocumentLocation,
     isSameAppDocumentLocation,
     buildRelativeUrl,

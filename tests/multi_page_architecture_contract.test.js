@@ -14,7 +14,8 @@ const pages = {
 
 for (const [filename, mode] of Object.entries(pages)) {
   const html = fs.readFileSync(path.join(root, filename), 'utf8');
-  assert.match(html, new RegExp(`<body data-page="${mode}"[^>]*data-clean-routes="false"`));
+  assert.match(html, new RegExp(`<body data-page="${mode}"`));
+  assert.doesNotMatch(html, /data-clean-routes/);
   assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app\.js"><\/script>/);
   assert.doesNotMatch(html, /page-transition\.js|sitePageTransition|site-page-transition|site-transition-(?:pending|leaving|entering)/);
   assert.match(html, /href="index\.html" aria-label="רהיטי ברגיג - דף הבית"/);
@@ -26,7 +27,8 @@ const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 const builder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
-assert.match(template, /data-page="\{\{PAGE_MODE\}\}" data-clean-routes="\{\{CLEAN_ROUTES_ENABLED\}\}"/);
+assert.match(template, /data-page="\{\{PAGE_MODE\}\}"/);
+assert.doesNotMatch(template, /data-clean-routes|CLEAN_ROUTES_ENABLED/);
 const globalSearchIndex = template.indexOf('id="catalogSearch"');
 const mainIndex = template.indexOf('<main id="main-content" tabindex="-1">');
 assert.ok(globalSearchIndex >= 0 && globalSearchIndex < mainIndex, 'global search must remain outside page-specific main content');
