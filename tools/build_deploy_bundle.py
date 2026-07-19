@@ -695,6 +695,14 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
     referenced_assets: set[str] = set()
     missing_assets: list[str] = []
     invalid_assets: list[str] = []
+    content_hashes: dict[Path, str] = {}
+
+    def cached_content_hash(path: Path) -> str:
+        """Hash each shared asset once even when hundreds of pages reference it."""
+
+        if path not in content_hashes:
+            content_hashes[path] = content_hash(path)
+        return content_hashes[path]
 
     html_paths = discover_bundle_html(out_dir)
     if not html_paths:
@@ -728,7 +736,7 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
             if match_name is None:
                 invalid_assets.append(f"{html_name} -> {reference_path} (invalid fingerprinted filename)")
                 continue
-            actual_digest = content_hash(asset_path)
+            actual_digest = cached_content_hash(asset_path)
             if match_name.group("digest") != actual_digest:
                 invalid_assets.append(
                     f"{html_name} -> {reference_path} (filename hash does not match file contents)"
@@ -756,7 +764,7 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
                 dynamic_name = HASHED_ASSET_FILENAME_RE.fullmatch(dynamic_relative.name)
                 if dynamic_name is None or dynamic_name.group("stem") != "catalogs.search":
                     invalid_assets.append(f"app.js -> {dynamic_reference} (invalid search-index fingerprint)")
-                elif dynamic_name.group("digest") != content_hash(dynamic_path):
+                elif dynamic_name.group("digest") != cached_content_hash(dynamic_path):
                     invalid_assets.append(f"app.js -> {dynamic_reference} (filename hash does not match file contents)")
                 else:
                     referenced_assets.add(dynamic_relative.as_posix())

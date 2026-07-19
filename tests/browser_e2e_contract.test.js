@@ -8,6 +8,7 @@ const root = path.join(__dirname, "..");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const packageLock = fs.readFileSync(path.join(root, "package-lock.json"), "utf8");
 const config = fs.readFileSync(path.join(root, "playwright.config.js"), "utf8");
+const playwrightConfig = require(path.join(root, "playwright.config.js"));
 const spec = fs.readFileSync(path.join(root, "tests", "e2e", "site-catalog.spec.js"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
 
@@ -22,9 +23,10 @@ assert.equal(packageJson.scripts["test:python"], "python tools/verify_project.py
 assert.equal(packageJson.scripts.build, "npm run build:local");
 
 assert.match(config, /webServer/);
-assert.equal(packageJson.scripts["build:e2e"], "python tools/build_deploy_bundle.py --out dist/site-e2e --seo-mode private");
+assert.equal(packageJson.scripts["build:e2e"], "python tools/build_deploy_bundle.py --out dist/site-e2e --seo-mode private --skip-if-current");
 assert.match(config, /npm run build:e2e/);
 assert.match(config, /--root dist\/site-e2e/);
+assert.ok(playwrightConfig.webServer.timeout >= 180_000, "The first E2E site build needs a Windows-safe startup timeout");
 assert.match(config, /tests\/e2e/);
 assert.match(config, /trace:\s*"retain-on-failure"/);
 assert.match(config, /toHaveScreenshot/);

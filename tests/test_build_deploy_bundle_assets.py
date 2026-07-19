@@ -157,6 +157,45 @@ def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None
         MODULE.validate_fingerprinted_bundle(out)
 
 
+def test_bundle_validation_hashes_each_shared_asset_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = tmp_path / "bundle"
+    static = out / "static"
+    static.mkdir(parents=True)
+
+    search = static / "catalogs.search.js"
+    search.write_text("window.search = true;\n", encoding="utf-8")
+    search_name = f"catalogs.search.{MODULE.content_hash(search)}.js"
+    search = search.rename(static / search_name)
+
+    app = static / "app.js"
+    app.write_text(
+        f'const SEARCH_INDEX_SCRIPT_SRC = "static/{search_name}";\n',
+        encoding="utf-8",
+    )
+    app_name = f"app.{MODULE.content_hash(app)}.js"
+    app = app.rename(static / app_name)
+
+    for html_name in ("index.html", "nested/index.html"):
+        html = out / html_name
+        html.parent.mkdir(parents=True, exist_ok=True)
+        html.write_text(f'<script src="static/{app_name}"></script>', encoding="utf-8")
+
+    real_content_hash = MODULE.content_hash
+    hash_calls: dict[Path, int] = {}
+
+    def counting_content_hash(path: Path, length: int = 12) -> str:
+        hash_calls[path] = hash_calls.get(path, 0) + 1
+        return real_content_hash(path, length)
+
+    monkeypatch.setattr(MODULE, "content_hash", counting_content_hash)
+
+    assert MODULE.validate_fingerprinted_bundle(out) == 2
+    assert hash_calls == {app: 1, search: 1}
+
+
 def test_public_html_routes_keep_original_cache_policy_and_include_404() -> None:
     headers = (ROOT / "_headers").read_text(encoding="utf-8")
     for route in (
