@@ -339,33 +339,7 @@ function syncFavoritesShareButton(count = getFavoriteEntries().length) {
 }
 
 async function shareFavoritesList() {
-  const items = getFavoriteEntries().map(({ catalogId, catalog, page }) => ({
-    catalogId: String(catalogId || catalog?.id || ""),
-    page
-  }));
-  if (!items.length) return;
-  const link = buildFavoritesShareUrl(items);
-
-  if (isMobileShareEnvironment()) {
-    try {
-      await navigator.share({
-        title: "המועדפים שלי",
-        text: `${items.length} עמודים שמורים מתוך קטלוגי רהיטי ברגיג`,
-        url: link
-      });
-      return;
-    } catch (error) {
-      if (error?.name === "AbortError") return;
-    }
-  }
-
-  try {
-    await copyTextToClipboard(link);
-    flashActionButton(els.favoritesShareButton, "הקישור הועתק");
-    showActionToast("הקישור לרשימת המועדפים הועתק", { tone: "link" });
-  } catch (_error) {
-    window.prompt("אפשר להעתיק את הקישור מכאן:", link);
-  }
+  await shareFavoriteWorkspaceEntries(favoriteWorkspaceActionEntries(), els.favoritesShareButton);
 }
 
 function handleFavoritesTransferKeydown(event) {

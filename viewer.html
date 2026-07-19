@@ -167,16 +167,28 @@
 
   <div class="favorites-panel hidden" id="favoritesPanel" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="favoritesTitle">
     <div class="favorites-backdrop" id="favoritesBackdrop"></div>
-    <section class="favorites-dialog" aria-describedby="favoritesDescription">
+    <section class="favorites-dialog">
       <header class="favorites-header">
         <div class="favorites-heading">
           <div class="favorites-title-row">
             <h2 id="favoritesTitle">המועדפים שלי</h2>
-            <p id="favoritesDescription"><span id="favoritesCount">0</span> עמודים שמורים</p>
-            <button class="favorites-share-inline" id="favoritesShareButton" type="button" aria-label="שיתוף רשימת המועדפים — אין עדיין עמודים שמורים" title="שיתוף רשימת המועדפים" disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8.2a3.1 3.1 0 1 0-2.94-4.08L8.87 7.56a3.1 3.1 0 1 0 0 4.88l6.19 3.44A3.1 3.1 0 1 0 16 14.2l-6.2-3.45a3.2 3.2 0 0 0 0-1.5L16 5.8A3.1 3.1 0 0 0 18 8.2Z"/></svg>
-              <span>שיתוף הרשימה</span>
-            </button>
+            <div class="favorites-header-workspace hidden" id="favoritesHeaderWorkspace">
+              <div class="favorites-filter-group">
+                <label class="visually-hidden" for="favoritesCatalogFilter">סינון לפי קטלוג</label>
+                <select id="favoritesCatalogFilter" aria-label="סינון המועדפים לפי קטלוג" aria-describedby="favoritesVisibleCount">
+                  <option value="">כל הקטלוגים</option>
+                </select>
+                <span class="favorites-visible-count" id="favoritesVisibleCount">0 פריטים</span>
+              </div>
+              <button class="favorites-share-inline favorites-header-action" id="favoritesShareButton" type="button" aria-label="שיתוף רשימת המועדפים — אין עדיין פריטים" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8.2a3.1 3.1 0 1 0-2.94-4.08L8.87 7.56a3.1 3.1 0 1 0 0 4.88l6.19 3.44A3.1 3.1 0 1 0 16 14.2l-6.2-3.45a3.2 3.2 0 0 0 0-1.5L16 5.8A3.1 3.1 0 0 0 18 8.2Z"/></svg>
+                <span id="favoritesShareLabel">שיתוף הרשימה</span>
+              </button>
+              <a class="favorites-share-inline favorites-header-action favorites-gmail-inline hidden" id="favoritesBulkGmail" href="#" target="_blank" rel="noopener noreferrer" aria-hidden="true" tabindex="-1">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5h16v11H4z"/><path d="m5 7.5 7 5.3 7-5.3"/></svg>
+                <span id="favoritesBulkGmailLabel">בירור מרוכז ב-Gmail</span>
+              </a>
+            </div>
           </div>
         </div>
         <div class="favorites-header-actions">
@@ -188,22 +200,9 @@
           </button>
         </div>
       </header>
-      <div class="favorites-tools hidden" id="favoritesTools">
-        <div class="favorites-filter-group">
-          <label for="favoritesCatalogFilter">סינון לפי קטלוג</label>
-          <select id="favoritesCatalogFilter" aria-describedby="favoritesVisibleCount">
-            <option value="">כל הקטלוגים</option>
-          </select>
-          <span class="favorites-visible-count" id="favoritesVisibleCount">0 פריטים</span>
-        </div>
-        <button class="button soft favorites-select-all" id="favoritesSelectAllVisible" type="button" aria-pressed="false">סימון כל המוצגים</button>
-        <div class="favorites-selection-bar hidden" id="favoritesSelectionBar" role="status" aria-live="polite">
-          <span><strong id="favoritesSelectionCount">0</strong> מסומנים</span>
-          <button class="button soft" id="favoritesShareSelected" type="button">שיתוף הבחירה</button>
-          <button class="button primary" id="favoritesCompareSelected" type="button" disabled>השוואה</button>
-          <small>להשוואה: 2–4 פריטים</small>
-          <button class="favorites-selection-clear" id="favoritesClearSelection" type="button">ביטול סימון</button>
-        </div>
+      <div class="favorites-selection-bar hidden" id="favoritesSelectionBar" role="status" aria-live="polite">
+        <span><strong id="favoritesSelectionCount">0</strong> מסומנים — פעולות השיתוף והבירור יחולו רק עליהם</span>
+        <button class="favorites-selection-clear" id="favoritesClearSelection" type="button">ביטול סימון</button>
       </div>
       <div class="favorites-grid" id="favoritesGrid"></div>
       <div class="favorites-filtered-empty empty-state ui-state hidden" id="favoritesFilteredEmpty" data-state="empty" role="status" aria-live="polite">
@@ -270,25 +269,6 @@
     </section>
   </div>
 
-  <div class="favorites-compare-overlay hidden" id="favoritesCompareOverlay" aria-hidden="true">
-    <div class="favorites-compare-backdrop" id="favoritesCompareBackdrop"></div>
-    <section class="favorites-compare-dialog" role="dialog" aria-modal="true" aria-labelledby="favoritesCompareTitle" aria-describedby="favoritesCompareDescription">
-      <header class="favorites-compare-header">
-        <div>
-          <span>השוואת דגמים</span>
-          <h2 id="favoritesCompareTitle">הדגמים שבחרת</h2>
-          <p id="favoritesCompareDescription">2 דגמים מוצגים זה לצד זה</p>
-        </div>
-        <button class="favorites-compare-close" id="favoritesCompareClose" type="button" aria-label="סגירת ההשוואה">×</button>
-      </header>
-      <div class="favorites-compare-grid" id="favoritesCompareGrid"></div>
-      <footer class="favorites-compare-actions">
-        <a class="button primary favorites-compare-inquiry" id="favoritesCompareGmail" href="#" target="_blank" rel="noopener noreferrer">בירור מרוכז ב-Gmail</a>
-        <button class="button soft" id="favoritesCompareShare" type="button">שיתוף ההשוואה</button>
-        <button class="button soft" id="favoritesCompareCopy" type="button">העתקת הפרטים</button>
-      </footer>
-    </section>
-  </div>
 
   <div class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
     <div class="lightbox-backdrop" id="lightboxBackdrop"></div>

@@ -15,16 +15,15 @@ const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
 for (const html of [template, favorites]) {
-  assert.match(html, /class="favorites-title-row"[\s\S]*?id="favoritesTitle"[\s\S]*?id="favoritesCount"[\s\S]*?id="favoritesShareButton"/);
-  assert.match(html, /id="favoritesShareButton"[^>]*title="שיתוף רשימת המועדפים"[^>]*disabled/);
+  assert.match(html, /class="favorites-title-row"[\s\S]*?id="favoritesTitle"[\s\S]*?id="favoritesCatalogFilter"[\s\S]*?id="favoritesVisibleCount"[\s\S]*?id="favoritesShareButton"[\s\S]*?id="favoritesBulkGmail"/);
+  assert.match(html, /id="favoritesShareButton"[^>]*disabled/);
   assert.match(html, /id="favoritesTransferOverlay"[^>]*aria-hidden="true"/);
   assert.match(html, /id="favoritesTransferMerge"/);
   assert.match(html, /id="favoritesTransferReplace"/);
-  assert.match(html, /id="favoritesCatalogFilter"/);
   assert.match(html, /id="favoritesSelectionBar"/);
   assert.match(html, /id="favoriteNoteOverlay"/);
-  assert.match(html, /id="favoritesCompareOverlay"/);
   assert.doesNotMatch(html, /favoritesExportButton|favoritesImportButton|favoritesImportInput/);
+  assert.doesNotMatch(html, /favoritesCompare|favoritesSelectAllVisible|favoritesShareSelected/);
 }
 
 assert.doesNotMatch(index, /id="headerFullscreenToggle"/);
@@ -44,21 +43,20 @@ assert.match(app, /function encodeFavoritePageRanges\(/);
 assert.match(app, /function decodeFavoritePageRanges\(/);
 assert.match(app, /function buildFavoritesShareToken\([\s\S]*?canonicalizeFavoriteShareItems\([\s\S]*?encodeFavoritePageRanges/);
 assert.match(app, /function parseLegacyFavoritesShareToken\(/);
-assert.match(app, /function shareFavoritesList\([\s\S]*?buildFavoritesShareUrl\(items\)[\s\S]*?copyTextToClipboard\(link\)/);
+assert.match(app, /function shareFavoritesList\([\s\S]*?shareFavoriteWorkspaceEntries\(favoriteWorkspaceActionEntries\(\), els\.favoritesShareButton\)/);
 assert.doesNotMatch(app, /FAVORITES_MAX_SAFE_SHARE_URL_LENGTH|exportFavoritesList|parseFavoritesImportDocument|requestFavoritesImport|handleFavoritesImportFile/);
 assert.match(app, /function moveFavoriteWithinVisibleOrder\(/);
 assert.match(app, /data-drag-favorite/);
-assert.match(app, /function openFavoritesCompare\(/);
 assert.match(app, /function openFavoriteNoteEditor\(/);
+assert.doesNotMatch(app, /openFavoritesCompare|favoritesCompare/);
 
-assert.match(css, /\.favorites-title-row\s*\{[\s\S]*?flex-wrap:\s*nowrap;/);
+assert.match(css, /\.favorites-title-row\s*\{[\s\S]*?flex-wrap:\s*wrap;/);
 assert.match(css, /\.favorites-share-inline\s*\{/);
-assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.favorites-share-inline span\s*\{[\s\S]*?display:\s*none;/);
+assert.match(css, /\.favorites-header-workspace\s*\{/);
 assert.match(css, /\.favorites-transfer-overlay\s*\{/);
 assert.match(css, /\.favorites-transfer-summary\s*\{[\s\S]*?white-space:\s*pre-line;/);
-assert.match(css, /\.favorites-tools\s*\{/);
 assert.match(css, /\.favorite-order-controls\s*\{/);
 assert.match(css, /\.favorite-drag-handle\s*\{/);
-assert.match(css, /\.favorites-compare-grid\s*\{/);
+assert.doesNotMatch(css, /\.favorites-tools\s*\{|\.favorites-compare-/);
 
 console.log('favorites_portability_contract.test.js: PASS');

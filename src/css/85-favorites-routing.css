@@ -111,25 +111,6 @@
   font-size: clamp(1.2rem, 1.8vw, 1.55rem);
   line-height: 1.2;
 }
-.favorites-heading p {
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 0;
-  padding: 0 10px;
-  border: 1px solid rgba(110, 86, 70, 0.16);
-  border-radius: 999px;
-  color: var(--muted);
-  background: rgba(255,255,255,0.78);
-  font-size: .86rem;
-  font-weight: 750;
-  white-space: nowrap;
-}
-.favorites-heading p #favoritesCount {
-  color: var(--brand-dark);
-  font-weight: 950;
-}
 .favorites-header-actions {
   display: inline-flex;
   align-items: center;
@@ -364,11 +345,6 @@
     gap: 6px 8px;
   }
   .favorites-heading h2 { font-size: 1.12rem; }
-  .favorites-heading p {
-    min-height: 26px;
-    padding-inline: 8px;
-    font-size: .78rem;
-  }
   .favorites-header-actions { gap: 7px; }
   .favorites-clear-button {
     min-height: 38px;

@@ -22,8 +22,6 @@ const VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_SHARE_PARAM = "selection";
 const FAVORITES_SHARE_VERSION = 2;
 const FAVORITES_SHARE_LEGACY_VERSION = 1;
-const FAVORITES_COMPARE_MIN_ITEMS = 2;
-const FAVORITES_COMPARE_MAX_ITEMS = 4;
 const FAVORITES_NOTE_MAX_LENGTH = 280;
 
 function getFavoritesStorage() {
@@ -156,8 +154,6 @@ const state = {
   favoritesDragKey: "",
   favoriteNoteEditingKey: "",
   favoriteNoteReturnFocus: null,
-  favoritesCompareOpen: false,
-  favoritesCompareReturnFocus: null,
   viewerOnboardingOpen: false,
   viewerOnboardingShownThisSession: false,
   viewerOnboardingStep: 0,
@@ -210,19 +206,18 @@ const els = {
   favoritesCloseButton: $("favoritesCloseButton"),
   favoritesClearButton: $("favoritesClearButton"),
   favoritesShareButton: $("favoritesShareButton"),
-  favoritesCount: $("favoritesCount"),
+  favoritesShareLabel: $("favoritesShareLabel"),
+  favoritesBulkGmail: $("favoritesBulkGmail"),
+  favoritesBulkGmailLabel: $("favoritesBulkGmailLabel"),
+  favoritesHeaderWorkspace: $("favoritesHeaderWorkspace"),
   favoritesGrid: $("favoritesGrid"),
   favoritesEmpty: $("favoritesEmpty"),
   favoritesFilteredEmpty: $("favoritesFilteredEmpty"),
   favoritesResetFilter: $("favoritesResetFilter"),
-  favoritesTools: $("favoritesTools"),
   favoritesCatalogFilter: $("favoritesCatalogFilter"),
   favoritesVisibleCount: $("favoritesVisibleCount"),
-  favoritesSelectAllVisible: $("favoritesSelectAllVisible"),
   favoritesSelectionBar: $("favoritesSelectionBar"),
   favoritesSelectionCount: $("favoritesSelectionCount"),
-  favoritesShareSelected: $("favoritesShareSelected"),
-  favoritesCompareSelected: $("favoritesCompareSelected"),
   favoritesClearSelection: $("favoritesClearSelection"),
   favoriteNoteOverlay: $("favoriteNoteOverlay"),
   favoriteNoteBackdrop: $("favoriteNoteBackdrop"),
@@ -233,15 +228,6 @@ const els = {
   favoriteNoteSave: $("favoriteNoteSave"),
   favoriteNoteCancel: $("favoriteNoteCancel"),
   favoriteNoteClose: $("favoriteNoteClose"),
-  favoritesCompareOverlay: $("favoritesCompareOverlay"),
-  favoritesCompareBackdrop: $("favoritesCompareBackdrop"),
-  favoritesCompareTitle: $("favoritesCompareTitle"),
-  favoritesCompareDescription: $("favoritesCompareDescription"),
-  favoritesCompareGrid: $("favoritesCompareGrid"),
-  favoritesCompareGmail: $("favoritesCompareGmail"),
-  favoritesCompareShare: $("favoritesCompareShare"),
-  favoritesCompareCopy: $("favoritesCompareCopy"),
-  favoritesCompareClose: $("favoritesCompareClose"),
   favoritesTransferOverlay: $("favoritesTransferOverlay"),
   favoritesTransferBackdrop: $("favoritesTransferBackdrop"),
   favoritesTransferTitle: $("favoritesTransferTitle"),

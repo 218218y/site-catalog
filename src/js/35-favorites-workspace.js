@@ -1,6 +1,6 @@
 /**
  * Source module: 35-favorites-workspace.js
- * Favorites workspace: notes, catalog filtering, ordering, multi-selection, sharing, and comparison.
+ * Favorites workspace: notes, catalog filtering, ordering, focused selection, sharing, and bulk inquiry.
  *
  * These source modules intentionally share one lexical scope and are concatenated
  * by tools/build_frontend_assets.py into the single browser file app.js.
@@ -9,7 +9,6 @@
 function favoriteWorkspaceEntryKey(entry) {
   return favoriteItemKey({ catalogId: entry?.catalog?.id || entry?.catalogId, page: entry?.page });
 }
-
 
 function favoriteWorkspaceCardKey(card) {
   if (!card) return "";
@@ -34,14 +33,18 @@ function favoriteWorkspaceVisibleEntries(entries = getFavoriteEntries()) {
   return filter ? entries.filter((entry) => String(entry.catalog?.id || entry.catalogId) === filter) : entries;
 }
 
+function favoriteWorkspaceActionEntries(entries = getFavoriteEntries()) {
+  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
+  return selectedEntries.length ? selectedEntries : favoriteWorkspaceVisibleEntries(entries);
+}
+
 function pruneFavoritesWorkspaceState(entries = getFavoriteEntries()) {
   const validKeys = new Set(entries.map(favoriteWorkspaceEntryKey).filter(Boolean));
   for (const key of state.favoritesSelectedKeys) {
     if (!validKeys.has(key)) state.favoritesSelectedKeys.delete(key);
   }
-  if (state.favoriteNoteEditingKey && !validKeys.has(state.favoriteNoteEditingKey)) closeFavoriteNoteEditor({ restoreFocus: false });
-  if (state.favoritesCompareOpen && favoriteWorkspaceSelectedEntries(entries).length < FAVORITES_COMPARE_MIN_ITEMS) {
-    closeFavoritesCompare({ restoreFocus: false });
+  if (state.favoriteNoteEditingKey && !validKeys.has(state.favoriteNoteEditingKey)) {
+    closeFavoriteNoteEditor({ restoreFocus: false });
   }
   if (state.favoritesFilterCatalogId && !entries.some((entry) => String(entry.catalog?.id || entry.catalogId) === state.favoritesFilterCatalogId)) {
     state.favoritesFilterCatalogId = "";
@@ -65,7 +68,7 @@ function syncFavoriteWorkspaceFilter(entries) {
   const options = favoriteWorkspaceFilterOptions(entries);
   const current = String(state.favoritesFilterCatalogId || "");
   els.favoritesCatalogFilter.innerHTML = [
-    `<option value="">כל הקטלוגים (${entries.length})</option>`,
+    '<option value="">כל הקטלוגים</option>',
     ...options.map(({ id, catalog, count }) => (
       `<option value="${escapeHtml(id)}">${escapeHtml(catalog?.title || id)} (${count})</option>`
     ))
@@ -74,45 +77,77 @@ function syncFavoriteWorkspaceFilter(entries) {
   state.favoritesFilterCatalogId = els.favoritesCatalogFilter.value;
 }
 
-function favoriteWorkspaceSelectionStatus(entries, visibleEntries) {
-  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
-  const selectedVisibleCount = visibleEntries.filter((entry) => state.favoritesSelectedKeys.has(favoriteWorkspaceEntryKey(entry))).length;
-  const allVisibleSelected = visibleEntries.length > 0 && selectedVisibleCount === visibleEntries.length;
-  return { selectedEntries, selectedVisibleCount, allVisibleSelected };
+function favoriteWorkspaceActionLabel(entries, visibleEntries) {
+  const selectedCount = favoriteWorkspaceSelectedEntries(entries).length;
+  if (selectedCount) return `${selectedCount} פריטים שסומנו`;
+  if (visibleEntries.length !== entries.length) return `${visibleEntries.length} פריטים שמוצגים`;
+  return `${entries.length} פריטים ברשימה`;
 }
 
-function syncFavoritesWorkspaceToolbar(entries, visibleEntries) {
-  const { selectedEntries, allVisibleSelected } = favoriteWorkspaceSelectionStatus(entries, visibleEntries);
-  const selectedCount = selectedEntries.length;
-  const hasEntries = entries.length > 0;
+function favoriteWorkspaceInquiryReference(entries) {
+  return {
+    subject: `בירור מרוכז על ${entries.length} דגמים`,
+    text: favoriteWorkspaceMessage(entries, { purpose: "inquiry" })
+  };
+}
 
-  els.favoritesTools?.classList.toggle("hidden", !hasEntries);
+function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
+  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
+  const selectedCount = selectedEntries.length;
+  const actionEntries = selectedCount ? selectedEntries : visibleEntries;
+  const hasEntries = entries.length > 0;
+  const actionLabel = favoriteWorkspaceActionLabel(entries, visibleEntries);
+
+  els.favoritesHeaderWorkspace?.classList.toggle("hidden", !hasEntries);
+  if (els.favoritesCatalogFilter) els.favoritesCatalogFilter.disabled = !hasEntries;
   if (els.favoritesVisibleCount) {
     els.favoritesVisibleCount.textContent = visibleEntries.length === entries.length
-      ? `${entries.length} פריטים` : `${visibleEntries.length} מתוך ${entries.length}`;
+      ? `${entries.length} פריטים`
+      : `${visibleEntries.length} מתוך ${entries.length}`;
   }
-  if (els.favoritesSelectAllVisible) {
-    els.favoritesSelectAllVisible.disabled = !visibleEntries.length;
-    els.favoritesSelectAllVisible.textContent = allVisibleSelected ? "ביטול סימון המוצגים" : "סימון כל המוצגים";
-    els.favoritesSelectAllVisible.setAttribute("aria-pressed", allVisibleSelected ? "true" : "false");
+
+  if (els.favoritesShareButton) {
+    els.favoritesShareButton.disabled = actionEntries.length === 0;
+    els.favoritesShareButton.setAttribute("aria-label", actionEntries.length
+      ? `שיתוף ${actionLabel}`
+      : "שיתוף רשימת המועדפים — אין עדיין פריטים");
+  }
+  if (els.favoritesShareLabel) {
+    els.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה";
+  }
+
+  const email = viewerInquiryEmailAddress();
+  if (els.favoritesBulkGmail) {
+    const available = Boolean(email && actionEntries.length);
+    els.favoritesBulkGmail.classList.toggle("hidden", !available);
+    els.favoritesBulkGmail.setAttribute("aria-hidden", available ? "false" : "true");
+    if (available) {
+      els.favoritesBulkGmail.removeAttribute("tabindex");
+      els.favoritesBulkGmail.href = viewerInquiryGmailUrl(email, favoriteWorkspaceInquiryReference(actionEntries));
+      els.favoritesBulkGmail.setAttribute("aria-label", `פתיחת בירור מרוכז ב-Gmail עבור ${actionLabel}`);
+    } else {
+      els.favoritesBulkGmail.setAttribute("tabindex", "-1");
+      els.favoritesBulkGmail.removeAttribute("href");
+      els.favoritesBulkGmail.removeAttribute("aria-label");
+    }
+  }
+  if (els.favoritesBulkGmailLabel) {
+    els.favoritesBulkGmailLabel.textContent = selectedCount ? "בירור על הבחירה ב-Gmail" : "בירור מרוכז ב-Gmail";
   }
 
   els.favoritesSelectionBar?.classList.toggle("hidden", selectedCount === 0);
   if (els.favoritesSelectionCount) els.favoritesSelectionCount.textContent = String(selectedCount);
-  if (els.favoritesShareSelected) els.favoritesShareSelected.disabled = selectedCount === 0;
-  if (els.favoritesCompareSelected) {
-    const validComparison = selectedCount >= FAVORITES_COMPARE_MIN_ITEMS && selectedCount <= FAVORITES_COMPARE_MAX_ITEMS;
-    els.favoritesCompareSelected.disabled = !validComparison;
-    els.favoritesCompareSelected.setAttribute("aria-label", validComparison
-      ? `השוואת ${selectedCount} פריטים שסומנו`
-      : `להשוואה יש לסמן ${FAVORITES_COMPARE_MIN_ITEMS} עד ${FAVORITES_COMPARE_MAX_ITEMS} פריטים`);
-  }
 }
 
 function favoriteWorkspaceNoteMarkup(entry) {
   const note = String(entry.note || "").trim();
-  if (!note) return '<span class="favorite-note-empty">ללא הערה</span>';
-  return `<span class="favorite-note-text">${escapeHtml(note)}</span>`;
+  if (!note) return "";
+  return `
+    <div class="favorite-note-summary">
+      <span class="favorite-note-label">הערה</span>
+      <span class="favorite-note-text">${escapeHtml(note)}</span>
+    </div>
+  `;
 }
 
 function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
@@ -142,10 +177,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
           <span>עמוד ${page}</span>
         </span>
       </button>
-      <div class="favorite-note-summary">
-        <span class="favorite-note-label">הערה</span>
-        ${favoriteWorkspaceNoteMarkup(entry)}
-      </div>
+      ${favoriteWorkspaceNoteMarkup(entry)}
       <div class="favorite-card-actions">
         <button class="favorite-card-action favorite-note-button" type="button" data-edit-favorite-note="1" aria-label="${noteActionLabel} עבור ${title}, עמוד ${page}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14v12H9l-4 3v-15Z"/><path d="M8 8h8M8 11.5h5"/></svg>
@@ -175,13 +207,11 @@ function renderFavoritesWorkspace(entries = getFavoriteEntries()) {
   if (!els.favoritesGrid) return;
   pruneFavoritesWorkspaceState(entries);
   const count = entries.length;
-  if (els.favoritesCount) els.favoritesCount.textContent = String(count);
   els.favoritesClearButton?.classList.toggle("hidden", count === 0);
   els.favoritesEmpty?.classList.toggle("hidden", count !== 0);
-  syncFavoritesShareButton(count);
   syncFavoriteWorkspaceFilter(entries);
   const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
-  syncFavoritesWorkspaceToolbar(entries, visibleEntries);
+  syncFavoriteWorkspaceHeaderActions(entries, visibleEntries);
   els.favoritesFilteredEmpty?.classList.toggle("hidden", count === 0 || visibleEntries.length > 0);
   els.favoritesGrid.classList.toggle("hidden", count === 0 || visibleEntries.length === 0);
   els.favoritesGrid.innerHTML = visibleEntries.map((entry, index) => favoriteWorkspaceCardMarkup(entry, index, visibleEntries.length)).join("");
@@ -240,18 +270,6 @@ function setFavoriteWorkspaceSelection(key, selected) {
   renderFavoritesWorkspace(getFavoriteEntries());
 }
 
-function toggleAllVisibleFavoritesSelection() {
-  const entries = getFavoriteEntries();
-  const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
-  const visibleKeys = visibleEntries.map(favoriteWorkspaceEntryKey);
-  const allSelected = visibleKeys.length > 0 && visibleKeys.every((key) => state.favoritesSelectedKeys.has(key));
-  visibleKeys.forEach((key) => {
-    if (allSelected) state.favoritesSelectedKeys.delete(key);
-    else state.favoritesSelectedKeys.add(key);
-  });
-  renderFavoritesWorkspace(entries);
-}
-
 function clearFavoritesSelection() {
   state.favoritesSelectedKeys.clear();
   renderFavoritesWorkspace(getFavoriteEntries());
@@ -262,8 +280,10 @@ function favoriteWorkspaceItemUrl(entry) {
 }
 
 function favoriteWorkspaceMessage(entries, options = {}) {
-  const { greeting = true } = options;
-  const lines = greeting ? ["שלום,", "רציתי לשתף כמה דגמים מתוך קטלוגי רהיטי ברגיג:", ""] : [];
+  const purpose = options.purpose === "inquiry" ? "inquiry" : "share";
+  const lines = purpose === "inquiry"
+    ? ["שלום,", "רציתי לברר לגבי הדגמים הבאים מתוך קטלוגי רהיטי ברגיג:", ""]
+    : ["שלום,", "רציתי לשתף כמה דגמים מתוך קטלוגי רהיטי ברגיג:", ""];
   entries.forEach((entry, index) => {
     lines.push(`${index + 1}. ${entry.catalog.title} — עמוד ${entry.page}`);
     if (String(entry.note || "").trim()) lines.push(`הערה: ${String(entry.note).trim()}`);
@@ -304,14 +324,10 @@ async function shareFavoriteWorkspaceEntries(entries, button = null) {
   try {
     await copyTextToClipboard(`${text}\n\nרשימת הבחירה: ${selectionUrl}`);
     if (button) flashActionButton(button, "הועתק");
-    showActionToast("פרטי הבחירה והקישורים הועתקו", { tone: "link" });
+    showActionToast("פרטי הרשימה והקישורים הועתקו", { tone: "link" });
   } catch (_error) {
-    window.prompt("אפשר להעתיק את פרטי הבחירה מכאן:", `${text}\n\nרשימת הבחירה: ${selectionUrl}`);
+    window.prompt("אפשר להעתיק את פרטי הרשימה מכאן:", `${text}\n\nרשימת הבחירה: ${selectionUrl}`);
   }
-}
-
-async function shareSelectedFavorites() {
-  await shareFavoriteWorkspaceEntries(favoriteWorkspaceSelectedEntries(), els.favoritesShareSelected);
 }
 
 function favoriteWorkspaceFindEntryByKey(key) {
@@ -392,87 +408,6 @@ function trapFavoriteWorkspaceDialogFocus(event, container, closeCallback) {
   return true;
 }
 
-function renderFavoritesCompare(entries = favoriteWorkspaceSelectedEntries()) {
-  if (!els.favoritesCompareGrid) return;
-  els.favoritesCompareGrid.style.setProperty("--favorites-compare-columns", String(Math.max(2, entries.length)));
-  els.favoritesCompareGrid.innerHTML = entries.map((entry) => {
-    const image = pageSrc(entry.catalog, entry.page);
-    const note = String(entry.note || "").trim();
-    return `
-      <article class="favorites-compare-card">
-        <span class="favorites-compare-image catalog-image-frame"${pageAspectStyle(entry.catalog, entry.page)}>
-          <img src="${escapeHtml(image)}" alt="${escapeHtml(entry.catalog.title)}, עמוד ${entry.page}" loading="eager" decoding="async"${catalogImageCrossOriginAttribute(image)} />
-        </span>
-        <div class="favorites-compare-card-copy">
-          <strong>${escapeHtml(entry.catalog.title)}</strong>
-          <span>עמוד ${entry.page}</span>
-          <p class="${note ? "" : "is-empty"}">${note ? escapeHtml(note) : "לא נוספה הערה"}</p>
-        </div>
-      </article>
-    `;
-  }).join("");
-  if (els.favoritesCompareDescription) els.favoritesCompareDescription.textContent = `${entries.length} דגמים מוצגים זה לצד זה`;
-  if (els.favoritesCompareGmail) {
-    const email = viewerInquiryEmailAddress();
-    const reference = {
-      subject: `בירור מרוכז על ${entries.length} דגמים`,
-      text: favoriteWorkspaceMessage(entries)
-    };
-    if (email) {
-      els.favoritesCompareGmail.href = viewerInquiryGmailUrl(email, reference);
-      els.favoritesCompareGmail.classList.remove("hidden");
-      els.favoritesCompareGmail.setAttribute("aria-hidden", "false");
-    } else {
-      els.favoritesCompareGmail.removeAttribute("href");
-      els.favoritesCompareGmail.classList.add("hidden");
-      els.favoritesCompareGmail.setAttribute("aria-hidden", "true");
-    }
-  }
-}
-
-function openFavoritesCompare() {
-  const entries = favoriteWorkspaceSelectedEntries();
-  if (entries.length < FAVORITES_COMPARE_MIN_ITEMS || entries.length > FAVORITES_COMPARE_MAX_ITEMS) {
-    showActionToast(`להשוואה יש לסמן ${FAVORITES_COMPARE_MIN_ITEMS} עד ${FAVORITES_COMPARE_MAX_ITEMS} פריטים`);
-    return;
-  }
-  state.favoritesCompareOpen = true;
-  state.favoritesCompareReturnFocus = document.activeElement;
-  renderFavoritesCompare(entries);
-  els.favoritesCompareOverlay?.classList.remove("hidden");
-  els.favoritesCompareOverlay?.setAttribute("aria-hidden", "false");
-  syncDocumentLock();
-  requestAnimationFrame(() => els.favoritesCompareClose?.focus?.());
-}
-
-function closeFavoritesCompare(options = {}) {
-  const { restoreFocus = true } = options;
-  const returnFocus = state.favoritesCompareReturnFocus;
-  state.favoritesCompareOpen = false;
-  state.favoritesCompareReturnFocus = null;
-  els.favoritesCompareOverlay?.classList.add("hidden");
-  els.favoritesCompareOverlay?.setAttribute("aria-hidden", "true");
-  syncDocumentLock();
-  if (restoreFocus) returnFocus?.focus?.();
-}
-
-async function shareFavoritesComparison() {
-  await shareFavoriteWorkspaceEntries(favoriteWorkspaceSelectedEntries(), els.favoritesCompareShare);
-}
-
-async function copyFavoritesComparison() {
-  const entries = favoriteWorkspaceSelectedEntries();
-  if (!entries.length) return;
-  const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
-  try {
-    await copyTextToClipboard(`${favoriteWorkspaceMessage(entries)}\n\nרשימת הבחירה: ${selectionUrl}`);
-    flashActionButton(els.favoritesCompareCopy, "הועתק");
-    showActionToast("פרטי ההשוואה הועתקו", { tone: "link" });
-  } catch (_error) {
-    window.prompt("אפשר להעתיק את פרטי ההשוואה מכאן:", favoriteWorkspaceMessage(entries));
-  }
-}
-
 function handleFavoritesWorkspaceGridClick(event) {
   const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
   if (!card || !els.favoritesGrid?.contains(card)) return false;
@@ -538,10 +473,7 @@ function attachFavoritesWorkspaceEvents() {
     renderFavoritesWorkspace(getFavoriteEntries());
     requestAnimationFrame(() => els.favoritesCatalogFilter?.focus?.());
   });
-  els.favoritesSelectAllVisible?.addEventListener("click", toggleAllVisibleFavoritesSelection);
   els.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection);
-  els.favoritesShareSelected?.addEventListener("click", () => shareSelectedFavorites());
-  els.favoritesCompareSelected?.addEventListener("click", openFavoritesCompare);
   els.favoritesGrid?.addEventListener("change", handleFavoritesWorkspaceGridChange);
   els.favoritesGrid?.addEventListener("dragstart", handleFavoritesWorkspaceDragStart);
   els.favoritesGrid?.addEventListener("dragover", handleFavoritesWorkspaceDragOver);
@@ -554,11 +486,4 @@ function attachFavoritesWorkspaceEvents() {
   els.favoriteNoteClose?.addEventListener("click", () => closeFavoriteNoteEditor());
   els.favoriteNoteBackdrop?.addEventListener("click", () => closeFavoriteNoteEditor());
   els.favoriteNoteOverlay?.addEventListener("keydown", (event) => trapFavoriteWorkspaceDialogFocus(event, els.favoriteNoteOverlay, closeFavoriteNoteEditor));
-
-  els.favoritesCompareClose?.addEventListener("click", () => closeFavoritesCompare());
-  els.favoritesCompareBackdrop?.addEventListener("click", () => closeFavoritesCompare());
-  els.favoritesCompareShare?.addEventListener("click", () => shareFavoritesComparison());
-  els.favoritesCompareCopy?.addEventListener("click", () => copyFavoritesComparison());
-  els.favoritesCompareGmail?.addEventListener("click", () => window.setTimeout(() => closeFavoritesCompare({ restoreFocus: false }), 0));
-  els.favoritesCompareOverlay?.addEventListener("keydown", (event) => trapFavoriteWorkspaceDialogFocus(event, els.favoritesCompareOverlay, closeFavoritesCompare));
 }

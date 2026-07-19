@@ -178,7 +178,7 @@ function currentDocumentMetadata(catalog = state?.catalog || null) {
   if (isAppPage("favorites")) {
     return {
       title: `המועדפים שלי | ${brand}`,
-      description: "עמודי הקטלוג ששמרת במועדפים לצפייה ולהשוואה נוחה.",
+      description: "עמודי הקטלוג ששמרת במועדפים, עם הערות, סינון ושיתוף מרוכז.",
       url: absoluteDocumentUrl(favoritesDocumentUrl())
     };
   }
