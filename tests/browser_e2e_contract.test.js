@@ -23,10 +23,15 @@ assert.equal(packageJson.scripts["test:python"], "python tools/verify_project.py
 assert.equal(packageJson.scripts.build, "npm run build:local");
 
 assert.match(config, /webServer/);
-assert.equal(packageJson.scripts["build:e2e"], "python tools/build_deploy_bundle.py --out dist/site-e2e --seo-mode private --skip-if-current");
+assert.equal(packageJson.scripts["build:e2e"], "python tools/build_deploy_bundle.py --out dist/site-local --seo-mode private --skip-if-current --clean-legacy-artifacts");
 assert.match(config, /npm run build:e2e/);
-assert.match(config, /--root dist\/site-e2e/);
-assert.ok(playwrightConfig.webServer.timeout >= 180_000, "The first E2E site build needs a Windows-safe startup timeout");
+assert.match(config, /--root dist\/site-local/);
+assert.doesNotMatch(config, /dist\/site-e2e/);
+assert.match(
+  fs.readFileSync(path.join(root, "tools", "e2e_server.js"), "utf8"),
+  /DEFAULT_ROOT = path\.join\(PROJECT_ROOT, "dist", "site-local"\)/
+);
+assert.ok(playwrightConfig.webServer.timeout >= 180_000, "A first or stale shared E2E site build needs a Windows-safe startup timeout");
 assert.match(config, /tests\/e2e/);
 assert.match(config, /trace:\s*"retain-on-failure"/);
 assert.match(config, /toHaveScreenshot/);

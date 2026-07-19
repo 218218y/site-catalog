@@ -7,9 +7,9 @@ const explicitExecutable = String(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PAT
 const launchOptions = {
   args: ["--disable-dev-shm-usage"]
 };
-// The web-server startup includes a first-time static build. The generated SEO
-// route graph can take noticeably longer on Windows than on a warm Linux CI
-// runner, so keep this separate from the per-test timeout.
+// E2E reuses the same validated private artifact as start-server.bat. The
+// currentness check is normally instant; a first or stale build can still take
+// noticeably longer on Windows, so keep startup separate from per-test timeouts.
 const webServerStartupTimeout = 5 * 60_000;
 if (explicitExecutable && fs.existsSync(explicitExecutable)) {
   launchOptions.executablePath = explicitExecutable;
@@ -54,7 +54,7 @@ module.exports = defineConfig({
     launchOptions
   },
   webServer: {
-    command: "npm run build:e2e && node tools/e2e_server.js --port 4173 --root dist/site-e2e",
+    command: "npm run build:e2e && node tools/e2e_server.js --port 4173 --root dist/site-local",
     url: "http://127.0.0.1:4173/",
     reuseExistingServer: !process.env.CI,
     timeout: webServerStartupTimeout

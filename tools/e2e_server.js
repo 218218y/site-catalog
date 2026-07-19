@@ -7,7 +7,7 @@ const path = require("node:path");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_PORT = 4173;
-const DEFAULT_ROOT = path.join(PROJECT_ROOT, "dist", "site-e2e");
+const DEFAULT_ROOT = path.join(PROJECT_ROOT, "dist", "site-local");
 const MIME_TYPES = new Map([
   [".html", "text/html; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],

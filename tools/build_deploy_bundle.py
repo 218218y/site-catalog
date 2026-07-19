@@ -124,7 +124,7 @@ SEARCH_INDEX_RUNTIME_RE = re.compile(r'const SEARCH_INDEX_SCRIPT_SRC = "(?P<url>
 ARTIFACT_STATE_SCHEMA = 2
 ARTIFACT_STATE_SUFFIX = ".build.json"
 BUILD_SIGNATURE_VERSION = "site-bundle-v3"
-LEGACY_ARTIFACT_DIRS = ("dist/seo-private", "dist/seo-public")
+LEGACY_ARTIFACT_DIRS = ("dist/seo-private", "dist/seo-public", "dist/site-e2e")
 BUILD_INPUT_FILES = (
     "_headers.template",
     "_redirects",
