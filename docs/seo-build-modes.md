@@ -93,3 +93,16 @@ npm run build:deploy:public
 4. להריץ את כל הבדיקות.
 5. לבדוק JSON-LD בכלי הבדיקה של Google.
 6. לפתוח Search Console ולשלוח את `sitemap.xml` רק לאחר ההעלאה הציבורית.
+
+## Local source pages versus generated clean routes
+
+The checked-in root pages intentionally use the legacy static URLs
+`catalog.html?catalog=...` and `viewer.html?catalog=...&page=...`. This keeps the
+normal local server compatible with plain static servers such as
+`python -m http.server`, where nested clean-route files are not present.
+
+A deploy/SEO bundle generated with `--include-seo-routes` contains the matching
+`catalog/<id>/index.html` and `catalog/<id>/page/<n>/index.html` files. Those
+pages declare `data-clean-routes="true"`, so browser navigation and sharing use
+the clean public URLs. The source-root pages declare `data-clean-routes="false"`
+and never navigate to a route that does not exist beside them.

@@ -252,10 +252,24 @@ def common_page_replacements(seo: Any, config: SeoConfig, *, base_tag: str = "",
     }
 
 
-def static_home_navigation(taxonomy: Taxonomy, *, mobile: bool = False) -> str:
+def local_category_href(category: TaxonomyCategory) -> str:
+    return f"index.html#cat/{category.slug}"
+
+
+def local_catalog_href(catalog_id: str) -> str:
+    return f"catalog.html?catalog={catalog_id}"
+
+
+def static_home_navigation(
+    taxonomy: Taxonomy,
+    *,
+    mobile: bool = False,
+    clean_routes_enabled: bool = True,
+) -> str:
     role = ' role="menuitem"' if mobile else ""
     return "\n".join(
-        f'<a href="/{category_path(category)}" data-category="{html.escape(category.name, quote=True)}"{role}>'
+        f'<a href="{html.escape((f"/{category_path(category)}" if clean_routes_enabled else local_category_href(category)), quote=True)}" '
+        f'data-category="{html.escape(category.name, quote=True)}"{role}>'
         f'{html.escape(category.name)}</a>'
         for category in taxonomy.categories
     )
@@ -265,6 +279,8 @@ def static_home_catalog_grid(
     catalogs: Sequence[Mapping[str, Any]],
     taxonomy: Taxonomy,
     config: SeoConfig,
+    *,
+    clean_routes_enabled: bool = True,
 ) -> str:
     sections: list[str] = []
     for category in taxonomy.categories:
@@ -274,13 +290,14 @@ def static_home_catalog_grid(
         ]
         if not category_catalogs:
             continue
-        cards = "\n".join(catalog_card(item, config) for item in category_catalogs)
+        cards = "\n".join(catalog_card(item, config, clean_routes_enabled=clean_routes_enabled) for item in category_catalogs)
+        category_href = f"/{category_path(category)}" if clean_routes_enabled else local_category_href(category)
         sections.append(
             '<section class="catalog-category-section" '
             f'data-category-section="{html.escape(category.name, quote=True)}">'
             '<div class="catalog-category-heading">'
-            f'<h2><a href="/{category_path(category)}">{html.escape(category.name)}</a></h2>'
-            f'<a class="catalog-category-all-link" href="/{category_path(category)}">לכל הקטלוגים בקטגוריה</a>'
+            f'<h2><a href="{html.escape(category_href, quote=True)}">{html.escape(category.name)}</a></h2>'
+            f'<a class="catalog-category-all-link" href="{html.escape(category_href, quote=True)}">לכל הקטלוגים בקטגוריה</a>'
             '</div>'
             f'<div class="catalog-grid">{cards}</div>'
             '</section>'
@@ -295,17 +312,25 @@ def default_site_shell_replacements(
     taxonomy: Taxonomy | None = None,
     catalogs: Sequence[Mapping[str, Any]] = (),
     config: SeoConfig | None = None,
+    clean_routes_enabled: bool = False,
 ) -> dict[str, str]:
     home_ready = page.mode == "home" and taxonomy is not None and config is not None
     return {
         "{{PAGE_MODE}}": page.mode,
+        "{{CLEAN_ROUTES_ENABLED}}": "true" if clean_routes_enabled else "false",
         "{{BODY_DATA_ATTRIBUTES}}": "",
         "{{SITE_FOOTER}}": site_footer,
-        "{{INITIAL_CATEGORY_NAV}}": static_home_navigation(taxonomy) if home_ready else "",
-        "{{INITIAL_MOBILE_CATEGORY_NAV}}": static_home_navigation(taxonomy, mobile=True) if home_ready else "",
+        "{{INITIAL_CATEGORY_NAV}}": static_home_navigation(
+            taxonomy, clean_routes_enabled=clean_routes_enabled
+        ) if home_ready else "",
+        "{{INITIAL_MOBILE_CATEGORY_NAV}}": static_home_navigation(
+            taxonomy, mobile=True, clean_routes_enabled=clean_routes_enabled
+        ) if home_ready else "",
         "{{CATALOGS_SECTION_EXTRA_CLASS}}": "" if page.mode == "home" else " hidden",
         "{{CATALOG_GRID_BUSY}}": "false" if home_ready else "true",
-        "{{INITIAL_CATALOG_GRID}}": static_home_catalog_grid(catalogs, taxonomy, config) if home_ready else "",
+        "{{INITIAL_CATALOG_GRID}}": static_home_catalog_grid(
+            catalogs, taxonomy, config, clean_routes_enabled=clean_routes_enabled
+        ) if home_ready else "",
         "{{CATALOG_DETAIL_EXTRA_CLASS}}": "" if page.mode == "catalog" else " hidden",
         "{{CATALOG_DETAIL_TITLE}}": "קטלוג",
         "{{CATALOG_DETAIL_DESCRIPTION}}": "בחרו קטלוג לצפייה בעמודים.",
@@ -327,6 +352,7 @@ def render_base_document(
     site_footer: str,
     mode: str,
     catalogs: Sequence[Mapping[str, Any]],
+    clean_routes_enabled: bool,
 ) -> Path:
     template = templates.setdefault(page.template_filename, read_required_text(root, page.template_filename))
     seo = page_seo(config, taxonomy, footer_content, page, mode)
@@ -341,6 +367,7 @@ def render_base_document(
                 taxonomy=taxonomy,
                 catalogs=catalogs,
                 config=config,
+                clean_routes_enabled=clean_routes_enabled,
             )
         )
     else:
@@ -370,22 +397,24 @@ def category_navigation(taxonomy: Taxonomy, *, active_slug: str = "") -> str:
     return "\n".join(links)
 
 
-def catalog_card(catalog: Mapping[str, Any], config: SeoConfig) -> str:
+def catalog_card(catalog: Mapping[str, Any], config: SeoConfig, *, clean_routes_enabled: bool = True) -> str:
     catalog_id = str(catalog.get("id", "")).strip()
     title = str(catalog.get("title", "קטלוג")).strip()
     description = str(catalog.get("description", "")).strip()
     page_count = max(0, int(catalog.get("pages", 0) or 0))
     image = catalog_cover_url(config, catalog)
+    href = f"/{catalog_path(catalog_id)}" if clean_routes_enabled else local_catalog_href(catalog_id)
+    escaped_href = html.escape(href, quote=True)
     return f"""
 <article class="catalog-card seo-catalog-card">
-  <a class="catalog-cover-frame" href="/{catalog_path(catalog_id)}" aria-label="פתיחת {html.escape(title, quote=True)}">
+  <a class="catalog-cover-frame" href="{escaped_href}" aria-label="פתיחת {html.escape(title, quote=True)}">
     <img src="{html.escape(image, quote=True)}" alt="שער {html.escape(title, quote=True)}" loading="lazy" decoding="async" />
     <span class="catalog-page-count">{page_count} עמודים</span>
   </a>
   <div class="catalog-card-body">
-    <h3><a href="/{catalog_path(catalog_id)}">{html.escape(title)}</a></h3>
+    <h3><a href="{escaped_href}">{html.escape(title)}</a></h3>
     <p>{html.escape(description)}</p>
-    <a class="button soft seo-catalog-open" href="/{catalog_path(catalog_id)}">לצפייה בקטלוג</a>
+    <a class="button soft seo-catalog-open" href="{escaped_href}">לצפייה בקטלוג</a>
   </div>
 </article>""".strip()
 
@@ -571,7 +600,7 @@ def render_catalog_route(
     )
     synthetic_page = PageDocument("", "catalog", title, description, route_path)
     replacements = common_page_replacements(seo, config, base_tag='<base href="/" />', route_preload=image_preload(image))
-    replacements.update(default_site_shell_replacements(synthetic_page, site_footer, taxonomy=taxonomy, catalogs=(), config=config))
+    replacements.update(default_site_shell_replacements(synthetic_page, site_footer, taxonomy=taxonomy, catalogs=(), config=config, clean_routes_enabled=True))
     replacements.update(
         {
             "{{BODY_DATA_ATTRIBUTES}}": f' data-catalog-id="{html.escape(catalog_id, quote=True)}"',
@@ -626,7 +655,7 @@ def render_catalog_page_route(
     )
     synthetic_page = PageDocument("", "viewer", title, description, route_path)
     replacements = common_page_replacements(seo, config, base_tag='<base href="/" />', route_preload=image_preload(image))
-    replacements.update(default_site_shell_replacements(synthetic_page, site_footer))
+    replacements.update(default_site_shell_replacements(synthetic_page, site_footer, clean_routes_enabled=True))
     replacements.update(
         {
             "{{BODY_DATA_ATTRIBUTES}}": (
@@ -777,6 +806,7 @@ def render_site_pages(
                 site_footer=site_footer,
                 mode=mode,
                 catalogs=catalogs,
+                clean_routes_enabled=include_seo_routes,
             )
         )
 

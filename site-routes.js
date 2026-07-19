@@ -108,6 +108,17 @@
     return baseSegments.length ? `/${baseSegments.join("/")}/` : "/";
   }
 
+  function cleanRoutesEnabled() {
+    const declared = String(global.document?.body?.dataset?.cleanRoutes || "").trim().toLowerCase();
+    if (declared === "false") return false;
+
+    // Generated deploy pages opt in explicitly. Older cached deploy pages did
+    // not have the marker, so the backwards-compatible default remains true.
+    // Checked-in local pages always declare false because nested route files
+    // are intentionally not generated beside the source documents.
+    return true;
+  }
+
   function runtimeBasePath() {
     return basePathFromLocation(global.location || { pathname: "/" }, global.document?.body?.dataset?.page || "");
   }
@@ -147,15 +158,21 @@
 
   function catalogUrl(catalogId) {
     const normalizedCatalogId = safeRouteToken(catalogId);
-    return normalizedCatalogId
-      ? joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/`)
-      : buildRelativeUrl(PAGE_CATALOG);
+    if (!normalizedCatalogId) return buildRelativeUrl(PAGE_CATALOG);
+    if (!cleanRoutesEnabled()) {
+      return buildRelativeUrl(PAGE_CATALOG, { catalog: normalizedCatalogId });
+    }
+    return joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/`);
   }
 
   function categoryUrl(categorySlug, subcategorySlug = "") {
     const category = safeRouteToken(categorySlug);
     const subcategory = safeRouteToken(subcategorySlug);
     if (!category) return homeUrl();
+    if (!cleanRoutesEnabled()) {
+      const route = `${category}${subcategory ? `/${subcategory}` : ""}`;
+      return `${homeUrl()}#cat/${route}`;
+    }
     return joinBasePath(`${CLEAN_CATEGORY_SEGMENT}/${category}/${subcategory ? `${subcategory}/` : ""}`);
   }
 
@@ -166,7 +183,15 @@
   function viewerUrl(catalogId, page = 1, options = {}) {
     const normalizedCatalogId = safeRouteToken(catalogId);
     if (!normalizedCatalogId) return buildRelativeUrl(PAGE_VIEWER);
-    const base = joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/${CLEAN_PAGE_SEGMENT}/${positiveInteger(page)}/`);
+    const currentPage = positiveInteger(page);
+    if (!cleanRoutesEnabled()) {
+      return buildRelativeUrl(PAGE_VIEWER, {
+        catalog: normalizedCatalogId,
+        page: currentPage,
+        source: options.source === FAVORITES_SOURCE ? FAVORITES_SOURCE : ""
+      });
+    }
+    const base = joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/${CLEAN_PAGE_SEGMENT}/${currentPage}/`);
     return options.source === FAVORITES_SOURCE ? `${base}?source=${FAVORITES_SOURCE}` : base;
   }
 
@@ -202,6 +227,7 @@
     matchPageFromLocation,
     pageFromLocation,
     basePathFromLocation,
+    cleanRoutesEnabled,
     isDocumentLocation,
     isSameAppDocumentLocation,
     buildRelativeUrl,

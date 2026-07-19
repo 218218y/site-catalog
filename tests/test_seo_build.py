@@ -47,6 +47,33 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+
+def test_root_private_build_uses_legacy_routes_when_nested_pages_are_not_emitted(tmp_path: Path) -> None:
+    MODULE.render_site_pages(
+        ROOT,
+        tmp_path,
+        build_assets=False,
+        seo_mode="private",
+        include_seo_routes=False,
+    )
+    home = read(tmp_path / "index.html")
+    assert 'data-clean-routes="false"' in home
+    assert 'href="catalog.html?catalog=opening-fredi-2026"' in home
+    assert 'href="index.html#cat/opening-wardrobes"' in home
+    assert 'href="/catalog/opening-fredi-2026/"' not in home
+    assert not (tmp_path / "catalog" / "opening-fredi-2026" / "index.html").exists()
+
+
+def test_complete_private_build_enables_clean_routes_only_when_route_files_exist(
+    seo_outputs: tuple[Path, Path],
+) -> None:
+    private, _public = seo_outputs
+    home = read(private / "index.html")
+    catalog = read(private / "catalog" / "opening-fredi-2026" / "index.html")
+    assert 'data-clean-routes="true"' in home
+    assert 'href="/catalog/opening-fredi-2026/"' in home
+    assert 'data-clean-routes="true"' in catalog
+
 def test_public_mode_requires_an_explicit_second_confirmation(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="confirm-public-indexing"):
         MODULE.render_site_pages(

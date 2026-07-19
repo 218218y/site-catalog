@@ -87,4 +87,25 @@ assert.equal(
   false
 );
 
+const legacyContext = {
+  globalThis: {
+    document: { body: { dataset: { page: 'home', cleanRoutes: 'false' } } },
+    location: { pathname: '/', search: '', origin: 'http://localhost:8080' }
+  },
+  URLSearchParams,
+  URL
+};
+vm.createContext(legacyContext);
+vm.runInContext(source, legacyContext);
+const legacyRoutes = legacyContext.globalThis.BargigRoutes;
+
+assert.equal(legacyRoutes.cleanRoutesEnabled(), false);
+assert.equal(legacyRoutes.catalogUrl('opening-tbi-2026'), '/catalog.html?catalog=opening-tbi-2026');
+assert.equal(legacyRoutes.categoryUrl('opening-wardrobes'), '/#cat/opening-wardrobes');
+assert.equal(legacyRoutes.categoryUrl('kids', 'kids-rooms'), '/#cat/kids/kids-rooms');
+assert.equal(
+  legacyRoutes.viewerUrl('opening-tbi-2026', 7, { source: 'favorites' }),
+  '/viewer.html?catalog=opening-tbi-2026&page=7&source=favorites'
+);
+
 console.log('site_routes.test.js: PASS');
