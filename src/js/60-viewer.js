@@ -1132,6 +1132,7 @@ function prepareViewerScrollIsolatedImage(page) {
 
 function enterViewerScrollIsolatedZoom(nextZoom, focalClientX = null, focalClientY = null) {
   if (!isScrollViewerMode() || !state.catalog) return false;
+  clearViewerScrollPointerHandoff();
 
   const page = clampPage(state.page, state.catalog);
   const focal = getViewerScrollFrameFocal(page, focalClientX, focalClientY);
@@ -1167,6 +1168,7 @@ function exitViewerScrollIsolatedZoom(options = {}) {
   if (!state.viewerScrollIsolatedZoom) return false;
   const { restorePage = true, nextZoom = AUTO_VIEWER_ZOOM } = options;
 
+  clearViewerScrollPointerHandoff();
   state.viewerScrollIsolatedZoom = false;
   state.viewerScrollIsolatedPage = 0;
   state.singleImageLoadToken += 1;
@@ -1202,21 +1204,20 @@ function resumeViewerScrollFromIsolatedZoom(deltaX = 0, deltaY = 0) {
   return true;
 }
 
-function panViewerScrollIsolatedZoomByWheel(deltaX = 0, deltaY = 0) {
-  if (!isViewerScrollIsolatedZoom()) return false;
+function consumeViewerScrollIsolatedPan(deltaX = 0, deltaY = 0) {
+  if (!isViewerScrollIsolatedZoom()) return null;
 
   const metrics = getSingleImageDisplayMetrics();
-  if (!metrics) return false;
+  if (!metrics) return null;
 
   const safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0;
   const safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0;
   const previousPanX = state.panX;
   const previousPanY = state.panY;
 
-  // A normal wheel/trackpad gesture first pans the enlarged standalone image.
-  // Only the vertical remainder that cannot be consumed inside the image is
-  // handed back to the continuous viewer, so reaching an edge feels like one
-  // uninterrupted scroll instead of an immediate zoom dismissal.
+  // Wheel, precision-trackpad and touch input all consume movement through this
+  // single boundary calculation. The enlarged image receives as much movement
+  // as its real pan range allows; only the unconsumed remainder may leave zoom.
   state.panX = previousPanX - safeDeltaX;
   state.panY = previousPanY - safeDeltaY;
   clampSinglePan();
@@ -1227,11 +1228,21 @@ function panViewerScrollIsolatedZoomByWheel(deltaX = 0, deltaY = 0) {
     applySingleZoom();
   }
 
+  const consumedDeltaX = previousPanX - state.panX;
   const consumedDeltaY = previousPanY - state.panY;
-  const remainingDeltaY = safeDeltaY - consumedDeltaY;
-  const hasVerticalExitIntent = Math.abs(safeDeltaY) > Math.abs(safeDeltaX) * 0.5;
-  if (hasVerticalExitIntent && Math.abs(remainingDeltaY) > 0.75) {
-    resumeViewerScrollFromIsolatedZoom(0, remainingDeltaY);
+  return {
+    remainingDeltaX: safeDeltaX - consumedDeltaX,
+    remainingDeltaY: safeDeltaY - consumedDeltaY,
+    hasVerticalExitIntent: Math.abs(safeDeltaY) > Math.abs(safeDeltaX) * 0.5
+  };
+}
+
+function panViewerScrollIsolatedZoomByWheel(deltaX = 0, deltaY = 0) {
+  const result = consumeViewerScrollIsolatedPan(deltaX, deltaY);
+  if (!result) return false;
+
+  if (result.hasVerticalExitIntent && Math.abs(result.remainingDeltaY) > 0.75) {
+    resumeViewerScrollFromIsolatedZoom(0, result.remainingDeltaY);
   }
 
   return true;
@@ -1912,6 +1923,7 @@ function openLightbox(page = 1, options = {}) {
   state.viewerScrollLoadToken += 1;
   state.viewerScrollIsolatedZoom = false;
   state.viewerScrollIsolatedPage = 0;
+  clearViewerScrollPointerHandoff();
   state.page = clampPage(page, state.catalog);
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
@@ -1965,6 +1977,7 @@ function hideLightboxUi() {
   state.viewerScrollZoomAnchor = null;
   state.viewerScrollIsolatedZoom = false;
   state.viewerScrollIsolatedPage = 0;
+  clearViewerScrollPointerHandoff();
   window.clearTimeout(state.viewerScrollPageAnimationTimer);
   state.viewerScrollPageAnimationTimer = 0;
   clearViewerScrollWheelGesture();

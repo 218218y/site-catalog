@@ -311,6 +311,12 @@
 .lightbox.fit-width .viewer-scroll-page {
   scroll-snap-align: none;
 }
+.lightbox.viewer-touch-handoff-active .viewer-scroll-pages {
+  /* A touch gesture that began under touch-action:none is forwarded manually
+     after leaving isolated zoom. Suspend snapping until that same contact ends,
+     then restore the normal proximity snap behavior. */
+  scroll-snap-type: none;
+}
 .viewer-scroll-page > img {
   display: block;
   width: 100%;

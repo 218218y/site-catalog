@@ -121,6 +121,7 @@ const state = {
   viewerScrollZoomAnchor: null,
   viewerScrollIsolatedZoom: false,
   viewerScrollIsolatedPage: 0,
+  viewerScrollPointerHandoff: null,
   viewerScrollPageAnimationTimer: 0,
   viewerScrollSettleTimer: 0,
   viewerScrollTargetPage: 0,
