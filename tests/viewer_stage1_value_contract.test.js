@@ -70,6 +70,12 @@ assert.match(css, /\.viewer-inquiry-button\s*\{[\s\S]*?position:\s*fixed;[\s\S]*
 assert.match(css, /\.viewer-inquiry-dialog\s*\{[\s\S]*?color:\s*var\(--ink\);[\s\S]*?linear-gradient\(180deg, rgba\(255,253,251/);
 assert.match(css, /\.viewer-inquiry-action\s*\{[\s\S]*?min-height:\s*56px;/);
 assert.match(css, /\.viewer-inquiry-action\.primary\s*\{[\s\S]*?linear-gradient\(135deg, var\(--brand\), var\(--brand-dark\)\)/);
+const inquiryPreviewRule = css.match(/\.viewer-inquiry-preview-frame\s*\{([\s\S]*?)\}/);
+assert.ok(inquiryPreviewRule, "inquiry preview frame rule should exist");
+assert.match(inquiryPreviewRule[1], /--catalog-watermark-width:\s*32%;/, "inquiry watermark must scale proportionally with the compact preview");
+assert.match(inquiryPreviewRule[1], /--catalog-watermark-top:\s*5%;/, "inquiry watermark offset must scale with the compact preview");
+assert.match(css, /width:\s*var\(--catalog-watermark-width,\s*clamp\(58px, 16%, 138px\)\);/, "shared watermark sizing must allow component-level proportional overrides");
+assert.doesNotMatch(css, /\.viewer-inquiry-preview-frame::after\s*\{[^}]*width:\s*clamp\(58px/s, "compact inquiry preview must not inherit the desktop watermark minimum directly");
 assert.doesNotMatch(css, /\.viewer-inquiry-action small\s*\{/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]*?#lightboxPinTopBar,[\s\S]*?display:\s*none !important;/);
 assert.match(css, /@media \(max-width: 480px\)[\s\S]*?grid-template-areas:\s*"brand actions";/);

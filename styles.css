@@ -4019,6 +4019,12 @@ a.reader-home:focus-visible {
   overflow: hidden;
   border-radius: 14px;
   background: #fff;
+  /* The shared watermark has a desktop-sized minimum. This compact preview
+     instead scales the mark from its own rendered width, so the 112px desktop
+     frame and the 88px mobile frame keep the same visual proportion. */
+  --catalog-watermark-width: 32%;
+  --catalog-watermark-top: 5%;
+  --catalog-watermark-filter: drop-shadow(0 3px 8px rgba(0,0,0,.16));
 }
 .viewer-inquiry-preview-frame img {
   position: absolute;
@@ -4266,17 +4272,17 @@ a.reader-home:focus-visible {
 .has-bargig-logo .search-result-thumb-frame::after {
   content: "";
   position: absolute;
-  top: clamp(8px, 2.2%, 18px);
+  top: var(--catalog-watermark-top, clamp(8px, 2.2%, 18px));
   left: 50%;
   right: auto;
   z-index: 6;
-  width: clamp(58px, 16%, 138px);
+  width: var(--catalog-watermark-width, clamp(58px, 16%, 138px));
   aspect-ratio: 786 / 317;
   background: var(--bargig-logo-url) center / contain no-repeat;
   pointer-events: none;
   opacity: .98;
   transform: translateX(-50%);
-  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.16));
+  filter: var(--catalog-watermark-filter, drop-shadow(0 8px 18px rgba(0,0,0,0.16)));
 }
 
 .has-bargig-logo .page-thumb-wrap::after {

@@ -147,6 +147,12 @@
   overflow: hidden;
   border-radius: 14px;
   background: #fff;
+  /* The shared watermark has a desktop-sized minimum. This compact preview
+     instead scales the mark from its own rendered width, so the 112px desktop
+     frame and the 88px mobile frame keep the same visual proportion. */
+  --catalog-watermark-width: 32%;
+  --catalog-watermark-top: 5%;
+  --catalog-watermark-filter: drop-shadow(0 3px 8px rgba(0,0,0,.16));
 }
 .viewer-inquiry-preview-frame img {
   position: absolute;

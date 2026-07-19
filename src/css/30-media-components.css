@@ -32,17 +32,17 @@
 .has-bargig-logo .search-result-thumb-frame::after {
   content: "";
   position: absolute;
-  top: clamp(8px, 2.2%, 18px);
+  top: var(--catalog-watermark-top, clamp(8px, 2.2%, 18px));
   left: 50%;
   right: auto;
   z-index: 6;
-  width: clamp(58px, 16%, 138px);
+  width: var(--catalog-watermark-width, clamp(58px, 16%, 138px));
   aspect-ratio: 786 / 317;
   background: var(--bargig-logo-url) center / contain no-repeat;
   pointer-events: none;
   opacity: .98;
   transform: translateX(-50%);
-  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.16));
+  filter: var(--catalog-watermark-filter, drop-shadow(0 8px 18px rgba(0,0,0,0.16)));
 }
 
 .has-bargig-logo .page-thumb-wrap::after {
