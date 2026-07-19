@@ -8008,18 +8008,37 @@ function cancelPointerInteraction(event) {
 }
 
 function getWheelZoomFactor(event) {
+  const pixelMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PIXEL : 0;
   const lineMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_LINE : 1;
   const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
-  const delta = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget?.clientHeight || 0);
+  const rawDelta = Number(event.deltaY);
+  const delta = normalizeWheelDeltaToPixels(rawDelta, event.deltaMode, event.currentTarget?.clientHeight || 0);
   if (!Number.isFinite(delta) || Math.abs(delta) < 0.01) return 1;
 
-  // Trackpad pinch is delivered by Chromium/Edge as a high-frequency ctrl+wheel
-  // stream with pixel deltas. Use a gesture-like curve so it reacts closer to
-  // a real two-finger touch pinch, while capping one event so a mouse wheel
-  // cannot jump wildly across the whole zoom range.
-  const speed = event.deltaMode === lineMode ? 0.0065 : event.deltaMode === pageMode ? 0.0035 : 0.011;
-  const maxStep = Math.log(2.35);
-  return Math.exp(clampValue(-delta * speed, -maxStep, maxStep));
+  // Ctrl+mouse-wheel and a trackpad pinch both arrive as wheel events, but they
+  // have very different delta shapes. A discrete mouse detent must advance by a
+  // small predictable percentage; precision trackpad input keeps the existing
+  // continuous curve. This prevents one ordinary wheel notch from behaving like
+  // an entire pinch gesture while preserving smooth laptop-trackpad zoom.
+  const direction = delta < 0 ? 1 : -1;
+  const absoluteDelta = Math.abs(delta);
+  const looksLikeDiscreteWheel =
+    event.deltaMode === lineMode
+    || event.deltaMode === pageMode
+    || (event.deltaMode === pixelMode && absoluteDelta >= 40);
+
+  if (looksLikeDiscreteWheel) {
+    const detents = event.deltaMode === lineMode
+      ? Math.max(1, Math.abs(rawDelta) / 3)
+      : event.deltaMode === pageMode
+        ? 1
+        : Math.max(1, absoluteDelta / 100);
+    const boundedDetents = clampValue(detents, 1, 3);
+    return Math.pow(1.12, direction * boundedDetents);
+  }
+
+  const precisionDelta = clampValue(delta, -20, 20);
+  return Math.exp(-precisionDelta * 0.011);
 }
 
 function handleZoomSurfaceWheel(event) {
@@ -8027,6 +8046,10 @@ function handleZoomSurfaceWheel(event) {
 
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
+    // In scroll layout viewerScrollPages is nested inside stageCanvas. Entering
+    // isolated zoom changes which parent surface is active during propagation,
+    // so the same physical wheel event would otherwise be handled a second time.
+    event.stopPropagation();
     const factor = getWheelZoomFactor(event);
     if (factor === 1) return;
     setZoom(state.zoom * factor, {
