@@ -1057,7 +1057,7 @@ test("shares favorites to a clean browser context without relying on local stora
 
 
 
-test("favorites workspace supports notes, ordering, filtering, focused sharing, and bulk Gmail inquiry", async ({ page }) => {
+test("favorites workspace supports notes, ordering, filtering, focused sharing, and bulk Gmail inquiry", async ({ page, browser }) => {
   test.skip(FAVORITES_WORKSPACE_CATALOGS.length < 2, "E2E requires at least two catalogs for filtering.");
   const items = [
     { catalogId: FAVORITES_WORKSPACE_CATALOGS[0].id, page: 1, savedAt: 30 },
@@ -1120,9 +1120,28 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   await page.locator("#favoritesShareButton").click();
   await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).not.toBe("");
   const copiedFullListUrl = await page.evaluate(() => window.__bargigE2eClipboard || "");
-  const copiedToken = new URL(copiedFullListUrl).searchParams.get("selection") || "";
-  const parsedCopiedList = await page.evaluate((token) => parseFavoritesShareToken(token), copiedToken);
-  expect(parsedCopiedList.items).toHaveLength(3);
+  expect(copiedFullListUrl).toContain("favorites.html?selection=");
+
+  const sharedListContext = await browser.newContext({
+    locale: "he-IL",
+    timezoneId: "Asia/Jerusalem"
+  });
+  try {
+    const sharedListPage = await sharedListContext.newPage();
+    const sharedListErrors = monitorRuntimeErrors(sharedListPage);
+    await preparePage(sharedListPage, { resetFavorites: true });
+    await sharedListPage.goto(copiedFullListUrl);
+    await waitForApp(sharedListPage);
+    await expect(sharedListPage.locator("#favoritesGrid .favorite-card")).toHaveCount(3);
+    const importedIdentities = await sharedListPage.locator("#favoritesGrid .favorite-card").evaluateAll((cards) => (
+      cards.map((card) => `${card.dataset.favoriteCatalog}:${card.dataset.favoritePage}`).sort()
+    ));
+    const expectedIdentities = items.map((item) => `${item.catalogId}:${item.page}`).sort();
+    expect(importedIdentities).toEqual(expectedIdentities);
+    expect(sharedListErrors, "Shared favorites context runtime errors").toEqual([]);
+  } finally {
+    await sharedListContext.close();
+  }
 });
 
 test("mobile home and viewer survive portrait and landscape orientation", async ({ browser }) => {
