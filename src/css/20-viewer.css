@@ -97,10 +97,14 @@
   z-index: 36;
 }
 .lightbox-top-hotspot {
-  z-index: 35;
+  /* The opener must remain below an already-visible toolbar. The toolbar can
+     stay open through :hover or :focus-within even after the transient
+     .show-ui class is removed, so relying only on opacity state lets the
+     opener arrow float above active controls. */
+  z-index: 34;
 }
 .lightbox-top-shell {
-  z-index: 34;
+  z-index: 35;
 }
 .lightbox.show-ui .lightbox-top-shell,
 .lightbox-top-hotspot:hover + .lightbox-top-shell,
@@ -742,17 +746,20 @@
 .reader-top-hotspot,
 .reader-side-hotspot {
   position: fixed;
-  z-index: 35;
   display: grid;
   place-items: center;
   color: #fff;
   pointer-events: auto;
 }
 .reader-top-hotspot {
+  z-index: 34;
   top: 0;
   right: 0;
   left: 0;
   height: 34px;
+}
+.reader-side-hotspot {
+  z-index: 35;
 }
 .reader-top-hotspot span,
 .reader-side-hotspot span {
@@ -771,7 +778,7 @@
 }
 .reader-top-shell {
   position: fixed;
-  z-index: 34;
+  z-index: 35;
   top: 0;
   right: 0;
   left: 0;
@@ -1059,9 +1066,18 @@ a.reader-home:focus-visible {
 }
 .reader-search-input::placeholder { color: var(--viewer-chrome-muted, rgba(255,255,255,0.62)); }
 .reader-search-input:disabled { opacity: .55; }
+.reader-search-input:focus-visible {
+  /* This input is one half of a composite control. The site-wide focus ring
+     would otherwise wrap only the text field and visually split it from the
+     adjacent search-scope button. Focus is rendered by the shared field below
+     so the whole control keeps one symmetric outline. */
+  box-shadow: none !important;
+}
 .reader-search-field:focus-within {
   border-color: var(--viewer-chrome-border-strong, rgba(217, 186, 163, 0.52));
-  box-shadow: 0 0 0 3px rgba(143, 109, 85, 0.14);
+  box-shadow:
+    0 0 0 2px rgba(255, 253, 251, 0.9),
+    0 0 0 4px rgba(111, 79, 57, 0.72);
 }
 
 .reader-search-toolbar {
