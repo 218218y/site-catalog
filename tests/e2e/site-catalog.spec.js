@@ -495,6 +495,8 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("body")).toHaveAttribute("data-page", "home");
     await expect(page.locator("#lightbox")).toBeHidden();
     await expect(page.locator("#fullscreenToggle")).toBeHidden();
+    await expect(page.locator("#catalogs")).toBeVisible();
+    await expect(page.locator("#catalogGrid .catalog-card")).toHaveCount(CATALOG_COUNT);
 
     await page.locator("[data-open-catalog-preview]").first().click();
     await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/$`));

@@ -162,6 +162,22 @@ function hideCatalogDetailUi() {
   setCatalogScrollTopButtonVisible(false);
 }
 
+function syncDocumentRouteShell(nextPage) {
+  const showCatalogs = nextPage === "home";
+  if (els.catalogsSection) {
+    els.catalogsSection.classList.toggle("hidden", !showCatalogs);
+    if (showCatalogs) {
+      els.catalogsSection.removeAttribute("aria-hidden");
+      // A route can start from a generated viewer/catalog document where the
+      // home section is initially hidden. Reveal it deterministically instead
+      // of waiting for an observer that may have skipped the hidden element.
+      els.catalogsSection.classList.add("in-view");
+    } else {
+      els.catalogsSection.setAttribute("aria-hidden", "true");
+    }
+  }
+}
+
 function prepareDocumentRoute(nextPage) {
   if (nextPage !== "viewer" && state.lightboxOpen) hideLightboxUi();
   if (nextPage !== "favorites" && state.favoritesTransferPending) {
@@ -180,6 +196,7 @@ function prepareDocumentRoute(nextPage) {
   closeDetailCatalogMenu();
 
   setCurrentAppPage(nextPage);
+  syncDocumentRouteShell(nextPage);
   syncDocumentLock();
   syncFullscreenButtonUi();
 }

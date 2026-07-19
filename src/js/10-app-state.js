@@ -160,6 +160,7 @@ const state = {
 
 const els = {
   splash: $("splashScreen"),
+  catalogsSection: $("catalogs"),
   catalogGrid: $("catalogGrid"),
   catalogLoadStatus: $("catalogLoadStatus"),
   categoryNav: $("categoryNav"),

@@ -61,7 +61,8 @@ assert.match(app, /function navigateWithinCurrentDocument\([\s\S]*?history\.push
 assert.match(app, /function navigateTo\([\s\S]*?canNavigateWithinCurrentDocument\(targetUrl\)[\s\S]*?window\.location\.replace\(targetUrl\?\.href \|\| target\)[\s\S]*?window\.location\.assign\(targetUrl\?\.href \|\| target\)/);
 assert.match(app, /function handleInternalAppLinkClick\([\s\S]*?isBrowserFullscreenActive\(\)[\s\S]*?navigateWithinCurrentDocument\(targetUrl\)/);
 assert.match(app, /window\.addEventListener\("popstate"[\s\S]*?initDocumentRoute\(\{/);
-assert.match(app, /function prepareDocumentRoute\([\s\S]*?hideLightboxUi\(\)[\s\S]*?hideFavoritesPanelUi\(\)[\s\S]*?setCurrentAppPage\(nextPage\)/);
+assert.match(app, /function syncDocumentRouteShell\([\s\S]*?nextPage === "home"[\s\S]*?catalogsSection\.classList\.toggle\("hidden", !showCatalogs\)/);
+assert.match(app, /function prepareDocumentRoute\([\s\S]*?hideLightboxUi\(\)[\s\S]*?hideFavoritesPanelUi\(\)[\s\S]*?setCurrentAppPage\(nextPage\)[\s\S]*?syncDocumentRouteShell\(nextPage\)/);
 assert.match(app, /function navigateBack\(\) \{\s*window\.history\.back\(\);\s*\}/);
 assert.match(app, /function currentVisibleDocumentUrl\(\) \{\s*return window\.location\.href;\s*\}/);
 assert.match(app, /function shareOrCopyCurrentLink\([\s\S]*?currentVisibleDocumentUrl\(\)/);
