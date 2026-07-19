@@ -39,6 +39,8 @@ assert.match(app, /function favoriteWorkspaceShareLinkEntries\([\s\S]*?return se
 assert.match(app, /function moveFavoriteWithinVisibleOrder\(/);
 assert.match(app, /function reorderFavoriteByDrop\(/);
 assert.match(app, /function openFavoriteNoteEditor\(/);
+assert.match(app, /class="favorite-remove-button"[^>]*data-remove-favorite="1"[^>]*title="הסרה מהמועדפים"/);
+assert.doesNotMatch(app, /favorite-remove-inline/);
 assert.match(app, /function favoriteWorkspaceInquiryReference\([\s\S]*?purpose: "inquiry"/);
 assert.match(app, /viewerInquiryGmailUrl\(email, favoriteWorkspaceInquiryReference\(actionEntries\)\)/);
 assert.match(app, /function copyFavoriteWorkspaceLink\([\s\S]*?favoriteWorkspaceSelectionUrl\(entries\)[\s\S]*?copyTextToClipboard\(selectionUrl\)/);
@@ -52,6 +54,9 @@ assert.match(css, /\.favorites-header-workspace\s*\{/);
 assert.match(css, /\.favorites-gmail-inline\s*\{/);
 assert.match(css, /\.favorite-card\.is-selected\s*\{/);
 assert.match(css, /\.favorite-select-control\s*\{/);
+assert.match(css, /\.favorite-card-actions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?justify-content:\s*center;[\s\S]*?flex-wrap:\s*wrap;/);
+assert.doesNotMatch(css, /\.favorite-remove-button\s*\{\s*display:\s*none;/);
+assert.doesNotMatch(css, /\.favorite-remove-inline/);
 assert.match(css, /\.favorite-note-overlay\s*\{/);
 assert.doesNotMatch(css, /\.favorites-compare-/);
 assert.doesNotMatch(css, /\.favorite-note-empty/);
