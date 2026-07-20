@@ -75,6 +75,14 @@ function viewerInquiryGmailUrl(emailAddress, reference) {
   return `https://mail.google.com/mail/?${query.toString()}`;
 }
 
+function viewerInquiryMailtoUrl(emailAddress, reference) {
+  const subject = encodeURIComponent(String(reference?.subject || ""));
+  const body = encodeURIComponent(
+    String(reference?.text || "").replace(/\r?\n/g, "\r\n")
+  );
+  return `mailto:${emailAddress}?subject=${subject}&body=${body}`;
+}
+
 function viewerInquiryTelemetryFields(reference, action, detail = "") {
   const telemetry = reference?.telemetry || {};
   return {
@@ -139,10 +147,9 @@ function syncViewerInquiryUi(reference = viewerInquiryReference()) {
 
   const emailAddress = viewerInquiryEmailAddress();
   const emailAvailable = Boolean(emailAddress);
-  const mailtoQuery = new URLSearchParams({ subject: reference.subject, body: reference.text });
   syncViewerInquiryContactLink(
     els.viewerInquiryEmail,
-    emailAvailable ? `mailto:${emailAddress}?${mailtoQuery.toString()}` : "",
+    emailAvailable ? viewerInquiryMailtoUrl(emailAddress, reference) : "",
     reference,
     "email"
   );

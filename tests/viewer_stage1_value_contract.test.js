@@ -43,7 +43,8 @@ assert.match(app, /function viewerInquiryReference\(\)[\s\S]*?state\.viewerInqui
 assert.match(app, /`קטלוג: \$\{title\}`/);
 assert.match(app, /`עמוד: \$\{page\}`/);
 assert.match(app, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryCatalog\.textContent = reference\.referenceTitle \|\| reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);
-assert.match(app, /new URLSearchParams\(\{ subject: reference\.subject, body: reference\.text \}\)/);
+assert.match(app, /function viewerInquiryMailtoUrl\([\s\S]*?encodeURIComponent\(String\(reference\?\.subject \|\| ""\)\)[\s\S]*?replace\(\/\\r\?\\n\/g, "\\r\\n"\)[\s\S]*?`mailto:\$\{emailAddress\}\?subject=\$\{subject\}&body=\$\{body\}`/);
+assert.match(app, /emailAvailable \? viewerInquiryMailtoUrl\(emailAddress, reference\) : ""/);
 assert.match(app, /function viewerInquiryGmailUrl\([\s\S]*?mail\.google\.com\/mail\/\?/);
 assert.match(app, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?navigator\.share\(shareData\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "share"\)/);
 assert.doesNotMatch(app, /viewerInquiry(?:Gmail|Email)\.title\s*=|setTooltipText\(els\.viewerInquiry(?:Gmail|Email)/);

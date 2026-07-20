@@ -347,6 +347,9 @@ test.describe("critical catalog journeys", () => {
     expect(emailDetails.body).toContain(`/catalog/${CATALOG_ID}/page/${inquiryPage}/`);
     expect(emailDetails.title).toBeNull();
     expect(emailDetails.tooltip).toBeNull();
+    const rawEmailHref = await page.locator("#viewerInquiryEmail").getAttribute("href");
+    expect(rawEmailHref).toContain("%20");
+    expect(rawEmailHref).not.toMatch(/[?&](?:subject|body)=[^&]*\+/);
 
     const gmailDetails = await page.locator("#viewerInquiryGmail").evaluate((link) => {
       const url = new URL(link.href);
@@ -1085,7 +1088,7 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   expect(parseFloat(floatingInquiryStyle.left)).toBeGreaterThanOrEqual(0);
   expect(parseFloat(floatingInquiryStyle.bottom)).toBeGreaterThanOrEqual(0);
   const favoritesGridBottomPadding = await page.locator("#favoritesGrid").evaluate((grid) => parseFloat(getComputedStyle(grid).paddingBottom));
-  expect(favoritesGridBottomPadding).toBeGreaterThanOrEqual(86);
+  expect(favoritesGridBottomPadding).toBeLessThan(60);
   const firstCard = page.locator("#favoritesGrid .favorite-card").first();
   await expect(firstCard.locator(".favorite-note-summary")).toHaveCount(0);
   await firstCard.locator("[data-edit-favorite-note]").click();
@@ -1102,6 +1105,9 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   expect(allItemsBody).toContain("לבדוק ברוחב 180");
   expect(allItemsBody).toContain("קישור לרשימת הדגמים:");
   expect((allItemsBody.match(/https?:\/\//g) || []).length).toBe(4);
+  const allItemsMailtoHref = await page.locator("#viewerInquiryEmail").getAttribute("href");
+  expect(allItemsMailtoHref).toContain("%20");
+  expect(allItemsMailtoHref).not.toMatch(/[?&](?:subject|body)=[^&]*\+/);
   await page.locator("#viewerInquiryClose").click();
   await expect(page.locator("#viewerInquiryOverlay")).toBeHidden();
 

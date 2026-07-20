@@ -72,7 +72,7 @@ assert.doesNotMatch(app, /toggleAllVisibleFavoritesSelection|shareSelectedFavori
 assert.match(css, /\.favorites-header-workspace\s*\{/);
 assert.match(css, /\.inquiry-trigger-button\s*\{/);
 assert.match(css, /\.favorites-inquiry-button\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?left:\s*max\(18px, env\(safe-area-inset-left\)\);[\s\S]*?bottom:\s*max\(18px, env\(safe-area-inset-bottom\)\);/);
-assert.match(css, /\.favorites-grid\s*\{[\s\S]*?padding-bottom:\s*calc\(clamp\(18px, 3vw, 30px\) \+ 86px \+ env\(safe-area-inset-bottom\)\);/);
+assert.doesNotMatch(css, /padding-bottom:\s*calc\(clamp\(18px, 3vw, 30px\) \+ 86px \+ env\(safe-area-inset-bottom\)\);/);
 assert.match(css, /\.favorite-card\.is-selected\s*\{/);
 assert.match(css, /\.favorite-select-control\s*\{/);
 assert.match(css, /\.favorite-card-actions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?justify-content:\s*center;[\s\S]*?flex-wrap:\s*wrap;/);

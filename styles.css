@@ -6297,12 +6297,6 @@ body[data-page="viewer"] {
   box-shadow: 0 18px 42px rgba(87, 59, 42, .38), inset 0 1px 0 rgba(255, 255, 255, .22);
 }
 
-/* Keep enough real scrollable space after the final favorite card so the
-   floating inquiry action never becomes the only way to reach covered content. */
-.favorites-grid {
-  padding-bottom: calc(clamp(18px, 3vw, 30px) + 86px + env(safe-area-inset-bottom));
-}
-
 @media (max-width: 640px) {
   .favorites-inquiry-button {
     left: max(12px, env(safe-area-inset-left));
