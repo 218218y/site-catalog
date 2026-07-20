@@ -57,12 +57,21 @@ def test_wrangler_cors_commands_are_fixed_purpose() -> None:
     ]
 
 
-def test_cors_only_dry_run_does_not_require_site_bundle(capsys) -> None:
+def test_cors_only_dry_run_does_not_require_site_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Keep the assertion platform-independent. The real project-local executable
+    # ends with ``wrangler`` on POSIX and ``wrangler.cmd`` on Windows, while the
+    # command arguments under test are identical. Command construction itself is
+    # covered separately by test_wrangler_cors_commands_are_fixed_purpose.
+    monkeypatch.setattr(MODULE, "find_local_wrangler", lambda root=None: "wrangler-local")
+
     assert MODULE.main(["--cors-only", "--dry-run"]) == 0
     output = capsys.readouterr().out
-    assert "wrangler r2 bucket cors set" in output
-    assert "wrangler r2 bucket cors list" in output
-    assert "wrangler pages deploy" not in output
+    assert "wrangler-local r2 bucket cors set" in output
+    assert "wrangler-local r2 bucket cors list" in output
+    assert "wrangler-local pages deploy" not in output
 
 
 def test_pages_deploy_dry_run_never_reads_or_changes_r2_cors(
