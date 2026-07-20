@@ -2917,6 +2917,7 @@ function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
   }
 
   if (els.favoritesInquiryButton) {
+    els.favoritesInquiryButton.classList.toggle("hidden", !hasEntries);
     els.favoritesInquiryButton.disabled = inquiryEntries.length === 0;
     els.favoritesInquiryButton.setAttribute("aria-label", selectedCount
       ? `בירור על ${selectedCount} הדגמים שנבחרו`

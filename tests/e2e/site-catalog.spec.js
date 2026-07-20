@@ -1074,7 +1074,18 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   await expect(page.locator("#favoritesGrid .favorite-card")).toHaveCount(3);
   await expect(page.locator("#favoritesCatalogFilter option").first()).toHaveText("כל הקטלוגים");
   await expect(page.locator("#favoritesVisibleCount")).toHaveText("3 פריטים");
+  const favoritesInquiryButton = page.locator("#favoritesInquiryButton");
+  await expect(favoritesInquiryButton).toBeVisible();
   await expect(page.locator("#favoritesInquiryLabel")).toHaveText("בירור על הדגמים");
+  const floatingInquiryStyle = await favoritesInquiryButton.evaluate((button) => {
+    const style = getComputedStyle(button);
+    return { position: style.position, left: style.left, bottom: style.bottom };
+  });
+  expect(floatingInquiryStyle.position).toBe("fixed");
+  expect(parseFloat(floatingInquiryStyle.left)).toBeGreaterThanOrEqual(0);
+  expect(parseFloat(floatingInquiryStyle.bottom)).toBeGreaterThanOrEqual(0);
+  const favoritesGridBottomPadding = await page.locator("#favoritesGrid").evaluate((grid) => parseFloat(getComputedStyle(grid).paddingBottom));
+  expect(favoritesGridBottomPadding).toBeGreaterThanOrEqual(86);
   const firstCard = page.locator("#favoritesGrid .favorite-card").first();
   await expect(firstCard.locator(".favorite-note-summary")).toHaveCount(0);
   await firstCard.locator("[data-edit-favorite-note]").click();
