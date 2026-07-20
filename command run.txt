@@ -119,10 +119,6 @@ rclone delete "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" -P
 אם נעשה הוספת קטגוריה חדשה או תת קטגוריה חדשה לא מתעדכן אוטומטי לגמרי
 כאשר מוסיפים קטגוריה שלא קיימת עדיין, יש להוסיף פעם אחת אל:
 catalog-taxonomy.config.json
-את:
-השם.
-ה־slug.
-התיאור.
 
 לדוגמה:
 {

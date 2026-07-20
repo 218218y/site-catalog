@@ -2,8 +2,9 @@
 """Local control panel for catalog maintenance.
 
 This server is intentionally localhost-only. It exposes a small browser UI for
-editing catalogs.config.json, editing validated footer text, and running the
-existing fixed maintenance commands without giving the browser arbitrary shell access.
+editing catalogs.config.json, managing the catalog taxonomy, editing validated
+footer text, and running fixed maintenance commands without giving the browser
+arbitrary shell access.
 """
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from dataclasses import dataclass, field
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence
 from urllib.parse import unquote, urlparse
 
 TOOLS_DIR = Path(__file__).resolve().parent
@@ -33,6 +34,16 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
 from build_site_pages import PAGE_DOCUMENTS, render_site_pages
+from seo_site import build_taxonomy_asset
+from taxonomy_editor import (
+    TAXONOMY_CONFIG_FILE,
+    apply_taxonomy_renames_to_catalogs,
+    normalize_taxonomy_draft,
+    reconcile_taxonomy_with_catalogs,
+    serialize_taxonomy,
+    taxonomy_completion_issues,
+    taxonomy_editor_state,
+)
 from footer_content import (
     FOOTER_CONTENT_RELATIVE_PATH,
     footer_editor_schema,
@@ -43,6 +54,7 @@ from footer_content import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "catalogs.config.json"
+TAXONOMY_FILE = PROJECT_ROOT / TAXONOMY_CONFIG_FILE
 GENERATED_JSON_FILE = PROJECT_ROOT / "catalogs.generated.json"
 GENERATED_JS_FILE = PROJECT_ROOT / "catalogs.generated.js"
 SEARCH_JSON_FILE = PROJECT_ROOT / "catalogs.search.json"
@@ -165,6 +177,7 @@ jobs: dict[str, Job] = {}
 jobs_lock = threading.Lock()
 native_dialog_lock = threading.Lock()
 footer_save_lock = threading.Lock()
+taxonomy_save_lock = threading.Lock()
 
 
 def rel_to_root(path: Path) -> str:
@@ -201,10 +214,6 @@ def read_config() -> list[dict[str, Any]]:
     return result
 
 
-def write_config(config: list[dict[str, Any]]) -> None:
-    CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
 def atomic_write_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
@@ -221,6 +230,71 @@ def restore_file_bytes(path: Path, previous: bytes | None) -> None:
         path.unlink(missing_ok=True)
     else:
         atomic_write_bytes(path, previous)
+
+
+def current_taxonomy_state(catalogs: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
+    return taxonomy_editor_state(PROJECT_ROOT, list(catalogs) if catalogs is not None else read_config())
+
+
+def taxonomy_action_availability(action_key: str, taxonomy_state: Mapping[str, Any]) -> tuple[bool, str]:
+    if action_key not in {"bundle_r2", "cloudflare_pages_deploy"}:
+        return True, ""
+    issues = taxonomy_state.get("issues", [])
+    if not isinstance(issues, list) or not issues:
+        return True, ""
+    return False, f"יש להשלים {len(issues)} שדות בטקסונומיה לפני בנייה או העלאה."
+
+
+def atomic_write_catalogs_and_taxonomy(
+    catalogs: list[dict[str, Any]],
+    taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> None:
+    previous_catalogs = CONFIG_FILE.read_bytes() if CONFIG_FILE.is_file() else None
+    previous_taxonomy = TAXONOMY_FILE.read_bytes() if TAXONOMY_FILE.is_file() else None
+    try:
+        atomic_write_bytes(
+            CONFIG_FILE,
+            (json.dumps(catalogs, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        )
+        atomic_write_bytes(TAXONOMY_FILE, serialize_taxonomy(taxonomy))
+    except Exception:
+        restore_file_bytes(CONFIG_FILE, previous_catalogs)
+        restore_file_bytes(TAXONOMY_FILE, previous_taxonomy)
+        raise
+
+
+def refresh_taxonomy_outputs_if_complete(
+    taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> list[str]:
+    issues = taxonomy_completion_issues(taxonomy)
+    if issues:
+        return [
+            f"הטקסונומיה נשמרה כטיוטה, אבל חסרים {len(issues)} שדות. "
+            "יש להשלים אותם לפני יצירת באנדל או העלאה."
+        ]
+    warnings: list[str] = []
+    try:
+        build_taxonomy_asset(PROJECT_ROOT)
+        render_site_pages(
+            PROJECT_ROOT,
+            build_assets=False,
+            build_taxonomy=False,
+            include_indexing_files=False,
+        )
+    except Exception as exc:
+        warnings.append(f"המקורות נשמרו, אבל רענון דפי האתר התלויים בטקסונומיה נכשל: {exc}")
+    return warnings
+
+
+def prepare_taxonomy_and_catalogs_for_save(
+    taxonomy_value: Any,
+    catalogs: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, str]]], dict[str, list[str]]]:
+    source = taxonomy_value if taxonomy_value is not None else current_taxonomy_state(catalogs)
+    normalized = normalize_taxonomy_draft(source)
+    catalogs_after_renames = apply_taxonomy_renames_to_catalogs(catalogs, normalized)
+    reconciled, added = reconcile_taxonomy_with_catalogs(normalized, catalogs_after_renames)
+    return catalogs_after_renames, reconciled, added
 
 
 def save_footer_content_and_render_pages(
@@ -1087,10 +1161,22 @@ def catalog_output_status(catalog_id: str) -> dict[str, Any]:
 
 def state_payload() -> dict[str, Any]:
     config = read_config()
+    taxonomy = current_taxonomy_state(config)
     with jobs_lock:
         job_summaries = [serialize_job(job, include_log=False) for job in sorted(jobs.values(), key=lambda item: item.started_at, reverse=True)[:10]]
+    actions: list[dict[str, Any]] = []
+    for key, action in ACTIONS.items():
+        enabled, reason = taxonomy_action_availability(key, taxonomy)
+        actions.append({
+            "key": key,
+            "label": action.label,
+            "description": action.description,
+            "disabled": not enabled,
+            "disabledReason": reason,
+        })
     return {
         "catalogs": [normalize_catalog_for_ui(item) for item in config],
+        "taxonomy": taxonomy,
         "footer": read_footer_content(PROJECT_ROOT),
         "footerEditor": footer_editor_schema(),
         "counts": {
@@ -1099,9 +1185,11 @@ def state_payload() -> dict[str, Any]:
             "missingPdfs": missing_pdf_count(config),
             "ocrDisabled": sum(1 for item in config if not catalog_ocr_enabled(item)),
             "converted": sum(1 for item in config if catalog_output_status(str(item.get("id", ""))).get("state") == "ready"),
+            "taxonomyMissing": len(taxonomy.get("issues", [])),
         },
         "files": {
             "config": rel_to_root(CONFIG_FILE),
+            "taxonomy": rel_to_root(TAXONOMY_FILE),
             "generated": (PROJECT_ROOT / "catalogs.generated.js").is_file(),
             "search": (PROJECT_ROOT / "catalogs.search.js").is_file(),
             "pdfDir": rel_to_root(PDF_DIR),
@@ -1109,10 +1197,7 @@ def state_payload() -> dict[str, Any]:
             "footerContent": rel_to_root(FOOTER_CONTENT_FILE),
         },
         "pdfFiles": pdf_files_payload(),
-        "actions": [
-            {"key": key, "label": action.label, "description": action.description}
-            for key, action in ACTIONS.items()
-        ],
+        "actions": actions,
         "jobs": job_summaries,
     }
 
@@ -1171,6 +1256,9 @@ def start_job(action_key: str) -> Job:
     action = ACTIONS.get(action_key)
     if not action:
         raise ValueError(f"Unknown action: {action_key}")
+    enabled, reason = taxonomy_action_availability(action_key, current_taxonomy_state())
+    if not enabled:
+        raise ValueError(reason)
 
     job = Job(id=uuid.uuid4().hex[:12], action_key=action_key, label=action.label, started_at=time.time())
     with jobs_lock:
@@ -1299,30 +1387,60 @@ class ControlHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": True, "footer": footer, "state": state_payload(), "updatedPages": [page.filename for page in PAGE_DOCUMENTS]})
                 return
             if path == "/api/catalogs":
-                catalogs = validate_catalogs_for_save(payload.get("catalogs"))
-                catalogs = group_catalogs_by_category_subcategory(catalogs)
-                delete_targets, delete_warnings = validate_asset_delete_requests(payload.get("assetDeletes"), catalogs)
-                staged_deletes: list[StagedAssetDelete] = []
-                delete_temp_root: Path | None = None
-                warnings: list[str] = []
-                try:
-                    staged_deletes, stage_warnings, delete_temp_root = stage_asset_deletions(delete_targets)
-                    warnings.extend(delete_warnings)
-                    warnings.extend(stage_warnings)
-                    rename_map = build_catalog_rename_map(catalogs)
-                    warnings.extend(apply_pages_dir_renames(rename_map))
-                    file_catalogs = config_for_file(catalogs)
-                    write_config(file_catalogs)
+                with taxonomy_save_lock:
+                    catalogs = validate_catalogs_for_save(payload.get("catalogs"))
+                    catalogs, taxonomy, auto_added = prepare_taxonomy_and_catalogs_for_save(
+                        payload.get("taxonomy"), catalogs
+                    )
+                    catalogs = group_catalogs_by_category_subcategory(catalogs)
+                    delete_targets, delete_warnings = validate_asset_delete_requests(payload.get("assetDeletes"), catalogs)
+                    staged_deletes: list[StagedAssetDelete] = []
+                    delete_temp_root: Path | None = None
+                    warnings: list[str] = []
                     try:
-                        warnings.extend(sync_search_overrides_after_id_rename(rename_map))
-                    except Exception as exc:
-                        warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search-overrides.json נכשל: {exc}")
-                    warnings.extend(sync_generated_metadata_after_config_save(file_catalogs, rename_map))
-                except Exception:
-                    restore_staged_deletions(staged_deletes, delete_temp_root)
-                    raise
-                warnings.extend(finalize_staged_deletions(staged_deletes, delete_temp_root))
-                self.send_json({"ok": True, "state": state_payload(), "warnings": warnings, "grouped": True, "deletedAssets": [item.label for item in staged_deletes]})
+                        staged_deletes, stage_warnings, delete_temp_root = stage_asset_deletions(delete_targets)
+                        warnings.extend(delete_warnings)
+                        warnings.extend(stage_warnings)
+                        rename_map = build_catalog_rename_map(catalogs)
+                        warnings.extend(apply_pages_dir_renames(rename_map))
+                        file_catalogs = config_for_file(catalogs)
+                        atomic_write_catalogs_and_taxonomy(file_catalogs, taxonomy)
+                        try:
+                            warnings.extend(sync_search_overrides_after_id_rename(rename_map))
+                        except Exception as exc:
+                            warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search-overrides.json נכשל: {exc}")
+                        warnings.extend(sync_generated_metadata_after_config_save(file_catalogs, rename_map))
+                        warnings.extend(refresh_taxonomy_outputs_if_complete(taxonomy))
+                    except Exception:
+                        restore_staged_deletions(staged_deletes, delete_temp_root)
+                        raise
+                    warnings.extend(finalize_staged_deletions(staged_deletes, delete_temp_root))
+                self.send_json({
+                    "ok": True,
+                    "state": state_payload(),
+                    "warnings": warnings,
+                    "autoAddedTaxonomy": auto_added,
+                    "grouped": True,
+                    "deletedAssets": [item.label for item in staged_deletes],
+                })
+                return
+            if path == "/api/taxonomy":
+                with taxonomy_save_lock:
+                    catalogs = validate_catalogs_for_save(read_config())
+                    catalogs, taxonomy, auto_added = prepare_taxonomy_and_catalogs_for_save(
+                        payload.get("taxonomy"), catalogs
+                    )
+                    catalogs = group_catalogs_by_category_subcategory(catalogs)
+                    file_catalogs = config_for_file(catalogs)
+                    atomic_write_catalogs_and_taxonomy(file_catalogs, taxonomy)
+                    warnings = sync_generated_metadata_after_config_save(file_catalogs)
+                    warnings.extend(refresh_taxonomy_outputs_if_complete(taxonomy))
+                self.send_json({
+                    "ok": True,
+                    "state": state_payload(),
+                    "warnings": warnings,
+                    "autoAddedTaxonomy": auto_added,
+                })
                 return
             if path == "/api/run":
                 job = start_job(str(payload.get("action", "")).strip())

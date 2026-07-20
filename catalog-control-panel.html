@@ -56,7 +56,7 @@
     button.secondary:hover { background: #dbe8ff; }
     button.danger { background: #fff1f0; color: var(--danger); border: 1px solid #ffccc7; box-shadow: none; }
     button.danger:hover { background: #ffe4e0; }
-    .stats { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 12px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
     .stat {
       background: rgba(255,255,255,.13);
       border: 1px solid rgba(255,255,255,.2);
@@ -102,7 +102,7 @@
       box-shadow: 0 12px 24px rgba(37, 99, 235, .24);
     }
     .save-btn::before { content: "✓ "; font-weight: 900; }
-    input[type="search"], input[type="text"], input[type="email"], input[type="tel"], textarea {
+    input[type="search"], input[type="text"], input[type="email"], input[type="tel"], select, textarea {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -112,7 +112,7 @@
       background: #fff;
       outline: none;
     }
-    input:focus, textarea:focus { border-color: #93b4ff; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+    input:focus, select:focus, textarea:focus { border-color: #93b4ff; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
     textarea { resize: vertical; line-height: 1.45; }
     .catalog-table-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--line); border-radius: 18px; }
     table { width: 100%; border-collapse: collapse; min-width: 2020px; background: #fff; }
@@ -223,6 +223,36 @@
     .toggle input:checked + .switch::after { transform: translateX(20px); }
     [dir="rtl"] .switch::after { right: 3px; left: auto; }
     [dir="rtl"] .toggle input:checked + .switch::after { transform: translateX(-20px); }
+    .taxonomy-editor { display: grid; gap: 16px; }
+    .taxonomy-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .taxonomy-status { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 7px 11px; font-size: .88rem; font-weight: 800; }
+    .taxonomy-status.ready { color: var(--ok); background: #ecfdf3; border: 1px solid #abefc6; }
+    .taxonomy-status.incomplete { color: var(--warn); background: #fffaeb; border: 1px solid #fedf89; }
+    .taxonomy-alert { border: 1px solid #fedf89; background: #fffaeb; color: #93370d; border-radius: 16px; padding: 12px 14px; line-height: 1.6; }
+    .taxonomy-columns { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 16px; align-items: start; }
+    .taxonomy-panel { border: 1px solid var(--line); border-radius: 20px; background: #fbfcff; overflow: hidden; }
+    .taxonomy-panel-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line); background: #f8fbff; }
+    .taxonomy-panel-header h3 { margin: 0; font-size: 1rem; }
+    .taxonomy-list { display: grid; gap: 10px; padding: 12px; }
+    .taxonomy-row { display: grid; gap: 10px; padding: 13px; border: 1px solid #dbe3ef; border-radius: 16px; background: #fff; }
+    .taxonomy-row.is-incomplete { border-color: #fdb022; box-shadow: 0 0 0 3px rgba(253,176,34,.11); }
+    .taxonomy-row.is-unused { background: #f8fafc; }
+    .taxonomy-row-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .taxonomy-row-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 850; }
+    .taxonomy-usage { color: var(--muted); font-size: .84rem; font-weight: 700; }
+    .taxonomy-fields { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(180px, .8fr) minmax(260px, 1.6fr); gap: 10px; align-items: start; }
+    .taxonomy-field { display: grid; gap: 5px; min-width: 0; }
+    .taxonomy-field label { color: #344054; font-size: .84rem; font-weight: 780; }
+    .taxonomy-field small { color: var(--muted); line-height: 1.45; }
+    .taxonomy-field input[dir="ltr"] { text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .taxonomy-field textarea { min-height: 86px; }
+    .taxonomy-field .missing-field { border-color: #f79009; background: #fffcf5; }
+    .taxonomy-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .taxonomy-row-actions button { padding: 7px 10px; border-radius: 10px; box-shadow: none; }
+    .taxonomy-add-btn { padding: 8px 12px; box-shadow: none; }
+    .taxonomy-save-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .taxonomy-save-btn { min-width: 260px; padding: 14px 24px; border-radius: 17px; }
+    .taxonomy-empty { padding: 18px; color: var(--muted); text-align: center; }
     .footer-editor { display: grid; gap: 16px; }
     .footer-editor-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; align-items: start; }
     .footer-editor-group { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: #fbfcff; }
@@ -266,6 +296,8 @@
       .stats { grid-template-columns: repeat(2, 1fr); }
       .hero, .card { border-radius: 20px; }
       .save-btn { width: 100%; }
+      .taxonomy-columns, .taxonomy-fields { grid-template-columns: 1fr; }
+      .taxonomy-save-btn { width: 100%; }
     }
   </style>
 </head>
@@ -275,7 +307,7 @@
       <div class="topbar">
         <div>
           <h1>לוח שליטה מקומי לקטלוגים</h1>
-          <p>מקום אחד לניהול קטלוגים, עריכת טקסט הפוטר, המרה, OCR, סנכרון R2, יצירת באנדל R2 והעלאת הבאנדל ל-Cloudflare Pages. ההמרה כוללת ניקוי אוטומטי של קטלוגים שהוסרו או שה-PDF שלהם נמחק. הדף הזה עובד רק דרך השרת המקומי שמופעל מהמחשב.</p>
+          <p>מקום אחד לניהול קטלוגים, קטגוריות וכתובות SEO, עריכת טקסט הפוטר, המרה, OCR, סנכרון R2, יצירת באנדל R2 והעלאת הבאנדל ל-Cloudflare Pages. ההמרה כוללת ניקוי אוטומטי של קטלוגים שהוסרו או שה-PDF שלהם נמחק. הדף הזה עובד רק דרך השרת המקומי שמופעל מהמחשב.</p>
         </div>
         <button class="refresh-btn" id="refreshState" type="button">רענן מצב</button>
       </div>
@@ -337,6 +369,39 @@
       </aside>
     </div>
 
+    <section class="card" style="margin-top: 18px;">
+      <div class="card-header">
+        <div>
+          <h2>ניהול קטגוריות וכתובות SEO</h2>
+          <p>כאן מנהלים את <span dir="ltr">catalog-taxonomy.config.json</span>: שם, slug, תיאור וסדר של קטגוריות ותתי־קטגוריות.</p>
+        </div>
+        <div class="taxonomy-summary" id="taxonomySummary"></div>
+      </div>
+      <div class="card-body taxonomy-editor">
+        <div class="notice">כאשר שומרים קטלוג עם קטגוריה או תת־קטגוריה חדשה, לוח השליטה מוסיף אותה אוטומטית במקום המתאים. השם נלקח מהקטלוג; <span dir="ltr">slug</span> ותיאור נשארים מסומנים כחסרים עד שתשלים אותם. לא נוצר slug אוטומטי משם עברי, כדי שלא לקבע כתובת שגויה. שינוי שם כאן מעדכן גם את הקטלוגים שמפנים אליו.</div>
+        <div id="taxonomyAlert" hidden></div>
+        <div class="taxonomy-columns">
+          <section class="taxonomy-panel" aria-labelledby="taxonomyCategoriesTitle">
+            <div class="taxonomy-panel-header">
+              <h3 id="taxonomyCategoriesTitle">קטגוריות ראשיות</h3>
+              <button class="taxonomy-add-btn secondary" id="addTaxonomyCategory" type="button">הוסף קטגוריה</button>
+            </div>
+            <div class="taxonomy-list" id="taxonomyCategories"></div>
+          </section>
+          <section class="taxonomy-panel" aria-labelledby="taxonomySubcategoriesTitle">
+            <div class="taxonomy-panel-header">
+              <h3 id="taxonomySubcategoriesTitle">תתי־קטגוריות</h3>
+              <button class="taxonomy-add-btn secondary" id="addTaxonomySubcategory" type="button">הוסף תת־קטגוריה</button>
+            </div>
+            <div class="taxonomy-list" id="taxonomySubcategories"></div>
+          </section>
+        </div>
+        <div class="taxonomy-save-row">
+          <button class="taxonomy-save-btn" id="saveTaxonomy" type="button">שמור הגדרות קטגוריות</button>
+          <span class="toast" id="taxonomySaveStatus"></span>
+        </div>
+      </div>
+    </section>
 
     <section class="card" style="margin-top: 18px;">
       <div class="card-header">
@@ -391,7 +456,7 @@
   </div>
 
   <script>
-    const state = { catalogs: [], footer: {}, footerEditor: { groups: [] }, actions: [], counts: {}, pdfFiles: [], pdfUploadCatalogIndex: null, deleteDialogIndex: null, pendingAssetDeletes: [], activeJobId: null, polling: null };
+    const state = { catalogs: [], taxonomy: { categories: [], subcategories: [], issues: [], complete: true, autoAdded: { categories: [], subcategories: [] } }, footer: {}, footerEditor: { groups: [] }, actions: [], counts: {}, pdfFiles: [], pdfUploadCatalogIndex: null, deleteDialogIndex: null, pendingAssetDeletes: [], activeJobId: null, polling: null };
     const els = {
       stats: document.getElementById('stats'),
       rows: document.getElementById('catalogRows'),
@@ -402,6 +467,14 @@
       footerSave: document.getElementById('saveFooter'),
       footerSaveStatus: document.getElementById('footerSaveStatus'),
       footerEditorGroups: document.getElementById('footerEditorGroups'),
+      taxonomySummary: document.getElementById('taxonomySummary'),
+      taxonomyAlert: document.getElementById('taxonomyAlert'),
+      taxonomyCategories: document.getElementById('taxonomyCategories'),
+      taxonomySubcategories: document.getElementById('taxonomySubcategories'),
+      taxonomySave: document.getElementById('saveTaxonomy'),
+      taxonomySaveStatus: document.getElementById('taxonomySaveStatus'),
+      taxonomyAddCategory: document.getElementById('addTaxonomyCategory'),
+      taxonomyAddSubcategory: document.getElementById('addTaxonomySubcategory'),
       jobStatus: document.getElementById('jobStatus'),
       jobLog: document.getElementById('jobLog'),
       jobHistory: document.getElementById('jobHistory'),
@@ -455,6 +528,7 @@
       setServerAlert('');
       state.catalogs = (data.catalogs || []).map(catalog => ({ ...catalog, originalId: catalog.originalId || catalog.id }));
       state.actions = data.actions || [];
+      state.taxonomy = data.taxonomy || { categories: [], subcategories: [], issues: [], complete: true, autoAdded: { categories: [], subcategories: [] } };
       state.footer = data.footer || {};
       state.footerEditor = data.footerEditor || { groups: [] };
       state.counts = data.counts || {};
@@ -462,6 +536,7 @@
       state.pendingAssetDeletes = [];
       renderStats(state.counts);
       renderCatalogs();
+      renderTaxonomyEditor();
       renderFooterEditor();
       renderActions();
       renderJobHistory(data.jobs || []);
@@ -473,9 +548,332 @@
         ['PDFים בתיקייה', counts.pdfs ?? 0],
         ['PDFים חסרים ברשימה', counts.missingPdfs ?? 0],
         ['מומרים', counts.converted ?? 0],
-        ['OCR כבוי', counts.ocrDisabled ?? 0]
+        ['OCR כבוי', counts.ocrDisabled ?? 0],
+        ['שדות טקסונומיה חסרים', counts.taxonomyMissing ?? 0]
       ];
       els.stats.innerHTML = items.map(([label, value]) => `<div class="stat"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+    }
+
+
+    function taxonomyCategoryUsage(name) {
+      return state.catalogs.filter(catalog => groupKey(catalog.category) === groupKey(name)).length;
+    }
+
+    function taxonomySubcategoryUsage(category, name) {
+      return state.catalogs.filter(catalog => groupKey(catalog.category) === groupKey(category) && groupKey(catalog.subcategory) === groupKey(name)).length;
+    }
+
+    function taxonomyIssuesForState() {
+      const issues = [];
+      for (const category of state.taxonomy.categories || []) {
+        if (!groupKey(category.slug)) issues.push(`${groupKey(category.name) || 'קטגוריה'}: חסר slug`);
+        if (!groupKey(category.description)) issues.push(`${groupKey(category.name) || 'קטגוריה'}: חסר תיאור`);
+      }
+      for (const subcategory of state.taxonomy.subcategories || []) {
+        const prefix = `${groupKey(subcategory.category) || 'ללא קטגוריה'} / ${groupKey(subcategory.name) || 'תת־קטגוריה'}`;
+        if (!groupKey(subcategory.slug)) issues.push(`${prefix}: חסר slug`);
+        if (!groupKey(subcategory.description)) issues.push(`${prefix}: חסר תיאור`);
+      }
+      return issues;
+    }
+
+    function taxonomyPayload() {
+      return {
+        categories: (state.taxonomy.categories || []).map(item => ({
+          name: groupKey(item.name),
+          slug: groupKey(item.slug).toLowerCase(),
+          description: groupKey(item.description),
+          originalName: groupKey(item.originalName || item.name)
+        })),
+        subcategories: (state.taxonomy.subcategories || []).map(item => ({
+          category: groupKey(item.category),
+          name: groupKey(item.name),
+          slug: groupKey(item.slug).toLowerCase(),
+          description: groupKey(item.description),
+          originalCategory: groupKey(item.originalCategory || item.category),
+          originalName: groupKey(item.originalName || item.name)
+        }))
+      };
+    }
+
+    function reconcileTaxonomyDraftFromCatalogs({ render = true } = {}) {
+      const current = taxonomyPayload();
+      const categoryMap = new Map(current.categories.map(item => [item.name, item]));
+      const activeCategories = [];
+      const activeCategorySet = new Set();
+      const activeSubcategories = new Map();
+      for (const catalog of state.catalogs) {
+        const category = groupKey(catalog.category);
+        const subcategory = groupKey(catalog.subcategory);
+        if (category && !activeCategorySet.has(category)) {
+          activeCategorySet.add(category);
+          activeCategories.push(category);
+        }
+        if (category && subcategory) {
+          const values = activeSubcategories.get(category) || [];
+          if (!values.includes(subcategory)) values.push(subcategory);
+          activeSubcategories.set(category, values);
+        }
+      }
+
+      const categories = activeCategories.map(name => categoryMap.get(name) || { name, slug: '', description: '', originalName: name });
+      for (const item of current.categories) {
+        if (!activeCategorySet.has(item.name)) categories.push(item);
+      }
+
+      const subcategoryMap = new Map(current.subcategories.map(item => [`${item.category}\u0000${item.name}`, item]));
+      const usedKeys = new Set();
+      const subcategories = [];
+      for (const category of categories.map(item => item.name)) {
+        for (const name of activeSubcategories.get(category) || []) {
+          const key = `${category}\u0000${name}`;
+          usedKeys.add(key);
+          subcategories.push(subcategoryMap.get(key) || { category, name, slug: '', description: '', originalCategory: category, originalName: name });
+        }
+        for (const item of current.subcategories) {
+          const key = `${item.category}\u0000${item.name}`;
+          if (item.category === category && !usedKeys.has(key)) {
+            usedKeys.add(key);
+            subcategories.push(item);
+          }
+        }
+      }
+      state.taxonomy = { ...state.taxonomy, categories, subcategories };
+      if (render) renderTaxonomyEditor();
+    }
+
+    function taxonomyCategoryOptions(selected) {
+      return (state.taxonomy.categories || []).map(item => `<option value="${escapeHtml(item.name)}" ${item.name === selected ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+    }
+
+    function taxonomyCategoryMarkup(item, index) {
+      const usage = taxonomyCategoryUsage(item.name);
+      const incomplete = !groupKey(item.slug) || !groupKey(item.description);
+      const hasSubcategories = (state.taxonomy.subcategories || []).some(sub => sub.category === item.name);
+      return `<article class="taxonomy-row ${incomplete ? 'is-incomplete' : ''} ${usage ? '' : 'is-unused'}" data-taxonomy-kind="category" data-index="${index}">
+        <div class="taxonomy-row-head">
+          <div class="taxonomy-row-title">
+            <span>קטגוריה ${index + 1}</span>
+            <span class="taxonomy-usage">${usage ? `${usage} קטלוגים` : 'לא בשימוש'}</span>
+          </div>
+          <div class="taxonomy-row-actions">
+            <button class="secondary" type="button" data-taxonomy-move="up" ${index === 0 ? 'disabled' : ''}>↑</button>
+            <button class="secondary" type="button" data-taxonomy-move="down" ${index === state.taxonomy.categories.length - 1 ? 'disabled' : ''}>↓</button>
+            <button class="danger" type="button" data-taxonomy-delete="category" ${usage || hasSubcategories ? 'disabled' : ''}>מחק</button>
+          </div>
+        </div>
+        <div class="taxonomy-fields">
+          <div class="taxonomy-field">
+            <label>שם הקטגוריה</label>
+            <input type="text" data-taxonomy-field="name" value="${escapeHtml(item.name)}" required />
+          </div>
+          <div class="taxonomy-field">
+            <label>slug לכתובת</label>
+            <input class="${groupKey(item.slug) ? '' : 'missing-field'}" type="text" dir="ltr" data-taxonomy-field="slug" value="${escapeHtml(item.slug)}" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="חסר — לדוגמה dining-tables" />
+            <small>אנגלית קטנה, מספרים ומקפים בלבד.</small>
+          </div>
+          <div class="taxonomy-field">
+            <label>תיאור לעמוד הקטגוריה</label>
+            <textarea class="${groupKey(item.description) ? '' : 'missing-field'}" data-taxonomy-field="description" placeholder="חסר — יש להשלים תיאור ייחודי">${escapeHtml(item.description)}</textarea>
+          </div>
+        </div>
+      </article>`;
+    }
+
+    function taxonomySubcategoryMarkup(item, index) {
+      const usage = taxonomySubcategoryUsage(item.category, item.name);
+      const incomplete = !groupKey(item.slug) || !groupKey(item.description);
+      const canMoveUp = index > 0 && state.taxonomy.subcategories[index - 1].category === item.category;
+      const canMoveDown = index < state.taxonomy.subcategories.length - 1 && state.taxonomy.subcategories[index + 1].category === item.category;
+      return `<article class="taxonomy-row ${incomplete ? 'is-incomplete' : ''} ${usage ? '' : 'is-unused'}" data-taxonomy-kind="subcategory" data-index="${index}">
+        <div class="taxonomy-row-head">
+          <div class="taxonomy-row-title">
+            <span>${escapeHtml(item.category)} / ${escapeHtml(item.name)}</span>
+            <span class="taxonomy-usage">${usage ? `${usage} קטלוגים` : 'לא בשימוש'}</span>
+          </div>
+          <div class="taxonomy-row-actions">
+            <button class="secondary" type="button" data-taxonomy-move="up" ${canMoveUp ? '' : 'disabled'}>↑</button>
+            <button class="secondary" type="button" data-taxonomy-move="down" ${canMoveDown ? '' : 'disabled'}>↓</button>
+            <button class="danger" type="button" data-taxonomy-delete="subcategory" ${usage ? 'disabled' : ''}>מחק</button>
+          </div>
+        </div>
+        <div class="taxonomy-fields">
+          <div class="taxonomy-field">
+            <label>קטגוריית אב</label>
+            <select data-taxonomy-field="category">${taxonomyCategoryOptions(item.category)}</select>
+            <label>שם תת־הקטגוריה</label>
+            <input type="text" data-taxonomy-field="name" value="${escapeHtml(item.name)}" required />
+          </div>
+          <div class="taxonomy-field">
+            <label>slug לכתובת</label>
+            <input class="${groupKey(item.slug) ? '' : 'missing-field'}" type="text" dir="ltr" data-taxonomy-field="slug" value="${escapeHtml(item.slug)}" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="חסר — לדוגמה kids-rooms" />
+            <small>ה־slug יתווסף אחרי כתובת קטגוריית האב.</small>
+          </div>
+          <div class="taxonomy-field">
+            <label>תיאור לעמוד תת־הקטגוריה</label>
+            <textarea class="${groupKey(item.description) ? '' : 'missing-field'}" data-taxonomy-field="description" placeholder="חסר — יש להשלים תיאור ייחודי">${escapeHtml(item.description)}</textarea>
+          </div>
+        </div>
+      </article>`;
+    }
+
+    function renderTaxonomyEditor() {
+      const issues = taxonomyIssuesForState();
+      state.taxonomy.issues = issues;
+      state.taxonomy.complete = issues.length === 0;
+      state.counts.taxonomyMissing = issues.length;
+      renderStats(state.counts);
+      els.taxonomySummary.innerHTML = `<span class="taxonomy-status ${issues.length ? 'incomplete' : 'ready'}">${issues.length ? `דורש השלמה · ${issues.length} שדות` : 'מוכן לבנייה'}</span>`;
+      const added = state.taxonomy.autoAdded || { categories: [], subcategories: [] };
+      const addedItems = [...(added.categories || []), ...(added.subcategories || [])];
+      if (issues.length || addedItems.length) {
+        const details = addedItems.length ? ` נוספו אוטומטית: ${addedItems.join(' | ')}.` : '';
+        els.taxonomyAlert.hidden = false;
+        els.taxonomyAlert.className = 'taxonomy-alert';
+        els.taxonomyAlert.textContent = `${issues.length ? `יש להשלים ${issues.length} שדות לפני בנייה או העלאה.` : ''}${details}`.trim();
+      } else {
+        els.taxonomyAlert.hidden = true;
+        els.taxonomyAlert.textContent = '';
+      }
+      els.taxonomyCategories.innerHTML = (state.taxonomy.categories || []).map(taxonomyCategoryMarkup).join('') || '<div class="taxonomy-empty">אין קטגוריות.</div>';
+      els.taxonomySubcategories.innerHTML = (state.taxonomy.subcategories || []).map(taxonomySubcategoryMarkup).join('') || '<div class="taxonomy-empty">אין תתי־קטגוריות.</div>';
+      renderActions();
+    }
+
+    function setTaxonomySaveStatus(text, kind) {
+      els.taxonomySaveStatus.textContent = text;
+      els.taxonomySaveStatus.className = `toast ${kind || ''}`;
+    }
+
+    function markTaxonomyUnsaved() {
+      setTaxonomySaveStatus('יש שינויים שלא נשמרו בהגדרות הקטגוריות.', '');
+    }
+
+    function updateTaxonomyField(input, { commitRename = false } = {}) {
+      const row = input.closest('[data-taxonomy-kind]');
+      if (!row) return;
+      const kind = row.dataset.taxonomyKind;
+      const index = Number(row.dataset.index);
+      const collection = kind === 'category' ? state.taxonomy.categories : state.taxonomy.subcategories;
+      const item = collection[index];
+      const field = input.dataset.taxonomyField;
+      if (!item || !field) return;
+      const previous = item[field] || '';
+      item[field] = input.value;
+      if (commitRename && field === 'name' && groupKey(previous) !== groupKey(item.name)) {
+        if (kind === 'category') {
+          for (const subcategory of state.taxonomy.subcategories) {
+            if (subcategory.category === previous) subcategory.category = item.name;
+          }
+          for (const catalog of state.catalogs) {
+            if (groupKey(catalog.category) === groupKey(previous)) catalog.category = item.name;
+          }
+        } else {
+          for (const catalog of state.catalogs) {
+            if (groupKey(catalog.category) === groupKey(item.category) && groupKey(catalog.subcategory) === groupKey(previous)) catalog.subcategory = item.name;
+          }
+        }
+        renderCatalogs();
+        renderTaxonomyEditor();
+      } else if (commitRename && kind === 'subcategory' && field === 'category' && previous !== item.category) {
+        for (const catalog of state.catalogs) {
+          if (groupKey(catalog.category) === groupKey(previous) && groupKey(catalog.subcategory) === groupKey(item.name)) catalog.category = item.category;
+        }
+        renderCatalogs();
+        renderTaxonomyEditor();
+      } else {
+        const missing = (field === 'slug' || field === 'description') && !groupKey(item[field]);
+        input.classList.toggle('missing-field', missing);
+        row.classList.toggle('is-incomplete', !groupKey(item.slug) || !groupKey(item.description));
+        const issues = taxonomyIssuesForState();
+        state.taxonomy.issues = issues;
+        state.counts.taxonomyMissing = issues.length;
+        els.taxonomySummary.innerHTML = `<span class="taxonomy-status ${issues.length ? 'incomplete' : 'ready'}">${issues.length ? `דורש השלמה · ${issues.length} שדות` : 'מוכן לבנייה'}</span>`;
+        renderStats(state.counts);
+        renderActions();
+      }
+      markTaxonomyUnsaved();
+    }
+
+    function moveTaxonomyItem(kind, index, direction) {
+      const collection = kind === 'category' ? state.taxonomy.categories : state.taxonomy.subcategories;
+      const target = direction === 'up' ? index - 1 : index + 1;
+      if (target < 0 || target >= collection.length) return;
+      if (kind === 'subcategory' && collection[index].category !== collection[target].category) return;
+      [collection[index], collection[target]] = [collection[target], collection[index]];
+      renderTaxonomyEditor();
+      markTaxonomyUnsaved();
+    }
+
+    function deleteTaxonomyItem(kind, index) {
+      const collection = kind === 'category' ? state.taxonomy.categories : state.taxonomy.subcategories;
+      const item = collection[index];
+      if (!item) return;
+      const usage = kind === 'category' ? taxonomyCategoryUsage(item.name) : taxonomySubcategoryUsage(item.category, item.name);
+      if (usage) return;
+      if (kind === 'category' && state.taxonomy.subcategories.some(sub => sub.category === item.name)) return;
+      collection.splice(index, 1);
+      renderTaxonomyEditor();
+      markTaxonomyUnsaved();
+    }
+
+    function addTaxonomyCategory() {
+      const name = groupKey(prompt('שם הקטגוריה החדשה:') || '');
+      if (!name) return;
+      if (state.taxonomy.categories.some(item => item.name === name)) {
+        setTaxonomySaveStatus('קטגוריה בשם הזה כבר קיימת.', 'err');
+        return;
+      }
+      state.taxonomy.categories.push({ name, slug: '', description: '', originalName: name });
+      renderTaxonomyEditor();
+      markTaxonomyUnsaved();
+    }
+
+    function addTaxonomySubcategory() {
+      if (!state.taxonomy.categories.length) {
+        setTaxonomySaveStatus('יש להוסיף קודם קטגוריה ראשית.', 'err');
+        return;
+      }
+      const category = groupKey(prompt(`קטגוריית אב (${state.taxonomy.categories.map(item => item.name).join(', ')}):`, state.taxonomy.categories[0].name) || '');
+      if (!state.taxonomy.categories.some(item => item.name === category)) {
+        setTaxonomySaveStatus('קטגוריית האב אינה קיימת.', 'err');
+        return;
+      }
+      const name = groupKey(prompt('שם תת־הקטגוריה החדשה:') || '');
+      if (!name) return;
+      if (state.taxonomy.subcategories.some(item => item.category === category && item.name === name)) {
+        setTaxonomySaveStatus('תת־קטגוריה בשם הזה כבר קיימת בקטגוריית האב.', 'err');
+        return;
+      }
+      state.taxonomy.subcategories.push({ category, name, slug: '', description: '', originalCategory: category, originalName: name });
+      renderTaxonomyEditor();
+      markTaxonomyUnsaved();
+    }
+
+    async function saveTaxonomy() {
+      const invalid = [...els.taxonomyCategories.querySelectorAll('input'), ...els.taxonomySubcategories.querySelectorAll('input, select')].find(input => !input.reportValidity());
+      if (invalid) { invalid.focus(); return; }
+      setTaxonomySaveStatus('שומר את הטקסונומיה ומעדכן את הפניות הקטלוגים...', '');
+      els.taxonomySave.disabled = true;
+      try {
+        const payload = await api('/api/taxonomy', {
+          method: 'POST',
+          body: JSON.stringify({ taxonomy: taxonomyPayload() })
+        });
+        state.catalogs = (payload.state.catalogs || []).map(catalog => ({ ...catalog, originalId: catalog.originalId || catalog.id }));
+        state.taxonomy = payload.state.taxonomy || state.taxonomy;
+        state.actions = payload.state.actions || state.actions;
+        state.counts = payload.state.counts || state.counts;
+        renderCatalogs();
+        renderTaxonomyEditor();
+        renderActions();
+        const warnings = payload.warnings || [];
+        setTaxonomySaveStatus(warnings.length ? `נשמר, אבל: ${warnings.join(' | ')}` : 'הגדרות הקטגוריות נשמרו ועודכנו.', warnings.length ? 'err' : 'ok');
+      } catch (error) {
+        setTaxonomySaveStatus(error.message, 'err');
+      } finally {
+        els.taxonomySave.disabled = false;
+      }
     }
 
 
@@ -957,11 +1355,18 @@
     }
 
     function renderActions() {
-      els.actions.innerHTML = state.actions.map(action => `<div class="action">
-        <strong>${escapeHtml(action.label)}</strong>
-        <p>${escapeHtml(action.description)}</p>
-        <button type="button" data-action="${escapeHtml(action.key)}">הפעל</button>
-      </div>`).join('');
+      const incompleteTaxonomy = taxonomyIssuesForState().length > 0;
+      els.actions.innerHTML = state.actions.map(action => {
+        const taxonomyBlocked = incompleteTaxonomy && ['bundle_r2', 'cloudflare_pages_deploy'].includes(action.key);
+        const disabled = Boolean(action.disabled || taxonomyBlocked);
+        const reason = taxonomyBlocked ? 'יש להשלים את שדות הטקסונומיה לפני בנייה או העלאה.' : (action.disabledReason || '');
+        return `<div class="action">
+          <strong>${escapeHtml(action.label)}</strong>
+          <p>${escapeHtml(action.description)}</p>
+          ${reason ? `<p class="taxonomy-usage">${escapeHtml(reason)}</p>` : ''}
+          <button type="button" data-action="${escapeHtml(action.key)}" ${disabled ? 'disabled' : ''}>הפעל</button>
+        </div>`;
+      }).join('');
     }
 
     async function saveCatalogs() {
@@ -969,15 +1374,20 @@
       els.save.disabled = true;
       try {
         state.catalogs = groupCatalogsByCategorySubcategory(state.catalogs);
+        reconcileTaxonomyDraftFromCatalogs({ render: false });
         const payload = await api('/api/catalogs', {
           method: 'POST',
-          body: JSON.stringify({ catalogs: state.catalogs, assetDeletes: state.pendingAssetDeletes })
+          body: JSON.stringify({ catalogs: state.catalogs, taxonomy: taxonomyPayload(), assetDeletes: state.pendingAssetDeletes })
         });
         state.pendingAssetDeletes = [];
-        state.catalogs = payload.state.catalogs || state.catalogs;
+        state.catalogs = (payload.state.catalogs || state.catalogs).map(catalog => ({ ...catalog, originalId: catalog.originalId || catalog.id }));
+        state.taxonomy = payload.state.taxonomy || state.taxonomy;
+        state.actions = payload.state.actions || state.actions;
         state.counts = (payload.state && payload.state.counts) || {};
         renderStats(state.counts);
         renderCatalogs();
+        renderTaxonomyEditor();
+        renderActions();
         const warnings = payload.warnings || [];
         const deletedAssets = payload.deletedAssets || [];
         const successText = deletedAssets.length
@@ -999,6 +1409,11 @@
     async function runAction(actionKey) {
       const action = state.actions.find(item => item.key === actionKey);
       if (!action) return;
+      if (action.disabled || (['bundle_r2', 'cloudflare_pages_deploy'].includes(action.key) && taxonomyIssuesForState().length)) {
+        setTaxonomySaveStatus(action.disabledReason || 'יש להשלים את שדות הטקסונומיה לפני בנייה או העלאה.', 'err');
+        document.getElementById('taxonomyCategoriesTitle')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       if (!confirm(`להפעיל: ${action.label}?`)) return;
       els.jobLog.textContent = 'מתחיל הרצה...';
       els.jobStatus.textContent = 'רץ...';
@@ -1054,7 +1469,12 @@
     });
     els.rows.addEventListener('change', event => {
       const input = event.target.closest('input, textarea');
-      if (input) syncCatalogFromInput(input);
+      if (!input) return;
+      syncCatalogFromInput(input);
+      if (input.dataset.field === 'category' || input.dataset.field === 'subcategory') {
+        reconcileTaxonomyDraftFromCatalogs();
+        markTaxonomyUnsaved();
+      }
     });
     els.rows.addEventListener('click', event => {
       const button = event.target.closest('button');
@@ -1083,6 +1503,36 @@
     });
     els.filter.addEventListener('input', renderCatalogs);
     els.save.addEventListener('click', saveCatalogs);
+    els.taxonomyCategories.addEventListener('input', event => {
+      const input = event.target.closest('[data-taxonomy-field]');
+      if (input && input.dataset.taxonomyField !== 'name') updateTaxonomyField(input);
+    });
+    els.taxonomySubcategories.addEventListener('input', event => {
+      const input = event.target.closest('[data-taxonomy-field]');
+      if (input && !['name', 'category'].includes(input.dataset.taxonomyField)) updateTaxonomyField(input);
+    });
+    function handleTaxonomyChange(event) {
+      const input = event.target.closest('[data-taxonomy-field]');
+      if (!input) return;
+      updateTaxonomyField(input, { commitRename: ['name', 'category'].includes(input.dataset.taxonomyField) });
+    }
+    function handleTaxonomyClick(event) {
+      const button = event.target.closest('button');
+      if (!button) return;
+      const row = button.closest('[data-taxonomy-kind]');
+      if (!row) return;
+      const kind = row.dataset.taxonomyKind;
+      const index = Number(row.dataset.index);
+      if (button.dataset.taxonomyMove) moveTaxonomyItem(kind, index, button.dataset.taxonomyMove);
+      if (button.dataset.taxonomyDelete) deleteTaxonomyItem(kind, index);
+    }
+    els.taxonomyCategories.addEventListener('change', handleTaxonomyChange);
+    els.taxonomySubcategories.addEventListener('change', handleTaxonomyChange);
+    els.taxonomyCategories.addEventListener('click', handleTaxonomyClick);
+    els.taxonomySubcategories.addEventListener('click', handleTaxonomyClick);
+    els.taxonomyAddCategory.addEventListener('click', addTaxonomyCategory);
+    els.taxonomyAddSubcategory.addEventListener('click', addTaxonomySubcategory);
+    els.taxonomySave.addEventListener('click', saveTaxonomy);
     els.footerSave.addEventListener('click', saveFooter);
     els.footerEditorGroups.addEventListener('input', event => {
       if (event.target.closest('[data-footer-field]')) {
@@ -1109,6 +1559,10 @@
       els.stats.innerHTML = '';
       els.rows.innerHTML = '<tr><td colspan="10">לא ניתן לטעון קטלוגים כי שרת ה־API של לוח השליטה לא פעיל.</td></tr>';
       els.actions.innerHTML = '<div class="notice">הפעל <span dir="ltr">catalog-control-panel.bat</span> מתוך תיקיית הפרויקט, ואז הדף ייטען עם כל הקטלוגים והכפתורים.</div>';
+      setTaxonomySaveStatus('לא ניתן לטעון או לשמור טקסונומיה בלי שרת לוח השליטה.', 'err');
+      els.taxonomySave.disabled = true;
+      els.taxonomyCategories.innerHTML = '<div class="taxonomy-empty">לא ניתן לטעון קטגוריות.</div>';
+      els.taxonomySubcategories.innerHTML = '<div class="taxonomy-empty">לא ניתן לטעון תתי־קטגוריות.</div>';
       setFooterSaveStatus('לא ניתן לטעון או לשמור את הפוטר בלי שרת לוח השליטה.', 'err');
       els.footerSave.disabled = true;
       els.jobLog.textContent = message;
