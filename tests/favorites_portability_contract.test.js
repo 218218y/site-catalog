@@ -15,7 +15,7 @@ const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
 for (const html of [template, favorites]) {
-  assert.match(html, /class="favorites-title-row"[\s\S]*?id="favoritesTitle"[\s\S]*?id="favoritesCatalogFilter"[\s\S]*?id="favoritesVisibleCount"[\s\S]*?id="favoritesShareButton"[\s\S]*?id="favoritesBulkGmail"/);
+  assert.match(html, /class="favorites-title-row"[\s\S]*?id="favoritesTitle"[\s\S]*?id="favoritesCatalogFilter"[\s\S]*?id="favoritesVisibleCount"[\s\S]*?id="favoritesShareButton"[\s\S]*?id="favoritesInquiryButton"/);
   assert.match(html, /id="favoritesShareButton"[^>]*disabled/);
   assert.match(html, /id="favoritesTransferOverlay"[^>]*aria-hidden="true"/);
   assert.match(html, /id="favoritesTransferMerge"/);

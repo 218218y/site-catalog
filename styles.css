@@ -3884,31 +3884,33 @@ a.reader-home:focus-visible {
   display: none;
 }
 
-.viewer-inquiry-button {
-  position: fixed;
-  z-index: 12;
-  right: max(18px, env(safe-area-inset-right));
-  bottom: max(18px, env(safe-area-inset-bottom));
+.inquiry-trigger-button {
   min-height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
   padding: 0 17px !important;
+  border: 1px solid rgba(255,255,255,.34) !important;
   border-radius: 999px;
   color: #fff;
   background: linear-gradient(135deg, rgba(143,109,85,.97), rgba(103,77,59,.97)) !important;
-  border-color: rgba(255,255,255,.34) !important;
   box-shadow: 0 18px 46px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.2);
   backdrop-filter: blur(16px);
+  font: inherit;
   white-space: nowrap;
+  cursor: pointer;
 }
-.viewer-inquiry-button:hover,
-.viewer-inquiry-button:focus-visible {
+.inquiry-trigger-button:hover,
+.inquiry-trigger-button:focus-visible {
+  color: #fff;
   background: linear-gradient(135deg, rgba(161,124,96,.99), rgba(113,83,63,.99)) !important;
   border-color: rgba(255,255,255,.5) !important;
+  box-shadow: 0 20px 50px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.22);
+  transform: translateY(-1px);
 }
-.viewer-inquiry-button svg {
+.inquiry-trigger-button:active { transform: translateY(0); }
+.inquiry-trigger-button svg {
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
@@ -3918,9 +3920,16 @@ a.reader-home:focus-visible {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.viewer-inquiry-button span {
+.inquiry-trigger-button span {
   font-size: .91rem;
   font-weight: 900;
+}
+
+.viewer-inquiry-button {
+  position: fixed;
+  z-index: 12;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
 }
 
 .viewer-inquiry-overlay {
@@ -6273,19 +6282,16 @@ body[data-page="viewer"] {
   white-space: nowrap;
 }
 
-.favorites-gmail-inline {
-  color: #fff;
-  border-color: rgba(113, 80, 58, .34);
-  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-  box-shadow: 0 9px 22px rgba(87, 59, 42, .18), inset 0 1px 0 rgba(255, 255, 255, .24);
+.favorites-inquiry-button {
+  position: static;
+  z-index: auto;
+  flex: 0 0 auto;
+  box-shadow: 0 9px 22px rgba(87, 59, 42, .24), inset 0 1px 0 rgba(255, 255, 255, .24);
 }
 
-.favorites-gmail-inline:hover,
-.favorites-gmail-inline:focus-visible {
-  color: #fff;
-  border-color: rgba(85, 58, 41, .46);
-  background: linear-gradient(135deg, var(--brand-dark), #6d4f3c);
-  box-shadow: 0 12px 27px rgba(87, 59, 42, .24), inset 0 1px 0 rgba(255, 255, 255, .22);
+.favorites-inquiry-button:hover,
+.favorites-inquiry-button:focus-visible {
+  box-shadow: 0 12px 28px rgba(87, 59, 42, .3), inset 0 1px 0 rgba(255, 255, 255, .22);
 }
 
 .favorites-selection-bar {

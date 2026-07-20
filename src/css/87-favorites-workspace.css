@@ -46,19 +46,16 @@
   white-space: nowrap;
 }
 
-.favorites-gmail-inline {
-  color: #fff;
-  border-color: rgba(113, 80, 58, .34);
-  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-  box-shadow: 0 9px 22px rgba(87, 59, 42, .18), inset 0 1px 0 rgba(255, 255, 255, .24);
+.favorites-inquiry-button {
+  position: static;
+  z-index: auto;
+  flex: 0 0 auto;
+  box-shadow: 0 9px 22px rgba(87, 59, 42, .24), inset 0 1px 0 rgba(255, 255, 255, .24);
 }
 
-.favorites-gmail-inline:hover,
-.favorites-gmail-inline:focus-visible {
-  color: #fff;
-  border-color: rgba(85, 58, 41, .46);
-  background: linear-gradient(135deg, var(--brand-dark), #6d4f3c);
-  box-shadow: 0 12px 27px rgba(87, 59, 42, .24), inset 0 1px 0 rgba(255, 255, 255, .22);
+.favorites-inquiry-button:hover,
+.favorites-inquiry-button:focus-visible {
+  box-shadow: 0 12px 28px rgba(87, 59, 42, .3), inset 0 1px 0 rgba(255, 255, 255, .22);
 }
 
 .favorites-selection-bar {

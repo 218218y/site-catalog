@@ -386,6 +386,7 @@ const state = {
   viewerMobileMoreOpen: false,
   viewerInquiryOpen: false,
   viewerInquiryReturnFocus: null,
+  viewerInquiryContext: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
   viewerScrollCatalogId: "",
@@ -480,8 +481,8 @@ const els = {
   favoritesClearButton: $("favoritesClearButton"),
   favoritesShareButton: $("favoritesShareButton"),
   favoritesShareLabel: $("favoritesShareLabel"),
-  favoritesBulkGmail: $("favoritesBulkGmail"),
-  favoritesBulkGmailLabel: $("favoritesBulkGmailLabel"),
+  favoritesInquiryButton: $("favoritesInquiryButton"),
+  favoritesInquiryLabel: $("favoritesInquiryLabel"),
   favoritesHeaderWorkspace: $("favoritesHeaderWorkspace"),
   favoritesGrid: $("favoritesGrid"),
   favoritesEmpty: $("favoritesEmpty"),
@@ -551,6 +552,10 @@ const els = {
   viewerInquiryOverlay: $("viewerInquiryOverlay"),
   viewerInquiryBackdrop: $("viewerInquiryBackdrop"),
   viewerInquiryClose: $("viewerInquiryClose"),
+  viewerInquiryEyebrow: $("viewerInquiryEyebrow"),
+  viewerInquiryTitle: $("viewerInquiryTitle"),
+  viewerInquiryDescription: $("viewerInquiryDescription"),
+  viewerInquiryReference: $("viewerInquiryReference"),
   viewerInquiryCatalog: $("viewerInquiryCatalog"),
   viewerInquiryPage: $("viewerInquiryPage"),
   viewerInquiryPreview: $("viewerInquiryPreview"),
@@ -2798,11 +2803,6 @@ function favoriteWorkspaceVisibleEntries(entries = getFavoriteEntries()) {
   return filter ? entries.filter((entry) => String(entry.catalog?.id || entry.catalogId) === filter) : entries;
 }
 
-function favoriteWorkspaceActionEntries(entries = getFavoriteEntries()) {
-  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
-  return selectedEntries.length ? selectedEntries : favoriteWorkspaceVisibleEntries(entries);
-}
-
 function favoriteWorkspaceShareLinkEntries(entries = getFavoriteEntries()) {
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   return selectedEntries.length ? selectedEntries : entries;
@@ -2847,27 +2847,54 @@ function syncFavoriteWorkspaceFilter(entries) {
   state.favoritesFilterCatalogId = els.favoritesCatalogFilter.value;
 }
 
-function favoriteWorkspaceActionLabel(entries, visibleEntries) {
-  const selectedCount = favoriteWorkspaceSelectedEntries(entries).length;
-  if (selectedCount) return `${selectedCount} פריטים שסומנו`;
-  if (visibleEntries.length !== entries.length) return `${visibleEntries.length} פריטים שמוצגים`;
-  return `${entries.length} פריטים ברשימה`;
+function favoriteWorkspaceInquiryReference(entries, options = {}) {
+  if (!entries.length) return null;
+  const selected = Boolean(options.selected);
+  const firstEntry = entries[0];
+  const count = entries.length;
+  const scopeLabel = selected ? "הדגמים שנבחרו" : "כל המועדפים";
+  const title = selected ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים";
+  const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
+  const shareText = favoriteWorkspaceMessage(entries, { purpose: "inquiry" });
+  const text = `${shareText}
+
+קישור לרשימת הדגמים: ${selectionUrl}`;
+  return {
+    kind: "favorites",
+    source: "favorites-inquiry",
+    entries,
+    count,
+    selected,
+    title,
+    eyebrow: "הדגמים וההערות מצורפים אוטומטית",
+    description: "אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. כל הדגמים, ההערות והקישורים הישירים כבר מוכנים.",
+    referenceTitle: `${count} ${count === 1 ? "דגם" : "דגמים"} מהמועדפים`,
+    pageLabel: `${scopeLabel} · כולל הערות וקישורים`,
+    subject: `${title} – ${count} ${count === 1 ? "דגם" : "דגמים"}`,
+    shareText,
+    text,
+    url: selectionUrl,
+    previewCatalog: firstEntry.catalog,
+    previewPage: firstEntry.page,
+    telemetry: { source: "favorites-inquiry", value: count }
+  };
 }
 
-function favoriteWorkspaceInquiryReference(entries) {
-  return {
-    subject: `בירור מרוכז על ${entries.length} דגמים`,
-    text: favoriteWorkspaceMessage(entries, { purpose: "inquiry" })
-  };
+function openFavoriteWorkspaceInquiry() {
+  const entries = getFavoriteEntries();
+  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
+  const actionEntries = selectedEntries.length ? selectedEntries : entries;
+  const reference = favoriteWorkspaceInquiryReference(actionEntries, { selected: selectedEntries.length > 0 });
+  if (!reference) return;
+  openViewerInquiry({ reference, returnFocus: els.favoritesInquiryButton });
 }
 
 function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   const selectedCount = selectedEntries.length;
-  const actionEntries = selectedCount ? selectedEntries : visibleEntries;
+  const inquiryEntries = selectedCount ? selectedEntries : entries;
   const shareEntries = selectedCount ? selectedEntries : entries;
   const hasEntries = entries.length > 0;
-  const actionLabel = favoriteWorkspaceActionLabel(entries, visibleEntries);
 
   els.favoritesHeaderWorkspace?.classList.toggle("hidden", !hasEntries);
   if (els.favoritesCatalogFilter) els.favoritesCatalogFilter.disabled = !hasEntries;
@@ -2889,23 +2916,14 @@ function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
     els.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה";
   }
 
-  const email = viewerInquiryEmailAddress();
-  if (els.favoritesBulkGmail) {
-    const available = Boolean(email && actionEntries.length);
-    els.favoritesBulkGmail.classList.toggle("hidden", !available);
-    els.favoritesBulkGmail.setAttribute("aria-hidden", available ? "false" : "true");
-    if (available) {
-      els.favoritesBulkGmail.removeAttribute("tabindex");
-      els.favoritesBulkGmail.href = viewerInquiryGmailUrl(email, favoriteWorkspaceInquiryReference(actionEntries));
-      els.favoritesBulkGmail.setAttribute("aria-label", `פתיחת בירור מרוכז ב-Gmail עבור ${actionLabel}`);
-    } else {
-      els.favoritesBulkGmail.setAttribute("tabindex", "-1");
-      els.favoritesBulkGmail.removeAttribute("href");
-      els.favoritesBulkGmail.removeAttribute("aria-label");
-    }
+  if (els.favoritesInquiryButton) {
+    els.favoritesInquiryButton.disabled = inquiryEntries.length === 0;
+    els.favoritesInquiryButton.setAttribute("aria-label", selectedCount
+      ? `בירור על ${selectedCount} הדגמים שנבחרו`
+      : `בירור על כל ${entries.length} הדגמים במועדפים`);
   }
-  if (els.favoritesBulkGmailLabel) {
-    els.favoritesBulkGmailLabel.textContent = selectedCount ? "בירור על הבחירה ב-Gmail" : "בירור מרוכז ב-Gmail";
+  if (els.favoritesInquiryLabel) {
+    els.favoritesInquiryLabel.textContent = selectedCount ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים";
   }
 
   els.favoritesSelectionBar?.classList.toggle("hidden", selectedCount === 0);
@@ -3225,6 +3243,7 @@ function attachFavoritesWorkspaceEvents() {
     requestAnimationFrame(() => els.favoritesCatalogFilter?.focus?.());
   });
   els.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection);
+  els.favoritesInquiryButton?.addEventListener("click", openFavoriteWorkspaceInquiry);
   els.favoritesGrid?.addEventListener("change", handleFavoritesWorkspaceGridChange);
   els.favoritesGrid?.addEventListener("dragstart", handleFavoritesWorkspaceDragStart);
   els.favoritesGrid?.addEventListener("dragover", handleFavoritesWorkspaceDragOver);
@@ -7626,7 +7645,7 @@ function syncDocumentLock() {
   const modalFavoritesOpen = state.favoritesOpen && !isAppPage("favorites");
   const transferOpen = Boolean(state.favoritesTransferPending);
   const favoritesWorkspaceDialogOpen = Boolean(state.favoriteNoteEditingKey);
-  document.body.classList.toggle("no-scroll", isViewerSessionOpen() || modalFavoritesOpen || transferOpen || favoritesWorkspaceDialogOpen);
+  document.body.classList.toggle("no-scroll", isViewerSessionOpen() || modalFavoritesOpen || transferOpen || favoritesWorkspaceDialogOpen || state.viewerInquiryOpen);
   document.documentElement.classList.toggle("viewer-open", isViewerSessionOpen());
 }
 
@@ -7994,7 +8013,7 @@ function viewerInquiryEmailAddress() {
   return emailHref.replace(/^mailto:/i, "").split("?")[0].trim();
 }
 
-function viewerInquiryReference() {
+function viewerPageInquiryReference() {
   if (!state.catalog) return null;
   const page = clampPage(state.page, state.catalog);
   const url = absoluteDocumentUrl(viewerDocumentUrl(state.catalog.id, page));
@@ -8008,7 +8027,32 @@ function viewerInquiryReference() {
     `עמוד: ${page}`
   ].join("\n");
   const text = `${shareText}\nקישור ישיר: ${url}`;
-  return { catalog: state.catalog, page, title, pageLabel, subject, shareText, text, url };
+  return {
+    kind: "viewer",
+    source: "viewer-inquiry",
+    catalog: state.catalog,
+    page,
+    title: "בירור על הדגם",
+    eyebrow: "פרטי העמוד מצורפים אוטומטית",
+    description: "אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. שם הקטלוג, מספר העמוד והקישור המדויק מוכנים מראש.",
+    referenceTitle: title,
+    pageLabel,
+    subject,
+    shareText,
+    text,
+    url,
+    previewCatalog: state.catalog,
+    previewPage: page,
+    telemetry: {
+      source: "viewer-inquiry",
+      catalogId: state.catalog.id,
+      pageNumber: page
+    }
+  };
+}
+
+function viewerInquiryReference() {
+  return state.viewerInquiryContext?.reference || viewerPageInquiryReference();
 }
 
 function viewerInquiryGmailUrl(emailAddress, reference) {
@@ -8022,6 +8066,18 @@ function viewerInquiryGmailUrl(emailAddress, reference) {
   return `https://mail.google.com/mail/?${query.toString()}`;
 }
 
+function viewerInquiryTelemetryFields(reference, action, detail = "") {
+  const telemetry = reference?.telemetry || {};
+  return {
+    action,
+    detail,
+    source: telemetry.source || reference?.source || "viewer-inquiry",
+    catalogId: telemetry.catalogId || reference?.catalog?.id || "",
+    pageNumber: telemetry.pageNumber || reference?.page || 0,
+    value: telemetry.value || reference?.count || 0
+  };
+}
+
 function syncViewerInquiryContactLink(link, href, reference, action) {
   if (!link) return;
   const available = Boolean(href);
@@ -8029,32 +8085,47 @@ function syncViewerInquiryContactLink(link, href, reference, action) {
   link.setAttribute("aria-hidden", available ? "false" : "true");
   if (!available) {
     link.removeAttribute("href");
+    delete link.dataset.contactSource;
+    delete link.dataset.contactAction;
+    delete link.dataset.contactCatalogId;
+    delete link.dataset.contactPage;
     return;
   }
+  const telemetry = viewerInquiryTelemetryFields(reference, action);
   link.href = href;
-  link.dataset.contactSource = "viewer-inquiry";
+  link.dataset.contactSource = telemetry.source;
   link.dataset.contactAction = action;
-  link.dataset.contactCatalogId = reference.catalog.id;
-  link.dataset.contactPage = String(reference.page);
+  if (telemetry.catalogId) link.dataset.contactCatalogId = telemetry.catalogId;
+  else delete link.dataset.contactCatalogId;
+  if (telemetry.pageNumber) link.dataset.contactPage = String(telemetry.pageNumber);
+  else delete link.dataset.contactPage;
 }
 
-function syncViewerInquiryUi() {
-  const reference = viewerInquiryReference();
+function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   if (!reference) return;
 
-  if (els.viewerInquiryCatalog) els.viewerInquiryCatalog.textContent = reference.title;
-  if (els.viewerInquiryPage) els.viewerInquiryPage.textContent = reference.pageLabel;
-  if (els.viewerInquiryButton) {
-    const label = `בירור על הדגם — ${reference.title}, עמוד ${reference.page}`;
+  if (els.viewerInquiryEyebrow) els.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית";
+  if (els.viewerInquiryTitle) els.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם";
+  if (els.viewerInquiryDescription) els.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.";
+  if (els.viewerInquiryCatalog) els.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title;
+  if (els.viewerInquiryPage) els.viewerInquiryPage.textContent = reference.pageLabel || "";
+  els.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites");
+
+  if (els.viewerInquiryButton && reference.kind === "viewer") {
+    const label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
     els.viewerInquiryButton.setAttribute("aria-label", label);
   }
 
-  if (els.viewerInquiryPreview) {
-    const preview = thumbSrc(reference.catalog, reference.page) || pageSrc(reference.catalog, reference.page);
+  const previewCatalog = reference.previewCatalog || reference.catalog;
+  const previewPage = Number(reference.previewPage || reference.page) || 1;
+  if (els.viewerInquiryPreview && previewCatalog) {
+    const preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
     if (els.viewerInquiryPreview.getAttribute("src") !== preview) {
       els.viewerInquiryPreview.src = preview;
     }
-    els.viewerInquiryPreview.alt = `${reference.title}, עמוד ${reference.page}`;
+    els.viewerInquiryPreview.alt = reference.kind === "favorites"
+      ? `תצוגה מקדימה של ${reference.referenceTitle}`
+      : `${reference.referenceTitle}, עמוד ${previewPage}`;
   }
 
   const emailAddress = viewerInquiryEmailAddress();
@@ -8074,6 +8145,13 @@ function syncViewerInquiryUi() {
   );
 }
 
+function setViewerInquiryTriggerState(open, activeTrigger = null) {
+  [els.viewerInquiryButton, els.favoritesInquiryButton].forEach((button) => {
+    if (!button) return;
+    button.setAttribute("aria-expanded", open && button === activeTrigger ? "true" : "false");
+  });
+}
+
 function getViewerInquiryFocusableElements() {
   if (!els.viewerInquiryOverlay) return [];
   return Array.from(els.viewerInquiryOverlay.querySelectorAll(
@@ -8081,19 +8159,26 @@ function getViewerInquiryFocusableElements() {
   )).filter((element) => !element.closest?.(".hidden"));
 }
 
-function openViewerInquiry() {
-  if (!isViewerSessionOpen() || !state.catalog || !els.viewerInquiryOverlay) return;
+function openViewerInquiry(options = {}) {
+  const reference = options.reference || viewerPageInquiryReference();
+  if (!reference || !els.viewerInquiryOverlay) return;
   if (state.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
-  closeViewerMobileMoreMenu();
-  if (state.lightboxMobileSearchOpen) {
-    setLightboxMobileSearchOpen(false, { hideResults: true });
+  if (isViewerSessionOpen()) {
+    closeViewerMobileMoreMenu();
+    if (state.lightboxMobileSearchOpen) {
+      setLightboxMobileSearchOpen(false, { hideResults: true });
+    }
   }
-  syncViewerInquiryUi();
+
+  const returnFocus = options.returnFocus || document.activeElement || els.viewerInquiryButton;
+  state.viewerInquiryContext = { reference, trigger: returnFocus };
   state.viewerInquiryOpen = true;
-  state.viewerInquiryReturnFocus = document.activeElement || els.viewerInquiryButton;
+  state.viewerInquiryReturnFocus = returnFocus;
+  syncViewerInquiryUi(reference);
   els.viewerInquiryOverlay.classList.remove("hidden");
   els.viewerInquiryOverlay.setAttribute("aria-hidden", "false");
-  els.viewerInquiryButton?.setAttribute("aria-expanded", "true");
+  setViewerInquiryTriggerState(true, returnFocus);
+  syncDocumentLock();
   window.requestAnimationFrame(() => {
     if (!state.viewerInquiryOpen) return;
     els.viewerInquiryOverlay?.classList.add("visible");
@@ -8107,9 +8192,11 @@ function closeViewerInquiry(options = {}) {
   const returnFocus = state.viewerInquiryReturnFocus;
   state.viewerInquiryOpen = false;
   state.viewerInquiryReturnFocus = null;
+  state.viewerInquiryContext = null;
   els.viewerInquiryOverlay?.classList.remove("visible");
   els.viewerInquiryOverlay?.setAttribute("aria-hidden", "true");
-  els.viewerInquiryButton?.setAttribute("aria-expanded", "false");
+  setViewerInquiryTriggerState(false);
+  syncDocumentLock();
   window.setTimeout(() => {
     if (!state.viewerInquiryOpen) els.viewerInquiryOverlay?.classList.add("hidden");
   }, 180);
@@ -8148,16 +8235,11 @@ async function copyViewerInquiryReference() {
   if (!reference) return;
   try {
     await copyTextToClipboard(reference.text);
-    telemetryTrack("contact", {
-      action: "copy",
-      source: "viewer-inquiry",
-      catalogId: reference.catalog.id,
-      pageNumber: reference.page
-    }, { immediate: true });
-    showActionToast("פרטי הדגם הועתקו", { tone: "link" });
+    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "copy"), { immediate: true });
+    showActionToast(reference.kind === "favorites" ? "פרטי הדגמים הועתקו" : "פרטי הדגם הועתקו", { tone: "link" });
     closeViewerInquiry();
   } catch (_error) {
-    window.prompt("אפשר להעתיק את פרטי הדגם מכאן:", reference.text);
+    window.prompt("אפשר להעתיק את פרטי הבירור מכאן:", reference.text);
   }
 }
 
@@ -8186,12 +8268,7 @@ async function shareViewerInquiryReference() {
   if (canUseNativeShare) {
     try {
       await navigator.share(shareData);
-      telemetryTrack("contact", {
-        action: "share",
-        source: "viewer-inquiry",
-        catalogId: reference.catalog.id,
-        pageNumber: reference.page
-      }, { immediate: true });
+      telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: true });
       closeViewerInquiry({ restoreFocus: false });
       return;
     } catch (error) {
@@ -8201,17 +8278,16 @@ async function shareViewerInquiryReference() {
 
   try {
     await copyTextToClipboard(reference.text);
-    telemetryTrack("contact", {
-      action: "share",
-      detail: "copy-fallback",
-      source: "viewer-inquiry",
-      catalogId: reference.catalog.id,
-      pageNumber: reference.page
-    }, { immediate: true });
-    showActionToast("אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו", { tone: "link" });
+    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share", "copy-fallback"), { immediate: true });
+    showActionToast(
+      reference.kind === "favorites"
+        ? "אפשרויות שיתוף אינן זמינות — פרטי הדגמים הועתקו"
+        : "אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו",
+      { tone: "link" }
+    );
     closeViewerInquiry();
   } catch (_error) {
-    window.prompt("אפשר להעתיק ולשתף את פרטי הדגם מכאן:", reference.text);
+    window.prompt("אפשר להעתיק ולשתף את פרטי הבירור מכאן:", reference.text);
   }
 }
 
@@ -8302,7 +8378,7 @@ function attachViewerActionEvents() {
   els.viewerInquiryButton?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    openViewerInquiry();
+    openViewerInquiry({ returnFocus: els.viewerInquiryButton });
   });
   els.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
   els.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
