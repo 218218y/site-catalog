@@ -138,6 +138,10 @@ def verification_steps(
                 "Static accessibility audit",
                 (python, "tools/audit_accessibility.py"),
             ),
+            VerificationStep(
+                "Source performance budgets",
+                (python, "tools/check_performance_budgets.py"),
+            ),
             VerificationStep("Generated JavaScript syntax", ("node", "--check", "app.js")),
         ))
         steps.extend(
@@ -161,6 +165,10 @@ def verification_steps(
             VerificationStep(
                 "Clean Cloudflare Pages bundle",
                 (python, "tools/build_deploy_bundle.py", "--out", ".artifacts/verify-deploy"),
+            ),
+            VerificationStep(
+                "Deploy performance budgets",
+                (python, "tools/check_performance_budgets.py", "--bundle-dir", ".artifacts/verify-deploy"),
             ),
         ))
     return tuple(steps)

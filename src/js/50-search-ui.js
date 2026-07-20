@@ -561,6 +561,9 @@ function showSearchFloatingPreview(target) {
   if (!src) return;
 
   const label = searchPreviewPageLabel(target);
+  const previewCatalog = findCatalogById(target.dataset.searchCatalog || target.dataset.lightboxSearchCatalog);
+  const previewPage = clampPage(target.dataset.searchPage || target.dataset.lightboxSearchPage, previewCatalog);
+  applyCatalogImageDimensions(els.searchFloatingPreviewImage, previewCatalog, previewPage);
   els.searchFloatingPreviewImage.onload = () => positionSearchFloatingPreview(target);
   setCatalogImageSource(els.searchFloatingPreviewImage, src);
   els.searchFloatingPreviewImage.alt = label;
@@ -793,7 +796,7 @@ function renderLightboxSearchResults(query) {
       <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
         <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
         <span class="reader-search-thumb-frame catalog-image-frame">
-          <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+          <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
         </span>
       </button>
     `;
@@ -978,7 +981,7 @@ function renderSearchResults(query) {
         <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
           <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
           <span class="search-result-thumb-frame catalog-image-frame">
-            <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+            <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
           </span>
         </button>
       </article>

@@ -10,6 +10,7 @@ const packageLock = fs.readFileSync(path.join(root, "package-lock.json"), "utf8"
 const config = fs.readFileSync(path.join(root, "playwright.config.js"), "utf8");
 const playwrightConfig = require(path.join(root, "playwright.config.js"));
 const spec = fs.readFileSync(path.join(root, "tests", "e2e", "site-catalog.spec.js"), "utf8");
+const visualSpec = fs.readFileSync(path.join(root, "tests", "e2e", "visual-components.spec.js"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
 
 assert.match(packageJson.devDependencies?.["@playwright/test"] || "", /^\^?1\./);
@@ -58,13 +59,22 @@ assert.match(spec, /content security policy/);
 assert.match(spec, /CATALOG_PAGES/);
 assert.match(spec, /CATALOG_COUNT/);
 assert.match(spec, /toHaveScreenshot/);
+assert.match(visualSpec, /home catalog row preserves hierarchy and spacing/);
+assert.match(visualSpec, /inquiry dialog retains the light visual system/);
+assert.match(visualSpec, /favorites cards retain selection notes and ordering controls/);
+assert.match(visualSpec, /viewer image error remains clear and actionable/);
+assert.match(visualSpec, /toHaveScreenshot/);
 assert.match(verifier, /Playwright browser journeys/);
 
 for (const relative of [
   "tools/e2e_server.js",
   "tools/check_playwright_browser.js",
   "tests/e2e/__screenshots__/catalog-card.png",
-  "tests/e2e/__screenshots__/viewer-stage.png"
+  "tests/e2e/__screenshots__/viewer-stage.png",
+  "tests/e2e/__screenshots__/home-catalog-row.png",
+  "tests/e2e/__screenshots__/inquiry-dialog.png",
+  "tests/e2e/__screenshots__/favorites-workspace.png",
+  "tests/e2e/__screenshots__/viewer-image-error.png"
 ]) {
   assert.equal(fs.existsSync(path.join(root, relative)), true, `Missing ${relative}`);
 }

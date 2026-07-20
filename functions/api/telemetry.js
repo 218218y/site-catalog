@@ -12,7 +12,8 @@ const ALLOWED_EVENTS = new Set([
   "favorite",
   "contact",
   "js_error",
-  "image_error"
+  "image_error",
+  "web_vital"
 ]);
 const ALLOWED_HOSTS = new Set(["bargig-furniture.com", "www.bargig-furniture.com"]);
 const MAX_BODY_BYTES = 32 * 1024;

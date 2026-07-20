@@ -349,7 +349,7 @@ function renderViewerScrollPages() {
       const height = Math.max(1, Math.round(layout.height * zoom));
       return `
         <div class="viewer-scroll-page viewer-scroll-page-frame image-placeholder-frame image-loading" data-scroll-page="${page}" data-scroll-base-width="${layout.width}" data-scroll-base-height="${layout.height}" role="listitem" aria-label="${title}, עמוד ${page}" style="--viewer-scroll-page-width:${width}px;--viewer-scroll-page-height:${height}px;aspect-ratio:${size.width} / ${size.height}">
-          <img data-viewer-scroll-image="${page}" alt="${title} - עמוד ${page}" draggable="false" decoding="async" />
+          <img data-viewer-scroll-image="${page}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} draggable="false" decoding="async" />
           <span class="viewer-scroll-page-number" aria-hidden="true">${page}</span>
         </div>
       `;

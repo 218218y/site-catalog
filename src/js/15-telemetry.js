@@ -23,7 +23,8 @@ const TELEMETRY_EVENT_NAMES = new Set([
   "favorite",
   "contact",
   "js_error",
-  "image_error"
+  "image_error",
+  "web_vital"
 ]);
 
 const telemetryRuntime = {
@@ -35,6 +36,16 @@ const telemetryRuntime = {
   catalogAt: 0,
   searchKeys: new Map(),
   imageFailures: new Set(),
+  webVitals: {
+    supported: new Set(),
+    reported: new Set(),
+    lcp: 0,
+    inp: 0,
+    cls: 0,
+    clsSessionValue: 0,
+    clsSessionStart: 0,
+    clsLastEntry: 0
+  },
   initialized: false
 };
 
@@ -234,6 +245,95 @@ function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 
   });
 }
 
+const TELEMETRY_WEB_VITAL_THRESHOLDS = Object.freeze({
+  LCP: [2500, 4000],
+  INP: [200, 500],
+  CLS: [0.1, 0.25]
+});
+
+function telemetryWebVitalRating(name, value) {
+  const thresholds = TELEMETRY_WEB_VITAL_THRESHOLDS[name];
+  if (!thresholds) return "unknown";
+  if (value <= thresholds[0]) return "good";
+  if (value <= thresholds[1]) return "needs-improvement";
+  return "poor";
+}
+
+function telemetryNavigationType() {
+  const navigation = performance.getEntriesByType?.("navigation")?.[0];
+  return telemetryCleanText(navigation?.type || "navigate", 30);
+}
+
+function telemetryReportWebVitals() {
+  const runtime = telemetryRuntime.webVitals;
+  for (const name of ["LCP", "INP", "CLS"]) {
+    if (!runtime.supported.has(name) || runtime.reported.has(name)) continue;
+    const value = Number(runtime[name.toLowerCase()]);
+    if (!Number.isFinite(value) || value < 0) continue;
+    if ((name === "LCP" || name === "INP") && value === 0) continue;
+    runtime.reported.add(name);
+    telemetryTrack("web_vital", {
+      action: name,
+      detail: telemetryWebVitalRating(name, value),
+      source: telemetryNavigationType(),
+      value
+    }, { immediate: true });
+  }
+}
+
+function telemetryObserveWebVitals() {
+  if (typeof PerformanceObserver !== "function") return;
+  const supported = new Set(PerformanceObserver.supportedEntryTypes || []);
+  const runtime = telemetryRuntime.webVitals;
+
+  if (supported.has("largest-contentful-paint")) {
+    runtime.supported.add("LCP");
+    try {
+      new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const latest = entries[entries.length - 1];
+        if (latest) runtime.lcp = Math.max(0, Number(latest.startTime) || 0);
+      }).observe({ type: "largest-contentful-paint", buffered: true });
+    } catch (_error) {}
+  }
+
+  if (supported.has("layout-shift")) {
+    runtime.supported.add("CLS");
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.hadRecentInput) continue;
+          const start = Number(entry.startTime) || 0;
+          const value = Number(entry.value) || 0;
+          const sameSession = runtime.clsLastEntry
+            && start - runtime.clsLastEntry < 1000
+            && start - runtime.clsSessionStart < 5000;
+          if (sameSession) {
+            runtime.clsSessionValue += value;
+          } else {
+            runtime.clsSessionValue = value;
+            runtime.clsSessionStart = start;
+          }
+          runtime.clsLastEntry = start;
+          runtime.cls = Math.max(runtime.cls, runtime.clsSessionValue);
+        }
+      }).observe({ type: "layout-shift", buffered: true });
+    } catch (_error) {}
+  }
+
+  if (supported.has("event")) {
+    runtime.supported.add("INP");
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (!Number(entry.interactionId)) continue;
+          runtime.inp = Math.max(runtime.inp, Number(entry.duration) || 0);
+        }
+      }).observe({ type: "event", buffered: true, durationThreshold: 40 });
+    } catch (_error) {}
+  }
+}
+
 function telemetryCatalogImageContext(img, src = "") {
   const value = String(src || img?.currentSrc || img?.getAttribute?.("src") || "");
   const match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i);
@@ -348,8 +448,14 @@ function telemetryInit() {
   }, true);
   window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection);
   document.addEventListener("click", telemetryHandleDocumentClick, true);
+  telemetryObserveWebVitals();
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") telemetryFlush({ beacon: true }).catch(() => {});
+    if (document.visibilityState !== "hidden") return;
+    telemetryReportWebVitals();
+    telemetryFlush({ beacon: true }).catch(() => {});
   });
-  window.addEventListener("pagehide", () => telemetryFlush({ beacon: true }).catch(() => {}));
+  window.addEventListener("pagehide", () => {
+    telemetryReportWebVitals();
+    telemetryFlush({ beacon: true }).catch(() => {});
+  });
 }

@@ -19,10 +19,12 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
     queries = MODULE.report_queries("bargig_catalog_telemetry", 200)
     assert [item.section for item in queries] == [
         "event",
+        "previous_event",
         "catalog",
         "search",
         "contact",
         "favorite",
+        "rum_raw",
         "js_error",
         "image_error",
     ]
@@ -33,7 +35,7 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
         assert query.count("SELECT ") == 1
         assert "INTERVAL '90' DAY" in query
         assert "FROM bargig_catalog_telemetry" in query
-        assert "SUM(_sample_interval) AS count" in query
+        assert "SUM(_sample_interval)" in query
         assert query.endswith("FORMAT JSON")
         assert "UNION" not in query
         assert "WITH recent" not in query
@@ -52,6 +54,11 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
     image_query = next(item.sql for item in queries if item.section == "image_error")
     assert "blob4 AS catalog_id" in image_query
     assert "blob8 AS failure_stage" in image_query
+    rum_query = next(item.sql for item in queries if item.section == "rum_raw")
+    assert "double1 AS metric_value" in rum_query
+    assert "blob7 IN ('LCP', 'INP', 'CLS')" in rum_query
+    previous_query = next(item.sql for item in queries if item.section == "previous_event")
+    assert "timestamp < NOW() - INTERVAL '90' DAY" in previous_query
 
 
 def test_diagnostic_rows_keep_error_context() -> None:
@@ -82,10 +89,13 @@ def test_fetch_report_rows_normalizes_diagnostic_sections(monkeypatch: pytest.Mo
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
 
-    assert rows == [
+    assert rows[:2] == [
         {"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4, "section": "js_error", "label": "ef21e4fae", "metric": 0},
         {"fingerprint": "", "source": "page-001.webp", "count": 1, "section": "image_error", "label": "page-001.webp", "metric": 0},
     ]
+    assert {row["label"] for row in rows[2:] if row["section"] == "trend"} == {
+        "catalog_open", "search", "favorite", "contact", "js_error", "image_error"
+    }
 
 def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
@@ -103,12 +113,13 @@ def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.M
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
 
-    assert len(calls) == 7
+    assert len(calls) == 9
     assert all("UNION" not in query for query in calls)
-    assert rows == [
+    assert rows[:2] == [
         {"label": "opening-test", "count": 4, "section": "catalog", "metric": 0},
         {"label": "ארון", "count": 3, "metric": 1, "section": "search"},
     ]
+    assert len([row for row in rows if row["section"] == "trend"]) == 6
 
 
 def test_fetch_report_rows_names_the_failed_section(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -120,6 +131,32 @@ def test_fetch_report_rows_names_the_failed_section(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     with pytest.raises(RuntimeError, match="section 'search'.*invalid query"):
         MODULE.fetch_report_rows("account", "token", "dataset", 7)
+
+
+def test_rum_summary_uses_weighted_p75_and_quality_percentages() -> None:
+    rows = MODULE.summarize_rum_rows([
+        {"label": "LCP", "metric_value": 1200, "weight": 3},
+        {"label": "LCP", "metric_value": 2800, "weight": 1},
+        {"label": "LCP", "metric_value": 4800, "weight": 1},
+        {"label": "CLS", "metric_value": 0.05, "weight": 4},
+        {"label": "CLS", "metric_value": 0.3, "weight": 1},
+    ])
+    by_name = {row["label"]: row for row in rows}
+    assert by_name["LCP"]["metric"] == 2800
+    assert by_name["LCP"]["good_percent"] == pytest.approx(60)
+    assert by_name["LCP"]["poor_percent"] == pytest.approx(20)
+    assert by_name["CLS"]["metric"] == pytest.approx(0.05)
+
+
+def test_trend_rows_compare_current_and_previous_periods() -> None:
+    rows = MODULE.build_trend_rows(
+        [{"section": "event", "label": "search", "count": 12}],
+        {"search": 8},
+    )
+    search = next(row for row in rows if row["label"] == "search")
+    assert search["previous"] == 8
+    assert search["delta"] == 4
+    assert search["metric"] == pytest.approx(50)
 
 
 def test_settings_load_local_secret_file_without_committing_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -185,6 +222,8 @@ def sample_report_rows() -> list[dict[str, object]]:
         {"section": "search", "label": "ארון הזזה", "count": 4, "metric": 2},
         {"section": "contact", "label": "phone", "count": 3, "metric": 0},
         {"section": "favorite", "label": "add", "count": 5, "metric": 0},
+        {"section": "trend", "label": "search", "count": 7, "previous": 5, "delta": 2, "metric": 40},
+        {"section": "rum", "label": "LCP", "count": 10, "metric": 2100, "good_percent": 80, "poor_percent": 10, "unit": "ms"},
         {
             "section": "js_error",
             "fingerprint": "ef21e4fae",
@@ -235,6 +274,9 @@ def test_create_report_files_writes_rtl_html_and_excel_friendly_csv(tmp_path: Pa
     assert "ef21e4fae" in html_text
     assert "Cannot read properties of undefined" in html_text
     assert "viewer-single-primary" in html_text
+    assert "מדדי חוויית משתמש אמיתיים" in html_text
+    assert "מגמות מול התקופה הקודמת" in html_text
+    assert "2,100 ms" in html_text
 
     csv_bytes = paths["csv"].read_bytes()
     assert csv_bytes.startswith(b"\xef\xbb\xbf")

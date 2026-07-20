@@ -30,7 +30,8 @@ for (const eventName of [
   "favorite",
   "contact",
   "js_error",
-  "image_error"
+  "image_error",
+  "web_vital"
 ]) {
   assert.match(telemetry, new RegExp(`"${eventName}"`));
 }

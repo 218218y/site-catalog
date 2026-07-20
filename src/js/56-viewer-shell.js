@@ -298,6 +298,7 @@ function showLightboxFloatingPreview(button) {
   if (!previewCatalog) return;
   const page = clampPage(button.dataset.previewPage || button.dataset.page, previewCatalog);
   const src = button.dataset.previewSrc || pageSrc(previewCatalog, page);
+  applyCatalogImageDimensions(els.lightboxFloatingPreviewImage, previewCatalog, page);
   setCatalogImageSource(els.lightboxFloatingPreviewImage, src);
   els.lightboxFloatingPreviewImage.alt = `${previewCatalog.title} - עמוד ${page}`;
   if (els.lightboxFloatingPreviewPage) {
@@ -370,7 +371,7 @@ function renderLightboxPageRail() {
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${active ? " active" : ""}" type="button" data-favorite-index="${index}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר למועדף ${index + 1}: ${title}, עמוד ${page}"${active ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
-            <img src="${thumb}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
+            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
           </span>
           <span class="lightbox-page-thumb-number">${index + 1}</span>
         </button>
@@ -386,7 +387,7 @@ function renderLightboxPageRail() {
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === state.page ? " active" : ""}" type="button" data-page="${page}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר לעמוד ${page}"${page === state.page ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
-            <img src="${thumb}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
+            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
           </span>
           <span class="lightbox-page-thumb-number">${page}</span>
         </button>

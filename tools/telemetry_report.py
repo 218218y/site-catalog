@@ -39,6 +39,8 @@ SECTION_TITLES_HE = {
     "favorite": "פעולות במועדפים",
     "js_error": "שגיאות JavaScript — פירוט לאבחון",
     "image_error": "כשלי טעינת תמונות — פירוט לאבחון",
+    "rum": "מדדי חוויית משתמש אמיתיים (RUM)",
+    "trend": "מגמות מול התקופה הקודמת",
 }
 
 EVENT_LABELS_HE = {
@@ -48,6 +50,7 @@ EVENT_LABELS_HE = {
     "contact": "לחיצה ליצירת קשר",
     "js_error": "שגיאת JavaScript",
     "image_error": "כשל בטעינת תמונה",
+    "web_vital": "מדד חוויית משתמש",
     "phone": "טלפון",
     "mobile": "נייד",
     "email": "דוא״ל רגיל",
@@ -174,30 +177,56 @@ class ReportQuery(NamedTuple):
 
 
 def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
-    """Build Analytics Engine-compatible report queries."""
+    """Build Analytics Engine-compatible report queries for current and prior periods."""
 
     interval_days = max(1, min(90, int(days)))
-    since = f"timestamp >= NOW() - INTERVAL '{interval_days}' DAY"
+    current_period = f"timestamp >= NOW() - INTERVAL '{interval_days}' DAY"
+    previous_period = (
+        f"timestamp >= NOW() - INTERVAL '{interval_days * 2}' DAY "
+        f"AND timestamp < NOW() - INTERVAL '{interval_days}' DAY"
+    )
 
-    def query(select: str, where: str, group_by: str, limit: int = 100) -> str:
+    def query(
+        select: str,
+        where: str,
+        group_by: str,
+        limit: int = 100,
+        *,
+        period: str = current_period,
+        order_by: str = "count DESC",
+    ) -> str:
         return (
             f"SELECT {select}\n"
             f"FROM {dataset}\n"
-            f"WHERE {since} AND {where}\n"
+            f"WHERE {period} AND {where}\n"
             f"GROUP BY {group_by}\n"
-            "ORDER BY count DESC\n"
+            f"ORDER BY {order_by}\n"
             f"LIMIT {limit}\n"
             "FORMAT JSON"
         )
 
+    tracked_events = (
+        "'catalog_open', 'search', 'favorite', 'contact', "
+        "'js_error', 'image_error', 'web_vital'"
+    )
     return (
         ReportQuery(
             "event",
             query(
                 "blob1 AS label, SUM(_sample_interval) AS count",
-                "blob1 IN ('catalog_open', 'search', 'favorite', 'contact', 'js_error', 'image_error')",
+                f"blob1 IN ({tracked_events})",
                 "blob1",
                 20,
+            ),
+        ),
+        ReportQuery(
+            "previous_event",
+            query(
+                "blob1 AS label, SUM(_sample_interval) AS count",
+                f"blob1 IN ({tracked_events})",
+                "blob1",
+                20,
+                period=previous_period,
             ),
         ),
         ReportQuery(
@@ -234,6 +263,17 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
             ),
         ),
         ReportQuery(
+            "rum_raw",
+            query(
+                "blob7 AS label, double1 AS metric_value, blob8 AS rating, "
+                "SUM(_sample_interval) AS weight",
+                "blob1 = 'web_vital' AND blob7 IN ('LCP', 'INP', 'CLS')",
+                "blob7, double1, blob8",
+                5000,
+                order_by="weight DESC",
+            ),
+        ),
+        ReportQuery(
             "js_error",
             query(
                 "blob9 AS fingerprint, blob7 AS error_name, blob8 AS message, "
@@ -259,6 +299,88 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
     )
 
 
+def weighted_percentile(rows: Sequence[dict[str, Any]], percentile: float) -> float:
+    """Return a weighted percentile from Analytics Engine sampled rows."""
+
+    points: list[tuple[float, float]] = []
+    for row in rows:
+        value = numeric_value(row.get("metric_value"))
+        weight = max(0.0, numeric_value(row.get("weight")))
+        if weight > 0 and value >= 0:
+            points.append((value, weight))
+    if not points:
+        return 0.0
+    points.sort(key=lambda item: item[0])
+    total = sum(weight for _, weight in points)
+    target = total * min(1.0, max(0.0, percentile))
+    accumulated = 0.0
+    for value, weight in points:
+        accumulated += weight
+        if accumulated >= target:
+            return value
+    return points[-1][0]
+
+
+def summarize_rum_rows(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    thresholds = {
+        "LCP": (2500.0, 4000.0, "ms"),
+        "INP": (200.0, 500.0, "ms"),
+        "CLS": (0.1, 0.25, "score"),
+    }
+    result: list[dict[str, Any]] = []
+    for metric_name, (good_limit, poor_limit, unit) in thresholds.items():
+        metric_rows = [row for row in rows if str(row.get("label") or "").upper() == metric_name]
+        sample_count = sum(max(0.0, numeric_value(row.get("weight"))) for row in metric_rows)
+        if sample_count <= 0:
+            continue
+        good = sum(
+            max(0.0, numeric_value(row.get("weight")))
+            for row in metric_rows
+            if numeric_value(row.get("metric_value")) <= good_limit
+        )
+        poor = sum(
+            max(0.0, numeric_value(row.get("weight")))
+            for row in metric_rows
+            if numeric_value(row.get("metric_value")) > poor_limit
+        )
+        result.append({
+            "section": "rum",
+            "label": metric_name,
+            "count": sample_count,
+            "metric": weighted_percentile(metric_rows, 0.75),
+            "good_percent": (good / sample_count) * 100,
+            "poor_percent": (poor / sample_count) * 100,
+            "unit": unit,
+        })
+    return result
+
+
+def build_trend_rows(
+    current_rows: Sequence[dict[str, Any]],
+    previous_counts: Mapping[str, float],
+) -> list[dict[str, Any]]:
+    current_counts = {
+        str(row.get("label") or ""): numeric_value(row.get("count"))
+        for row in current_rows
+        if str(row.get("section") or "") == "event"
+    }
+    result: list[dict[str, Any]] = []
+    for event_name in ("catalog_open", "search", "favorite", "contact", "js_error", "image_error"):
+        current = current_counts.get(event_name, 0.0)
+        previous = numeric_value(previous_counts.get(event_name, 0.0))
+        delta = current - previous
+        delta_percent = (delta / previous * 100.0) if previous else (100.0 if current else 0.0)
+        result.append({
+            "section": "trend",
+            "label": event_name,
+            "count": current,
+            "previous": previous,
+            "delta": delta,
+            "metric": delta_percent,
+        })
+    return result
+
+
 def fetch_report_rows(
     account_id: str,
     api_token: str,
@@ -268,6 +390,8 @@ def fetch_report_rows(
     """Execute supported single-SELECT queries and merge their rows."""
 
     merged: list[dict[str, Any]] = []
+    previous_counts: dict[str, float] = {}
+    rum_rows: list[dict[str, Any]] = []
     for report_query in report_queries(dataset, days):
         try:
             payload = query_api(account_id, api_token, report_query.sql)
@@ -277,8 +401,20 @@ def fetch_report_rows(
                 f"Cloudflare query for report section '{report_query.section}' failed: {exc}"
             ) from exc
 
+        if report_query.section == "previous_event":
+            previous_counts.update({
+                str(row.get("label") or ""): numeric_value(row.get("count"))
+                for row in section_rows
+            })
+            continue
+        if report_query.section == "rum_raw":
+            rum_rows.extend(section_rows)
+            continue
         for row in section_rows:
             merged.append(normalize_report_row(report_query.section, row))
+
+    merged.extend(summarize_rum_rows(rum_rows))
+    merged.extend(build_trend_rows(merged, previous_counts))
     return merged
 
 
@@ -386,7 +522,8 @@ def write_csv_report(
     columns = [
         "סוג נתון", "פריט / טביעה", "כמות", "מדד נוסף", "סוג שגיאה", "הודעה",
         "קובץ", "מקור", "עמוד באתר", "נתיב", "קטלוג", "עמוד בקטלוג",
-        "שורה", "עמודה", "שלב כשל", "גודל מסך",
+        "שורה", "עמודה", "שלב כשל", "גודל מסך", "תקופה קודמת",
+        "שינוי", "אחוז טוב", "אחוז גרוע", "יחידה",
     ]
     with output_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
@@ -415,6 +552,11 @@ def write_csv_report(
                 row.get("column", ""),
                 row.get("failure_stage", ""),
                 row.get("viewport", ""),
+                format_count(row.get("previous")) if row.get("previous") is not None else "",
+                format_count(row.get("delta")) if row.get("delta") is not None else "",
+                format_count(row.get("good_percent")) if row.get("good_percent") is not None else "",
+                format_count(row.get("poor_percent")) if row.get("poor_percent") is not None else "",
+                row.get("unit", ""),
             ])
 
 def write_json_report(
@@ -496,6 +638,68 @@ def write_html_report(
         )
         return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
 
+    def rum_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["rum"]
+        if not section_rows:
+            return empty_section(title)
+        labels = {
+            "LCP": "LCP — טעינת התוכן הגדול",
+            "INP": "INP — תגובתיות לאינטראקציה",
+            "CLS": "CLS — יציבות הפריסה",
+        }
+        rows_html = []
+        for row in section_rows:
+            name = str(row.get("label") or "")
+            value = numeric_value(row.get("metric"))
+            unit = str(row.get("unit") or "")
+            formatted = f"{value:.3f}" if unit == "score" else f"{format_count(value)} ms"
+            rows_html.append(
+                "<tr>"
+                f'<td>{html.escape(labels.get(name, name))}</td>'
+                f'<td class="number strong">{html.escape(formatted)}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("count")))}</td>'
+                f'<td class="number">{numeric_value(row.get("good_percent")):.1f}%</td>'
+                f'<td class="number">{numeric_value(row.get("poor_percent")):.1f}%</td>'
+                "</tr>"
+            )
+        body = (
+            '<div class="table-wrap"><table><thead><tr>'
+            '<th>מדד</th><th>אחוזון 75</th><th>דגימות</th><th>טוב</th><th>גרוע</th>'
+            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+        )
+        return (
+            f'<section class="report-section"><h2>{html.escape(title)}</h2>'
+            '<p class="section-note">המדדים נאספים בדפדפנים תומכים בלבד, ללא מזהה משתמש. '
+            'אחוזון 75 מחושב במשקל הדגימות של Cloudflare Analytics Engine.</p>'
+            f'{body}</section>'
+        )
+
+    def trend_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["trend"]
+        if not section_rows:
+            return empty_section(title)
+        rows_html = []
+        for row in section_rows:
+            label = EVENT_LABELS_HE.get(str(row.get("label") or ""), str(row.get("label") or ""))
+            delta = numeric_value(row.get("delta"))
+            percent = numeric_value(row.get("metric"))
+            direction = "trend-up" if delta > 0 else ("trend-down" if delta < 0 else "trend-flat")
+            sign = "+" if percent > 0 else ""
+            rows_html.append(
+                "<tr>"
+                f'<td>{html.escape(label)}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("count")))}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("previous")))}</td>'
+                f'<td class="number {direction}">{html.escape(sign + format_count(percent))}%</td>'
+                "</tr>"
+            )
+        body = (
+            '<div class="table-wrap"><table><thead><tr>'
+            '<th>מדד</th><th>תקופה נוכחית</th><th>תקופה קודמת</th><th>שינוי</th>'
+            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
+
     def js_error_table(section_rows: list[dict[str, Any]]) -> str:
         title = SECTION_TITLES_HE["js_error"]
         if not section_rows:
@@ -567,6 +771,8 @@ def write_html_report(
         return f'<section class="report-section"><h2>{html.escape(title)}</h2>{table}</section>'
 
     sections_html = "".join([
+        trend_table(grouped.get("trend", [])),
+        rum_table(grouped.get("rum", [])),
         *(section_table(section, grouped.get(section, [])) for section in ("catalog", "search", "contact", "favorite")),
         js_error_table(grouped.get("js_error", [])),
         image_error_table(grouped.get("image_error", [])),
@@ -682,6 +888,8 @@ def print_report(rows: list[dict[str, Any]], days: int) -> None:
         "favorite": "Favorite actions",
         "js_error": "JavaScript errors",
         "image_error": "Image loading errors",
+        "rum": "Real-user performance metrics",
+        "trend": "Period-over-period trends",
     }
     current = None
     for row in rows:

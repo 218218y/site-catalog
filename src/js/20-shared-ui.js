@@ -243,6 +243,7 @@ function showSingleLightboxImage(catalog, page, src) {
   els.lightboxImageFrame?.classList.remove("image-terminal-error");
   prepareImagePlaceholder(image);
   image.alt = `${catalog.title} - עמוד ${page}`;
+  applyCatalogImageDimensions(image, catalog, page);
   image.decoding = "async";
   image.fetchPriority = "high";
   image.dataset.logicalSrc = primarySrc;
@@ -455,6 +456,31 @@ function pageSize(catalog, page) {
   const height = Number(size[1]);
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
   return { width, height };
+}
+
+function catalogImageDimensionAttributes(catalog, page) {
+  const size = pageSize(catalog, page);
+  return size ? ` width="${size.width}" height="${size.height}"` : "";
+}
+
+function applyCatalogImageDimensions(image, catalog, page) {
+  if (!image) return;
+  const size = pageSize(catalog, page);
+  if (!size) {
+    image.removeAttribute("width");
+    image.removeAttribute("height");
+    return;
+  }
+  image.width = size.width;
+  image.height = size.height;
+}
+
+function catalogCoverLoadingAttributes(catalog) {
+  const index = catalogs.findIndex((item) => item?.id === catalog?.id);
+  const eager = index >= 0 && index < CATALOG_EAGER_COVER_COUNT;
+  return eager
+    ? ' loading="eager" decoding="async" fetchpriority="high"'
+    : ' loading="lazy" decoding="async" fetchpriority="low"';
 }
 
 function pageAspectStyle(catalog, page) {

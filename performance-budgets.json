@@ -1,0 +1,30 @@
+{
+  "appJavaScript": {
+    "source": "app.js",
+    "bundlePattern": "static/app.*.js",
+    "rawBytes": 390000,
+    "gzipBytes": 90000
+  },
+  "stylesCss": {
+    "source": "styles.css",
+    "bundlePattern": "static/styles.*.css",
+    "rawBytes": 235000,
+    "gzipBytes": 45000
+  },
+  "searchIndex": {
+    "source": "catalogs.search.js",
+    "bundlePattern": "static/catalogs.search.*.js",
+    "rawBytes": 710000,
+    "gzipBytes": 175000
+  },
+  "largestHtml": {
+    "rawBytes": 135000,
+    "gzipBytes": 18000
+  },
+  "socialShareImage": {
+    "source": "social-share-default.png",
+    "rawBytes": 400000,
+    "width": 1200,
+    "height": 630
+  }
+}

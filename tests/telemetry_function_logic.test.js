@@ -46,6 +46,12 @@ async function loadFunctionModule() {
           detail: "TypeError",
           pageNumber: 44
         },
+        {
+          name: "web_vital",
+          action: "LCP",
+          detail: "good",
+          value: 1840
+        },
         { name: "unknown_event", detail: "ignored" }
       ]
     })
@@ -53,14 +59,17 @@ async function loadFunctionModule() {
 
   const response = await module.onRequestPost({ request, env });
   assert.equal(response.status, 202);
-  assert.deepEqual(await response.json(), { ok: true, accepted: 2 });
-  assert.equal(writes.length, 2);
+  assert.deepEqual(await response.json(), { ok: true, accepted: 3 });
+  assert.equal(writes.length, 3);
   assert.match(writes[0].indexes[0], /^[0-9a-f-]{36}$/i);
   assert.equal(writes[0].indexes[0], writes[1].indexes[0]);
   assert.equal(writes[0].blobs[11], "bargig-furniture.com");
   assert.equal(writes[0].blobs[0], "search");
   assert.equal(writes[0].blobs[4], "ארון פתיחה");
   assert.equal(writes[1].blobs[8], "e12345678");
+  assert.equal(writes[2].blobs[0], "web_vital");
+  assert.equal(writes[2].blobs[6], "LCP");
+  assert.equal(writes[2].doubles[0], 1840);
   assert.equal(JSON.stringify(writes).includes("must never be stored"), false);
 
   const crossOrigin = new Request("https://bargig-furniture.com/api/telemetry", {

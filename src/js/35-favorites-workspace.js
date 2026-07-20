@@ -181,7 +181,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
       </button>
       <button class="favorite-preview-button" type="button" data-open-favorite="1" aria-label="פתיחת ${title}, עמוד ${page}">
         <span class="favorite-image-frame catalog-image-frame"${pageAspectStyle(catalog, page)}>
-          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(image)} />
+          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(image)} />
         </span>
         <span class="favorite-card-meta">
           <strong>${title}</strong>

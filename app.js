@@ -320,6 +320,7 @@ const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 20;
 const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
 const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
+const CATALOG_EAGER_COVER_COUNT = 2;
 const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
 
 const boundEventFeatures = new Set();
@@ -623,7 +624,8 @@ const TELEMETRY_EVENT_NAMES = new Set([
   "favorite",
   "contact",
   "js_error",
-  "image_error"
+  "image_error",
+  "web_vital"
 ]);
 
 const telemetryRuntime = {
@@ -635,6 +637,16 @@ const telemetryRuntime = {
   catalogAt: 0,
   searchKeys: new Map(),
   imageFailures: new Set(),
+  webVitals: {
+    supported: new Set(),
+    reported: new Set(),
+    lcp: 0,
+    inp: 0,
+    cls: 0,
+    clsSessionValue: 0,
+    clsSessionStart: 0,
+    clsLastEntry: 0
+  },
   initialized: false
 };
 
@@ -834,6 +846,95 @@ function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 
   });
 }
 
+const TELEMETRY_WEB_VITAL_THRESHOLDS = Object.freeze({
+  LCP: [2500, 4000],
+  INP: [200, 500],
+  CLS: [0.1, 0.25]
+});
+
+function telemetryWebVitalRating(name, value) {
+  const thresholds = TELEMETRY_WEB_VITAL_THRESHOLDS[name];
+  if (!thresholds) return "unknown";
+  if (value <= thresholds[0]) return "good";
+  if (value <= thresholds[1]) return "needs-improvement";
+  return "poor";
+}
+
+function telemetryNavigationType() {
+  const navigation = performance.getEntriesByType?.("navigation")?.[0];
+  return telemetryCleanText(navigation?.type || "navigate", 30);
+}
+
+function telemetryReportWebVitals() {
+  const runtime = telemetryRuntime.webVitals;
+  for (const name of ["LCP", "INP", "CLS"]) {
+    if (!runtime.supported.has(name) || runtime.reported.has(name)) continue;
+    const value = Number(runtime[name.toLowerCase()]);
+    if (!Number.isFinite(value) || value < 0) continue;
+    if ((name === "LCP" || name === "INP") && value === 0) continue;
+    runtime.reported.add(name);
+    telemetryTrack("web_vital", {
+      action: name,
+      detail: telemetryWebVitalRating(name, value),
+      source: telemetryNavigationType(),
+      value
+    }, { immediate: true });
+  }
+}
+
+function telemetryObserveWebVitals() {
+  if (typeof PerformanceObserver !== "function") return;
+  const supported = new Set(PerformanceObserver.supportedEntryTypes || []);
+  const runtime = telemetryRuntime.webVitals;
+
+  if (supported.has("largest-contentful-paint")) {
+    runtime.supported.add("LCP");
+    try {
+      new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const latest = entries[entries.length - 1];
+        if (latest) runtime.lcp = Math.max(0, Number(latest.startTime) || 0);
+      }).observe({ type: "largest-contentful-paint", buffered: true });
+    } catch (_error) {}
+  }
+
+  if (supported.has("layout-shift")) {
+    runtime.supported.add("CLS");
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.hadRecentInput) continue;
+          const start = Number(entry.startTime) || 0;
+          const value = Number(entry.value) || 0;
+          const sameSession = runtime.clsLastEntry
+            && start - runtime.clsLastEntry < 1000
+            && start - runtime.clsSessionStart < 5000;
+          if (sameSession) {
+            runtime.clsSessionValue += value;
+          } else {
+            runtime.clsSessionValue = value;
+            runtime.clsSessionStart = start;
+          }
+          runtime.clsLastEntry = start;
+          runtime.cls = Math.max(runtime.cls, runtime.clsSessionValue);
+        }
+      }).observe({ type: "layout-shift", buffered: true });
+    } catch (_error) {}
+  }
+
+  if (supported.has("event")) {
+    runtime.supported.add("INP");
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (!Number(entry.interactionId)) continue;
+          runtime.inp = Math.max(runtime.inp, Number(entry.duration) || 0);
+        }
+      }).observe({ type: "event", buffered: true, durationThreshold: 40 });
+    } catch (_error) {}
+  }
+}
+
 function telemetryCatalogImageContext(img, src = "") {
   const value = String(src || img?.currentSrc || img?.getAttribute?.("src") || "");
   const match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i);
@@ -948,10 +1049,16 @@ function telemetryInit() {
   }, true);
   window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection);
   document.addEventListener("click", telemetryHandleDocumentClick, true);
+  telemetryObserveWebVitals();
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") telemetryFlush({ beacon: true }).catch(() => {});
+    if (document.visibilityState !== "hidden") return;
+    telemetryReportWebVitals();
+    telemetryFlush({ beacon: true }).catch(() => {});
   });
-  window.addEventListener("pagehide", () => telemetryFlush({ beacon: true }).catch(() => {}));
+  window.addEventListener("pagehide", () => {
+    telemetryReportWebVitals();
+    telemetryFlush({ beacon: true }).catch(() => {});
+  });
 }
 /* ===== END SOURCE: src/js/15-telemetry.js ===== */
 
@@ -1201,6 +1308,7 @@ function showSingleLightboxImage(catalog, page, src) {
   els.lightboxImageFrame?.classList.remove("image-terminal-error");
   prepareImagePlaceholder(image);
   image.alt = `${catalog.title} - עמוד ${page}`;
+  applyCatalogImageDimensions(image, catalog, page);
   image.decoding = "async";
   image.fetchPriority = "high";
   image.dataset.logicalSrc = primarySrc;
@@ -1413,6 +1521,31 @@ function pageSize(catalog, page) {
   const height = Number(size[1]);
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
   return { width, height };
+}
+
+function catalogImageDimensionAttributes(catalog, page) {
+  const size = pageSize(catalog, page);
+  return size ? ` width="${size.width}" height="${size.height}"` : "";
+}
+
+function applyCatalogImageDimensions(image, catalog, page) {
+  if (!image) return;
+  const size = pageSize(catalog, page);
+  if (!size) {
+    image.removeAttribute("width");
+    image.removeAttribute("height");
+    return;
+  }
+  image.width = size.width;
+  image.height = size.height;
+}
+
+function catalogCoverLoadingAttributes(catalog) {
+  const index = catalogs.findIndex((item) => item?.id === catalog?.id);
+  const eager = index >= 0 && index < CATALOG_EAGER_COVER_COUNT;
+  return eager
+    ? ' loading="eager" decoding="async" fetchpriority="high"'
+    : ' loading="lazy" decoding="async" fetchpriority="low"';
 }
 
 function pageAspectStyle(catalog, page) {
@@ -2640,7 +2773,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
       </button>
       <button class="favorite-preview-button" type="button" data-open-favorite="1" aria-label="פתיחת ${title}, עמוד ${page}">
         <span class="favorite-image-frame catalog-image-frame"${pageAspectStyle(catalog, page)}>
-          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(image)} />
+          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(image)} />
         </span>
         <span class="favorite-card-meta">
           <strong>${title}</strong>
@@ -3553,7 +3686,7 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   return `
     <article class="catalog-card">
       <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageCrossOriginAttribute(cover)} />
         <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
       </a>
       <div class="catalog-body">
@@ -3811,7 +3944,7 @@ function renderPageGrid() {
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
           <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
-            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">
@@ -3904,6 +4037,7 @@ function renderCatalogDetail() {
   els.catalogDescription.textContent = catalog.description || "";
   updateDetailCatalogMenuLabel(catalog);
   if (els.catalogCoverPreview) {
+    applyCatalogImageDimensions(els.catalogCoverPreview, catalog, 1);
     setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
     els.catalogCoverPreview.loading = "lazy";
     els.catalogCoverPreview.decoding = "async";
@@ -4544,6 +4678,9 @@ function showSearchFloatingPreview(target) {
   if (!src) return;
 
   const label = searchPreviewPageLabel(target);
+  const previewCatalog = findCatalogById(target.dataset.searchCatalog || target.dataset.lightboxSearchCatalog);
+  const previewPage = clampPage(target.dataset.searchPage || target.dataset.lightboxSearchPage, previewCatalog);
+  applyCatalogImageDimensions(els.searchFloatingPreviewImage, previewCatalog, previewPage);
   els.searchFloatingPreviewImage.onload = () => positionSearchFloatingPreview(target);
   setCatalogImageSource(els.searchFloatingPreviewImage, src);
   els.searchFloatingPreviewImage.alt = label;
@@ -4776,7 +4913,7 @@ function renderLightboxSearchResults(query) {
       <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
         <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
         <span class="reader-search-thumb-frame catalog-image-frame">
-          <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+          <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
         </span>
       </button>
     `;
@@ -4961,7 +5098,7 @@ function renderSearchResults(query) {
         <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
           <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
           <span class="search-result-thumb-frame catalog-image-frame">
-            <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+            <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
           </span>
         </button>
       </article>
@@ -6024,6 +6161,7 @@ function showLightboxFloatingPreview(button) {
   if (!previewCatalog) return;
   const page = clampPage(button.dataset.previewPage || button.dataset.page, previewCatalog);
   const src = button.dataset.previewSrc || pageSrc(previewCatalog, page);
+  applyCatalogImageDimensions(els.lightboxFloatingPreviewImage, previewCatalog, page);
   setCatalogImageSource(els.lightboxFloatingPreviewImage, src);
   els.lightboxFloatingPreviewImage.alt = `${previewCatalog.title} - עמוד ${page}`;
   if (els.lightboxFloatingPreviewPage) {
@@ -6096,7 +6234,7 @@ function renderLightboxPageRail() {
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${active ? " active" : ""}" type="button" data-favorite-index="${index}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר למועדף ${index + 1}: ${title}, עמוד ${page}"${active ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
-            <img src="${thumb}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
+            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
           </span>
           <span class="lightbox-page-thumb-number">${index + 1}</span>
         </button>
@@ -6112,7 +6250,7 @@ function renderLightboxPageRail() {
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === state.page ? " active" : ""}" type="button" data-page="${page}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר לעמוד ${page}"${page === state.page ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
-            <img src="${thumb}" alt="" loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
+            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
           </span>
           <span class="lightbox-page-thumb-number">${page}</span>
         </button>
@@ -6798,7 +6936,7 @@ function renderViewerScrollPages() {
       const height = Math.max(1, Math.round(layout.height * zoom));
       return `
         <div class="viewer-scroll-page viewer-scroll-page-frame image-placeholder-frame image-loading" data-scroll-page="${page}" data-scroll-base-width="${layout.width}" data-scroll-base-height="${layout.height}" role="listitem" aria-label="${title}, עמוד ${page}" style="--viewer-scroll-page-width:${width}px;--viewer-scroll-page-height:${height}px;aspect-ratio:${size.width} / ${size.height}">
-          <img data-viewer-scroll-image="${page}" alt="${title} - עמוד ${page}" draggable="false" decoding="async" />
+          <img data-viewer-scroll-image="${page}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} draggable="false" decoding="async" />
           <span class="viewer-scroll-page-number" aria-hidden="true">${page}</span>
         </div>
       `;

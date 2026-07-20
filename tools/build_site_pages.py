@@ -363,9 +363,20 @@ def static_home_catalog_grid(
     config: SeoConfig,
 ) -> str:
     sections: list[str] = []
+    eager_catalog_ids = {
+        str(item.get("id", "")).strip()
+        for item in catalogs[:2]
+    }
     for category in active_categories(taxonomy, catalogs):
         category_catalogs = catalogs_for_category(catalogs, category.name)
-        cards = "\n".join(catalog_card(item, config) for item in category_catalogs)
+        cards = "\n".join(
+            catalog_card(
+                item,
+                config,
+                eager=str(item.get("id", "")).strip() in eager_catalog_ids,
+            )
+            for item in category_catalogs
+        )
         category_href = f"/{category_path(category)}"
         sections.append(
             '<section class="catalog-category-section" '
@@ -474,18 +485,26 @@ def category_navigation(taxonomy: Taxonomy, catalogs: Sequence[Mapping[str, Any]
     return "\n".join(links)
 
 
-def catalog_card(catalog: Mapping[str, Any], config: SeoConfig) -> str:
+def catalog_card(
+    catalog: Mapping[str, Any],
+    config: SeoConfig,
+    *,
+    eager: bool = False,
+) -> str:
     catalog_id = str(catalog.get("id", "")).strip()
     title = str(catalog.get("title", "קטלוג")).strip()
     description = str(catalog.get("description", "")).strip()
     page_count = max(0, int(catalog.get("pages", 0) or 0))
     image = catalog_cover_url(config, catalog)
+    width, height = catalog_page_dimensions(catalog, 1)
+    loading = "eager" if eager else "lazy"
+    priority = "high" if eager else "low"
     href = f"/{catalog_path(catalog_id)}"
     escaped_href = html.escape(href, quote=True)
     return f"""
 <article class="catalog-card seo-catalog-card">
   <a class="catalog-cover-frame" href="{escaped_href}" aria-label="פתיחת {html.escape(title, quote=True)}">
-    <img src="{html.escape(image, quote=True)}" alt="שער {html.escape(title, quote=True)}" loading="lazy" decoding="async" />
+    <img src="{html.escape(image, quote=True)}" alt="שער {html.escape(title, quote=True)}" width="{width}" height="{height}" loading="{loading}" decoding="async" fetchpriority="{priority}" />
     <span class="catalog-page-count">{page_count} עמודים</span>
   </a>
   <div class="catalog-card-body">
@@ -601,7 +620,10 @@ def render_category_route(
             "{{CATALOG_COUNT}}": str(len(selected)),
             "{{PAGE_COUNT}}": str(sum(int(item.get("pages", 0) or 0) for item in selected)),
             "{{SUBCATEGORY_NAVIGATION}}": subnav,
-            "{{CATALOG_CARDS}}": "\n".join(catalog_card(item, config) for item in selected),
+            "{{CATALOG_CARDS}}": "\n".join(
+                catalog_card(item, config, eager=index < 2)
+                for index, item in enumerate(selected)
+            ),
             "{{SITE_FOOTER}}": site_footer,
         }
     )
@@ -621,7 +643,7 @@ def static_page_grid(catalog: Mapping[str, Any], config: SeoConfig) -> str:
 <article class="page-card">
   <a class="page-button" data-open-page="{page}" href="/{catalog_page_path(catalog_id, page)}">
     <div class="page-thumb-wrap" style="--page-thumb-aspect-ratio:{width} / {height}">
-      <img class="page-thumb" src="{html.escape(image, quote=True)}" alt="{html.escape(title, quote=True)} - עמוד {page}" loading="lazy" decoding="async" fetchpriority="low" />
+      <img class="page-thumb" src="{html.escape(image, quote=True)}" alt="{html.escape(title, quote=True)} - עמוד {page}" width="{width}" height="{height}" loading="lazy" decoding="async" fetchpriority="low" />
       <span class="page-number-badge">{page}</span>
     </div>
     <div class="page-card-body"><span class="page-card-title">עמוד {page}</span><span class="page-card-hint">לחץ להגדלה</span></div>

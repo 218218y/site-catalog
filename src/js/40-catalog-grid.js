@@ -616,7 +616,7 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   return `
     <article class="catalog-card">
       <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(cover)} />
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageCrossOriginAttribute(cover)} />
         <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
       </a>
       <div class="catalog-body">
@@ -874,7 +874,7 @@ function renderPageGrid() {
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
           <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
-            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}" loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">
@@ -967,6 +967,7 @@ function renderCatalogDetail() {
   els.catalogDescription.textContent = catalog.description || "";
   updateDetailCatalogMenuLabel(catalog);
   if (els.catalogCoverPreview) {
+    applyCatalogImageDimensions(els.catalogCoverPreview, catalog, 1);
     setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
     els.catalogCoverPreview.loading = "lazy";
     els.catalogCoverPreview.decoding = "async";
