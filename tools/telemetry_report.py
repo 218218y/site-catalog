@@ -37,8 +37,15 @@ SECTION_TITLES_HE = {
     "search": "חיפושים",
     "contact": "לחיצות ליצירת קשר",
     "favorite": "פעולות במועדפים",
-    "js_error": "שגיאות JavaScript — פירוט לאבחון",
-    "image_error": "כשלי טעינת תמונות — פירוט לאבחון",
+    "release": "גרסאות אתר פעילות",
+    "js_error": "שגיאות JavaScript מאומתות — פירוט לאבחון",
+    "js_error_legacy": "שגיאות JavaScript היסטוריות — סיווג ישן",
+    "resource_error": "כשלי משאבי מעטפת — פירוט לאבחון",
+    "search_index_error": "כשלי אינדקס החיפוש — פירוט לאבחון",
+    "image_attempt": "ניסיונות טעינת תמונה שנכשלו",
+    "image_recovered": "תמונות שהתאוששו לאחר כשל",
+    "image_terminal": "כשלי תמונה סופיים",
+    "image_legacy": "כשלי תמונה היסטוריים — ללא סיווג תוצאה",
     "rum": "מדדי חוויית משתמש אמיתיים (RUM)",
     "trend": "מגמות מול התקופה הקודמת",
 }
@@ -48,8 +55,13 @@ EVENT_LABELS_HE = {
     "search": "חיפוש",
     "favorite": "פעולה במועדפים",
     "contact": "לחיצה ליצירת קשר",
-    "js_error": "שגיאת JavaScript",
-    "image_error": "כשל בטעינת תמונה",
+    "js_error": "שגיאת JavaScript מאומתת",
+    "resource_error": "כשל משאב מעטפת",
+    "search_index_load_failed": "כשל אינדקס חיפוש",
+    "image_attempt_failed": "ניסיון תמונה שנכשל",
+    "image_recovered": "תמונה שהתאוששה",
+    "image_terminal_failure": "כשל תמונה סופי",
+    "image_error": "כשל תמונה היסטורי",
     "web_vital": "מדד חוויית משתמש",
     "phone": "טלפון",
     "mobile": "נייד",
@@ -150,7 +162,7 @@ def query_api(account_id: str, api_token: str, query: str) -> dict[str, Any]:
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "text/plain; charset=utf-8",
             "Accept": "application/json",
-            "User-Agent": "bargig-catalog-telemetry-report/1.2",
+            "User-Agent": "bargig-catalog-telemetry-report/2.0",
         },
         method="POST",
     )
@@ -177,7 +189,7 @@ class ReportQuery(NamedTuple):
 
 
 def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
-    """Build Analytics Engine-compatible report queries for current and prior periods."""
+    """Build bounded Analytics Engine queries for current and prior periods."""
 
     interval_days = max(1, min(90, int(days)))
     current_period = f"timestamp >= NOW() - INTERVAL '{interval_days}' DAY"
@@ -206,9 +218,19 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
         )
 
     tracked_events = (
-        "'catalog_open', 'search', 'favorite', 'contact', "
-        "'js_error', 'image_error', 'web_vital'"
+        "'catalog_open', 'search', 'favorite', 'contact', 'js_error', "
+        "'resource_error', 'search_index_load_failed', 'image_attempt_failed', "
+        "'image_recovered', 'image_terminal_failure', 'image_error', 'web_vital'"
     )
+    image_select = (
+        "blob9 AS fingerprint, blob4 AS catalog_id, double3 AS page_number, "
+        "blob8 AS failure_stage, blob7 AS outcome_action, blob11 AS source, "
+        "blob10 AS viewport, blob2 AS app_page, blob3 AS path, "
+        "blob13 AS release_id, double1 AS attempt_count, "
+        "SUM(_sample_interval) AS count"
+    )
+    image_group = "blob9, blob4, double3, blob8, blob7, blob11, blob10, blob2, blob3, blob13, double1"
+
     return (
         ReportQuery(
             "event",
@@ -216,7 +238,7 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
                 "blob1 AS label, SUM(_sample_interval) AS count",
                 f"blob1 IN ({tracked_events})",
                 "blob1",
-                20,
+                30,
             ),
         ),
         ReportQuery(
@@ -225,8 +247,17 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
                 "blob1 AS label, SUM(_sample_interval) AS count",
                 f"blob1 IN ({tracked_events})",
                 "blob1",
-                20,
+                30,
                 period=previous_period,
+            ),
+        ),
+        ReportQuery(
+            "release",
+            query(
+                "blob13 AS label, SUM(_sample_interval) AS count",
+                "blob13 != ''",
+                "blob13",
+                30,
             ),
         ),
         ReportQuery(
@@ -279,22 +310,61 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
                 "blob9 AS fingerprint, blob7 AS error_name, blob8 AS message, "
                 "blob11 AS source, blob6 AS source_scope, blob2 AS app_page, "
                 "blob3 AS path, blob4 AS catalog_id, double3 AS line, "
-                "double4 AS column, SUM(_sample_interval) AS count",
-                "blob1 = 'js_error'",
-                "blob9, blob7, blob8, blob11, blob6, blob2, blob3, blob4, double3, double4",
+                "double4 AS column, blob13 AS release_id, SUM(_sample_interval) AS count",
+                "blob1 = 'js_error' AND blob13 != ''",
+                "blob9, blob7, blob8, blob11, blob6, blob2, blob3, blob4, double3, double4, blob13",
                 200,
             ),
         ),
         ReportQuery(
-            "image_error",
+            "js_error_legacy",
             query(
-                "blob9 AS fingerprint, blob4 AS catalog_id, double3 AS page_number, "
-                "blob8 AS failure_stage, blob11 AS source, blob10 AS viewport, "
-                "blob2 AS app_page, blob3 AS path, SUM(_sample_interval) AS count",
-                "blob1 = 'image_error'",
-                "blob9, blob4, double3, blob8, blob11, blob10, blob2, blob3",
+                "blob9 AS fingerprint, blob7 AS error_name, blob8 AS message, "
+                "blob11 AS source, blob6 AS source_scope, blob2 AS app_page, "
+                "blob3 AS path, blob4 AS catalog_id, double3 AS line, "
+                "double4 AS column, blob13 AS release_id, SUM(_sample_interval) AS count",
+                "blob1 = 'js_error' AND blob13 = ''",
+                "blob9, blob7, blob8, blob11, blob6, blob2, blob3, blob4, double3, double4, blob13",
                 200,
             ),
+        ),
+        ReportQuery(
+            "resource_error",
+            query(
+                "blob9 AS fingerprint, blob7 AS resource_tag, blob8 AS resource_role, "
+                "blob11 AS source, blob6 AS source_scope, blob2 AS app_page, "
+                "blob3 AS path, blob13 AS release_id, SUM(_sample_interval) AS count",
+                "blob1 = 'resource_error'",
+                "blob9, blob7, blob8, blob11, blob6, blob2, blob3, blob13",
+                200,
+            ),
+        ),
+        ReportQuery(
+            "search_index_error",
+            query(
+                "blob9 AS fingerprint, blob7 AS failure_reason, blob8 AS load_trigger, "
+                "blob11 AS source, blob6 AS source_scope, blob2 AS app_page, "
+                "blob3 AS path, blob13 AS release_id, SUM(_sample_interval) AS count",
+                "blob1 = 'search_index_load_failed'",
+                "blob9, blob7, blob8, blob11, blob6, blob2, blob3, blob13",
+                200,
+            ),
+        ),
+        ReportQuery(
+            "image_attempt",
+            query(image_select, "blob1 = 'image_attempt_failed'", image_group, 300),
+        ),
+        ReportQuery(
+            "image_recovered",
+            query(image_select, "blob1 = 'image_recovered'", image_group, 300),
+        ),
+        ReportQuery(
+            "image_terminal",
+            query(image_select, "blob1 = 'image_terminal_failure'", image_group, 300),
+        ),
+        ReportQuery(
+            "image_legacy",
+            query(image_select, "blob1 = 'image_error'", image_group, 300),
         ),
     )
 
@@ -365,7 +435,11 @@ def build_trend_rows(
         if str(row.get("section") or "") == "event"
     }
     result: list[dict[str, Any]] = []
-    for event_name in ("catalog_open", "search", "favorite", "contact", "js_error", "image_error"):
+    for event_name in (
+        "catalog_open", "search", "favorite", "contact", "js_error",
+        "resource_error", "search_index_load_failed", "image_attempt_failed",
+        "image_recovered", "image_terminal_failure", "image_error",
+    ):
         current = current_counts.get(event_name, 0.0)
         previous = numeric_value(previous_counts.get(event_name, 0.0))
         delta = current - previous
@@ -423,10 +497,14 @@ def normalize_report_row(section: str, row: dict[str, Any]) -> dict[str, Any]:
 
     normalized = dict(row)
     normalized["section"] = section
-    if section == "js_error":
+    if section in {"js_error", "js_error_legacy"}:
         normalized["label"] = str(normalized.get("fingerprint") or normalized.get("error_name") or "unknown_js_error")
-    elif section == "image_error":
-        normalized["label"] = str(normalized.get("fingerprint") or normalized.get("source") or "unknown_image_error")
+    elif section == "resource_error":
+        normalized["label"] = str(normalized.get("fingerprint") or normalized.get("source") or "unknown_resource_error")
+    elif section == "search_index_error":
+        normalized["label"] = str(normalized.get("fingerprint") or normalized.get("failure_reason") or "unknown_search_index_error")
+    elif section in {"image_attempt", "image_recovered", "image_terminal", "image_legacy"}:
+        normalized["label"] = str(normalized.get("fingerprint") or normalized.get("source") or "unknown_image_event")
     else:
         normalized.setdefault("label", "")
     normalized.setdefault("count", 0)
@@ -522,7 +600,7 @@ def write_csv_report(
     columns = [
         "סוג נתון", "פריט / טביעה", "כמות", "מדד נוסף", "סוג שגיאה", "הודעה",
         "קובץ", "מקור", "עמוד באתר", "נתיב", "קטלוג", "עמוד בקטלוג",
-        "שורה", "עמודה", "שלב כשל", "גודל מסך", "תקופה קודמת",
+        "שורה", "עמודה", "שלב כשל", "תוצאת טעינה", "מספר ניסיונות", "גודל מסך", "גרסת אתר", "תקופה קודמת",
         "שינוי", "אחוז טוב", "אחוז גרוע", "יחידה",
     ]
     with output_path.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -551,7 +629,10 @@ def write_csv_report(
                 row.get("line", ""),
                 row.get("column", ""),
                 row.get("failure_stage", ""),
+                row.get("outcome_action", ""),
+                row.get("attempt_count", ""),
                 row.get("viewport", ""),
+                row.get("release_id", ""),
                 format_count(row.get("previous")) if row.get("previous") is not None else "",
                 format_count(row.get("delta")) if row.get("delta") is not None else "",
                 format_count(row.get("good_percent")) if row.get("good_percent") is not None else "",
@@ -601,10 +682,16 @@ def write_html_report(
         card("פעולות במועדפים", event_counts.get("favorite", 0), "הוספה, הסרה וניקוי"),
         card("פעולות ליצירת קשר", event_counts.get("contact", 0), "שיתוף והעתקת פרטי דגם"),
         card(
-            "שגיאות שנקלטו",
-            event_counts.get("js_error", 0) + event_counts.get("image_error", 0),
-            "JavaScript ותמונות",
+            "שגיאות JavaScript",
+            sum(numeric_value(row.get("count")) for row in grouped.get("js_error", [])),
+            "ErrorEvent מאומת בלבד",
         ),
+        card(
+            "כשלי משאב",
+            event_counts.get("resource_error", 0) + event_counts.get("search_index_load_failed", 0),
+            "script, link ואינדקס חיפוש",
+        ),
+        card("כשלי תמונה סופיים", event_counts.get("image_terminal_failure", 0), "לאחר מיצוי retry ו-fallback"),
     ])
 
     def empty_section(title: str) -> str:
@@ -700,8 +787,8 @@ def write_html_report(
         )
         return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
 
-    def js_error_table(section_rows: list[dict[str, Any]]) -> str:
-        title = SECTION_TITLES_HE["js_error"]
+    def js_error_table(section: str, section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE[section]
         if not section_rows:
             return empty_section(title)
         rows_html = []
@@ -721,6 +808,7 @@ def write_html_report(
                 f'<td class="number">{html.escape(location)}</td>'
                 f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
                 f'<td>{html.escape(catalog_title)}</td>'
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code></td>'
                 f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
                 "</tr>"
             )
@@ -734,16 +822,72 @@ def write_html_report(
             f'{html.escape(str(top.get("message") or "ללא הודעה היסטורית"))}'
             '</div>'
         )
+        note = ""
+        if section == "js_error_legacy":
+            note = ('<p class="section-note">הנתונים נאספו לפני הפרדת ErrorEvent מכשלי משאב. '
+                    'ייתכן שחלקם אינם שגיאות JavaScript אמיתיות.</p>')
         table = (
             '<div class="table-wrap diagnostic-table"><table><thead><tr>'
             '<th>טביעה</th><th>סוג</th><th>הודעה</th><th>קובץ</th><th>מקור</th>'
-            '<th>שורה:עמודה</th><th>עמוד באתר</th><th>קטלוג</th><th>כמות</th>'
+            '<th>שורה:עמודה</th><th>עמוד באתר</th><th>קטלוג</th><th>גרסה</th><th>כמות</th>'
             f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
         )
-        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{callout}{table}</section>'
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{note}{callout}{table}</section>'
 
-    def image_error_table(section_rows: list[dict[str, Any]]) -> str:
-        title = SECTION_TITLES_HE["image_error"]
+    def resource_error_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["resource_error"]
+        if not section_rows:
+            return empty_section(title)
+        rows_html = []
+        for row in section_rows:
+            rows_html.append(
+                "<tr>"
+                f'<td class="number"><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("resource_tag") or "—"))}</td>'
+                f'<td>{html.escape(str(row.get("resource_role") or "—"))}</td>'
+                f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("source_scope") or "—"))}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code></td>'
+                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
+                "</tr>"
+            )
+        table = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr>'
+            '<th>טביעה</th><th>תג</th><th>תפקיד משאב</th><th>קובץ</th><th>מקור</th>'
+            '<th>עמוד באתר</th><th>גרסה</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{table}</section>'
+
+    def search_index_error_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["search_index_error"]
+        if not section_rows:
+            return empty_section(title)
+        rows_html = []
+        for row in section_rows:
+            rows_html.append(
+                "<tr>"
+                f'<td class="number"><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("failure_reason") or "—"))}</td>'
+                f'<td>{html.escape(str(row.get("load_trigger") or "—"))}</td>'
+                f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("source_scope") or "—"))}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code></td>'
+                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
+                "</tr>"
+            )
+        table = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr>'
+            '<th>טביעה</th><th>סיבת כשל</th><th>יוזם טעינה</th><th>קובץ</th><th>מקור</th>'
+            '<th>עמוד באתר</th><th>גרסה</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{table}</section>'
+
+    def image_event_table(section: str, section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE[section]
         if not section_rows:
             return empty_section(title)
         rows_html = []
@@ -756,26 +900,40 @@ def write_html_report(
                 f'<td>{html.escape(catalog_title)}</td>'
                 f'<td class="number">{html.escape(format_count(row.get("page_number"))) if numeric_value(row.get("page_number")) else "—"}</td>'
                 f'<td>{html.escape(str(row.get("failure_stage") or "—"))}</td>'
+                f'<td>{html.escape(str(row.get("outcome_action") or "—"))}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("attempt_count"))) if numeric_value(row.get("attempt_count")) else "—"}</td>'
                 f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
                 f'<td>{html.escape(str(row.get("viewport") or "—"))}</td>'
                 f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code></td>'
                 f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
                 "</tr>"
             )
+        note = ""
+        if section == "image_legacy":
+            note = ('<p class="section-note">נתונים שנאספו לפני שדרוג הסיווג. '
+                    'לא ניתן לקבוע מהם אם התמונה התאוששה או נכשלה סופית.</p>')
         table = (
             '<div class="table-wrap diagnostic-table"><table><thead><tr>'
-            '<th>טביעה</th><th>קטלוג</th><th>עמוד</th><th>שלב הכשל</th>'
-            '<th>קובץ</th><th>מסך</th><th>עמוד באתר</th><th>כמות</th>'
+            '<th>טביעה</th><th>קטלוג</th><th>עמוד</th><th>שלב</th><th>תוצאה</th>'
+            '<th>ניסיונות</th><th>קובץ</th><th>מסך</th><th>עמוד באתר</th><th>גרסה</th><th>כמות</th>'
             f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
         )
-        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{table}</section>'
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{note}{table}</section>'
 
     sections_html = "".join([
         trend_table(grouped.get("trend", [])),
         rum_table(grouped.get("rum", [])),
+        section_table("release", grouped.get("release", [])),
         *(section_table(section, grouped.get(section, [])) for section in ("catalog", "search", "contact", "favorite")),
-        js_error_table(grouped.get("js_error", [])),
-        image_error_table(grouped.get("image_error", [])),
+        js_error_table("js_error", grouped.get("js_error", [])),
+        js_error_table("js_error_legacy", grouped.get("js_error_legacy", [])),
+        resource_error_table(grouped.get("resource_error", [])),
+        search_index_error_table(grouped.get("search_index_error", [])),
+        image_event_table("image_terminal", grouped.get("image_terminal", [])),
+        image_event_table("image_recovered", grouped.get("image_recovered", [])),
+        image_event_table("image_attempt", grouped.get("image_attempt", [])),
+        image_event_table("image_legacy", grouped.get("image_legacy", [])),
     ])
     generated_text = generated_at.strftime("%d/%m/%Y בשעה %H:%M")
 
@@ -886,8 +1044,15 @@ def print_report(rows: list[dict[str, Any]], days: int) -> None:
         "search": "Searches (metric = no-result count)",
         "contact": "Contact clicks",
         "favorite": "Favorite actions",
-        "js_error": "JavaScript errors",
-        "image_error": "Image loading errors",
+        "release": "Active releases",
+        "js_error": "Verified JavaScript errors",
+        "js_error_legacy": "Legacy unclassified JavaScript errors",
+        "resource_error": "Resource loading errors",
+        "search_index_error": "Search index failures",
+        "image_attempt": "Failed image attempts",
+        "image_recovered": "Recovered images",
+        "image_terminal": "Terminal image failures",
+        "image_legacy": "Legacy unclassified image failures",
         "rum": "Real-user performance metrics",
         "trend": "Period-over-period trends",
     }

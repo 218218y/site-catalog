@@ -427,12 +427,7 @@ function loadViewerScrollPage(page, priority = "low") {
       && state.catalog === catalog
       && normalizeCatalogImageUrl(pageSrc(catalog, page)) === src
     ),
-    onFailure: (candidate) => {
-      telemetryTrackImageFailure(candidate.src, {
-        img: image,
-        detail: `viewer-scroll-${candidate.role}`
-      });
-    },
+    telemetryDetail: "viewer-scroll",
     onSuccess: (candidate) => {
       delete image.dataset.loadingSrc;
       image.dataset.loadedSrc = src;

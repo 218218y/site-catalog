@@ -88,18 +88,32 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
 function loadCatalogImageWithRecovery(img, options = {}) {
   const candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options);
   const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
+  const telemetryDetail = telemetryCleanText(options.telemetryDetail, 40);
   let index = 0;
   let stopped = false;
+  let failedAttempts = 0;
+  let lastCandidate = null;
 
   img.dataset.telemetryManaged = "true";
 
   const attempt = () => {
     if (stopped || !isCurrent() || index >= candidates.length) {
-      if (!stopped && isCurrent()) options.onExhausted?.();
+      if (!stopped && isCurrent()) {
+        if (telemetryDetail && lastCandidate) {
+          telemetryTrackImageTerminalFailure(lastCandidate.src, {
+            img,
+            detail: telemetryDetail,
+            action: lastCandidate.role,
+            failedAttempts
+          });
+        }
+        options.onExhausted?.({ failedAttempts, lastCandidate });
+      }
       return;
     }
 
     const candidate = candidates[index++];
+    lastCandidate = candidate;
     img.dataset.imageLoadPending = "true";
     prepareImagePlaceholder(img);
     let settled = false;
@@ -110,16 +124,33 @@ function loadCatalogImageWithRecovery(img, options = {}) {
       if (stopped || !isCurrent() || img.getAttribute("src") !== candidate.src) return;
       if (loaded && img.naturalWidth > 0) {
         syncImagePlaceholderState(img);
-        options.onSuccess?.(candidate);
+        if (telemetryDetail && failedAttempts > 0) {
+          telemetryTrackImageRecovery(candidate.src, {
+            img,
+            detail: telemetryDetail,
+            action: candidate.role,
+            failedAttempts
+          });
+        }
+        options.onSuccess?.(candidate, { failedAttempts, attempts: index });
         return;
       }
-      options.onFailure?.(candidate);
+      failedAttempts += 1;
+      if (telemetryDetail) {
+        telemetryTrackImageAttemptFailure(candidate.src, {
+          img,
+          detail: `${telemetryDetail}-${candidate.role}`,
+          action: candidate.role,
+          attempt: failedAttempts
+        });
+      }
+      options.onFailure?.(candidate, { failedAttempts, attempts: index });
       attempt();
     };
 
     img.addEventListener("load", () => settle(true), { once: true });
     img.addEventListener("error", () => settle(false), { once: true });
-    options.onAttempt?.(candidate);
+    options.onAttempt?.(candidate, { failedAttempts, attempts: index });
     setCatalogImageSource(img, candidate.src);
     if (img.complete) queueMicrotask(() => settle(Boolean(img.naturalWidth)));
   };
@@ -153,7 +184,11 @@ function prepareCatalogImage(url, options = {}) {
 
     image.addEventListener("error", () => {
       state.catalogImageLoadCache.delete(src);
-      telemetryTrackImageFailure(src, { detail: options.detail || "preload" });
+      telemetryTrackImageAttemptFailure(src, {
+        detail: options.detail || "preload",
+        action: "preload",
+        attempt: 1
+      });
       reject(new Error("image-load-failed"));
     }, { once: true });
 
@@ -258,12 +293,7 @@ function showSingleLightboxImage(catalog, page, src) {
       && state.catalog === catalog
       && state.page === page
     ),
-    onFailure: (candidate) => {
-      telemetryTrackImageFailure(candidate.src, {
-        img: image,
-        detail: `viewer-single-${candidate.role}`
-      });
-    },
+    telemetryDetail: "viewer-single",
     onSuccess: (candidate) => {
       image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
       if (image.naturalWidth && image.naturalHeight) {

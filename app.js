@@ -609,7 +609,7 @@ const els = {
  */
 
 const TELEMETRY_ENDPOINT = "/api/telemetry";
-const TELEMETRY_SCHEMA_VERSION = 1;
+const TELEMETRY_SCHEMA_VERSION = 2;
 const TELEMETRY_BATCH_LIMIT = 20;
 const TELEMETRY_QUEUE_LIMIT = 60;
 const TELEMETRY_FLUSH_DELAY_MS = 900;
@@ -624,7 +624,11 @@ const TELEMETRY_EVENT_NAMES = new Set([
   "favorite",
   "contact",
   "js_error",
-  "image_error",
+  "resource_error",
+  "search_index_load_failed",
+  "image_attempt_failed",
+  "image_recovered",
+  "image_terminal_failure",
   "web_vital"
 ]);
 
@@ -636,7 +640,7 @@ const telemetryRuntime = {
   catalogKey: "",
   catalogAt: 0,
   searchKeys: new Map(),
-  imageFailures: new Set(),
+  diagnosticEvents: new Set(),
   webVitals: {
     supported: new Set(),
     reported: new Set(),
@@ -649,6 +653,19 @@ const telemetryRuntime = {
   },
   initialized: false
 };
+
+function telemetryResolveReleaseId() {
+  const explicit = String(window.__BARGIG_RELEASE_ID__ || "").trim();
+  if (explicit) return telemetryCleanText(explicit, 64);
+
+  const scriptSrc = String(document.currentScript?.src || "");
+  const filename = scriptSrc.split("?")[0].split("#")[0].split("/").pop() || "";
+  const fingerprint = filename.match(/^app\.([a-f0-9]{8,64})\.js$/i)?.[1];
+  if (fingerprint) return `app-${fingerprint.slice(0, 16).toLowerCase()}`;
+  return filename === "app.js" ? "app-unversioned" : "unknown-release";
+}
+
+const TELEMETRY_RELEASE_ID = telemetryResolveReleaseId();
 
 function telemetryCleanText(value, limit = 120) {
   return String(value ?? "")
@@ -726,7 +743,8 @@ function telemetryNormalizeEvent(name, fields = {}) {
     value: telemetryNumber(fields.value, -1_000_000, 1_000_000),
     durationMs: telemetryNumber(fields.durationMs),
     pageNumber: telemetryNumber(fields.pageNumber, 0, 100_000),
-    secondaryValue: telemetryNumber(fields.secondaryValue, -1_000_000, 1_000_000)
+    secondaryValue: telemetryNumber(fields.secondaryValue, -1_000_000, 1_000_000),
+    releaseId: telemetryCleanText(fields.releaseId || TELEMETRY_RELEASE_ID, 64)
   };
 }
 
@@ -947,29 +965,74 @@ function telemetryCatalogImageContext(img, src = "") {
   return { catalogId, pageNumber, detail, value };
 }
 
-function telemetryStableImageFailureKey(value, detail) {
-  const clean = String(value || "")
-    .replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
-    .replace(/[?&]$/, "")
-    .split("#")[0];
-  return `${telemetryCleanText(clean, 220)}|${telemetryCleanText(detail, 50)}`;
+function telemetryStableResourceUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw, window.location.href);
+    parsed.hash = "";
+    parsed.searchParams.delete(CATALOG_IMAGE_RETRY_PARAM);
+    return parsed.href;
+  } catch {
+    return raw
+      .replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
+      .replace(/[?&]$/, "")
+      .split("#")[0];
+  }
 }
 
-function telemetryTrackImageFailure(src, options = {}) {
+function telemetryResourceSourceName(value) {
+  const clean = telemetryStableResourceUrl(value);
+  if (!clean) return "inline";
+  try {
+    const parsed = new URL(clean, window.location.href);
+    if (["data:", "blob:"].includes(parsed.protocol)) return parsed.protocol.slice(0, -1);
+    return telemetryCleanText(parsed.pathname.split("/").pop() || "root", 80);
+  } catch {
+    return telemetryCleanText(clean.split("/").pop() || "unknown", 80);
+  }
+}
+
+function telemetryDiagnosticOnce(key) {
+  const cleanKey = telemetryCleanText(key, 320);
+  if (!cleanKey || telemetryRuntime.diagnosticEvents.has(cleanKey)) return false;
+  telemetryRuntime.diagnosticEvents.add(cleanKey);
+  if (telemetryRuntime.diagnosticEvents.size > 240) {
+    telemetryRuntime.diagnosticEvents.delete(telemetryRuntime.diagnosticEvents.values().next().value);
+  }
+  return true;
+}
+
+function telemetryTrackImageEvent(name, src, options = {}) {
   const context = telemetryCatalogImageContext(options.img, src);
   const detail = telemetryCleanText(options.detail || context.detail, 50);
-  const failureKey = telemetryStableImageFailureKey(context.value, detail)
-    || `${context.catalogId}|${context.pageNumber}|${detail}`;
-  if (telemetryRuntime.imageFailures.has(failureKey)) return;
-  telemetryRuntime.imageFailures.add(failureKey);
-  const source = telemetryCleanText(context.value.split("?")[0].split("#")[0].split("/").pop(), 80);
-  telemetryTrack("image_error", {
+  const action = telemetryCleanText(options.action || "", 50);
+  const stableUrl = telemetryStableResourceUrl(context.value);
+  const source = telemetryResourceSourceName(stableUrl);
+  const eventKey = [name, stableUrl, context.catalogId, context.pageNumber, detail, action].join("|");
+  if (!telemetryDiagnosticOnce(eventKey)) return false;
+
+  return telemetryTrack(name, {
     catalogId: context.catalogId,
     pageNumber: context.pageNumber,
     detail,
+    action,
     source,
-    error: telemetryErrorFingerprint(["image", context.catalogId, context.pageNumber, detail, source])
+    value: telemetryNumber(options.failedAttempts ?? options.attempt ?? options.value, 0, 100),
+    error: telemetryErrorFingerprint([name, context.catalogId, context.pageNumber, detail, action, source])
   }, { immediate: true });
+}
+
+function telemetryTrackImageAttemptFailure(src, options = {}) {
+  return telemetryTrackImageEvent("image_attempt_failed", src, options);
+}
+
+function telemetryTrackImageRecovery(src, options = {}) {
+  return telemetryTrackImageEvent("image_recovered", src, options);
+}
+
+function telemetryTrackImageTerminalFailure(src, options = {}) {
+  return telemetryTrackImageEvent("image_terminal_failure", src, options);
 }
 
 function telemetryErrorSourceScope(filename) {
@@ -984,20 +1047,90 @@ function telemetryErrorSourceScope(filename) {
   }
 }
 
+function telemetryIsRuntimeErrorEvent(event) {
+  if (!event) return false;
+  if (typeof ErrorEvent === "function" && event instanceof ErrorEvent) return true;
+  return Object.prototype.toString.call(event) === "[object ErrorEvent]";
+}
+
+function telemetryClassifyWindowError(event) {
+  if (typeof HTMLImageElement === "function" && event?.target instanceof HTMLImageElement) return "image";
+  if (telemetryIsRuntimeErrorEvent(event)) return "runtime";
+  if (typeof Element === "function" && event?.target instanceof Element) return "resource";
+  return "ignored";
+}
+
 function telemetryTrackRuntimeError(event) {
-  const filename = String(event?.filename || "");
-  const sourceName = telemetryCleanText(filename.split("?")[0].split("/").pop(), 80);
-  const errorName = telemetryCleanText(event?.error?.name || "Error", 40);
-  const message = telemetryCleanText(event?.message || event?.error?.message || "JavaScript error", 120);
-  telemetryTrack("js_error", {
+  if (!telemetryIsRuntimeErrorEvent(event)) return false;
+  const filename = String(event.filename || "");
+  const sourceName = telemetryResourceSourceName(filename);
+  const errorName = telemetryCleanText(event.error?.name || "Error", 40);
+  const message = telemetryCleanText(event.message || event.error?.message || "JavaScript error", 120);
+  return telemetryTrack("js_error", {
     catalogId: state.catalog?.id || "",
     action: errorName,
     detail: message,
     scope: telemetryErrorSourceScope(filename),
     source: sourceName,
-    pageNumber: Number(event?.lineno) || 0,
-    secondaryValue: Number(event?.colno) || 0,
-    error: telemetryErrorFingerprint([errorName, message, sourceName, event?.lineno, event?.colno])
+    pageNumber: Number(event.lineno) || 0,
+    secondaryValue: Number(event.colno) || 0,
+    error: telemetryErrorFingerprint([errorName, message, sourceName, event.lineno, event.colno])
+  }, { immediate: true });
+}
+
+function telemetryResourceElementUrl(target) {
+  return String(target?.currentSrc || target?.src || target?.href || target?.data || "");
+}
+
+function telemetryResourceRole(target) {
+  const explicit = telemetryCleanText(target?.dataset?.telemetryResourceRole, 50);
+  if (explicit) return explicit;
+  if (target?.dataset?.searchIndexSrc) return "search-index";
+
+  const tag = String(target?.tagName || "").toLowerCase();
+  if (tag === "link") {
+    const rel = telemetryCleanText(target.rel || target.getAttribute?.("rel") || "link", 24);
+    const asType = telemetryCleanText(target.as || target.getAttribute?.("as") || "", 24);
+    return asType ? `${rel}:${asType}` : rel;
+  }
+  return tag || "resource";
+}
+
+function telemetryTrackSearchIndexFailure(reason, options = {}) {
+  const src = String(options.src || telemetryResourceElementUrl(options.target) || SEARCH_INDEX_SCRIPT_SRC || "");
+  const source = telemetryResourceSourceName(src);
+  const action = telemetryCleanText(reason || "load-error", 50);
+  const detail = telemetryCleanText(options.trigger || options.target?.dataset?.telemetrySearchTrigger || "unknown", 50);
+  const scope = telemetryErrorSourceScope(src);
+  const key = ["search_index_load_failed", source, action, scope, detail].join("|");
+  if (!telemetryDiagnosticOnce(key)) return false;
+  return telemetryTrack("search_index_load_failed", {
+    action,
+    detail,
+    scope,
+    source,
+    error: telemetryErrorFingerprint(["search-index", action, source, scope])
+  }, { immediate: true });
+}
+
+function telemetryTrackResourceError(target) {
+  const src = telemetryResourceElementUrl(target);
+  const role = telemetryResourceRole(target);
+  if (role === "search-index") {
+    return telemetryTrackSearchIndexFailure("network-error", { target, src });
+  }
+
+  const tag = telemetryCleanText(String(target?.tagName || "resource").toLowerCase(), 30);
+  const source = telemetryResourceSourceName(src);
+  const scope = telemetryErrorSourceScope(src);
+  const key = ["resource_error", tag, role, source, scope].join("|");
+  if (!telemetryDiagnosticOnce(key)) return false;
+  return telemetryTrack("resource_error", {
+    action: tag,
+    detail: role,
+    scope,
+    source,
+    error: telemetryErrorFingerprint(["resource", tag, role, source, scope])
   }, { immediate: true });
 }
 
@@ -1039,13 +1172,23 @@ function telemetryInit() {
   if (!telemetryIsEnabled()) return;
 
   window.addEventListener("error", (event) => {
-    if (event.target instanceof HTMLImageElement) {
+    const classification = telemetryClassifyWindowError(event);
+    if (classification === "image") {
       if (event.target.dataset.telemetryManaged !== "true") {
-        telemetryTrackImageFailure(event.target.currentSrc || event.target.src, { img: event.target });
+        telemetryTrackImageTerminalFailure(event.target.currentSrc || event.target.src, {
+          img: event.target,
+          detail: telemetryCatalogImageContext(event.target).detail,
+          action: "unmanaged",
+          failedAttempts: 1
+        });
       }
       return;
     }
-    telemetryTrackRuntimeError(event);
+    if (classification === "runtime") {
+      telemetryTrackRuntimeError(event);
+      return;
+    }
+    if (classification === "resource") telemetryTrackResourceError(event.target);
   }, true);
   window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection);
   document.addEventListener("click", telemetryHandleDocumentClick, true);
@@ -1153,18 +1296,32 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
 function loadCatalogImageWithRecovery(img, options = {}) {
   const candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options);
   const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
+  const telemetryDetail = telemetryCleanText(options.telemetryDetail, 40);
   let index = 0;
   let stopped = false;
+  let failedAttempts = 0;
+  let lastCandidate = null;
 
   img.dataset.telemetryManaged = "true";
 
   const attempt = () => {
     if (stopped || !isCurrent() || index >= candidates.length) {
-      if (!stopped && isCurrent()) options.onExhausted?.();
+      if (!stopped && isCurrent()) {
+        if (telemetryDetail && lastCandidate) {
+          telemetryTrackImageTerminalFailure(lastCandidate.src, {
+            img,
+            detail: telemetryDetail,
+            action: lastCandidate.role,
+            failedAttempts
+          });
+        }
+        options.onExhausted?.({ failedAttempts, lastCandidate });
+      }
       return;
     }
 
     const candidate = candidates[index++];
+    lastCandidate = candidate;
     img.dataset.imageLoadPending = "true";
     prepareImagePlaceholder(img);
     let settled = false;
@@ -1175,16 +1332,33 @@ function loadCatalogImageWithRecovery(img, options = {}) {
       if (stopped || !isCurrent() || img.getAttribute("src") !== candidate.src) return;
       if (loaded && img.naturalWidth > 0) {
         syncImagePlaceholderState(img);
-        options.onSuccess?.(candidate);
+        if (telemetryDetail && failedAttempts > 0) {
+          telemetryTrackImageRecovery(candidate.src, {
+            img,
+            detail: telemetryDetail,
+            action: candidate.role,
+            failedAttempts
+          });
+        }
+        options.onSuccess?.(candidate, { failedAttempts, attempts: index });
         return;
       }
-      options.onFailure?.(candidate);
+      failedAttempts += 1;
+      if (telemetryDetail) {
+        telemetryTrackImageAttemptFailure(candidate.src, {
+          img,
+          detail: `${telemetryDetail}-${candidate.role}`,
+          action: candidate.role,
+          attempt: failedAttempts
+        });
+      }
+      options.onFailure?.(candidate, { failedAttempts, attempts: index });
       attempt();
     };
 
     img.addEventListener("load", () => settle(true), { once: true });
     img.addEventListener("error", () => settle(false), { once: true });
-    options.onAttempt?.(candidate);
+    options.onAttempt?.(candidate, { failedAttempts, attempts: index });
     setCatalogImageSource(img, candidate.src);
     if (img.complete) queueMicrotask(() => settle(Boolean(img.naturalWidth)));
   };
@@ -1218,7 +1392,11 @@ function prepareCatalogImage(url, options = {}) {
 
     image.addEventListener("error", () => {
       state.catalogImageLoadCache.delete(src);
-      telemetryTrackImageFailure(src, { detail: options.detail || "preload" });
+      telemetryTrackImageAttemptFailure(src, {
+        detail: options.detail || "preload",
+        action: "preload",
+        attempt: 1
+      });
       reject(new Error("image-load-failed"));
     }, { once: true });
 
@@ -1323,12 +1501,7 @@ function showSingleLightboxImage(catalog, page, src) {
       && state.catalog === catalog
       && state.page === page
     ),
-    onFailure: (candidate) => {
-      telemetryTrackImageFailure(candidate.src, {
-        img: image,
-        detail: `viewer-single-${candidate.role}`
-      });
-    },
+    telemetryDetail: "viewer-single",
     onSuccess: (candidate) => {
       image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
       if (image.naturalWidth && image.naturalHeight) {
@@ -4139,7 +4312,7 @@ function refreshSearchUiAfterIndexLoad() {
   }
 }
 
-function ensureSearchIndexLoaded() {
+function ensureSearchIndexLoaded(options = {}) {
   if (isSearchIndexReady()) {
     state.searchIndexLoadState = "ready";
     refreshSearchUiAfterIndexLoad();
@@ -4151,21 +4324,36 @@ function ensureSearchIndexLoaded() {
   state.searchIndexLoadState = "loading";
   initLightboxSearchStatus();
 
+  const loadTrigger = telemetryCleanText(options.trigger || "interactive", 40);
   state.searchIndexLoadPromise = new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
     const script = existing || document.createElement("script");
+    script.dataset.telemetryResourceRole = "search-index";
+    script.dataset.telemetrySearchTrigger = loadTrigger;
 
     const handleLoad = () => {
       state.searchIndexLoadState = isSearchIndexReady() ? "ready" : "error";
       state.searchIndexLoadPromise = null;
       refreshSearchUiAfterIndexLoad();
-      if (state.searchIndexLoadState === "ready") resolve(true);
-      else reject(new Error("Search index loaded without data"));
+      if (state.searchIndexLoadState === "ready") {
+        resolve(true);
+      } else {
+        telemetryTrackSearchIndexFailure("missing-data", {
+          target: script,
+          trigger: loadTrigger
+        });
+        script.remove();
+        reject(new Error("Search index loaded without data"));
+      }
     };
 
     const handleError = () => {
       state.searchIndexLoadState = "error";
       state.searchIndexLoadPromise = null;
+      telemetryTrackSearchIndexFailure("network-error", {
+        target: script,
+        trigger: loadTrigger
+      });
       script.remove();
       initLightboxSearchStatus();
       reject(new Error("Failed to load the catalog search index"));
@@ -4188,7 +4376,7 @@ function ensureSearchIndexLoaded() {
 function scheduleSearchIndexPreload() {
   window.clearTimeout(state.searchIndexPreloadTimer);
   state.searchIndexPreloadTimer = window.setTimeout(() => {
-    const preload = () => ensureSearchIndexLoaded().catch(() => {});
+    const preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {});
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(preload, { timeout: 2500 });
     } else {
@@ -4841,7 +5029,7 @@ function retrySearchIndexLoad(options = {}) {
   state.searchIndexLoadState = "idle";
   const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
   existing?.remove?.();
-  ensureSearchIndexLoaded().catch(() => {});
+  ensureSearchIndexLoaded({ trigger: "retry" }).catch(() => {});
   if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
   else renderSearchResults(els.globalSearchInput?.value || "");
 }
@@ -7014,12 +7202,7 @@ function loadViewerScrollPage(page, priority = "low") {
       && state.catalog === catalog
       && normalizeCatalogImageUrl(pageSrc(catalog, page)) === src
     ),
-    onFailure: (candidate) => {
-      telemetryTrackImageFailure(candidate.src, {
-        img: image,
-        detail: `viewer-scroll-${candidate.role}`
-      });
-    },
+    telemetryDetail: "viewer-scroll",
     onSuccess: (candidate) => {
       delete image.dataset.loadingSrc;
       image.dataset.loadedSrc = src;

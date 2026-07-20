@@ -12,7 +12,12 @@ const ALLOWED_EVENTS = new Set([
   "favorite",
   "contact",
   "js_error",
+  "resource_error",
+  "search_index_load_failed",
   "image_error",
+  "image_attempt_failed",
+  "image_recovered",
+  "image_terminal_failure",
   "web_vital"
 ]);
 const ALLOWED_HOSTS = new Set(["bargig-furniture.com", "www.bargig-furniture.com"]);
@@ -81,7 +86,8 @@ function normalizeEvent(raw) {
     value: cleanNumber(raw.value, -1_000_000, 1_000_000),
     durationMs: cleanNumber(raw.durationMs),
     pageNumber: cleanNumber(raw.pageNumber, 0, 100_000),
-    secondaryValue: cleanNumber(raw.secondaryValue, -1_000_000, 1_000_000)
+    secondaryValue: cleanNumber(raw.secondaryValue, -1_000_000, 1_000_000),
+    releaseId: cleanText(raw.releaseId, 64)
   };
 }
 
@@ -100,7 +106,8 @@ function writeEvent(dataset, event, hostname, batchIndex) {
       event.error,
       event.viewport,
       event.source,
-      hostname
+      hostname,
+      event.releaseId
     ],
     doubles: [
       event.value,
@@ -152,7 +159,7 @@ export async function onRequestPost(context) {
     return jsonResponse({ ok: false, error: "invalid-json" }, 400);
   }
 
-  if (payload?.version !== 1 || !Array.isArray(payload.events)) {
+  if (![1, 2].includes(payload?.version) || !Array.isArray(payload.events)) {
     return jsonResponse({ ok: false, error: "invalid-schema" }, 400);
   }
 

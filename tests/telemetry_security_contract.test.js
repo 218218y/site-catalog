@@ -19,6 +19,14 @@ assert.match(telemetry, /navigator\.doNotTrack/);
 assert.match(telemetry, /credentials: "omit"/);
 assert.match(telemetry, /keepalive: true/);
 assert.match(telemetry, /navigator\.sendBeacon/);
+assert.match(telemetry, /const TELEMETRY_SCHEMA_VERSION = 2/);
+assert.match(telemetry, /releaseId: telemetryCleanText\(fields\.releaseId \|\| TELEMETRY_RELEASE_ID, 64\)/);
+assert.match(telemetry, /function telemetryClassifyWindowError\(event\)/);
+assert.match(telemetry, /classification === "runtime"/);
+assert.match(telemetry, /classification === "resource"/);
+assert.match(telemetry, /telemetryTrackResourceError\(event\.target\)/);
+assert.match(telemetry, /telemetryTrackSearchIndexFailure\("network-error"/);
+assert.doesNotMatch(telemetry, /telemetryTrackImageFailure/);
 assert.doesNotMatch(telemetry, /document\.cookie/);
 assert.doesNotMatch(telemetry, /navigator\.userAgent/);
 assert.doesNotMatch(telemetry, /document\.referrer/);
@@ -30,7 +38,11 @@ for (const eventName of [
   "favorite",
   "contact",
   "js_error",
-  "image_error",
+  "resource_error",
+  "search_index_load_failed",
+  "image_attempt_failed",
+  "image_recovered",
+  "image_terminal_failure",
   "web_vital"
 ]) {
   assert.match(telemetry, new RegExp(`"${eventName}"`));

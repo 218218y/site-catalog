@@ -20,13 +20,20 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
     assert [item.section for item in queries] == [
         "event",
         "previous_event",
+        "release",
         "catalog",
         "search",
         "contact",
         "favorite",
         "rum_raw",
         "js_error",
-        "image_error",
+        "js_error_legacy",
+        "resource_error",
+        "search_index_error",
+        "image_attempt",
+        "image_recovered",
+        "image_terminal",
+        "image_legacy",
     ]
 
     for item in queries:
@@ -51,9 +58,19 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
     assert "blob8 AS message" in js_query
     assert "double3 AS line" in js_query
     assert "GROUP BY blob9, blob7, blob8" in js_query
-    image_query = next(item.sql for item in queries if item.section == "image_error")
+    assert "blob13 != ''" in js_query
+    legacy_js_query = next(item.sql for item in queries if item.section == "js_error_legacy")
+    assert "blob13 = ''" in legacy_js_query
+    image_query = next(item.sql for item in queries if item.section == "image_terminal")
     assert "blob4 AS catalog_id" in image_query
     assert "blob8 AS failure_stage" in image_query
+    assert "blob13 AS release_id" in image_query
+    resource_query = next(item.sql for item in queries if item.section == "resource_error")
+    assert "blob7 AS resource_tag" in resource_query
+    search_index_query = next(item.sql for item in queries if item.section == "search_index_error")
+    assert "blob7 AS failure_reason" in search_index_query
+    release_query = next(item.sql for item in queries if item.section == "release")
+    assert "blob13 AS label" in release_query
     rum_query = next(item.sql for item in queries if item.section == "rum_raw")
     assert "double1 AS metric_value" in rum_query
     assert "blob7 IN ('LCP', 'INP', 'CLS')" in rum_query
@@ -67,35 +84,51 @@ def test_diagnostic_rows_keep_error_context() -> None:
         {"fingerprint": "ef21e4fae", "error_name": "TypeError", "message": "boom", "count": 3},
     )
     image_row = MODULE.normalize_report_row(
-        "image_error",
+        "image_terminal",
         {"fingerprint": "", "source": "page-004.webp", "count": 2},
+    )
+    resource_row = MODULE.normalize_report_row(
+        "resource_error",
+        {"fingerprint": "e-resource", "source": "optional.js", "count": 1},
     )
 
     assert js_row["label"] == "ef21e4fae"
     assert js_row["message"] == "boom"
     assert js_row["section"] == "js_error"
     assert image_row["label"] == "page-004.webp"
-    assert image_row["section"] == "image_error"
+    assert image_row["section"] == "image_terminal"
+    assert resource_row["label"] == "e-resource"
 
 
 def test_fetch_report_rows_normalizes_diagnostic_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_query_api(_account_id: str, _token: str, query: str) -> dict[str, object]:
-        if "blob8 AS message" in query:
+        if "blob8 AS message" in query and "blob13 != ''" in query:
             return {"data": [{"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4}]}
-        if "blob8 AS failure_stage" in query:
+        if "blob8 AS message" in query:
+            return {"data": []}
+        if "blob7 AS resource_tag" in query:
+            return {"data": [{"fingerprint": "eresource", "source": "optional.js", "count": 2}]}
+        if "blob7 AS failure_reason" in query:
+            return {"data": [{"fingerprint": "esearch", "failure_reason": "network-error", "count": 1}]}
+        if "blob1 = 'image_terminal_failure'" in query:
             return {"data": [{"fingerprint": "", "source": "page-001.webp", "count": 1}]}
         return {"data": []}
 
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
 
-    assert rows[:2] == [
+    assert rows[:4] == [
         {"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4, "section": "js_error", "label": "ef21e4fae", "metric": 0},
-        {"fingerprint": "", "source": "page-001.webp", "count": 1, "section": "image_error", "label": "page-001.webp", "metric": 0},
+        {"fingerprint": "eresource", "source": "optional.js", "count": 2, "section": "resource_error", "label": "eresource", "metric": 0},
+        {"fingerprint": "esearch", "failure_reason": "network-error", "count": 1, "section": "search_index_error", "label": "esearch", "metric": 0},
+        {"fingerprint": "", "source": "page-001.webp", "count": 1, "section": "image_terminal", "label": "page-001.webp", "metric": 0},
     ]
-    assert {row["label"] for row in rows[2:] if row["section"] == "trend"} == {
-        "catalog_open", "search", "favorite", "contact", "js_error", "image_error"
+    assert {row["label"] for row in rows[4:] if row["section"] == "trend"} == {
+        "catalog_open", "search", "favorite", "contact", "js_error", "resource_error",
+        "search_index_load_failed", "image_attempt_failed", "image_recovered",
+        "image_terminal_failure", "image_error",
     }
+
 
 def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
@@ -113,13 +146,13 @@ def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.M
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
 
-    assert len(calls) == 9
+    assert len(calls) == 16
     assert all("UNION" not in query for query in calls)
     assert rows[:2] == [
         {"label": "opening-test", "count": 4, "section": "catalog", "metric": 0},
         {"label": "ארון", "count": 3, "metric": 1, "section": "search"},
     ]
-    assert len([row for row in rows if row["section"] == "trend"]) == 6
+    assert len([row for row in rows if row["section"] == "trend"]) == 11
 
 
 def test_fetch_report_rows_names_the_failed_section(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -218,6 +251,9 @@ def sample_report_rows() -> list[dict[str, object]]:
     return [
         {"section": "event", "label": "catalog_open", "count": 12, "metric": 0},
         {"section": "event", "label": "search", "count": 7, "metric": 0},
+        {"section": "event", "label": "resource_error", "count": 2, "metric": 0},
+        {"section": "event", "label": "image_terminal_failure", "count": 1, "metric": 0},
+        {"section": "release", "label": "app-61dd783bd3fa", "count": 20, "metric": 0},
         {"section": "catalog", "label": "opening-test", "count": 9, "metric": 0},
         {"section": "search", "label": "ארון הזזה", "count": 4, "metric": 2},
         {"section": "contact", "label": "phone", "count": 3, "metric": 0},
@@ -232,17 +268,21 @@ def sample_report_rows() -> list[dict[str, object]]:
             "source": "app.js",
             "line": 412,
             "column": 18,
+            "release_id": "app-61dd783bd3fa",
             "count": 46,
             "metric": 0,
             "label": "ef21e4fae",
         },
         {
-            "section": "image_error",
+            "section": "image_terminal",
             "fingerprint": "",
             "catalog_id": "opening-test",
             "page_number": 4,
-            "failure_stage": "viewer-single-primary",
+            "failure_stage": "viewer-single",
+            "outcome_action": "fallback",
+            "attempt_count": 2,
             "source": "page-004.webp",
+            "release_id": "app-61dd783bd3fa",
             "count": 1,
             "metric": 0,
             "label": "page-004.webp",
@@ -273,7 +313,9 @@ def test_create_report_files_writes_rtl_html_and_excel_friendly_csv(tmp_path: Pa
     assert "חיפושים ללא תוצאה" in html_text
     assert "ef21e4fae" in html_text
     assert "Cannot read properties of undefined" in html_text
-    assert "viewer-single-primary" in html_text
+    assert "viewer-single" in html_text
+    assert "fallback" in html_text
+    assert "app-61dd783bd3fa" in html_text
     assert "מדדי חוויית משתמש אמיתיים" in html_text
     assert "מגמות מול התקופה הקודמת" in html_text
     assert "2,100 ms" in html_text

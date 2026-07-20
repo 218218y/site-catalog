@@ -22,7 +22,7 @@ function refreshSearchUiAfterIndexLoad() {
   }
 }
 
-function ensureSearchIndexLoaded() {
+function ensureSearchIndexLoaded(options = {}) {
   if (isSearchIndexReady()) {
     state.searchIndexLoadState = "ready";
     refreshSearchUiAfterIndexLoad();
@@ -34,21 +34,36 @@ function ensureSearchIndexLoaded() {
   state.searchIndexLoadState = "loading";
   initLightboxSearchStatus();
 
+  const loadTrigger = telemetryCleanText(options.trigger || "interactive", 40);
   state.searchIndexLoadPromise = new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
     const script = existing || document.createElement("script");
+    script.dataset.telemetryResourceRole = "search-index";
+    script.dataset.telemetrySearchTrigger = loadTrigger;
 
     const handleLoad = () => {
       state.searchIndexLoadState = isSearchIndexReady() ? "ready" : "error";
       state.searchIndexLoadPromise = null;
       refreshSearchUiAfterIndexLoad();
-      if (state.searchIndexLoadState === "ready") resolve(true);
-      else reject(new Error("Search index loaded without data"));
+      if (state.searchIndexLoadState === "ready") {
+        resolve(true);
+      } else {
+        telemetryTrackSearchIndexFailure("missing-data", {
+          target: script,
+          trigger: loadTrigger
+        });
+        script.remove();
+        reject(new Error("Search index loaded without data"));
+      }
     };
 
     const handleError = () => {
       state.searchIndexLoadState = "error";
       state.searchIndexLoadPromise = null;
+      telemetryTrackSearchIndexFailure("network-error", {
+        target: script,
+        trigger: loadTrigger
+      });
       script.remove();
       initLightboxSearchStatus();
       reject(new Error("Failed to load the catalog search index"));
@@ -71,7 +86,7 @@ function ensureSearchIndexLoaded() {
 function scheduleSearchIndexPreload() {
   window.clearTimeout(state.searchIndexPreloadTimer);
   state.searchIndexPreloadTimer = window.setTimeout(() => {
-    const preload = () => ensureSearchIndexLoaded().catch(() => {});
+    const preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {});
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(preload, { timeout: 2500 });
     } else {
@@ -724,7 +739,7 @@ function retrySearchIndexLoad(options = {}) {
   state.searchIndexLoadState = "idle";
   const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
   existing?.remove?.();
-  ensureSearchIndexLoaded().catch(() => {});
+  ensureSearchIndexLoaded({ trigger: "retry" }).catch(() => {});
   if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
   else renderSearchResults(els.globalSearchInput?.value || "");
 }
