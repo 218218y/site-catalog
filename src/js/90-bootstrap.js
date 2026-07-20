@@ -49,7 +49,7 @@ function attachShellEvents() {
     scheduleCatalogScrollTopButtonUpdate();
     updateLightboxSearchResultsLayout(els.lightboxSearchResults?.dataset.resultCount || 0);
     syncLightboxMobileSearchUi();
-    if (state.lightboxOpen) {
+    if (isViewerSessionOpen()) {
       hideLightboxFloatingPreview();
       refreshLightboxLayoutForTopUiChange();
       if (state.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
@@ -66,7 +66,7 @@ function attachShellEvents() {
     // hierarchy for every remaining Escape press.
     if (event.defaultPrevented) return;
     if (handleTopLayerEscape(event)) return;
-    if (!state.lightboxOpen) return;
+    if (!isViewerSessionOpen()) return;
     if (state.viewerInquiryOpen) {
       handleViewerInquiryKeydown(event);
       return;
@@ -135,7 +135,7 @@ function syncDocumentRouteShell(nextPage) {
 }
 
 function prepareDocumentRoute(nextPage) {
-  if (nextPage !== "viewer" && state.lightboxOpen) hideLightboxUi();
+  if (nextPage !== "viewer" && isViewerSessionOpen()) hideLightboxUi();
   if (nextPage !== "favorites" && state.favoritesTransferPending) {
     closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: true });
   }

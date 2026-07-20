@@ -2,10 +2,9 @@
 """Serve a validated private site artifact for local preview.
 
 The source tree is deliberately not used as the web root. ``start-server.bat``
-asks this server to verify that ``dist/site-local`` matches the current source
-and lets the user rebuild or deliberately continue with the older artifact.
-Direct CLI usage keeps the historical no-check default unless ``--ensure-current``
-is supplied.
+serves the existing ``dist/site-local`` artifact without inspecting or rebuilding
+it. ``check-and-start-server.bat`` is the explicit opt-in workflow that verifies
+currentness and can offer a rebuild before serving.
 """
 from __future__ import annotations
 

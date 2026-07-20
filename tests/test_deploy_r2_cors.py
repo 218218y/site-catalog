@@ -33,14 +33,12 @@ def test_r2_cors_policy_allows_public_canvas_reads() -> None:
 
 def test_wrangler_cors_commands_are_fixed_purpose() -> None:
     set_command, list_command = MODULE.build_r2_cors_commands(
-        "npx",
+        "wrangler-local",
         "bargig-catalog",
         "r2-cors.json",
     )
     assert set_command == [
-        "npx",
-        "--yes",
-        "wrangler",
+        "wrangler-local",
         "r2",
         "bucket",
         "cors",
@@ -50,9 +48,7 @@ def test_wrangler_cors_commands_are_fixed_purpose() -> None:
         "r2-cors.json",
     ]
     assert list_command == [
-        "npx",
-        "--yes",
-        "wrangler",
+        "wrangler-local",
         "r2",
         "bucket",
         "cors",
@@ -77,14 +73,14 @@ def test_pages_deploy_dry_run_never_reads_or_changes_r2_cors(
     bundle_dir = tmp_path / "bundle"
     write_minimal_bundle(bundle_dir)
     monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
-    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "find_local_wrangler", lambda root=None: "wrangler-local")
     monkeypatch.setattr(MODULE, "validate_current_artifact", lambda *args, **kwargs: {})
 
     assert MODULE.main(["--dir", "bundle", "--dry-run"]) == 0
     output = capsys.readouterr().out
     assert "Validating the existing Cloudflare Pages bundle without rebuilding" in output
     assert "tools/build_deploy_bundle.py" not in output
-    assert "wrangler pages deploy" in output
+    assert "wrangler-local pages deploy" in output
     assert "--verify-remote-assets" not in output
     assert "--branch" not in output
     assert "environment: production" in output
@@ -100,14 +96,12 @@ def test_deploy_interface_validates_existing_bundle_by_default() -> None:
 
 def test_production_pages_command_does_not_pass_branch() -> None:
     command = MODULE.build_pages_deploy_command(
-        "npx",
+        "wrangler-local",
         "dist/site-upload-r2",
         "bargig-catlog",
     )
     assert command == [
-        "npx",
-        "--yes",
-        "wrangler",
+        "wrangler-local",
         "pages",
         "deploy",
         "dist/site-upload-r2",
@@ -118,7 +112,7 @@ def test_production_pages_command_does_not_pass_branch() -> None:
 
 def test_preview_pages_command_requires_explicit_preview_branch() -> None:
     command = MODULE.build_pages_deploy_command(
-        "npx",
+        "wrangler-local",
         "dist/site-upload-r2",
         "bargig-catlog",
         "feature-test",
@@ -134,7 +128,7 @@ def test_production_deploy_finishes_after_wrangler_success_without_public_check(
     bundle_dir = tmp_path / "bundle"
     write_minimal_bundle(bundle_dir)
     monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
-    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "find_local_wrangler", lambda root=None: "wrangler-local")
     monkeypatch.setattr(MODULE, "validate_current_artifact", lambda *args, **kwargs: {})
 
     captured_commands: list[list[str]] = []
@@ -147,7 +141,7 @@ def test_production_deploy_finishes_after_wrangler_success_without_public_check(
 
     assert MODULE.main(["--dir", "bundle"]) == 0
     assert len(captured_commands) == 1
-    assert captured_commands[0][:5] == ["npx", "--yes", "wrangler", "pages", "deploy"]
+    assert captured_commands[0][:3] == ["wrangler-local", "pages", "deploy"]
     output = capsys.readouterr().out
     assert "Cloudflare Pages deploy finished successfully." in output
     assert "no public website comparison was performed" in output
@@ -172,7 +166,7 @@ def test_dry_run_reports_no_post_deploy_website_comparison(
     bundle_dir = tmp_path / "bundle"
     write_minimal_bundle(bundle_dir)
     monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
-    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "find_local_wrangler", lambda root=None: "wrangler-local")
     monkeypatch.setattr(MODULE, "validate_current_artifact", lambda *args, **kwargs: {})
 
     assert MODULE.main(["--dir", "bundle", "--dry-run"]) == 0
@@ -291,7 +285,7 @@ def test_default_deploy_does_not_call_builder(
     bundle_dir = tmp_path / "bundle"
     write_minimal_bundle(bundle_dir)
     monkeypatch.setattr(MODULE, "project_root", lambda: tmp_path)
-    monkeypatch.setattr(MODULE, "find_npx", lambda: "npx")
+    monkeypatch.setattr(MODULE, "find_local_wrangler", lambda root=None: "wrangler-local")
     monkeypatch.setattr(MODULE, "validate_current_artifact", lambda *args, **kwargs: {})
     monkeypatch.setattr(MODULE, "run_streamed", lambda command, cwd: 0)
     monkeypatch.setattr(

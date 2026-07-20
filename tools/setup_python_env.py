@@ -18,6 +18,16 @@ from pathlib import Path
 from typing import Sequence
 
 REQUIRED_IMPORTS: tuple[str, ...] = ("pytest", "fitz", "PIL")
+PINNED_DISTRIBUTIONS: dict[str, str] = {
+    "PyMuPDF": "1.28.0",
+    "Pillow": "12.3.0",
+    "pytest": "9.1.1",
+    "iniconfig": "2.3.0",
+    "packaging": "26.2",
+    "pluggy": "1.6.0",
+    "Pygments": "2.20.0",
+}
+WINDOWS_PINNED_DISTRIBUTIONS: dict[str, str] = {"colorama": "0.4.6"}
 STAMP_NAME = ".site-catalog-requirements.sha256"
 
 
@@ -75,13 +85,60 @@ def missing_imports(python: Path | str, modules: Sequence[str] = REQUIRED_IMPORT
     return tuple(str(name) for name in payload)
 
 
+def expected_pinned_distributions(*, platform: str | None = None) -> dict[str, str]:
+    expected = dict(PINNED_DISTRIBUTIONS)
+    if (platform or os.name) == "nt":
+        expected.update(WINDOWS_PINNED_DISTRIBUTIONS)
+    return expected
+
+
+def mismatched_distribution_versions(
+    python: Path | str,
+    expected: dict[str, str] | None = None,
+) -> tuple[str, ...]:
+    pinned = expected or expected_pinned_distributions()
+    script = f"""
+import importlib.metadata
+import json
+
+expected = {pinned!r}
+result = []
+for name, version in expected.items():
+    try:
+        actual = importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        result.append(f"{{name}} (missing)")
+        continue
+    if actual != version:
+        result.append(f"{{name}}=={{actual}} (expected {{version}})")
+print(json.dumps(result))
+"""
+    try:
+        result = subprocess.run(
+            (str(python), "-c", script),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return tuple(f"{name} (unavailable)" for name in pinned)
+
+    import json
+
+    try:
+        payload = json.loads(result.stdout.strip() or "[]")
+    except json.JSONDecodeError:
+        return tuple(f"{name} (unreadable)" for name in pinned)
+    return tuple(str(item) for item in payload)
+
+
 def environment_is_current(root: Path, python: Path, fingerprint: str) -> bool:
     stamp = root / ".venv" / STAMP_NAME
     if not python.is_file() or not stamp.is_file():
         return False
     if stamp.read_text(encoding="utf-8").strip() != fingerprint:
         return False
-    return not missing_imports(python)
+    return not missing_imports(python) and not mismatched_distribution_versions(python)
 
 
 def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
@@ -123,6 +180,13 @@ def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
         raise RuntimeError(
             "Python environment was created, but required modules are still missing: "
             + ", ".join(missing)
+        )
+
+    mismatched = mismatched_distribution_versions(python)
+    if mismatched:
+        raise RuntimeError(
+            "Python environment was installed, but pinned versions do not match: "
+            + "; ".join(mismatched)
         )
 
     (environment_dir / STAMP_NAME).write_text(fingerprint + "\n", encoding="utf-8")

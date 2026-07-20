@@ -253,7 +253,7 @@ function showSingleLightboxImage(catalog, page, src) {
     forceRefresh: Boolean(options.forceRefresh),
     isCurrent: () => (
       token === state.singleImageLoadToken
-      && state.lightboxOpen
+      && isViewerSessionOpen()
       && state.catalog === catalog
       && state.page === page
     ),
@@ -786,7 +786,7 @@ function handleTopLayerEscape(event) {
   if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
     return closeLayer(() => closeDetailCatalogMenu());
   }
-  if (!state.lightboxOpen) return false;
+  if (!isViewerSessionOpen()) return false;
 
   if (state.viewerInquiryOpen) {
     return closeLayer(() => closeViewerInquiry());

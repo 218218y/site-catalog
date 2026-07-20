@@ -32,7 +32,7 @@ accessibility.html                     הצהרת נגישות
 bundle-site-r2.bat
 ```
 
-הפקודה בונה, רק כאשר נדרש, את `dist/site-upload-r2` ומעתיקה מאותו תוצר מאומת את `dist/site-local`. `start-server.bat` בודק קודם את חתימת המקורות מול `dist/site-local`: אם הכול מעודכן השרת נפתח מיד ללא בנייה; אם יש שינוי מוצגות שלוש אפשרויות — לעדכן עכשיו, לפתוח במכוון את התוצר הישן, או לבטל. תיקיית המקור נשארת נקייה ואינה משמשת כ־web root. קובצי ה־shell הטכניים `catalog.html` ו־`viewer.html` נשארים רק במקור לצורכי בדיקות ותבניות ואינם נכללים באתר המלא.
+הפקודה בונה, רק כאשר נדרש, את `dist/site-upload-r2` ומעתיקה מאותו תוצר מאומת את `dist/site-local`. `start-server.bat` מגיש מיד את `dist/site-local` הקיים ואינו בודק או בונה. לבדיקת עדכניות עם אפשרות לבנייה משתמשים במפורש ב־`check-and-start-server.bat`. תיקיית המקור נשארת נקייה ואינה משמשת כ־web root. קובצי ה־shell הטכניים `catalog.html` ו־`viewer.html` נשארים רק במקור לצורכי בדיקות ותבניות ואינם נכללים באתר המלא.
 
 
 ## מבנה קוד הממשק
@@ -86,6 +86,7 @@ python tools\build_frontend_assets.py --check
 ```text
 dist/site-upload-r2   התוצר המאומת שמועלה ל־Cloudflare Pages
 dist/site-local       עותק זהה שמוגש על ידי start-server.bat
+check-and-start-server.bat   בדיקת עדכניות אופציונלית לפני הפעלת השרת
 ```
 
 לצדן נשמרים קובצי `*.build.json` עם חתימות המקורות ומלאי הקבצים. הם נמצאים מחוץ לתיקיית האתר ואינם מועלים. בדיקות Playwright משתמשות באותו `dist/site-local`: לפני פתיחת שרת הבדיקות מתבצעת בדיקת חתימה, ורק אם המקורות השתנו התוצר המקומי נבנה מחדש. כך אין באנדל שלישי ואין תיקיית `dist/site-e2e`. `dist/site-public-preview` נוצר רק בבדיקת מצב public מפורשת. התיקיות הישנות `dist/seo-private`, `dist/seo-public` ו־`dist/site-e2e` אינן בשימוש ומנוקות בבנייה הרגילה.
@@ -304,7 +305,7 @@ bundle-site-r2-upload cloudflare.bat
 
 ```bat
 python tools\build_deploy_bundle.py --out dist\site-upload-r2 --external-assets-url https://cdn.bargig-furniture.com
-npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog
+node_modules\.bin\wrangler.cmd pages deploy "dist\site-upload-r2" --project-name bargig-catlog
 ```
 
 לפריסת preview בלבד:
@@ -443,6 +444,7 @@ npm run setup
 ```
 
 `npm run setup` מכין את סביבת Python המקומית `.venv` ומתקין את Chromium המבודד של Playwright. אפשר במקום זאת להריץ את `setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
+גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`, ו־Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`.
 
 הפקודות המרכזיות:
 
@@ -453,7 +455,10 @@ npm run test:python    rem בדיקות Python מתוך .venv
 npm run test:e2e       rem מסלולי שימוש אמיתיים בדפדפן Chromium
 npm test               rem בדיקה מהירה: JavaScript + Python, ללא דפדפן ופריסה
 npm run verify         rem אימות מלא לפני העלאה
+npm run clean:artifacts rem ניקוי __pycache__, bytecode ועותקי תמונת שיתוף ישנים
 ```
+
+אפשר להפעיל את הניקוי גם דרך `clean-project-artifacts.bat`. `bundle-site-r2.bat` מפעיל אותו אוטומטית אחרי בנייה מוצלחת.
 
 `npm run verify` מבצע לפי הסדר:
 

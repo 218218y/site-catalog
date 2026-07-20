@@ -11,7 +11,12 @@ const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), 
 const architecture = fs.readFileSync(path.join(root, "docs", "frontend-architecture.md"), "utf8");
 const localServer = fs.readFileSync(path.join(root, "tools", "serve_site.py"), "utf8");
 const startServer = fs.readFileSync(path.join(root, "start-server.bat"), "utf8");
+const checkedStartServer = fs.readFileSync(path.join(root, "check-and-start-server.bat"), "utf8");
+const deployTool = fs.readFileSync(path.join(root, "tools", "deploy_cloudflare_pages.py"), "utf8");
+const requirements = fs.readFileSync(path.join(root, "tools", "requirements.txt"), "utf8");
+const devRequirements = fs.readFileSync(path.join(root, "tools", "requirements-dev.txt"), "utf8");
 const bundleSite = fs.readFileSync(path.join(root, "bundle-site-r2.bat"), "utf8");
+const cleanArtifactsBat = fs.readFileSync(path.join(root, "clean-project-artifacts.bat"), "utf8");
 const uploadSite = fs.readFileSync(path.join(root, "bundle-site-r2-upload cloudflare.bat"), "utf8");
 
 assert.equal(packageJson.private, true);
@@ -23,16 +28,33 @@ assert.match(packageJson.scripts["build:local"], /--skip-if-current/);
 assert.match(packageJson.scripts["build:local"], /--mirror-to dist\/site-local/);
 assert.equal(packageJson.scripts.dev, "python tools/serve_site.py");
 assert.equal(packageJson.scripts.serve, "python tools/serve_site.py");
+assert.equal(packageJson.scripts["dev:check"], "python tools/serve_site.py --ensure-current ask");
+assert.equal(packageJson.devDependencies["@playwright/test"], "1.55.1");
+assert.equal(packageJson.devDependencies.wrangler, "4.112.0");
+assert.match(deployTool, /def find_local_wrangler\(/);
+assert.doesNotMatch(deployTool, /def find_npx\(|npx was not found|--yes[\s\S]{0,40}wrangler/);
+assert.match(requirements, /^PyMuPDF==1\.28\.0$/m);
+assert.match(requirements, /^Pillow==12\.3\.0$/m);
+assert.match(devRequirements, /^pytest==9\.1\.1$/m);
+assert.match(devRequirements, /^iniconfig==2\.3\.0$/m);
+assert.match(devRequirements, /^packaging==26\.2$/m);
+assert.match(devRequirements, /^pluggy==1\.6\.0$/m);
+assert.match(devRequirements, /^Pygments==2\.20\.0$/m);
+assert.match(devRequirements, /^colorama==0\.4\.6; sys_platform == "win32"$/m);
 assert.match(localServer, /--build-first/);
 assert.match(localServer, /--ensure-current/);
 assert.match(localServer, /dist\/site-local/);
-assert.match(startServer, /tools\\serve_site\.py --port 8080 --ensure-current ask/);
+assert.match(startServer, /tools\\serve_site\.py --port 8080/);
+assert.doesNotMatch(startServer, /--ensure-current|--build-first/);
+assert.match(checkedStartServer, /tools\\serve_site\.py --port 8080 --ensure-current ask/);
 assert.doesNotMatch(startServer, /catalog-control-panel/);
 assert.doesNotMatch(startServer, /build_deploy_bundle/);
 assert.doesNotMatch(startServer, /python -m http\.server/);
 assert.match(bundleSite, /--skip-if-current/);
 assert.match(bundleSite, /--mirror-to dist\/site-local/);
 assert.match(bundleSite, /--clean-legacy-artifacts/);
+assert.match(bundleSite, /tools\\clean_project_artifacts\.py/);
+assert.match(cleanArtifactsBat, /tools\\clean_project_artifacts\.py/);
 assert.match(uploadSite, /deploy_cloudflare_pages\.py/);
 assert.doesNotMatch(uploadSite, /--build-first/);
 assert.doesNotMatch(uploadSite, /build_deploy_bundle/);
@@ -52,9 +74,15 @@ assert.match(verifier, /build_deploy_bundle\.py/);
 assert.match(verifier, /build_site_pages\.py/);
 assert.match(verifier, /Playwright browser journeys/);
 assert.equal(fs.existsSync(path.join(root, "tools", "requirements-dev.txt")), true);
+assert.equal(fs.existsSync(path.join(root, "tools", "clean_project_artifacts.py")), true);
+assert.equal(fs.existsSync(path.join(root, "check-and-start-server.bat")), true);
+assert.equal(fs.existsSync(path.join(root, "clean-project-artifacts.bat")), true);
 assert.match(architecture, /אין לפצל מודול רק בגלל מספר השורות/);
 
 assert.equal(fs.existsSync(path.join(root, "wp_logo_data.js")), false);
 assert.equal(fs.existsSync(path.join(root, "brand-logo.js")), false);
+for (const duplicate of ["social-share-default(2).png", "social-share-default(3).png", "social-share-default(4).png"]) {
+  assert.equal(fs.existsSync(path.join(root, duplicate)), false, duplicate);
+}
 
 console.log("project_maintenance_contract.test.js: PASS");

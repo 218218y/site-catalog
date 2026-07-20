@@ -17,7 +17,7 @@ function refreshSearchUiAfterIndexLoad() {
   if (isGlobalSearchPanelOpen()) {
     renderSearchResults(els.globalSearchInput?.value || "");
   }
-  if (state.lightboxOpen && els.lightboxSearchInput) {
+  if (isViewerSessionOpen() && els.lightboxSearchInput) {
     renderLightboxSearchResults(els.lightboxSearchInput.value);
   }
 }
@@ -258,7 +258,7 @@ function syncLightboxMobileSearchUi() {
 
 function setLightboxMobileSearchOpen(open, options = {}) {
   const { focusInput = false, returnFocus = false, hideResults = true, hideTopUi = false } = options;
-  const shouldOpen = Boolean(open && state.lightboxOpen && isMobileReaderSearchMode());
+  const shouldOpen = Boolean(open && isViewerSessionOpen() && isMobileReaderSearchMode());
 
   state.lightboxMobileSearchOpen = shouldOpen;
   syncLightboxMobileSearchUi();
@@ -464,7 +464,7 @@ function searchPreviewTargetBelongsToOpenResults(target) {
   }
 
   if (els.lightboxSearchResults?.contains(target)) {
-    return state.lightboxOpen && !els.lightboxSearchResults.classList.contains("hidden");
+    return isViewerSessionOpen() && !els.lightboxSearchResults.classList.contains("hidden");
   }
 
   return false;

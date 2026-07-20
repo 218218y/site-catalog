@@ -42,7 +42,7 @@ assert.match(app, /function syncFavoritesTransferDialogUi\([\s\S]*?analyzeFavori
 assert.match(app, /function encodeFavoritePageRanges\(/);
 assert.match(app, /function decodeFavoritePageRanges\(/);
 assert.match(app, /function buildFavoritesShareToken\([\s\S]*?canonicalizeFavoriteShareItems\([\s\S]*?encodeFavoritePageRanges/);
-assert.match(app, /function parseLegacyFavoritesShareToken\(/);
+assert.doesNotMatch(app, /FAVORITES_SHARE_LEGACY_VERSION|parseLegacyFavoritesShareToken/);
 assert.match(app, /function shareFavoritesList\([\s\S]*?copyFavoriteWorkspaceLink\(favoriteWorkspaceShareLinkEntries\(\), els\.favoritesShareButton\)/);
 assert.match(app, /function copyFavoriteWorkspaceLink\([\s\S]*?copyTextToClipboard\(selectionUrl\)[\s\S]*?קישור המועדפים הועתק/);
 assert.doesNotMatch(app, /function shareFavoriteWorkspaceEntries|navigator\.share\(shareData\)[\s\S]*?favoriteWorkspaceSelectionUrl/);

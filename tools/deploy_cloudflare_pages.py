@@ -25,7 +25,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -169,11 +168,9 @@ def validate_r2_cors_file(cors_file: Path) -> None:
         )
 
 
-def build_r2_cors_commands(npx: str, bucket: str, cors_file: str) -> tuple[list[str], list[str]]:
+def build_r2_cors_commands(wrangler: str, bucket: str, cors_file: str) -> tuple[list[str], list[str]]:
     set_command = [
-        npx,
-        "--yes",
-        "wrangler",
+        wrangler,
         "r2",
         "bucket",
         "cors",
@@ -183,9 +180,7 @@ def build_r2_cors_commands(npx: str, bucket: str, cors_file: str) -> tuple[list[
         cors_file,
     ]
     list_command = [
-        npx,
-        "--yes",
-        "wrangler",
+        wrangler,
         "r2",
         "bucket",
         "cors",
@@ -195,8 +190,8 @@ def build_r2_cors_commands(npx: str, bucket: str, cors_file: str) -> tuple[list[
     return set_command, list_command
 
 
-def apply_r2_cors(npx: str, bucket: str, cors_file: str, root: Path) -> int:
-    set_command, list_command = build_r2_cors_commands(npx, bucket, cors_file)
+def apply_r2_cors(wrangler: str, bucket: str, cors_file: str, root: Path) -> int:
+    set_command, list_command = build_r2_cors_commands(wrangler, bucket, cors_file)
     print("Applying Cloudflare R2 CORS policy...", flush=True)
     returncode = run_streamed(set_command, root)
     if returncode != 0:
@@ -236,7 +231,7 @@ def validate_bundle(bundle_dir: Path) -> None:
 
 
 def build_pages_deploy_command(
-    npx: str,
+    wrangler: str,
     bundle_dir: str,
     project_name: str,
     preview_branch: str | None = None,
@@ -244,9 +239,7 @@ def build_pages_deploy_command(
     """Build a Pages command that targets production unless preview is explicit."""
 
     command = [
-        npx,
-        "--yes",
-        "wrangler",
+        wrangler,
         "pages",
         "deploy",
         bundle_dir,
@@ -258,15 +251,15 @@ def build_pages_deploy_command(
     return command
 
 
-def find_npx() -> str:
-    candidates = ["npx.cmd", "npx"] if os.name == "nt" else ["npx"]
-    for name in candidates:
-        executable = shutil.which(name)
-        if executable:
-            return executable
+def find_local_wrangler(root: Path | None = None) -> str:
+    base = (root or project_root()).resolve()
+    executable_name = "wrangler.cmd" if os.name == "nt" else "wrangler"
+    candidate = base / "node_modules" / ".bin" / executable_name
+    if candidate.is_file():
+        return str(candidate)
     raise FileNotFoundError(
-        "npx was not found. Install Node.js/npm, then run this command again. "
-        "Wrangler is executed through npx."
+        "The project-local Wrangler executable is missing. Run npm ci (or setup-windows.bat) "
+        "before deploying; global and floating npx versions are intentionally not used."
     )
 
 
@@ -362,12 +355,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.cors_only and args.build_first:
             raise ValueError("--cors-only cannot be combined with --build-first.")
 
-        npx = find_npx()
+        wrangler = find_local_wrangler(root)
         if args.cors_only:
             cors_file = ensure_inside_project(root / args.cors_file)
             validate_r2_cors_file(cors_file)
             cors_set_command, cors_list_command = build_r2_cors_commands(
-                npx,
+                wrangler,
                 args.r2_bucket,
                 rel_to_root(cors_file),
             )
@@ -379,7 +372,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(quote_command(cors_set_command), flush=True)
                 print(quote_command(cors_list_command), flush=True)
                 return 0
-            return apply_r2_cors(npx, args.r2_bucket, rel_to_root(cors_file), root)
+            return apply_r2_cors(wrangler, args.r2_bucket, rel_to_root(cors_file), root)
 
         bundle_dir = ensure_inside_project(root / args.dir)
         runtime_config = validate_pages_runtime_config(root, bundle_dir, args.project_name)
@@ -406,7 +399,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             ) from exc
         preview_branch = str(args.preview_branch or "").strip() or None
         wrangler_command = build_pages_deploy_command(
-            npx,
+            wrangler,
             args.dir,
             args.project_name,
             preview_branch,

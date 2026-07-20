@@ -108,7 +108,7 @@ function finishViewerScrollPointerHandoff(event) {
 }
 
 function startPointerInteraction(event) {
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
   if (
     isViewerScrollIsolatedZoom()
@@ -155,7 +155,7 @@ function startPointerInteraction(event) {
 
 function movePointerInteraction(event) {
   if (continueViewerScrollPointerHandoff(event)) return;
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
   const previousPoint = state.pointers.get(event.pointerId);
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   const pointers = getPointerList();
@@ -261,7 +261,7 @@ function handleViewerPageSwipe(event, startedX, startedY) {
 
 function endPointerInteraction(event) {
   if (finishViewerScrollPointerHandoff(event)) return;
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
   const startedX = state.dragStartX;
   const startedY = state.dragStartY;
   state.pointers.delete(event.pointerId);
@@ -323,7 +323,7 @@ function getWheelZoomFactor(event) {
 }
 
 function handleZoomSurfaceWheel(event) {
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
@@ -363,7 +363,7 @@ function handleZoomSurfaceWheel(event) {
 }
 
 function handleZoomSurfaceDoubleClick(event) {
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
   if (Date.now() < state.suppressNextDblClickUntil) return;
 
   // viewerScrollPages is nested inside stageCanvas and both are valid zoom
@@ -403,7 +403,7 @@ function isLightboxTopInteractiveTarget(target) {
 }
 
 function hideLightboxTopSearchFromViewerInteraction(event) {
-  if (!state.lightboxOpen) return false;
+  if (!isViewerSessionOpen()) return false;
   if (event?.button !== undefined && event.button !== 0) return false;
   if (isLightboxTopInteractiveTarget(event?.target)) return false;
 

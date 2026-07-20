@@ -58,15 +58,17 @@ assert.ok(fastMouseIn < 1.41, 'even a combined large wheel event must remain bou
 let prevented = 0;
 let stopped = 0;
 const zoomCalls = [];
-const state = { lightboxOpen: true, zoom: 1 };
+const state = { viewerPhase: 'open', zoom: 1 };
 const handleZoomSurfaceWheel = new Function(
   'state',
+  'isViewerSessionOpen',
   'isActiveZoomSurface',
   'getWheelZoomFactor',
   'setZoom',
   `${wheelHandlerSource}; return handleZoomSurfaceWheel;`
 )(
   state,
+  () => state.viewerPhase === 'open',
   () => true,
   getWheelZoomFactor,
   (...args) => zoomCalls.push(args)

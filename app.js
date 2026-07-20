@@ -10,6 +10,10 @@
  *   - src/js/35-favorites-workspace.js
  *   - src/js/40-catalog-grid.js
  *   - src/js/50-search-ui.js
+ *   - src/js/52-viewer-session.js
+ *   - src/js/54-viewer-geometry.js
+ *   - src/js/56-viewer-shell.js
+ *   - src/js/58-viewer-scroll.js
  *   - src/js/60-viewer.js
  *   - src/js/62-viewer-actions.js
  *   - src/js/65-viewer-onboarding.js
@@ -70,7 +74,7 @@ function isInternalAppDocumentUrl(url) {
 
 function canNavigateWithinCurrentDocument(url) {
   return Boolean(
-    isBrowserFullscreenActive() &&
+    viewerUsesInDocumentFullscreenNavigation() &&
     window.history?.pushState &&
     window.history?.replaceState &&
     isInternalAppDocumentUrl(url)
@@ -115,7 +119,7 @@ function navigateBack() {
 
 function handleInternalAppLinkClick(event) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  if (!isBrowserFullscreenActive()) return;
+  if (!viewerUsesInDocumentFullscreenNavigation()) return;
 
   const link = event.target.closest?.("a[href]");
   if (!link || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
@@ -271,6 +275,14 @@ const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
 const VIEWER_LAYOUT_SIDE = "side";
 const VIEWER_LAYOUT_SCROLL = "scroll";
+const VIEWER_PHASE_CLOSED = "closed";
+const VIEWER_PHASE_OPENING = "opening";
+const VIEWER_PHASE_OPEN = "open";
+const VIEWER_PHASE_CLOSING = "closing";
+const VIEWER_FULLSCREEN_INACTIVE = "inactive";
+const VIEWER_FULLSCREEN_ENTERING = "entering";
+const VIEWER_FULLSCREEN_ACTIVE = "active";
+const VIEWER_FULLSCREEN_EXITING = "exiting";
 const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
@@ -279,7 +291,6 @@ const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
 const VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_SHARE_PARAM = "selection";
 const FAVORITES_SHARE_VERSION = 2;
-const FAVORITES_SHARE_LEGACY_VERSION = 1;
 const FAVORITES_NOTE_MAX_LENGTH = 280;
 
 function getFavoritesStorage() {
@@ -351,7 +362,10 @@ const state = {
   pinchLastMidY: 0,
   pointerGestureHadMultiplePointers: false,
   pointers: new Map(),
-  lightboxOpen: false,
+  viewerPhase: VIEWER_PHASE_CLOSED,
+  viewerPhaseReason: "initial",
+  viewerFullscreenPhase: VIEWER_FULLSCREEN_INACTIVE,
+  viewerFullscreenReason: "initial",
   lightboxSource: LIGHTBOX_SOURCE_CATALOG,
   favoritesViewerIndex: 0,
   favoritesViewerOpeningHash: "",
@@ -1197,7 +1211,7 @@ function showSingleLightboxImage(catalog, page, src) {
     forceRefresh: Boolean(options.forceRefresh),
     isCurrent: () => (
       token === state.singleImageLoadToken
-      && state.lightboxOpen
+      && isViewerSessionOpen()
       && state.catalog === catalog
       && state.page === page
     ),
@@ -1730,7 +1744,7 @@ function handleTopLayerEscape(event) {
   if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
     return closeLayer(() => closeDetailCatalogMenu());
   }
-  if (!state.lightboxOpen) return false;
+  if (!isViewerSessionOpen()) return false;
 
   if (state.viewerInquiryOpen) {
     return closeLayer(() => closeViewerInquiry());
@@ -1948,29 +1962,10 @@ function buildFavoritesShareToken(items) {
   return `v${FAVORITES_SHARE_VERSION}.${encodeBase64UrlUtf8(payload)}`;
 }
 
-function parseLegacyFavoritesShareToken(rawToken) {
-  const prefix = `v${FAVORITES_SHARE_LEGACY_VERSION}.`;
-  if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
-  try {
-    const payload = JSON.parse(decodeBase64UrlUtf8(rawToken.slice(prefix.length)));
-    if (!payload || payload.v !== FAVORITES_SHARE_LEGACY_VERSION || !Array.isArray(payload.c) || !Array.isArray(payload.i)) {
-      return { items: [], rejected: 0, valid: false };
-    }
-    const rawItems = payload.i.map((entry) => {
-      if (!Array.isArray(entry) || entry.length < 2) return null;
-      const catalogIndex = Number.parseInt(entry[0], 10);
-      return { catalogId: payload.c[catalogIndex], page: entry[1], savedAt: 0 };
-    });
-    return { ...normalizeFavoriteTransferItems(rawItems), valid: true };
-  } catch (_error) {
-    return { items: [], rejected: 0, valid: false };
-  }
-}
-
 function parseFavoritesShareToken(token) {
   const rawToken = String(token || "").trim();
   const prefix = `v${FAVORITES_SHARE_VERSION}.`;
-  if (!rawToken.startsWith(prefix)) return parseLegacyFavoritesShareToken(rawToken);
+  if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
 
   try {
     const payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length));
@@ -2163,7 +2158,7 @@ function setFavoriteViewerEntry(entries, index) {
 }
 
 function syncFavoriteViewerAfterStoreChange(options = {}) {
-  if (!state.lightboxOpen || !isFavoritesLightboxMode()) return;
+  if (!isViewerSessionOpen() || !isFavoritesLightboxMode()) return;
 
   const { preferredIndex = state.favoritesViewerIndex } = options;
   const entries = getFavoriteEntries();
@@ -2297,7 +2292,7 @@ function toggleCurrentPageFavorite() {
   if (isFavoritesLightboxMode() && !added) {
     syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
   }
-  if (state.lightboxOpen) {
+  if (isViewerSessionOpen()) {
     const feedback = added ? "נשמר" : "הוסר";
     flashActionButton(els.viewerFavoriteButton, feedback);
     showActionToast(feedback, { tone: added ? "saved" : "removed" });
@@ -3879,7 +3874,7 @@ function setCatalogScrollTopButtonVisible(visible) {
 
 function updateCatalogScrollTopButton() {
   state.catalogScrollTopButtonRaf = 0;
-  if (!els.scrollToTopBtn || !els.catalogDetail || !els.pageGrid || els.catalogDetail.classList.contains("hidden") || !state.catalog || state.lightboxOpen) {
+  if (!els.scrollToTopBtn || !els.catalogDetail || !els.pageGrid || els.catalogDetail.classList.contains("hidden") || !state.catalog || isViewerSessionOpen()) {
     setCatalogScrollTopButtonVisible(false);
     return;
   }
@@ -4005,7 +4000,7 @@ function refreshSearchUiAfterIndexLoad() {
   if (isGlobalSearchPanelOpen()) {
     renderSearchResults(els.globalSearchInput?.value || "");
   }
-  if (state.lightboxOpen && els.lightboxSearchInput) {
+  if (isViewerSessionOpen() && els.lightboxSearchInput) {
     renderLightboxSearchResults(els.lightboxSearchInput.value);
   }
 }
@@ -4246,7 +4241,7 @@ function syncLightboxMobileSearchUi() {
 
 function setLightboxMobileSearchOpen(open, options = {}) {
   const { focusInput = false, returnFocus = false, hideResults = true, hideTopUi = false } = options;
-  const shouldOpen = Boolean(open && state.lightboxOpen && isMobileReaderSearchMode());
+  const shouldOpen = Boolean(open && isViewerSessionOpen() && isMobileReaderSearchMode());
 
   state.lightboxMobileSearchOpen = shouldOpen;
   syncLightboxMobileSearchUi();
@@ -4452,7 +4447,7 @@ function searchPreviewTargetBelongsToOpenResults(target) {
   }
 
   if (els.lightboxSearchResults?.contains(target)) {
-    return state.lightboxOpen && !els.lightboxSearchResults.classList.contains("hidden");
+    return isViewerSessionOpen() && !els.lightboxSearchResults.classList.contains("hidden");
   }
 
   return false;
@@ -5114,10 +5109,204 @@ function attachSearchUiEvents() {
 }
 /* ===== END SOURCE: src/js/50-search-ui.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/60-viewer.js ===== */
+/* ===== BEGIN SOURCE: src/js/52-viewer-session.js ===== */
 /**
- * Source module: 60-viewer.js
- * Catalog viewer lifecycle, page loading, layout, fullscreen, top controls, page rail, and zoom state.
+ * Source module: 52-viewer-session.js
+ * Explicit viewer lifecycle and browser Fullscreen API state transitions.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
+
+const VIEWER_PHASE_TRANSITIONS = Object.freeze({
+  [VIEWER_PHASE_CLOSED]: new Set([VIEWER_PHASE_CLOSED, VIEWER_PHASE_OPENING]),
+  [VIEWER_PHASE_OPENING]: new Set([VIEWER_PHASE_OPENING, VIEWER_PHASE_OPEN, VIEWER_PHASE_CLOSING, VIEWER_PHASE_CLOSED]),
+  [VIEWER_PHASE_OPEN]: new Set([VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, VIEWER_PHASE_CLOSING]),
+  [VIEWER_PHASE_CLOSING]: new Set([VIEWER_PHASE_CLOSING, VIEWER_PHASE_CLOSED, VIEWER_PHASE_OPENING])
+});
+
+const VIEWER_FULLSCREEN_TRANSITIONS = Object.freeze({
+  [VIEWER_FULLSCREEN_INACTIVE]: new Set([VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_ACTIVE]),
+  [VIEWER_FULLSCREEN_ENTERING]: new Set([VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULLSCREEN_EXITING]),
+  [VIEWER_FULLSCREEN_ACTIVE]: new Set([VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE]),
+  [VIEWER_FULLSCREEN_EXITING]: new Set([VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING])
+});
+
+function transitionStatePhase({ current, next, transitions, label, reason }) {
+  const allowed = transitions[current];
+  if (!allowed?.has(next)) {
+    console.warn(`Ignored invalid ${label} transition`, { current, next, reason });
+    return false;
+  }
+  return true;
+}
+
+function transitionViewerPhase(nextPhase, reason = "unspecified") {
+  const currentPhase = state.viewerPhase || VIEWER_PHASE_CLOSED;
+  if (!transitionStatePhase({
+    current: currentPhase,
+    next: nextPhase,
+    transitions: VIEWER_PHASE_TRANSITIONS,
+    label: "viewer phase",
+    reason
+  })) return false;
+
+  state.viewerPhase = nextPhase;
+  state.viewerPhaseReason = String(reason || "unspecified");
+  if (document.body) document.body.dataset.viewerPhase = nextPhase;
+  return true;
+}
+
+function isViewerSessionOpen() {
+  return state.viewerPhase === VIEWER_PHASE_OPENING || state.viewerPhase === VIEWER_PHASE_OPEN;
+}
+
+function isViewerSessionVisible() {
+  return isViewerSessionOpen() || state.viewerPhase === VIEWER_PHASE_CLOSING;
+}
+
+function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
+  const currentPhase = state.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
+  if (!transitionStatePhase({
+    current: currentPhase,
+    next: nextPhase,
+    transitions: VIEWER_FULLSCREEN_TRANSITIONS,
+    label: "viewer fullscreen phase",
+    reason
+  })) return false;
+
+  state.viewerFullscreenPhase = nextPhase;
+  state.viewerFullscreenReason = String(reason || "unspecified");
+  if (document.documentElement) document.documentElement.dataset.viewerFullscreenPhase = nextPhase;
+  return true;
+}
+
+function getBrowserFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || null;
+}
+
+function isBrowserFullscreenActive() {
+  return Boolean(getBrowserFullscreenElement());
+}
+
+function isBrowserFullscreenSupported() {
+  const root = document.documentElement;
+  return Boolean(
+    document.fullscreenEnabled ||
+    document.webkitFullscreenEnabled ||
+    document.mozFullScreenEnabled ||
+    document.msFullscreenEnabled ||
+    root?.requestFullscreen ||
+    root?.webkitRequestFullscreen ||
+    root?.mozRequestFullScreen ||
+    root?.msRequestFullscreen
+  );
+}
+
+function isViewerFullscreenPending() {
+  return state.viewerFullscreenPhase === VIEWER_FULLSCREEN_ENTERING || state.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
+}
+
+function reconcileViewerFullscreenPhase(reason = "browser-state") {
+  transitionViewerFullscreenPhase(
+    isBrowserFullscreenActive() ? VIEWER_FULLSCREEN_ACTIVE : VIEWER_FULLSCREEN_INACTIVE,
+    reason
+  );
+}
+
+function viewerUsesInDocumentFullscreenNavigation() {
+  return isBrowserFullscreenActive();
+}
+
+function requestBrowserFullscreen() {
+  const root = document.documentElement;
+  const request = root?.requestFullscreen || root?.webkitRequestFullscreen || root?.mozRequestFullScreen || root?.msRequestFullscreen;
+  if (!request) return Promise.reject(new Error("fullscreen-unsupported"));
+  const result = request.call(root);
+  return result && typeof result.then === "function" ? result : Promise.resolve();
+}
+
+function exitBrowserFullscreen() {
+  const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+  if (!exit) return Promise.reject(new Error("fullscreen-exit-unsupported"));
+  const result = exit.call(document);
+  return result && typeof result.then === "function" ? result : Promise.resolve();
+}
+
+function getFullscreenToggleButtons() {
+  return els.fullscreenToggle ? [els.fullscreenToggle] : [];
+}
+
+function syncFullscreenButtonUi() {
+  const buttons = getFullscreenToggleButtons();
+  if (!buttons.length) return;
+
+  const isActive = isBrowserFullscreenActive();
+  const isSupported = isBrowserFullscreenSupported();
+  const isPending = isViewerFullscreenPending();
+  const label = isActive ? "יציאה ממסך מלא" : "כניסה למסך מלא";
+
+  buttons.forEach((button) => {
+    button.dataset.fullscreenActive = isActive ? "true" : "false";
+    button.dataset.fullscreenPhase = state.viewerFullscreenPhase;
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    button.setAttribute("aria-label", label);
+    setTooltipText(button, label, { updateDefault: true });
+    button.disabled = isPending || (!isSupported && !isActive);
+    button.classList.toggle("hidden", !isSupported && !isActive);
+  });
+}
+
+function handleBrowserFullscreenChange() {
+  reconcileViewerFullscreenPhase("fullscreenchange");
+  syncFullscreenButtonUi();
+  if (isViewerSessionOpen()) {
+    refreshLightboxLayoutForTopUiChange({ resetAutoSingleOrigin: false });
+    showTopUiTemporarily(1400);
+  }
+}
+
+async function toggleBrowserFullscreen(sourceButton = null) {
+  const button = sourceButton || els.fullscreenToggle;
+  if (isViewerFullscreenPending()) return;
+  const wasActive = isBrowserFullscreenActive();
+
+  transitionViewerFullscreenPhase(
+    wasActive ? VIEWER_FULLSCREEN_EXITING : VIEWER_FULLSCREEN_ENTERING,
+    wasActive ? "toggle-exit" : "toggle-enter"
+  );
+  syncFullscreenButtonUi();
+
+  try {
+    if (wasActive) {
+      await exitBrowserFullscreen();
+    } else {
+      if (!isBrowserFullscreenSupported()) throw new Error("fullscreen-unsupported");
+      await requestBrowserFullscreen();
+    }
+  } catch (error) {
+    const message = wasActive ? "לא הצלחתי לצאת ממסך מלא" : "הדפדפן חסם מסך מלא";
+    console.warn("Fullscreen toggle failed", error);
+    flashActionButton(button, message);
+  } finally {
+    reconcileViewerFullscreenPhase("toggle-settled");
+    syncFullscreenButtonUi();
+    if (isViewerSessionOpen()) showTopUiTemporarily(1400);
+  }
+}
+
+function returnToMainSiteFromLightbox(event = null) {
+  event?.preventDefault?.();
+  closeLightboxSearchScopeMenu();
+  closeLightboxCatalogMenu();
+  navigateTo(homeDocumentUrl());
+}
+/* ===== END SOURCE: src/js/52-viewer-session.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/54-viewer-geometry.js ===== */
+/**
+ * Source module: 54-viewer-geometry.js
+ * Viewer fit geometry, zoom, pan bounds, and focal-point transforms.
  *
  * These source modules intentionally share one lexical scope and are concatenated
  * by tools/build_frontend_assets.py into the single browser file app.js.
@@ -5367,6 +5556,182 @@ function applyZoom(options = {}) {
   syncViewerAutoZoomButtonUi();
 }
 
+function getSingleKeyboardPanStep() {
+  const viewportHeight = els.stageCanvas?.clientHeight || window.innerHeight || 720;
+  const viewportStep = Math.round(viewportHeight * SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO);
+  const baseStep = clampValue(viewportStep, SINGLE_KEYBOARD_PAN_MIN_STEP, SINGLE_KEYBOARD_PAN_MAX_STEP);
+  const metrics = getSingleImageDisplayMetrics();
+  if (!metrics?.overflowY) return baseStep;
+
+  const remainingVerticalRange = metrics.overflowY * 2;
+  return Math.max(12, Math.min(baseStep, Math.ceil(remainingVerticalRange / 8)));
+}
+
+function panSingleImageBy(deltaX, deltaY) {
+  if (!singleImageCanPan()) return false;
+
+  state.panX += deltaX;
+  state.panY += deltaY;
+  clampSinglePan();
+  state.singleImageFitOriginPending = false;
+  applyZoom();
+  return true;
+}
+
+function getDefaultZoomFocalPoint() {
+  const surface = els.stageCanvas;
+  const rect = surface?.getBoundingClientRect?.();
+  if (!rect) return null;
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2
+  };
+}
+
+function adjustSinglePanForZoom(nextZoom, focal) {
+  const stage = els.stageCanvas;
+  const rect = stage?.getBoundingClientRect?.();
+  if (!rect || !focal) return;
+
+  const currentZoom = getSafeViewerZoom();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const contentX = (focal.x - centerX - state.panX) / currentZoom;
+  const contentY = (focal.y - centerY - state.panY) / currentZoom;
+
+  state.panX = focal.x - centerX - contentX * nextZoom;
+  state.panY = focal.y - centerY - contentY * nextZoom;
+}
+
+
+function adjustPanForZoom(nextZoom, focal) {
+  adjustSinglePanForZoom(nextZoom, focal);
+}
+
+function getSingleContentPointFromClientPoint(clientX, clientY) {
+  const stage = els.stageCanvas;
+  const rect = stage?.getBoundingClientRect?.();
+  if (!rect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+
+  const currentZoom = getSafeViewerZoom();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  return {
+    x: (clientX - centerX - state.panX) / currentZoom,
+    y: (clientY - centerY - state.panY) / currentZoom
+  };
+}
+
+
+function zoomSingleContentPointToViewportCenter(point, nextZoom) {
+  if (!point) return false;
+  const zoom = clampViewerZoom(nextZoom);
+  if (isAutoViewerZoom(zoom)) {
+    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
+    return true;
+  }
+
+  state.zoom = zoom;
+  state.panX = -point.x * zoom;
+  state.panY = -point.y * zoom;
+  applyZoom();
+  showViewerZoomIndicator(zoom);
+  return true;
+}
+
+
+function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
+  if (isScrollViewerMode()) {
+    setZoom(nextZoom, {
+      showUi: false,
+      focalClientX: clientX,
+      focalClientY: clientY
+    });
+    return true;
+  }
+
+  return zoomSingleContentPointToViewportCenter(
+    getSingleContentPointFromClientPoint(clientX, clientY),
+    nextZoom
+  );
+}
+
+function setZoom(nextZoom, options = {}) {
+  const {
+    showUi = true,
+    focalClientX = null,
+    focalClientY = null
+  } = options;
+  const previousZoom = state.zoom;
+  const zoom = clampViewerZoom(nextZoom);
+  const hasFocal = Number.isFinite(focalClientX) && Number.isFinite(focalClientY);
+  const focal = hasFocal
+    ? { x: focalClientX, y: focalClientY }
+    : getDefaultZoomFocalPoint();
+
+  if (isScrollViewerMode()) {
+    if (zoom > AUTO_VIEWER_ZOOM + 0.001) {
+      if (!isViewerScrollIsolatedZoom()) {
+        enterViewerScrollIsolatedZoom(zoom, focal?.x, focal?.y);
+      } else {
+        if (focal && Math.abs(zoom - previousZoom) > 0.001) {
+          adjustPanForZoom(zoom, focal);
+        }
+        state.zoom = zoom;
+        applyZoom();
+      }
+    } else {
+      const scrollAnchor = isViewerScrollIsolatedZoom()
+        ? null
+        : getViewerScrollZoomAnchor(focal?.x, focal?.y);
+      if (isViewerScrollIsolatedZoom()) {
+        exitViewerScrollIsolatedZoom({ restorePage: true, nextZoom: zoom });
+      } else {
+        state.zoom = isAutoViewerZoom(zoom) ? AUTO_VIEWER_ZOOM : zoom;
+        applyZoom({ scrollAnchor });
+      }
+    }
+  } else {
+    if (isAutoViewerZoom(zoom)) {
+      state.zoom = AUTO_VIEWER_ZOOM;
+      resetImagePosition({ queueSingleFitOrigin: true });
+    } else {
+      if (focal && Math.abs(zoom - previousZoom) > 0.001) {
+        adjustPanForZoom(zoom, focal);
+      }
+      state.zoom = zoom;
+    }
+    applyZoom();
+  }
+
+  if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
+    showViewerZoomIndicator(state.zoom);
+  }
+  if (showUi) showTopUiTemporarily(1600);
+}
+
+function toggleZoomAtPoint(clientX, clientY) {
+  if (state.zoom > 1.01) {
+    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
+    return;
+  }
+
+  if (!zoomClientPointToViewportCenter(2, clientX, clientY)) {
+    setZoom(2, { showUi: false, focalClientX: clientX, focalClientY: clientY });
+  }
+}
+/* ===== END SOURCE: src/js/54-viewer-geometry.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/56-viewer-shell.js ===== */
+/**
+ * Source module: 56-viewer-shell.js
+ * Viewer chrome, top controls, page rail, progress indicators, and fit-mode UI.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
+
 function showTopUiTemporarily(delay = 2200) {
   if (!els.lightbox) return;
   window.clearTimeout(state.uiHideTimer);
@@ -5399,7 +5764,7 @@ function syncLightboxTopSafeArea() {
 }
 
 function refreshLightboxLayoutForTopUiChange(options = {}) {
-  if (!state.lightboxOpen) {
+  if (!isViewerSessionOpen()) {
     syncLightboxTopSafeArea();
     return;
   }
@@ -5483,7 +5848,7 @@ function shouldKeepTopUiOpenForPointer(event = null) {
 }
 
 function scheduleTopUiClose(event = null) {
-  if (!els.lightbox || !state.lightboxOpen || state.topUiPinned || state.viewerMobileMoreOpen) return;
+  if (!els.lightbox || !isViewerSessionOpen() || state.topUiPinned || state.viewerMobileMoreOpen) return;
   if (shouldKeepTopUiOpenForPointer(event)) return;
   window.clearTimeout(state.uiHideTimer);
   state.uiHideTimer = window.setTimeout(() => {
@@ -5594,94 +5959,6 @@ function handleLightboxEdgeHoverViewportExit(event) {
     showPageRailTemporarily(0);
   }
 }
-
-function getBrowserFullscreenElement() {
-  return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || null;
-}
-
-function isBrowserFullscreenActive() {
-  return Boolean(getBrowserFullscreenElement());
-}
-
-function isBrowserFullscreenSupported() {
-  const root = document.documentElement;
-  return Boolean(
-    document.fullscreenEnabled ||
-    document.webkitFullscreenEnabled ||
-    document.mozFullScreenEnabled ||
-    document.msFullscreenEnabled ||
-    root?.requestFullscreen ||
-    root?.webkitRequestFullscreen ||
-    root?.mozRequestFullScreen ||
-    root?.msRequestFullscreen
-  );
-}
-
-function requestBrowserFullscreen() {
-  const root = document.documentElement;
-  const request = root?.requestFullscreen || root?.webkitRequestFullscreen || root?.mozRequestFullScreen || root?.msRequestFullscreen;
-  if (!request) return Promise.reject(new Error("fullscreen-unsupported"));
-  const result = request.call(root);
-  return result && typeof result.then === "function" ? result : Promise.resolve();
-}
-
-function exitBrowserFullscreen() {
-  const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-  if (!exit) return Promise.reject(new Error("fullscreen-exit-unsupported"));
-  const result = exit.call(document);
-  return result && typeof result.then === "function" ? result : Promise.resolve();
-}
-
-function getFullscreenToggleButtons() {
-  return els.fullscreenToggle ? [els.fullscreenToggle] : [];
-}
-
-function syncFullscreenButtonUi() {
-  const buttons = getFullscreenToggleButtons();
-  if (!buttons.length) return;
-
-  const isActive = isBrowserFullscreenActive();
-  const isSupported = isBrowserFullscreenSupported();
-  const label = isActive ? "יציאה ממסך מלא" : "כניסה למסך מלא";
-
-  buttons.forEach((button) => {
-    button.dataset.fullscreenActive = isActive ? "true" : "false";
-    button.setAttribute("aria-pressed", isActive ? "true" : "false");
-    button.setAttribute("aria-label", label);
-    setTooltipText(button, label, { updateDefault: true });
-    button.disabled = !isSupported && !isActive;
-    button.classList.toggle("hidden", !isSupported && !isActive);
-  });
-}
-
-async function toggleBrowserFullscreen(sourceButton = null) {
-  const button = sourceButton || els.fullscreenToggle;
-  const wasActive = isBrowserFullscreenActive();
-
-  try {
-    if (wasActive) {
-      await exitBrowserFullscreen();
-    } else {
-      if (!isBrowserFullscreenSupported()) throw new Error("fullscreen-unsupported");
-      await requestBrowserFullscreen();
-    }
-  } catch (error) {
-    const message = wasActive ? "לא הצלחתי לצאת ממסך מלא" : "הדפדפן חסם מסך מלא";
-    console.warn("Fullscreen toggle failed", error);
-    flashActionButton(button, message);
-  } finally {
-    syncFullscreenButtonUi();
-    if (state.lightboxOpen) showTopUiTemporarily(1400);
-  }
-}
-
-function returnToMainSiteFromLightbox(event = null) {
-  event?.preventDefault?.();
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
-  navigateTo(homeDocumentUrl());
-}
-
 
 function setViewerLoading(isLoading) {
   els.viewerLoading.classList.toggle("hidden", !isLoading);
@@ -5885,7 +6162,7 @@ function syncViewerFitModeUi() {
 function syncViewerAutoZoomButtonUi() {
   if (!els.viewerAutoZoomBtn) return;
 
-  const showButton = Boolean(state.lightboxOpen && !isAutoViewerZoom());
+  const showButton = Boolean(isViewerSessionOpen() && !isAutoViewerZoom());
 
   els.viewerAutoZoomBtn.classList.toggle("hidden", !showButton);
   els.viewerAutoZoomBtn.setAttribute("aria-hidden", showButton ? "false" : "true");
@@ -5909,7 +6186,7 @@ function hideViewerZoomIndicator() {
 
 function showViewerZoomIndicator(value = state.zoom) {
   const indicator = els.viewerZoomIndicator;
-  if (!indicator || !state.lightboxOpen) return;
+  if (!indicator || !isViewerSessionOpen()) return;
 
   indicator.textContent = formatViewerZoomPercent(value);
   indicator.classList.add("visible");
@@ -6005,7 +6282,7 @@ function hasRecentTouchLikeRailInput(timeout = 900) {
 }
 
 function shouldUseLightboxHoverPointer(event = null) {
-  if (!state.lightboxOpen || !hasHoverPointer()) return false;
+  if (!isViewerSessionOpen() || !hasHoverPointer()) return false;
   if (isTouchLikePointer(event) || hasRecentTouchLikeViewportInput()) return false;
   return true;
 }
@@ -6018,7 +6295,7 @@ function shouldUsePageRailHover(event = null) {
 
 function showPageRailTemporarily(delay = 2600, options = {}) {
   const { scrollIntoView = true } = options;
-  if (!els.lightbox || !state.lightboxOpen) return;
+  if (!els.lightbox || !isViewerSessionOpen()) return;
   window.clearTimeout(state.pageRailHideTimer);
   els.lightbox.classList.add("show-page-rail");
   updateLightboxThumbs({ scrollIntoView });
@@ -6031,7 +6308,7 @@ function showPageRailTemporarily(delay = 2600, options = {}) {
 
 function keepPageRailOpen(options = {}) {
   const { scrollIntoView = true } = options;
-  if (!state.lightboxOpen) return;
+  if (!isViewerSessionOpen()) return;
   window.clearTimeout(state.pageRailHideTimer);
   els.lightbox?.classList.add("show-page-rail");
   updateLightboxThumbs({ scrollIntoView });
@@ -6070,7 +6347,7 @@ function keepPageRailOpenFromHover(event = null) {
 }
 
 function handlePageRailPointerOutside(event) {
-  if (!els.lightbox || !state.lightboxOpen) return;
+  if (!els.lightbox || !isViewerSessionOpen()) return;
   if (!els.lightbox.classList.contains("show-page-rail")) return;
 
   const target = event.target;
@@ -6104,7 +6381,7 @@ function hideViewerPageIndicator() {
 }
 
 function showViewerPageIndicatorTemporarily(delay = VIEWER_PAGE_INDICATOR_HIDE_MS) {
-  if (!state.lightboxOpen || !els.viewerPageIndicator) return;
+  if (!isViewerSessionOpen() || !els.viewerPageIndicator) return;
 
   window.clearTimeout(state.pageIndicatorHideTimer);
   els.viewerPageIndicator.classList.add("visible");
@@ -6167,6 +6444,16 @@ function syncViewerLayoutModeUi() {
   els.lightboxImageFrame?.classList.toggle("hidden", scrollMode && !isolatedZoom);
   els.viewerScrollPages?.classList.toggle("hidden", !scrollMode);
 }
+/* ===== END SOURCE: src/js/56-viewer-shell.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/58-viewer-scroll.js ===== */
+/**
+ * Source module: 58-viewer-scroll.js
+ * Continuous viewer rendering, image fallback, isolated zoom, and page navigation.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
 
 function getViewerScrollPageLayout(page) {
   const container = els.viewerScrollPages;
@@ -6624,7 +6911,7 @@ function handleViewerScrollImageRetry(event) {
 }
 
 function retryCurrentViewerImage() {
-  if (!state.lightboxOpen || !state.catalog) return;
+  if (!isViewerSessionOpen() || !state.catalog) return;
   showSingleLightboxImage(state.catalog, state.page, pageSrc(state.catalog, state.page), { forceRefresh: true });
 }
 
@@ -6706,7 +6993,7 @@ function getViewerScrollWheelRequestedSteps(accumulator) {
 
 function handleViewerScrollWheel(event) {
   const container = els.viewerScrollPages;
-  if (!state.lightboxOpen || !isScrollViewerMode() || isViewerScrollIsolatedZoom() || !state.catalog || !container) {
+  if (!isViewerSessionOpen() || !isScrollViewerMode() || isViewerScrollIsolatedZoom() || !state.catalog || !container) {
     return false;
   }
 
@@ -6919,6 +7206,16 @@ function scrollViewerByViewport(direction, options = {}) {
   });
   return true;
 }
+/* ===== END SOURCE: src/js/58-viewer-scroll.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/60-viewer.js ===== */
+/**
+ * Source module: 60-viewer.js
+ * Viewer lifecycle, page selection, route entry, and event ownership.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
 
 function updateLightbox(options = {}) {
   if (!state.catalog) return;
@@ -7008,8 +7305,8 @@ function syncDocumentLock() {
   const modalFavoritesOpen = state.favoritesOpen && !isAppPage("favorites");
   const transferOpen = Boolean(state.favoritesTransferPending);
   const favoritesWorkspaceDialogOpen = Boolean(state.favoriteNoteEditingKey);
-  document.body.classList.toggle("no-scroll", state.lightboxOpen || modalFavoritesOpen || transferOpen || favoritesWorkspaceDialogOpen);
-  document.documentElement.classList.toggle("viewer-open", state.lightboxOpen);
+  document.body.classList.toggle("no-scroll", isViewerSessionOpen() || modalFavoritesOpen || transferOpen || favoritesWorkspaceDialogOpen);
+  document.documentElement.classList.toggle("viewer-open", isViewerSessionOpen());
 }
 
 function openLightbox(page = 1, options = {}) {
@@ -7049,7 +7346,7 @@ function openLightbox(page = 1, options = {}) {
   hideViewerZoomIndicator();
   closeViewerInquiry({ restoreFocus: false });
   closeViewerMobileMoreMenu();
-  state.lightboxOpen = true;
+  transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox");
   telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
   const initialSrc = pageSrc(state.catalog, state.page);
@@ -7073,15 +7370,16 @@ function openLightbox(page = 1, options = {}) {
     animateScrollPage: false
   });
   scheduleCatalogScrollTopButtonUpdate();
+  transitionViewerPhase(VIEWER_PHASE_OPEN, "lightbox-ready");
   window.requestAnimationFrame(showViewerOnboardingIfNeeded);
 
 }
 
 function hideLightboxUi() {
+  transitionViewerPhase(VIEWER_PHASE_CLOSING, "hide-lightbox");
   closeViewerOnboarding({ restoreFocus: false });
   closeViewerInquiry({ restoreFocus: false });
   closeViewerMobileMoreMenu();
-  state.lightboxOpen = false;
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
@@ -7115,6 +7413,7 @@ function hideLightboxUi() {
   hideViewerPageIndicator();
   scheduleCatalogScrollTopButtonUpdate();
   state.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
+  transitionViewerPhase(VIEWER_PHASE_CLOSED, "lightbox-hidden");
   syncDocumentLock();
 }
 
@@ -7225,173 +7524,6 @@ function moveLightbox(delta) {
   setLightboxPage(state.page + delta);
 }
 
-function getSingleKeyboardPanStep() {
-  const viewportHeight = els.stageCanvas?.clientHeight || window.innerHeight || 720;
-  const viewportStep = Math.round(viewportHeight * SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO);
-  const baseStep = clampValue(viewportStep, SINGLE_KEYBOARD_PAN_MIN_STEP, SINGLE_KEYBOARD_PAN_MAX_STEP);
-  const metrics = getSingleImageDisplayMetrics();
-  if (!metrics?.overflowY) return baseStep;
-
-  const remainingVerticalRange = metrics.overflowY * 2;
-  return Math.max(12, Math.min(baseStep, Math.ceil(remainingVerticalRange / 8)));
-}
-
-function panSingleImageBy(deltaX, deltaY) {
-  if (!singleImageCanPan()) return false;
-
-  state.panX += deltaX;
-  state.panY += deltaY;
-  clampSinglePan();
-  state.singleImageFitOriginPending = false;
-  applyZoom();
-  return true;
-}
-
-function getDefaultZoomFocalPoint() {
-  const surface = els.stageCanvas;
-  const rect = surface?.getBoundingClientRect?.();
-  if (!rect) return null;
-  return {
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2
-  };
-}
-
-function adjustSinglePanForZoom(nextZoom, focal) {
-  const stage = els.stageCanvas;
-  const rect = stage?.getBoundingClientRect?.();
-  if (!rect || !focal) return;
-
-  const currentZoom = getSafeViewerZoom();
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
-  const contentX = (focal.x - centerX - state.panX) / currentZoom;
-  const contentY = (focal.y - centerY - state.panY) / currentZoom;
-
-  state.panX = focal.x - centerX - contentX * nextZoom;
-  state.panY = focal.y - centerY - contentY * nextZoom;
-}
-
-
-function adjustPanForZoom(nextZoom, focal) {
-  adjustSinglePanForZoom(nextZoom, focal);
-}
-
-function getSingleContentPointFromClientPoint(clientX, clientY) {
-  const stage = els.stageCanvas;
-  const rect = stage?.getBoundingClientRect?.();
-  if (!rect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
-
-  const currentZoom = getSafeViewerZoom();
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
-
-  return {
-    x: (clientX - centerX - state.panX) / currentZoom,
-    y: (clientY - centerY - state.panY) / currentZoom
-  };
-}
-
-
-function zoomSingleContentPointToViewportCenter(point, nextZoom) {
-  if (!point) return false;
-  const zoom = clampViewerZoom(nextZoom);
-  if (isAutoViewerZoom(zoom)) {
-    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
-    return true;
-  }
-
-  state.zoom = zoom;
-  state.panX = -point.x * zoom;
-  state.panY = -point.y * zoom;
-  applyZoom();
-  showViewerZoomIndicator(zoom);
-  return true;
-}
-
-
-function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
-  if (isScrollViewerMode()) {
-    setZoom(nextZoom, {
-      showUi: false,
-      focalClientX: clientX,
-      focalClientY: clientY
-    });
-    return true;
-  }
-
-  return zoomSingleContentPointToViewportCenter(
-    getSingleContentPointFromClientPoint(clientX, clientY),
-    nextZoom
-  );
-}
-
-function setZoom(nextZoom, options = {}) {
-  const {
-    showUi = true,
-    focalClientX = null,
-    focalClientY = null
-  } = options;
-  const previousZoom = state.zoom;
-  const zoom = clampViewerZoom(nextZoom);
-  const hasFocal = Number.isFinite(focalClientX) && Number.isFinite(focalClientY);
-  const focal = hasFocal
-    ? { x: focalClientX, y: focalClientY }
-    : getDefaultZoomFocalPoint();
-
-  if (isScrollViewerMode()) {
-    if (zoom > AUTO_VIEWER_ZOOM + 0.001) {
-      if (!isViewerScrollIsolatedZoom()) {
-        enterViewerScrollIsolatedZoom(zoom, focal?.x, focal?.y);
-      } else {
-        if (focal && Math.abs(zoom - previousZoom) > 0.001) {
-          adjustPanForZoom(zoom, focal);
-        }
-        state.zoom = zoom;
-        applyZoom();
-      }
-    } else {
-      const scrollAnchor = isViewerScrollIsolatedZoom()
-        ? null
-        : getViewerScrollZoomAnchor(focal?.x, focal?.y);
-      if (isViewerScrollIsolatedZoom()) {
-        exitViewerScrollIsolatedZoom({ restorePage: true, nextZoom: zoom });
-      } else {
-        state.zoom = isAutoViewerZoom(zoom) ? AUTO_VIEWER_ZOOM : zoom;
-        applyZoom({ scrollAnchor });
-      }
-    }
-  } else {
-    if (isAutoViewerZoom(zoom)) {
-      state.zoom = AUTO_VIEWER_ZOOM;
-      resetImagePosition({ queueSingleFitOrigin: true });
-    } else {
-      if (focal && Math.abs(zoom - previousZoom) > 0.001) {
-        adjustPanForZoom(zoom, focal);
-      }
-      state.zoom = zoom;
-    }
-    applyZoom();
-  }
-
-  if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
-    showViewerZoomIndicator(state.zoom);
-  }
-  if (showUi) showTopUiTemporarily(1600);
-}
-
-function toggleZoomAtPoint(clientX, clientY) {
-  if (state.zoom > 1.01) {
-    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
-    return;
-  }
-
-  if (!zoomClientPointToViewportCenter(2, clientX, clientY)) {
-    setZoom(2, { showUi: false, focalClientX: clientX, focalClientY: clientY });
-  }
-}
-
-
 function openCatalog(id, options = {}) {
   const { scroll = false, openPage = null, scrollBehavior = "smooth" } = options;
   const catalog = catalogs.find((item) => item.id === id) || null;
@@ -7432,7 +7564,7 @@ function openCatalogInViewer(id, page = 1, options = {}) {
 }
 
 function openCurrentFavoriteInCatalog() {
-  if (!state.lightboxOpen || !isFavoritesLightboxMode() || !state.catalog) return;
+  if (!isViewerSessionOpen() || !isFavoritesLightboxMode() || !state.catalog) return;
 
   const catalogId = state.catalog.id;
   const page = state.page;
@@ -7508,9 +7640,10 @@ function attachViewerEvents() {
   });
 
   ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"].forEach((eventName) => {
-    document.addEventListener(eventName, syncFullscreenButtonUi);
+    document.addEventListener(eventName, handleBrowserFullscreenChange);
   });
 
+  reconcileViewerFullscreenPhase("viewer-events-attached");
   syncFullscreenButtonUi();
 }
 /* ===== END SOURCE: src/js/60-viewer.js ===== */
@@ -7628,7 +7761,7 @@ function getViewerInquiryFocusableElements() {
 }
 
 function openViewerInquiry() {
-  if (!state.lightboxOpen || !state.catalog || !els.viewerInquiryOverlay) return;
+  if (!isViewerSessionOpen() || !state.catalog || !els.viewerInquiryOverlay) return;
   if (state.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
   closeViewerMobileMoreMenu();
   if (state.lightboxMobileSearchOpen) {
@@ -7781,7 +7914,7 @@ function syncViewerMobileMoreMenuState() {
 }
 
 function setViewerMobileMoreOpen(open, options = {}) {
-  const shouldOpen = Boolean(open && state.lightboxOpen && isMobileViewerToolbarMode());
+  const shouldOpen = Boolean(open && isViewerSessionOpen() && isMobileViewerToolbarMode());
   state.viewerMobileMoreOpen = shouldOpen;
   syncViewerMobileMoreMenuState();
   els.viewerMobileMoreMenu?.classList.toggle("hidden", !shouldOpen);
@@ -8412,7 +8545,7 @@ function closeViewerOnboarding(options = {}) {
 }
 
 function showViewerOnboardingIfNeeded() {
-  if (!state.lightboxOpen || !els.viewerOnboarding || state.viewerOnboardingOpen) return;
+  if (!isViewerSessionOpen() || !els.viewerOnboarding || state.viewerOnboardingOpen) return;
   if (state.viewerOnboardingShownThisSession || viewerOnboardingWasSeen()) return;
 
   state.viewerOnboardingShownThisSession = true;
@@ -8590,7 +8723,7 @@ function finishViewerScrollPointerHandoff(event) {
 }
 
 function startPointerInteraction(event) {
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
   if (
     isViewerScrollIsolatedZoom()
@@ -8637,7 +8770,7 @@ function startPointerInteraction(event) {
 
 function movePointerInteraction(event) {
   if (continueViewerScrollPointerHandoff(event)) return;
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
   const previousPoint = state.pointers.get(event.pointerId);
   state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   const pointers = getPointerList();
@@ -8743,7 +8876,7 @@ function handleViewerPageSwipe(event, startedX, startedY) {
 
 function endPointerInteraction(event) {
   if (finishViewerScrollPointerHandoff(event)) return;
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
   const startedX = state.dragStartX;
   const startedY = state.dragStartY;
   state.pointers.delete(event.pointerId);
@@ -8805,7 +8938,7 @@ function getWheelZoomFactor(event) {
 }
 
 function handleZoomSurfaceWheel(event) {
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
@@ -8845,7 +8978,7 @@ function handleZoomSurfaceWheel(event) {
 }
 
 function handleZoomSurfaceDoubleClick(event) {
-  if (!state.lightboxOpen || !isActiveZoomSurface(event.currentTarget)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
   if (Date.now() < state.suppressNextDblClickUntil) return;
 
   // viewerScrollPages is nested inside stageCanvas and both are valid zoom
@@ -8885,7 +9018,7 @@ function isLightboxTopInteractiveTarget(target) {
 }
 
 function hideLightboxTopSearchFromViewerInteraction(event) {
-  if (!state.lightboxOpen) return false;
+  if (!isViewerSessionOpen()) return false;
   if (event?.button !== undefined && event.button !== 0) return false;
   if (isLightboxTopInteractiveTarget(event?.target)) return false;
 
@@ -8967,7 +9100,7 @@ function attachShellEvents() {
     scheduleCatalogScrollTopButtonUpdate();
     updateLightboxSearchResultsLayout(els.lightboxSearchResults?.dataset.resultCount || 0);
     syncLightboxMobileSearchUi();
-    if (state.lightboxOpen) {
+    if (isViewerSessionOpen()) {
       hideLightboxFloatingPreview();
       refreshLightboxLayoutForTopUiChange();
       if (state.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
@@ -8984,7 +9117,7 @@ function attachShellEvents() {
     // hierarchy for every remaining Escape press.
     if (event.defaultPrevented) return;
     if (handleTopLayerEscape(event)) return;
-    if (!state.lightboxOpen) return;
+    if (!isViewerSessionOpen()) return;
     if (state.viewerInquiryOpen) {
       handleViewerInquiryKeydown(event);
       return;
@@ -9053,7 +9186,7 @@ function syncDocumentRouteShell(nextPage) {
 }
 
 function prepareDocumentRoute(nextPage) {
-  if (nextPage !== "viewer" && state.lightboxOpen) hideLightboxUi();
+  if (nextPage !== "viewer" && isViewerSessionOpen()) hideLightboxUi();
   if (nextPage !== "favorites" && state.favoritesTransferPending) {
     closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: true });
   }

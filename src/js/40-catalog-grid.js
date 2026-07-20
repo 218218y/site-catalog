@@ -937,7 +937,7 @@ function setCatalogScrollTopButtonVisible(visible) {
 
 function updateCatalogScrollTopButton() {
   state.catalogScrollTopButtonRaf = 0;
-  if (!els.scrollToTopBtn || !els.catalogDetail || !els.pageGrid || els.catalogDetail.classList.contains("hidden") || !state.catalog || state.lightboxOpen) {
+  if (!els.scrollToTopBtn || !els.catalogDetail || !els.pageGrid || els.catalogDetail.classList.contains("hidden") || !state.catalog || isViewerSessionOpen()) {
     setCatalogScrollTopButtonVisible(false);
     return;
   }

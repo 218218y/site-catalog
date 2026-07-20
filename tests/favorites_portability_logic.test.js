@@ -48,7 +48,6 @@ const names = [
   'encodeFavoritePageRanges',
   'decodeFavoritePageRanges',
   'buildFavoritesShareToken',
-  'parseLegacyFavoritesShareToken',
   'parseFavoritesShareToken'
 ];
 
@@ -59,7 +58,6 @@ const catalogs = [
 const catalogMap = new Map(catalogs.map((catalog) => [catalog.id, catalog]));
 const context = {
   FAVORITES_SHARE_VERSION: 2,
-  FAVORITES_SHARE_LEGACY_VERSION: 1,
   catalogs,
   state: { favoritesTransferPending: null },
   els: {
@@ -122,11 +120,8 @@ const legacyPayload = {
 };
 const legacyToken = `v1.${context.encodeBase64UrlUtf8(JSON.stringify(legacyPayload))}`;
 const legacyDecoded = context.parseFavoritesShareToken(legacyToken);
-assert.equal(legacyDecoded.valid, true);
-assert.deepEqual(JSON.parse(JSON.stringify(legacyDecoded.items)), [
-  { catalogId: 'catalog-b', page: 7, savedAt: 0 },
-  { catalogId: 'catalog-a', page: 2, savedAt: 0 }
-]);
+assert.equal(legacyDecoded.valid, false);
+assert.deepEqual(JSON.parse(JSON.stringify(legacyDecoded.items)), []);
 
 const merged = context.mergeFavoriteItemLists(
   [{ catalogId: 'catalog-a', page: 2, savedAt: 50 }],

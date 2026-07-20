@@ -13,6 +13,14 @@ const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
 const VIEWER_LAYOUT_SIDE = "side";
 const VIEWER_LAYOUT_SCROLL = "scroll";
+const VIEWER_PHASE_CLOSED = "closed";
+const VIEWER_PHASE_OPENING = "opening";
+const VIEWER_PHASE_OPEN = "open";
+const VIEWER_PHASE_CLOSING = "closing";
+const VIEWER_FULLSCREEN_INACTIVE = "inactive";
+const VIEWER_FULLSCREEN_ENTERING = "entering";
+const VIEWER_FULLSCREEN_ACTIVE = "active";
+const VIEWER_FULLSCREEN_EXITING = "exiting";
 const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
@@ -21,7 +29,6 @@ const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
 const VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_SHARE_PARAM = "selection";
 const FAVORITES_SHARE_VERSION = 2;
-const FAVORITES_SHARE_LEGACY_VERSION = 1;
 const FAVORITES_NOTE_MAX_LENGTH = 280;
 
 function getFavoritesStorage() {
@@ -93,7 +100,10 @@ const state = {
   pinchLastMidY: 0,
   pointerGestureHadMultiplePointers: false,
   pointers: new Map(),
-  lightboxOpen: false,
+  viewerPhase: VIEWER_PHASE_CLOSED,
+  viewerPhaseReason: "initial",
+  viewerFullscreenPhase: VIEWER_FULLSCREEN_INACTIVE,
+  viewerFullscreenReason: "initial",
   lightboxSource: LIGHTBOX_SOURCE_CATALOG,
   favoritesViewerIndex: 0,
   favoritesViewerOpeningHash: "",

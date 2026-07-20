@@ -46,7 +46,7 @@ function isInternalAppDocumentUrl(url) {
 
 function canNavigateWithinCurrentDocument(url) {
   return Boolean(
-    isBrowserFullscreenActive() &&
+    viewerUsesInDocumentFullscreenNavigation() &&
     window.history?.pushState &&
     window.history?.replaceState &&
     isInternalAppDocumentUrl(url)
@@ -91,7 +91,7 @@ function navigateBack() {
 
 function handleInternalAppLinkClick(event) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  if (!isBrowserFullscreenActive()) return;
+  if (!viewerUsesInDocumentFullscreenNavigation()) return;
 
   const link = event.target.closest?.("a[href]");
   if (!link || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;

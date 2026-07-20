@@ -48,7 +48,7 @@ function createHarness(overrides = {}) {
     favoriteNoteEditingKey: '',
     favoritesTransferPending: null,
     favoritesOpen: false,
-    lightboxOpen: false,
+    viewerPhase: 'closed',
     viewerInquiryOpen: false,
     viewerMobileMoreOpen: false,
     viewerOnboardingOpen: false,
@@ -99,12 +99,13 @@ function createHarness(overrides = {}) {
     },
     closeLightboxCatalogMenu: () => calls.push('viewer-catalog-menu'),
     closeLightboxSearchScopeMenu: () => calls.push('viewer-search-scope'),
+    isViewerSessionOpen: () => ['opening', 'open'].includes(state.viewerPhase),
     isBrowserFullscreenActive: () => false,
     exitBrowserFullscreen: () => Promise.resolve(),
     hideLightboxSearchResults: () => calls.push('viewer-search-results'),
     closeLightbox: () => {
       calls.push('lightbox');
-      state.lightboxOpen = false;
+      state.viewerPhase = 'closed';
     }
   };
   const handler = vm.runInNewContext(`(${extractFunction(hierarchySource, 'handleTopLayerEscape')})`, context);
@@ -136,10 +137,10 @@ assert.match(viewerActions, /function handleViewerInquiryKeydown\(event\)[\s\S]*
 }
 
 {
-  const harness = createHarness({ viewerInquiryOpen: true, lightboxOpen: true });
+  const harness = createHarness({ viewerInquiryOpen: true, viewerPhase: 'open' });
   assert.equal(harness.handler(harness.event()), true);
   assert.deepEqual(harness.calls, ['viewer-inquiry']);
-  assert.equal(harness.state.lightboxOpen, true, 'first Escape must keep the viewer open');
+  assert.equal(harness.state.viewerPhase, 'open', 'first Escape must keep the viewer open');
 
   assert.equal(harness.handler(harness.event()), true);
   assert.deepEqual(harness.calls, ['viewer-inquiry', 'lightbox']);

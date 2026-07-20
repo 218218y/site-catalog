@@ -529,7 +529,7 @@ function closeViewerOnboarding(options = {}) {
 }
 
 function showViewerOnboardingIfNeeded() {
-  if (!state.lightboxOpen || !els.viewerOnboarding || state.viewerOnboardingOpen) return;
+  if (!isViewerSessionOpen() || !els.viewerOnboarding || state.viewerOnboardingOpen) return;
   if (state.viewerOnboardingShownThisSession || viewerOnboardingWasSeen()) return;
 
   state.viewerOnboardingShownThisSession = true;

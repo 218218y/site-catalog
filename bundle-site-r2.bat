@@ -22,6 +22,14 @@ if errorlevel 1 (
   exit /b 1
 )
 
+%PYTHON_EXE% tools\clean_project_artifacts.py
+if errorlevel 1 (
+  echo.
+  echo The site bundle is ready, but project artifact cleanup failed.
+  pause
+  exit /b 1
+)
+
 echo.
 echo Ready to upload: dist\site-upload-r2
 echo Ready for local preview: dist\site-local

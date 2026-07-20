@@ -14,14 +14,15 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-echo Starting the existing local site without rebuilding...
-echo Web root: dist\site-local
-echo.
-%PYTHON_EXE% tools\serve_site.py --port 8080
+%PYTHON_EXE% tools\clean_project_artifacts.py
 if errorlevel 1 (
   echo.
-  echo The local site could not be started. Run bundle-site-r2.bat once if dist\site-local is missing.
+  echo Project cleanup failed. Read the exact error above.
   pause
   exit /b 1
 )
+
+echo.
+echo Project caches and obsolete duplicate artifacts were cleaned.
+pause
 exit /b 0

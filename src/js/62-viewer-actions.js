@@ -110,7 +110,7 @@ function getViewerInquiryFocusableElements() {
 }
 
 function openViewerInquiry() {
-  if (!state.lightboxOpen || !state.catalog || !els.viewerInquiryOverlay) return;
+  if (!isViewerSessionOpen() || !state.catalog || !els.viewerInquiryOverlay) return;
   if (state.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
   closeViewerMobileMoreMenu();
   if (state.lightboxMobileSearchOpen) {
@@ -263,7 +263,7 @@ function syncViewerMobileMoreMenuState() {
 }
 
 function setViewerMobileMoreOpen(open, options = {}) {
-  const shouldOpen = Boolean(open && state.lightboxOpen && isMobileViewerToolbarMode());
+  const shouldOpen = Boolean(open && isViewerSessionOpen() && isMobileViewerToolbarMode());
   state.viewerMobileMoreOpen = shouldOpen;
   syncViewerMobileMoreMenuState();
   els.viewerMobileMoreMenu?.classList.toggle("hidden", !shouldOpen);

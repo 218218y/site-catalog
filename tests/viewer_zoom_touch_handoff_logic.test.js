@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'js', '60-viewer.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'js', '58-viewer-scroll.js'), 'utf8');
 
 function sourceBetween(startMarker, endMarker) {
   const start = source.indexOf(startMarker);

@@ -117,7 +117,7 @@ assert.match(app, /if \(preservePage && !preservedAnchor\) \{[\s\S]*?scrollViewe
 assert.match(app, /function setViewerFitMode\(fitMode, options = \{\}\)[\s\S]*?if \(shouldResetView\) \{[\s\S]*?clearViewerScrollWheelGesture\(\);[\s\S]*?clearViewerScrollTarget\(\);[\s\S]*?resetViewerScrollCommandSequence\(\);/);
 assert.match(app, /const positionActivePage = \(\) => scrollViewerToPage\(state\.page, \{[\s\S]*?animate: animateScrollPage[\s\S]*?if \(scrollBehavior === "smooth"\) requestAnimationFrame\(positionActivePage\);[\s\S]*?else positionActivePage\(\);/);
 assert.match(app, /updateLightbox\(\{[\s\S]*?scrollToPage: isScrollViewerMode\(\)[\s\S]*?scrollBehavior: "auto"/);
-assert.match(app, /const showButton = Boolean\(state\.lightboxOpen && !isAutoViewerZoom\(\)\)/);
+assert.match(app, /const showButton = Boolean\(isViewerSessionOpen\(\) && !isAutoViewerZoom\(\)\)/);
 
 assert.match(css, /\.viewer-control-separator\s*\{/);
 assert.doesNotMatch(css, /viewer-layout-toggle|viewer-layout-icon/);

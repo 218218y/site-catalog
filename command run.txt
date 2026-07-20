@@ -42,11 +42,11 @@ catalog-control-panel.bat
 7. מעלים ל-Cloudflare Pages את הבאנדל:
 bundle-site-r2-upload cloudflare.bat
 
-הפקודה בונה תמיד באנדל חדש בתיקיית ביניים נקייה, מוודאת שכל קובצי ה-JS/CSS שה-HTML מפנה אליהם קיימים וששם ה-hash תואם לתוכן, ורק אז מחליפה את dist בשלמותה ומעלה אותה.
-בכל העלאה יש רק דור נוכחי אחד של קובצי hash; אין שמירה של קבצים ישנים. אחרי העלאת production היא בודקת רק את https://bargig-furniture.com ומוודאת שהוא עודכן לדור החדש ושקובצי JS/CSS מוחזרים עם MIME נכון. היא אינה פונה לכתובת הזמנית *.pages.dev, שעלולה להיחסם על ידי נטפרי. בפריסת preview אין בדיקת רשת אוטומטית.
+`bundle-site-r2.bat` בונה רק כאשר חתימת המקורות השתנתה. הבנייה מתבצעת בתיקיית ביניים נקייה, מאמתת את כל נכסי ה-hash, מעדכנת מאותו תוצר את `dist/site-upload-r2` ואת `dist/site-local`, ואז מנקה cache/bytecode מקומי.
+`bundle-site-r2-upload cloudflare.bat` אינו בונה מחדש: הוא מאמת שהתוצר הקיים עדיין תואם למקורות ואז מפעיל את Wrangler המקומי והנעול מתוך `node_modules`. אין בדיקת רשת אוטומטית לאחר ההעלאה.
 
-הפקודה שהקובץ מריץ בפועל עבור production:
-npx --yes wrangler pages deploy "dist\site-upload-r2" --project-name bargig-catlog
+הפקודה המקבילה עבור production משתמשת ב-Wrangler המקומי:
+node_modules\.bin\wrangler.cmd pages deploy "dist\site-upload-r2" --project-name bargig-catlog
 
 אין להוסיף --branch להעלאת production. לפריסת preview בלבד משתמשים ב:
 bundle-site-r2-upload cloudflare.bat --preview-branch test-name
@@ -67,10 +67,11 @@ convert-catalogs-force.bat
 רענון מחדש רק של זיהוי OCR/חיפוש
 refresh-ocr-search.bat
 
-שרת מקומי לאתר הראשי בלבד
+שרת מקומי לאתר הראשי בלבד, ללא בדיקה או בנייה:
 start-server.bat
-או
-npx serve .
+
+בדיקת עדכניות אופציונלית והצעת בנייה לפני ההפעלה:
+check-and-start-server.bat
 
 לוח השליטה אינו עובד דרך שרת האתר הראשי. בשבילו מריצים:
 catalog-control-panel.bat

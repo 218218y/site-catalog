@@ -173,29 +173,10 @@ function buildFavoritesShareToken(items) {
   return `v${FAVORITES_SHARE_VERSION}.${encodeBase64UrlUtf8(payload)}`;
 }
 
-function parseLegacyFavoritesShareToken(rawToken) {
-  const prefix = `v${FAVORITES_SHARE_LEGACY_VERSION}.`;
-  if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
-  try {
-    const payload = JSON.parse(decodeBase64UrlUtf8(rawToken.slice(prefix.length)));
-    if (!payload || payload.v !== FAVORITES_SHARE_LEGACY_VERSION || !Array.isArray(payload.c) || !Array.isArray(payload.i)) {
-      return { items: [], rejected: 0, valid: false };
-    }
-    const rawItems = payload.i.map((entry) => {
-      if (!Array.isArray(entry) || entry.length < 2) return null;
-      const catalogIndex = Number.parseInt(entry[0], 10);
-      return { catalogId: payload.c[catalogIndex], page: entry[1], savedAt: 0 };
-    });
-    return { ...normalizeFavoriteTransferItems(rawItems), valid: true };
-  } catch (_error) {
-    return { items: [], rejected: 0, valid: false };
-  }
-}
-
 function parseFavoritesShareToken(token) {
   const rawToken = String(token || "").trim();
   const prefix = `v${FAVORITES_SHARE_VERSION}.`;
-  if (!rawToken.startsWith(prefix)) return parseLegacyFavoritesShareToken(rawToken);
+  if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
 
   try {
     const payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length));
@@ -388,7 +369,7 @@ function setFavoriteViewerEntry(entries, index) {
 }
 
 function syncFavoriteViewerAfterStoreChange(options = {}) {
-  if (!state.lightboxOpen || !isFavoritesLightboxMode()) return;
+  if (!isViewerSessionOpen() || !isFavoritesLightboxMode()) return;
 
   const { preferredIndex = state.favoritesViewerIndex } = options;
   const entries = getFavoriteEntries();
@@ -522,7 +503,7 @@ function toggleCurrentPageFavorite() {
   if (isFavoritesLightboxMode() && !added) {
     syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
   }
-  if (state.lightboxOpen) {
+  if (isViewerSessionOpen()) {
     const feedback = added ? "נשמר" : "הוסר";
     flashActionButton(els.viewerFavoriteButton, feedback);
     showActionToast(feedback, { tone: added ? "saved" : "removed" });

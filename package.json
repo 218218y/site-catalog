@@ -33,9 +33,12 @@
     "build:local": "python tools/build_deploy_bundle.py --out dist/site-upload-r2 --seo-mode private --skip-if-current --mirror-to dist/site-local --clean-legacy-artifacts",
     "dev": "python tools/serve_site.py",
     "serve": "python tools/serve_site.py",
-    "build:e2e": "python tools/build_deploy_bundle.py --out dist/site-local --seo-mode private --skip-if-current --clean-legacy-artifacts"
+    "build:e2e": "python tools/build_deploy_bundle.py --out dist/site-local --seo-mode private --skip-if-current --clean-legacy-artifacts",
+    "dev:check": "python tools/serve_site.py --ensure-current ask",
+    "clean:artifacts": "python tools/clean_project_artifacts.py"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.1"
+    "@playwright/test": "1.55.1",
+    "wrangler": "^4.112.0"
   }
 }
