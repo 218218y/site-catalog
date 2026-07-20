@@ -789,9 +789,6 @@ function handleTopLayerEscape(event) {
   // Escape always dismisses the innermost active layer first. This order is
   // intentionally shared by every route so one key press cannot close a child
   // dialog and then continue into its parent screen during event bubbling.
-  if (state.viewerInquiryOpen) {
-    return closeLayer(() => closeViewerInquiry());
-  }
   if (state.favoriteNoteEditingKey) {
     return closeLayer(() => closeFavoriteNoteEditor());
   }
@@ -817,6 +814,9 @@ function handleTopLayerEscape(event) {
   }
   if (!isViewerSessionOpen()) return false;
 
+  if (state.viewerInquiryOpen) {
+    return closeLayer(() => closeViewerInquiry());
+  }
   if (state.viewerMobileMoreOpen) {
     return closeLayer(() => closeViewerMobileMoreMenu({ returnFocus: true }));
   }

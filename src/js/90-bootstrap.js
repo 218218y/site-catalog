@@ -135,7 +135,6 @@ function syncDocumentRouteShell(nextPage) {
 }
 
 function prepareDocumentRoute(nextPage) {
-  if (state.viewerInquiryOpen) closeViewerInquiry({ restoreFocus: false });
   if (nextPage !== "viewer" && isViewerSessionOpen()) hideLightboxUi();
   if (nextPage !== "favorites" && state.favoritesTransferPending) {
     closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: true });

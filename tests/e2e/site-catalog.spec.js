@@ -1057,7 +1057,7 @@ test("shares favorites to a clean browser context without relying on local stora
 
 
 
-test("favorites workspace supports notes, ordering, filtering, focused sharing, and the shared inquiry dialog", async ({ page, browser }) => {
+test("favorites workspace supports notes, ordering, filtering, focused sharing, and bulk Gmail inquiry", async ({ page, browser }) => {
   test.skip(FAVORITES_WORKSPACE_CATALOGS.length < 2, "E2E requires at least two catalogs for filtering.");
   const items = [
     { catalogId: FAVORITES_WORKSPACE_CATALOGS[0].id, page: 1, savedAt: 30 },
@@ -1081,52 +1081,21 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   await page.locator("#favoriteNoteSave").click();
   await expect(firstCard.locator(".favorite-note-text")).toContainText("לבדוק ברוחב 180");
 
-  await page.locator("#favoritesInquiryButton").click();
-  await expect(page.locator("#viewerInquiryOverlay")).toHaveClass(/visible/);
-  await expect(page.locator("#viewerInquiryTitle")).toHaveText("בירור על הדגמים");
-  await expect(page.locator("#viewerInquiryPage")).toContainText("כל המועדפים");
-  await expect(page.locator("#viewerInquiryCountBadge")).toHaveText("+2");
-  await expect(page.locator("#viewerInquiryShareLabel")).toHaveText("שיתוף פרטי הדגמים");
-  await expect(page.locator("#viewerInquiryCopyLabel")).toHaveText("העתקת ההודעה והקישורים");
-  await expect(page.locator("#viewerInquiryActions .viewer-inquiry-action")).toHaveCount(4);
-  const allItemsGmailHref = await page.locator("#viewerInquiryGmail").getAttribute("href");
-  const allItemsEmailHref = await page.locator("#viewerInquiryEmail").getAttribute("href");
+  const allItemsGmailHref = await page.locator("#favoritesBulkGmail").getAttribute("href");
   const allItemsBody = new URL(allItemsGmailHref).searchParams.get("body") || "";
-  const allItemsEmailBody = new URL(allItemsEmailHref).searchParams.get("body") || "";
   expect(allItemsBody).toContain("לבדוק ברוחב 180");
-  expect(allItemsEmailBody).toContain("לבדוק ברוחב 180");
   expect((allItemsBody.match(/https?:\/\//g) || []).length).toBe(3);
-  await page.locator("#viewerInquiryClose").click();
 
   await page.locator("#favoritesGrid [data-select-favorite]").nth(0).check();
   await page.locator("#favoritesGrid [data-select-favorite]").nth(1).check();
   await expect(page.locator("#favoritesSelectionCount")).toHaveText("2");
   await expect(page.locator("#favoritesShareLabel")).toHaveText("שיתוף הבחירה");
-  await expect(page.locator("#favoritesInquiryLabel")).toHaveText("בירור על הדגם");
-
-  await page.locator("#favoritesInquiryButton").click();
-  await expect(page.locator("#viewerInquiryPage")).toContainText("הדגמים שנבחרו");
-  const selectedGmailHref = await page.locator("#viewerInquiryGmail").getAttribute("href");
+  await expect(page.locator("#favoritesBulkGmailLabel")).toHaveText("בירור על הבחירה ב-Gmail");
+  const selectedGmailHref = await page.locator("#favoritesBulkGmail").getAttribute("href");
   const selectedBody = new URL(selectedGmailHref).searchParams.get("body") || "";
   expect(selectedBody).toContain("לבדוק ברוחב 180");
   expect((selectedBody.match(/https?:\/\//g) || []).length).toBe(2);
 
-  await page.evaluate(() => { window.__bargigE2eClipboard = ""; });
-  await page.locator("#viewerInquiryCopy").click();
-  await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).toContain("לבדוק ברוחב 180");
-  const copiedInquiry = await page.evaluate(() => window.__bargigE2eClipboard || "");
-  expect((copiedInquiry.match(/https?:\/\//g) || []).length).toBe(2);
-
-  await page.evaluate(() => { window.__bargigE2eShare = null; });
-  await page.locator("#favoritesInquiryButton").click();
-  await page.locator("#viewerInquiryShare").click();
-  await expect.poll(() => page.evaluate(() => window.__bargigE2eShare || null)).not.toBeNull();
-  const sharedInquiry = await page.evaluate(() => window.__bargigE2eShare || null);
-  expect(sharedInquiry.text).toContain("לבדוק ברוחב 180");
-  expect((sharedInquiry.text.match(/https?:\/\//g) || []).length).toBe(2);
-  expect(sharedInquiry.url).toContain("favorites.html?selection=");
-
-  await page.evaluate(() => { window.__bargigE2eShare = null; });
   await page.locator("#favoritesShareButton").click();
   await expect.poll(() => page.evaluate(() => window.__bargigE2eClipboard || "")).not.toBe("");
   const copiedSelectionUrl = await page.evaluate(() => window.__bargigE2eClipboard || "");
@@ -1143,12 +1112,9 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   await page.locator("#favoritesCatalogFilter").selectOption(FAVORITES_WORKSPACE_CATALOGS[1].id);
   await expect(page.locator("#favoritesGrid .favorite-card")).toHaveCount(1);
   await expect(page.locator("#favoritesVisibleCount")).toContainText("1 מתוך 3");
-  await page.locator("#favoritesInquiryButton").click();
-  await expect(page.locator("#viewerInquiryPage")).toContainText("כל המועדפים");
-  const filteredGmailHref = await page.locator("#viewerInquiryGmail").getAttribute("href");
+  const filteredGmailHref = await page.locator("#favoritesBulkGmail").getAttribute("href");
   const filteredBody = new URL(filteredGmailHref).searchParams.get("body") || "";
-  expect((filteredBody.match(/https?:\/\//g) || []).length).toBe(3);
-  await page.locator("#viewerInquiryClose").click();
+  expect((filteredBody.match(/https?:\/\//g) || []).length).toBe(1);
 
   await page.evaluate(() => { window.__bargigE2eClipboard = ""; });
   await page.locator("#favoritesShareButton").click();

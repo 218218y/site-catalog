@@ -94,8 +94,7 @@ function syncDocumentLock() {
   const modalFavoritesOpen = state.favoritesOpen && !isAppPage("favorites");
   const transferOpen = Boolean(state.favoritesTransferPending);
   const favoritesWorkspaceDialogOpen = Boolean(state.favoriteNoteEditingKey);
-  const inquiryOpen = Boolean(state.viewerInquiryOpen);
-  document.body.classList.toggle("no-scroll", isViewerSessionOpen() || modalFavoritesOpen || transferOpen || favoritesWorkspaceDialogOpen || inquiryOpen);
+  document.body.classList.toggle("no-scroll", isViewerSessionOpen() || modalFavoritesOpen || transferOpen || favoritesWorkspaceDialogOpen);
   document.documentElement.classList.toggle("viewer-open", isViewerSessionOpen());
 }
 

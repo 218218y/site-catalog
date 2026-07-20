@@ -162,26 +162,6 @@
   object-fit: contain;
   background: #fff;
 }
-.viewer-inquiry-count-badge {
-  position: absolute;
-  z-index: 3;
-  right: 7px;
-  bottom: 7px;
-  min-width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  padding-inline: 8px;
-  border: 1px solid rgba(255,255,255,.84);
-  border-radius: 999px;
-  color: #fff;
-  background: rgba(76,53,38,.88);
-  box-shadow: 0 8px 20px rgba(42,29,21,.24);
-  font-size: .82rem;
-  font-weight: 900;
-  line-height: 1;
-  backdrop-filter: blur(8px);
-}
 .viewer-inquiry-reference-copy {
   min-width: 0;
   display: grid;

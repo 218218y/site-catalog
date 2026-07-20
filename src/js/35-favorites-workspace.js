@@ -35,7 +35,7 @@ function favoriteWorkspaceVisibleEntries(entries = getFavoriteEntries()) {
 
 function favoriteWorkspaceActionEntries(entries = getFavoriteEntries()) {
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
-  return selectedEntries.length ? selectedEntries : entries;
+  return selectedEntries.length ? selectedEntries : favoriteWorkspaceVisibleEntries(entries);
 }
 
 function favoriteWorkspaceShareLinkEntries(entries = getFavoriteEntries()) {
@@ -82,65 +82,27 @@ function syncFavoriteWorkspaceFilter(entries) {
   state.favoritesFilterCatalogId = els.favoritesCatalogFilter.value;
 }
 
-function favoriteWorkspaceActionLabel(entries) {
+function favoriteWorkspaceActionLabel(entries, visibleEntries) {
   const selectedCount = favoriteWorkspaceSelectedEntries(entries).length;
   if (selectedCount) return `${selectedCount} פריטים שסומנו`;
+  if (visibleEntries.length !== entries.length) return `${visibleEntries.length} פריטים שמוצגים`;
   return `${entries.length} פריטים ברשימה`;
 }
 
-function favoriteWorkspaceInquiryReference(entries, options = {}) {
-  if (!entries.length) return null;
-  const firstEntry = entries[0];
-  const count = entries.length;
-  const noteCount = entries.filter((entry) => String(entry.note || "").trim()).length;
-  const selected = options.selected === true;
-  const scopeLabel = selected ? "הדגמים שנבחרו" : "כל המועדפים";
-  const plural = count > 1;
-  const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
-  const message = favoriteWorkspaceMessage(entries, { purpose: "inquiry" });
-  const firstTitle = String(firstEntry.catalog?.title || "קטלוג").trim() || "קטלוג";
-  const firstPage = Math.max(1, Number.parseInt(firstEntry.page, 10) || 1);
-  const preview = thumbSrc(firstEntry.catalog, firstPage) || pageSrc(firstEntry.catalog, firstPage);
-
+function favoriteWorkspaceInquiryReference(entries) {
   return {
-    source: "favorites-inquiry",
-    mode: plural ? "multiple" : "single",
-    itemCount: count,
-    catalog: firstEntry.catalog,
-    page: firstPage,
-    title: plural ? `${count} דגמים מהמועדפים` : firstTitle,
-    pageLabel: plural
-      ? `${scopeLabel}${noteCount ? ` · ${noteCount} הערות מצורפות` : ""}`
-      : `עמוד ${firstPage}${noteCount ? " · הערה מצורפת" : ""}`,
-    subject: plural
-      ? `בירור על ${count} דגמים מהמועדפים`
-      : `בירור על דגם – ${firstTitle}, עמוד ${firstPage}`,
-    shareText: message,
-    text: message,
-    url: selectionUrl,
-    preview,
-    previewAlt: plural
-      ? `תצוגה מקדימה של הדגם הראשון מתוך ${count} דגמים`
-      : `${firstTitle}, עמוד ${firstPage}`,
-    eyebrow: plural ? "הדגמים וההערות מצורפים אוטומטית" : "פרטי הדגם וההערה מצורפים אוטומטית",
-    dialogTitle: plural ? "בירור על הדגמים" : "בירור על הדגם",
-    description: plural
-      ? "אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. כל הדגמים, ההערות והקישורים המדויקים מוכנים מראש."
-      : "אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. פרטי הדגם, ההערה והקישור המדויק מוכנים מראש.",
-    copySuccessMessage: plural ? "פרטי הדגמים הועתקו" : "פרטי הדגם הועתקו",
-    shareFallbackMessage: plural
-      ? "אפשרויות שיתוף אינן זמינות — פרטי הדגמים הועתקו"
-      : "אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו"
+    subject: `בירור מרוכז על ${entries.length} דגמים`,
+    text: favoriteWorkspaceMessage(entries, { purpose: "inquiry" })
   };
 }
 
 function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   const selectedCount = selectedEntries.length;
-  const actionEntries = favoriteWorkspaceActionEntries(entries);
+  const actionEntries = selectedCount ? selectedEntries : visibleEntries;
   const shareEntries = selectedCount ? selectedEntries : entries;
   const hasEntries = entries.length > 0;
-  const actionLabel = favoriteWorkspaceActionLabel(entries);
+  const actionLabel = favoriteWorkspaceActionLabel(entries, visibleEntries);
 
   els.favoritesHeaderWorkspace?.classList.toggle("hidden", !hasEntries);
   if (els.favoritesCatalogFilter) els.favoritesCatalogFilter.disabled = !hasEntries;
@@ -162,36 +124,27 @@ function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
     els.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה";
   }
 
-  if (els.favoritesInquiryButton) {
-    const available = actionEntries.length > 0;
-    els.favoritesInquiryButton.classList.toggle("hidden", !available);
-    els.favoritesInquiryButton.setAttribute("aria-hidden", available ? "false" : "true");
-    els.favoritesInquiryButton.disabled = !available;
+  const email = viewerInquiryEmailAddress();
+  if (els.favoritesBulkGmail) {
+    const available = Boolean(email && actionEntries.length);
+    els.favoritesBulkGmail.classList.toggle("hidden", !available);
+    els.favoritesBulkGmail.setAttribute("aria-hidden", available ? "false" : "true");
     if (available) {
-      els.favoritesInquiryButton.removeAttribute("tabindex");
-      els.favoritesInquiryButton.setAttribute("aria-label", `פתיחת חלון בירור על הדגם עבור ${actionLabel}`);
+      els.favoritesBulkGmail.removeAttribute("tabindex");
+      els.favoritesBulkGmail.href = viewerInquiryGmailUrl(email, favoriteWorkspaceInquiryReference(actionEntries));
+      els.favoritesBulkGmail.setAttribute("aria-label", `פתיחת בירור מרוכז ב-Gmail עבור ${actionLabel}`);
     } else {
-      els.favoritesInquiryButton.setAttribute("tabindex", "-1");
-      els.favoritesInquiryButton.removeAttribute("aria-label");
+      els.favoritesBulkGmail.setAttribute("tabindex", "-1");
+      els.favoritesBulkGmail.removeAttribute("href");
+      els.favoritesBulkGmail.removeAttribute("aria-label");
     }
   }
-  if (els.favoritesInquiryLabel) {
-    els.favoritesInquiryLabel.textContent = "בירור על הדגם";
+  if (els.favoritesBulkGmailLabel) {
+    els.favoritesBulkGmailLabel.textContent = selectedCount ? "בירור על הבחירה ב-Gmail" : "בירור מרוכז ב-Gmail";
   }
 
   els.favoritesSelectionBar?.classList.toggle("hidden", selectedCount === 0);
   if (els.favoritesSelectionCount) els.favoritesSelectionCount.textContent = String(selectedCount);
-}
-
-function openFavoriteWorkspaceInquiry() {
-  const entries = getFavoriteEntries();
-  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
-  const actionEntries = favoriteWorkspaceActionEntries(entries);
-  const reference = favoriteWorkspaceInquiryReference(actionEntries, {
-    selected: selectedEntries.length > 0
-  });
-  if (!reference) return;
-  openViewerInquiry(reference, els.favoritesInquiryButton);
 }
 
 function favoriteWorkspaceNoteMarkup(entry) {
@@ -335,14 +288,9 @@ function favoriteWorkspaceItemUrl(entry) {
 
 function favoriteWorkspaceMessage(entries, options = {}) {
   const purpose = options.purpose === "inquiry" ? "inquiry" : "share";
-  const singular = entries.length === 1;
   const lines = purpose === "inquiry"
-    ? ["שלום,", singular
-      ? "רציתי לברר לגבי הדגם הבא מתוך קטלוגי רהיטי ברגיג:"
-      : "רציתי לברר לגבי הדגמים הבאים מתוך קטלוגי רהיטי ברגיג:", ""]
-    : ["שלום,", singular
-      ? "רציתי לשתף דגם מתוך קטלוגי רהיטי ברגיג:"
-      : "רציתי לשתף כמה דגמים מתוך קטלוגי רהיטי ברגיג:", ""];
+    ? ["שלום,", "רציתי לברר לגבי הדגמים הבאים מתוך קטלוגי רהיטי ברגיג:", ""]
+    : ["שלום,", "רציתי לשתף כמה דגמים מתוך קטלוגי רהיטי ברגיג:", ""];
   entries.forEach((entry, index) => {
     lines.push(`${index + 1}. ${entry.catalog.title} — עמוד ${entry.page}`);
     if (String(entry.note || "").trim()) lines.push(`הערה: ${String(entry.note).trim()}`);
@@ -512,10 +460,6 @@ function attachFavoritesWorkspaceEvents() {
     requestAnimationFrame(() => els.favoritesCatalogFilter?.focus?.());
   });
   els.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection);
-  els.favoritesInquiryButton?.addEventListener("click", (event) => {
-    event.preventDefault();
-    openFavoriteWorkspaceInquiry();
-  });
   els.favoritesGrid?.addEventListener("change", handleFavoritesWorkspaceGridChange);
   els.favoritesGrid?.addEventListener("dragstart", handleFavoritesWorkspaceDragStart);
   els.favoritesGrid?.addEventListener("dragover", handleFavoritesWorkspaceDragOver);
