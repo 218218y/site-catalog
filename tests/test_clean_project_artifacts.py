@@ -25,6 +25,7 @@ def test_cleanup_removes_source_caches_and_known_duplicate_images(tmp_path: Path
 
     candidates = MODULE.clean_project_artifacts(tmp_path, check=True)
     assert cache in candidates
+    assert cache / "module.pyc" not in candidates, "cache directories should be reported once, not with every child"
     assert loose_bytecode in candidates
     assert duplicate in candidates
     assert cache.exists(), "check mode must not mutate the source tree"

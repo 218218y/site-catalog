@@ -18,6 +18,7 @@ const devRequirements = fs.readFileSync(path.join(root, "tools", "requirements-d
 const bundleSite = fs.readFileSync(path.join(root, "bundle-site-r2.bat"), "utf8");
 const cleanArtifactsBat = fs.readFileSync(path.join(root, "clean-project-artifacts.bat"), "utf8");
 const uploadSite = fs.readFileSync(path.join(root, "bundle-site-r2-upload cloudflare.bat"), "utf8");
+const ciWorkflow = fs.readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
 
 assert.equal(packageJson.private, true);
 assert.equal(packageJson.scripts["setup:python"], "python tools/setup_python_env.py");
@@ -31,6 +32,21 @@ assert.equal(packageJson.scripts.serve, "python tools/serve_site.py");
 assert.equal(packageJson.scripts["dev:check"], "python tools/serve_site.py --ensure-current ask");
 assert.equal(packageJson.devDependencies["@playwright/test"], "1.55.1");
 assert.equal(packageJson.devDependencies.wrangler, "4.112.0");
+assert.equal(packageJson.scripts.postinstall, "node tools/check_node_install_scripts.js");
+assert.equal(packageJson.scripts["check:node-tools"], "node tools/check_node_install_scripts.js");
+assert.deepEqual(packageJson.allowScripts, {
+  esbuild: true,
+  sharp: true,
+  workerd: true,
+});
+const lockfile = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
+assert.equal(lockfile.packages[""].devDependencies.wrangler, "4.112.0");
+assert.equal(lockfile.packages["node_modules/esbuild"].version, "0.28.1");
+assert.equal(lockfile.packages["node_modules/sharp"].version, "0.34.5");
+assert.equal(lockfile.packages["node_modules/workerd"].version, "1.20260714.1");
+assert.equal(fs.readFileSync(path.join(root, ".npmrc"), "utf8").trim(), "save-exact=true");
+assert.equal(fs.readFileSync(path.join(root, ".nvmrc"), "utf8").trim(), "24.18.0");
+assert.equal(fs.existsSync(path.join(root, "tools", "check_node_install_scripts.js")), true);
 assert.match(deployTool, /def find_local_wrangler\(/);
 assert.doesNotMatch(deployTool, /def find_npx\(|npx was not found|--yes[\s\S]{0,40}wrangler/);
 assert.match(requirements, /^PyMuPDF==1\.28\.0$/m);
@@ -77,6 +93,12 @@ assert.equal(fs.existsSync(path.join(root, "tools", "requirements-dev.txt")), tr
 assert.equal(fs.existsSync(path.join(root, "tools", "clean_project_artifacts.py")), true);
 assert.equal(fs.existsSync(path.join(root, "check-and-start-server.bat")), true);
 assert.equal(fs.existsSync(path.join(root, "clean-project-artifacts.bat")), true);
+assert.match(ciWorkflow, /PYTHONDONTWRITEBYTECODE: "1"/);
+assert.match(ciWorkflow, /node-version-file: \.nvmrc/);
+assert.match(ciWorkflow, /Remove ephemeral source artifacts[\s\S]*clean_project_artifacts\.py(?! --check)/);
+assert.match(ciWorkflow, /Verify tests left no source-tree caches[\s\S]*clean_project_artifacts\.py --check/);
+assert.match(verifier, /sys\.dont_write_bytecode = True/);
+assert.match(verifier, /PYTHONDONTWRITEBYTECODE/);
 assert.match(architecture, /אין לפצל מודול רק בגלל מספר השורות/);
 
 assert.equal(fs.existsSync(path.join(root, "wp_logo_data.js")), false);

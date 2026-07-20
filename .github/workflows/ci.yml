@@ -18,17 +18,15 @@ jobs:
     timeout-minutes: 25
     env:
       CI: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Verify source tree is clean
-        run: python tools/clean_project_artifacts.py --check
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Set up Python
@@ -39,6 +37,9 @@ jobs:
           cache-dependency-path: |
             tools/requirements.txt
             tools/requirements-dev.txt
+
+      - name: Remove ephemeral source artifacts
+        run: python tools/clean_project_artifacts.py
 
       - name: Install Node dependencies
         run: npm ci
@@ -51,6 +52,9 @@ jobs:
 
       - name: Run complete verification
         run: npm run verify
+
+      - name: Verify tests left no source-tree caches
+        run: python tools/clean_project_artifacts.py --check
 
       - name: Upload Playwright diagnostics on failure
         if: failure()

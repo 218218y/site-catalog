@@ -30,7 +30,10 @@ def iter_cache_directories(root: Path) -> Iterable[Path]:
 def iter_bytecode_files(root: Path) -> Iterable[Path]:
     for pattern in ("*.pyc", "*.pyo"):
         for path in root.rglob(pattern):
-            if any(part in IGNORED_DIRECTORY_NAMES for part in path.relative_to(root).parts):
+            relative_parts = path.relative_to(root).parts
+            if any(part in IGNORED_DIRECTORY_NAMES for part in relative_parts):
+                continue
+            if "__pycache__" in relative_parts:
                 continue
             if path.is_file():
                 yield path

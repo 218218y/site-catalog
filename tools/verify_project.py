@@ -16,6 +16,12 @@ import os
 import shutil
 import subprocess
 import sys
+
+# Verification imports and launches many project Python modules. Keep bytecode
+# outside the source tree so local runs and CI cannot create tracked cache noise.
+sys.dont_write_bytecode = True
+os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Sequence

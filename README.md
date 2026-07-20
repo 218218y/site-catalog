@@ -444,7 +444,9 @@ npm run setup
 ```
 
 `npm run setup` מכין את סביבת Python המקומית `.venv` ומתקין את Chromium המבודד של Playwright. אפשר במקום זאת להריץ את `setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
-גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`, ו־Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`.
+גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`, ו־Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`. גרסת Node המומלצת ל־CI ולפיתוח נשמרת ב־`.nvmrc`.
+
+גרסאות npm חדשות חוסמות install scripts של תלויות שלא נבדקו. `package.json` מאשר במפורש רק את `esbuild`, `sharp` ו־`workerd`; הגרסאות המדויקות שלהן עדיין נעולות ב־`package-lock.json`. בסוף `npm ci` רץ `tools/check_node_install_scripts.js`, שמפעיל בפועל את הבינאריים ואת Wrangler ונכשל בהודעה ברורה אם סקריפט נדרש נחסם או התקנה בינארית נפגמה. אין לאשר חבילות נוספות אוטומטית בלי לבדוק מדוע הן מבקשות install script.
 
 הפקודות המרכזיות:
 

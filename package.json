@@ -35,10 +35,17 @@
     "serve": "python tools/serve_site.py",
     "build:e2e": "python tools/build_deploy_bundle.py --out dist/site-local --seo-mode private --skip-if-current --clean-legacy-artifacts",
     "dev:check": "python tools/serve_site.py --ensure-current ask",
-    "clean:artifacts": "python tools/clean_project_artifacts.py"
+    "clean:artifacts": "python tools/clean_project_artifacts.py",
+    "check:node-tools": "node tools/check_node_install_scripts.js",
+    "postinstall": "node tools/check_node_install_scripts.js"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",
-    "wrangler": "^4.112.0"
+    "wrangler": "4.112.0"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "sharp": true,
+    "workerd": true
   }
 }
