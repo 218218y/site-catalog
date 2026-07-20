@@ -21,6 +21,8 @@ for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.
 
 assert.match(template, /id="viewerInquiryCatalog"/);
 assert.match(template, /id="viewerInquiryPage"/);
+assert.match(template, /id="viewerInquiryEyebrow"/);
+assert.match(template, /id="viewerInquiryCountBadge"/);
 assert.match(template, /id="viewerInquiryGmail"/);
 assert.match(template, /id="viewerInquiryEmail"/);
 assert.match(template, /id="viewerInquiryShare"/);
@@ -28,11 +30,14 @@ assert.match(template, /id="viewerInquiryCopy"/);
 const inquiryActions = template.match(/<div class="viewer-inquiry-actions" id="viewerInquiryActions">([\s\S]*?)<\/div>/)?.[1] || "";
 assert.doesNotMatch(inquiryActions, /<small>/);
 for (const label of ["שליחה דרך Gmail", "פתיחה בתוכנת דואר", "שיתוף פרטי הדגם", "העתקת ההודעה והקישור"]) {
-  assert.ok(inquiryActions.includes(`<strong>${label}</strong>`), `missing compact inquiry label: ${label}`);
+  assert.match(inquiryActions, new RegExp(`<strong(?:\\s+[^>]*)?>${label}</strong>`), `missing compact inquiry label: ${label}`);
 }
+assert.match(template, /id="viewerInquiryShareLabel"/);
+assert.match(template, /id="viewerInquiryCopyLabel"/);
 assert.doesNotMatch(template.match(/id="viewerInquiryGmail"[^>]*>/)?.[0] || "", /title=|data-tooltip=/);
 assert.doesNotMatch(template.match(/id="viewerInquiryEmail"[^>]*>/)?.[0] || "", /title=|data-tooltip=/);
 assert.doesNotMatch(template, /id="viewerInquiryMobile"|id="viewerInquiryPhone"/);
+assert.ok(template.indexOf('id="viewerInquiryOverlay"') < template.indexOf('id="lightbox"'), "inquiry overlay must be shared outside the viewer shell");
 assert.match(template, /data-viewer-mobile-action="download"/);
 assert.match(template, /data-viewer-mobile-action="fit-height"/);
 assert.match(template, /data-viewer-mobile-action="fit-width"/);
@@ -41,12 +46,14 @@ assert.match(template, /id="viewerMobileFavoritesLink"/);
 assert.match(app, /function viewerInquiryReference\(\)[\s\S]*?viewerDocumentUrl\(state\.catalog\.id, page\)/);
 assert.match(app, /`קטלוג: \$\{title\}`/);
 assert.match(app, /`עמוד: \$\{page\}`/);
-assert.match(app, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryCatalog\.textContent = reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);
+assert.match(app, /function activeViewerInquiryReference\([\s\S]*?state\.viewerInquiryReference \|\| viewerInquiryReference\(\)/);
+assert.match(app, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryTitle\.textContent = reference\.dialogTitle[\s\S]*?viewerInquiryCatalog\.textContent = reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);
 assert.match(app, /new URLSearchParams\(\{ subject: reference\.subject, body: reference\.text \}\)/);
 assert.match(app, /function viewerInquiryGmailUrl\([\s\S]*?mail\.google\.com\/mail\/\?/);
 assert.match(app, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?navigator\.share\(shareData\)[\s\S]*?action: "share"/);
 assert.doesNotMatch(app, /viewerInquiry(?:Gmail|Email)\.title\s*=|setTooltipText\(els\.viewerInquiry(?:Gmail|Email)/);
-assert.match(app, /function copyViewerInquiryReference\([\s\S]*?copyTextToClipboard\(reference\.text\)[\s\S]*?action: "copy"[\s\S]*?source: "viewer-inquiry"/);
+assert.match(app, /function copyViewerInquiryReference\([\s\S]*?activeViewerInquiryReference\(\)[\s\S]*?copyTextToClipboard\(reference\.text\)[\s\S]*?viewerInquiryTelemetryFields\(reference\)/);
+assert.match(app, /function openViewerInquiry\(reference = null[\s\S]*?state\.viewerInquiryReference = resolvedReference[\s\S]*?favoritesInquiryButton\?\.setAttribute\("aria-expanded"/);
 assert.match(app, /function syncViewerScrollActivePage\([\s\S]*?syncViewerInquiryUi\(\)/);
 assert.match(app, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)[\s\S]*?syncViewerMobileMoreMenuState\(\)/);
 assert.match(app, /function handleViewerMobileMoreKeydown\([\s\S]*?ArrowDown[\s\S]*?ArrowUp[\s\S]*?Home[\s\S]*?End/);

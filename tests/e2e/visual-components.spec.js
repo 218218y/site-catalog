@@ -168,7 +168,7 @@ test.describe("visual component regression", () => {
               <div class="favorites-header-workspace">
                 <div class="favorites-filter-group"><select aria-label="סינון"><option>כל הקטלוגים</option></select><span class="favorites-visible-count">2 פריטים</span></div>
                 <button class="favorites-share-inline favorites-header-action" type="button">${ICONS.share}<span>שיתוף הרשימה</span></button>
-                <a class="favorites-share-inline favorites-header-action favorites-gmail-inline" href="#">${ICONS.mail}<span>בירור מרוכז ב-Gmail</span></a>
+                <button class="favorites-share-inline favorites-header-action favorites-inquiry-inline" type="button">${ICONS.mail}<span>בירור על הדגם</span></button>
               </div>
             </div>
           </div>

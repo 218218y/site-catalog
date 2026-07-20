@@ -479,8 +479,8 @@
   stroke-linejoin: round;
 }
 
-.favorites-share-inline:hover:not(:disabled):not(.favorites-gmail-inline),
-.favorites-share-inline:focus-visible:not(:disabled):not(.favorites-gmail-inline) {
+.favorites-share-inline:hover:not(:disabled):not(.favorites-inquiry-inline),
+.favorites-share-inline:focus-visible:not(:disabled):not(.favorites-inquiry-inline) {
   border-color: rgba(117, 88, 68, .34);
   background: #fff;
   box-shadow: 0 10px 24px rgba(70, 50, 36, .13), inset 0 1px 0 rgba(255, 255, 255, .94);

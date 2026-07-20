@@ -184,10 +184,10 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8.2a3.1 3.1 0 1 0-2.94-4.08L8.87 7.56a3.1 3.1 0 1 0 0 4.88l6.19 3.44A3.1 3.1 0 1 0 16 14.2l-6.2-3.45a3.2 3.2 0 0 0 0-1.5L16 5.8A3.1 3.1 0 0 0 18 8.2Z"/></svg>
                 <span id="favoritesShareLabel">שיתוף הרשימה</span>
               </button>
-              <a class="favorites-share-inline favorites-header-action favorites-gmail-inline hidden" id="favoritesBulkGmail" href="#" target="_blank" rel="noopener noreferrer" aria-hidden="true" tabindex="-1">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5h16v11H4z"/><path d="m5 7.5 7 5.3 7-5.3"/></svg>
-                <span id="favoritesBulkGmailLabel">בירור מרוכז ב-Gmail</span>
-              </a>
+              <button class="favorites-share-inline favorites-header-action favorites-inquiry-inline hidden" id="favoritesInquiryButton" type="button" aria-hidden="true" tabindex="-1" aria-haspopup="dialog" aria-expanded="false" aria-controls="viewerInquiryOverlay">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5.2 4.5h13.6a2 2 0 0 1 2 2v8.2a2 2 0 0 1-2 2h-7.1L7 20v-3.3H5.2a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z"/><path d="M8 9.2h8M8 12.4h5.2"/></svg>
+                <span id="favoritesInquiryLabel">בירור על הדגם</span>
+              </button>
             </div>
           </div>
         </div>
@@ -265,6 +265,47 @@
           <button class="button soft" id="favoriteNoteCancel" type="button">ביטול</button>
           <button class="button primary" id="favoriteNoteSave" type="button">שמירת הערה</button>
         </div>
+      </div>
+    </section>
+  </div>
+
+
+  <div class="viewer-inquiry-overlay hidden" id="viewerInquiryOverlay" aria-hidden="true">
+    <div class="viewer-inquiry-backdrop" id="viewerInquiryBackdrop"></div>
+    <section class="viewer-inquiry-dialog" role="dialog" aria-modal="true" aria-labelledby="viewerInquiryTitle" aria-describedby="viewerInquiryDescription">
+      <button class="viewer-inquiry-close" id="viewerInquiryClose" type="button" aria-label="סגירת חלון הבירור" title="סגירה">×</button>
+      <div class="viewer-inquiry-heading">
+        <span id="viewerInquiryEyebrow">פרטי העמוד מצורפים אוטומטית</span>
+        <h2 id="viewerInquiryTitle">בירור על הדגם</h2>
+        <p id="viewerInquiryDescription">אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. שם הקטלוג, מספר העמוד והקישור המדויק מוכנים מראש.</p>
+      </div>
+      <div class="viewer-inquiry-reference">
+        <span class="viewer-inquiry-preview-frame catalog-image-frame" id="viewerInquiryPreviewFrame">
+          <img id="viewerInquiryPreview" alt="" decoding="async" />
+          <span class="viewer-inquiry-count-badge hidden" id="viewerInquiryCountBadge" aria-hidden="true"></span>
+        </span>
+        <div class="viewer-inquiry-reference-copy">
+          <strong id="viewerInquiryCatalog">קטלוג</strong>
+          <span id="viewerInquiryPage">עמוד 1</span>
+        </div>
+      </div>
+      <div class="viewer-inquiry-actions" id="viewerInquiryActions">
+        <a class="viewer-inquiry-action primary" id="viewerInquiryGmail" href="#" target="_blank" rel="noopener noreferrer" data-contact-source="viewer-inquiry" data-contact-action="gmail">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 6.4 12 12.7l8.5-6.3M4.8 5.2h14.4a1.7 1.7 0 0 1 1.7 1.7v10.2a1.7 1.7 0 0 1-1.7 1.7H4.8a1.7 1.7 0 0 1-1.7-1.7V6.9a1.7 1.7 0 0 1 1.7-1.7Z" /></svg>
+          <strong>שליחה דרך Gmail</strong>
+        </a>
+        <a class="viewer-inquiry-action" id="viewerInquiryEmail" href="#" data-contact-source="viewer-inquiry" data-contact-action="email">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 6.2h15a1.8 1.8 0 0 1 1.8 1.8v8a1.8 1.8 0 0 1-1.8 1.8h-15A1.8 1.8 0 0 1 2.7 16V8a1.8 1.8 0 0 1 1.8-1.8Zm-.9 1.2 8.4 6.1 8.4-6.1" /></svg>
+          <strong>פתיחה בתוכנת דואר</strong>
+        </a>
+        <button class="viewer-inquiry-action" id="viewerInquiryShare" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8.2a3.1 3.1 0 1 0-2.94-4.08L8.87 7.56a3.1 3.1 0 1 0 0 4.88l6.19 3.44A3.1 3.1 0 1 0 16 14.2l-6.2-3.45a3.2 3.2 0 0 0 0-1.5L16 5.8A3.1 3.1 0 0 0 18 8.2Z" /></svg>
+          <strong id="viewerInquiryShareLabel">שיתוף פרטי הדגם</strong>
+        </button>
+        <button class="viewer-inquiry-action" id="viewerInquiryCopy" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7.2V5.8A2.3 2.3 0 0 1 10.3 3.5h7.9a2.3 2.3 0 0 1 2.3 2.3v7.9a2.3 2.3 0 0 1-2.3 2.3h-1.4M5.8 8h7.9a2.3 2.3 0 0 1 2.3 2.3v7.9a2.3 2.3 0 0 1-2.3 2.3H5.8a2.3 2.3 0 0 1-2.3-2.3v-7.9A2.3 2.3 0 0 1 5.8 8Z" /></svg>
+          <strong id="viewerInquiryCopyLabel">העתקת ההודעה והקישור</strong>
+        </button>
       </div>
     </section>
   </div>
@@ -467,44 +508,6 @@
         <span>בירור על הדגם</span>
       </button>
 
-      <div class="viewer-inquiry-overlay hidden" id="viewerInquiryOverlay" aria-hidden="true">
-        <div class="viewer-inquiry-backdrop" id="viewerInquiryBackdrop"></div>
-        <section class="viewer-inquiry-dialog" role="dialog" aria-modal="true" aria-labelledby="viewerInquiryTitle" aria-describedby="viewerInquiryDescription">
-          <button class="viewer-inquiry-close" id="viewerInquiryClose" type="button" aria-label="סגירת חלון הבירור" title="סגירה">×</button>
-          <div class="viewer-inquiry-heading">
-            <span>פרטי העמוד מצורפים אוטומטית</span>
-            <h2 id="viewerInquiryTitle">בירור על הדגם</h2>
-            <p id="viewerInquiryDescription">אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. שם הקטלוג, מספר העמוד והקישור המדויק מוכנים מראש.</p>
-          </div>
-          <div class="viewer-inquiry-reference">
-            <span class="viewer-inquiry-preview-frame catalog-image-frame">
-              <img id="viewerInquiryPreview" alt="" decoding="async" />
-            </span>
-            <div class="viewer-inquiry-reference-copy">
-              <strong id="viewerInquiryCatalog">קטלוג</strong>
-              <span id="viewerInquiryPage">עמוד 1</span>
-            </div>
-          </div>
-          <div class="viewer-inquiry-actions" id="viewerInquiryActions">
-            <a class="viewer-inquiry-action primary" id="viewerInquiryGmail" href="#" target="_blank" rel="noopener noreferrer" data-contact-source="viewer-inquiry" data-contact-action="gmail">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 6.4 12 12.7l8.5-6.3M4.8 5.2h14.4a1.7 1.7 0 0 1 1.7 1.7v10.2a1.7 1.7 0 0 1-1.7 1.7H4.8a1.7 1.7 0 0 1-1.7-1.7V6.9a1.7 1.7 0 0 1 1.7-1.7Z" /></svg>
-              <strong>שליחה דרך Gmail</strong>
-            </a>
-            <a class="viewer-inquiry-action" id="viewerInquiryEmail" href="#" data-contact-source="viewer-inquiry" data-contact-action="email">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 6.2h15a1.8 1.8 0 0 1 1.8 1.8v8a1.8 1.8 0 0 1-1.8 1.8h-15A1.8 1.8 0 0 1 2.7 16V8a1.8 1.8 0 0 1 1.8-1.8Zm-.9 1.2 8.4 6.1 8.4-6.1" /></svg>
-              <strong>פתיחה בתוכנת דואר</strong>
-            </a>
-            <button class="viewer-inquiry-action" id="viewerInquiryShare" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8.2a3.1 3.1 0 1 0-2.94-4.08L8.87 7.56a3.1 3.1 0 1 0 0 4.88l6.19 3.44A3.1 3.1 0 1 0 16 14.2l-6.2-3.45a3.2 3.2 0 0 0 0-1.5L16 5.8A3.1 3.1 0 0 0 18 8.2Z" /></svg>
-              <strong>שיתוף פרטי הדגם</strong>
-            </button>
-            <button class="viewer-inquiry-action" id="viewerInquiryCopy" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7.2V5.8A2.3 2.3 0 0 1 10.3 3.5h7.9a2.3 2.3 0 0 1 2.3 2.3v7.9a2.3 2.3 0 0 1-2.3 2.3h-1.4M5.8 8h7.9a2.3 2.3 0 0 1 2.3 2.3v7.9a2.3 2.3 0 0 1-2.3 2.3H5.8a2.3 2.3 0 0 1-2.3-2.3v-7.9A2.3 2.3 0 0 1 5.8 8Z" /></svg>
-              <strong>העתקת ההודעה והקישור</strong>
-            </button>
-          </div>
-        </section>
-      </div>
 
       <button class="reader-button viewer-fullscreen-toggle viewer-fullscreen-float" id="fullscreenToggle" type="button" aria-label="כניסה למסך מלא" title="מסך מלא" aria-pressed="false" data-fullscreen-active="false">
         <svg class="viewer-fullscreen-icon viewer-fullscreen-icon-enter" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

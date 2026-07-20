@@ -13,7 +13,7 @@ const bundleBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bun
 assert.match(html, /<a[^>]*class="[^"]*header-favorites-button[^"]*hidden[^"]*"[^>]*id="headerFavoritesButton"[^>]*href="favorites\.html"/);
 assert.match(html, /<div[^>]*id="favoritesPanel"[^>]*role="dialog"[^>]*aria-modal="true"/);
 assert.match(html, /id="viewerFavoriteButton"[^>]*aria-pressed="false"/);
-assert.match(html, /id="favoritesCatalogFilter"[\s\S]*?id="favoritesVisibleCount"[\s\S]*?id="favoritesShareButton"[\s\S]*?id="favoritesBulkGmail"/);
+assert.match(html, /id="favoritesCatalogFilter"[\s\S]*?id="favoritesVisibleCount"[\s\S]*?id="favoritesShareButton"[\s\S]*?id="favoritesInquiryButton"/);
 assert.doesNotMatch(html, /id="favoritesDescription"|id="favoritesCount"/);
 assert.match(html, /id="favoritesCloseButton"[\s\S]*?<svg[\s\S]*?<path d="M6\.5 6\.5 17\.5 17\.5M17\.5 6\.5 6\.5 17\.5"/);
 assert.match(html, /id="favoriteOpenCatalogButton"[^>]*aria-label="פתיחת התמונה בתוך הקטלוג המלא"/);
