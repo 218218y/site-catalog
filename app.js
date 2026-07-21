@@ -273,6 +273,8 @@ const MIN_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
 const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
+const VIEWER_FIT_SOURCE_AUTO = "auto";
+const VIEWER_FIT_SOURCE_MANUAL = "manual";
 const VIEWER_LAYOUT_SIDE = "side";
 const VIEWER_LAYOUT_SCROLL = "scroll";
 const VIEWER_PHASE_CLOSED = "closed";
@@ -347,6 +349,7 @@ const state = {
   zoom: 1,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
+  imageFitModeSource: VIEWER_FIT_SOURCE_AUTO,
   viewerLayoutMode: VIEWER_LAYOUT_SCROLL,
   singleImageFitOriginPending: false,
   panX: 0,
@@ -5720,6 +5723,45 @@ function normalizeViewerFitMode(fitMode) {
   return fitMode === VIEWER_FIT_WIDTH ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
 }
 
+function normalizeViewerFitModeSource(source) {
+  return source === VIEWER_FIT_SOURCE_AUTO
+    ? VIEWER_FIT_SOURCE_AUTO
+    : VIEWER_FIT_SOURCE_MANUAL;
+}
+
+function viewerUsesAutomaticFitMode() {
+  return normalizeViewerFitModeSource(state.imageFitModeSource) === VIEWER_FIT_SOURCE_AUTO;
+}
+
+function getViewerFitViewportSize() {
+  const stageWidth = Number(els.stageCanvas?.clientWidth) || 0;
+  const stageHeight = Number(els.stageCanvas?.clientHeight) || 0;
+  if (stageWidth > 0 && stageHeight > 0) {
+    return { width: stageWidth, height: stageHeight };
+  }
+
+  const visualWidth = Number(window.visualViewport?.width) || 0;
+  const visualHeight = Number(window.visualViewport?.height) || 0;
+  if (visualWidth > 0 && visualHeight > 0) {
+    return { width: visualWidth, height: visualHeight };
+  }
+
+  return {
+    width: Number(window.innerWidth) || Number(document.documentElement?.clientWidth) || 0,
+    height: Number(window.innerHeight) || Number(document.documentElement?.clientHeight) || 0
+  };
+}
+
+function getAutomaticViewerFitMode() {
+  const viewport = getViewerFitViewportSize();
+
+  // A landscape viewport has less vertical room, so fitting by height exposes
+  // the whole page. A portrait viewport has less horizontal room, so fitting by
+  // width is the useful default. Keep the historical height default for the
+  // rare unresolved or exactly-square viewport.
+  return viewport.height > viewport.width ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
+}
+
 function isScrollViewerMode() {
   return state.viewerLayoutMode === VIEWER_LAYOUT_SCROLL && !isFavoritesLightboxMode();
 }
@@ -6570,9 +6612,14 @@ function showViewerZoomIndicator(value = state.zoom) {
 
 function setViewerFitMode(fitMode, options = {}) {
   const nextFitMode = normalizeViewerFitMode(fitMode);
-  const { showUi = true } = options;
+  const {
+    showUi = true,
+    source = VIEWER_FIT_SOURCE_MANUAL,
+    refreshLayout = true
+  } = options;
   const shouldResetView = nextFitMode !== state.imageFitMode;
 
+  state.imageFitModeSource = normalizeViewerFitModeSource(source);
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
     // A fit-height wheel gesture may still have a delayed page-settlement
@@ -6591,12 +6638,27 @@ function setViewerFitMode(fitMode, options = {}) {
   }
 
   syncViewerFitModeUi();
-  if (isScrollViewerMode()) {
-    refreshViewerScrollPageGeometry({ preservePage: true });
-  } else {
-    applyZoom();
+  if (refreshLayout) {
+    if (isScrollViewerMode()) {
+      refreshViewerScrollPageGeometry({ preservePage: true });
+    } else {
+      applyZoom();
+    }
   }
   if (showUi) showTopUiTemporarily(1600);
+}
+
+function syncAutomaticViewerFitMode(options = {}) {
+  if (!viewerUsesAutomaticFitMode()) return false;
+
+  const nextFitMode = getAutomaticViewerFitMode();
+  if (nextFitMode === state.imageFitMode) return false;
+
+  setViewerFitMode(nextFitMode, {
+    ...options,
+    source: VIEWER_FIT_SOURCE_AUTO
+  });
+  return true;
 }
 
 function syncLightboxModeUi() {
@@ -7696,7 +7758,10 @@ function openLightbox(page = 1, options = {}) {
     state.favoritesViewerPreviousPage = 1;
     state.favoritesReturnFocus = null;
   }
-  state.imageFitMode = VIEWER_FIT_HEIGHT;
+  state.imageFitModeSource = normalizeViewerFitModeSource(state.imageFitModeSource);
+  state.imageFitMode = viewerUsesAutomaticFitMode()
+    ? getAutomaticViewerFitMode()
+    : normalizeViewerFitMode(state.imageFitMode);
   state.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES
     ? VIEWER_LAYOUT_SIDE
     : VIEWER_LAYOUT_SCROLL;
@@ -9533,6 +9598,7 @@ function attachShellEvents() {
     syncLightboxMobileSearchUi();
     if (isViewerSessionOpen()) {
       hideLightboxFloatingPreview();
+      syncAutomaticViewerFitMode({ showUi: false, refreshLayout: false });
       refreshLightboxLayoutForTopUiChange();
       if (state.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
     }

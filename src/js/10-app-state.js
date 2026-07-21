@@ -11,6 +11,8 @@ const MIN_VIEWER_ZOOM = 0.35;
 const MAX_VIEWER_ZOOM = 5;
 const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
+const VIEWER_FIT_SOURCE_AUTO = "auto";
+const VIEWER_FIT_SOURCE_MANUAL = "manual";
 const VIEWER_LAYOUT_SIDE = "side";
 const VIEWER_LAYOUT_SCROLL = "scroll";
 const VIEWER_PHASE_CLOSED = "closed";
@@ -85,6 +87,7 @@ const state = {
   zoom: 1,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
+  imageFitModeSource: VIEWER_FIT_SOURCE_AUTO,
   viewerLayoutMode: VIEWER_LAYOUT_SCROLL,
   singleImageFitOriginPending: false,
   panX: 0,

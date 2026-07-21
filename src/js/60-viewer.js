@@ -119,7 +119,10 @@ function openLightbox(page = 1, options = {}) {
     state.favoritesViewerPreviousPage = 1;
     state.favoritesReturnFocus = null;
   }
-  state.imageFitMode = VIEWER_FIT_HEIGHT;
+  state.imageFitModeSource = normalizeViewerFitModeSource(state.imageFitModeSource);
+  state.imageFitMode = viewerUsesAutomaticFitMode()
+    ? getAutomaticViewerFitMode()
+    : normalizeViewerFitMode(state.imageFitMode);
   state.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES
     ? VIEWER_LAYOUT_SIDE
     : VIEWER_LAYOUT_SCROLL;

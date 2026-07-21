@@ -66,6 +66,45 @@ function normalizeViewerFitMode(fitMode) {
   return fitMode === VIEWER_FIT_WIDTH ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
 }
 
+function normalizeViewerFitModeSource(source) {
+  return source === VIEWER_FIT_SOURCE_AUTO
+    ? VIEWER_FIT_SOURCE_AUTO
+    : VIEWER_FIT_SOURCE_MANUAL;
+}
+
+function viewerUsesAutomaticFitMode() {
+  return normalizeViewerFitModeSource(state.imageFitModeSource) === VIEWER_FIT_SOURCE_AUTO;
+}
+
+function getViewerFitViewportSize() {
+  const stageWidth = Number(els.stageCanvas?.clientWidth) || 0;
+  const stageHeight = Number(els.stageCanvas?.clientHeight) || 0;
+  if (stageWidth > 0 && stageHeight > 0) {
+    return { width: stageWidth, height: stageHeight };
+  }
+
+  const visualWidth = Number(window.visualViewport?.width) || 0;
+  const visualHeight = Number(window.visualViewport?.height) || 0;
+  if (visualWidth > 0 && visualHeight > 0) {
+    return { width: visualWidth, height: visualHeight };
+  }
+
+  return {
+    width: Number(window.innerWidth) || Number(document.documentElement?.clientWidth) || 0,
+    height: Number(window.innerHeight) || Number(document.documentElement?.clientHeight) || 0
+  };
+}
+
+function getAutomaticViewerFitMode() {
+  const viewport = getViewerFitViewportSize();
+
+  // A landscape viewport has less vertical room, so fitting by height exposes
+  // the whole page. A portrait viewport has less horizontal room, so fitting by
+  // width is the useful default. Keep the historical height default for the
+  // rare unresolved or exactly-square viewport.
+  return viewport.height > viewport.width ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
+}
+
 function isScrollViewerMode() {
   return state.viewerLayoutMode === VIEWER_LAYOUT_SCROLL && !isFavoritesLightboxMode();
 }

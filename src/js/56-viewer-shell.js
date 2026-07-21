@@ -475,9 +475,14 @@ function showViewerZoomIndicator(value = state.zoom) {
 
 function setViewerFitMode(fitMode, options = {}) {
   const nextFitMode = normalizeViewerFitMode(fitMode);
-  const { showUi = true } = options;
+  const {
+    showUi = true,
+    source = VIEWER_FIT_SOURCE_MANUAL,
+    refreshLayout = true
+  } = options;
   const shouldResetView = nextFitMode !== state.imageFitMode;
 
+  state.imageFitModeSource = normalizeViewerFitModeSource(source);
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
     // A fit-height wheel gesture may still have a delayed page-settlement
@@ -496,12 +501,27 @@ function setViewerFitMode(fitMode, options = {}) {
   }
 
   syncViewerFitModeUi();
-  if (isScrollViewerMode()) {
-    refreshViewerScrollPageGeometry({ preservePage: true });
-  } else {
-    applyZoom();
+  if (refreshLayout) {
+    if (isScrollViewerMode()) {
+      refreshViewerScrollPageGeometry({ preservePage: true });
+    } else {
+      applyZoom();
+    }
   }
   if (showUi) showTopUiTemporarily(1600);
+}
+
+function syncAutomaticViewerFitMode(options = {}) {
+  if (!viewerUsesAutomaticFitMode()) return false;
+
+  const nextFitMode = getAutomaticViewerFitMode();
+  if (nextFitMode === state.imageFitMode) return false;
+
+  setViewerFitMode(nextFitMode, {
+    ...options,
+    source: VIEWER_FIT_SOURCE_AUTO
+  });
+  return true;
 }
 
 function syncLightboxModeUi() {

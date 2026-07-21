@@ -51,6 +51,7 @@ function attachShellEvents() {
     syncLightboxMobileSearchUi();
     if (isViewerSessionOpen()) {
       hideLightboxFloatingPreview();
+      syncAutomaticViewerFitMode({ showUi: false, refreshLayout: false });
       refreshLightboxLayoutForTopUiChange();
       if (state.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
     }

@@ -1227,6 +1227,8 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/1/$`));
   await expectCurrentViewerImageReady(page);
   await expectViewerFrameCentered(page);
+  await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
+  await expect(page.locator('[data-viewer-mobile-action="fit-width"]')).toHaveAttribute("aria-checked", "true");
   await expect(page.locator("#viewerMobileMoreToggle")).toBeVisible();
   await expect(page.locator("#lightboxScreenshot")).toBeHidden();
   await expect(page.locator("#lightboxPinTopBar")).toBeHidden();
@@ -1242,6 +1244,18 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
 
   await page.setViewportSize({ width: 844, height: 390 });
   await expectViewerFrameCentered(page);
+  await expect(page.locator("#lightbox")).toHaveClass(/fit-height/);
+  await expect(page.locator("#fitHeightBtn")).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator("#fitWidthBtn").click({ force: true });
+  await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
+
+  // An explicit user choice owns the fit mode for the rest of this viewer
+  // session, even when a hybrid/touch device changes orientation repeatedly.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
   overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(runtimeErrors, "Mobile context runtime errors").toEqual([]);
