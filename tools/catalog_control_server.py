@@ -80,6 +80,9 @@ BASE_CONVERT_ARGS = [
     "--sharpen", "0.8",
     "--ocr-lang", "heb+eng",
     "--ocr-dpi", "260",
+    "--ocr-min-confidence", "65",
+    "--ocr-title-min-confidence", "45",
+    "--ocr-max-words-per-page", "180",
 ]
 
 

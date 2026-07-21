@@ -35,6 +35,25 @@ from typing import Any
 import fitz  # PyMuPDF
 from PIL import Image, ImageFilter, ImageOps
 
+try:
+    from tools.ocr_search_quality import (
+        DEFAULT_OCR_MAX_WORDS_PER_PAGE,
+        DEFAULT_OCR_MIN_CONFIDENCE,
+        DEFAULT_OCR_TITLE_MIN_CONFIDENCE,
+        FULL_PAGE_OCR_PSM,
+        OCR_SEARCH_PIPELINE_VERSION,
+        filter_tesseract_tsv,
+    )
+except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
+    from ocr_search_quality import (
+        DEFAULT_OCR_MAX_WORDS_PER_PAGE,
+        DEFAULT_OCR_MIN_CONFIDENCE,
+        DEFAULT_OCR_TITLE_MIN_CONFIDENCE,
+        FULL_PAGE_OCR_PSM,
+        OCR_SEARCH_PIPELINE_VERSION,
+        filter_tesseract_tsv,
+    )
+
 SUPPORTED_FORMATS = {"webp", "jpg", "png"}
 PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
 BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
@@ -111,6 +130,9 @@ class RenderOptions:
     ocr_lang: str
     ocr_dpi: int
     ocr_min_chars: int
+    ocr_min_confidence: int
+    ocr_title_min_confidence: int
+    ocr_max_words_per_page: int
     tesseract_cmd: str
     require_ocr: bool
 
@@ -261,10 +283,15 @@ def render_options_metadata(options: RenderOptions) -> dict[str, Any]:
 def search_options_metadata(options: RenderOptions) -> dict[str, Any]:
     """Return settings that affect search text only and must not force image rebuilds."""
     return {
+        "pipelineVersion": OCR_SEARCH_PIPELINE_VERSION,
         "ocrMode": str(options.ocr_mode),
         "ocrLang": str(options.ocr_lang),
         "ocrDpi": int(options.ocr_dpi),
         "ocrMinChars": int(options.ocr_min_chars),
+        "ocrMinConfidence": int(options.ocr_min_confidence),
+        "ocrTitleMinConfidence": int(options.ocr_title_min_confidence),
+        "ocrMaxWordsPerPage": int(options.ocr_max_words_per_page),
+        "ocrFullPagePsm": FULL_PAGE_OCR_PSM,
     }
 
 
@@ -719,7 +746,15 @@ def build_targeted_title_ocr_text(ocr_image: Image.Image, ocr: "OcrRunner", labe
             continue
         is_title_line = "title-line" in region_name
         prepared = crop.convert("RGB") if is_title_line else prepare_title_ocr_crop(crop)
-        raw_text = ocr.recognize(prepared, f"{label} {region_name}", psm=psm, preprocess=not is_title_line)
+        raw_text = ocr.recognize(
+            prepared,
+            f"{label} {region_name}",
+            psm=psm,
+            preprocess=not is_title_line,
+            min_confidence=ocr.options.ocr_title_min_confidence,
+            max_words=16,
+            title_mode=True,
+        )
         filtered = filter_targeted_ocr_text(raw_text, max_words=4 if is_title_line else 8)
         if not filtered:
             continue
@@ -772,7 +807,17 @@ class OcrRunner:
             self._available = False
         return self._available
 
-    def recognize(self, image: Image.Image, label: str, *, psm: int = 6, preprocess: bool = True) -> str:
+    def recognize(
+        self,
+        image: Image.Image,
+        label: str,
+        *,
+        psm: int = FULL_PAGE_OCR_PSM,
+        preprocess: bool = True,
+        min_confidence: int | None = None,
+        max_words: int | None = None,
+        title_mode: bool = False,
+    ) -> str:
         if not self._is_available():
             message = (
                 f"Tesseract OCR was not found by command {self.options.tesseract_cmd!r}. "
@@ -796,10 +841,11 @@ class OcrRunner:
                 "stdout",
                 "-l",
                 self.options.ocr_lang,
+                "--oem",
+                "1",
                 "--psm",
                 str(max(0, int(psm))),
-                "-c",
-                "preserve_interword_spaces=1",
+                "tsv",
             ]
             completed = subprocess.run(
                 command,
@@ -819,7 +865,29 @@ class OcrRunner:
                     print(f"[ocr-warn] {message}", file=sys.stderr)
                     self._warned_failure = True
                 return ""
-            return normalize_search_text(completed.stdout)
+            filtered = filter_tesseract_tsv(
+                completed.stdout,
+                min_confidence=(
+                    self.options.ocr_min_confidence
+                    if min_confidence is None
+                    else max(0, min(100, int(min_confidence)))
+                ),
+                max_words=(
+                    self.options.ocr_max_words_per_page
+                    if max_words is None
+                    else max(1, int(max_words))
+                ),
+                title_mode=title_mode,
+            )
+            if filtered.malformed_tsv:
+                message = f"Tesseract returned malformed TSV for {label}; noisy plain text was discarded."
+                if self.options.require_ocr:
+                    raise RuntimeError(message)
+                if not self._warned_failure:
+                    print(f"[ocr-warn] {message}", file=sys.stderr)
+                    self._warned_failure = True
+                return ""
+            return normalize_search_text(filtered.text)
         except subprocess.TimeoutExpired:
             message = f"Tesseract timed out on {label}"
             if self.options.require_ocr:
@@ -880,7 +948,7 @@ def build_page_search_text(
             # model names that are printed in low-contrast gold/white text.
             title_ocr_image = render_ocr_page_image(page, 340)
         text_parts.append(build_targeted_title_ocr_text(title_ocr_image, ocr, label))
-        text_parts.append(ocr.recognize(ocr_image, label, psm=6))
+        text_parts.append(ocr.recognize(ocr_image, label, psm=FULL_PAGE_OCR_PSM))
 
     if manual_text:
         text_parts.append(manual_text)
@@ -1161,6 +1229,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ocr-lang", default="heb+eng", help="Tesseract OCR language, e.g. heb, eng or heb+eng")
     parser.add_argument("--ocr-dpi", type=int, default=260, help="DPI used only for OCR input images")
     parser.add_argument("--ocr-min-chars", type=int, default=16, help="In auto mode, OCR pages with less embedded text than this")
+    parser.add_argument(
+        "--ocr-min-confidence",
+        type=int,
+        default=DEFAULT_OCR_MIN_CONFIDENCE,
+        help="Minimum Tesseract word confidence for full-page OCR (0-100)",
+    )
+    parser.add_argument(
+        "--ocr-title-min-confidence",
+        type=int,
+        default=DEFAULT_OCR_TITLE_MIN_CONFIDENCE,
+        help="Minimum Tesseract word confidence for targeted title crops (0-100)",
+    )
+    parser.add_argument(
+        "--ocr-max-words-per-page",
+        type=int,
+        default=DEFAULT_OCR_MAX_WORDS_PER_PAGE,
+        help="Safety cap for accepted full-page OCR words after filtering",
+    )
     parser.add_argument("--tesseract-cmd", default="tesseract", help="Tesseract executable path/name")
     parser.add_argument("--require-ocr", action="store_true", help="Fail conversion if OCR is needed but Tesseract cannot run")
     parser.add_argument(
@@ -1193,6 +1279,9 @@ def main() -> int:
         ocr_lang=str(args.ocr_lang).strip() or "heb+eng",
         ocr_dpi=max(120, int(args.ocr_dpi)),
         ocr_min_chars=max(0, int(args.ocr_min_chars)),
+        ocr_min_confidence=max(0, min(100, int(args.ocr_min_confidence))),
+        ocr_title_min_confidence=max(0, min(100, int(args.ocr_title_min_confidence))),
+        ocr_max_words_per_page=max(1, int(args.ocr_max_words_per_page)),
         tesseract_cmd=str(args.tesseract_cmd).strip() or "tesseract",
         require_ocr=bool(args.require_ocr),
     )

@@ -67,6 +67,9 @@ convert-catalogs-force.bat
 רענון מחדש רק של זיהוי OCR/חיפוש
 refresh-ocr-search.bat
 
+הרענון משתמש בסינון confidence ושורות לפני כתיבה לאינדקס. ברירות המחדל:
+--ocr-min-confidence 65 --ocr-title-min-confidence 45 --ocr-max-words-per-page 180
+
 שרת מקומי לאתר הראשי בלבד, ללא בדיקה או בנייה:
 start-server.bat
 

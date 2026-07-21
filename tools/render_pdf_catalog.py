@@ -14,6 +14,11 @@ import argparse
 from pathlib import Path
 
 from build_catalogs import RenderOptions, collect_page_sizes, load_manual_search_overrides, project_root, render_pdf, write_render_manifest
+from ocr_search_quality import (
+    DEFAULT_OCR_MAX_WORDS_PER_PAGE,
+    DEFAULT_OCR_MIN_CONFIDENCE,
+    DEFAULT_OCR_TITLE_MIN_CONFIDENCE,
+)
 
 
 def main() -> int:
@@ -32,6 +37,9 @@ def main() -> int:
     parser.add_argument("--ocr-lang", default="heb+eng")
     parser.add_argument("--ocr-dpi", type=int, default=260)
     parser.add_argument("--ocr-min-chars", type=int, default=16)
+    parser.add_argument("--ocr-min-confidence", type=int, default=DEFAULT_OCR_MIN_CONFIDENCE)
+    parser.add_argument("--ocr-title-min-confidence", type=int, default=DEFAULT_OCR_TITLE_MIN_CONFIDENCE)
+    parser.add_argument("--ocr-max-words-per-page", type=int, default=DEFAULT_OCR_MAX_WORDS_PER_PAGE)
     parser.add_argument("--tesseract-cmd", default="tesseract")
     parser.add_argument("--require-ocr", action="store_true")
     parser.add_argument("--no-clean", action="store_true")
@@ -54,6 +62,9 @@ def main() -> int:
         ocr_lang=args.ocr_lang,
         ocr_dpi=args.ocr_dpi,
         ocr_min_chars=args.ocr_min_chars,
+        ocr_min_confidence=max(0, min(100, args.ocr_min_confidence)),
+        ocr_title_min_confidence=max(0, min(100, args.ocr_title_min_confidence)),
+        ocr_max_words_per_page=max(1, args.ocr_max_words_per_page),
         tesseract_cmd=args.tesseract_cmd,
         require_ocr=args.require_ocr,
     )

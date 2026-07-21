@@ -15,7 +15,7 @@
     "category": "ארונות פתיחה",
     "subcategory": "",
     "pdf": "assets/pdfs/opening-fredi-2026.pdf",
-    "ocr": true
+    "ocr": false
   },
   {
     "id": "sliding-tbi-2026",
@@ -42,7 +42,7 @@
     "category": "חדרי ילדים",
     "subcategory": "חדרי ילדים קומפלט",
     "pdf": "assets/pdfs/kids-fredi-2026.pdf",
-    "ocr": true
+    "ocr": false
   },
   {
     "id": "beds-birch-2026",
