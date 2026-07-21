@@ -248,23 +248,55 @@ def collect_page_sizes(out_dir: Path, image_format: str, page_count: int) -> lis
     return sizes
 
 
-def catalog_asset_version(out_dir: Path, image_format: str, page_count: int) -> str:
-    """Create a compact cache-busting version from generated catalog assets."""
-    digest = hashlib.sha1()
+def _hash_catalog_asset_tier(
+    out_dir: Path,
+    image_format: str,
+    page_count: int,
+    directory: str,
+) -> str:
+    """Return a stable content hash for one responsive image tier.
+
+    URL versions must follow the bytes that were published, not file mtimes.
+    Copying an unchanged catalog to another machine therefore keeps its cache
+    identity, while changing any page in the tier creates a new identity.
+    """
+    digest = hashlib.sha256()
+    normalized_directory = str(directory or "").strip().strip("/")
     for page_number in range(1, max(0, int(page_count)) + 1):
-        for relative in (
-            Path(f"page-{page_number:03d}.{image_format}"),
-            Path("medium") / f"page-{page_number:03d}.{image_format}",
-            Path("thumbs") / f"page-{page_number:03d}.{image_format}",
-        ):
-            file_path = out_dir / relative
-            if not file_path.is_file():
-                continue
-            stat = file_path.stat()
-            digest.update(relative.as_posix().encode("utf-8"))
-            digest.update(str(stat.st_size).encode("ascii"))
-            digest.update(str(stat.st_mtime_ns).encode("ascii"))
+        filename = f"page-{page_number:03d}.{image_format}"
+        relative = Path(normalized_directory) / filename if normalized_directory else Path(filename)
+        file_path = out_dir / relative
+        if not file_path.is_file():
+            continue
+        digest.update(relative.as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        with file_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        digest.update(b"\0")
     return digest.hexdigest()[:12]
+
+
+def catalog_asset_versions(out_dir: Path, image_format: str, page_count: int) -> dict[str, str]:
+    """Create independent cache identities for full, medium and thumbnail tiers."""
+    versions = {
+        "full": _hash_catalog_asset_tier(out_dir, image_format, page_count, ""),
+        "medium": _hash_catalog_asset_tier(out_dir, image_format, page_count, "medium"),
+        "thumb": _hash_catalog_asset_tier(out_dir, image_format, page_count, "thumbs"),
+    }
+    composite = hashlib.sha256()
+    for tier in ("full", "medium", "thumb"):
+        composite.update(tier.encode("ascii"))
+        composite.update(b"=")
+        composite.update(versions[tier].encode("ascii"))
+        composite.update(b"\n")
+    versions["catalog"] = composite.hexdigest()[:12]
+    return versions
+
+
+def catalog_asset_version(out_dir: Path, image_format: str, page_count: int) -> str:
+    """Backward-compatible composite cache version for the whole catalog."""
+    return catalog_asset_versions(out_dir, image_format, page_count)["catalog"]
 
 
 def source_pdf_metadata(pdf_path: Path) -> dict[str, Any]:
@@ -1180,6 +1212,7 @@ def build_generated_entry(
     options: RenderOptions,
     page_sizes: list[list[int]] | None = None,
 ) -> dict[str, Any]:
+    asset_versions = catalog_asset_versions(out_dir, image_format, pages)
     entry: dict[str, Any] = {
         "id": item["id"],
         "title": item["title"],
@@ -1189,11 +1222,23 @@ def build_generated_entry(
         "dir": rel_to_root(out_dir),
         "cover": f"{rel_to_root(out_dir)}/page-001.{image_format}",
         "imageExt": image_format,
-        "assetVersion": catalog_asset_version(out_dir, image_format, pages),
+        "assetVersion": asset_versions["catalog"],
         "imageVariants": {
-            "thumb": {"directory": "thumbs", "maxSide": int(options.thumb_size)},
-            "medium": {"directory": "medium", "maxSide": int(options.medium_size)},
-            "full": {"directory": "", "maxSide": max(int(options.max_width), int(options.max_height))},
+            "thumb": {
+                "directory": "thumbs",
+                "maxSide": int(options.thumb_size),
+                "version": asset_versions["thumb"],
+            },
+            "medium": {
+                "directory": "medium",
+                "maxSide": int(options.medium_size),
+                "version": asset_versions["medium"],
+            },
+            "full": {
+                "directory": "",
+                "maxSide": max(int(options.max_width), int(options.max_height)),
+                "version": asset_versions["full"],
+            },
         },
     }
 

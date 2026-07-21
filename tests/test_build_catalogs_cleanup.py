@@ -121,7 +121,11 @@ def test_conversion_always_reconciles_removed_catalogs(
     generated = json.loads((root / "catalogs.generated.json").read_text(encoding="utf-8"))
     search = json.loads((root / "catalogs.search.json").read_text(encoding="utf-8"))
     assert [entry["id"] for entry in generated] == ["keep"]
-    assert generated[0]["imageVariants"]["medium"] == {"directory": "medium", "maxSide": 1600}
+    medium_variant = generated[0]["imageVariants"]["medium"]
+    assert medium_variant["directory"] == "medium"
+    assert medium_variant["maxSide"] == 1600
+    assert len(medium_variant["version"]) == 12
+    assert generated[0]["assetVersion"]
     assert [entry["catalogId"] for entry in search] == ["keep"]
 
 

@@ -21,6 +21,14 @@ from typing import Callable, Iterable, Sequence
 DEFAULT_BASE_URL = "https://cdn.bargig-furniture.com/"
 DEFAULT_TIMEOUT = 12.0
 DEFAULT_WORKERS = 12
+CATALOG_ASSET_URL_SCHEMA_VERSION = 2
+
+
+@dataclass(frozen=True)
+class AssetReference:
+    path: str
+    tier: str
+    version: str
 
 
 @dataclass(frozen=True)
@@ -54,7 +62,17 @@ def load_catalogs(path: Path) -> list[dict]:
     return [item for item in payload if isinstance(item, dict)]
 
 
-def iter_expected_asset_paths(catalogs: Iterable[dict]) -> Iterable[str]:
+def catalog_asset_version_for_tier(catalog: dict, tier: str) -> str:
+    normalized_tier = str(tier or "full").strip() or "full"
+    variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), dict) else {}
+    variant = variants.get(normalized_tier) if isinstance(variants.get(normalized_tier), dict) else {}
+    base_version = str(variant.get("version") or catalog.get("assetVersion") or "").strip()
+    if not base_version:
+        return ""
+    return f"{base_version}-{normalized_tier}-u{CATALOG_ASSET_URL_SCHEMA_VERSION}"
+
+
+def iter_expected_asset_references(catalogs: Iterable[dict]) -> Iterable[AssetReference]:
     seen: set[str] = set()
     for catalog in catalogs:
         catalog_id = str(catalog.get("id") or "").strip() or "unknown"
@@ -73,18 +91,40 @@ def iter_expected_asset_paths(catalogs: Iterable[dict]) -> Iterable[str]:
 
         for page in range(1, pages + 1):
             filename = f"page-{page:03d}.{extension}"
-            relatives = [f"{directory}/{filename}", f"{directory}/thumbs/{filename}"]
+            relatives: list[tuple[str, str]] = [(f"{directory}/{filename}", "full")]
             if medium_directory:
-                relatives.insert(1, f"{directory}/{medium_directory}/{filename}")
-            for relative in relatives:
-                if relative not in seen:
-                    seen.add(relative)
-                    yield relative
+                relatives.append((f"{directory}/{medium_directory}/{filename}", "medium"))
+            relatives.append((f"{directory}/thumbs/{filename}", "thumb"))
+            for relative, tier in relatives:
+                if relative in seen:
+                    continue
+                seen.add(relative)
+                yield AssetReference(relative, tier, catalog_asset_version_for_tier(catalog, tier))
 
 
-def build_asset_urls(catalogs: Iterable[dict], base_url: str) -> list[str]:
+def iter_expected_asset_paths(catalogs: Iterable[dict]) -> Iterable[str]:
+    for reference in iter_expected_asset_references(catalogs):
+        yield reference.path
+
+
+def append_asset_version(url: str, version: str) -> str:
+    value = str(version or "").strip()
+    if not value:
+        return url
+    parsed = urllib.parse.urlsplit(url)
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    query = [(key, item) for key, item in query if key != "v"]
+    query.append(("v", value))
+    return urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
+
+
+def build_asset_urls(catalogs: Iterable[dict], base_url: str, *, versioned: bool = False) -> list[str]:
     base = normalize_base_url(base_url)
-    return [urllib.parse.urljoin(base, path) for path in iter_expected_asset_paths(catalogs)]
+    urls: list[str] = []
+    for reference in iter_expected_asset_references(catalogs):
+        url = urllib.parse.urljoin(base, reference.path)
+        urls.append(append_asset_version(url, reference.version) if versioned else url)
+    return urls
 
 
 def _response_result(url: str, response) -> AssetCheckResult:
@@ -128,6 +168,31 @@ def check_asset(
         return AssetCheckResult(url, False, f"network error: {getattr(exc, 'reason', exc)}")
 
 
+def check_asset_via_range_get(
+    url: str,
+    timeout: float = DEFAULT_TIMEOUT,
+    opener: Callable = urllib.request.urlopen,
+) -> AssetCheckResult:
+    """Verify the normal CDN cache key while transferring at most one byte.
+
+    Do not send a client cache-bypass directive here: the publication gate must
+    observe the same cached status a regular browser request would receive.
+    """
+    headers = {
+        "Accept": "image/avif,image/webp,image/*,*/*;q=0.5",
+        "Range": "bytes=0-0",
+        "User-Agent": "bargig-r2-versioned-publication-gate/1.0",
+    }
+    request = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with opener(request, timeout=timeout) as response:
+            return _response_result(url, response)
+    except urllib.error.HTTPError as exc:
+        return AssetCheckResult(url, False, f"HTTP {exc.code}", exc.code)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return AssetCheckResult(url, False, f"network error: {getattr(exc, 'reason', exc)}")
+
+
 def verify_remote_assets(
     catalogs: Iterable[dict],
     base_url: str,
@@ -135,8 +200,9 @@ def verify_remote_assets(
     workers: int = DEFAULT_WORKERS,
     timeout: float = DEFAULT_TIMEOUT,
     checker: Callable[[str, float], AssetCheckResult] = check_asset,
+    versioned: bool = False,
 ) -> tuple[int, list[AssetCheckResult]]:
-    urls = build_asset_urls(catalogs, base_url)
+    urls = build_asset_urls(catalogs, base_url, versioned=versioned)
     failures: list[AssetCheckResult] = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
         futures = {executor.submit(checker, url, timeout): url for url in urls}
@@ -158,6 +224,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="Public R2/CDN base URL")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="Concurrent checks")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="Timeout per request in seconds")
+    parser.add_argument(
+        "--versioned",
+        action="store_true",
+        help="Check the exact cache-busted URLs emitted by the site, not only the origin object paths",
+    )
     return parser.parse_args(argv)
 
 
@@ -169,11 +240,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         catalogs_path = root / catalogs_path
     try:
         catalogs = load_catalogs(catalogs_path)
+        checker = check_asset_via_range_get if args.versioned else check_asset
         total, failures = verify_remote_assets(
             catalogs,
             args.base_url,
             workers=max(1, int(args.workers)),
             timeout=max(1.0, float(args.timeout)),
+            checker=checker,
+            versioned=bool(args.versioned),
         )
         if failures:
             print(f"ERROR: {len(failures)} of {total} required catalog image assets failed verification.", file=sys.stderr)
@@ -182,7 +256,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             if len(failures) > 50:
                 print(f"  ... and {len(failures) - 50} additional failures", file=sys.stderr)
             return 1
-        print(f"Remote catalog asset verification passed: {total} page/thumbnail objects.")
+        mode = "versioned CDN URLs" if args.versioned else "origin object URLs"
+        print(f"Remote catalog asset verification passed: {total} {mode}.")
         return 0
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

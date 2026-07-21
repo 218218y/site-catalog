@@ -50,6 +50,9 @@ def test_standalone_viewer_supports_all_three_r2_image_tiers() -> None:
     assert '<option value="medium">בינוניות</option>' in html
     assert '<option value="full">גדולות</option>' in html
     assert 'function imageUrl(catalog, page, tier)' in html
+    assert 'function imageOriginUrl(catalog, page, tier)' in html
+    assert 'const INSPECTION_SESSION_PARAM = "viewer_session";' in html
+    assert 'attemptedOriginFallback' in html
     assert 'catalog?.imageVariants?.[normalized]' in html
     assert 'url.searchParams.set("size", currentTier)' in html
     assert 'window.BARGIG_CATALOG_ASSET_BASE_URL = "https://cdn.bargig-furniture.com/";' in html

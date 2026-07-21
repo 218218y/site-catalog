@@ -305,6 +305,19 @@ def subcategory_path(category: TaxonomyCategory, subcategory: TaxonomySubcategor
     return f"category/{category.slug}/{subcategory.slug}/"
 
 
+CATALOG_ASSET_URL_SCHEMA_VERSION = 2
+
+
+def catalog_asset_version_for_tier(catalog: Mapping[str, Any], tier: str) -> str:
+    normalized_tier = str(tier or "full").strip() or "full"
+    variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), Mapping) else {}
+    variant = variants.get(normalized_tier) if isinstance(variants.get(normalized_tier), Mapping) else {}
+    base_version = str(variant.get("version") or catalog.get("assetVersion") or "").strip()
+    if not base_version:
+        return ""
+    return f"{base_version}-{normalized_tier}-u{CATALOG_ASSET_URL_SCHEMA_VERSION}"
+
+
 def catalog_asset_url(config: SeoConfig, relative_path: str, version: str = "") -> str:
     raw = str(relative_path or "").strip()
     if raw.startswith(("https://", "http://")):
@@ -324,7 +337,7 @@ def catalog_cover_url(config: SeoConfig, catalog: Mapping[str, Any]) -> str:
         catalog_id = str(catalog.get("id", "")).strip()
         extension = str(catalog.get("imageExt", "webp")).strip().lstrip(".") or "webp"
         relative = f"assets/pages/{catalog_id}/page-001.{extension}"
-    return catalog_asset_url(config, relative, str(catalog.get("assetVersion", "")))
+    return catalog_asset_url(config, relative, catalog_asset_version_for_tier(catalog, "full"))
 
 
 def catalog_page_image_url(config: SeoConfig, catalog: Mapping[str, Any], page: int, *, thumb: bool = False) -> str:
@@ -333,7 +346,11 @@ def catalog_page_image_url(config: SeoConfig, catalog: Mapping[str, Any], page: 
     extension = str(catalog.get("imageExt", "webp")).strip().lstrip(".") or "webp"
     segment = "thumbs/" if thumb else ""
     relative = f"{directory}/{segment}page-{safe_page:03d}.{extension}"
-    return catalog_asset_url(config, relative, str(catalog.get("assetVersion", "")))
+    return catalog_asset_url(
+        config,
+        relative,
+        catalog_asset_version_for_tier(catalog, "thumb" if thumb else "full"),
+    )
 
 
 def catalog_page_dimensions(catalog: Mapping[str, Any], page: int) -> tuple[int, int]:

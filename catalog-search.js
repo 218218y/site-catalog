@@ -51,18 +51,27 @@
     return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
   }
 
-  function withAssetVersion(url, catalog) {
-    const version = String(catalog?.assetVersion || "").trim();
+  const ASSET_URL_SCHEMA_VERSION = 2;
+
+  function assetVersionForTier(catalog, tier) {
+    const variantVersion = String(catalog?.imageVariants?.[tier]?.version || "").trim();
+    const baseVersion = variantVersion || String(catalog?.assetVersion || "").trim();
+    if (!baseVersion) return "";
+    return `${baseVersion}-${tier}-u${ASSET_URL_SCHEMA_VERSION}`;
+  }
+
+  function withAssetVersion(url, catalog, tier) {
+    const version = assetVersionForTier(catalog, tier);
     if (!version) return url;
     return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
   }
 
   function pageSrc(catalog, page) {
-    return withAssetVersion(`${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+    return withAssetVersion(`${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`, catalog, "full");
   }
 
   function thumbSrc(catalog, page) {
-    return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+    return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog, "thumb");
   }
 
   function normalize(value) {

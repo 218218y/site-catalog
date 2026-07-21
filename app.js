@@ -328,6 +328,8 @@ const VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
 const CATALOG_EAGER_COVER_COUNT = 2;
 const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
+const CATALOG_ASSET_VERSION_PARAM = "v";
+const CATALOG_ASSET_URL_SCHEMA_VERSION = 2;
 
 const boundEventFeatures = new Set();
 
@@ -1288,6 +1290,19 @@ function normalizeCatalogImageUrl(url) {
   }
 }
 
+function unversionedCatalogImageUrl(url) {
+  const value = normalizeCatalogImageUrl(url);
+  if (!value) return "";
+  try {
+    const parsed = new URL(value, window.location.href);
+    parsed.searchParams.delete(CATALOG_ASSET_VERSION_PARAM);
+    return parsed.href;
+  } catch {
+    return value.replace(new RegExp(`([?&])${CATALOG_ASSET_VERSION_PARAM}=[^&#]*&?`, "g"), "$1")
+      .replace(/[?&]$/, "");
+  }
+}
+
 function cacheBustedCatalogImageUrl(url) {
   const value = normalizeCatalogImageUrl(url);
   if (!value) return "";
@@ -1316,6 +1331,10 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
     options.forceRefresh ? "manual" : "primary",
     primaryTier
   );
+  const unversionedPrimary = unversionedCatalogImageUrl(primary);
+  if (unversionedPrimary && unversionedPrimary !== primary) {
+    push(cacheBustedCatalogImageUrl(unversionedPrimary), "origin", primaryTier);
+  }
   push(cacheBustedCatalogImageUrl(primary), "retry", primaryTier);
   if (fallback && fallback !== primary) push(fallback, "fallback", String(options.fallbackTier || ""));
   (Array.isArray(options.fallbackCandidates) ? options.fallbackCandidates : []).forEach((candidate, index) => {
@@ -1708,18 +1727,34 @@ function catalogDir(catalog) {
   return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
 }
 
-function withAssetVersion(url, catalog) {
-  const version = String(catalog?.assetVersion || "").trim();
+function catalogAssetVersionForTier(catalog, tier) {
+  const normalizedTier = String(tier || CATALOG_IMAGE_TIER_FULL);
+  const variantVersion = String(catalog?.imageVariants?.[normalizedTier]?.version || "").trim();
+  const baseVersion = variantVersion || String(catalog?.assetVersion || "").trim();
+  if (!baseVersion) return "";
+  return `${baseVersion}-${normalizedTier}-u${CATALOG_ASSET_URL_SCHEMA_VERSION}`;
+}
+
+function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
+  const version = catalogAssetVersionForTier(catalog, tier);
   if (!version) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+  return `${url}${url.includes("?") ? "&" : "?"}${CATALOG_ASSET_VERSION_PARAM}=${encodeURIComponent(version)}`;
 }
 
 function pageSrc(catalog, page) {
-  return withAssetVersion(`${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+  return withAssetVersion(
+    `${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`,
+    catalog,
+    CATALOG_IMAGE_TIER_FULL
+  );
 }
 
 function thumbSrc(catalog, page) {
-  return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+  return withAssetVersion(
+    `${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`,
+    catalog,
+    CATALOG_IMAGE_TIER_THUMB
+  );
 }
 
 function catalogImageVariant(catalog, tier) {
@@ -1749,7 +1784,11 @@ function mediumSrc(catalog, page) {
   const variant = catalogImageVariant(catalog, CATALOG_IMAGE_TIER_MEDIUM);
   if (!variant) return "";
   const directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
-  return withAssetVersion(`${catalogDir(catalog)}/${directory}/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+  return withAssetVersion(
+    `${catalogDir(catalog)}/${directory}/page-${pad(page)}.${imageExt(catalog)}`,
+    catalog,
+    CATALOG_IMAGE_TIER_MEDIUM
+  );
 }
 
 function catalogPageImageSrc(catalog, page, tier) {

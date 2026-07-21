@@ -16,7 +16,7 @@ echo Existing converted catalogs are skipped only when the source PDF and settin
 echo Catalogs removed from catalogs.config.json were removed from assets\pages and the generated search index.
 echo Catalogs whose source PDF is missing were removed from catalogs.config.json, assets\pages and the generated search index.
 echo To rebuild every remaining PDF, run .011-convert-catalogs-force.bat
-echo Run .01-bundle-site-r2.bat to update the site, then .05-start-server.bat to preview it
+echo Next run .07-sync-r2-images.bat. Only after the R2 sync succeeds, run .01-bundle-site-r2.bat
 echo.
 pause
 exit /b 0

@@ -30,24 +30,31 @@ const normalizeCatalogImageUrl = new Function(
   `${normalizeSource}; return normalizeCatalogImageUrl;`
 )(fakeWindow, CATALOG_IMAGE_RETRY_PARAM);
 const cacheBustedCatalogImageUrl = new Function(
-  'window', 'CATALOG_IMAGE_RETRY_PARAM',
+  'window', 'CATALOG_IMAGE_RETRY_PARAM', 'CATALOG_ASSET_VERSION_PARAM',
   `${normalizeSource}; return cacheBustedCatalogImageUrl;`
-)(fakeWindow, CATALOG_IMAGE_RETRY_PARAM);
+)(fakeWindow, CATALOG_IMAGE_RETRY_PARAM, 'v');
+const unversionedCatalogImageUrl = new Function(
+  'window', 'CATALOG_IMAGE_RETRY_PARAM', 'CATALOG_ASSET_VERSION_PARAM',
+  `${normalizeSource}; return unversionedCatalogImageUrl;`
+)(fakeWindow, CATALOG_IMAGE_RETRY_PARAM, 'v');
 const catalogImageRecoveryCandidates = new Function(
-  'normalizeCatalogImageUrl', 'cacheBustedCatalogImageUrl',
+  'normalizeCatalogImageUrl', 'cacheBustedCatalogImageUrl', 'unversionedCatalogImageUrl',
   `${candidatesSource}; return catalogImageRecoveryCandidates;`
-)(normalizeCatalogImageUrl, cacheBustedCatalogImageUrl);
+)(normalizeCatalogImageUrl, cacheBustedCatalogImageUrl, unversionedCatalogImageUrl);
 
 const candidates = catalogImageRecoveryCandidates(
-  'https://cdn.example.test/full.webp',
+  'https://cdn.example.test/full.webp?v=release-full-u2',
   'https://cdn.example.test/thumb.webp'
 );
-assert.equal(candidates.length, 3);
+assert.equal(candidates.length, 4);
 assert.equal(candidates[0].role, 'primary');
-assert.equal(candidates[1].role, 'retry');
+assert.equal(candidates[1].role, 'origin');
+assert.doesNotMatch(candidates[1].src, /[?&]v=/);
 assert.match(candidates[1].src, /bargig_retry=/);
-assert.equal(candidates[2].role, 'fallback');
-assert.equal(candidates[2].fallback, true);
+assert.equal(candidates[2].role, 'retry');
+assert.match(candidates[2].src, /bargig_retry=/);
+assert.equal(candidates[3].role, 'fallback');
+assert.equal(candidates[3].fallback, true);
 
 const tiered = catalogImageRecoveryCandidates(
   'https://cdn.example.test/medium.webp',

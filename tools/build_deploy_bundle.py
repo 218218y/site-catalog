@@ -49,7 +49,11 @@ from build_site_pages import (
 )
 from seo_route_lock import assert_route_lock_current
 from seo_site import build_taxonomy_asset
-from verify_remote_catalog_assets import load_catalogs as load_remote_catalogs, verify_remote_assets
+from verify_remote_catalog_assets import (
+    check_asset_via_range_get,
+    load_catalogs as load_remote_catalogs,
+    verify_remote_assets,
+)
 
 BIG_PAGES_VIEWER_FILE = "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
 
@@ -1138,7 +1142,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--verify-remote-assets",
         action="store_true",
-        help="Fail the bundle when any required catalog page/thumbnail is missing from the public R2/CDN URL.",
+        help="Fail the bundle when any exact versioned catalog image URL is unavailable through the public R2/CDN.",
     )
     parser.add_argument(
         "--include-big-pages-viewer",
@@ -1310,16 +1314,21 @@ def main() -> int:
             print(f"[warn] {warning}", file=sys.stderr)
 
         if args.verify_remote_assets:
-            print("[publish-gate] Verifying every catalog page and thumbnail on the public R2/CDN...")
+            print("[publish-gate] Verifying every exact versioned catalog image URL on the public R2/CDN...")
             remote_catalogs = load_remote_catalogs(root / "catalogs.generated.json")
-            total_assets, remote_failures = verify_remote_assets(remote_catalogs, args.external_assets_url)
+            total_assets, remote_failures = verify_remote_assets(
+                remote_catalogs,
+                args.external_assets_url,
+                checker=check_asset_via_range_get,
+                versioned=True,
+            )
             if remote_failures:
                 sample = "; ".join(f"{item.url}: {item.reason}" for item in remote_failures[:12])
                 extra = f"; and {len(remote_failures) - 12} more" if len(remote_failures) > 12 else ""
                 raise RuntimeError(
                     f"Remote asset publication gate failed for {len(remote_failures)} of {total_assets} objects: {sample}{extra}"
                 )
-            print(f"[publish-gate] Passed: {total_assets} required page/thumbnail objects are available.")
+            print(f"[publish-gate] Passed: {total_assets} exact versioned image URLs are available.")
 
         replace_output_dir(staging_dir, out_dir)
         state = write_artifact_state(root, out_dir, inputs=inputs, options=options)

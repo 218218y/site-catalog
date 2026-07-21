@@ -39,6 +39,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from r2_catalog_sync_state import write_sync_state
+
 DEFAULT_BUCKET = "bargig-catalog"
 DEFAULT_PREFIX = "assets/pages"
 DEFAULT_PUBLIC_URL = "https://cdn.bargig-furniture.com"
@@ -541,7 +543,14 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         apply_plan(client, plan, cache_control=args.cache_control, delete_batch_size=max(1, args.delete_batch_size))
+        sync_state_path = write_sync_state(
+            root=root,
+            bucket=bucket,
+            prefix=key_prefix,
+            public_url=public_base_url,
+        )
         print("\nDone. R2 bucket now matches the local assets/pages folder under the selected prefix.")
+        print(f"Recorded synced catalog release: {rel_to_root(sync_state_path)}")
         return 0
     except Exception as exc:
         print(f"\nERROR: {exc}", file=sys.stderr)

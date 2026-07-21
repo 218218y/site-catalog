@@ -3708,6 +3708,8 @@
     const IMAGES_PER_VIEW = 50;
     const AUTO_SCROLL_CHUNK_DURATION_MS = 4 * 60 * 1000;
     const AUTO_SCROLL_HEARTBEAT_MS = 1000;
+    const INSPECTION_SESSION_PARAM = "viewer_session";
+    const INSPECTION_SESSION_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const IMAGE_TIERS = Object.freeze({
       thumb: Object.freeze({ key: "thumb", label: "קטנות", directory: "thumbs", maxSide: 420 }),
       medium: Object.freeze({ key: "medium", label: "בינוניות", directory: "medium", maxSide: 1600 }),
@@ -3755,19 +3757,28 @@
       }
     }
 
-    function withAssetVersion(url, catalog) {
-      const version = String(catalog.assetVersion || "").trim();
-      if (!version) return url;
-      return url + (url.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(version);
+    function withInspectionSession(url) {
+      try {
+        const parsed = new URL(url, BASE_URL);
+        parsed.searchParams.set(INSPECTION_SESSION_PARAM, INSPECTION_SESSION_ID);
+        return parsed.href;
+      } catch {
+        return url + (url.includes("?") ? "&" : "?")
+          + INSPECTION_SESSION_PARAM + "=" + encodeURIComponent(INSPECTION_SESSION_ID);
+      }
     }
 
-    function imageUrl(catalog, page, tier) {
+    function imageOriginUrl(catalog, page, tier) {
       const dir = cleanPath(catalog.dir || ("assets/pages/" + catalog.id));
       const ext = cleanPath(catalog.imageExt || "webp") || "webp";
       const variant = catalogVariant(catalog, tier);
       const variantPath = variant.directory ? "/" + variant.directory : "";
       const relative = dir + variantPath + "/page-" + pad(page) + "." + ext;
-      return withAssetVersion(resolveCatalogAssetUrl(relative), catalog);
+      return resolveCatalogAssetUrl(relative);
+    }
+
+    function imageUrl(catalog, page, tier) {
+      return withInspectionSession(imageOriginUrl(catalog, page, tier));
     }
 
     function imageDimensions(catalog, page, tier) {
@@ -3850,7 +3861,8 @@
       return {
         ...item,
         ...dimensions,
-        url: imageUrl(item.catalog, item.page, currentTier)
+        url: imageUrl(item.catalog, item.page, currentTier),
+        originUrl: imageOriginUrl(item.catalog, item.page, currentTier)
       };
     }
 
@@ -4131,9 +4143,16 @@
       img.decoding = "async";
       if (item.width) img.width = item.width;
       if (item.height) img.height = item.height;
+      let attemptedOriginFallback = false;
       img.addEventListener("error", () => {
+        if (!attemptedOriginFallback && item.originUrl && item.originUrl !== img.src) {
+          attemptedOriginFallback = true;
+          link.href = item.originUrl;
+          img.src = item.originUrl;
+          return;
+        }
         img.removeAttribute("src");
-        img.alt = "לא הצלחתי לטעון את התמונה: " + item.url;
+        img.alt = "לא הצלחתי לטעון את התמונה: " + item.originUrl;
         img.style.minHeight = "220px";
         img.style.padding = "28px";
         img.style.objectFit = "contain";

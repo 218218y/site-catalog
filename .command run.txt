@@ -42,8 +42,8 @@ npm run verify:r2
 7. מעלים ל-Cloudflare Pages את הבאנדל:
 .02-bundle-site-r2-upload cloudflare.bat
 
-`.01-bundle-site-r2.bat` בונה רק כאשר חתימת המקורות השתנתה. הבנייה מתבצעת בתיקיית ביניים נקייה, מאמתת את כל נכסי ה-hash, מעדכנת מאותו תוצר את `dist/site-upload-r2` ואת `dist/site-local`, ואז מנקה cache/bytecode מקומי.
-`.02-bundle-site-r2-upload cloudflare.bat` אינו בונה מחדש: הוא מאמת שהתוצר הקיים עדיין תואם למקורות ואז מפעיל את Wrangler המקומי והנעול מתוך `node_modules`. אין בדיקת רשת אוטומטית לאחר ההעלאה.
+`.01-bundle-site-r2.bat` בונה רק כאשר חתימת המקורות השתנתה, ורק לאחר שמצב הסנכרון המקומי מוכיח שמהדורת התמונות הנוכחית הושלמה ב־R2. הבנייה מתבצעת בתיקיית ביניים נקייה, מאמתת את כל נכסי ה-hash, מעדכנת מאותו תוצר את `dist/site-upload-r2` ואת `dist/site-local`, ואז מנקה cache/bytecode מקומי.
+`.02-bundle-site-r2-upload cloudflare.bat` אינו בונה מחדש: הוא מאמת את מצב הסנכרון, בודק דרך ה־CDN את כל כתובות התמונות עם פרמטרי הגרסה המדויקים, מאמת שהתוצר הקיים עדיין תואם למקורות ואז מפעיל את Wrangler המקומי והנעול מתוך `node_modules`. אין בדיקת HTML אוטומטית לאחר ההעלאה.
 
 הפקודה המקבילה עבור production משתמשת ב-Wrangler המקומי:
 node_modules\.bin\wrangler.cmd pages deploy "dist\site-upload-r2" --project-name bargig-catlog
@@ -112,12 +112,14 @@ rclone delete "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" -P
 
 זרימת עבודה נוכחית
 -------------------
-1. אחרי שינוי באתר או בקטלוגים: .01-bundle-site-r2.bat
-   הפקודה בונה רק אם נדרש ומעדכנת גם dist\site-upload-r2 וגם dist\site-local.
-2. צפייה מקומית: .05-start-server.bat
+1. אחרי המרה או שינוי תמונות: .07-sync-r2-images.bat
+   הסנכרון מעלה את הקבצים ורושם מקומית איזו מהדורת תמונות הושלמה.
+2. בנייה: .01-bundle-site-r2.bat
+   הפקודה מסרבת לבנות אם המטא־דאטה השתנה מאז הסנכרון, ואז מעדכנת את dist\site-upload-r2 ואת dist\site-local.
+3. צפייה מקומית: .05-start-server.bat
    הפקודה רק מפעילה שרת על dist\site-local ואינה בונה או פותחת לוח שליטה.
-3. העלאה: .02-bundle-site-r2-upload cloudflare.bat
-   הפקודה מאמתת את הבאנדל הקיים ומעלה אותו בלי לבנות מחדש.
+4. העלאה: .02-bundle-site-r2-upload cloudflare.bat
+   הפקודה בודקת את כתובות התמונות המגרוסות המדויקות, מאמתת את הבאנדל ומעלה אותו בלי לבנות מחדש.
 
 
 אם נעשה הוספת קטגוריה חדשה או תת קטגוריה חדשה לא מתעדכן אוטומטי לגמרי

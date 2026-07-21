@@ -19,3 +19,6 @@ __pycache__/
 *.pyc
 *.pyo
 reports/telemetry/
+
+# Local publication gate written after a successful R2 image sync
+.r2-catalog-sync-state.json
