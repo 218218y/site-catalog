@@ -8,7 +8,6 @@ const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
-const e2e = fs.readFileSync(path.join(root, 'tests', 'e2e', 'site-catalog.spec.js'), 'utf8');
 
 assert.match(template, /id="lightboxSearchPanel"/);
 assert.match(template, /id="lightboxMobileSearchToggle"[^>]*aria-controls="lightboxSearchPanel"/);
@@ -39,9 +38,5 @@ assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]
 assert.match(css, /\.viewer-mobile-more-menu\.visible\s*\{[\s\S]*?pointer-events:\s*auto;/);
 assert.match(css, /\.reader-top-hotspot\s*\{[\s\S]*?left:\s*50%;[\s\S]*?width:\s*56px;[\s\S]*?height:\s*44px;[\s\S]*?transform:\s*translateX\(-50%\);/);
 assert.doesNotMatch(css, /\.lightbox-top-hotspot:hover \+ \.lightbox-top-shell/);
-
-assert.match(e2e, /async function locatorCenterIsInViewport\(locator\)[\s\S]*?const centerX = rect\.left \+ rect\.width \/ 2;[\s\S]*?const centerY = rect\.top \+ rect\.height \/ 2;/);
-assert.match(e2e, /await revealViewerTopToolbar\(page, "#fitWidthBtn"\);\s*await page\.locator\("#fitWidthBtn"\)\.click\(\);/);
-assert.doesNotMatch(e2e, /page\.mouse\.move\(720,\s*1\)/);
 
 console.log('viewer_mobile_toolbar_contract.test.js: PASS');

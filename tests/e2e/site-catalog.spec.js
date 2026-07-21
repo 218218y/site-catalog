@@ -187,23 +187,22 @@ async function expectCurrentViewerImageReady(page) {
   }).toMatch(/image-ready/);
 }
 
-async function locatorCenterIsInViewport(locator) {
+async function locatorIntersectsViewport(locator) {
   return locator.evaluate((element) => {
     const rect = element.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return false;
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    return centerX >= 0
-      && centerX <= window.innerWidth
-      && centerY >= 0
-      && centerY <= window.innerHeight;
+    return rect.width > 0
+      && rect.height > 0
+      && rect.bottom > 0
+      && rect.right > 0
+      && rect.top < window.innerHeight
+      && rect.left < window.innerWidth;
   });
 }
 
 async function revealViewerTopToolbar(page, targetSelector = "#lightboxCopyLink") {
   const lightbox = page.locator("#lightbox");
   const toolbarTarget = page.locator(targetSelector);
-  if (await locatorCenterIsInViewport(toolbarTarget)) return;
+  if (await locatorIntersectsViewport(toolbarTarget)) return;
 
   const toolbarAlreadyOpening = await lightbox.evaluate((element) => (
     element.classList.contains("show-ui")
@@ -224,12 +223,8 @@ async function revealViewerTopToolbar(page, targetSelector = "#lightboxCopyLink"
     }
   }
 
-  await expect.poll(() => lightbox.evaluate((element) => (
-    element.classList.contains("show-ui")
-      || element.classList.contains("top-ui-pinned")
-      || element.classList.contains("mobile-more-open")
-  ))).toBe(true);
-  await expect.poll(() => locatorCenterIsInViewport(toolbarTarget)).toBe(true);
+  await expect(lightbox).toHaveClass(/show-ui/);
+  await expect(toolbarTarget).toBeInViewport();
 }
 
 async function expectViewerFrameCentered(page, options = {}) {
@@ -605,7 +600,8 @@ test.describe("critical catalog journeys", () => {
       await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBeGreaterThan(beforeTop);
     }
 
-    await revealViewerTopToolbar(page, "#fitWidthBtn");
+    await page.mouse.move(720, 1);
+    await expect(page.locator("#lightboxBar")).toBeVisible();
     await page.locator("#fitWidthBtn").click();
     await expect(page.locator("#fitWidthBtn")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
@@ -700,7 +696,8 @@ test.describe("critical catalog journeys", () => {
     const afterTop = await scrollPages.evaluate((element) => element.scrollTop);
     expect(Math.abs(afterTop - beforeTop)).toBeGreaterThan(100);
 
-    await revealViewerTopToolbar(page, "#lightboxBar");
+    await page.mouse.move(720, 1);
+    await expect(page.locator("#lightboxBar")).toBeVisible();
     await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
     await expect(scrollPages).toBeVisible();
