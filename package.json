@@ -20,6 +20,8 @@
     "verify:seo:public:rebuild": "python tools/run_with_project_python.py tools/verify_public_seo.py --out dist/site-public-preview --force-rebuild --clean-legacy-artifacts",
     "verify:seo:live": "python tools/run_with_project_python.py tools/audit_public_seo.py --live",
     "check:pages": "python tools/build_site_pages.py --check",
+    "build:big-pages-viewer": "python tools/build_big_pages_viewer.py",
+    "check:big-pages-viewer": "python tools/build_big_pages_viewer.py --check",
     "build:deploy": "python tools/build_deploy_bundle.py --out dist/site-upload-r2 --seo-mode private --skip-if-current --mirror-to dist/site-local --clean-legacy-artifacts",
     "build:deploy:private": "python tools/build_deploy_bundle.py --out dist/site-upload-r2 --seo-mode private --skip-if-current --mirror-to dist/site-local --clean-legacy-artifacts",
     "build:deploy:public": "python tools/run_with_project_python.py tools/verify_public_seo.py --out dist/site-public-preview --mirror-to dist/site-upload-r2 --mirror-to dist/site-local --clean-legacy-artifacts",

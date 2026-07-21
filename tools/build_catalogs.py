@@ -1237,6 +1237,14 @@ def write_generated_files(entries: list[dict[str, Any]], search_entries: list[di
         encoding="utf-8",
     )
 
+    standalone_viewer = root / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
+    if standalone_viewer.is_file():
+        try:
+            from tools.build_big_pages_viewer import build_big_pages_viewer
+        except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
+            from build_big_pages_viewer import build_big_pages_viewer
+        build_big_pages_viewer(root)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert local PDF catalogs into high-quality website page images.")
@@ -1423,6 +1431,8 @@ def main() -> int:
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
+        if (project_root() / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html").is_file():
+            print("Generated: catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html")
         print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings can refresh the search index without re-rendering images. Use --force to rebuild all catalogs.")
         if removed_missing_pdf_ids:
             print(f"Removed from config because their source PDF was missing: {', '.join(removed_missing_pdf_ids)}")
