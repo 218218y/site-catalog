@@ -403,6 +403,12 @@ def default_site_shell_replacements(
     return {
         "{{PAGE_MODE}}": page.mode,
         "{{BODY_DATA_ATTRIBUTES}}": "",
+        "{{BRAND_HEADING_OPEN}}": (
+            '<h1 class="brand-text brand-page-heading">'
+            if page.mode == "home"
+            else '<span class="brand-text">'
+        ),
+        "{{BRAND_HEADING_CLOSE}}": "</h1>" if page.mode == "home" else "</span>",
         "{{SITE_FOOTER}}": site_footer,
         "{{INITIAL_CATEGORY_NAV}}": static_home_navigation(
             taxonomy, catalogs
@@ -416,6 +422,7 @@ def default_site_shell_replacements(
             catalogs, taxonomy, config
         ) if home_ready else "",
         "{{CATALOG_DETAIL_EXTRA_CLASS}}": "" if page.mode == "catalog" else " hidden",
+        "{{CATALOG_DETAIL_HEADING_TAG}}": "h2",
         "{{CATALOG_DETAIL_TITLE}}": "קטלוג",
         "{{CATALOG_DETAIL_DESCRIPTION}}": "בחרו קטלוג לצפייה בעמודים.",
         "{{CATALOG_MENU_LABEL}}": "בחירת קטלוג",
@@ -702,6 +709,7 @@ def render_catalog_route(
             "{{CATALOGS_SECTION_EXTRA_CLASS}}": " hidden",
             "{{CATALOG_GRID_BUSY}}": "false",
             "{{CATALOG_DETAIL_EXTRA_CLASS}}": "",
+            "{{CATALOG_DETAIL_HEADING_TAG}}": "h1",
             "{{CATALOG_DETAIL_TITLE}}": html.escape(title_text),
             "{{CATALOG_DETAIL_DESCRIPTION}}": html.escape(description_text),
             "{{CATALOG_MENU_LABEL}}": html.escape(title_text),

@@ -47,6 +47,7 @@ from build_site_pages import (
     render_site_pages,
     rewrite_html_asset_references,
 )
+from seo_route_lock import assert_route_lock_current
 from seo_site import build_taxonomy_asset
 from verify_remote_catalog_assets import load_catalogs as load_remote_catalogs, verify_remote_assets
 
@@ -135,6 +136,7 @@ BUILD_INPUT_FILES = (
     "legal.template.html",
     "seo-page.template.html",
     "seo.config.json",
+    "seo-routes.lock.json",
     "catalog-taxonomy.config.json",
     "catalogs.generated.json",
     "catalogs.generated.js",
@@ -157,6 +159,7 @@ BUILD_TOOL_FILES = (
     "tools/build_site_pages.py",
     "tools/build_frontend_assets.py",
     "tools/seo_site.py",
+    "tools/seo_route_lock.py",
     "tools/footer_content.py",
 )
 
@@ -1165,6 +1168,9 @@ def main() -> int:
     if any(path == out_dir for path in mirror_dirs):
         print("\nERROR: --mirror-to must point to a different output folder.", file=sys.stderr)
         return 1
+
+    if args.seo_mode == "public":
+        assert_route_lock_current(root)
 
     options = build_options_payload(
         external_assets_url=args.external_assets_url,

@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import html
 import json
+import mimetypes
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from xml.etree import ElementTree as ET
 
 SEO_CONFIG_FILE = "seo.config.json"
@@ -365,6 +366,7 @@ def _json_ld_script(payload: Mapping[str, Any]) -> str:
 
 
 def social_metadata(page: SeoPage, config: SeoConfig) -> str:
+    image_type = mimetypes.guess_type(urlparse(page.image_url).path)[0] or "image/jpeg"
     values = {
         "title": html.escape(page.title, quote=True),
         "description": html.escape(page.description, quote=True),
@@ -385,6 +387,7 @@ def social_metadata(page: SeoPage, config: SeoConfig) -> str:
             f'<meta property="og:url" content="{values["url"]}" />',
             f'<meta property="og:image" content="{values["image"]}" />',
             f'<meta property="og:image:secure_url" content="{values["image"]}" />',
+            f'<meta property="og:image:type" content="{html.escape(image_type, quote=True)}" />',
             f'<meta property="og:image:width" content="{max(1, int(page.image_width))}" />',
             f'<meta property="og:image:height" content="{max(1, int(page.image_height))}" />',
             f'<meta property="og:image:alt" content="{values["image_alt"]}" />',
@@ -469,6 +472,7 @@ def local_business_json_ld(
         "description": description,
         "email": footer.get("email", ""),
         "telephone": telephone,
+        "taxID": str(footer.get("registrationNumber", "")).strip(),
         "address": {
             "@type": "PostalAddress",
             "streetAddress": str(business.get("streetAddress", "")).strip(),

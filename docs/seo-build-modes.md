@@ -138,3 +138,23 @@ npm run build:local
 מחייבת פעם אחת להוסיף לה slug ותיאור ב־`catalog-taxonomy.config.json`; הבנייה
 נכשלת במפורש אם הנתונים האלה חסרים, במקום להמציא אותם. קטגוריה קיימת שאין בה
 עוד קטלוגים מושמטת אוטומטית מהניווט ומהעמודים המחוללים.
+
+## שערי איכות לפני public
+
+הכתובות הציבוריות נעולות ב־`seo-routes.lock.json`. בניית public נכשלת אם מזהה
+קטלוג או slug השתנה ללא עדכון מפורש של הנעילה.
+
+בדיקת release מלאה, בלי פריסה:
+
+```bat
+npm run verify:seo:public
+```
+
+בדיקה חיצונית של metadata ותמונות שיתוף לאחר העלאה:
+
+```bat
+npm run verify:seo:live -- --expected-mode private
+npm run verify:seo:live -- --expected-mode public
+```
+
+הוראות ההשקה המלאות נמצאות ב־`docs/public-search-release.md`.

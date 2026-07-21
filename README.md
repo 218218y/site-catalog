@@ -72,7 +72,16 @@ python tools\build_frontend_assets.py --check
 מייצרת מחדש אוטומטית את עמודי הקטלוג, עמודי השיתוף, עמודי הקטגוריות וה־sitemap.
 תוצר קודם נמחק באופן מלא, ולכן כתובת של קטלוג שנמחק או שונה אינה נשארת בטעות.
 
-קטלוג חדש שמשויך לקטגוריה קיימת אינו דורש עבודת SEO נוספת. כאשר מזינים בלוח
+קטלוג חדש שמשויך לקטגוריה קיימת נבנה אוטומטית, אך לפני הפצה ציבורית יש
+לעדכן במפורש את `seo-routes.lock.json`. הנעילה מונעת שינוי שקט של `id` או slug
+שכבר הפכו לכתובת ציבורית. בדיקה ועדכון מכוון:
+
+```bat
+npm run check:seo-routes
+npm run seo:routes:update -- --confirm-route-lock-update
+```
+
+כאשר מזינים בלוח
 השליטה קטגוריה או תת־קטגוריה חדשה, היא מתווספת אוטומטית לעורך הטקסונומיה.
 השם נלקח מהקטלוג, ואילו slug ותיאור נשארים מסומנים כחסרים עד להשלמתם.
 המערכת אינה מנחשת טקסט שיווקי או כתובת. כל עוד חסרים שדות, יצירת באנדל
@@ -570,6 +579,25 @@ python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furni
 ## CI ובדיקות דפדפן
 
 הקובץ `.github/workflows/ci.yml` מריץ ב־GitHub Actions את מסלול האימות המלא בכל push ובכל pull request: התקנת Node ו־Python, התקנת Chromium עם תלויות מערכת, בדיקות חוזה, כל בדיקות Python, מסעות Playwright ובניית באנדל נקי. בדיקות Playwright אינן דורשות את תמונות הקטלוגים ב־GitHub: הן מיירטות בקשות אל `assets/pages` ומחזירות תמונות SVG סינתטיות, כולל תרחישי כשל יזומים. במקרה כשל נשמרים דוח, trace וצילומי מסך כ־artifact למשך 14 יום.
+
+## בדיקת release ציבורי בלי לפרסם
+
+```bat
+npm run verify:seo:public
+```
+
+הפקודה בונה באנדל public מוגן תחת `.artifacts/public-seo-preview`, בודקת נעילת
+כתובות, קישורים פנימיים, canonical, H1, Open Graph, Twitter Card, JSON-LD,
+robots.txt ו־sitemap. ה־CI מריץ אותה ומעלה artifact לצפייה, אך אינו מפרסם אותו.
+
+בדיקה חיצונית לאחר deployment:
+
+```bat
+npm run verify:seo:live -- --expected-mode private
+npm run verify:seo:live -- --expected-mode public
+```
+
+הוראות מלאות: `docs/public-search-release.md`.
 
 ## הכנה עתידית לחיפוש Google ושיתוף עשיר
 

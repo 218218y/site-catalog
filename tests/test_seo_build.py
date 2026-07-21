@@ -113,6 +113,7 @@ def test_catalog_and_exact_page_routes_have_server_rendered_unique_metadata(
     assert "ארונות פתיחה פרדי 2026 — עמוד 43 | רהיטי ברגיג" in page_html
     assert '<link rel="canonical" href="https://bargig-furniture.com/catalog/opening-fredi-2026/page/43/"' in page_html
     assert 'property="og:image" content="https://cdn.bargig-furniture.com/' in page_html
+    assert 'property="og:image:type" content="image/webp"' in page_html
     assert "page-043.webp" in page_html
     assert 'content="noindex, nofollow, noimageindex, nosnippet, noarchive"' in page_html
 
@@ -154,6 +155,22 @@ def test_public_build_indexes_stable_pages_but_not_exact_share_pages(
     assert "X-Robots-Tag: noindex" not in read(public / "_headers")
 
 
+def test_indexable_pages_have_one_semantic_h1_without_adding_a_home_hero(
+    seo_outputs: tuple[Path, Path],
+) -> None:
+    private, _public = seo_outputs
+    home = read(private / "index.html")
+    catalog = read(private / "catalog" / "opening-fredi-2026" / "index.html")
+
+    assert home.count("<h1") == 1
+    assert '<h1 class="brand-text brand-page-heading">' in home
+    assert "רהיטי ברגיג" in home and "גלריית קטלוגים" in home
+    assert "seo-landing-hero" not in home
+
+    assert catalog.count("<h1") == 1
+    assert '<h1 id="catalogDetailTitle">ארונות פתיחה פרדי 2026</h1>' in catalog
+
+
 def test_home_structured_data_uses_real_business_details(seo_outputs: tuple[Path, Path]) -> None:
     private, _public = seo_outputs
     html = read(private / "index.html")
@@ -163,7 +180,7 @@ def test_home_structured_data_uses_real_business_details(seo_outputs: tuple[Path
     assert '"addressLocality":"בני ברק"' in html
     assert '"logo":"https://bargig-furniture.com/brand-logo.svg"' in html
     assert '"value":"בתיאום מראש בלבד"' in html
-    assert '"taxID"' not in html
+    assert '"taxID":"301276861"' in html
 
 
 def test_all_generated_catalog_titles_and_canonicals_are_unique(

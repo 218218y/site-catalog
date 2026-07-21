@@ -30,10 +30,10 @@
         <span class="brand-mark-frame" aria-hidden="true">
           <img class="brand-mark" src="brand-logo-header.svg" width="786" height="317" data-brand-logo="1" alt="" decoding="async" />
         </span>
-        <span class="brand-text">
+        {{BRAND_HEADING_OPEN}}
           <strong>רהיטי ברגיג</strong>
           <small>גלריית קטלוגים</small>
-        </span>
+        {{BRAND_HEADING_CLOSE}}
       </a>
       <button class="brand-copy-link" id="headerCopyLink" type="button" aria-label="שיתוף העמוד הנוכחי" title="שיתוף">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -108,7 +108,7 @@
               </div>
 
               <div class="catalog-title-block">
-                <h2 id="catalogDetailTitle">{{CATALOG_DETAIL_TITLE}}</h2>
+                <{{CATALOG_DETAIL_HEADING_TAG}} id="catalogDetailTitle">{{CATALOG_DETAIL_TITLE}}</{{CATALOG_DETAIL_HEADING_TAG}}>
                 <p id="catalogDescription" class="catalog-description">{{CATALOG_DETAIL_DESCRIPTION}}</p>
               </div>
             </div>

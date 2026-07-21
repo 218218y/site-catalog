@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "siteUrl": "https://bargig-furniture.com",
+  "catalogs": [
+    {
+      "id": "bedrooms-guber-gallery",
+      "route": "/catalog/bedrooms-guber-gallery/"
+    },
+    {
+      "id": "bedrooms-tbi-2026",
+      "route": "/catalog/bedrooms-tbi-2026/"
+    },
+    {
+      "id": "bedrooms-upholstered-fredi",
+      "route": "/catalog/bedrooms-upholstered-fredi/"
+    },
+    {
+      "id": "beds-birch-2026",
+      "route": "/catalog/beds-birch-2026/"
+    },
+    {
+      "id": "custom-upholstered",
+      "route": "/catalog/custom-upholstered/"
+    },
+    {
+      "id": "hi-riser-comfort-2026",
+      "route": "/catalog/hi-riser-comfort-2026/"
+    },
+    {
+      "id": "hi-riser-perfect-2026",
+      "route": "/catalog/hi-riser-perfect-2026/"
+    },
+    {
+      "id": "hi-riser-qualita-2026",
+      "route": "/catalog/hi-riser-qualita-2026/"
+    },
+    {
+      "id": "kachtan-2026",
+      "route": "/catalog/kachtan-2026/"
+    },
+    {
+      "id": "kids-fredi-2026",
+      "route": "/catalog/kids-fredi-2026/"
+    },
+    {
+      "id": "kids-tbi-2026",
+      "route": "/catalog/kids-tbi-2026/"
+    },
+    {
+      "id": "libraries-fredi-2026",
+      "route": "/catalog/libraries-fredi-2026/"
+    },
+    {
+      "id": "libraries-tbi-2026",
+      "route": "/catalog/libraries-tbi-2026/"
+    },
+    {
+      "id": "opening-fredi-2026",
+      "route": "/catalog/opening-fredi-2026/"
+    },
+    {
+      "id": "opening-tbi-2026",
+      "route": "/catalog/opening-tbi-2026/"
+    },
+    {
+      "id": "sliding-tbi-2026",
+      "route": "/catalog/sliding-tbi-2026/"
+    }
+  ],
+  "categories": [
+    {
+      "name": "חדרי שינה",
+      "slug": "bedrooms",
+      "route": "/category/bedrooms/"
+    },
+    {
+      "name": "חדרי ילדים",
+      "slug": "kids",
+      "route": "/category/kids/"
+    },
+    {
+      "name": "ספריות קודש",
+      "slug": "libraries",
+      "route": "/category/libraries/"
+    },
+    {
+      "name": "ארונות פתיחה",
+      "slug": "opening-wardrobes",
+      "route": "/category/opening-wardrobes/"
+    },
+    {
+      "name": "ארונות הזזה",
+      "slug": "sliding-wardrobes",
+      "route": "/category/sliding-wardrobes/"
+    }
+  ],
+  "subcategories": [
+    {
+      "category": "חדרי ילדים",
+      "name": "היי ריזר",
+      "slug": "hi-riser",
+      "route": "/category/kids/hi-riser/"
+    },
+    {
+      "category": "חדרי ילדים",
+      "name": "חדרי ילדים קומפלט",
+      "slug": "kids-rooms",
+      "route": "/category/kids/kids-rooms/"
+    },
+    {
+      "category": "חדרי ילדים",
+      "name": "מיטות נגר",
+      "slug": "wood-beds",
+      "route": "/category/kids/wood-beds/"
+    },
+    {
+      "category": "חדרי שינה",
+      "name": "חדרי שינה",
+      "slug": "bedroom-sets",
+      "route": "/category/bedrooms/bedroom-sets/"
+    },
+    {
+      "category": "חדרי שינה",
+      "name": "מרופדים עיצוב אישי",
+      "slug": "custom-upholstered",
+      "route": "/category/bedrooms/custom-upholstered/"
+    },
+    {
+      "category": "חדרי שינה",
+      "name": "מרופדים",
+      "slug": "upholstered",
+      "route": "/category/bedrooms/upholstered/"
+    }
+  ]
+}

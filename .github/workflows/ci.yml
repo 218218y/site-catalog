@@ -57,6 +57,17 @@ jobs:
       - name: Verify tests left no source-tree caches
         run: python tools/clean_project_artifacts.py --check
 
+      - name: Build and audit guarded public SEO preview
+        run: npm run verify:seo:public
+
+      - name: Upload public SEO preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-seo-preview
+          if-no-files-found: error
+          retention-days: 7
+          path: .artifacts/public-seo-preview/
+
       - name: Upload Playwright diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4

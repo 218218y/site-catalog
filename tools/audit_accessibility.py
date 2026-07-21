@@ -123,9 +123,16 @@ def audit_file(path: Path) -> list[str]:
                 if reference and reference not in ids:
                     issues.append(f"{reference_attr} references missing #{reference}")
 
-    if path.name in {page.filename for page in PAGE_DOCUMENTS}:
+    page_document = next((page for page in PAGE_DOCUMENTS if page.filename == path.name), None)
+    if page_document is not None:
         if not any(node.tag == "a" and node.attrs.get("href") == "accessibility.html" for node in nodes):
             issues.append("public page footer missing accessibility statement link")
+        if page_document.indexable_public:
+            h1_count = sum(1 for node in nodes if node.tag == "h1")
+            if h1_count != 1:
+                issues.append(
+                    f"indexable public document must contain exactly one h1 (found {h1_count})"
+                )
     return issues
 
 def _hex_luminance(value: str) -> float:
