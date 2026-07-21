@@ -112,8 +112,8 @@ npm run verify
 - הבונה דוחה שמות top-level כפולים בין מודולי JavaScript, משום שכל המקורות חולקים scope פרטי אחד בבאנדל.
 - כל מודול JavaScript חייב לזהות את שם הקובץ שלו בכותרת המקור.
 - `npm test` מריץ בדיקה מהירה ואחידה בכל מערכת הפעלה.
-- `npm run verify` מריץ בנוסף בניית פריסה נקייה ומוחק את ארטיפקט הבדיקה בסיום. `start-server.bat` מגיש את `dist/site-local` הקיים בלבד; מי שרוצה בדיקת עדכניות והצעת rebuild משתמש ב־`check-and-start-server.bat`.
+- `npm run verify` מריץ בנוסף בניית פריסה נקייה ומוחק את ארטיפקט הבדיקה בסיום. `.05-start-server.bat` מגיש את `dist/site-local` הקיים בלבד; מי שרוצה בדיקת עדכניות והצעת rebuild משתמש ב־`.03-check-and-start-server.bat`.
 - סביבת Node משוחזרת באמצעות `package-lock.json`; Wrangler ו־Playwright נעולים כתלויות מקומיות. סביבת Python משתמשת בגרסאות ישירות וטרנזיטיביות נעולות, וה־stamp של `.venv` נפסל גם כאשר גרסה מותקנת סוטה מהנעילה.
-- `npm run clean:artifacts` או `clean-project-artifacts.bat` מסירים רק cache/bytecode מקומי ועותקי תמונת שיתוף ישנים; תיקיות dependencies, build ו־artifacts אינן נסרקות.
+- `npm run clean:artifacts` או `.020-clean-project-artifacts.bat` מסירים רק cache/bytecode מקומי ועותקי תמונת שיתוף ישנים; תיקיות dependencies, build ו־artifacts אינן נסרקות.
 
 הקבצים הישנים `wp_logo_data.js` ו־`brand-logo.js`, וכן `social-share-default(2/3/4).png`, אינם חלק מהפרויקט. בדיקות חוזה וכלי הניקוי מונעים את חזרתם לבאנדל המקור.

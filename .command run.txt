@@ -15,10 +15,10 @@ npm run verify:r2
 נכון לעכשיו האתר מוגדר להיות מוסתר מחיפוש גוגל
 
 התקנה מקומית ראשונה
-setup-windows.bat
+.20-setup-windows.bat
 
 לוח שליטה נוח בדפדפן לכל פעולות הקטלוגים
-catalog-control-panel.bat
+.04-catalog-control-panel.bat
 
 סדר עבודה מומלץ למסלול שרת אתר + Cloudflare R2
 1. אחרי הוספת PDF חדש לתיקיית assets\pdfs מריצים:
@@ -28,56 +28,56 @@ catalog-control-panel.bat
    catalogs.config.json
 
 3. ממירים PDFים חדשים/שהשתנו ומנקים אוטומטית קטלוגים שהוסרו או שחסר להם PDF:
-   convert-catalogs.bat
+   .10-convert-catalogs.bat
 
 4. בודקים מראש מה ישתנה ב-R2 בלי לבצע שינוי אמיתי:
-   sync-r2-images-preview.bat
+   .06-sync-r2-images-preview.bat
 
 5. מסנכרנים תמונות ל-R2 בפועל: מעלה חדשות/שהשתנו ומוחק מה-bucket מה שכבר לא קיים מקומית
-   sync-r2-images.bat
+   .07-sync-r2-images.bat
 
 6. יוצרים תיקיית העלאה לשרת אתר באנדל:
-   bundle-site-r2.bat
+   .01-bundle-site-r2.bat
 
 7. מעלים ל-Cloudflare Pages את הבאנדל:
-bundle-site-r2-upload cloudflare.bat
+.02-bundle-site-r2-upload cloudflare.bat
 
-`bundle-site-r2.bat` בונה רק כאשר חתימת המקורות השתנתה. הבנייה מתבצעת בתיקיית ביניים נקייה, מאמתת את כל נכסי ה-hash, מעדכנת מאותו תוצר את `dist/site-upload-r2` ואת `dist/site-local`, ואז מנקה cache/bytecode מקומי.
-`bundle-site-r2-upload cloudflare.bat` אינו בונה מחדש: הוא מאמת שהתוצר הקיים עדיין תואם למקורות ואז מפעיל את Wrangler המקומי והנעול מתוך `node_modules`. אין בדיקת רשת אוטומטית לאחר ההעלאה.
+`.01-bundle-site-r2.bat` בונה רק כאשר חתימת המקורות השתנתה. הבנייה מתבצעת בתיקיית ביניים נקייה, מאמתת את כל נכסי ה-hash, מעדכנת מאותו תוצר את `dist/site-upload-r2` ואת `dist/site-local`, ואז מנקה cache/bytecode מקומי.
+`.02-bundle-site-r2-upload cloudflare.bat` אינו בונה מחדש: הוא מאמת שהתוצר הקיים עדיין תואם למקורות ואז מפעיל את Wrangler המקומי והנעול מתוך `node_modules`. אין בדיקת רשת אוטומטית לאחר ההעלאה.
 
 הפקודה המקבילה עבור production משתמשת ב-Wrangler המקומי:
 node_modules\.bin\wrangler.cmd pages deploy "dist\site-upload-r2" --project-name bargig-catlog
 
 אין להוסיף --branch להעלאת production. לפריסת preview בלבד משתמשים ב:
-bundle-site-r2-upload cloudflare.bat --preview-branch test-name
+.02-bundle-site-r2-upload cloudflare.bat --preview-branch test-name
 
 
 פקודות שימושיות נוספות
 
 סנכרון תמונות ל-R2 בפועל: מעלה חדשות/שהשתנו ומוחק מה-bucket מה שכבר לא קיים מקומית
-sync-r2-images.bat
+.07-sync-r2-images.bat
 
 סנכרון R2 בלי מחיקות
-sync-r2-images.bat --no-delete
+.07-sync-r2-images.bat --no-delete
 
 
 המרה של כל PDF מחדש בהכרח + ניקוי אוטומטי של קטלוגים שהוסרו מהרשימה או שחסר להם PDF
-convert-catalogs-force.bat
+.011-convert-catalogs-force.bat
 
 רענון מחדש רק של זיהוי OCR/חיפוש
-refresh-ocr-search.bat
+.012-refresh-ocr-search.bat
 
 הרענון משתמש בסינון confidence ושורות לפני כתיבה לאינדקס. ברירות המחדל:
 --ocr-min-confidence 65 --ocr-title-min-confidence 45 --ocr-max-words-per-page 180
 
 שרת מקומי לאתר הראשי בלבד, ללא בדיקה או בנייה:
-start-server.bat
+.05-start-server.bat
 
 בדיקת עדכניות אופציונלית והצעת בנייה לפני ההפעלה:
-check-and-start-server.bat
+.03-check-and-start-server.bat
 
 לוח השליטה אינו עובד דרך שרת האתר הראשי. בשבילו מריצים:
-catalog-control-panel.bat
+.04-catalog-control-panel.bat
 
 מחיקה דרך לוח השליטה יכולה להסיר רק מהרשימה או גם למחוק מיד PDF ותמונות.
 גם כשמסירים רק מהרשימה, ההמרה הרגילה הבאה תנקה אוטומטית את תיקיית התמונות ואת אינדקס החיפוש.
@@ -112,11 +112,11 @@ rclone delete "r2:bargig-catalog/assets/pages/bedrooms-gober-gallery" -P
 
 זרימת עבודה נוכחית
 -------------------
-1. אחרי שינוי באתר או בקטלוגים: bundle-site-r2.bat
+1. אחרי שינוי באתר או בקטלוגים: .01-bundle-site-r2.bat
    הפקודה בונה רק אם נדרש ומעדכנת גם dist\site-upload-r2 וגם dist\site-local.
-2. צפייה מקומית: start-server.bat
+2. צפייה מקומית: .05-start-server.bat
    הפקודה רק מפעילה שרת על dist\site-local ואינה בונה או פותחת לוח שליטה.
-3. העלאה: bundle-site-r2-upload cloudflare.bat
+3. העלאה: .02-bundle-site-r2-upload cloudflare.bat
    הפקודה מאמתת את הבאנדל הקיים ומעלה אותו בלי לבנות מחדש.
 
 

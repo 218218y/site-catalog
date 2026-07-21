@@ -1382,7 +1382,7 @@ def main() -> int:
         if deleted_output_dirs:
             print(f"Deleted stale converted catalog folders: {len(deleted_output_dirs)}")
         print("Catalogs removed from catalogs.config.json, or whose source PDF was deleted, are also removed from assets/pages and the generated search index.")
-        print("Run bundle-site-r2.bat to update the complete clean-route site, then start-server.bat to preview it.")
+        print("Run .01-bundle-site-r2.bat to update the complete clean-route site, then .05-start-server.bat to preview it.")
         return 0
     except Exception as exc:
         print(f"\nERROR: {exc}", file=sys.stderr)

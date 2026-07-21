@@ -24,5 +24,5 @@ if errorlevel 1 (
 
 echo.
 echo Preview finished. No files were uploaded or deleted.
-echo To apply the same sync, run: sync-r2-images.bat
+echo To apply the same sync, run: .07-sync-r2-images.bat
 pause

@@ -19,7 +19,7 @@ echo.
 %PYTHON_EXE% tools\deploy_cloudflare_pages.py --dir dist/site-upload-r2 --seo-mode private %*
 if errorlevel 1 (
   echo.
-  echo The Cloudflare operation did not complete successfully. If sources changed, run bundle-site-r2.bat first.
+  echo The Cloudflare operation did not complete successfully. If sources changed, run .01-bundle-site-r2.bat first.
   pause
   exit /b 1
 )

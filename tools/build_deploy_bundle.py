@@ -1053,7 +1053,7 @@ def validate_catalog_assets(root: Path) -> list[str]:
     warnings: list[str] = []
     catalogs = load_generated_catalogs(root)
     if not catalogs:
-        warnings.append("No generated catalogs were found. Run convert-catalogs.bat after adding PDFs.")
+        warnings.append("No generated catalogs were found. Run .10-convert-catalogs.bat after adding PDFs.")
         return warnings
 
     for catalog in catalogs:

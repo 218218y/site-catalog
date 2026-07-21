@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Serve a validated private site artifact for local preview.
 
-The source tree is deliberately not used as the web root. ``start-server.bat``
+The source tree is deliberately not used as the web root. ``.05-start-server.bat``
 serves the existing ``dist/site-local`` artifact without inspecting or rebuilding
-it. ``check-and-start-server.bat`` is the explicit opt-in workflow that verifies
+it. ``.03-check-and-start-server.bat`` is the explicit opt-in workflow that verifies
 currentness and can offer a rebuild before serving.
 """
 from __future__ import annotations
@@ -162,7 +162,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 0
         if not (out_dir / "index.html").is_file():
             raise FileNotFoundError(
-                f"Preview is missing {out_dir / 'index.html'}. Run bundle-site-r2.bat once, then start the server again"
+                f"Preview is missing {out_dir / 'index.html'}. Run .01-bundle-site-r2.bat once, then start the server again"
             )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

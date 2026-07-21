@@ -5,19 +5,44 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
+const windowsLaunchers = Object.freeze({
+  bundleSite: ".01-bundle-site-r2.bat",
+  convertCatalogsForce: ".011-convert-catalogs-force.bat",
+  refreshOcrSearch: ".012-refresh-ocr-search.bat",
+  uploadSite: ".02-bundle-site-r2-upload cloudflare.bat",
+  cleanArtifacts: ".020-clean-project-artifacts.bat",
+  checkedStartServer: ".03-check-and-start-server.bat",
+  catalogControlPanel: ".04-catalog-control-panel.bat",
+  startServer: ".05-start-server.bat",
+  previewR2Sync: ".06-sync-r2-images-preview.bat",
+  syncR2Images: ".07-sync-r2-images.bat",
+  convertCatalogs: ".10-convert-catalogs.bat",
+  setupWindows: ".20-setup-windows.bat",
+  telemetryReport: ".20-telemetry-report.bat",
+  configureR2Cors: "configure-r2-cors.bat",
+  syncCatalogPdfs: "sync-catalog-pdfs.bat",
+});
+
+const launcherNames = Object.values(windowsLaunchers);
+assert.equal(new Set(launcherNames).size, launcherNames.length, "Windows launcher names must be unique");
+for (const launcherName of launcherNames) {
+  assert.equal(fs.existsSync(path.join(root, launcherName)), true, `Missing Windows launcher: ${launcherName}`);
+}
+
+const readLauncher = (launcherName) => fs.readFileSync(path.join(root, launcherName), "utf8");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const builder = fs.readFileSync(path.join(root, "tools", "build_frontend_assets.py"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
 const architecture = fs.readFileSync(path.join(root, "docs", "frontend-architecture.md"), "utf8");
 const localServer = fs.readFileSync(path.join(root, "tools", "serve_site.py"), "utf8");
-const startServer = fs.readFileSync(path.join(root, "start-server.bat"), "utf8");
-const checkedStartServer = fs.readFileSync(path.join(root, "check-and-start-server.bat"), "utf8");
+const startServer = readLauncher(windowsLaunchers.startServer);
+const checkedStartServer = readLauncher(windowsLaunchers.checkedStartServer);
 const deployTool = fs.readFileSync(path.join(root, "tools", "deploy_cloudflare_pages.py"), "utf8");
 const requirements = fs.readFileSync(path.join(root, "tools", "requirements.txt"), "utf8");
 const devRequirements = fs.readFileSync(path.join(root, "tools", "requirements-dev.txt"), "utf8");
-const bundleSite = fs.readFileSync(path.join(root, "bundle-site-r2.bat"), "utf8");
-const cleanArtifactsBat = fs.readFileSync(path.join(root, "clean-project-artifacts.bat"), "utf8");
-const uploadSite = fs.readFileSync(path.join(root, "bundle-site-r2-upload cloudflare.bat"), "utf8");
+const bundleSite = readLauncher(windowsLaunchers.bundleSite);
+const cleanArtifactsBat = readLauncher(windowsLaunchers.cleanArtifacts);
+const uploadSite = readLauncher(windowsLaunchers.uploadSite);
 const ciWorkflow = fs.readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
 
 assert.equal(packageJson.private, true);
@@ -91,8 +116,6 @@ assert.match(verifier, /build_site_pages\.py/);
 assert.match(verifier, /Playwright browser journeys/);
 assert.equal(fs.existsSync(path.join(root, "tools", "requirements-dev.txt")), true);
 assert.equal(fs.existsSync(path.join(root, "tools", "clean_project_artifacts.py")), true);
-assert.equal(fs.existsSync(path.join(root, "check-and-start-server.bat")), true);
-assert.equal(fs.existsSync(path.join(root, "clean-project-artifacts.bat")), true);
 assert.match(ciWorkflow, /PYTHONDONTWRITEBYTECODE: "1"/);
 assert.match(ciWorkflow, /node-version-file: \.nvmrc/);
 assert.match(ciWorkflow, /Remove ephemeral source artifacts[\s\S]*clean_project_artifacts\.py(?! --check)/);

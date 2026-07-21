@@ -43,7 +43,7 @@ echo.
 echo Done. Node dependencies, .venv and the Playwright browser are ready.
 echo You can run npm test for quick checks or npm run verify for the complete suite.
 echo.
-echo Now put PDFs in assets\pdfs and run convert-catalogs.bat
+echo Now put PDFs in assets\pdfs and run .10-convert-catalogs.bat
 pause
 exit /b 0
 

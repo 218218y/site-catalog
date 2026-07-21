@@ -3,7 +3,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 if not exist .venv\Scripts\activate.bat (
   echo Local Python environment was not found.
-  echo Run setup-windows.bat first.
+  echo Run .20-setup-windows.bat first.
   pause
   exit /b 1
 )

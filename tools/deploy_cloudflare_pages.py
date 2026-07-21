@@ -5,7 +5,7 @@ Default flow executed from the project root:
     1. Validate that dist/site-upload-r2 is complete and still matches the current sources.
     2. Deploy that exact validated folder with Wrangler.
 
-Building is deliberately a separate action (bundle-site-r2.bat). Use
+Building is deliberately a separate action (.01-bundle-site-r2.bat). Use
 --build-first only when an explicit combined build-and-deploy operation is desired.
 
 The deploy finishes when Wrangler reports success. It intentionally performs
@@ -217,7 +217,7 @@ def validate_bundle(bundle_dir: Path) -> None:
     if not bundle_dir.is_dir():
         raise FileNotFoundError(
             f"Bundle folder does not exist: {rel_to_root(bundle_dir)}. "
-            "Run bundle-site-r2.bat before uploading."
+            "Run .01-bundle-site-r2.bat before uploading."
         )
     missing = [relative for relative in REQUIRED_BUNDLE_FILES if not (bundle_dir / relative).is_file()]
     if missing:
@@ -258,7 +258,7 @@ def find_local_wrangler(root: Path | None = None) -> str:
     if candidate.is_file():
         return str(candidate)
     raise FileNotFoundError(
-        "The project-local Wrangler executable is missing. Run npm ci (or setup-windows.bat) "
+        "The project-local Wrangler executable is missing. Run npm ci (or .20-setup-windows.bat) "
         "before deploying; global and floating npx versions are intentionally not used."
     )
 
@@ -395,7 +395,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             validate_current_artifact(root, bundle_dir, options=current_options)
         except (FileNotFoundError, ValueError) as exc:
             raise ValueError(
-                f"{exc} Run bundle-site-r2.bat once, then run the upload command again."
+                f"{exc} Run .01-bundle-site-r2.bat once, then run the upload command again."
             ) from exc
         preview_branch = str(args.preview_branch or "").strip() or None
         wrangler_command = build_pages_deploy_command(

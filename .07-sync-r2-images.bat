@@ -24,5 +24,5 @@ if errorlevel 1 (
 
 echo.
 echo R2 images sync finished.
-echo After this, run bundle-site-r2.bat and upload dist\site-upload-r2 to Netlify.
+echo After this, run .01-bundle-site-r2.bat and upload dist\site-upload-r2 to Netlify.
 pause

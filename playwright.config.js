@@ -7,7 +7,7 @@ const explicitExecutable = String(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PAT
 const launchOptions = {
   args: ["--disable-dev-shm-usage"]
 };
-// E2E reuses the same validated private artifact as start-server.bat. The
+// E2E reuses the same validated private artifact as .05-start-server.bat. The
 // currentness check is normally instant; a first or stale build can still take
 // noticeably longer on Windows, so keep startup separate from per-test timeouts.
 const webServerStartupTimeout = 5 * 60_000;

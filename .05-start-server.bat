@@ -20,7 +20,7 @@ echo.
 %PYTHON_EXE% tools\serve_site.py --port 8080
 if errorlevel 1 (
   echo.
-  echo The local site could not be started. Run bundle-site-r2.bat once if dist\site-local is missing.
+  echo The local site could not be started. Run .01-bundle-site-r2.bat once if dist\site-local is missing.
   pause
   exit /b 1
 )

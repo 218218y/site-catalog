@@ -53,7 +53,7 @@ telemetry explicitly.
 The normal deployment command remains:
 
 ```bat
-bundle-site-r2-upload cloudflare.bat
+.02-bundle-site-r2-upload cloudflare.bat
 ```
 
 The deploy tool validates the config, the Function file, the binding, and the
@@ -81,7 +81,7 @@ is available to the Function.
 4. Run:
 
 ```bat
-telemetry-report.bat
+.20-telemetry-report.bat
 ```
 
 or:
@@ -180,7 +180,7 @@ After deployment:
 ## Report files and long-term archive
 
 PowerShell is not used as the primary Hebrew presentation layer. Running
-`telemetry-report.bat 30` or `npm run telemetry:report -- 30` now creates:
+`.20-telemetry-report.bat 30` or `npm run telemetry:report -- 30` now creates:
 
 - an RTL HTML dashboard under `reports/telemetry` and opens it in the browser;
 - an Excel-friendly UTF-8-BOM CSV beside it.

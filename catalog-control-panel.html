@@ -512,11 +512,11 @@
     }
 
     function controlServerHelp() {
-      return 'הדף הזה נפתח בלי שרת לוח השליטה. אל תפתח אותו דרך start-server.bat, npx serve או שרת האתר הראשי. הפעל את הקובץ catalog-control-panel.bat, או פתח ישירות: http://127.0.0.1:8765/catalog-control-panel.html';
+      return 'הדף הזה נפתח בלי שרת לוח השליטה. אל תפתח אותו דרך .05-start-server.bat, npx serve או שרת האתר הראשי. הפעל את הקובץ .04-catalog-control-panel.bat, או פתח ישירות: http://127.0.0.1:8765/catalog-control-panel.html';
     }
 
     function setServerAlert(message) {
-      els.serverAlert.innerHTML = message ? `${escapeHtml(message)}<br><span>הפקודה הנכונה: <code>catalog-control-panel.bat</code></span>` : '';
+      els.serverAlert.innerHTML = message ? `${escapeHtml(message)}<br><span>הפקודה הנכונה: <code>.04-catalog-control-panel.bat</code></span>` : '';
       els.serverAlert.classList.toggle('show', Boolean(message));
     }
 
@@ -923,7 +923,7 @@
         ? state.footerEditor.groups
         : [];
       if (!groups.length) {
-        els.footerEditorGroups.innerHTML = '<div class="notice">מבנה שדות הפוטר לא התקבל מהשרת. רענן את לוח הבקרה לאחר הפעלת catalog-control-panel.bat.</div>';
+        els.footerEditorGroups.innerHTML = '<div class="notice">מבנה שדות הפוטר לא התקבל מהשרת. רענן את לוח הבקרה לאחר הפעלת .04-catalog-control-panel.bat.</div>';
         els.footerSave.disabled = true;
         setFooterSaveStatus('לא ניתן לערוך את הפוטר בלי סכמת שדות תקינה.', 'err');
         return;
@@ -1576,7 +1576,7 @@
       setServerAlert(message);
       els.stats.innerHTML = '';
       els.rows.innerHTML = '<tr><td colspan="10">לא ניתן לטעון קטלוגים כי שרת ה־API של לוח השליטה לא פעיל.</td></tr>';
-      els.actions.innerHTML = '<div class="notice">הפעל <span dir="ltr">catalog-control-panel.bat</span> מתוך תיקיית הפרויקט, ואז הדף ייטען עם כל הקטלוגים והכפתורים.</div>';
+      els.actions.innerHTML = '<div class="notice">הפעל <span dir="ltr">.04-catalog-control-panel.bat</span> מתוך תיקיית הפרויקט, ואז הדף ייטען עם כל הקטלוגים והכפתורים.</div>';
       setTaxonomySaveStatus('לא ניתן לטעון או לשמור טקסונומיה בלי שרת לוח השליטה.', 'err');
       els.taxonomySave.disabled = true;
       els.taxonomyCategories.innerHTML = '<div class="taxonomy-empty">לא ניתן לטעון קטגוריות.</div>';
