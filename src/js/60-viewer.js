@@ -418,6 +418,11 @@ function attachViewerEvents() {
   els.lightboxPageRail?.addEventListener("focusout", schedulePageRailClose);
 
   els.topHotspot?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
+  els.topHotspot?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    showTopUiTemporarily(2200);
+  });
   els.lightboxBar?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseleave", scheduleTopUiClose);
   document.addEventListener("pointerdown", markTouchLikeViewportInput, { passive: true });

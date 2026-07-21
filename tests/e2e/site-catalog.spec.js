@@ -188,9 +188,29 @@ async function expectCurrentViewerImageReady(page) {
 }
 
 async function revealViewerTopToolbar(page) {
-  await page.mouse.move(18, 4);
-  await expect(page.locator("#lightbox")).toHaveClass(/show-ui/);
-  await expect(page.locator("#lightboxCopyLink")).toBeInViewport();
+  const lightbox = page.locator("#lightbox");
+  const toolbarControl = page.locator("#lightboxCopyLink");
+  const controlInViewport = await toolbarControl.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0
+      && rect.height > 0
+      && rect.bottom > 0
+      && rect.right > 0
+      && rect.top < window.innerHeight
+      && rect.left < window.innerWidth;
+  });
+
+  if (!controlInViewport) {
+    const hotspot = page.locator("#topHotspot");
+    if (await hotspot.isVisible()) {
+      await hotspot.click();
+    } else {
+      await page.mouse.move(18, 4);
+    }
+  }
+
+  await expect(lightbox).toHaveClass(/show-ui/);
+  await expect(toolbarControl).toBeInViewport();
 }
 
 async function expectViewerFrameCentered(page, options = {}) {
@@ -1268,7 +1288,9 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#fitHeightBtn")).toHaveAttribute("aria-pressed", "false");
 
-  await page.locator("#fitWidthBtn").click({ force: true });
+  await revealViewerTopToolbar(page);
+  await expect(page.locator("#fitWidthBtn")).toBeInViewport();
+  await page.locator("#fitWidthBtn").click();
   await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
 
   // An explicit user choice owns the fit mode for the rest of this viewer
@@ -1282,6 +1304,8 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
 
   // The new automatic control explicitly returns ownership to the viewport
   // policy and resumes orientation-driven changes immediately.
+  await revealViewerTopToolbar(page);
+  await expect(page.locator("#fitAutoBtn")).toBeInViewport();
   await page.locator("#fitAutoBtn").click();
   await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#fitWidthBtn")).toHaveAttribute("aria-pressed", "false");
