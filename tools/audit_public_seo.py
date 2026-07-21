@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -140,6 +141,21 @@ class Document:
         return bool(INDEX_TOKEN_RE.search(self.robots)) and not NOINDEX_TOKEN_RE.search(self.robots)
 
 
+@dataclass(frozen=True)
+class BundleInventory:
+    """Single-pass inventory used by the local SEO audit.
+
+    Public previews contain hundreds of generated route files. Walking that tree
+    repeatedly is needlessly expensive on Windows and causes antivirus scanners
+    to inspect the same files over and over. The inventory is deliberately built
+    once and then shared by document parsing, route validation and asset checks.
+    """
+
+    files: frozenset[str]
+    html_files: tuple[Path, ...]
+    routes: frozenset[str]
+
+
 class AuditFailure(RuntimeError):
     pass
 
@@ -157,18 +173,38 @@ def route_for_file(bundle: Path, path: Path) -> str:
     return f"/{relative}"
 
 
+def build_bundle_inventory(bundle: Path) -> BundleInventory:
+    """Inventory bundle files, HTML documents and public routes in one walk."""
+
+    relative_files: list[str] = []
+    html_files: list[Path] = []
+    routes: set[str] = {"/"}
+    for directory, dirnames, filenames in os.walk(bundle):
+        dirnames.sort()
+        filenames.sort()
+        base = Path(directory)
+        for filename in filenames:
+            path = base / filename
+            relative = path.relative_to(bundle).as_posix()
+            relative_files.append(relative)
+            if filename.lower().endswith(".html"):
+                html_files.append(path)
+            routes.add(f"/{relative}")
+            if relative.endswith("/index.html"):
+                prefix = relative[:-10]
+                routes.add(f"/{prefix}")
+                routes.add(f"/{prefix.rstrip('/')}")
+    return BundleInventory(
+        files=frozenset(relative_files),
+        html_files=tuple(html_files),
+        routes=frozenset(routes),
+    )
+
+
 def local_route_candidates(bundle: Path) -> set[str]:
-    routes = {"/"}
-    for path in bundle.rglob("*"):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(bundle).as_posix()
-        routes.add(f"/{relative}")
-        if relative.endswith("/index.html"):
-            prefix = relative[:-10]
-            routes.add(f"/{prefix}")
-            routes.add(f"/{prefix.rstrip('/')}")
-    return routes
+    """Compatibility wrapper for callers that only need route candidates."""
+
+    return set(build_bundle_inventory(bundle).routes)
 
 
 def normalized_internal_path(base_route: str, href: str, site_origin: str, base_href: str = "") -> str | None:
@@ -196,21 +232,81 @@ def iter_json_values(value: Any) -> Iterable[tuple[str, str]]:
             yield from iter_json_values(nested)
 
 
-def load_documents(bundle: Path) -> tuple[list[Document], list[str]]:
+def parse_document(path: Path, bundle: Path, *, html: str | None = None) -> tuple[Document, list[str]]:
+    parser = SeoHtmlParser()
+    parser.feed(html if html is not None else path.read_text(encoding="utf-8"))
+    document = Document(path=path, route=route_for_file(bundle, path), parser=parser)
+    issues: list[str] = []
+    for index, raw in enumerate(parser.ld_json, 1):
+        try:
+            document.json_ld.append(json.loads(raw))
+        except json.JSONDecodeError as exc:
+            issues.append(f"{document.route}: invalid JSON-LD block #{index}: {exc}")
+    return document, issues
+
+
+def load_documents(
+    bundle: Path,
+    html_files: Sequence[Path] | None = None,
+) -> tuple[list[Document], list[str]]:
     issues: list[str] = []
     documents: list[Document] = []
-    for path in sorted(bundle.rglob("*.html")):
-        parser = SeoHtmlParser()
-        parser.feed(path.read_text(encoding="utf-8"))
-        document = Document(path=path, route=route_for_file(bundle, path), parser=parser)
-        for index, raw in enumerate(parser.ld_json, 1):
-            try:
-                document.json_ld.append(json.loads(raw))
-            except json.JSONDecodeError as exc:
-                issues.append(f"{document.route}: invalid JSON-LD block #{index}: {exc}")
+    paths = html_files if html_files is not None else tuple(sorted(bundle.rglob("*.html")))
+    for path in paths:
+        document, document_issues = parse_document(path, bundle)
         documents.append(document)
+        issues.extend(document_issues)
     return documents, issues
 
+
+def audit_indexable_h1(document: Document) -> list[str]:
+    if document.indexable and len(document.parser.h1s) != 1:
+        return [
+            f"{document.route}: indexable page must contain exactly one h1, "
+            f"found {len(document.parser.h1s)}"
+        ]
+    return []
+
+
+def audit_internal_links(
+    document: Document,
+    available_routes: set[str] | frozenset[str],
+    site_origin: str,
+) -> list[str]:
+    issues: list[str] = []
+    for href in document.parser.anchors:
+        path = normalized_internal_path(
+            document.route, href, site_origin, document.parser.base_href
+        )
+        if path is None:
+            continue
+        candidates = {path, path.rstrip("/") or "/", f"{path.rstrip('/')}/"}
+        if not candidates.intersection(available_routes):
+            issues.append(f"{document.route}: broken internal link: {href} -> {path}")
+    return issues
+
+
+def inspect_local_image(
+    path: Path,
+    cache: dict[Path, tuple[int, int, str] | OSError],
+) -> tuple[int, int, str]:
+    cached = cache.get(path)
+    if isinstance(cached, OSError):
+        raise cached
+    if cached is not None:
+        return cached
+    try:
+        with Image.open(path) as image_file:
+            value = (
+                int(image_file.size[0]),
+                int(image_file.size[1]),
+                Image.MIME.get(image_file.format or "", ""),
+            )
+    except OSError as exc:
+        cache[path] = exc
+        raise
+    cache[path] = value
+    return value
 
 def audit_local_bundle(bundle: Path, root: Path) -> list[str]:
     config = load_seo_config(root)
@@ -219,12 +315,14 @@ def audit_local_bundle(bundle: Path, root: Path) -> list[str]:
     if not bundle.is_dir():
         return [f"public bundle directory does not exist: {bundle}"]
 
-    documents, parse_issues = load_documents(bundle)
+    inventory = build_bundle_inventory(bundle)
+    documents, parse_issues = load_documents(bundle, inventory.html_files)
     issues.extend(parse_issues)
     if not documents:
         return [f"public bundle contains no HTML documents: {bundle}"]
 
-    available_routes = local_route_candidates(bundle)
+    available_routes = inventory.routes
+    image_metadata_cache: dict[Path, tuple[int, int, str] | OSError] = {}
     canonicals: dict[str, str] = {}
     titles: dict[str, str] = {}
     descriptions: dict[str, str] = {}
@@ -234,12 +332,7 @@ def audit_local_bundle(bundle: Path, root: Path) -> list[str]:
         prefix = document.route
         parser = document.parser
         if prefix == "/404.html":
-            for href in parser.anchors:
-                path = normalized_internal_path(document.route, href, site_origin, parser.base_href)
-                if path is not None:
-                    candidates = {path, path.rstrip("/") or "/", f"{path.rstrip('/')}/"}
-                    if not candidates.intersection(available_routes):
-                        issues.append(f"{prefix}: broken internal link: {href} -> {path}")
+            issues.extend(audit_internal_links(document, available_routes, site_origin))
             continue
         title = parser.title
         description = parser.meta.get("description", "")
@@ -266,8 +359,7 @@ def audit_local_bundle(bundle: Path, root: Path) -> list[str]:
 
         if document.indexable:
             indexable_canonicals.add(canonical)
-            if len(parser.h1s) != 1:
-                issues.append(f"{prefix}: indexable page must contain exactly one h1, found {len(parser.h1s)}")
+            issues.extend(audit_indexable_h1(document))
             if title in titles:
                 issues.append(f"{prefix}: duplicate indexable title also used by {titles[title]}: {title}")
             titles[title] = prefix
@@ -308,14 +400,15 @@ def audit_local_bundle(bundle: Path, root: Path) -> list[str]:
             if image_url.scheme != "https":
                 issues.append(f"{prefix}: og:image must use HTTPS: {og_image}")
             if f"{image_url.scheme}://{image_url.netloc}" == site_origin:
-                local_image = bundle / image_url.path.lstrip("/")
-                if not local_image.is_file():
+                relative_image = image_url.path.lstrip("/")
+                local_image = bundle / relative_image
+                if relative_image not in inventory.files:
                     issues.append(f"{prefix}: local og:image does not exist: {image_url.path}")
                 else:
                     try:
-                        with Image.open(local_image) as image_file:
-                            actual_width, actual_height = image_file.size
-                            actual_type = Image.MIME.get(image_file.format or "", "")
+                        actual_width, actual_height, actual_type = inspect_local_image(
+                            local_image, image_metadata_cache
+                        )
                         if (actual_width, actual_height) != (width, height):
                             issues.append(
                                 f"{prefix}: Open Graph image dimensions do not match the file: "
@@ -347,15 +440,7 @@ def audit_local_bundle(bundle: Path, root: Path) -> list[str]:
             if prefix.startswith(("/category/", "/catalog/")) and "BreadcrumbList" not in types:
                 issues.append(f"{prefix}: landing page is missing BreadcrumbList JSON-LD")
 
-        for href in parser.anchors:
-            path = normalized_internal_path(
-                document.route, href, site_origin, parser.base_href
-            )
-            if path is None:
-                continue
-            candidates = {path, path.rstrip("/") or "/", f"{path.rstrip('/')}/"}
-            if not candidates.intersection(available_routes):
-                issues.append(f"{prefix}: broken internal link: {href} -> {path}")
+        issues.extend(audit_internal_links(document, available_routes, site_origin))
 
     headers = (bundle / "_headers").read_text(encoding="utf-8") if (bundle / "_headers").is_file() else ""
     if "X-Robots-Tag: noindex" in headers:

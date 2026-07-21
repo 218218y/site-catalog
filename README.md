@@ -490,6 +490,9 @@ npm run verify         rem אימות מלא לפני העלאה
 npm run clean:artifacts rem ניקוי __pycache__, bytecode ועותקי תמונת שיתוף ישנים
 ```
 
+`npm test` מיועד ללולאת העבודה היומית ולכן אינו בונה וסורק את כל מאות דפי ה־public preview. ביקורת ה־SEO המלאה, שהיא בדיקת release עתירת קבצים, נשארת חלק מ־`npm run verify`, מ־`npm run verify:seo:public` ומ־CI. ההפרדה מונעת מ־Windows Defender לסרוק שוב ושוב מאות קובצי HTML זמניים בכל בדיקה מקומית, בלי לוותר על שער הפרסום המלא.
+
+
 אפשר להפעיל את הניקוי גם דרך `.020-clean-project-artifacts.bat`. `.01-bundle-site-r2.bat` מפעיל אותו אוטומטית אחרי בנייה מוצלחת.
 
 `npm run verify` מבצע לפי הסדר:

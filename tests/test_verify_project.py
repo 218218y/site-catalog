@@ -36,7 +36,10 @@ def test_quick_verification_omits_deploy_build() -> None:
     assert "Generated site pages are current" in titles
     assert commands[0][0] == "project-python"
     assert any(command[:2] == ("node", "--check") for command in commands)
-    assert any(command[:4] == ("project-python", "-m", "pytest", "-q") for command in commands)
+    assert any(
+        command == ("project-python", "-m", "pytest", "-q", "-m", "not release_gate")
+        for command in commands
+    )
     assert not any("playwright" in " ".join(command).lower() for command in commands)
     assert not any("build_deploy_bundle.py" in command for command in commands)
 
@@ -55,6 +58,9 @@ def test_complete_verification_builds_a_clean_deploy_bundle() -> None:
 
     titles = [step.title for step in steps]
     assert "Generated site pages are current" in titles
+    assert MODULE.VerificationStep(
+        "Python tests", ("project-python", "-m", "pytest", "-q")
+    ) in steps
     assert "Playwright Chromium is installed" in titles
     assert "Playwright browser journeys" in titles
 

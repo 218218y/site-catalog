@@ -19,27 +19,76 @@ MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
+def compact_catalog(catalog: dict[str, object], *, pages: int) -> dict[str, object]:
+    """Return a small representative catalog for route-generation tests.
+
+    The full 16-catalog/722-page build is covered by the release SEO gate. Unit
+    tests only need enough generated routes to exercise metadata and cleanup
+    behavior, so keeping fixtures small avoids thousands of antivirus-scanned
+    temporary files on Windows.
+    """
+
+    compact = dict(catalog)
+    sizes = list(compact.get("pageSizes", []))
+    if not sizes:
+        sizes = [[1200, 1600]]
+    while len(sizes) < pages:
+        sizes.append(list(sizes[-1]))
+    compact["pages"] = pages
+    compact["pageSizes"] = sizes[:pages]
+    return compact
+
 
 @pytest.fixture(scope="module")
-def seo_outputs(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
+def seo_catalogs() -> tuple[dict[str, object], ...]:
+    catalogs = MODULE.read_catalogs(ROOT)
+    primary = next(item for item in catalogs if item["id"] == "opening-fredi-2026")
+    secondary = next(
+        item for item in catalogs
+        if item["id"] != primary["id"] and item.get("category") != primary.get("category")
+    )
+    return (
+        compact_catalog(primary, pages=43),
+        compact_catalog(secondary, pages=2),
+    )
+
+
+def render_with_catalogs(catalogs: tuple[dict[str, object], ...], callback) -> None:
+    original = MODULE.read_catalogs
+    MODULE.read_catalogs = lambda _root: [dict(item) for item in catalogs]
+    try:
+        callback()
+    finally:
+        MODULE.read_catalogs = original
+
+
+@pytest.fixture(scope="module")
+def seo_outputs(
+    tmp_path_factory: pytest.TempPathFactory,
+    seo_catalogs: tuple[dict[str, object], ...],
+) -> tuple[Path, Path]:
     root = tmp_path_factory.mktemp("seo-build")
     private = root / "private"
     public = root / "public"
-    MODULE.render_site_pages(
-        ROOT,
-        private,
-        build_assets=False,
-        seo_mode="private",
-        include_seo_routes=True,
-    )
-    MODULE.render_site_pages(
-        ROOT,
-        public,
-        build_assets=False,
-        seo_mode="public",
-        include_seo_routes=True,
-        confirm_public_indexing=True,
-    )
+
+    def render() -> None:
+        MODULE.render_site_pages(
+            ROOT,
+            private,
+            build_assets=False,
+            seo_mode="private",
+            include_seo_routes=True,
+        )
+        MODULE.render_site_pages(
+            ROOT,
+            public,
+            build_assets=False,
+            seo_mode="public",
+            include_seo_routes=True,
+            confirm_public_indexing=True,
+        )
+
+    render_with_catalogs(seo_catalogs, render)
     return private, public
 
 
@@ -120,6 +169,7 @@ def test_catalog_and_exact_page_routes_have_server_rendered_unique_metadata(
 
 def test_public_sitemap_contains_only_stable_indexable_landing_pages(
     seo_outputs: tuple[Path, Path],
+    seo_catalogs: tuple[dict[str, object], ...],
 ) -> None:
     _private, public = seo_outputs
     sitemap = public / "sitemap.xml"
@@ -129,7 +179,7 @@ def test_public_sitemap_contains_only_stable_indexable_landing_pages(
     locations = [node.text or "" for node in tree.findall("s:url/s:loc", namespace)]
 
     taxonomy = MODULE.load_taxonomy(ROOT)
-    catalogs = MODULE.read_catalogs(ROOT)
+    catalogs = list(seo_catalogs)
     expected = sum(1 for page in MODULE.PAGE_DOCUMENTS if page.indexable_public)
     expected += len(MODULE.active_categories(taxonomy, catalogs)) + len(catalogs)
     expected += sum(
@@ -185,11 +235,12 @@ def test_home_structured_data_uses_real_business_details(seo_outputs: tuple[Path
 
 def test_all_generated_catalog_titles_and_canonicals_are_unique(
     seo_outputs: tuple[Path, Path],
+    seo_catalogs: tuple[dict[str, object], ...],
 ) -> None:
     private, _public = seo_outputs
     titles: list[str] = []
     canonicals: list[str] = []
-    for catalog in MODULE.read_catalogs(ROOT):
+    for catalog in seo_catalogs:
         path = private / "catalog" / str(catalog["id"]) / "index.html"
         html = read(path)
         title_match = re.search(r"<title>(.*?)</title>", html)
@@ -202,7 +253,8 @@ def test_all_generated_catalog_titles_and_canonicals_are_unique(
 
 
 def test_clean_output_removes_routes_for_deleted_catalogs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    original_catalogs = MODULE.read_catalogs(ROOT)
+    all_catalogs = MODULE.read_catalogs(ROOT)
+    original_catalogs = [compact_catalog(all_catalogs[0], pages=2)]
     added = dict(original_catalogs[0])
     added.update({
         "id": "temporary-catalog-for-route-cleanup",
@@ -266,10 +318,12 @@ def test_empty_taxonomy_branches_are_omitted_from_generated_site(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     taxonomy = MODULE.load_taxonomy(ROOT)
-    catalogs = MODULE.read_catalogs(ROOT)
+    all_catalogs = MODULE.read_catalogs(ROOT)
     category = taxonomy.categories[0]
-    remaining = [item for item in catalogs if str(item.get("category", "")) != category.name]
-    assert remaining and len(remaining) < len(catalogs)
+    inside = next(item for item in all_catalogs if str(item.get("category", "")) == category.name)
+    outside = next(item for item in all_catalogs if str(item.get("category", "")) != category.name)
+    catalogs = [compact_catalog(inside, pages=2), compact_catalog(outside, pages=2)]
+    remaining = [catalogs[1]]
 
     monkeypatch.setattr(MODULE, "read_catalogs", lambda _root: remaining)
     MODULE.render_site_pages_atomic(

@@ -150,7 +150,10 @@ def verification_steps(
         )
 
     if scope in {"all", "python"}:
-        steps.append(VerificationStep("Python tests", (python, "-m", "pytest", "-q")))
+        pytest_command = [python, "-m", "pytest", "-q"]
+        if quick:
+            pytest_command.extend(("-m", "not release_gate"))
+        steps.append(VerificationStep("Python tests", tuple(pytest_command)))
 
     if scope == "all" and not quick:
         steps.extend((
