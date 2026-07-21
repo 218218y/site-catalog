@@ -8,12 +8,7 @@
 
 function updateLightbox(options = {}) {
   if (!state.catalog) return;
-  const {
-    thumbScrollIntoView = true,
-    scrollToPage = false,
-    scrollBehavior = "auto",
-    animateScrollPage = false
-  } = options;
+  const { thumbScrollIntoView = true } = options;
   let favoriteEntries = null;
 
   if (isFavoritesLightboxMode()) {
@@ -55,25 +50,6 @@ function updateLightbox(options = {}) {
 
   syncViewerFavoriteButtonUi();
   if (!favoriteEntries) initLightboxSearchStatus();
-
-  if (!favoriteEntries && isScrollViewerMode()) {
-    state.singleImageLoadToken += 1;
-    setViewerLoading(false);
-    els.lightbox?.classList.remove("is-page-loading", "is-zoomed");
-    renderViewerScrollPages();
-    loadViewerScrollWindow(state.page);
-    if (scrollToPage) {
-      const positionActivePage = () => scrollViewerToPage(state.page, {
-        behavior: scrollBehavior,
-        animate: animateScrollPage
-      });
-      if (scrollBehavior === "smooth") requestAnimationFrame(positionActivePage);
-      else positionActivePage();
-    }
-    updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
-    updateHash();
-    return;
-  }
 
   const request = viewerPageImageRequest(catalog, state.page);
   const src = request.primarySrc;
@@ -124,14 +100,8 @@ function openLightbox(page = 1, options = {}) {
   state.imageFitMode = viewerUsesAutomaticFitMode()
     ? getAutomaticViewerFitMode()
     : normalizeViewerFitMode(state.imageFitMode);
-  state.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES
-    ? VIEWER_LAYOUT_SIDE
-    : VIEWER_LAYOUT_SCROLL;
-  state.viewerScrollCatalogId = "";
-  state.viewerScrollLoadToken += 1;
-  state.viewerScrollIsolatedZoom = false;
-  state.viewerScrollIsolatedPage = 0;
-  clearViewerScrollPointerHandoff();
+  clearViewerPageWheelGesture();
+  unlockViewerPageWheel();
   state.page = clampPage(page, state.catalog);
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
@@ -157,11 +127,7 @@ function openLightbox(page = 1, options = {}) {
   resetLightboxSearch();
   syncLightboxModeUi();
   showTopUiTemporarily(1700);
-  updateLightbox({
-    scrollToPage: isScrollViewerMode(),
-    scrollBehavior: "auto",
-    animateScrollPage: false
-  });
+  updateLightbox();
   scheduleCatalogScrollTopButtonUpdate();
   transitionViewerPhase(VIEWER_PHASE_OPEN, "lightbox-ready");
   window.requestAnimationFrame(showViewerOnboardingIfNeeded);
@@ -176,26 +142,13 @@ function hideLightboxUi() {
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
-  state.viewerScrollLoadToken += 1;
-  state.viewerLayoutMode = VIEWER_LAYOUT_SCROLL;
-  state.viewerScrollCatalogId = "";
-  if (state.viewerScrollRaf) cancelAnimationFrame(state.viewerScrollRaf);
-  state.viewerScrollRaf = 0;
-  if (state.viewerScrollZoomRaf) cancelAnimationFrame(state.viewerScrollZoomRaf);
-  state.viewerScrollZoomRaf = 0;
-  state.viewerScrollZoomAnchor = null;
-  state.viewerScrollIsolatedZoom = false;
-  state.viewerScrollIsolatedPage = 0;
-  clearViewerScrollPointerHandoff();
-  window.clearTimeout(state.viewerScrollPageAnimationTimer);
-  state.viewerScrollPageAnimationTimer = 0;
-  clearViewerScrollWheelGesture();
-  clearViewerScrollTarget();
-  resetViewerScrollCommandSequence();
+  clearViewerPageWheelGesture();
+  unlockViewerPageWheel();
+  state.singlePageTurnPointerId = null;
+  clearSingleImagePendingPosition();
   window.clearTimeout(state.singleImageAnimationTimer);
-  if (els.viewerScrollPages) els.viewerScrollPages.innerHTML = "";
   els.lightbox?.classList.add("hidden");
-  els.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-scroll", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed");
+  els.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed");
   syncViewerAutoZoomButtonUi();
   hideViewerZoomIndicator();
   els.lightboxImageFrame?.classList.remove("page-swap-enter");
@@ -232,45 +185,40 @@ function closeLightbox(options = {}) {
 function setLightboxPage(page, options = {}) {
   if (!state.catalog) return;
   const nextPage = clampPage(page, state.catalog);
-
-  // Boundary navigation must be a true no-op. Previously the clamped page was
-  // rendered again, which retriggered the scroll-page jump animation even
-  // though the viewer was already on page 1 or on the final page.
   if (nextPage === state.page) return;
 
   const {
     thumbScrollIntoView = true,
     keepZoom = true,
     resetZoom = false,
-    resetPosition = isAutoViewerZoom()
+    resetPosition = isAutoViewerZoom(),
+    positionMode = "auto",
+    pageTurnDirection = Math.sign(nextPage - state.page),
+    pageTurnAxis = "y"
   } = options;
   const shouldResetZoom = resetZoom || keepZoom === false;
   const shouldResetPosition = shouldResetZoom || resetPosition;
+  const preserveRelativePosition = positionMode !== "page-turn"
+    && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition });
+  const relativePosition = preserveRelativePosition
+    ? captureSingleImageRelativePosition()
+    : null;
 
   hideLightboxFloatingPreview();
-  if (isViewerScrollIsolatedZoom()) {
-    exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
-  } else if (shouldResetZoom) {
-    state.zoom = AUTO_VIEWER_ZOOM;
+  if (shouldResetZoom) state.zoom = AUTO_VIEWER_ZOOM;
+
+  if (positionMode === "page-turn") {
+    queueSingleImagePageTurnOrigin(nextPage, pageTurnDirection, pageTurnAxis);
+  } else if (shouldResetPosition) {
+    resetImagePosition({ queueSingleFitOrigin: true });
+  } else if (relativePosition) {
+    queueSingleImageRelativePosition(nextPage, relativePosition);
   }
 
-  // Auto zoom gets a clean page origin. Manual zoom keeps the same pan between
-  // pages, so moving with arrows or selecting a page does not reopen the next
-  // image unexpectedly higher/lower after the user already positioned it.
-  if (shouldResetPosition) {
-    resetImagePosition({ queueSingleFitOrigin: true });
-  } else if (shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition })) {
-    state.singleImageFitOriginPending = false;
-  }
   state.pointers.clear();
   state.page = nextPage;
-  updateLightbox({
-    thumbScrollIntoView,
-    scrollToPage: isScrollViewerMode(),
-    scrollBehavior: isScrollViewerMode() ? "auto" : (options.scrollBehavior || "smooth"),
-    animateScrollPage: isScrollViewerMode() && options.animateScrollPage !== false
-  });
-
+  primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  updateLightbox({ thumbScrollIntoView });
 }
 
 function setFavoriteViewerIndex(index, options = {}) {
@@ -285,36 +233,48 @@ function setFavoriteViewerIndex(index, options = {}) {
     thumbScrollIntoView = true,
     keepZoom = true,
     resetZoom = false,
-    resetPosition = isAutoViewerZoom()
+    resetPosition = isAutoViewerZoom(),
+    positionMode = "auto",
+    pageTurnDirection = Math.sign((Number.parseInt(index, 10) || 0) - state.favoritesViewerIndex),
+    pageTurnAxis = "y"
   } = options;
   const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
   const entry = entries[nextIndex];
   const itemChanged = nextIndex !== state.favoritesViewerIndex || state.catalog !== entry.catalog || state.page !== entry.page;
+  if (!itemChanged) return;
+
   const shouldResetZoom = resetZoom || keepZoom === false;
   const shouldResetPosition = shouldResetZoom || resetPosition;
+  const preserveRelativePosition = positionMode !== "page-turn"
+    && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition });
+  const relativePosition = preserveRelativePosition
+    ? captureSingleImageRelativePosition()
+    : null;
 
-  if (itemChanged) {
-    hideLightboxFloatingPreview();
-    if (shouldResetZoom) state.zoom = AUTO_VIEWER_ZOOM;
-    if (shouldResetPosition) {
-      resetImagePosition({ queueSingleFitOrigin: true });
-    } else if (shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition })) {
-      state.singleImageFitOriginPending = false;
-    }
-    state.pointers.clear();
+  hideLightboxFloatingPreview();
+  if (shouldResetZoom) state.zoom = AUTO_VIEWER_ZOOM;
+
+  if (positionMode === "page-turn") {
+    queueSingleImagePageTurnOrigin(entry.page, pageTurnDirection, pageTurnAxis);
+  } else if (shouldResetPosition) {
+    resetImagePosition({ queueSingleFitOrigin: true });
+  } else if (relativePosition) {
+    queueSingleImageRelativePosition(entry.page, relativePosition);
   }
+  state.pointers.clear();
 
   setFavoriteViewerEntry(entries, nextIndex);
+  primeLightboxFrameForCatalogPage(state.catalog, state.page);
   updateLightbox({ thumbScrollIntoView });
 }
 
-function moveLightbox(delta) {
+function moveLightbox(delta, options = {}) {
   if (!state.catalog) return;
   if (isFavoritesLightboxMode()) {
-    setFavoriteViewerIndex(state.favoritesViewerIndex + delta);
+    setFavoriteViewerIndex(state.favoritesViewerIndex + delta, options);
     return;
   }
-  setLightboxPage(state.page + delta);
+  setLightboxPage(state.page + delta, options);
 }
 
 function openCatalog(id, options = {}) {
@@ -363,10 +323,8 @@ function openCurrentFavoriteInCatalog() {
   const page = state.page;
 
   // Re-enter through the canonical catalog-viewer lifecycle instead of
-  // partially mutating favorites state in place. The old shortcut skipped the
-  // scroll viewer's initial positioning step: it loaded pages around the saved
-  // favorite but left scrollTop at page 1, so the visible frame had no src and
-  // the user saw only the viewer background.
+  // partially mutating favorites state in place. Both routes now share the same
+  // single-image renderer, so the transition receives one complete clean state.
   openCatalogInViewer(catalogId, page, { source: LIGHTBOX_SOURCE_CATALOG });
 }
 
@@ -400,8 +358,6 @@ function attachViewerEvents() {
   els.viewerFavoriteButton?.addEventListener("pointerdown", (event) => event.stopPropagation());
   els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
   els.viewerImageRetry?.addEventListener("click", retryCurrentViewerImage);
-  els.viewerScrollPages?.addEventListener("click", handleViewerScrollImageRetry);
-  els.viewerScrollPages?.addEventListener("scroll", handleViewerScrollPagesScroll, { passive: true });
 
   attachViewerGestures();
 

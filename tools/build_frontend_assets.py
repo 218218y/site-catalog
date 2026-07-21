@@ -40,7 +40,7 @@ JS_MODULES: tuple[str, ...] = (
     "src/js/52-viewer-session.js",
     "src/js/54-viewer-geometry.js",
     "src/js/56-viewer-shell.js",
-    "src/js/58-viewer-scroll.js",
+    "src/js/58-viewer-navigation.js",
     "src/js/60-viewer.js",
     "src/js/62-viewer-actions.js",
     "src/js/65-viewer-onboarding.js",

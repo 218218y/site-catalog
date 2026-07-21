@@ -265,25 +265,6 @@
   .reader-page-frame { border-radius: 12px; }
 }
 
-@media (max-width: 760px) {
-  .viewer-scroll-pages {
-    gap: 27px;
-    padding: 9px 9px 28px;
-    scroll-snap-type: y proximity;
-  }
-  .viewer-scroll-page {
-    border-radius: 8px;
-  }
-  .viewer-scroll-page-number {
-    right: 7px;
-    bottom: 7px;
-    min-width: 27px;
-    height: 27px;
-    padding-inline: 7px;
-    font-size: .76rem;
-  }
-}
-
 @media (max-width: 520px) {
   .global-search-field { --global-search-scope-width: 118px; --global-search-clear-size: 30px; --global-search-control-gap: 5px; }
   .global-search-scope-toggle { min-height: 34px; padding-inline: 9px; font-size: .76rem; }

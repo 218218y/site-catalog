@@ -36,9 +36,9 @@ function viewerHasTouchCapability() {
 
 function viewerNavigationOnboardingCopy() {
   if (viewerHasTouchCapability()) {
-    return "במסך מגע החליקו למעלה או למטה בגלילה הרציפה, או ימינה ושמאלה למעבר ישיר. אפשר גם ללחוץ על החצים שבצדי המסך או להשתמש במקשי החצים למעלה, למטה, ימינה ושמאלה במקלדת.";
+    return "במסך מגע החליקו למעלה, למטה, ימינה או שמאלה כדי לעבור עמוד. בהגדלה, גררו בתוך התמונה; מעבר לקצה יעביר לעמוד הבא בלי לבטל את הזום. אפשר גם להשתמש בחצים שבצדי המסך או במקשי החצים ו־Page Up/Down.";
   }
-  return "גללו למעלה או למטה, לחצו על החצים שבצדי המסך, או השתמשו במקשי החצים למעלה, למטה, ימינה ושמאלה במקלדת.";
+  return "גללו בעכבר או במשטח המגע, לחצו על החצים שבצדי המסך, או השתמשו במקשי החצים ו־Page Up/Down. בהגדלה, הגלילה מזיזה את התמונה ומעבר לקצה מעביר עמוד בלי לבטל את הזום.";
 }
 
 function viewerZoomOnboardingCopy() {
@@ -72,9 +72,7 @@ function getViewerOnboardingSteps() {
       eyebrow: "מבט מקרוב",
       title: "הגדלה וגרירת התמונה",
       description: viewerZoomOnboardingCopy(),
-      target: () => isScrollViewerMode()
-        ? (getViewerScrollPageFrame(state.page) || els.viewerScrollPages)
-        : els.lightboxImageFrame,
+      target: () => els.lightboxImageFrame,
       targetRect: getViewerOnboardingImageFocusRect,
       preferredPlacement: "above",
       padding: 0,
@@ -174,9 +172,7 @@ function getViewerOnboardingPageRailFocusRect() {
 }
 
 function getViewerOnboardingImageFocusRect() {
-  const activeImageSurface = isScrollViewerMode()
-    ? (getViewerScrollPageFrame(state.page) || els.viewerScrollPages)
-    : els.lightboxImageFrame;
+  const activeImageSurface = els.lightboxImageFrame;
   const source = activeImageSurface?.getBoundingClientRect?.() || els.stageCanvas?.getBoundingClientRect?.();
   if (!source) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;

@@ -26,7 +26,7 @@
 | `52-viewer-session.js` | מודל מצבים של הצופה ושל Fullscreen API, כולל מעברים חוקיים וסנכרון כפתור |
 | `54-viewer-geometry.js` | גאומטריית fit, zoom, pan ונקודות מוקד |
 | `56-viewer-shell.js` | סרגל עליון, rail של עמודים, progress ומעטפת הפקדים |
-| `58-viewer-scroll.js` | מצב גלילה רציפה, חלון טעינה, fallback וזום מבודד |
+| `58-viewer-navigation.js` | נרמול גלגלת ומשטח מגע, פאן עם מרווח קצה ומעבר עמוד מדורג |
 | `60-viewer.js` | lifecycle של פתיחה/סגירה, החלפת עמודים, כניסה מנתיבים ורישום אירועי הצופה |
 | `62-viewer-actions.js` | בירור על דגם, תפריט „עוד” במובייל וסנכרון פעולות הצופה |
 | `65-viewer-onboarding.js` | סיור הכניסה המקוצר, spotlight, focus וניקוי מצב ההדרכה |

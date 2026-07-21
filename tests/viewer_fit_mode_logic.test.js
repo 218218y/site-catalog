@@ -25,7 +25,7 @@ function sourceBetween(source, startMarker, endMarker) {
 const fitPolicySource = sourceBetween(
   geometrySource,
   "function normalizeViewerFitMode(fitMode)",
-  "function isScrollViewerMode()"
+  "function getActiveSingleImageNaturalSize()"
 );
 const fitSetterSource = sourceBetween(
   shellSource,
@@ -43,7 +43,8 @@ const context = {
     imageFitMode: "height",
     imageFitModeSource: "auto",
     zoom: 1,
-    pointers: new Map()
+    pointers: new Map(),
+    singlePageTurnPointerId: null
   },
   els: {
     stageCanvas: { clientWidth: 1440, clientHeight: 900 }
@@ -56,15 +57,10 @@ const context = {
   document: {
     documentElement: { clientWidth: 1440, clientHeight: 900 }
   },
-  clearViewerScrollWheelGesture() {},
-  clearViewerScrollTarget() {},
-  resetViewerScrollCommandSequence() {},
-  isViewerScrollIsolatedZoom: () => false,
-  exitViewerScrollIsolatedZoom() {},
+  clearViewerPageWheelGesture() {},
+  unlockViewerPageWheel() {},
   resetImagePosition() {},
   syncViewerFitModeUi() {},
-  isScrollViewerMode: () => false,
-  refreshViewerScrollPageGeometry() {},
   applyZoom() {},
   showTopUiTemporarily() {}
 };

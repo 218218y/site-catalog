@@ -35,7 +35,7 @@ const jsSources = [
   ['src/js/52-viewer-session.js', /function transitionViewerPhase/],
   ['src/js/54-viewer-geometry.js', /function applyZoom/],
   ['src/js/56-viewer-shell.js', /function renderLightboxPageRail/],
-  ['src/js/58-viewer-scroll.js', /function renderViewerScrollPages/],
+  ['src/js/58-viewer-navigation.js', /function handleViewerPageWheel/],
   ['src/js/60-viewer.js', /function openLightbox/],
   ['src/js/62-viewer-actions.js', /function openViewerInquiry/],
   ['src/js/65-viewer-onboarding.js', /function showViewerOnboardingIfNeeded/],

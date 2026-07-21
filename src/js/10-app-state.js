@@ -13,8 +13,6 @@ const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
 const VIEWER_FIT_SOURCE_AUTO = "auto";
 const VIEWER_FIT_SOURCE_MANUAL = "manual";
-const VIEWER_LAYOUT_SIDE = "side";
-const VIEWER_LAYOUT_SCROLL = "scroll";
 const VIEWER_PHASE_CLOSED = "closed";
 const VIEWER_PHASE_OPENING = "opening";
 const VIEWER_PHASE_OPEN = "open";
@@ -54,20 +52,17 @@ const DOUBLE_TAP_DISTANCE = 34;
 const TAP_MOVE_TOLERANCE = 14;
 const VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46;
 const VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35;
-const SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO = 0.06;
-const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
-const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
 const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const VIEWER_PAGE_SWAP_CLEANUP_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
-const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
-const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 20;
-const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
-const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
-const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_VIEWPORT_RATIO = 0.36;
-const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX = 144;
-const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MAX_PX = 330;
+const VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20;
+const VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100;
+const VIEWER_PAGE_WHEEL_SETTLE_MS = 150;
+const VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36;
+const VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144;
+const VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330;
+const VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
 const CATALOG_EAGER_COVER_COUNT = 2;
 const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
@@ -94,8 +89,9 @@ const state = {
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
   imageFitModeSource: VIEWER_FIT_SOURCE_AUTO,
-  viewerLayoutMode: VIEWER_LAYOUT_SCROLL,
   singleImageFitOriginPending: false,
+  singleImagePendingRelativePosition: null,
+  singleImagePendingPageTurnOrigin: null,
   panX: 0,
   panY: 0,
   dragStartX: 0,
@@ -112,6 +108,8 @@ const state = {
   pinchLastMidX: 0,
   pinchLastMidY: 0,
   pointerGestureHadMultiplePointers: false,
+  pointerGestureConsumedPan: false,
+  singlePageTurnPointerId: null,
   pointers: new Map(),
   viewerPhase: VIEWER_PHASE_CLOSED,
   viewerPhaseReason: "initial",
@@ -139,22 +137,12 @@ const state = {
   viewerInquiryContext: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
-  viewerScrollCatalogId: "",
-  viewerScrollLoadToken: 0,
-  viewerScrollRaf: 0,
-  viewerScrollZoomRaf: 0,
-  viewerScrollZoomAnchor: null,
-  viewerScrollIsolatedZoom: false,
-  viewerScrollIsolatedPage: 0,
-  viewerScrollPointerHandoff: null,
-  viewerScrollPageAnimationTimer: 0,
-  viewerScrollSettleTimer: 0,
-  viewerScrollTargetPage: 0,
-  viewerScrollLastCommandAt: 0,
-  viewerScrollWheelAccumulator: 0,
-  viewerScrollWheelBasePage: 0,
-  viewerScrollWheelTargetPage: 0,
-  viewerScrollWheelSettleTimer: 0,
+  viewerPageWheelAccumulator: 0,
+  viewerPageWheelBasePage: 0,
+  viewerPageWheelTargetPage: 0,
+  viewerPageWheelSettleTimer: 0,
+  viewerPageWheelLocked: false,
+  viewerPageWheelUnlockTimer: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
@@ -293,7 +281,6 @@ const els = {
   prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"),
   fullscreenToggle: $("fullscreenToggle"),
-  viewerScrollPages: $("viewerScrollPages"),
   fitAutoBtn: $("fitAutoBtn"),
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),

@@ -81,11 +81,13 @@ function attachShellEvents() {
     const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
     if (isTyping) return;
 
-    if (["ArrowDown", "PageDown"].includes(event.key) && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
-    else if (["ArrowUp", "PageUp"].includes(event.key) && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
-    else if (event.key === "ArrowDown" && panSingleImageBy(0, -getSingleKeyboardPanStep())) event.preventDefault();
-    else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();
-    else if (event.key === "ArrowRight") {
+    if (["ArrowDown", "PageDown"].includes(event.key)) {
+      event.preventDefault();
+      moveLightbox(1);
+    } else if (["ArrowUp", "PageUp"].includes(event.key)) {
+      event.preventDefault();
+      moveLightbox(-1);
+    } else if (event.key === "ArrowRight") {
       event.preventDefault();
       moveLightbox(-1);
     } else if (event.key === "ArrowLeft") {

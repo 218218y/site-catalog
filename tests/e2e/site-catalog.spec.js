@@ -190,11 +190,6 @@ async function openDirectViewer(page, pageNumber = 1) {
 }
 
 async function currentViewerSurface(page) {
-  const lightbox = page.locator("#lightbox");
-  if (await lightbox.evaluate((element) => element.classList.contains("viewer-layout-scroll"))) {
-    const currentPage = Number(await page.locator("#viewerPageIndicatorCurrent").textContent()) || 1;
-    return page.locator(`#viewerScrollPages [data-scroll-page="${currentPage}"]`);
-  }
   return page.locator("#lightboxImageFrame");
 }
 
@@ -467,7 +462,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#favoritesGrid .favorite-card")).toHaveCount(1);
   });
 
-  test("re-enters the full scroll catalog at the saved favorite instead of showing a blank frame", async ({ page }) => {
+  test("re-enters the full paged catalog at the saved favorite instead of showing a blank frame", async ({ page }) => {
     await preparePage(page);
     await page.goto(`/catalog/${FAVORITE_CATALOG_TRANSITION_ID}/page/${FAVORITE_CATALOG_TRANSITION_PAGE}/`);
     await waitForApp(page);
@@ -496,35 +491,26 @@ test.describe("critical catalog journeys", () => {
     await expect(page).toHaveURL(new RegExp(
       `/catalog/${FAVORITE_CATALOG_TRANSITION_ID}/page/${FAVORITE_CATALOG_TRANSITION_PAGE}/$`
     ));
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-paged/);
     await expect(page.locator("#lightbox")).not.toHaveClass(/favorites-viewer-mode/);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(FAVORITE_CATALOG_TRANSITION_PAGE));
-
-    const scrollPages = page.locator("#viewerScrollPages");
-    const targetFrame = scrollPages.locator(`[data-scroll-page="${FAVORITE_CATALOG_TRANSITION_PAGE}"]`);
-    await expect(targetFrame).toHaveClass(/image-ready/);
-    await expect(targetFrame.locator("img")).toHaveAttribute(
+    await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+    await expect(page.locator("#lightboxImage")).toHaveAttribute(
       "src",
       new RegExp(`page-${String(FAVORITE_CATALOG_TRANSITION_PAGE).padStart(3, "0")}[.]webp`)
     );
-    await expect.poll(() => targetFrame.evaluate((frame) => {
-      const rect = frame.getBoundingClientRect();
-      return Math.abs((rect.top + rect.height / 2) - window.innerHeight / 2);
-    })).toBeLessThanOrEqual(2);
-    if (FAVORITE_CATALOG_TRANSITION_PAGE > 1) {
-      await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
-    }
 
     if (FAVORITE_CATALOG_TRANSITION_PAGE < FAVORITE_CATALOG_TRANSITION_PAGES) {
       const nextPage = FAVORITE_CATALOG_TRANSITION_PAGE + 1;
+      await armPageSwapObservation(page.locator("#lightboxImageFrame"));
       await page.locator("#nextPageBtn").click();
       await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(nextPage));
-      const nextFrame = scrollPages.locator(`[data-scroll-page="${nextPage}"]`);
-      await expect(nextFrame).toHaveClass(/image-ready/);
-      await expect.poll(() => nextFrame.evaluate((frame) => {
-        const rect = frame.getBoundingClientRect();
-        return Math.abs((rect.top + rect.height / 2) - window.innerHeight / 2);
-      })).toBeLessThanOrEqual(2);
+      await expectCurrentViewerImageReady(page);
+      await expectPageSwapObserved(page.locator("#lightboxImageFrame"));
+      await expect(page.locator("#lightboxImage")).toHaveAttribute(
+        "src",
+        new RegExp(`page-${String(nextPage).padStart(3, "0")}[.]webp`)
+      );
     }
   });
 
@@ -533,7 +519,7 @@ test.describe("critical catalog journeys", () => {
     await openDirectViewer(page, 5);
 
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("5");
-    await expect(page.locator('#viewerScrollPages [data-scroll-page="5"] img')).toHaveAttribute("src", /page-005\.webp/);
+    await expect(page.locator("#lightboxImage")).toHaveAttribute("src", /page-005\.webp/);
 
     await revealViewerTopToolbar(page);
     await page.locator("#lightboxCopyLink").click();
@@ -592,220 +578,175 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
   });
 
-  test("starts in progressively loaded scroll layout without a layout switch control", async ({ page }) => {
+  test("starts in the single-image paged layout without a layout switch control", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(4, CATALOG_PAGES);
     await openDirectViewer(page, startPage);
 
-    const scrollPages = page.locator("#viewerScrollPages");
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-paged/);
     await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
-    await expect(scrollPages.locator("[data-scroll-page]")).toHaveCount(CATALOG_PAGES);
-    await expect.poll(() => scrollPages.locator("img[src]").count()).toBeLessThanOrEqual(5);
-    await expect.poll(() => scrollPages.locator("img[src]").count()).toBeGreaterThan(0);
+    await expect(page.locator("#viewerScrollPages")).toHaveCount(0);
+    await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
+    await expect(page.locator("#stageCanvas #lightboxImage")).toHaveCount(1);
 
-    const beforeTop = await scrollPages.evaluate((element) => element.scrollTop);
     if (startPage < CATALOG_PAGES) {
+      await armPageSwapObservation(page.locator("#lightboxImageFrame"));
       await page.locator("#nextPageBtn").click();
       await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage + 1));
-      await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBeGreaterThan(beforeTop);
+      await expectPageSwapObserved(page.locator("#lightboxImageFrame"));
     }
 
     await page.mouse.move(720, 1);
     await expect(page.locator("#lightboxBar")).toBeVisible();
     await page.locator("#fitWidthBtn").click();
     await expect(page.locator("#fitWidthBtn")).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
-    await expect(scrollPages).toBeVisible();
-  });
-
-  test("ignores a legacy side preference, isolates zoom, and jumps to selected pages", async ({ page }) => {
-    await preparePage(page, { legacyViewerLayout: "side" });
-    const startPage = Math.min(3, CATALOG_PAGES);
-    await openDirectViewer(page, startPage);
-
-    const scrollPages = page.locator("#viewerScrollPages");
-    const autoZoomButton = page.locator("#viewerAutoZoomBtn");
-
-    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("side");
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
-    await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
-    await page.reload();
-    await waitForApp(page);
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
-    await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
-    await expect.poll(() => scrollPages.locator(`[data-scroll-page="${startPage}"] img[src]`).count()).toBe(1);
-
-    const currentFrame = scrollPages.locator(`[data-scroll-page="${startPage}"]`);
-    const neighborPage = Math.min(CATALOG_PAGES, startPage + 1);
-    const neighborFrame = scrollPages.locator(`[data-scroll-page="${neighborPage}"]`);
-    const automaticWidth = await currentFrame.evaluate((element) => element.getBoundingClientRect().width);
-    const neighborWidth = await neighborFrame.evaluate((element) => element.getBoundingClientRect().width);
-
-    await page.mouse.move(720, 450);
-    await page.keyboard.down("Control");
-    await page.mouse.wheel(0, -36);
-    await page.keyboard.up("Control");
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
-    await expect(scrollPages).toBeHidden();
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-paged/);
     await expect(page.locator("#lightboxImageFrame")).toBeVisible();
-    await expect(autoZoomButton).toBeVisible();
-    await expect.poll(() => neighborFrame.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(Math.round(neighborWidth));
-
-    const isolatedFrame = page.locator("#lightboxImageFrame");
-    const initialPan = await isolatedFrame.evaluate((element) => ({
-      x: Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0,
-      y: Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0
-    }));
-
-    await page.mouse.wheel(0, 80);
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
-    await expect.poll(() => isolatedFrame.evaluate((element) => Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0)).not.toBe(initialPan.y);
-
-    await page.mouse.wheel(80, 0);
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
-    await expect.poll(() => isolatedFrame.evaluate((element) => Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0)).not.toBe(initialPan.x);
-
-    const lowerEdgeTravel = await page.evaluate(() => {
-      const stage = document.querySelector("#stageCanvas");
-      const frame = document.querySelector("#lightboxImageFrame");
-      if (!stage || !frame) throw new Error("Missing isolated zoom geometry");
-      const stageRect = stage.getBoundingClientRect();
-      const frameRect = frame.getBoundingClientRect();
-      const exitBuffer = Math.min(330, Math.max(144, stageRect.height * 0.36));
-      return {
-        toImageEdge: Math.max(0, frameRect.bottom - stageRect.bottom),
-        exitBuffer
-      };
-    });
-
-    await page.mouse.wheel(0, lowerEdgeTravel.toImageEdge + lowerEdgeTravel.exitBuffer * 0.55);
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
-    await expect.poll(() => page.evaluate(() => {
-      const stageRect = document.querySelector("#stageCanvas")?.getBoundingClientRect();
-      const frameRect = document.querySelector("#lightboxImageFrame")?.getBoundingClientRect();
-      if (!stageRect || !frameRect) return 0;
-      return Math.round(stageRect.bottom - frameRect.bottom);
-    })).toBeGreaterThan(Math.round(lowerEdgeTravel.exitBuffer * 0.35));
-
-    await page.mouse.wheel(0, lowerEdgeTravel.exitBuffer);
-    await expect(page.locator("#lightbox")).not.toHaveClass(/viewer-scroll-zoom-isolated/);
-    await expect(scrollPages).toBeVisible();
-    await expect(autoZoomButton).toBeHidden();
-    await expect.poll(() => currentFrame.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(Math.round(automaticWidth));
-
-    const targetPage = Math.max(1, CATALOG_PAGES - 1);
-    await page.mouse.move(1438, 450);
-    await expect(page.locator("#lightboxPageRail")).toBeVisible();
-    const beforeTop = await scrollPages.evaluate((element) => element.scrollTop);
-    const targetFrame = scrollPages.locator(`[data-scroll-page="${targetPage}"]`);
-    await armPageSwapObservation(targetFrame);
-    await page.locator(`#lightboxPageThumbs [data-page="${targetPage}"]`).click();
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(targetPage));
-    await expectPageSwapObserved(targetFrame);
-    const afterTop = await scrollPages.evaluate((element) => element.scrollTop);
-    expect(Math.abs(afterTop - beforeTop)).toBeGreaterThan(100);
-
-    await page.mouse.move(720, 1);
-    await expect(page.locator("#lightboxBar")).toBeVisible();
-    await expect(page.locator("#viewerLayoutToggle")).toHaveCount(0);
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
-    await expect(scrollPages).toBeVisible();
-    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("side");
   });
 
-
-  test("toggles isolated zoom with one double-click per gesture in scroll layout", async ({ page }) => {
-    await preparePage(page);
-    const startPage = Math.min(4, CATALOG_PAGES);
+  test("preserves relative pan for explicit navigation and uses a fresh reading origin after edge scrolling", async ({ page }) => {
+    await preparePage(page, { legacyViewerLayout: "side" });
+    const startPage = Math.min(3, Math.max(1, CATALOG_PAGES - 2));
     await openDirectViewer(page, startPage);
 
     const lightbox = page.locator("#lightbox");
-    const scrollPages = page.locator("#viewerScrollPages");
-    const currentFrame = scrollPages.locator(`[data-scroll-page="${startPage}"]`);
-    await expect(currentFrame).toBeVisible();
-
-    await currentFrame.dblclick({ position: { x: 220, y: 180 } });
-    await expect(lightbox).toHaveClass(/viewer-scroll-zoom-isolated/);
-    await expect(scrollPages).toBeHidden();
-    await expect(page.locator("#viewerAutoZoomBtn")).toBeVisible();
-
-    await page.mouse.dblclick(720, 450, { delay: 70 });
+    const stage = page.locator("#stageCanvas");
+    const frame = page.locator("#lightboxImageFrame");
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), VIEWER_LAYOUT_KEY)).toBe("side");
+    await expect(lightbox).toHaveClass(/viewer-layout-paged/);
     await expect(lightbox).not.toHaveClass(/viewer-scroll-zoom-isolated/);
-    await expect(scrollPages).toBeVisible();
+
+    await frame.dblclick({ position: { x: 720, y: 450 } });
+    await expect(page.locator("#viewerAutoZoomBtn")).toBeVisible();
+    const initialZoom = await frame.evaluate((element) => Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1);
+    expect(initialZoom).toBeGreaterThan(1.5);
+
+    await stage.evaluate((element) => {
+      element.dispatchEvent(new WheelEvent("wheel", {
+        deltaX: 70,
+        deltaY: 90,
+        deltaMode: 0,
+        bubbles: true,
+        cancelable: true
+      }));
+    });
+    const explicitStart = await frame.evaluate((element) => ({
+      x: Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0,
+      y: Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0,
+      zoom: Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1
+    }));
+    expect(Math.abs(explicitStart.x) + Math.abs(explicitStart.y)).toBeGreaterThan(20);
+
+    await page.locator("#nextPageBtn").click();
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage + 1));
+    await expectCurrentViewerImageReady(page);
+    await expect.poll(() => frame.evaluate((element, expected) => {
+      const x = Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0;
+      const y = Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0;
+      const zoom = Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1;
+      return Math.max(Math.abs(x - expected.x), Math.abs(y - expected.y), Math.abs(zoom - expected.zoom));
+    }, explicitStart)).toBeLessThanOrEqual(2);
+
+    const edgeTarget = startPage + 2;
+    const edgeDelta = await page.evaluate(() => {
+      const stageElement = document.querySelector("#stageCanvas");
+      const frameElement = document.querySelector("#lightboxImageFrame");
+      if (!stageElement || !frameElement) throw new Error("Missing paged viewer geometry");
+      const stageRect = stageElement.getBoundingClientRect();
+      const frameRect = frameElement.getBoundingClientRect();
+      const panY = Number.parseFloat(frameElement.style.getPropertyValue("--single-pan-y")) || 0;
+      const overflowY = Math.max(0, (frameRect.height - stageRect.height) / 2);
+      const buffer = Math.min(330, Math.max(144, stageRect.height * 0.36));
+      return panY + overflowY + buffer + 48;
+    });
+    await stage.evaluate((element, deltaY) => {
+      element.dispatchEvent(new WheelEvent("wheel", {
+        deltaX: 0,
+        deltaY,
+        deltaMode: 0,
+        bubbles: true,
+        cancelable: true
+      }));
+    }, edgeDelta);
+
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(edgeTarget));
+    await expectCurrentViewerImageReady(page);
+    await expect(lightbox).not.toHaveClass(/viewer-scroll-zoom-isolated/);
+    await expect.poll(() => frame.evaluate((element, expectedZoom) => {
+      const zoom = Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1;
+      return Math.abs(zoom - expectedZoom);
+    }, initialZoom)).toBeLessThanOrEqual(0.01);
+    await expect.poll(() => page.evaluate(() => {
+      const stageRect = document.querySelector("#stageCanvas")?.getBoundingClientRect();
+      const frameRect = document.querySelector("#lightboxImageFrame")?.getBoundingClientRect();
+      if (!stageRect || !frameRect) return Number.POSITIVE_INFINITY;
+      return Math.abs(frameRect.top - stageRect.top);
+    })).toBeLessThanOrEqual(3);
+
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage + 1));
+    await expectCurrentViewerImageReady(page);
+    await expect.poll(() => page.evaluate(() => {
+      const stageRect = document.querySelector("#stageCanvas")?.getBoundingClientRect();
+      const frameRect = document.querySelector("#lightboxImageFrame")?.getBoundingClientRect();
+      if (!stageRect || !frameRect) return Number.POSITIVE_INFINITY;
+      return Math.abs(frameRect.top - stageRect.top);
+    })).toBeLessThanOrEqual(3);
+  });
+
+  test("toggles manual zoom with one double-click per gesture in paged layout", async ({ page }) => {
+    await preparePage(page);
+    await openDirectViewer(page, Math.min(4, CATALOG_PAGES));
+
+    const lightbox = page.locator("#lightbox");
+    const frame = page.locator("#lightboxImageFrame");
+    await frame.dblclick({ position: { x: 220, y: 180 } });
+    await expect(page.locator("#viewerAutoZoomBtn")).toBeVisible();
+    await expect(lightbox).toHaveClass(/is-zoomed/);
+    await expect(lightbox).not.toHaveClass(/viewer-scroll-zoom-isolated/);
+
+    await frame.dblclick({ position: { x: 720, y: 450 } });
     await expect(page.locator("#viewerAutoZoomBtn")).toBeHidden();
   });
 
-  test("cancels smooth motion for repeated vertical commands and lands exactly", async ({ page }) => {
+  test("lands on the final requested page for repeated vertical keyboard commands", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(2, Math.max(1, CATALOG_PAGES - 4));
     await openDirectViewer(page, startPage);
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-
-    const scrollPages = page.locator("#viewerScrollPages");
-    await scrollPages.evaluate((container) => {
-      const nativeScrollTo = container.scrollTo.bind(container);
-      window.__viewerE2eSmoothScrollCalls = [];
-      container.scrollTo = (...args) => {
-        const options = args[0];
-        if (options && typeof options === "object") {
-          window.__viewerE2eSmoothScrollCalls.push(options.behavior || "auto");
-        }
-        return nativeScrollTo(...args);
-      };
-    });
 
     const forwardSteps = Math.min(3, CATALOG_PAGES - startPage);
-    const forwardPage = startPage + forwardSteps;
-    const forwardFrame = scrollPages.locator(`[data-scroll-page="${forwardPage}"]`);
-    if (forwardSteps > 1) await armPageSwapObservation(forwardFrame);
-    if (forwardSteps > 0) await page.keyboard.press("ArrowDown");
-    for (let index = 1; index < forwardSteps; index += 1) {
-      await page.evaluate(() => {
+    for (let index = 0; index < forwardSteps; index += 1) {
+      await page.evaluate((repeat) => {
         window.dispatchEvent(new KeyboardEvent("keydown", {
           key: "ArrowDown",
-          repeat: true,
+          repeat,
           bubbles: true,
           cancelable: true
         }));
-      });
+      }, index > 0);
     }
-    if (forwardSteps > 1) await expectPageSwapObserved(forwardFrame);
+    const forwardPage = startPage + forwardSteps;
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(forwardPage));
-    await expect.poll(() => scrollPages.evaluate((container, targetPage) => {
-      const frame = container.querySelector(`[data-scroll-page="${targetPage}"]`);
-      if (!frame) return Number.POSITIVE_INFINITY;
-      const expected = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
-      return Math.abs(container.scrollTop - expected);
-    }, forwardPage)).toBeLessThanOrEqual(2);
-    await expect.poll(() => page.evaluate(() => window.__viewerE2eSmoothScrollCalls)).toEqual(["smooth"]);
+    await expectCurrentViewerImageReady(page);
+    await expect(page.locator("#lightboxImage")).toHaveAttribute(
+      "src",
+      new RegExp(`page-${String(forwardPage).padStart(3, "0")}[.]webp`)
+    );
 
-    await page.waitForTimeout(320);
     const backwardSteps = Math.min(2, forwardPage - 1);
-    const backwardPage = forwardPage - backwardSteps;
-    const backwardFrame = scrollPages.locator(`[data-scroll-page="${backwardPage}"]`);
-    if (backwardSteps > 1) await armPageSwapObservation(backwardFrame);
-    if (backwardSteps > 0) await page.keyboard.press("ArrowUp");
-    for (let index = 1; index < backwardSteps; index += 1) {
-      await page.evaluate(() => {
+    for (let index = 0; index < backwardSteps; index += 1) {
+      await page.evaluate((repeat) => {
         window.dispatchEvent(new KeyboardEvent("keydown", {
           key: "ArrowUp",
-          repeat: true,
+          repeat,
           bubbles: true,
           cancelable: true
         }));
-      });
+      }, index > 0);
     }
-    if (backwardSteps > 1) await expectPageSwapObserved(backwardFrame);
+    const backwardPage = forwardPage - backwardSteps;
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(backwardPage));
-    await expect.poll(() => scrollPages.evaluate((container, targetPage) => {
-      const frame = container.querySelector(`[data-scroll-page="${targetPage}"]`);
-      if (!frame) return Number.POSITIVE_INFINITY;
-      const expected = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
-      return Math.abs(container.scrollTop - expected);
-    }, backwardPage)).toBeLessThanOrEqual(2);
-    await expect.poll(() => page.evaluate(() => window.__viewerE2eSmoothScrollCalls)).toEqual(["smooth", "smooth"]);
+    await expectCurrentViewerImageReady(page);
   });
 
   test("opens the page rail from real mouse input on hybrid devices", async ({ page }) => {
@@ -887,21 +828,14 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startingPage));
   });
 
-  test("normalizes mouse-wheel and precision-touchpad streams through one page path", async ({ page }) => {
+  test("normalizes mouse-wheel and precision-touchpad streams through one paged path", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(3, Math.max(1, CATALOG_PAGES - 6));
     await openDirectViewer(page, startPage);
 
-    const scrollPages = page.locator("#viewerScrollPages");
-    const alignedDistance = (targetPage) => scrollPages.evaluate((container, pageNumber) => {
-      const frame = container.querySelector(`[data-scroll-page="${pageNumber}"]`);
-      if (!frame) return Number.POSITIVE_INFINITY;
-      const expected = Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2));
-      return Math.abs(container.scrollTop - expected);
-    }, targetPage);
-    const dispatchWheelStream = (deltas, deltaMode = 0) => scrollPages.evaluate((container, payload) => {
+    const stage = page.locator("#stageCanvas");
+    const dispatchWheelStream = (deltas, deltaMode = 0) => stage.evaluate((element, payload) => {
       let everyEventCanceled = true;
-      const scrollTops = [];
       payload.deltas.forEach((deltaY) => {
         const event = new WheelEvent("wheel", {
           deltaX: 0,
@@ -910,132 +844,78 @@ test.describe("critical catalog journeys", () => {
           bubbles: true,
           cancelable: true
         });
-        everyEventCanceled = !container.dispatchEvent(event) && everyEventCanceled;
-        scrollTops.push(container.scrollTop);
+        everyEventCanceled = !element.dispatchEvent(event) && everyEventCanceled;
       });
-      return {
-        everyEventCanceled,
-        scrollTop: container.scrollTop,
-        scrollTops
-      };
+      return everyEventCanceled;
     }, { deltas, deltaMode });
     const settleWheelGesture = () => page.waitForTimeout(180);
 
-    const startTop = await scrollPages.evaluate((container) => container.scrollTop);
-    const accidentalGesture = await dispatchWheelStream([19]);
-    expect(accidentalGesture.everyEventCanceled).toBe(true);
-    expect(Math.abs(accidentalGesture.scrollTop - startTop)).toBeLessThanOrEqual(2);
+    expect(await dispatchWheelStream([19])).toBe(true);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
-    await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
     await settleWheelGesture();
 
     const firstPageTarget = Math.min(CATALOG_PAGES, startPage + 1);
-    const granularGesture = await dispatchWheelStream(Array(2).fill(10));
-    expect(granularGesture.everyEventCanceled).toBe(true);
-    for (const intermediateTop of granularGesture.scrollTops.slice(0, -1)) {
-      expect(Math.abs(intermediateTop - startTop)).toBeLessThanOrEqual(2);
-    }
+    expect(await dispatchWheelStream([10, 10])).toBe(true);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(firstPageTarget));
-    await expect.poll(() => alignedDistance(firstPageTarget)).toBeLessThanOrEqual(2);
     await settleWheelGesture();
 
     await dispatchWheelStream([-20]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
-    await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
-    await settleWheelGesture();
-
-    const wideSinglePageGesture = await dispatchWheelStream([199]);
-    expect(wideSinglePageGesture.everyEventCanceled).toBe(true);
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(firstPageTarget));
-    await expect.poll(() => alignedDistance(firstPageTarget)).toBeLessThanOrEqual(2);
-    await settleWheelGesture();
-
-    await dispatchWheelStream([-199]);
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
-    await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
     await settleWheelGesture();
 
     const twoPageTarget = Math.min(CATALOG_PAGES, startPage + 2);
     await dispatchWheelStream([200]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(twoPageTarget));
-    await expect.poll(() => alignedDistance(twoPageTarget)).toBeLessThanOrEqual(2);
     await settleWheelGesture();
 
     await dispatchWheelStream([-200]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
-    await expect.poll(() => alignedDistance(startPage)).toBeLessThanOrEqual(2);
     await settleWheelGesture();
 
     const lineModeTarget = Math.min(CATALOG_PAGES, startPage + 1);
     await dispatchWheelStream([3], 1);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(lineModeTarget));
-    await expect.poll(() => alignedDistance(lineModeTarget)).toBeLessThanOrEqual(2);
     await settleWheelGesture();
 
-    const largeTarget = Math.min(CATALOG_PAGES, lineModeTarget + 2);
-    await dispatchWheelStream([240]);
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(largeTarget));
-    await expect.poll(() => alignedDistance(largeTarget)).toBeLessThanOrEqual(2);
-    await settleWheelGesture();
-
-    const repeatedTarget = Math.min(CATALOG_PAGES, largeTarget + 3);
+    const repeatedTarget = Math.min(CATALOG_PAGES, lineModeTarget + 3);
     await dispatchWheelStream([100, 100, 100]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(repeatedTarget));
-    await expect.poll(() => alignedDistance(repeatedTarget)).toBeLessThanOrEqual(2);
+    await expectCurrentViewerImageReady(page);
   });
 
-  test("keeps scroll-viewer boundary navigation stationary", async ({ page }) => {
+  test("keeps paged-viewer boundary navigation stationary", async ({ page }) => {
     await preparePage(page);
     await openDirectViewer(page, 1);
 
-    const scrollPages = page.locator("#viewerScrollPages");
-    await expect(page.locator("#lightbox")).toHaveClass(/viewer-layout-scroll/);
-    const firstTop = await scrollPages.evaluate((element) => element.scrollTop);
-
+    const frame = page.locator("#lightboxImageFrame");
+    const firstTransform = await frame.evaluate((element) => element.style.transform);
     await page.keyboard.press("ArrowRight");
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
-    await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBe(firstTop);
-    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(0);
+    await expect.poll(() => frame.evaluate((element) => element.style.transform)).toBe(firstTransform);
 
     await page.keyboard.press("End");
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_PAGES));
-    await page.waitForTimeout(320);
-    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(0);
-    const lastTop = await scrollPages.evaluate((element) => element.scrollTop);
-
+    await expectCurrentViewerImageReady(page);
+    const lastSrc = await page.locator("#lightboxImage").getAttribute("src");
     await page.keyboard.press("ArrowLeft");
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_PAGES));
-    await expect.poll(() => scrollPages.evaluate((element) => element.scrollTop)).toBe(lastTop);
-    await expect(scrollPages.locator(".page-swap-enter")).toHaveCount(0);
+    await expect(page.locator("#lightboxImage")).toHaveAttribute("src", lastSrc || "");
   });
 
-  test("supports PageUp, PageDown, and horizontal touch swipes in scroll layout", async ({ page }) => {
+  test("supports PageUp, PageDown, and horizontal and vertical touch swipes", async ({ page }) => {
     await preparePage(page);
     const startPage = Math.min(2, Math.max(1, CATALOG_PAGES - 2));
     await openDirectViewer(page, startPage);
 
     await page.keyboard.press("PageDown");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(Math.min(CATALOG_PAGES, startPage + 1)));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage + 1));
     await page.keyboard.press("PageUp");
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
 
-    const scrollPages = page.locator("#viewerScrollPages");
-    await scrollPages.evaluate((container) => {
-      const nativeScrollTo = container.scrollTo.bind(container);
-      window.__viewerSwipeSmoothScrollCalls = [];
-      container.scrollTo = (...args) => {
-        const options = args[0];
-        if (options && typeof options === "object") {
-          window.__viewerSwipeSmoothScrollCalls.push(options.behavior || "auto");
-        }
-        return nativeScrollTo(...args);
-      };
-    });
-
-    const nextPage = Math.min(CATALOG_PAGES, startPage + 1);
-    const nextFrame = scrollPages.locator(`[data-scroll-page="${nextPage}"]`);
-    await armPageSwapObservation(nextFrame);
-    await scrollPages.dispatchEvent("pointerdown", {
+    const stage = page.locator("#stageCanvas");
+    const frame = page.locator("#lightboxImageFrame");
+    await armPageSwapObservation(frame);
+    await stage.dispatchEvent("pointerdown", {
       pointerId: 71,
       pointerType: "touch",
       isPrimary: true,
@@ -1044,7 +924,7 @@ test.describe("critical catalog journeys", () => {
       bubbles: true,
       cancelable: true
     });
-    await scrollPages.dispatchEvent("pointerup", {
+    await stage.dispatchEvent("pointerup", {
       pointerId: 71,
       pointerType: "touch",
       isPrimary: true,
@@ -1053,33 +933,30 @@ test.describe("critical catalog journeys", () => {
       bubbles: true,
       cancelable: true
     });
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(nextPage));
-    await expectPageSwapObserved(nextFrame);
-    await expect.poll(() => page.evaluate(() => window.__viewerSwipeSmoothScrollCalls)).toEqual([]);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage + 1));
+    await expectPageSwapObserved(frame);
 
-    const startFrame = scrollPages.locator(`[data-scroll-page="${startPage}"]`);
-    await armPageSwapObservation(startFrame);
-    await scrollPages.dispatchEvent("pointerdown", {
+    await armPageSwapObservation(frame);
+    await stage.dispatchEvent("pointerdown", {
       pointerId: 72,
       pointerType: "touch",
       isPrimary: true,
-      clientX: 390,
-      clientY: 430,
+      clientX: 360,
+      clientY: 300,
       bubbles: true,
       cancelable: true
     });
-    await scrollPages.dispatchEvent("pointerup", {
+    await stage.dispatchEvent("pointerup", {
       pointerId: 72,
       pointerType: "touch",
       isPrimary: true,
-      clientX: 280,
-      clientY: 438,
+      clientX: 355,
+      clientY: 420,
       bubbles: true,
       cancelable: true
     });
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
-    await expectPageSwapObserved(startFrame);
-    await expect.poll(() => page.evaluate(() => window.__viewerSwipeSmoothScrollCalls)).toEqual([]);
+    await expectPageSwapObserved(frame);
   });
 
   test("falls back to the thumbnail when a full catalog image fails", async ({ page }) => {
@@ -1087,11 +964,11 @@ test.describe("critical catalog journeys", () => {
     await page.goto(`/catalog/${CATALOG_ID}/page/2/`);
     await waitForApp(page);
 
-    const frame = page.locator('#viewerScrollPages [data-scroll-page="2"]');
+    const frame = page.locator("#lightboxImageFrame");
     await expect(frame).toHaveClass(/image-ready/);
     await expect(frame).toHaveClass(/image-fallback/);
-    await expect(frame.locator("[data-scroll-image-feedback]")).toContainText("מוצגת תצוגה מוקטנת");
-    await expect(frame.locator('[data-retry-scroll-page="2"]')).toBeVisible();
+    await expect(page.locator("#viewerImageFeedback")).toContainText("מוצגת חלופה מוקטנת");
+    await expect(page.locator("#viewerImageRetry")).toBeVisible();
     await expect(page.locator("#viewerLoading")).toBeHidden();
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
   });

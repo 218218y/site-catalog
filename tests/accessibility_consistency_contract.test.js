@@ -24,7 +24,7 @@ assert.match(template, /id="viewerImageFeedback"[\s\S]*?aria-atomic="true"/);
 assert.match(app, /setAttribute\("role", isError \? "alert" : "status"\)/);
 assert.match(app, /function searchIndexErrorMarkup\(/);
 assert.match(app, /data-global-search-index-retry/);
-assert.match(app, /frame\.setAttribute\("aria-busy", "true"\)/);
+assert.match(app, /els\.lightboxImageFrame\?\.setAttribute\("aria-busy", "true"\)/);
 assert.match(accessibility, /הצהרת נגישות/);
 assert.match(accessibility, /עמודי קטלוג שמקורם בתמונות/);
 assert.match(verify, /Static accessibility audit/);

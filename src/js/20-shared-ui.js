@@ -244,9 +244,9 @@ function runViewerPageSwapAnimation(element, options = {}) {
   root?.querySelectorAll?.(".page-swap-enter")
     .forEach((animatedElement) => animatedElement.classList.remove("page-swap-enter"));
 
-  // Restart the exact same entrance animation for both the single-page frame
-  // and the active frame in continuous-scroll mode. Page positioning is
-  // already complete before this reflow, so only the incoming page animates.
+  // Restart the entrance animation only after the target page geometry and
+  // positioning are ready, so the incoming single frame never animates from a
+  // stale size or location.
   void element.offsetWidth;
   element.classList.add("page-swap-enter");
   state[timerKey] = window.setTimeout(() => {
@@ -288,8 +288,7 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
   if (mode !== "error") els.lightboxImageFrame?.classList.remove("image-terminal-error");
 }
 
-function showSingleLightboxImage(catalog, page, src) {
-  const options = arguments[3] || {};
+function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!els.lightboxImage || !catalog) return;
 
   const token = ++state.singleImageLoadToken;
@@ -549,12 +548,7 @@ function catalogPageImageSrc(catalog, page, tier) {
 }
 
 function renderedViewerPagePhysicalLongSide(catalog, page, zoom = state.zoom) {
-  let frame = null;
-  if (isScrollViewerMode?.() && !isViewerScrollIsolatedZoom?.()) {
-    frame = els.viewerScrollPages?.querySelector?.(`[data-scroll-page="${page}"]`) || null;
-  } else {
-    frame = els.lightboxImageFrame || null;
-  }
+  const frame = els.lightboxImageFrame || null;
   const rect = frame?.getBoundingClientRect?.();
   const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
   if (rect?.width && rect?.height) return Math.max(rect.width, rect.height) * dpr;
@@ -577,6 +571,7 @@ function preferredViewerImageTier(catalog, page, options = {}) {
   if (options.forceFull || !catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)) {
     return CATALOG_IMAGE_TIER_FULL;
   }
+  if (options.forceMedium) return CATALOG_IMAGE_TIER_MEDIUM;
 
   const zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(state.zoom || 1);
   if (zoom >= VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD) return CATALOG_IMAGE_TIER_FULL;
@@ -624,8 +619,6 @@ function catalogImageTierRank(tier) {
 
 function refreshSingleViewerImageResolution(options = {}) {
   if (!isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
-  if (isScrollViewerMode() && !isViewerScrollIsolatedZoom()) return false;
-
   const request = viewerPageImageRequest(state.catalog, state.page, options);
   const currentSrc = normalizeCatalogImageUrl(els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src") || "");
   const nextSrc = normalizeCatalogImageUrl(request.primarySrc);
@@ -797,7 +790,6 @@ function showActionToast(message, options = {}) {
 const IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
   ".catalog-image-frame",
   ".lightbox-image-frame",
-  ".viewer-scroll-page-frame",
   ".search-result-thumb-frame",
   ".reader-search-thumb-frame",
   ".favorite-image-frame",

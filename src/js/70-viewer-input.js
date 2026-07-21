@@ -1,134 +1,37 @@
 /**
  * Source module: 70-viewer-input.js
- * Viewer input boundary: pointer tracking, pan/pinch, wheel zoom, double-click/tap, and surface gestures.
+ * Viewer input boundary: pointer pan/pinch, wheel zoom/page turns, double-click/tap, and discrete swipes.
  *
  * Keeping raw input translation separate from viewer rendering makes interaction changes
  * testable without mixing them into page loading, layout, or route behavior.
  */
 
 function getZoomSurfaceName(surface) {
-  if (surface === els.stageCanvas && (!isScrollViewerMode() || isViewerScrollIsolatedZoom())) return "catalog-entry";
-  if (surface === els.viewerScrollPages && isScrollViewerMode()) return "catalog-scroll";
-  return "";
+  return surface === els.stageCanvas ? "catalog-page" : "";
 }
 
 function isActiveZoomSurface(surface) {
   return Boolean(getZoomSurfaceName(surface));
 }
 
-function clearViewerScrollPointerHandoff() {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (handoff?.raf) cancelAnimationFrame(handoff.raf);
-  state.viewerScrollPointerHandoff = null;
-  els.lightbox?.classList.remove("viewer-touch-handoff-active");
-}
-
-function flushViewerScrollPointerHandoff() {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (!handoff) return;
-
-  handoff.raf = 0;
-  const container = els.viewerScrollPages;
-  if (!container) return;
-
-  const deltaX = handoff.pendingX;
-  const deltaY = handoff.pendingY;
-  handoff.pendingX = 0;
-  handoff.pendingY = 0;
-  if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return;
-
-  container.scrollBy({
-    left: deltaX,
-    top: deltaY,
-    behavior: "auto"
-  });
-}
-
-function scheduleViewerScrollPointerHandoffFlush() {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (!handoff || handoff.raf) return;
-  handoff.raf = requestAnimationFrame(flushViewerScrollPointerHandoff);
-}
-
-function beginViewerScrollPointerHandoff(event, deltaX = 0, deltaY = 0) {
-  if (!isTouchLikePointer(event) || !isViewerScrollIsolatedZoom()) return false;
-
-  const safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0;
-  const safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0;
-  const pointerId = event.pointerId;
-  const clientX = event.clientX;
-  const clientY = event.clientY;
-
-  // The browser chose touch-action:none when this gesture started inside the
-  // isolated zoom surface, so native scrolling cannot take over halfway through
-  // the same contact. Exit zoom first, then keep forwarding the current pointer
-  // stream to the continuous viewer until pointerup.
-  exitViewerScrollIsolatedZoom({ restorePage: true, nextZoom: AUTO_VIEWER_ZOOM });
-  state.viewerScrollPointerHandoff = {
-    pointerId,
-    lastX: clientX,
-    lastY: clientY,
-    pendingX: safeDeltaX,
-    pendingY: safeDeltaY,
-    raf: 0
-  };
-  els.lightbox?.classList.add("viewer-touch-handoff-active");
-  scheduleViewerScrollPointerHandoffFlush();
-  return true;
-}
-
-function continueViewerScrollPointerHandoff(event) {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (!handoff || handoff.pointerId !== event.pointerId) return false;
-
-  event.preventDefault();
-  const deltaX = handoff.lastX - event.clientX;
-  const deltaY = handoff.lastY - event.clientY;
-  handoff.lastX = event.clientX;
-  handoff.lastY = event.clientY;
-  if (Number.isFinite(deltaX)) handoff.pendingX += deltaX;
-  if (Number.isFinite(deltaY)) handoff.pendingY += deltaY;
-  scheduleViewerScrollPointerHandoffFlush();
-  return true;
-}
-
-function finishViewerScrollPointerHandoff(event) {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (!handoff || handoff.pointerId !== event.pointerId) return false;
-
-  event.preventDefault?.();
-  if (handoff.raf) {
-    cancelAnimationFrame(handoff.raf);
-    handoff.raf = 0;
-  }
-  flushViewerScrollPointerHandoff();
-  clearViewerScrollPointerHandoff();
-  event.currentTarget?.releasePointerCapture?.(event.pointerId);
-  return true;
-}
-
 function startPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
-  if (
-    isViewerScrollIsolatedZoom()
-    && event.currentTarget === els.stageCanvas
-    && !els.lightboxImageFrame?.contains(event.target)
-    && !isTouchLikePointer(event)
-  ) {
-    event.preventDefault();
-    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
-    return;
+  if (state.pointers.size === 0) {
+    state.pointerGestureHadMultiplePointers = false;
+    state.pointerGestureConsumedPan = false;
+    state.singlePageTurnPointerId = null;
   }
 
-  if (state.pointers.size === 0) state.pointerGestureHadMultiplePointers = false;
-  state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  state.pointers.set(event.pointerId, {
+    x: event.clientX,
+    y: event.clientY,
+    startX: event.clientX,
+    startY: event.clientY
+  });
   if (state.pointers.size >= 2) state.pointerGestureHadMultiplePointers = true;
-  if (
-    isViewerScrollIsolatedZoom()
-    || ((!isScrollViewerMode() || isViewerScrollIsolatedZoom()) && viewerCanPan())
-    || state.pointers.size >= 2
-  ) {
+
+  if (singleViewerUsesBoundaryPan() || state.pointers.size >= 2) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -145,31 +48,38 @@ function startPointerInteraction(event) {
     state.pinchStartZoom = state.zoom;
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
-    if (isScrollViewerMode()) {
-      for (const pointerId of state.pointers.keys()) {
-        event.currentTarget.setPointerCapture?.(pointerId);
-      }
+    for (const pointerId of state.pointers.keys()) {
+      event.currentTarget.setPointerCapture?.(pointerId);
     }
     event.preventDefault();
   }
 }
 
 function movePointerInteraction(event) {
-  if (continueViewerScrollPointerHandoff(event)) return;
-  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
+
+  if (state.singlePageTurnPointerId === event.pointerId) {
+    event.preventDefault();
+    return;
+  }
+
   const previousPoint = state.pointers.get(event.pointerId);
-  state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (!previousPoint) return;
+  state.pointers.set(event.pointerId, {
+    ...previousPoint,
+    x: event.clientX,
+    y: event.clientY
+  });
   const pointers = getPointerList();
 
   if (pointers.length >= 2) {
     event.preventDefault();
+    state.pointerGestureConsumedPan = true;
     const [first, second] = pointers;
     const distance = Math.max(1, pointerDistance(first, second));
     const mid = pointerMidpoint(first, second);
-    if (!isScrollViewerMode() || isViewerScrollIsolatedZoom()) {
-      state.panX += mid.x - state.pinchLastMidX;
-      state.panY += mid.y - state.pinchLastMidY;
-    }
+    state.panX += mid.x - state.pinchLastMidX;
+    state.panY += mid.y - state.pinchLastMidY;
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
     setZoom(state.pinchStartZoom * (distance / state.pinchStartDistance), {
@@ -180,28 +90,20 @@ function movePointerInteraction(event) {
     return;
   }
 
-  if (pointers.length === 1 && isViewerScrollIsolatedZoom() && isTouchLikePointer(event)) {
+  if (pointers.length === 1 && singleViewerUsesBoundaryPan()) {
     event.preventDefault();
-    const scrollDeltaX = previousPoint.x - event.clientX;
-    const scrollDeltaY = previousPoint.y - event.clientY;
-    const result = consumeViewerScrollIsolatedPan(scrollDeltaX, scrollDeltaY);
-    if (result?.hasVerticalExitIntent && Math.abs(result.remainingDeltaY) > 0.75) {
-      beginViewerScrollPointerHandoff(event, 0, result.remainingDeltaY);
-    }
-    return;
-  }
-
-  if (pointers.length === 1 && viewerCanPan()) {
-    event.preventDefault();
-    state.panX = state.dragStartPanX + (event.clientX - state.dragStartX);
-    state.panY = state.dragStartPanY + (event.clientY - state.dragStartY);
-    applyZoom();
+    const deltaX = previousPoint.x - event.clientX;
+    const deltaY = previousPoint.y - event.clientY;
+    const boundary = consumeSingleViewerBoundaryInput(deltaX, deltaY, {
+      pointerId: event.pointerId
+    });
+    if (boundary.moved || boundary.turned) state.pointerGestureConsumedPan = true;
   }
 }
 
 function handlePotentialDoubleTap(event, startedX, startedY) {
   if (event.pointerType !== "touch" && event.pointerType !== "pen") return false;
-  if (state.pointers.size > 0) return false;
+  if (state.pointers.size > 0 || state.pointerGestureConsumedPan) return false;
 
   const moved = Math.hypot(event.clientX - startedX, event.clientY - startedY);
   if (moved > TAP_MOVE_TOLERANCE) {
@@ -213,9 +115,9 @@ function handlePotentialDoubleTap(event, startedX, startedY) {
   const surface = getZoomSurfaceName(event.currentTarget);
   const closeToLastTap = Math.hypot(event.clientX - state.lastTapX, event.clientY - state.lastTapY) <= DOUBLE_TAP_DISTANCE;
   const isDoubleTap =
-    surface === state.lastTapSurface &&
-    now - state.lastTapAt <= DOUBLE_TAP_DELAY &&
-    closeToLastTap;
+    surface === state.lastTapSurface
+    && now - state.lastTapAt <= DOUBLE_TAP_DELAY
+    && closeToLastTap;
 
   state.lastTapAt = now;
   state.lastTapX = event.clientX;
@@ -232,43 +134,54 @@ function handlePotentialDoubleTap(event, startedX, startedY) {
 }
 
 function handleViewerPageSwipe(event, startedX, startedY) {
-  if (state.pointers.size > 0 || state.pointerGestureHadMultiplePointers) return false;
-
-  const scrollMode = isScrollViewerMode();
-  if (scrollMode) {
-    if (isViewerScrollIsolatedZoom() || !isTouchLikePointer(event)) return false;
-  } else if (state.zoom > AUTO_VIEWER_ZOOM + 0.01) {
-    return false;
-  }
+  if (!isTouchLikePointer(event)) return false;
+  if (state.pointers.size > 0 || state.pointerGestureHadMultiplePointers || state.pointerGestureConsumedPan) return false;
 
   const dx = event.clientX - startedX;
   const dy = event.clientY - startedY;
+  const horizontal = Math.abs(dx) > Math.abs(dy);
+  const primaryDistance = horizontal ? Math.abs(dx) : Math.abs(dy);
+  const secondaryDistance = horizontal ? Math.abs(dy) : Math.abs(dx);
   if (
-    Math.abs(dx) <= VIEWER_PAGE_SWIPE_MIN_DISTANCE
-    || Math.abs(dx) <= Math.abs(dy) * VIEWER_PAGE_SWIPE_AXIS_RATIO
+    primaryDistance <= VIEWER_PAGE_SWIPE_MIN_DISTANCE
+    || primaryDistance <= secondaryDistance * VIEWER_PAGE_SWIPE_AXIS_RATIO
   ) {
     return false;
   }
 
   event.preventDefault();
-  const direction = dx > 0 ? 1 : -1;
-
-  // A horizontal swipe is a discrete page command, just like the visible
-  // left/right controls and keyboard arrows. It must not enter the continuous
-  // viewer's native smooth-scroll path.
-  moveLightbox(direction);
+  const direction = horizontal
+    ? (dx > 0 ? 1 : -1)
+    : (dy < 0 ? 1 : -1);
+  moveLightbox(direction, {
+    keepZoom: true,
+    positionMode: "page-turn",
+    pageTurnDirection: direction,
+    pageTurnAxis: horizontal ? "x" : "y"
+  });
   return true;
 }
 
 function endPointerInteraction(event) {
-  if (finishViewerScrollPointerHandoff(event)) return;
-  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
-  const startedX = state.dragStartX;
-  const startedY = state.dragStartY;
+  if (state.singlePageTurnPointerId === event.pointerId) {
+    state.singlePageTurnPointerId = null;
+    state.pointers.delete(event.pointerId);
+    event.preventDefault?.();
+    event.currentTarget?.releasePointerCapture?.(event.pointerId);
+    if (state.pointers.size === 0) {
+      state.pointerGestureHadMultiplePointers = false;
+      state.pointerGestureConsumedPan = false;
+    }
+    return;
+  }
+
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
+  const tracked = state.pointers.get(event.pointerId);
+  if (!tracked) return;
   state.pointers.delete(event.pointerId);
 
-  const handledDoubleTap = handlePotentialDoubleTap(event, startedX, startedY);
-  if (!handledDoubleTap) handleViewerPageSwipe(event, startedX, startedY);
+  const handledDoubleTap = handlePotentialDoubleTap(event, tracked.startX, tracked.startY);
+  if (!handledDoubleTap) handleViewerPageSwipe(event, tracked.startX, tracked.startY);
 
   const pointers = getPointerList();
   if (pointers.length === 1) {
@@ -279,14 +192,19 @@ function endPointerInteraction(event) {
     state.dragStartPanY = state.panY;
   } else if (pointers.length === 0) {
     state.pointerGestureHadMultiplePointers = false;
+    state.pointerGestureConsumedPan = false;
   }
+  event.currentTarget?.releasePointerCapture?.(event.pointerId);
 }
 
 function cancelPointerInteraction(event) {
-  if (finishViewerScrollPointerHandoff(event)) return;
+  if (state.singlePageTurnPointerId === event.pointerId) state.singlePageTurnPointerId = null;
   if (!state.pointers.has(event.pointerId)) return;
   state.pointers.delete(event.pointerId);
-  if (state.pointers.size === 0) state.pointerGestureHadMultiplePointers = false;
+  if (state.pointers.size === 0) {
+    state.pointerGestureHadMultiplePointers = false;
+    state.pointerGestureConsumedPan = false;
+  }
 }
 
 function getWheelZoomFactor(event) {
@@ -297,11 +215,6 @@ function getWheelZoomFactor(event) {
   const delta = normalizeWheelDeltaToPixels(rawDelta, event.deltaMode, event.currentTarget?.clientHeight || 0);
   if (!Number.isFinite(delta) || Math.abs(delta) < 0.01) return 1;
 
-  // Ctrl+mouse-wheel and a trackpad pinch both arrive as wheel events, but they
-  // have very different delta shapes. A discrete mouse detent must advance by a
-  // small predictable percentage; precision trackpad input keeps the existing
-  // continuous curve. This prevents one ordinary wheel notch from behaving like
-  // an entire pinch gesture while preserving smooth laptop-trackpad zoom.
   const direction = delta < 0 ? 1 : -1;
   const absoluteDelta = Math.abs(delta);
   const looksLikeDiscreteWheel =
@@ -328,9 +241,6 @@ function handleZoomSurfaceWheel(event) {
 
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
-    // In scroll layout viewerScrollPages is nested inside stageCanvas. Entering
-    // isolated zoom changes which parent surface is active during propagation,
-    // so the same physical wheel event would otherwise be handled a second time.
     event.stopPropagation();
     const factor = getWheelZoomFactor(event);
     if (factor === 1) return;
@@ -342,36 +252,13 @@ function handleZoomSurfaceWheel(event) {
     return;
   }
 
-  if (isViewerScrollIsolatedZoom()) {
-    event.preventDefault();
-    const deltaX = normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
-    const deltaY = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
-    panViewerScrollIsolatedZoomByWheel(deltaX, deltaY);
-    return;
-  }
-
-  if (isScrollViewerMode()) {
-    handleViewerScrollWheel(event);
-    return;
-  }
-
-  if (viewerCanPan()) {
-    event.preventDefault();
-    state.panX -= normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
-    state.panY -= normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
-    applyZoom();
-  }
+  handleViewerPageWheel(event);
 }
 
 function handleZoomSurfaceDoubleClick(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
   if (Date.now() < state.suppressNextDblClickUntil) return;
 
-  // viewerScrollPages is nested inside stageCanvas and both are valid zoom
-  // surfaces in different viewer states. A double-click that enters isolated
-  // scroll zoom makes stageCanvas active before the same bubbling event reaches
-  // it, so without stopping propagation the event is handled twice: zoom in,
-  // then immediately reset to automatic zoom.
   event.preventDefault();
   event.stopPropagation();
   toggleZoomAtPoint(event.clientX, event.clientY);
@@ -387,11 +274,8 @@ function attachZoomSurfaceGestures(surface) {
   surface.addEventListener("dblclick", handleZoomSurfaceDoubleClick);
 }
 
-
-
 function attachViewerGestures() {
   attachZoomSurfaceGestures(els.stageCanvas);
-  attachZoomSurfaceGestures(els.viewerScrollPages);
 }
 
 function isLightboxTopInteractiveTarget(target) {

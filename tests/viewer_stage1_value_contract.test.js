@@ -50,7 +50,7 @@ assert.match(app, /function viewerInquiryGmailUrl\([\s\S]*?mail\.google\.com\/ma
 assert.match(app, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?navigator\.share\(shareData\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "share"\)/);
 assert.doesNotMatch(app, /viewerInquiry(?:Gmail|Email)\.title\s*=|setTooltipText\(els\.viewerInquiry(?:Gmail|Email)/);
 assert.match(app, /function copyViewerInquiryReference\([\s\S]*?copyTextToClipboard\(reference\.text\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "copy"\)/);
-assert.match(app, /function syncViewerScrollActivePage\([\s\S]*?syncViewerInquiryUi\(\)/);
+assert.match(app, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)/);
 assert.match(app, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)[\s\S]*?syncViewerMobileMoreMenuState\(\)/);
 assert.match(app, /function handleViewerMobileMoreKeydown\([\s\S]*?ArrowDown[\s\S]*?ArrowUp[\s\S]*?Home[\s\S]*?End/);
 assert.match(app, /function hideLightboxUi\([\s\S]*?closeViewerInquiry\(\{ restoreFocus: false \}\)[\s\S]*?closeViewerMobileMoreMenu\(\)/);

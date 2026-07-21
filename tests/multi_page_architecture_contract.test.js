@@ -87,7 +87,7 @@ assert.match(css, /body\[data-page="favorites"\] > \.favorites-panel\.favorites-
 assert.match(css, /--image-swap-duration:\s*190ms;/);
 assert.match(css, /--image-swap-easing:\s*var\(--motion-easing\);/);
 assert.match(css, /--image-swap-start-opacity:\s*\.58;/);
-assert.match(css, /\.viewer-scroll-page\.page-swap-enter,\s*\.lightbox-image-frame\.page-swap-enter\s*\{[\s\S]*?var\(--image-swap-duration\)[\s\S]*?var\(--image-swap-easing\)/);
+assert.match(css, /\.lightbox-image-frame\.page-swap-enter\s*\{[\s\S]*?var\(--image-swap-duration\)[\s\S]*?var\(--image-swap-easing\)/);
 assert.match(css, /@keyframes viewer-page-swap-enter\s*\{[\s\S]*?opacity:\s*var\(--image-swap-start-opacity\);[\s\S]*?scale:\s*\.988;/);
 assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation-duration:\s*\.01ms !important;/);
 

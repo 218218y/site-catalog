@@ -38,7 +38,7 @@ assert.match(app, /function getViewerOnboardingSteps\([\s\S]*?id: "page-navigati
 assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "top-bar"/);
 assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "pin-top-bar"/);
 assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "page-rail"/);
-assert.match(app, /function viewerNavigationOnboardingCopy\([\s\S]*?החליקו למעלה או למטה[\s\S]*?מקשי החצים למעלה, למטה, ימינה ושמאלה/);
+assert.match(app, /function viewerNavigationOnboardingCopy\([\s\S]*?החליקו למעלה, למטה, ימינה או שמאלה[\s\S]*?מקשי החצים ו־Page Up\/Down/);
 assert.match(app, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTargets: \(\) => \[[\s\S]*?els\.nextPageBtn[\s\S]*?els\.prevPageBtn[\s\S]*?gesture: "swipe-both"/);
 assert.match(app, /id: "inquiry"[\s\S]*?target: \(\) => els\.viewerInquiryButton[\s\S]*?floatingTargets: \(\) => \[[\s\S]*?els\.viewerInquiryButton[\s\S]*?els\.viewerFavoriteButton/);
 assert.match(app, /viewerOnboardingNext\.textContent = state\.viewerOnboardingStep === steps\.length - 1 \? "סיום" : "הבא"/);

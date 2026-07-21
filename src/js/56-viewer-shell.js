@@ -46,14 +46,6 @@ function refreshLightboxLayoutForTopUiChange(options = {}) {
   const { resetAutoSingleOrigin = true } = options;
   syncLightboxTopSafeArea();
 
-  if (isScrollViewerMode()) {
-    refreshViewerScrollPageGeometry({
-      preservePage: true,
-      zoomAnchor: getViewerScrollZoomAnchor()
-    });
-    return;
-  }
-
   if (resetAutoSingleOrigin && isAutoViewerZoom()) {
     resetImagePosition({ queueSingleFitOrigin: true });
   }
@@ -362,11 +354,7 @@ function handleLightboxPageRailSelection(button) {
   } else {
     const targetPage = Number(button.dataset.page);
     if (!Number.isFinite(targetPage)) return;
-    setLightboxPage(targetPage, {
-      thumbScrollIntoView: false,
-      scrollBehavior: "auto",
-      animateScrollPage: true
-    });
+    setLightboxPage(targetPage, { thumbScrollIntoView: false });
   }
 
   showPageRailTemporarily(1800, { scrollIntoView: false });
@@ -509,29 +497,16 @@ function setViewerFitMode(fitMode, options = {}) {
   state.imageFitModeSource = normalizeViewerFitModeSource(source);
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
-    // A fit-height wheel gesture may still have a delayed page-settlement
-    // callback pending. Cancel the whole command sequence before fit-width
-    // enables native free scrolling, otherwise that stale callback can pull the
-    // reader back to a page center after the user has already continued.
-    clearViewerScrollWheelGesture();
-    clearViewerScrollTarget();
-    resetViewerScrollCommandSequence();
-    if (isViewerScrollIsolatedZoom()) {
-      exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
-    }
+    clearViewerPageWheelGesture();
+    unlockViewerPageWheel();
     state.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: true });
     state.pointers.clear();
+    state.singlePageTurnPointerId = null;
   }
 
   syncViewerFitModeUi();
-  if (refreshLayout) {
-    if (isScrollViewerMode()) {
-      refreshViewerScrollPageGeometry({ preservePage: true });
-    } else {
-      applyZoom();
-    }
-  }
+  if (refreshLayout) applyZoom();
   if (showUi) showTopUiTemporarily(1600);
 }
 
@@ -780,21 +755,10 @@ function syncLightboxProgress(current, total, title, options = {}) {
 
 
 function syncViewerLayoutModeUi() {
-  const favoritesMode = isFavoritesLightboxMode();
-  const requiredMode = favoritesMode ? VIEWER_LAYOUT_SIDE : VIEWER_LAYOUT_SCROLL;
-
-  // Layout is a source-level product rule, not a user preference: ordinary
-  // catalogs always use continuous scrolling, while favorites retain the
-  // side-by-side viewer until that dedicated flow is redesigned.
-  if (state.viewerLayoutMode !== requiredMode) {
-    state.viewerLayoutMode = requiredMode;
-  }
-
-  const scrollMode = isScrollViewerMode();
-  const isolatedZoom = scrollMode && isViewerScrollIsolatedZoom();
-  els.lightbox?.classList.toggle("viewer-layout-side", !scrollMode);
-  els.lightbox?.classList.toggle("viewer-layout-scroll", scrollMode);
-  els.lightbox?.classList.toggle("viewer-scroll-zoom-isolated", isolatedZoom);
-  els.lightboxImageFrame?.classList.toggle("hidden", scrollMode && !isolatedZoom);
-  els.viewerScrollPages?.classList.toggle("hidden", !scrollMode);
+  // The catalog and favorites routes now share one paged, single-image renderer.
+  // Keeping one rendering contract avoids decoded multi-page DOM state while all
+  // input methods still resolve to the same previous/next-page operation.
+  els.lightbox?.classList.add("viewer-layout-paged");
+  els.lightbox?.classList.remove("viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated");
+  els.lightboxImageFrame?.classList.remove("hidden");
 }

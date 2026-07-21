@@ -13,7 +13,7 @@
  *   - src/js/52-viewer-session.js
  *   - src/js/54-viewer-geometry.js
  *   - src/js/56-viewer-shell.js
- *   - src/js/58-viewer-scroll.js
+ *   - src/js/58-viewer-navigation.js
  *   - src/js/60-viewer.js
  *   - src/js/62-viewer-actions.js
  *   - src/js/65-viewer-onboarding.js
@@ -275,8 +275,6 @@ const VIEWER_FIT_HEIGHT = "height";
 const VIEWER_FIT_WIDTH = "width";
 const VIEWER_FIT_SOURCE_AUTO = "auto";
 const VIEWER_FIT_SOURCE_MANUAL = "manual";
-const VIEWER_LAYOUT_SIDE = "side";
-const VIEWER_LAYOUT_SCROLL = "scroll";
 const VIEWER_PHASE_CLOSED = "closed";
 const VIEWER_PHASE_OPENING = "opening";
 const VIEWER_PHASE_OPEN = "open";
@@ -316,20 +314,17 @@ const DOUBLE_TAP_DISTANCE = 34;
 const TAP_MOVE_TOLERANCE = 14;
 const VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46;
 const VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35;
-const SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO = 0.06;
-const SINGLE_KEYBOARD_PAN_MIN_STEP = 24;
-const SINGLE_KEYBOARD_PAN_MAX_STEP = 52;
 const VIEWER_ZOOM_INDICATOR_HIDE_MS = 760;
 const VIEWER_PAGE_INDICATOR_HIDE_MS = 1000;
 const VIEWER_PAGE_SWAP_CLEANUP_MS = 240;
 const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
-const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
-const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 20;
-const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
-const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
-const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_VIEWPORT_RATIO = 0.36;
-const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX = 144;
-const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MAX_PX = 330;
+const VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20;
+const VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100;
+const VIEWER_PAGE_WHEEL_SETTLE_MS = 150;
+const VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36;
+const VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144;
+const VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330;
+const VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
 const CATALOG_EAGER_COVER_COUNT = 2;
 const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
@@ -356,8 +351,9 @@ const state = {
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
   imageFitModeSource: VIEWER_FIT_SOURCE_AUTO,
-  viewerLayoutMode: VIEWER_LAYOUT_SCROLL,
   singleImageFitOriginPending: false,
+  singleImagePendingRelativePosition: null,
+  singleImagePendingPageTurnOrigin: null,
   panX: 0,
   panY: 0,
   dragStartX: 0,
@@ -374,6 +370,8 @@ const state = {
   pinchLastMidX: 0,
   pinchLastMidY: 0,
   pointerGestureHadMultiplePointers: false,
+  pointerGestureConsumedPan: false,
+  singlePageTurnPointerId: null,
   pointers: new Map(),
   viewerPhase: VIEWER_PHASE_CLOSED,
   viewerPhaseReason: "initial",
@@ -401,22 +399,12 @@ const state = {
   viewerInquiryContext: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
-  viewerScrollCatalogId: "",
-  viewerScrollLoadToken: 0,
-  viewerScrollRaf: 0,
-  viewerScrollZoomRaf: 0,
-  viewerScrollZoomAnchor: null,
-  viewerScrollIsolatedZoom: false,
-  viewerScrollIsolatedPage: 0,
-  viewerScrollPointerHandoff: null,
-  viewerScrollPageAnimationTimer: 0,
-  viewerScrollSettleTimer: 0,
-  viewerScrollTargetPage: 0,
-  viewerScrollLastCommandAt: 0,
-  viewerScrollWheelAccumulator: 0,
-  viewerScrollWheelBasePage: 0,
-  viewerScrollWheelTargetPage: 0,
-  viewerScrollWheelSettleTimer: 0,
+  viewerPageWheelAccumulator: 0,
+  viewerPageWheelBasePage: 0,
+  viewerPageWheelTargetPage: 0,
+  viewerPageWheelSettleTimer: 0,
+  viewerPageWheelLocked: false,
+  viewerPageWheelUnlockTimer: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
@@ -555,7 +543,6 @@ const els = {
   prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"),
   fullscreenToggle: $("fullscreenToggle"),
-  viewerScrollPages: $("viewerScrollPages"),
   fitAutoBtn: $("fitAutoBtn"),
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
@@ -1471,9 +1458,9 @@ function runViewerPageSwapAnimation(element, options = {}) {
   root?.querySelectorAll?.(".page-swap-enter")
     .forEach((animatedElement) => animatedElement.classList.remove("page-swap-enter"));
 
-  // Restart the exact same entrance animation for both the single-page frame
-  // and the active frame in continuous-scroll mode. Page positioning is
-  // already complete before this reflow, so only the incoming page animates.
+  // Restart the entrance animation only after the target page geometry and
+  // positioning are ready, so the incoming single frame never animates from a
+  // stale size or location.
   void element.offsetWidth;
   element.classList.add("page-swap-enter");
   state[timerKey] = window.setTimeout(() => {
@@ -1515,8 +1502,7 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
   if (mode !== "error") els.lightboxImageFrame?.classList.remove("image-terminal-error");
 }
 
-function showSingleLightboxImage(catalog, page, src) {
-  const options = arguments[3] || {};
+function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!els.lightboxImage || !catalog) return;
 
   const token = ++state.singleImageLoadToken;
@@ -1776,12 +1762,7 @@ function catalogPageImageSrc(catalog, page, tier) {
 }
 
 function renderedViewerPagePhysicalLongSide(catalog, page, zoom = state.zoom) {
-  let frame = null;
-  if (isScrollViewerMode?.() && !isViewerScrollIsolatedZoom?.()) {
-    frame = els.viewerScrollPages?.querySelector?.(`[data-scroll-page="${page}"]`) || null;
-  } else {
-    frame = els.lightboxImageFrame || null;
-  }
+  const frame = els.lightboxImageFrame || null;
   const rect = frame?.getBoundingClientRect?.();
   const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
   if (rect?.width && rect?.height) return Math.max(rect.width, rect.height) * dpr;
@@ -1804,6 +1785,7 @@ function preferredViewerImageTier(catalog, page, options = {}) {
   if (options.forceFull || !catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)) {
     return CATALOG_IMAGE_TIER_FULL;
   }
+  if (options.forceMedium) return CATALOG_IMAGE_TIER_MEDIUM;
 
   const zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(state.zoom || 1);
   if (zoom >= VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD) return CATALOG_IMAGE_TIER_FULL;
@@ -1851,8 +1833,6 @@ function catalogImageTierRank(tier) {
 
 function refreshSingleViewerImageResolution(options = {}) {
   if (!isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
-  if (isScrollViewerMode() && !isViewerScrollIsolatedZoom()) return false;
-
   const request = viewerPageImageRequest(state.catalog, state.page, options);
   const currentSrc = normalizeCatalogImageUrl(els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src") || "");
   const nextSrc = normalizeCatalogImageUrl(request.primarySrc);
@@ -2024,7 +2004,6 @@ function showActionToast(message, options = {}) {
 const IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
   ".catalog-image-frame",
   ".lightbox-image-frame",
-  ".viewer-scroll-page-frame",
   ".search-result-thumb-frame",
   ".reader-search-thumb-frame",
   ".favorite-image-frame",
@@ -4440,7 +4419,7 @@ function preloadNeighbors() {
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
         const entry = entries[index];
-        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page), { priority: "low" }).catch(() => {});
+        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, { forceMedium: true }), { priority: "low" }).catch(() => {});
       });
     return;
   }
@@ -4452,7 +4431,7 @@ function preloadNeighbors() {
   ))
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
-      prepareCatalogImage(viewerPageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
+      prepareCatalogImage(viewerPageSrc(state.catalog, page, { forceMedium: true }), { priority: "low" }).catch(() => {});
     });
 }
 
@@ -5846,7 +5825,7 @@ function returnToMainSiteFromLightbox(event = null) {
 /* ===== BEGIN SOURCE: src/js/54-viewer-geometry.js ===== */
 /**
  * Source module: 54-viewer-geometry.js
- * Viewer fit geometry, zoom, pan bounds, and focal-point transforms.
+ * Viewer fit geometry, zoom, pan bounds, relative-position transfer, and edge-turn overscroll.
  *
  * These source modules intentionally share one lexical scope and are concatenated
  * by tools/build_frontend_assets.py into the single browser file app.js.
@@ -5886,9 +5865,6 @@ function clampValue(value, min, max) {
 }
 
 function getMinimumViewerZoom() {
-  // Manual zoom-out must be available in both fit modes. The fit mode defines
-  // the automatic base size; the manual zoom layer should use one shared lower
-  // bound so fit-height can shrink just like fit-width.
   return MIN_VIEWER_ZOOM;
 }
 
@@ -5906,7 +5882,6 @@ function getSafeViewerZoom(value = state.zoom) {
 function clampViewerZoom(value) {
   return getSafeViewerZoom(value);
 }
-
 
 function normalizeViewerFitMode(fitMode) {
   return fitMode === VIEWER_FIT_WIDTH ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
@@ -5943,34 +5918,12 @@ function getViewerFitViewportSize() {
 
 function getAutomaticViewerFitMode() {
   const viewport = getViewerFitViewportSize();
-
-  // A landscape viewport has less vertical room, so fitting by height exposes
-  // the whole page. A portrait viewport has less horizontal room, so fitting by
-  // width is the useful default. Keep the historical height default for the
-  // rare unresolved or exactly-square viewport.
   return viewport.height > viewport.width ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
 }
 
-function isScrollViewerMode() {
-  return state.viewerLayoutMode === VIEWER_LAYOUT_SCROLL && !isFavoritesLightboxMode();
-}
-
-function isViewerScrollIsolatedZoom() {
-  return isScrollViewerMode() && Boolean(state.viewerScrollIsolatedZoom);
-}
-
-function viewerScrollUsesFreePositioning() {
-  return (
-    isScrollViewerMode()
-    && !isViewerScrollIsolatedZoom()
-    && state.imageFitMode === VIEWER_FIT_WIDTH
-  );
-}
-
 function getActiveSingleImageNaturalSize() {
-  if (isViewerScrollIsolatedZoom() && state.catalog) {
-    return pageSize(state.catalog, state.viewerScrollIsolatedPage || state.page);
-  }
+  const configuredSize = state.catalog ? pageSize(state.catalog, state.page) : null;
+  if (configuredSize) return configuredSize;
 
   const image = els.lightboxImage;
   if (image?.naturalWidth && image?.naturalHeight) {
@@ -5981,7 +5934,6 @@ function getActiveSingleImageNaturalSize() {
 }
 
 function getSingleImageDisplayMetrics() {
-  if (isScrollViewerMode() && !isViewerScrollIsolatedZoom()) return null;
   const naturalSize = getActiveSingleImageNaturalSize();
   const stage = els.stageCanvas;
   if (!naturalSize || !stage) return null;
@@ -6006,73 +5958,159 @@ function viewerCanPan() {
   return singleImageCanPan();
 }
 
-function getViewerScrollIsolatedExitBuffer() {
-  if (!isViewerScrollIsolatedZoom()) return 0;
+function singleViewerUsesBoundaryPan() {
+  return getSafeViewerZoom() > AUTO_VIEWER_ZOOM + 0.001 || singleImageCanPan();
+}
 
-  const viewportHeight = els.stageCanvas?.clientHeight || window.innerHeight || 0;
-  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) {
-    return VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX;
+function getViewerPageTurnBuffer(axis = "y") {
+  const stage = els.stageCanvas;
+  const viewportSize = axis === "x"
+    ? (stage?.clientWidth || window.innerWidth || 0)
+    : (stage?.clientHeight || window.innerHeight || 0);
+  if (!Number.isFinite(viewportSize) || viewportSize <= 0) {
+    return VIEWER_PAGE_TURN_BUFFER_MIN_PX;
   }
 
   return clampValue(
-    viewportHeight * VIEWER_SCROLL_ZOOM_EXIT_BUFFER_VIEWPORT_RATIO,
-    VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX,
-    VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MAX_PX
+    viewportSize * VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO,
+    VIEWER_PAGE_TURN_BUFFER_MIN_PX,
+    VIEWER_PAGE_TURN_BUFFER_MAX_PX
   );
 }
 
-function clampSinglePan() {
+function getSinglePanBounds(options = {}) {
   const metrics = getSingleImageDisplayMetrics();
-  if (!metrics) return;
+  if (!metrics) return null;
 
-  if (metrics.overflowX <= 1) state.panX = 0;
-  else state.panX = clampValue(state.panX, -metrics.overflowX, metrics.overflowX);
-
-  // In the continuous viewer, manual zoom is intentionally allowed to travel
-  // beyond the real vertical image edge before it hands control back to page
-  // scrolling. The exposed area is the viewer's black canvas, so the reader can
-  // inspect the last part of the image without an accidental zoom dismissal.
-  const verticalExitBuffer = getViewerScrollIsolatedExitBuffer();
-  const verticalPanLimit = metrics.overflowY + verticalExitBuffer;
-  if (verticalPanLimit <= 1) state.panY = 0;
-  else state.panY = clampValue(state.panY, -verticalPanLimit, verticalPanLimit);
+  const allowPageTurnBuffer = options.allowPageTurnBuffer !== false && singleViewerUsesBoundaryPan();
+  const bufferX = allowPageTurnBuffer ? getViewerPageTurnBuffer("x") : 0;
+  const bufferY = allowPageTurnBuffer ? getViewerPageTurnBuffer("y") : 0;
+  return {
+    metrics,
+    realLimitX: metrics.overflowX,
+    realLimitY: metrics.overflowY,
+    limitX: metrics.overflowX + bufferX,
+    limitY: metrics.overflowY + bufferY,
+    bufferX,
+    bufferY
+  };
 }
 
-function shouldPreserveSingleManualPosition(options = {}) {
-  return (
-    options.keepZoom !== false &&
-    options.resetZoom !== true &&
-    options.resetPosition !== true &&
-    !isAutoViewerZoom()
-  );
+function clampSinglePan(options = {}) {
+  const bounds = getSinglePanBounds(options);
+  if (!bounds) return null;
+
+  state.panX = bounds.limitX <= 1 ? 0 : clampValue(state.panX, -bounds.limitX, bounds.limitX);
+  state.panY = bounds.limitY <= 1 ? 0 : clampValue(state.panY, -bounds.limitY, bounds.limitY);
+  return bounds;
 }
 
+function clearSingleImagePendingPosition() {
+  state.singleImageFitOriginPending = false;
+  state.singleImagePendingRelativePosition = null;
+  state.singleImagePendingPageTurnOrigin = null;
+}
 
+function captureSingleImageRelativePosition() {
+  const metrics = getSingleImageDisplayMetrics();
+  if (!metrics) return { xRatio: 0, yRatio: 0 };
 
+  return {
+    xRatio: metrics.overflowX > 1
+      ? clampValue(state.panX / metrics.overflowX, -1, 1)
+      : 0,
+    yRatio: metrics.overflowY > 1
+      ? clampValue(state.panY / metrics.overflowY, -1, 1)
+      : 0
+  };
+}
 
+function queueSingleImageRelativePosition(page, position = null) {
+  const nextPage = Number.parseInt(page, 10);
+  if (!Number.isFinite(nextPage)) return;
+  const normalized = position || captureSingleImageRelativePosition();
+  state.singleImageFitOriginPending = false;
+  state.singleImagePendingPageTurnOrigin = null;
+  state.singleImagePendingRelativePosition = {
+    page: nextPage,
+    xRatio: clampValue(Number(normalized.xRatio) || 0, -1, 1),
+    yRatio: clampValue(Number(normalized.yRatio) || 0, -1, 1)
+  };
+}
+
+function queueSingleImagePageTurnOrigin(page, direction, axis = "y") {
+  const nextPage = Number.parseInt(page, 10);
+  const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
+  if (!Number.isFinite(nextPage) || !step) return;
+
+  state.singleImageFitOriginPending = false;
+  state.singleImagePendingRelativePosition = null;
+  state.singleImagePendingPageTurnOrigin = {
+    page: nextPage,
+    direction: step,
+    axis: axis === "x" ? "x" : "y"
+  };
+  state.panX = 0;
+  state.panY = 0;
+}
 
 function resetImagePosition(options = {}) {
   state.panX = 0;
   state.panY = 0;
+  clearSingleImagePendingPosition();
   if (options.queueSingleFitOrigin) {
     state.singleImageFitOriginPending = true;
   }
 }
 
-function applyPendingSingleImageFitOrigin() {
-  if (!state.singleImageFitOriginPending) return;
+function applyPendingSingleImagePosition() {
+  const metrics = getSingleImageDisplayMetrics();
+  if (!metrics) return false;
+
+  const pageTurnOrigin = state.singleImagePendingPageTurnOrigin;
+  if (pageTurnOrigin?.page === state.page) {
+    // Edge-driven navigation behaves like continuous reading: moving forward
+    // opens the target at its top, while moving backward enters from its bottom.
+    // Horizontal page turns still use the same vertical reading origin and keep
+    // the image centered horizontally.
+    state.panX = 0;
+    state.panY = pageTurnOrigin.direction > 0 ? metrics.overflowY : -metrics.overflowY;
+    state.singleImagePendingPageTurnOrigin = null;
+    state.singleImagePendingRelativePosition = null;
+    state.singleImageFitOriginPending = false;
+    return true;
+  }
+
+  const relativePosition = state.singleImagePendingRelativePosition;
+  if (relativePosition?.page === state.page) {
+    state.panX = metrics.overflowX * relativePosition.xRatio;
+    state.panY = metrics.overflowY * relativePosition.yRatio;
+    state.singleImagePendingRelativePosition = null;
+    state.singleImagePendingPageTurnOrigin = null;
+    state.singleImageFitOriginPending = false;
+    return true;
+  }
+
+  if (!state.singleImageFitOriginPending) return false;
 
   state.panX = 0;
   state.panY = 0;
-
-  const metrics = getSingleImageDisplayMetrics();
-  if (metrics && state.imageFitMode === VIEWER_FIT_WIDTH && metrics.overflowY > 1) {
-    // Fit-width pages are often taller than the viewport. Start at the real
-    // top of the page instead of vertically centering and hiding the header.
+  if (state.imageFitMode === VIEWER_FIT_WIDTH && metrics.overflowY > 1) {
     state.panY = metrics.overflowY;
   }
-
   state.singleImageFitOriginPending = false;
+  state.singleImagePendingRelativePosition = null;
+  state.singleImagePendingPageTurnOrigin = null;
+  return true;
+}
+
+function shouldPreserveSingleManualPosition(options = {}) {
+  return (
+    options.keepZoom !== false
+    && options.resetZoom !== true
+    && options.resetPosition !== true
+    && !isAutoViewerZoom()
+  );
 }
 
 function singleImageFitLayout(naturalWidth, naturalHeight) {
@@ -6114,7 +6152,7 @@ function applyLightboxFrameGeometry(naturalWidth, naturalHeight, options = {}) {
 function primeLightboxFrameForCatalogPage(catalog, page) {
   const size = pageSize(catalog, page);
   if (!size) return false;
-  return Boolean(applyLightboxFrameGeometry(size.width, size.height, { updateFitScale: false }));
+  return Boolean(applyLightboxFrameGeometry(size.width, size.height, { updateFitScale: true }));
 }
 
 function applySingleZoom() {
@@ -6123,12 +6161,11 @@ function applySingleZoom() {
   if (!naturalSize || !frame) return;
 
   applyLightboxFrameGeometry(naturalSize.width, naturalSize.height);
-
-  if (state.singleImageFitOriginPending) {
-    applyPendingSingleImageFitOrigin();
-  } else if (isAutoViewerZoom() && !singleImageCanPan()) {
-    resetImagePosition();
+  if (!applyPendingSingleImagePosition() && isAutoViewerZoom() && !singleImageCanPan()) {
+    state.panX = 0;
+    state.panY = 0;
   }
+
   clampSinglePan();
   frame.style.setProperty("--single-pan-x", `${state.panX}px`);
   frame.style.setProperty("--single-pan-y", `${state.panY}px`);
@@ -6136,46 +6173,40 @@ function applySingleZoom() {
   frame.style.transform = `translate(-50%, -50%) translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
 }
 
-
-function applyZoom(options = {}) {
-  if (isScrollViewerMode()) {
-    if (isViewerScrollIsolatedZoom()) {
-      applySingleZoom();
-    } else {
-      applyViewerScrollZoom(options.scrollAnchor || null);
-    }
-    els.lightbox?.classList.toggle("is-zoomed", !isAutoViewerZoom());
-    syncViewerAutoZoomButtonUi();
-    return;
-  }
-
+function applyZoom() {
   applySingleZoom();
-
   const isManualZoom = !isAutoViewerZoom();
   els.lightbox?.classList.toggle("is-zoomed", isManualZoom || viewerCanPan());
   syncViewerAutoZoomButtonUi();
 }
 
-function getSingleKeyboardPanStep() {
-  const viewportHeight = els.stageCanvas?.clientHeight || window.innerHeight || 720;
-  const viewportStep = Math.round(viewportHeight * SINGLE_KEYBOARD_PAN_VIEWPORT_RATIO);
-  const baseStep = clampValue(viewportStep, SINGLE_KEYBOARD_PAN_MIN_STEP, SINGLE_KEYBOARD_PAN_MAX_STEP);
-  const metrics = getSingleImageDisplayMetrics();
-  if (!metrics?.overflowY) return baseStep;
+function consumeSingleViewerPanInput(deltaX = 0, deltaY = 0) {
+  if (!singleViewerUsesBoundaryPan()) return null;
 
-  const remainingVerticalRange = metrics.overflowY * 2;
-  return Math.max(12, Math.min(baseStep, Math.ceil(remainingVerticalRange / 8)));
-}
+  const safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0;
+  const safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0;
+  const previousPanX = state.panX;
+  const previousPanY = state.panY;
 
-function panSingleImageBy(deltaX, deltaY) {
-  if (!singleImageCanPan()) return false;
+  state.panX = previousPanX - safeDeltaX;
+  state.panY = previousPanY - safeDeltaY;
+  const bounds = clampSinglePan({ allowPageTurnBuffer: true });
+  if (!bounds) return null;
 
-  state.panX += deltaX;
-  state.panY += deltaY;
-  clampSinglePan();
-  state.singleImageFitOriginPending = false;
-  applyZoom();
-  return true;
+  const moved = Math.abs(state.panX - previousPanX) > 0.01 || Math.abs(state.panY - previousPanY) > 0.01;
+  if (moved) {
+    clearSingleImagePendingPosition();
+    applySingleZoom();
+  }
+
+  const consumedDeltaX = previousPanX - state.panX;
+  const consumedDeltaY = previousPanY - state.panY;
+  return {
+    moved,
+    bounds,
+    remainingDeltaX: safeDeltaX - consumedDeltaX,
+    remainingDeltaY: safeDeltaY - consumedDeltaY
+  };
 }
 
 function getDefaultZoomFocalPoint() {
@@ -6203,11 +6234,6 @@ function adjustSinglePanForZoom(nextZoom, focal) {
   state.panY = focal.y - centerY - contentY * nextZoom;
 }
 
-
-function adjustPanForZoom(nextZoom, focal) {
-  adjustSinglePanForZoom(nextZoom, focal);
-}
-
 function getSingleContentPointFromClientPoint(clientX, clientY) {
   const stage = els.stageCanvas;
   const rect = stage?.getBoundingClientRect?.();
@@ -6223,7 +6249,6 @@ function getSingleContentPointFromClientPoint(clientX, clientY) {
   };
 }
 
-
 function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   if (!point) return false;
   const zoom = clampViewerZoom(nextZoom);
@@ -6232,6 +6257,7 @@ function zoomSingleContentPointToViewportCenter(point, nextZoom) {
     return true;
   }
 
+  clearSingleImagePendingPosition();
   state.zoom = zoom;
   state.panX = -point.x * zoom;
   state.panY = -point.y * zoom;
@@ -6240,17 +6266,7 @@ function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   return true;
 }
 
-
 function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
-  if (isScrollViewerMode()) {
-    setZoom(nextZoom, {
-      showUi: false,
-      focalClientX: clientX,
-      focalClientY: clientY
-    });
-    return true;
-  }
-
   return zoomSingleContentPointToViewportCenter(
     getSingleContentPointFromClientPoint(clientX, clientY),
     nextZoom
@@ -6270,40 +6286,17 @@ function setZoom(nextZoom, options = {}) {
     ? { x: focalClientX, y: focalClientY }
     : getDefaultZoomFocalPoint();
 
-  if (isScrollViewerMode()) {
-    if (zoom > AUTO_VIEWER_ZOOM + 0.001) {
-      if (!isViewerScrollIsolatedZoom()) {
-        enterViewerScrollIsolatedZoom(zoom, focal?.x, focal?.y);
-      } else {
-        if (focal && Math.abs(zoom - previousZoom) > 0.001) {
-          adjustPanForZoom(zoom, focal);
-        }
-        state.zoom = zoom;
-        applyZoom();
-      }
-    } else {
-      const scrollAnchor = isViewerScrollIsolatedZoom()
-        ? null
-        : getViewerScrollZoomAnchor(focal?.x, focal?.y);
-      if (isViewerScrollIsolatedZoom()) {
-        exitViewerScrollIsolatedZoom({ restorePage: true, nextZoom: zoom });
-      } else {
-        state.zoom = isAutoViewerZoom(zoom) ? AUTO_VIEWER_ZOOM : zoom;
-        applyZoom({ scrollAnchor });
-      }
-    }
+  if (isAutoViewerZoom(zoom)) {
+    state.zoom = AUTO_VIEWER_ZOOM;
+    resetImagePosition({ queueSingleFitOrigin: true });
   } else {
-    if (isAutoViewerZoom(zoom)) {
-      state.zoom = AUTO_VIEWER_ZOOM;
-      resetImagePosition({ queueSingleFitOrigin: true });
-    } else {
-      if (focal && Math.abs(zoom - previousZoom) > 0.001) {
-        adjustPanForZoom(zoom, focal);
-      }
-      state.zoom = zoom;
+    clearSingleImagePendingPosition();
+    if (focal && Math.abs(zoom - previousZoom) > 0.001) {
+      adjustSinglePanForZoom(zoom, focal);
     }
-    applyZoom();
+    state.zoom = zoom;
   }
+  applyZoom();
 
   if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
     showViewerZoomIndicator(state.zoom);
@@ -6372,14 +6365,6 @@ function refreshLightboxLayoutForTopUiChange(options = {}) {
 
   const { resetAutoSingleOrigin = true } = options;
   syncLightboxTopSafeArea();
-
-  if (isScrollViewerMode()) {
-    refreshViewerScrollPageGeometry({
-      preservePage: true,
-      zoomAnchor: getViewerScrollZoomAnchor()
-    });
-    return;
-  }
 
   if (resetAutoSingleOrigin && isAutoViewerZoom()) {
     resetImagePosition({ queueSingleFitOrigin: true });
@@ -6689,11 +6674,7 @@ function handleLightboxPageRailSelection(button) {
   } else {
     const targetPage = Number(button.dataset.page);
     if (!Number.isFinite(targetPage)) return;
-    setLightboxPage(targetPage, {
-      thumbScrollIntoView: false,
-      scrollBehavior: "auto",
-      animateScrollPage: true
-    });
+    setLightboxPage(targetPage, { thumbScrollIntoView: false });
   }
 
   showPageRailTemporarily(1800, { scrollIntoView: false });
@@ -6836,29 +6817,16 @@ function setViewerFitMode(fitMode, options = {}) {
   state.imageFitModeSource = normalizeViewerFitModeSource(source);
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
-    // A fit-height wheel gesture may still have a delayed page-settlement
-    // callback pending. Cancel the whole command sequence before fit-width
-    // enables native free scrolling, otherwise that stale callback can pull the
-    // reader back to a page center after the user has already continued.
-    clearViewerScrollWheelGesture();
-    clearViewerScrollTarget();
-    resetViewerScrollCommandSequence();
-    if (isViewerScrollIsolatedZoom()) {
-      exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
-    }
+    clearViewerPageWheelGesture();
+    unlockViewerPageWheel();
     state.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: true });
     state.pointers.clear();
+    state.singlePageTurnPointerId = null;
   }
 
   syncViewerFitModeUi();
-  if (refreshLayout) {
-    if (isScrollViewerMode()) {
-      refreshViewerScrollPageGeometry({ preservePage: true });
-    } else {
-      applyZoom();
-    }
-  }
+  if (refreshLayout) applyZoom();
   if (showUi) showTopUiTemporarily(1600);
 }
 
@@ -7107,492 +7075,23 @@ function syncLightboxProgress(current, total, title, options = {}) {
 
 
 function syncViewerLayoutModeUi() {
-  const favoritesMode = isFavoritesLightboxMode();
-  const requiredMode = favoritesMode ? VIEWER_LAYOUT_SIDE : VIEWER_LAYOUT_SCROLL;
-
-  // Layout is a source-level product rule, not a user preference: ordinary
-  // catalogs always use continuous scrolling, while favorites retain the
-  // side-by-side viewer until that dedicated flow is redesigned.
-  if (state.viewerLayoutMode !== requiredMode) {
-    state.viewerLayoutMode = requiredMode;
-  }
-
-  const scrollMode = isScrollViewerMode();
-  const isolatedZoom = scrollMode && isViewerScrollIsolatedZoom();
-  els.lightbox?.classList.toggle("viewer-layout-side", !scrollMode);
-  els.lightbox?.classList.toggle("viewer-layout-scroll", scrollMode);
-  els.lightbox?.classList.toggle("viewer-scroll-zoom-isolated", isolatedZoom);
-  els.lightboxImageFrame?.classList.toggle("hidden", scrollMode && !isolatedZoom);
-  els.viewerScrollPages?.classList.toggle("hidden", !scrollMode);
+  // The catalog and favorites routes now share one paged, single-image renderer.
+  // Keeping one rendering contract avoids decoded multi-page DOM state while all
+  // input methods still resolve to the same previous/next-page operation.
+  els.lightbox?.classList.add("viewer-layout-paged");
+  els.lightbox?.classList.remove("viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated");
+  els.lightboxImageFrame?.classList.remove("hidden");
 }
 /* ===== END SOURCE: src/js/56-viewer-shell.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/58-viewer-scroll.js ===== */
+/* ===== BEGIN SOURCE: src/js/58-viewer-navigation.js ===== */
 /**
- * Source module: 58-viewer-scroll.js
- * Continuous viewer rendering, image fallback, isolated zoom, and page navigation.
+ * Source module: 58-viewer-navigation.js
+ * Paged-viewer wheel normalization, edge overscroll, and page-turn command handling.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * This module translates wheel, trackpad, and boundary-pan intent into the
+ * same paged navigation contract used by buttons, keyboard, and touch input.
  */
-
-function getViewerScrollPageLayout(page) {
-  const container = els.viewerScrollPages;
-  const size = pageSize(state.catalog, page) || { width: 1400, height: 1000 };
-  const viewportWidth = container?.clientWidth
-    || els.stageCanvas?.clientWidth
-    || window.innerWidth
-    || 320;
-  const viewportHeight = container?.clientHeight
-    || els.stageCanvas?.clientHeight
-    || window.innerHeight
-    || 480;
-  const containerStyle = container ? window.getComputedStyle(container) : null;
-  const horizontalInset = containerStyle
-    ? Math.max(0, Number.parseFloat(containerStyle.paddingLeft) || 0)
-    : 17;
-  const verticalInset = containerStyle
-    ? Math.max(0, Number.parseFloat(containerStyle.paddingTop) || 0)
-    : 17;
-  const availableWidth = Math.max(220, viewportWidth - horizontalInset * 2);
-  const availableHeight = Math.max(220, viewportHeight - verticalInset * 2);
-  const widthScale = availableWidth / size.width;
-  const heightScale = availableHeight / size.height;
-  const scale = state.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
-
-  return {
-    width: Math.max(180, Math.round(size.width * scale)),
-    height: Math.max(140, Math.round(size.height * scale))
-  };
-}
-
-function getViewerScrollPageFrame(page) {
-  return els.viewerScrollPages?.querySelector?.(`[data-scroll-page="${page}"]`) || null;
-}
-
-function getViewerScrollFrameFocal(page, clientX = null, clientY = null) {
-  const frame = getViewerScrollPageFrame(page);
-  const container = els.viewerScrollPages;
-  if (!frame || !container) return null;
-
-  const frameRect = frame.getBoundingClientRect?.();
-  const containerRect = container.getBoundingClientRect?.();
-  if (!frameRect?.width || !frameRect?.height || !containerRect?.width || !containerRect?.height) return null;
-
-  const fallbackX = frameRect.left + frameRect.width / 2;
-  const fallbackY = frameRect.top + frameRect.height / 2;
-  const pointX = Number.isFinite(clientX)
-    ? clampValue(clientX, frameRect.left, frameRect.right)
-    : clampValue(containerRect.left + containerRect.width / 2, frameRect.left, frameRect.right);
-  const pointY = Number.isFinite(clientY)
-    ? clampValue(clientY, frameRect.top, frameRect.bottom)
-    : clampValue(containerRect.top + containerRect.height / 2, frameRect.top, frameRect.bottom);
-
-  return {
-    clientX: Number.isFinite(pointX) ? pointX : fallbackX,
-    clientY: Number.isFinite(pointY) ? pointY : fallbackY,
-    ratioX: clampValue((pointX - frameRect.left) / frameRect.width, 0, 1),
-    ratioY: clampValue((pointY - frameRect.top) / frameRect.height, 0, 1)
-  };
-}
-
-function syncViewerScrollIsolatedZoomUi() {
-  const isolatedZoom = isViewerScrollIsolatedZoom();
-  els.lightbox?.classList.toggle("viewer-scroll-zoom-isolated", isolatedZoom);
-  els.lightboxImageFrame?.classList.toggle("hidden", isScrollViewerMode() && !isolatedZoom);
-}
-
-function prepareViewerScrollIsolatedImage(page) {
-  if (!state.catalog || !els.lightboxImage) return;
-  const targetPage = clampPage(page, state.catalog);
-  const request = viewerPageImageRequest(state.catalog, targetPage);
-  const src = request.primarySrc;
-
-  primeLightboxFrameForCatalogPage(state.catalog, targetPage);
-  if (els.lightboxImage.getAttribute("src") !== src) {
-    els.lightboxImage.removeAttribute("src");
-    prepareImagePlaceholder(els.lightboxImage);
-  }
-  showSingleLightboxImage(state.catalog, targetPage, src, { imageRequest: request });
-}
-
-function enterViewerScrollIsolatedZoom(nextZoom, focalClientX = null, focalClientY = null) {
-  if (!isScrollViewerMode() || !state.catalog) return false;
-  clearViewerScrollPointerHandoff();
-
-  const page = clampPage(state.page, state.catalog);
-  const focal = getViewerScrollFrameFocal(page, focalClientX, focalClientY);
-  const naturalSize = pageSize(state.catalog, page);
-  const stageRect = els.stageCanvas?.getBoundingClientRect?.();
-  if (!naturalSize || !stageRect) return false;
-
-  state.viewerScrollIsolatedZoom = true;
-  state.viewerScrollIsolatedPage = page;
-  state.singleImageFitOriginPending = false;
-  state.panX = 0;
-  state.panY = 0;
-  syncViewerScrollIsolatedZoomUi();
-
-  const layout = applyLightboxFrameGeometry(naturalSize.width, naturalSize.height);
-  const zoom = clampViewerZoom(nextZoom);
-  if (layout && focal) {
-    const contentX = (focal.ratioX - 0.5) * layout.width;
-    const contentY = (focal.ratioY - 0.5) * layout.height;
-    const centerX = stageRect.left + stageRect.width / 2;
-    const centerY = stageRect.top + stageRect.height / 2;
-    state.panX = focal.clientX - centerX - contentX * zoom;
-    state.panY = focal.clientY - centerY - contentY * zoom;
-  }
-
-  state.zoom = zoom;
-  applySingleZoom();
-  prepareViewerScrollIsolatedImage(page);
-  return true;
-}
-
-function exitViewerScrollIsolatedZoom(options = {}) {
-  if (!state.viewerScrollIsolatedZoom) return false;
-  const { restorePage = true, nextZoom = AUTO_VIEWER_ZOOM } = options;
-
-  clearViewerScrollPointerHandoff();
-  state.viewerScrollIsolatedZoom = false;
-  state.viewerScrollIsolatedPage = 0;
-  state.singleImageLoadToken += 1;
-  state.zoom = clampViewerZoom(nextZoom);
-  resetImagePosition();
-  state.pointers.clear();
-  syncViewerScrollIsolatedZoomUi();
-  els.lightboxImageFrame?.classList.remove("page-swap-enter", "is-preparing-swap");
-  setViewerLoading(false);
-  els.lightbox?.classList.remove("is-page-loading");
-  applyViewerScrollZoom(null, { immediate: true });
-  els.lightbox?.classList.toggle("is-zoomed", !isAutoViewerZoom());
-  syncViewerAutoZoomButtonUi();
-
-  if (restorePage) {
-    requestAnimationFrame(() => scrollViewerToPage(state.page, { behavior: "auto" }));
-  }
-  return true;
-}
-
-function resumeViewerScrollFromIsolatedZoom(deltaX = 0, deltaY = 0) {
-  if (!isViewerScrollIsolatedZoom()) return false;
-  exitViewerScrollIsolatedZoom({ restorePage: true, nextZoom: AUTO_VIEWER_ZOOM });
-  requestAnimationFrame(() => {
-    const container = els.viewerScrollPages;
-    if (!container) return;
-    container.scrollBy({
-      left: Number.isFinite(deltaX) ? deltaX : 0,
-      top: Number.isFinite(deltaY) ? deltaY : 0,
-      behavior: "auto"
-    });
-  });
-  return true;
-}
-
-function consumeViewerScrollIsolatedPan(deltaX = 0, deltaY = 0) {
-  if (!isViewerScrollIsolatedZoom()) return null;
-
-  const metrics = getSingleImageDisplayMetrics();
-  if (!metrics) return null;
-
-  const safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0;
-  const safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0;
-  const previousPanX = state.panX;
-  const previousPanY = state.panY;
-
-  // Wheel, precision-trackpad and touch input all consume movement through this
-  // single boundary calculation. clampSinglePan includes the isolated viewer's
-  // black-canvas exit buffer, so only movement beyond both the real image edge
-  // and that deliberate safety distance may leave zoom.
-  state.panX = previousPanX - safeDeltaX;
-  state.panY = previousPanY - safeDeltaY;
-  clampSinglePan();
-
-  const moved = Math.abs(state.panX - previousPanX) > 0.01 || Math.abs(state.panY - previousPanY) > 0.01;
-  if (moved) {
-    state.singleImageFitOriginPending = false;
-    applySingleZoom();
-  }
-
-  const consumedDeltaX = previousPanX - state.panX;
-  const consumedDeltaY = previousPanY - state.panY;
-  return {
-    remainingDeltaX: safeDeltaX - consumedDeltaX,
-    remainingDeltaY: safeDeltaY - consumedDeltaY,
-    hasVerticalExitIntent: Math.abs(safeDeltaY) > Math.abs(safeDeltaX) * 0.5
-  };
-}
-
-function panViewerScrollIsolatedZoomByWheel(deltaX = 0, deltaY = 0) {
-  const result = consumeViewerScrollIsolatedPan(deltaX, deltaY);
-  if (!result) return false;
-
-  if (result.hasVerticalExitIntent && Math.abs(result.remainingDeltaY) > 0.75) {
-    resumeViewerScrollFromIsolatedZoom(0, result.remainingDeltaY);
-  }
-
-  return true;
-}
-
-function runViewerScrollPageSwapAnimation(page) {
-  const frame = getViewerScrollPageFrame(page);
-  if (!frame) return;
-
-  // The target page has already been positioned with an immediate jump. Reuse
-  // the single-page viewer's entrance mechanism so arrows, rail selection and
-  // touch swipes all produce one identical non-scrolling transition.
-  runViewerPageSwapAnimation(frame, {
-    timerKey: "viewerScrollPageAnimationTimer",
-    root: els.viewerScrollPages
-  });
-}
-
-function getViewerScrollZoomAnchor(clientX = null, clientY = null) {
-  const container = els.viewerScrollPages;
-  if (!container || !isScrollViewerMode()) return null;
-
-  const containerRect = container.getBoundingClientRect?.();
-  if (!containerRect?.width || !containerRect?.height) return null;
-
-  const viewportX = Number.isFinite(clientX)
-    ? clampValue(clientX - containerRect.left, 0, containerRect.width)
-    : containerRect.width / 2;
-  const viewportY = Number.isFinite(clientY)
-    ? clampValue(clientY - containerRect.top, 0, containerRect.height)
-    : containerRect.height / 2;
-  const pointX = containerRect.left + viewportX;
-  const pointY = containerRect.top + viewportY;
-
-  let frame = document.elementFromPoint?.(pointX, pointY)?.closest?.("[data-scroll-page]") || null;
-  if (!frame || !container.contains(frame)) {
-    frame = getViewerScrollPageFrame(findViewerScrollCenterPage());
-  }
-  if (!frame) return null;
-
-  const frameRect = frame.getBoundingClientRect?.();
-  if (!frameRect?.width || !frameRect?.height) return null;
-
-  return {
-    page: Number.parseInt(frame.dataset.scrollPage, 10) || state.page,
-    ratioX: clampValue((pointX - frameRect.left) / frameRect.width, 0, 1),
-    ratioY: clampValue((pointY - frameRect.top) / frameRect.height, 0, 1),
-    viewportX,
-    viewportY
-  };
-}
-
-function restoreViewerScrollZoomAnchor(anchor) {
-  const container = els.viewerScrollPages;
-  if (!container || !anchor) return false;
-  const frame = getViewerScrollPageFrame(anchor.page);
-  if (!frame) return false;
-
-  const targetLeft = frame.offsetLeft + frame.offsetWidth * anchor.ratioX - anchor.viewportX;
-  const targetTop = frame.offsetTop + frame.offsetHeight * anchor.ratioY - anchor.viewportY;
-  const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
-  const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
-
-  container.scrollLeft = clampValue(targetLeft, 0, maxLeft);
-  container.scrollTop = clampValue(targetTop, 0, maxTop);
-  return true;
-}
-
-function flushViewerScrollZoom() {
-  const container = els.viewerScrollPages;
-  state.viewerScrollZoomRaf = 0;
-  if (!container || !isScrollViewerMode() || isViewerScrollIsolatedZoom()) {
-    state.viewerScrollZoomAnchor = null;
-    return;
-  }
-
-  const zoom = Math.min(AUTO_VIEWER_ZOOM, getSafeViewerZoom());
-  container.querySelectorAll("[data-scroll-page]").forEach((frame) => {
-    const baseWidth = Number(frame.dataset.scrollBaseWidth);
-    const baseHeight = Number(frame.dataset.scrollBaseHeight);
-    if (!Number.isFinite(baseWidth) || !Number.isFinite(baseHeight)) return;
-    frame.style.setProperty("--viewer-scroll-page-width", `${Math.max(1, Math.round(baseWidth * zoom))}px`);
-    frame.style.setProperty("--viewer-scroll-page-height", `${Math.max(1, Math.round(baseHeight * zoom))}px`);
-  });
-
-  const anchor = state.viewerScrollZoomAnchor;
-  state.viewerScrollZoomAnchor = null;
-  if (anchor) restoreViewerScrollZoomAnchor(anchor);
-}
-
-function applyViewerScrollZoom(anchor = null, options = {}) {
-  if (anchor) state.viewerScrollZoomAnchor = anchor;
-  if (options.immediate) {
-    if (state.viewerScrollZoomRaf) cancelAnimationFrame(state.viewerScrollZoomRaf);
-    flushViewerScrollZoom();
-    return;
-  }
-
-  if (!state.viewerScrollZoomRaf) {
-    state.viewerScrollZoomRaf = requestAnimationFrame(flushViewerScrollZoom);
-  }
-}
-
-function refreshViewerScrollPageGeometry(options = {}) {
-  if (!isScrollViewerMode() || !els.viewerScrollPages || !state.catalog) return;
-  const { preservePage = false, zoomAnchor = null } = options;
-  const currentPage = state.page;
-  const preservedAnchor = zoomAnchor || (
-    preservePage && viewerScrollUsesFreePositioning()
-      ? getViewerScrollZoomAnchor()
-      : null
-  );
-
-  els.viewerScrollPages.querySelectorAll("[data-scroll-page]").forEach((frame) => {
-    const page = Number.parseInt(frame.dataset.scrollPage, 10);
-    if (!Number.isFinite(page)) return;
-    const layout = getViewerScrollPageLayout(page);
-    frame.dataset.scrollBaseWidth = String(layout.width);
-    frame.dataset.scrollBaseHeight = String(layout.height);
-  });
-
-  applyViewerScrollZoom(preservedAnchor, { immediate: true });
-
-  if (preservePage && !preservedAnchor) {
-    // Reading the target offsets after the CSS variables changed forces the
-    // new geometry to be resolved now. Recenter in the same task so an
-    // over-wide fit-height page can never be painted against an edge first.
-    scrollViewerToPage(currentPage, { behavior: "auto" });
-  }
-}
-
-function renderViewerScrollPages() {
-  const container = els.viewerScrollPages;
-  const catalog = state.catalog;
-  if (!container || !catalog || isFavoritesLightboxMode()) return;
-
-  const alreadyRendered = state.viewerScrollCatalogId === catalog.id
-    && container.children.length === catalog.pages;
-  if (!alreadyRendered) {
-    state.viewerScrollLoadToken += 1;
-    state.viewerScrollCatalogId = catalog.id;
-    const title = escapeHtml(catalog.title || "קטלוג");
-    const zoom = Math.min(AUTO_VIEWER_ZOOM, getSafeViewerZoom());
-    container.innerHTML = Array.from({ length: catalog.pages }, (_unused, index) => {
-      const page = index + 1;
-      const size = pageSize(catalog, page) || { width: 1400, height: 1000 };
-      const layout = getViewerScrollPageLayout(page);
-      const width = Math.max(1, Math.round(layout.width * zoom));
-      const height = Math.max(1, Math.round(layout.height * zoom));
-      return `
-        <div class="viewer-scroll-page viewer-scroll-page-frame image-placeholder-frame image-loading" data-scroll-page="${page}" data-scroll-base-width="${layout.width}" data-scroll-base-height="${layout.height}" role="listitem" aria-label="${title}, עמוד ${page}" style="--viewer-scroll-page-width:${width}px;--viewer-scroll-page-height:${height}px;aspect-ratio:${size.width} / ${size.height}">
-          <img data-viewer-scroll-image="${page}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} draggable="false" decoding="async" />
-          <span class="viewer-scroll-page-number" aria-hidden="true">${page}</span>
-        </div>
-      `;
-    }).join("");
-  }
-
-  refreshViewerScrollPageGeometry();
-  loadViewerScrollWindow(state.page);
-}
-
-function setViewerScrollImageFeedback(frame, page, mode = "") {
-  if (!frame) return;
-  let feedback = frame.querySelector?.("[data-scroll-image-feedback]");
-  if (!mode) {
-    feedback?.remove?.();
-    frame.classList.remove("image-fallback", "image-terminal-error");
-    return;
-  }
-
-  if (!feedback) {
-    feedback = document.createElement("div");
-    feedback.className = "viewer-scroll-image-feedback ui-state";
-    feedback.dataset.scrollImageFeedback = "true";
-    feedback.setAttribute("aria-atomic", "true");
-    feedback.innerHTML = `
-      <span class="viewer-scroll-feedback-icon ui-state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
-      </span>
-      <span data-scroll-image-feedback-text></span>
-      <button type="button" data-retry-scroll-page="${page}">נסה שוב</button>
-    `;
-    frame.appendChild(feedback);
-  }
-  const text = feedback.querySelector("[data-scroll-image-feedback-text]");
-  if (text) {
-    text.textContent = mode === "fallback"
-      ? "מוצגת תצוגה מוקטנת."
-      : "התמונה לא נטענה.";
-  }
-  const isError = mode === "error";
-  feedback.dataset.state = isError ? "error" : "warning";
-  feedback.setAttribute("role", isError ? "alert" : "status");
-  feedback.setAttribute("aria-live", isError ? "assertive" : "polite");
-  frame.classList.toggle("image-fallback", mode === "fallback");
-  frame.classList.toggle("image-terminal-error", isError);
-}
-
-function loadViewerScrollPage(page, priority = "low") {
-  const options = arguments[2] || {};
-  if (!isScrollViewerMode() || !state.catalog) return;
-  const frame = getViewerScrollPageFrame(page);
-  const image = frame?.querySelector?.("[data-viewer-scroll-image]");
-  if (!image) return;
-
-  const catalog = state.catalog;
-  const request = viewerPageImageRequest(catalog, page);
-  const src = normalizeCatalogImageUrl(request.primarySrc);
-  if (!options.forceRefresh && image.dataset.loadedSrc === src && image.dataset.loadedQuality !== "fallback") return;
-  if (!options.forceRefresh && image.dataset.loadingSrc === src) return;
-  image.dataset.loadingSrc = src;
-  image.dataset.logicalSrc = src;
-  frame.setAttribute("aria-busy", "true");
-  image.loading = priority === "high" ? "eager" : "lazy";
-  image.fetchPriority = priority;
-  setViewerScrollImageFeedback(frame, page);
-  prepareImagePlaceholder(image);
-
-  const token = state.viewerScrollLoadToken;
-  loadCatalogImageWithRecovery(image, {
-    primarySrc: src,
-    forceRefresh: Boolean(options.forceRefresh),
-    isCurrent: () => (
-      token === state.viewerScrollLoadToken
-      && isScrollViewerMode()
-      && state.catalog === catalog
-      && normalizeCatalogImageUrl(viewerPageImageRequest(catalog, page).primarySrc) === src
-    ),
-    primaryTier: request.primaryTier,
-    fallbackCandidates: request.fallbackCandidates,
-    telemetryDetail: "viewer-scroll",
-    onSuccess: (candidate) => {
-      delete image.dataset.loadingSrc;
-      image.dataset.loadedSrc = src;
-      const loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL;
-      const degraded = catalogImageTierRank(loadedTier) < catalogImageTierRank(request.primaryTier);
-      image.dataset.loadedTier = loadedTier;
-      image.dataset.loadedQuality = degraded ? "fallback" : loadedTier;
-      syncImagePlaceholderState(image);
-      frame.setAttribute("aria-busy", "false");
-      setViewerScrollImageFeedback(frame, page, degraded ? "fallback" : "");
-    },
-    onExhausted: () => {
-      delete image.dataset.loadingSrc;
-      delete image.dataset.loadedSrc;
-      delete image.dataset.loadedTier;
-      delete image.dataset.loadedQuality;
-      syncImagePlaceholderState(image);
-      frame.setAttribute("aria-busy", "false");
-      setViewerScrollImageFeedback(frame, page, "error");
-    }
-  });
-}
-
-function handleViewerScrollImageRetry(event) {
-  const button = event.target?.closest?.("[data-retry-scroll-page]");
-  if (!button) return;
-  event.preventDefault();
-  event.stopPropagation();
-  const page = Number.parseInt(button.dataset.retryScrollPage || "", 10);
-  if (Number.isFinite(page)) loadViewerScrollPage(page, "high", { forceRefresh: true });
-}
 
 function retryCurrentViewerImage() {
   if (!isViewerSessionOpen() || !state.catalog) return;
@@ -7603,299 +7102,209 @@ function retryCurrentViewerImage() {
   });
 }
 
-function loadViewerScrollWindow(centerPage) {
-  if (!state.catalog || !isScrollViewerMode()) return;
-  const center = clampPage(centerPage, state.catalog);
-  const radius = catalogNeighborPreloadRadius();
-  for (let page = Math.max(1, center - radius); page <= Math.min(state.catalog.pages, center + radius); page += 1) {
-    loadViewerScrollPage(page, page === center ? "high" : "low");
+function getViewerNavigationPosition() {
+  return isFavoritesLightboxMode() ? state.favoritesViewerIndex : state.page - 1;
+}
+
+function getViewerNavigationMaximumPosition() {
+  if (isFavoritesLightboxMode()) return Math.max(0, getFavoriteEntries().length - 1);
+  return Math.max(0, (state.catalog?.pages || 1) - 1);
+}
+
+function setViewerNavigationPosition(position, options = {}) {
+  const maximum = getViewerNavigationMaximumPosition();
+  const target = clampValue(Number.parseInt(position, 10) || 0, 0, maximum);
+  if (target === getViewerNavigationPosition()) return false;
+
+  if (isFavoritesLightboxMode()) {
+    setFavoriteViewerIndex(target, options);
+  } else {
+    setLightboxPage(target + 1, options);
   }
+  return true;
 }
 
-function clearViewerScrollTarget() {
-  window.clearTimeout(state.viewerScrollSettleTimer);
-  state.viewerScrollSettleTimer = 0;
-  state.viewerScrollTargetPage = 0;
+function canMoveLightbox(direction) {
+  const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
+  if (!step) return false;
+  const current = getViewerNavigationPosition();
+  return current + step >= 0 && current + step <= getViewerNavigationMaximumPosition();
 }
 
-function resetViewerScrollCommandSequence() {
-  state.viewerScrollLastCommandAt = 0;
+function clearViewerPageWheelGesture() {
+  window.clearTimeout(state.viewerPageWheelSettleTimer);
+  state.viewerPageWheelSettleTimer = 0;
+  state.viewerPageWheelAccumulator = 0;
+  state.viewerPageWheelBasePage = 0;
+  state.viewerPageWheelTargetPage = 0;
 }
 
-function clearViewerScrollWheelGesture() {
-  window.clearTimeout(state.viewerScrollWheelSettleTimer);
-  state.viewerScrollWheelSettleTimer = 0;
-  state.viewerScrollWheelAccumulator = 0;
-  state.viewerScrollWheelBasePage = 0;
-  state.viewerScrollWheelTargetPage = 0;
+function unlockViewerPageWheel() {
+  window.clearTimeout(state.viewerPageWheelUnlockTimer);
+  state.viewerPageWheelUnlockTimer = 0;
+  state.viewerPageWheelLocked = false;
 }
 
-function getViewerScrollPagePosition(page) {
-  const container = els.viewerScrollPages;
-  const frame = getViewerScrollPageFrame(page);
-  if (!container || !frame) return null;
+function keepViewerPageWheelLockedUntilSettle() {
+  state.viewerPageWheelLocked = true;
+  window.clearTimeout(state.viewerPageWheelUnlockTimer);
+  state.viewerPageWheelUnlockTimer = window.setTimeout(
+    unlockViewerPageWheel,
+    VIEWER_PAGE_WHEEL_SETTLE_MS
+  );
+}
 
+function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0) {
+  const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
+  if (deltaMode === pageMode) {
+    return (Number(rawDelta) || 0) * VIEWER_PAGE_WHEEL_PAGE_DELTA_PX;
+  }
+  return normalizeWheelDeltaToPixels(rawDelta, deltaMode, viewportSize);
+}
+
+function normalizeViewerPageWheelDeltas(event) {
   return {
-    top: Math.max(0, frame.offsetTop - Math.max(0, (container.clientHeight - frame.offsetHeight) / 2)),
-    // Center pages on the horizontal viewport even when fit-height makes them
-    // wider than the container. Clamping the size difference before subtracting
-    // it leaves over-wide pages at scrollLeft 0 and exposes only one side.
-    left: Math.max(0, frame.offsetLeft + (frame.offsetWidth - container.clientWidth) / 2)
+    deltaX: normalizeViewerPageWheelAxisDelta(
+      event?.deltaX,
+      event?.deltaMode,
+      event?.currentTarget?.clientWidth || els.stageCanvas?.clientWidth || 0
+    ),
+    deltaY: normalizeViewerPageWheelAxisDelta(
+      event?.deltaY,
+      event?.deltaMode,
+      event?.currentTarget?.clientHeight || els.stageCanvas?.clientHeight || 0
+    )
   };
 }
 
-function settleViewerScrollWheelGesture() {
-  const targetPage = state.viewerScrollWheelTargetPage || state.page;
-  clearViewerScrollWheelGesture();
-  if (!isScrollViewerMode() || !state.catalog) return;
-  loadViewerScrollWindow(targetPage);
-  // Wheel and precision-touchpad gestures are page commands. Settlement must
-  // preserve the exact page position rather than introduce a native smooth
-  // scroll after the final input event.
-  scrollViewerToPage(targetPage);
+function getViewerPageWheelLogicalDelta(deltaX, deltaY) {
+  if (Math.abs(deltaY) >= Math.abs(deltaX)) return deltaY;
+  // The viewer is RTL: a rightward finger/trackpad gesture (negative wheel
+  // deltaX) advances, matching the existing horizontal touch-swipe contract.
+  return -deltaX;
 }
 
-function normalizeViewerScrollWheelDelta(event) {
-  const rawDelta = Number(event?.deltaY) || 0;
-  const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
-
-  // One page-mode unit already represents one deliberate page command. Line
-  // and pixel modes are normalized through the shared pixel converter so a
-  // three-line mouse detent (~108 px) and a 100 px precision-wheel stream carry
-  // the same intent instead of following browser-specific native distances.
-  if (event?.deltaMode === pageMode) return rawDelta * VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX;
-  return normalizeWheelDeltaToPixels(rawDelta, event?.deltaMode, els.viewerScrollPages?.clientHeight || 0);
-}
-
-function getViewerScrollWheelRequestedSteps(accumulator) {
+function getViewerPageWheelRequestedSteps(accumulator) {
   const signedAccumulator = Number(accumulator) || 0;
   const magnitude = Math.abs(signedAccumulator);
-  if (magnitude < VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX) return 0;
+  if (magnitude < VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX) return 0;
 
-  // The first committed page deliberately has a lower activation threshold so
-  // a precision touchpad does not need to land inside a narrow 100–199 px band.
-  // After activation, every additional page keeps the original 100 px cadence:
-  // 20–199 => one page, 200–299 => two pages, 300–399 => three pages, and so on.
-  const wholePageSteps = Math.trunc(magnitude / VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX);
+  const wholePageSteps = Math.trunc(magnitude / VIEWER_PAGE_WHEEL_PAGE_DELTA_PX);
   return Math.sign(signedAccumulator) * Math.max(1, wholePageSteps);
 }
 
-function handleViewerScrollWheel(event) {
-  const container = els.viewerScrollPages;
-  if (!isViewerSessionOpen() || !isScrollViewerMode() || isViewerScrollIsolatedZoom() || !state.catalog || !container) {
-    return false;
+function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
+  if (!result) return null;
+  const preferVertical = Math.abs(deltaY) >= Math.abs(deltaX);
+  const axis = preferVertical ? "y" : "x";
+  const remaining = axis === "y" ? result.remainingDeltaY : result.remainingDeltaX;
+  if (Math.abs(remaining) <= VIEWER_PAGE_TURN_REMAINDER_EPSILON) return null;
+
+  return {
+    axis,
+    direction: axis === "y" ? Math.sign(remaining) : -Math.sign(remaining)
+  };
+}
+
+function moveLightboxFromPageTurn(direction, axis = "y") {
+  const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
+  if (!step || !canMoveLightbox(step)) return false;
+
+  moveLightbox(step, {
+    keepZoom: true,
+    positionMode: "page-turn",
+    pageTurnDirection: step,
+    pageTurnAxis: axis
+  });
+  return true;
+}
+
+function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) {
+  const result = consumeSingleViewerPanInput(deltaX, deltaY);
+  if (!result) return { handled: false, turned: false, moved: false };
+
+  const intent = getSingleViewerPageTurnIntent(result, deltaX, deltaY);
+  const turned = Boolean(intent && moveLightboxFromPageTurn(intent.direction, intent.axis));
+  if (turned && Number.isFinite(options.pointerId)) {
+    state.singlePageTurnPointerId = options.pointerId;
   }
 
-  if (viewerScrollUsesFreePositioning()) {
-    // Fit-width pages are intentionally taller than the viewport. Let the
-    // browser consume the complete wheel/trackpad stream so the reader can move
-    // through every part of the current image and continue naturally into the
-    // next one. Clearing page-command state also prevents a previous fit-height
-    // gesture from settling onto an aligned page after native scrolling begins.
-    clearViewerScrollWheelGesture();
-    clearViewerScrollTarget();
-    resetViewerScrollCommandSequence();
-    return false;
-  }
+  return {
+    handled: true,
+    turned,
+    moved: result.moved,
+    intent,
+    result
+  };
+}
 
-  const deltaY = normalizeViewerScrollWheelDelta(event);
-  const deltaX = normalizeWheelDeltaToPixels(
-    Number(event?.deltaX) || 0,
-    event?.deltaMode,
-    container.clientWidth
-  );
-  if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 0.01) return false;
+function settleViewerPageWheelGesture() {
+  clearViewerPageWheelGesture();
+}
 
-  // Preserve deliberate horizontal panning for fit-height pages that overflow
-  // sideways. Every vertically dominant wheel stream—mouse or touchpad—uses
-  // the exact same page-intent accumulator below.
-  if (Math.abs(deltaX) > Math.abs(deltaY)) return false;
+function handleViewerPageWheel(event) {
+  if (!isViewerSessionOpen() || !state.catalog) return false;
+
+  const { deltaX, deltaY } = normalizeViewerPageWheelDeltas(event);
+  if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return false;
 
   event.preventDefault();
 
-  const gestureStarted = !state.viewerScrollWheelBasePage;
+  if (state.viewerPageWheelLocked) {
+    keepViewerPageWheelLockedUntilSettle();
+    return true;
+  }
+
+  if (singleViewerUsesBoundaryPan()) {
+    clearViewerPageWheelGesture();
+    const boundary = consumeSingleViewerBoundaryInput(deltaX, deltaY);
+    if (boundary.turned) keepViewerPageWheelLockedUntilSettle();
+    return true;
+  }
+
+  const logicalDelta = getViewerPageWheelLogicalDelta(deltaX, deltaY);
+  if (Math.abs(logicalDelta) < 0.01) return true;
+
+  const gestureStarted = !state.viewerPageWheelBasePage;
   if (gestureStarted) {
-    const intendedPage = state.viewerScrollTargetPage || findViewerScrollCenterPage() || state.page;
-    clearViewerScrollTarget();
-    state.viewerScrollWheelBasePage = clampPage(intendedPage, state.catalog);
-    state.viewerScrollWheelTargetPage = state.viewerScrollWheelBasePage;
-    state.viewerScrollWheelAccumulator = 0;
+    const currentPosition = getViewerNavigationPosition();
+    // Store one-based values so zero remains the explicit "no gesture" sentinel.
+    state.viewerPageWheelBasePage = currentPosition + 1;
+    state.viewerPageWheelTargetPage = currentPosition + 1;
+    state.viewerPageWheelAccumulator = 0;
   }
 
-  state.viewerScrollWheelAccumulator += deltaY;
-  const requestedSteps = getViewerScrollWheelRequestedSteps(
-    state.viewerScrollWheelAccumulator
+  state.viewerPageWheelAccumulator += logicalDelta;
+  const requestedSteps = getViewerPageWheelRequestedSteps(state.viewerPageWheelAccumulator);
+  const basePosition = state.viewerPageWheelBasePage - 1;
+  const targetPosition = clampValue(
+    basePosition + requestedSteps,
+    0,
+    getViewerNavigationMaximumPosition()
   );
-  const targetPage = clampPage(state.viewerScrollWheelBasePage + requestedSteps, state.catalog);
-  const previousTargetPage = state.viewerScrollWheelTargetPage;
-  state.viewerScrollWheelTargetPage = targetPage;
+  const previousTargetPosition = state.viewerPageWheelTargetPage - 1;
+  state.viewerPageWheelTargetPage = targetPosition + 1;
 
-  // Pixel-mode touchpads report one gesture as many small wheel events, while a
-  // mouse detent often reaches the page threshold in a single event. Those
-  // sub-threshold values are input intent only: applying them to scrollTop made
-  // touchpads visibly drag the current image before the same page swap that a
-  // mouse performs immediately. Keep the viewport locked to an exact page and
-  // move it only when the shared accumulator commits one or more whole steps.
-  if (gestureStarted || targetPage !== previousTargetPage) {
-    loadViewerScrollWindow(targetPage);
-    const position = getViewerScrollPagePosition(targetPage);
-    if (position) {
-      container.scrollTop = position.top;
-      container.scrollLeft = position.left;
-    }
+  if (targetPosition !== previousTargetPosition) {
+    const direction = Math.sign(targetPosition - previousTargetPosition)
+      || Math.sign(targetPosition - basePosition)
+      || Math.sign(logicalDelta);
+    setViewerNavigationPosition(targetPosition, {
+      keepZoom: true,
+      positionMode: "page-turn",
+      pageTurnDirection: direction,
+      pageTurnAxis: Math.abs(deltaY) >= Math.abs(deltaX) ? "y" : "x"
+    });
   }
-  syncViewerScrollActivePage(targetPage);
-  if (targetPage !== previousTargetPage) runViewerScrollPageSwapAnimation(targetPage);
 
-  window.clearTimeout(state.viewerScrollWheelSettleTimer);
-  state.viewerScrollWheelSettleTimer = window.setTimeout(
-    settleViewerScrollWheelGesture,
-    VIEWER_SCROLL_WHEEL_SETTLE_MS
+  window.clearTimeout(state.viewerPageWheelSettleTimer);
+  state.viewerPageWheelSettleTimer = window.setTimeout(
+    settleViewerPageWheelGesture,
+    VIEWER_PAGE_WHEEL_SETTLE_MS
   );
   return true;
 }
-
-function shouldJumpViewerScrollCommand(options = {}) {
-  const now = performance.now();
-  const elapsed = state.viewerScrollLastCommandAt > 0
-    ? now - state.viewerScrollLastCommandAt
-    : Number.POSITIVE_INFINITY;
-  const isRapidFollowUp = elapsed <= VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS;
-  state.viewerScrollLastCommandAt = now;
-
-  // A single page command keeps the polished smooth movement. Once another
-  // command joins the same sequence, native smooth scrolling becomes a queue:
-  // each destination is animated from an in-flight position and held keys feel
-  // progressively slower. Jumping the accumulated destination cancels that
-  // native animation immediately while preserving exact page alignment.
-  return Boolean(options.repeated || isRapidFollowUp || state.viewerScrollTargetPage);
-}
-
-function scrollViewerToPage(page, options = {}) {
-  const container = els.viewerScrollPages;
-  if (!container) return false;
-  const targetPage = state.catalog ? clampPage(page, state.catalog) : Number(page) || 1;
-  const behavior = options.behavior === "smooth" ? "smooth" : "auto";
-  const position = getViewerScrollPagePosition(targetPage);
-  if (!position) return false;
-  const { top, left } = position;
-
-  clearViewerScrollWheelGesture();
-  clearViewerScrollTarget();
-  if (behavior === "smooth") {
-    state.viewerScrollTargetPage = targetPage;
-    state.viewerScrollSettleTimer = window.setTimeout(() => {
-      state.viewerScrollSettleTimer = 0;
-      state.viewerScrollTargetPage = 0;
-      syncViewerScrollActivePage(findViewerScrollCenterPage());
-    }, 760);
-    container.scrollTo({ top, left, behavior: "smooth" });
-  } else {
-    // Direct assignment deliberately bypasses CSS/native smooth scrolling. A
-    // far-away rail selection must not make the browser animate every page in
-    // between or decode them while travelling to the destination.
-    container.scrollTop = top;
-    container.scrollLeft = left;
-    syncViewerScrollActivePage(targetPage);
-  }
-
-  // The scroll-mode page change may itself run inside requestAnimationFrame.
-  // Starting the animation in another frame lets the fully visible target page
-  // paint once before it jumps back to the animation's start state. Apply the
-  // class synchronously after positioning so the first paint already contains
-  // the same fade/blur/scale start state as the single-page viewer.
-  if (options.animate) runViewerScrollPageSwapAnimation(targetPage);
-  return true;
-}
-
-function findViewerScrollCenterPage() {
-  const container = els.viewerScrollPages;
-  const frames = container?.children;
-  if (!container || !frames?.length) return state.page;
-
-  const target = container.scrollTop + container.clientHeight / 2;
-  let low = 0;
-  let high = frames.length - 1;
-  let best = frames[0];
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const frame = frames[mid];
-    const center = frame.offsetTop + frame.offsetHeight / 2;
-    const distance = Math.abs(center - target);
-    if (distance < bestDistance) {
-      best = frame;
-      bestDistance = distance;
-    }
-    if (center < target) low = mid + 1;
-    else high = mid - 1;
-  }
-
-  return Number.parseInt(best.dataset.scrollPage, 10) || state.page;
-}
-
-function syncViewerScrollActivePage(page) {
-  if (!state.catalog || !isScrollViewerMode()) return;
-  const nextPage = clampPage(page, state.catalog);
-  loadViewerScrollWindow(nextPage);
-
-  if (state.viewerScrollTargetPage) {
-    if (nextPage !== state.viewerScrollTargetPage) return;
-    clearViewerScrollTarget();
-  }
-
-  if (nextPage === state.page) return;
-
-  state.page = nextPage;
-  els.lightboxMeta.textContent = `עמוד ${state.page} מתוך ${state.catalog.pages}`;
-  syncLightboxProgress(state.page, state.catalog.pages, `עמוד ${state.page} מתוך ${state.catalog.pages}`, {
-    label: "עמוד"
-  });
-  els.prevPageBtn.disabled = state.page <= 1;
-  els.nextPageBtn.disabled = state.page >= state.catalog.pages;
-  syncViewerFavoriteButtonUi();
-  syncViewerInquiryUi();
-  updateLightboxThumbs({ scrollIntoView: false });
-  updateHash();
-}
-
-function handleViewerScrollPagesScroll() {
-  if (!isScrollViewerMode() || state.viewerScrollRaf) return;
-  state.viewerScrollRaf = requestAnimationFrame(() => {
-    state.viewerScrollRaf = 0;
-    syncViewerScrollActivePage(findViewerScrollCenterPage());
-  });
-}
-
-function scrollViewerByViewport(direction, options = {}) {
-  if (!isScrollViewerMode() || !els.viewerScrollPages || !state.catalog) return false;
-
-  const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
-  if (!step) return true;
-
-  // Keyboard page navigation is page-based, not distance-based. Using a
-  // percentage of the viewport made repeated presses accumulate from an
-  // in-flight scroll position and could stop halfway through a page. While a
-  // smooth navigation is running, build the next press from its intended page
-  // so every command has one stable, exact destination.
-  const basePage = state.viewerScrollTargetPage || state.page;
-  const targetPage = clampPage(basePage + step, state.catalog);
-  if (targetPage === basePage) return true;
-  const jumpImmediately = shouldJumpViewerScrollCommand(options);
-
-  if (isViewerScrollIsolatedZoom()) {
-    exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
-  }
-
-  loadViewerScrollWindow(targetPage);
-  scrollViewerToPage(targetPage, {
-    behavior: jumpImmediately ? "auto" : "smooth",
-    animate: jumpImmediately
-  });
-  return true;
-}
-/* ===== END SOURCE: src/js/58-viewer-scroll.js ===== */
+/* ===== END SOURCE: src/js/58-viewer-navigation.js ===== */
 
 /* ===== BEGIN SOURCE: src/js/60-viewer.js ===== */
 /**
@@ -7908,12 +7317,7 @@ function scrollViewerByViewport(direction, options = {}) {
 
 function updateLightbox(options = {}) {
   if (!state.catalog) return;
-  const {
-    thumbScrollIntoView = true,
-    scrollToPage = false,
-    scrollBehavior = "auto",
-    animateScrollPage = false
-  } = options;
+  const { thumbScrollIntoView = true } = options;
   let favoriteEntries = null;
 
   if (isFavoritesLightboxMode()) {
@@ -7955,25 +7359,6 @@ function updateLightbox(options = {}) {
 
   syncViewerFavoriteButtonUi();
   if (!favoriteEntries) initLightboxSearchStatus();
-
-  if (!favoriteEntries && isScrollViewerMode()) {
-    state.singleImageLoadToken += 1;
-    setViewerLoading(false);
-    els.lightbox?.classList.remove("is-page-loading", "is-zoomed");
-    renderViewerScrollPages();
-    loadViewerScrollWindow(state.page);
-    if (scrollToPage) {
-      const positionActivePage = () => scrollViewerToPage(state.page, {
-        behavior: scrollBehavior,
-        animate: animateScrollPage
-      });
-      if (scrollBehavior === "smooth") requestAnimationFrame(positionActivePage);
-      else positionActivePage();
-    }
-    updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
-    updateHash();
-    return;
-  }
 
   const request = viewerPageImageRequest(catalog, state.page);
   const src = request.primarySrc;
@@ -8024,14 +7409,8 @@ function openLightbox(page = 1, options = {}) {
   state.imageFitMode = viewerUsesAutomaticFitMode()
     ? getAutomaticViewerFitMode()
     : normalizeViewerFitMode(state.imageFitMode);
-  state.viewerLayoutMode = source === LIGHTBOX_SOURCE_FAVORITES
-    ? VIEWER_LAYOUT_SIDE
-    : VIEWER_LAYOUT_SCROLL;
-  state.viewerScrollCatalogId = "";
-  state.viewerScrollLoadToken += 1;
-  state.viewerScrollIsolatedZoom = false;
-  state.viewerScrollIsolatedPage = 0;
-  clearViewerScrollPointerHandoff();
+  clearViewerPageWheelGesture();
+  unlockViewerPageWheel();
   state.page = clampPage(page, state.catalog);
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
@@ -8057,11 +7436,7 @@ function openLightbox(page = 1, options = {}) {
   resetLightboxSearch();
   syncLightboxModeUi();
   showTopUiTemporarily(1700);
-  updateLightbox({
-    scrollToPage: isScrollViewerMode(),
-    scrollBehavior: "auto",
-    animateScrollPage: false
-  });
+  updateLightbox();
   scheduleCatalogScrollTopButtonUpdate();
   transitionViewerPhase(VIEWER_PHASE_OPEN, "lightbox-ready");
   window.requestAnimationFrame(showViewerOnboardingIfNeeded);
@@ -8076,26 +7451,13 @@ function hideLightboxUi() {
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
-  state.viewerScrollLoadToken += 1;
-  state.viewerLayoutMode = VIEWER_LAYOUT_SCROLL;
-  state.viewerScrollCatalogId = "";
-  if (state.viewerScrollRaf) cancelAnimationFrame(state.viewerScrollRaf);
-  state.viewerScrollRaf = 0;
-  if (state.viewerScrollZoomRaf) cancelAnimationFrame(state.viewerScrollZoomRaf);
-  state.viewerScrollZoomRaf = 0;
-  state.viewerScrollZoomAnchor = null;
-  state.viewerScrollIsolatedZoom = false;
-  state.viewerScrollIsolatedPage = 0;
-  clearViewerScrollPointerHandoff();
-  window.clearTimeout(state.viewerScrollPageAnimationTimer);
-  state.viewerScrollPageAnimationTimer = 0;
-  clearViewerScrollWheelGesture();
-  clearViewerScrollTarget();
-  resetViewerScrollCommandSequence();
+  clearViewerPageWheelGesture();
+  unlockViewerPageWheel();
+  state.singlePageTurnPointerId = null;
+  clearSingleImagePendingPosition();
   window.clearTimeout(state.singleImageAnimationTimer);
-  if (els.viewerScrollPages) els.viewerScrollPages.innerHTML = "";
   els.lightbox?.classList.add("hidden");
-  els.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-scroll", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed");
+  els.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed");
   syncViewerAutoZoomButtonUi();
   hideViewerZoomIndicator();
   els.lightboxImageFrame?.classList.remove("page-swap-enter");
@@ -8132,45 +7494,40 @@ function closeLightbox(options = {}) {
 function setLightboxPage(page, options = {}) {
   if (!state.catalog) return;
   const nextPage = clampPage(page, state.catalog);
-
-  // Boundary navigation must be a true no-op. Previously the clamped page was
-  // rendered again, which retriggered the scroll-page jump animation even
-  // though the viewer was already on page 1 or on the final page.
   if (nextPage === state.page) return;
 
   const {
     thumbScrollIntoView = true,
     keepZoom = true,
     resetZoom = false,
-    resetPosition = isAutoViewerZoom()
+    resetPosition = isAutoViewerZoom(),
+    positionMode = "auto",
+    pageTurnDirection = Math.sign(nextPage - state.page),
+    pageTurnAxis = "y"
   } = options;
   const shouldResetZoom = resetZoom || keepZoom === false;
   const shouldResetPosition = shouldResetZoom || resetPosition;
+  const preserveRelativePosition = positionMode !== "page-turn"
+    && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition });
+  const relativePosition = preserveRelativePosition
+    ? captureSingleImageRelativePosition()
+    : null;
 
   hideLightboxFloatingPreview();
-  if (isViewerScrollIsolatedZoom()) {
-    exitViewerScrollIsolatedZoom({ restorePage: false, nextZoom: AUTO_VIEWER_ZOOM });
-  } else if (shouldResetZoom) {
-    state.zoom = AUTO_VIEWER_ZOOM;
+  if (shouldResetZoom) state.zoom = AUTO_VIEWER_ZOOM;
+
+  if (positionMode === "page-turn") {
+    queueSingleImagePageTurnOrigin(nextPage, pageTurnDirection, pageTurnAxis);
+  } else if (shouldResetPosition) {
+    resetImagePosition({ queueSingleFitOrigin: true });
+  } else if (relativePosition) {
+    queueSingleImageRelativePosition(nextPage, relativePosition);
   }
 
-  // Auto zoom gets a clean page origin. Manual zoom keeps the same pan between
-  // pages, so moving with arrows or selecting a page does not reopen the next
-  // image unexpectedly higher/lower after the user already positioned it.
-  if (shouldResetPosition) {
-    resetImagePosition({ queueSingleFitOrigin: true });
-  } else if (shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition })) {
-    state.singleImageFitOriginPending = false;
-  }
   state.pointers.clear();
   state.page = nextPage;
-  updateLightbox({
-    thumbScrollIntoView,
-    scrollToPage: isScrollViewerMode(),
-    scrollBehavior: isScrollViewerMode() ? "auto" : (options.scrollBehavior || "smooth"),
-    animateScrollPage: isScrollViewerMode() && options.animateScrollPage !== false
-  });
-
+  primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  updateLightbox({ thumbScrollIntoView });
 }
 
 function setFavoriteViewerIndex(index, options = {}) {
@@ -8185,36 +7542,48 @@ function setFavoriteViewerIndex(index, options = {}) {
     thumbScrollIntoView = true,
     keepZoom = true,
     resetZoom = false,
-    resetPosition = isAutoViewerZoom()
+    resetPosition = isAutoViewerZoom(),
+    positionMode = "auto",
+    pageTurnDirection = Math.sign((Number.parseInt(index, 10) || 0) - state.favoritesViewerIndex),
+    pageTurnAxis = "y"
   } = options;
   const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
   const entry = entries[nextIndex];
   const itemChanged = nextIndex !== state.favoritesViewerIndex || state.catalog !== entry.catalog || state.page !== entry.page;
+  if (!itemChanged) return;
+
   const shouldResetZoom = resetZoom || keepZoom === false;
   const shouldResetPosition = shouldResetZoom || resetPosition;
+  const preserveRelativePosition = positionMode !== "page-turn"
+    && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition });
+  const relativePosition = preserveRelativePosition
+    ? captureSingleImageRelativePosition()
+    : null;
 
-  if (itemChanged) {
-    hideLightboxFloatingPreview();
-    if (shouldResetZoom) state.zoom = AUTO_VIEWER_ZOOM;
-    if (shouldResetPosition) {
-      resetImagePosition({ queueSingleFitOrigin: true });
-    } else if (shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition })) {
-      state.singleImageFitOriginPending = false;
-    }
-    state.pointers.clear();
+  hideLightboxFloatingPreview();
+  if (shouldResetZoom) state.zoom = AUTO_VIEWER_ZOOM;
+
+  if (positionMode === "page-turn") {
+    queueSingleImagePageTurnOrigin(entry.page, pageTurnDirection, pageTurnAxis);
+  } else if (shouldResetPosition) {
+    resetImagePosition({ queueSingleFitOrigin: true });
+  } else if (relativePosition) {
+    queueSingleImageRelativePosition(entry.page, relativePosition);
   }
+  state.pointers.clear();
 
   setFavoriteViewerEntry(entries, nextIndex);
+  primeLightboxFrameForCatalogPage(state.catalog, state.page);
   updateLightbox({ thumbScrollIntoView });
 }
 
-function moveLightbox(delta) {
+function moveLightbox(delta, options = {}) {
   if (!state.catalog) return;
   if (isFavoritesLightboxMode()) {
-    setFavoriteViewerIndex(state.favoritesViewerIndex + delta);
+    setFavoriteViewerIndex(state.favoritesViewerIndex + delta, options);
     return;
   }
-  setLightboxPage(state.page + delta);
+  setLightboxPage(state.page + delta, options);
 }
 
 function openCatalog(id, options = {}) {
@@ -8263,10 +7632,8 @@ function openCurrentFavoriteInCatalog() {
   const page = state.page;
 
   // Re-enter through the canonical catalog-viewer lifecycle instead of
-  // partially mutating favorites state in place. The old shortcut skipped the
-  // scroll viewer's initial positioning step: it loaded pages around the saved
-  // favorite but left scrollTop at page 1, so the visible frame had no src and
-  // the user saw only the viewer background.
+  // partially mutating favorites state in place. Both routes now share the same
+  // single-image renderer, so the transition receives one complete clean state.
   openCatalogInViewer(catalogId, page, { source: LIGHTBOX_SOURCE_CATALOG });
 }
 
@@ -8300,8 +7667,6 @@ function attachViewerEvents() {
   els.viewerFavoriteButton?.addEventListener("pointerdown", (event) => event.stopPropagation());
   els.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
   els.viewerImageRetry?.addEventListener("click", retryCurrentViewerImage);
-  els.viewerScrollPages?.addEventListener("click", handleViewerScrollImageRetry);
-  els.viewerScrollPages?.addEventListener("scroll", handleViewerScrollPagesScroll, { passive: true });
 
   attachViewerGestures();
 
@@ -8821,9 +8186,9 @@ function viewerHasTouchCapability() {
 
 function viewerNavigationOnboardingCopy() {
   if (viewerHasTouchCapability()) {
-    return "במסך מגע החליקו למעלה או למטה בגלילה הרציפה, או ימינה ושמאלה למעבר ישיר. אפשר גם ללחוץ על החצים שבצדי המסך או להשתמש במקשי החצים למעלה, למטה, ימינה ושמאלה במקלדת.";
+    return "במסך מגע החליקו למעלה, למטה, ימינה או שמאלה כדי לעבור עמוד. בהגדלה, גררו בתוך התמונה; מעבר לקצה יעביר לעמוד הבא בלי לבטל את הזום. אפשר גם להשתמש בחצים שבצדי המסך או במקשי החצים ו־Page Up/Down.";
   }
-  return "גללו למעלה או למטה, לחצו על החצים שבצדי המסך, או השתמשו במקשי החצים למעלה, למטה, ימינה ושמאלה במקלדת.";
+  return "גללו בעכבר או במשטח המגע, לחצו על החצים שבצדי המסך, או השתמשו במקשי החצים ו־Page Up/Down. בהגדלה, הגלילה מזיזה את התמונה ומעבר לקצה מעביר עמוד בלי לבטל את הזום.";
 }
 
 function viewerZoomOnboardingCopy() {
@@ -8857,9 +8222,7 @@ function getViewerOnboardingSteps() {
       eyebrow: "מבט מקרוב",
       title: "הגדלה וגרירת התמונה",
       description: viewerZoomOnboardingCopy(),
-      target: () => isScrollViewerMode()
-        ? (getViewerScrollPageFrame(state.page) || els.viewerScrollPages)
-        : els.lightboxImageFrame,
+      target: () => els.lightboxImageFrame,
       targetRect: getViewerOnboardingImageFocusRect,
       preferredPlacement: "above",
       padding: 0,
@@ -8959,9 +8322,7 @@ function getViewerOnboardingPageRailFocusRect() {
 }
 
 function getViewerOnboardingImageFocusRect() {
-  const activeImageSurface = isScrollViewerMode()
-    ? (getViewerScrollPageFrame(state.page) || els.viewerScrollPages)
-    : els.lightboxImageFrame;
+  const activeImageSurface = els.lightboxImageFrame;
   const source = activeImageSurface?.getBoundingClientRect?.() || els.stageCanvas?.getBoundingClientRect?.();
   if (!source) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
@@ -9384,135 +8745,38 @@ function attachViewerOnboardingEvents() {
 /* ===== BEGIN SOURCE: src/js/70-viewer-input.js ===== */
 /**
  * Source module: 70-viewer-input.js
- * Viewer input boundary: pointer tracking, pan/pinch, wheel zoom, double-click/tap, and surface gestures.
+ * Viewer input boundary: pointer pan/pinch, wheel zoom/page turns, double-click/tap, and discrete swipes.
  *
  * Keeping raw input translation separate from viewer rendering makes interaction changes
  * testable without mixing them into page loading, layout, or route behavior.
  */
 
 function getZoomSurfaceName(surface) {
-  if (surface === els.stageCanvas && (!isScrollViewerMode() || isViewerScrollIsolatedZoom())) return "catalog-entry";
-  if (surface === els.viewerScrollPages && isScrollViewerMode()) return "catalog-scroll";
-  return "";
+  return surface === els.stageCanvas ? "catalog-page" : "";
 }
 
 function isActiveZoomSurface(surface) {
   return Boolean(getZoomSurfaceName(surface));
 }
 
-function clearViewerScrollPointerHandoff() {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (handoff?.raf) cancelAnimationFrame(handoff.raf);
-  state.viewerScrollPointerHandoff = null;
-  els.lightbox?.classList.remove("viewer-touch-handoff-active");
-}
-
-function flushViewerScrollPointerHandoff() {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (!handoff) return;
-
-  handoff.raf = 0;
-  const container = els.viewerScrollPages;
-  if (!container) return;
-
-  const deltaX = handoff.pendingX;
-  const deltaY = handoff.pendingY;
-  handoff.pendingX = 0;
-  handoff.pendingY = 0;
-  if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return;
-
-  container.scrollBy({
-    left: deltaX,
-    top: deltaY,
-    behavior: "auto"
-  });
-}
-
-function scheduleViewerScrollPointerHandoffFlush() {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (!handoff || handoff.raf) return;
-  handoff.raf = requestAnimationFrame(flushViewerScrollPointerHandoff);
-}
-
-function beginViewerScrollPointerHandoff(event, deltaX = 0, deltaY = 0) {
-  if (!isTouchLikePointer(event) || !isViewerScrollIsolatedZoom()) return false;
-
-  const safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0;
-  const safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0;
-  const pointerId = event.pointerId;
-  const clientX = event.clientX;
-  const clientY = event.clientY;
-
-  // The browser chose touch-action:none when this gesture started inside the
-  // isolated zoom surface, so native scrolling cannot take over halfway through
-  // the same contact. Exit zoom first, then keep forwarding the current pointer
-  // stream to the continuous viewer until pointerup.
-  exitViewerScrollIsolatedZoom({ restorePage: true, nextZoom: AUTO_VIEWER_ZOOM });
-  state.viewerScrollPointerHandoff = {
-    pointerId,
-    lastX: clientX,
-    lastY: clientY,
-    pendingX: safeDeltaX,
-    pendingY: safeDeltaY,
-    raf: 0
-  };
-  els.lightbox?.classList.add("viewer-touch-handoff-active");
-  scheduleViewerScrollPointerHandoffFlush();
-  return true;
-}
-
-function continueViewerScrollPointerHandoff(event) {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (!handoff || handoff.pointerId !== event.pointerId) return false;
-
-  event.preventDefault();
-  const deltaX = handoff.lastX - event.clientX;
-  const deltaY = handoff.lastY - event.clientY;
-  handoff.lastX = event.clientX;
-  handoff.lastY = event.clientY;
-  if (Number.isFinite(deltaX)) handoff.pendingX += deltaX;
-  if (Number.isFinite(deltaY)) handoff.pendingY += deltaY;
-  scheduleViewerScrollPointerHandoffFlush();
-  return true;
-}
-
-function finishViewerScrollPointerHandoff(event) {
-  const handoff = state.viewerScrollPointerHandoff;
-  if (!handoff || handoff.pointerId !== event.pointerId) return false;
-
-  event.preventDefault?.();
-  if (handoff.raf) {
-    cancelAnimationFrame(handoff.raf);
-    handoff.raf = 0;
-  }
-  flushViewerScrollPointerHandoff();
-  clearViewerScrollPointerHandoff();
-  event.currentTarget?.releasePointerCapture?.(event.pointerId);
-  return true;
-}
-
 function startPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
-  if (
-    isViewerScrollIsolatedZoom()
-    && event.currentTarget === els.stageCanvas
-    && !els.lightboxImageFrame?.contains(event.target)
-    && !isTouchLikePointer(event)
-  ) {
-    event.preventDefault();
-    setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
-    return;
+  if (state.pointers.size === 0) {
+    state.pointerGestureHadMultiplePointers = false;
+    state.pointerGestureConsumedPan = false;
+    state.singlePageTurnPointerId = null;
   }
 
-  if (state.pointers.size === 0) state.pointerGestureHadMultiplePointers = false;
-  state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  state.pointers.set(event.pointerId, {
+    x: event.clientX,
+    y: event.clientY,
+    startX: event.clientX,
+    startY: event.clientY
+  });
   if (state.pointers.size >= 2) state.pointerGestureHadMultiplePointers = true;
-  if (
-    isViewerScrollIsolatedZoom()
-    || ((!isScrollViewerMode() || isViewerScrollIsolatedZoom()) && viewerCanPan())
-    || state.pointers.size >= 2
-  ) {
+
+  if (singleViewerUsesBoundaryPan() || state.pointers.size >= 2) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -9529,31 +8793,38 @@ function startPointerInteraction(event) {
     state.pinchStartZoom = state.zoom;
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
-    if (isScrollViewerMode()) {
-      for (const pointerId of state.pointers.keys()) {
-        event.currentTarget.setPointerCapture?.(pointerId);
-      }
+    for (const pointerId of state.pointers.keys()) {
+      event.currentTarget.setPointerCapture?.(pointerId);
     }
     event.preventDefault();
   }
 }
 
 function movePointerInteraction(event) {
-  if (continueViewerScrollPointerHandoff(event)) return;
-  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
+
+  if (state.singlePageTurnPointerId === event.pointerId) {
+    event.preventDefault();
+    return;
+  }
+
   const previousPoint = state.pointers.get(event.pointerId);
-  state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (!previousPoint) return;
+  state.pointers.set(event.pointerId, {
+    ...previousPoint,
+    x: event.clientX,
+    y: event.clientY
+  });
   const pointers = getPointerList();
 
   if (pointers.length >= 2) {
     event.preventDefault();
+    state.pointerGestureConsumedPan = true;
     const [first, second] = pointers;
     const distance = Math.max(1, pointerDistance(first, second));
     const mid = pointerMidpoint(first, second);
-    if (!isScrollViewerMode() || isViewerScrollIsolatedZoom()) {
-      state.panX += mid.x - state.pinchLastMidX;
-      state.panY += mid.y - state.pinchLastMidY;
-    }
+    state.panX += mid.x - state.pinchLastMidX;
+    state.panY += mid.y - state.pinchLastMidY;
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
     setZoom(state.pinchStartZoom * (distance / state.pinchStartDistance), {
@@ -9564,28 +8835,20 @@ function movePointerInteraction(event) {
     return;
   }
 
-  if (pointers.length === 1 && isViewerScrollIsolatedZoom() && isTouchLikePointer(event)) {
+  if (pointers.length === 1 && singleViewerUsesBoundaryPan()) {
     event.preventDefault();
-    const scrollDeltaX = previousPoint.x - event.clientX;
-    const scrollDeltaY = previousPoint.y - event.clientY;
-    const result = consumeViewerScrollIsolatedPan(scrollDeltaX, scrollDeltaY);
-    if (result?.hasVerticalExitIntent && Math.abs(result.remainingDeltaY) > 0.75) {
-      beginViewerScrollPointerHandoff(event, 0, result.remainingDeltaY);
-    }
-    return;
-  }
-
-  if (pointers.length === 1 && viewerCanPan()) {
-    event.preventDefault();
-    state.panX = state.dragStartPanX + (event.clientX - state.dragStartX);
-    state.panY = state.dragStartPanY + (event.clientY - state.dragStartY);
-    applyZoom();
+    const deltaX = previousPoint.x - event.clientX;
+    const deltaY = previousPoint.y - event.clientY;
+    const boundary = consumeSingleViewerBoundaryInput(deltaX, deltaY, {
+      pointerId: event.pointerId
+    });
+    if (boundary.moved || boundary.turned) state.pointerGestureConsumedPan = true;
   }
 }
 
 function handlePotentialDoubleTap(event, startedX, startedY) {
   if (event.pointerType !== "touch" && event.pointerType !== "pen") return false;
-  if (state.pointers.size > 0) return false;
+  if (state.pointers.size > 0 || state.pointerGestureConsumedPan) return false;
 
   const moved = Math.hypot(event.clientX - startedX, event.clientY - startedY);
   if (moved > TAP_MOVE_TOLERANCE) {
@@ -9597,9 +8860,9 @@ function handlePotentialDoubleTap(event, startedX, startedY) {
   const surface = getZoomSurfaceName(event.currentTarget);
   const closeToLastTap = Math.hypot(event.clientX - state.lastTapX, event.clientY - state.lastTapY) <= DOUBLE_TAP_DISTANCE;
   const isDoubleTap =
-    surface === state.lastTapSurface &&
-    now - state.lastTapAt <= DOUBLE_TAP_DELAY &&
-    closeToLastTap;
+    surface === state.lastTapSurface
+    && now - state.lastTapAt <= DOUBLE_TAP_DELAY
+    && closeToLastTap;
 
   state.lastTapAt = now;
   state.lastTapX = event.clientX;
@@ -9616,43 +8879,54 @@ function handlePotentialDoubleTap(event, startedX, startedY) {
 }
 
 function handleViewerPageSwipe(event, startedX, startedY) {
-  if (state.pointers.size > 0 || state.pointerGestureHadMultiplePointers) return false;
-
-  const scrollMode = isScrollViewerMode();
-  if (scrollMode) {
-    if (isViewerScrollIsolatedZoom() || !isTouchLikePointer(event)) return false;
-  } else if (state.zoom > AUTO_VIEWER_ZOOM + 0.01) {
-    return false;
-  }
+  if (!isTouchLikePointer(event)) return false;
+  if (state.pointers.size > 0 || state.pointerGestureHadMultiplePointers || state.pointerGestureConsumedPan) return false;
 
   const dx = event.clientX - startedX;
   const dy = event.clientY - startedY;
+  const horizontal = Math.abs(dx) > Math.abs(dy);
+  const primaryDistance = horizontal ? Math.abs(dx) : Math.abs(dy);
+  const secondaryDistance = horizontal ? Math.abs(dy) : Math.abs(dx);
   if (
-    Math.abs(dx) <= VIEWER_PAGE_SWIPE_MIN_DISTANCE
-    || Math.abs(dx) <= Math.abs(dy) * VIEWER_PAGE_SWIPE_AXIS_RATIO
+    primaryDistance <= VIEWER_PAGE_SWIPE_MIN_DISTANCE
+    || primaryDistance <= secondaryDistance * VIEWER_PAGE_SWIPE_AXIS_RATIO
   ) {
     return false;
   }
 
   event.preventDefault();
-  const direction = dx > 0 ? 1 : -1;
-
-  // A horizontal swipe is a discrete page command, just like the visible
-  // left/right controls and keyboard arrows. It must not enter the continuous
-  // viewer's native smooth-scroll path.
-  moveLightbox(direction);
+  const direction = horizontal
+    ? (dx > 0 ? 1 : -1)
+    : (dy < 0 ? 1 : -1);
+  moveLightbox(direction, {
+    keepZoom: true,
+    positionMode: "page-turn",
+    pageTurnDirection: direction,
+    pageTurnAxis: horizontal ? "x" : "y"
+  });
   return true;
 }
 
 function endPointerInteraction(event) {
-  if (finishViewerScrollPointerHandoff(event)) return;
-  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || !state.pointers.has(event.pointerId)) return;
-  const startedX = state.dragStartX;
-  const startedY = state.dragStartY;
+  if (state.singlePageTurnPointerId === event.pointerId) {
+    state.singlePageTurnPointerId = null;
+    state.pointers.delete(event.pointerId);
+    event.preventDefault?.();
+    event.currentTarget?.releasePointerCapture?.(event.pointerId);
+    if (state.pointers.size === 0) {
+      state.pointerGestureHadMultiplePointers = false;
+      state.pointerGestureConsumedPan = false;
+    }
+    return;
+  }
+
+  if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
+  const tracked = state.pointers.get(event.pointerId);
+  if (!tracked) return;
   state.pointers.delete(event.pointerId);
 
-  const handledDoubleTap = handlePotentialDoubleTap(event, startedX, startedY);
-  if (!handledDoubleTap) handleViewerPageSwipe(event, startedX, startedY);
+  const handledDoubleTap = handlePotentialDoubleTap(event, tracked.startX, tracked.startY);
+  if (!handledDoubleTap) handleViewerPageSwipe(event, tracked.startX, tracked.startY);
 
   const pointers = getPointerList();
   if (pointers.length === 1) {
@@ -9663,14 +8937,19 @@ function endPointerInteraction(event) {
     state.dragStartPanY = state.panY;
   } else if (pointers.length === 0) {
     state.pointerGestureHadMultiplePointers = false;
+    state.pointerGestureConsumedPan = false;
   }
+  event.currentTarget?.releasePointerCapture?.(event.pointerId);
 }
 
 function cancelPointerInteraction(event) {
-  if (finishViewerScrollPointerHandoff(event)) return;
+  if (state.singlePageTurnPointerId === event.pointerId) state.singlePageTurnPointerId = null;
   if (!state.pointers.has(event.pointerId)) return;
   state.pointers.delete(event.pointerId);
-  if (state.pointers.size === 0) state.pointerGestureHadMultiplePointers = false;
+  if (state.pointers.size === 0) {
+    state.pointerGestureHadMultiplePointers = false;
+    state.pointerGestureConsumedPan = false;
+  }
 }
 
 function getWheelZoomFactor(event) {
@@ -9681,11 +8960,6 @@ function getWheelZoomFactor(event) {
   const delta = normalizeWheelDeltaToPixels(rawDelta, event.deltaMode, event.currentTarget?.clientHeight || 0);
   if (!Number.isFinite(delta) || Math.abs(delta) < 0.01) return 1;
 
-  // Ctrl+mouse-wheel and a trackpad pinch both arrive as wheel events, but they
-  // have very different delta shapes. A discrete mouse detent must advance by a
-  // small predictable percentage; precision trackpad input keeps the existing
-  // continuous curve. This prevents one ordinary wheel notch from behaving like
-  // an entire pinch gesture while preserving smooth laptop-trackpad zoom.
   const direction = delta < 0 ? 1 : -1;
   const absoluteDelta = Math.abs(delta);
   const looksLikeDiscreteWheel =
@@ -9712,9 +8986,6 @@ function handleZoomSurfaceWheel(event) {
 
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
-    // In scroll layout viewerScrollPages is nested inside stageCanvas. Entering
-    // isolated zoom changes which parent surface is active during propagation,
-    // so the same physical wheel event would otherwise be handled a second time.
     event.stopPropagation();
     const factor = getWheelZoomFactor(event);
     if (factor === 1) return;
@@ -9726,36 +8997,13 @@ function handleZoomSurfaceWheel(event) {
     return;
   }
 
-  if (isViewerScrollIsolatedZoom()) {
-    event.preventDefault();
-    const deltaX = normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
-    const deltaY = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
-    panViewerScrollIsolatedZoomByWheel(deltaX, deltaY);
-    return;
-  }
-
-  if (isScrollViewerMode()) {
-    handleViewerScrollWheel(event);
-    return;
-  }
-
-  if (viewerCanPan()) {
-    event.preventDefault();
-    state.panX -= normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode, event.currentTarget.clientWidth);
-    state.panY -= normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode, event.currentTarget.clientHeight);
-    applyZoom();
-  }
+  handleViewerPageWheel(event);
 }
 
 function handleZoomSurfaceDoubleClick(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
   if (Date.now() < state.suppressNextDblClickUntil) return;
 
-  // viewerScrollPages is nested inside stageCanvas and both are valid zoom
-  // surfaces in different viewer states. A double-click that enters isolated
-  // scroll zoom makes stageCanvas active before the same bubbling event reaches
-  // it, so without stopping propagation the event is handled twice: zoom in,
-  // then immediately reset to automatic zoom.
   event.preventDefault();
   event.stopPropagation();
   toggleZoomAtPoint(event.clientX, event.clientY);
@@ -9771,11 +9019,8 @@ function attachZoomSurfaceGestures(surface) {
   surface.addEventListener("dblclick", handleZoomSurfaceDoubleClick);
 }
 
-
-
 function attachViewerGestures() {
   attachZoomSurfaceGestures(els.stageCanvas);
-  attachZoomSurfaceGestures(els.viewerScrollPages);
 }
 
 function isLightboxTopInteractiveTarget(target) {
@@ -9902,11 +9147,13 @@ function attachShellEvents() {
     const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
     if (isTyping) return;
 
-    if (["ArrowDown", "PageDown"].includes(event.key) && scrollViewerByViewport(1, { repeated: event.repeat })) event.preventDefault();
-    else if (["ArrowUp", "PageUp"].includes(event.key) && scrollViewerByViewport(-1, { repeated: event.repeat })) event.preventDefault();
-    else if (event.key === "ArrowDown" && panSingleImageBy(0, -getSingleKeyboardPanStep())) event.preventDefault();
-    else if (event.key === "ArrowUp" && panSingleImageBy(0, getSingleKeyboardPanStep())) event.preventDefault();
-    else if (event.key === "ArrowRight") {
+    if (["ArrowDown", "PageDown"].includes(event.key)) {
+      event.preventDefault();
+      moveLightbox(1);
+    } else if (["ArrowUp", "PageUp"].includes(event.key)) {
+      event.preventDefault();
+      moveLightbox(-1);
+    } else if (event.key === "ArrowRight") {
       event.preventDefault();
       moveLightbox(-1);
     } else if (event.key === "ArrowLeft") {

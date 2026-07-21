@@ -22,12 +22,12 @@ const recovery = sourceBetween(
   'function prepareCatalogImage(url, options = {})'
 );
 const single = sourceBetween(
-  'function showSingleLightboxImage(catalog, page, src)',
+  'function showSingleLightboxImage(catalog, page, src, options = {})',
   'function pad(num)'
 );
-const scroll = sourceBetween(
-  'function loadViewerScrollPage(page, priority = "low")',
-  'function loadViewerScrollWindow(centerPage)'
+const retry = sourceBetween(
+  'function retryCurrentViewerImage()',
+  'function getViewerNavigationPosition()'
 );
 
 assert.match(app, /const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";/);
@@ -42,14 +42,13 @@ assert.match(single, /fallbackCandidates: request\.fallbackCandidates/);
 assert.match(single, /image\.dataset\.loadedTier/);
 assert.match(single, /telemetryDetail: "viewer-single"/);
 assert.match(single, /התמונה לא הצליחה להיטען/);
-assert.match(scroll, /fallbackCandidates: request\.fallbackCandidates/);
-assert.match(scroll, /viewerPageImageRequest\(catalog, page\)/);
-assert.match(scroll, /telemetryDetail: "viewer-scroll"/);
-assert.match(scroll, /forceRefresh: true/);
+assert.match(retry, /viewerPageImageRequest\(state\.catalog, state\.page\)/);
+assert.match(retry, /showSingleLightboxImage\(state\.catalog, state\.page, request\.primarySrc/);
+assert.match(retry, /forceRefresh: true/);
 assert.match(template, /id="viewerImageFeedback"[^>]*role="status"/);
 assert.match(template, /id="viewerImageRetry"/);
 assert.match(css, /\.viewer-image-feedback\s*\{/);
-assert.match(css, /\.viewer-scroll-image-feedback\s*\{/);
+assert.doesNotMatch(css, /\.viewer-scroll-image-feedback\s*\{/);
 assert.match(css, /\.lightbox-image-frame\.image-terminal-error/);
 
 console.log('viewer_image_loading_contract.test.js: PASS');
