@@ -2973,12 +2973,6 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   right: 0;
   left: 0;
   height: 34px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
 }
 .reader-side-hotspot {
   z-index: 35;
