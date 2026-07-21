@@ -251,7 +251,7 @@
   }
   .lightbox-page-thumb:hover,
   .lightbox-page-thumb:focus-visible { transform: translateX(-2px); }
-  .lightbox-side-hotspot { top: 0; right: 0; bottom: auto; width: 34px; height: 100vh; }
+  .lightbox-side-hotspot { top: 0; right: 0; bottom: auto; width: var(--viewer-page-rail-edge-zone); height: 100vh; }
   .lightbox-side-hotspot span { width: 24px; height: 58px; border-radius: 999px 0 0 999px; transform: none; }
   .lightbox-actions { gap: 5px; }
   .reader-control-icon-button { width: 36px; min-width: 36px; min-height: 36px; border-radius: 12px; }

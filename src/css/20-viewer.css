@@ -11,6 +11,7 @@
   z-index: 50;
   --viewer-side-control-size: 46px;
   --viewer-side-control-edge: clamp(22px, 3.2vw, 40px);
+  --viewer-page-rail-edge-zone: calc(var(--viewer-side-control-size) + 4px);
   --viewer-side-control-gap: clamp(12px, 1.8vh, 18px);
   --viewer-side-control-step: calc(var(--viewer-side-control-size) + var(--viewer-side-control-gap));
   --viewer-side-control-near-top: calc(50% - var(--viewer-side-control-step));
@@ -459,7 +460,7 @@
   stroke-linejoin: round;
 }
 .stage-next { left: var(--viewer-side-control-edge); }
-.stage-prev { right: var(--viewer-side-control-edge); }
+.stage-prev { right: max(var(--viewer-side-control-edge), calc(var(--viewer-page-rail-edge-zone) + 4px)); }
 .favorite-open-catalog-button {
   position: fixed;
   z-index: 8;
@@ -591,7 +592,7 @@
   z-index: 12;
   top: 0;
   right: 0;
-  width: 34px;
+  width: var(--viewer-page-rail-edge-zone);
   height: 100vh;
   display: none;
   place-items: center;

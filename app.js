@@ -6328,17 +6328,34 @@ function isPointInTopEdgeActivationZone(point) {
   return point.x >= 0 && point.x <= width && point.y >= 0 && point.y <= activationBottom;
 }
 
+function getRightEdgeViewerNavigationRect() {
+  const candidates = [els.prevPageBtn, els.nextPageBtn]
+    .map((button) => button?.getBoundingClientRect?.())
+    .filter((rect) => rect && rect.width > 0 && rect.height > 0);
+  if (!candidates.length) return null;
+  return candidates.reduce((rightmost, rect) => rect.right > rightmost.right ? rect : rightmost);
+}
+
+function isPointInPageRailNavigationConflictZone(point) {
+  const navigationRect = getRightEdgeViewerNavigationRect();
+  return pointInRect(point, navigationRect, 4);
+}
+
 function isPointInPageRailEdgeActivationZone(point) {
   if (!point || !els.lightboxSideHotspot || !els.lightboxPageRail) return false;
   const { width, height } = getViewportSize();
   const hotspotRect = els.lightboxSideHotspot.getBoundingClientRect();
-  const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 34));
+  const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 50));
   const activationLeft = Math.max(0, Math.min(hotspotRect?.left ?? width, width - hotspotWidth));
-  // Coordinate-based hover activation is allowed up to the physical viewport
-  // edge, because a fast mouse move can land beyond the visible hotspot strip
-  // and would otherwise miss it.
-  const activationRight = width;
-  return point.x >= activationLeft && point.x <= activationRight && point.y >= 0 && point.y <= height;
+  // Coordinate-based activation reaches the physical viewport edge even when a
+  // fast mouse move lands beyond the DOM hotspot. The page-navigation button on
+  // the same side keeps its own compact hit area, so merely aiming for that
+  // control does not unexpectedly reveal the thumbnail rail.
+  const activationRight = width + 1;
+  const insideEdgeStrip = point.x >= activationLeft && point.x <= activationRight && point.y >= 0 && point.y <= height;
+  if (!insideEdgeStrip) return false;
+  if (isPointInPageRailNavigationConflictZone(point) && point.x <= hotspotRect.right) return false;
+  return true;
 }
 
 function openLightboxEdgeUiForPointer(point) {
@@ -6703,6 +6720,11 @@ function hasHoverPointer() {
   return primaryFineHover || anyFineHover;
 }
 
+function isObservedMouseHoverEvent(event = null) {
+  if (event?.pointerType === "mouse") return true;
+  return String(event?.type || "").startsWith("mouse");
+}
+
 function isTouchLikePointer(event) {
   return event?.pointerType === "touch" || event?.pointerType === "pen";
 }
@@ -6729,9 +6751,15 @@ function hasRecentTouchLikeRailInput(timeout = 900) {
 }
 
 function shouldUseLightboxHoverPointer(event = null) {
-  if (!isViewerSessionOpen() || !hasHoverPointer()) return false;
+  if (!isViewerSessionOpen()) return false;
   if (isTouchLikePointer(event) || hasRecentTouchLikeViewportInput()) return false;
-  return true;
+
+  // Hybrid Windows devices can keep reporting a coarse/no-hover primary input
+  // even while a real mouse is actively producing mouse events. Trust observed
+  // mouse input first; the recent-touch guard above still filters the synthetic
+  // mouse events browsers may emit after a tap.
+  if (isObservedMouseHoverEvent(event)) return true;
+  return hasHoverPointer();
 }
 
 function shouldUsePageRailHover(event = null) {
@@ -6774,6 +6802,20 @@ function openPageRailFromTouch(event) {
   if (!isTouchLikePointer(event)) return;
   markTouchLikeRailInput(event);
   event.preventDefault?.();
+  keepPageRailOpen();
+}
+
+function handleLightboxPageRailEdgePointerDown(event) {
+  if (!isTouchLikePointer(event) || !isViewerSessionOpen() || state.viewerOnboardingOpen) return;
+  if (els.lightboxPageRail?.contains(event.target)) return;
+
+  const point = getViewportPointer(event);
+  if (!isPointInPageRailEdgeActivationZone(point)) return;
+
+  markTouchLikeRailInput(event);
+  event.preventDefault?.();
+  event.stopImmediatePropagation?.();
+  event.stopPropagation?.();
   keepPageRailOpen();
 }
 
@@ -8031,6 +8073,7 @@ function attachViewerEvents() {
     if (state.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
   });
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
+  els.lightbox?.addEventListener("pointerdown", handleLightboxPageRailEdgePointerDown, { capture: true, passive: false });
   els.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
   els.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.fullscreenToggle));
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));

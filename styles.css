@@ -2221,6 +2221,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   z-index: 50;
   --viewer-side-control-size: 46px;
   --viewer-side-control-edge: clamp(22px, 3.2vw, 40px);
+  --viewer-page-rail-edge-zone: calc(var(--viewer-side-control-size) + 4px);
   --viewer-side-control-gap: clamp(12px, 1.8vh, 18px);
   --viewer-side-control-step: calc(var(--viewer-side-control-size) + var(--viewer-side-control-gap));
   --viewer-side-control-near-top: calc(50% - var(--viewer-side-control-step));
@@ -2669,7 +2670,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   stroke-linejoin: round;
 }
 .stage-next { left: var(--viewer-side-control-edge); }
-.stage-prev { right: var(--viewer-side-control-edge); }
+.stage-prev { right: max(var(--viewer-side-control-edge), calc(var(--viewer-page-rail-edge-zone) + 4px)); }
 .favorite-open-catalog-button {
   position: fixed;
   z-index: 8;
@@ -2801,7 +2802,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   z-index: 12;
   top: 0;
   right: 0;
-  width: 34px;
+  width: var(--viewer-page-rail-edge-zone);
   height: 100vh;
   display: none;
   place-items: center;
@@ -5251,7 +5252,7 @@ body[data-app-ready="true"] > .site-footer {
   }
   .lightbox-page-thumb:hover,
   .lightbox-page-thumb:focus-visible { transform: translateX(-2px); }
-  .lightbox-side-hotspot { top: 0; right: 0; bottom: auto; width: 34px; height: 100vh; }
+  .lightbox-side-hotspot { top: 0; right: 0; bottom: auto; width: var(--viewer-page-rail-edge-zone); height: 100vh; }
   .lightbox-side-hotspot span { width: 24px; height: 58px; border-radius: 999px 0 0 999px; transform: none; }
   .lightbox-actions { gap: 5px; }
   .reader-control-icon-button { width: 36px; min-width: 36px; min-height: 36px; border-radius: 12px; }

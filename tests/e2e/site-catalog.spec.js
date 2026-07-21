@@ -70,7 +70,24 @@ async function preparePage(page, options = {}) {
   const captureClipboard = options.captureClipboard === true;
   const captureShare = options.captureShare === true;
   const telemetryEvents = Array.isArray(options.telemetryEvents) ? options.telemetryEvents : null;
-  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, legacyViewerLayout, captureClipboard, captureShare, enableTelemetry }) => {
+  const forceNoHoverMedia = options.forceNoHoverMedia === true;
+  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, legacyViewerLayout, captureClipboard, captureShare, enableTelemetry, forceNoHoverMedia }) => {
+    if (forceNoHoverMedia) {
+      const nativeMatchMedia = window.matchMedia.bind(window);
+      window.matchMedia = (query) => {
+        if (!/hover:\s*hover|pointer:\s*fine/i.test(String(query || ""))) return nativeMatchMedia(query);
+        return {
+          matches: false,
+          media: String(query || ""),
+          onchange: null,
+          addListener() {},
+          removeListener() {},
+          addEventListener() {},
+          removeEventListener() {},
+          dispatchEvent() { return false; }
+        };
+      };
+    }
     if (enableTelemetry) window.__BARGIG_ENABLE_TELEMETRY__ = true;
     if (sessionStorage.getItem("bargig.e2e-onboarding-prepared") !== "1") {
       if (onboardingSeen) localStorage.setItem(onboardingKey, "1");
@@ -118,7 +135,8 @@ async function preparePage(page, options = {}) {
     legacyViewerLayout,
     captureClipboard,
     captureShare,
-    enableTelemetry: Boolean(telemetryEvents)
+    enableTelemetry: Boolean(telemetryEvents),
+    forceNoHoverMedia
   });
 
   await page.route("**/*", async (route) => {
@@ -784,6 +802,72 @@ test.describe("critical catalog journeys", () => {
       return Math.abs(container.scrollTop - expected);
     }, backwardPage)).toBeLessThanOrEqual(2);
     await expect.poll(() => page.evaluate(() => window.__viewerE2eSmoothScrollCalls)).toEqual(["smooth", "smooth"]);
+  });
+
+  test("opens the page rail from real mouse input on hybrid devices", async ({ page }) => {
+    await preparePage(page, { forceNoHoverMedia: true });
+    await openDirectViewer(page, Math.min(2, CATALOG_PAGES));
+
+    const viewport = page.viewportSize();
+    expect(viewport).not.toBeNull();
+    await page.mouse.move(viewport.width - 42, 120);
+
+    await expect(page.locator("#lightbox")).toHaveClass(/show-page-rail/);
+    await expect(page.locator("#lightboxPageRail")).toBeInViewport();
+
+    await page.locator("html").dispatchEvent("mouseout", {
+      clientX: viewport.width,
+      clientY: 120,
+      relatedTarget: null,
+      bubbles: true
+    });
+    await expect(page.locator("#lightbox")).toHaveClass(/show-page-rail/);
+  });
+
+  test("reserves a touch-safe right edge beside the navigation arrow", async ({ page }) => {
+    await preparePage(page);
+    const startingPage = Math.min(2, CATALOG_PAGES);
+    await openDirectViewer(page, startingPage);
+
+    const viewport = page.viewportSize();
+    expect(viewport).not.toBeNull();
+    const activationPoint = { x: viewport.width - 26, y: Math.round(viewport.height / 2) };
+
+    const hitTarget = await page.evaluate(({ x, y }) => {
+      const target = document.elementFromPoint(x, y);
+      return target?.closest?.("#lightboxSideHotspot, #prevPageBtn, #nextPageBtn")?.id || target?.id || target?.className || "";
+    }, activationPoint);
+    expect(hitTarget).toBe("lightboxSideHotspot");
+
+    await page.evaluate(({ x, y }) => {
+      const target = document.elementFromPoint(x, y);
+      if (!target) throw new Error("No touch target at the viewer edge");
+      target.dispatchEvent(new PointerEvent("pointerdown", {
+        pointerId: 91,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true
+      }));
+      target.dispatchEvent(new PointerEvent("pointerup", {
+        pointerId: 91,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true
+      }));
+    }, activationPoint);
+
+    await expect(page.locator("#lightbox")).toHaveClass(/show-page-rail/);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startingPage));
   });
 
   test("normalizes mouse-wheel and precision-touchpad streams through one page path", async ({ page }) => {

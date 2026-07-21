@@ -377,6 +377,7 @@ function attachViewerEvents() {
     if (state.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
   });
   els.lightboxBackdrop?.addEventListener("click", closeLightbox);
+  els.lightbox?.addEventListener("pointerdown", handleLightboxPageRailEdgePointerDown, { capture: true, passive: false });
   els.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
   els.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.fullscreenToggle));
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
