@@ -810,7 +810,7 @@ test.describe("critical catalog journeys", () => {
 
     const viewport = page.viewportSize();
     expect(viewport).not.toBeNull();
-    await page.mouse.move(viewport.width - 42, 120);
+    await page.mouse.move(viewport.width - 32, 120);
 
     await expect(page.locator("#lightbox")).toHaveClass(/show-page-rail/);
     await expect(page.locator("#lightboxPageRail")).toBeInViewport();
@@ -831,6 +831,19 @@ test.describe("critical catalog journeys", () => {
 
     const viewport = page.viewportSize();
     expect(viewport).not.toBeNull();
+
+    const edgeLayout = await page.evaluate(() => {
+      const hotspotRect = document.querySelector("#lightboxSideHotspot")?.getBoundingClientRect();
+      const rightNavigationRect = document.querySelector("#prevPageBtn")?.getBoundingClientRect();
+      if (!hotspotRect || !rightNavigationRect) throw new Error("Viewer edge controls are unavailable");
+      return {
+        hotspotWidth: hotspotRect.width,
+        gapToNavigation: hotspotRect.left - rightNavigationRect.right
+      };
+    });
+    expect(edgeLayout.hotspotWidth).toBeCloseTo(40, 1);
+    expect(edgeLayout.gapToNavigation).toBeGreaterThanOrEqual(3.5);
+
     const activationPoint = { x: viewport.width - 26, y: Math.round(viewport.height / 2) };
 
     const hitTarget = await page.evaluate(({ x, y }) => {

@@ -144,7 +144,7 @@ function shouldKeepPageRailOpenForPointer(event = null) {
   // instead of requiring the user to wait until the transition finishes.
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-  const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 34));
+  const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 40));
   const rightHoldLeft = Math.max(0, Math.min(hotspotRect?.left ?? viewportWidth, viewportWidth - hotspotWidth));
   const rightHoldRight = viewportWidth + 1;
   const isInRightHoldRegion = point.x >= rightHoldLeft - 1 && point.x <= rightHoldRight + 1 && point.y >= 0 && point.y <= viewportHeight;
@@ -204,7 +204,7 @@ function isPointInPageRailEdgeActivationZone(point) {
   if (!point || !els.lightboxSideHotspot || !els.lightboxPageRail) return false;
   const { width, height } = getViewportSize();
   const hotspotRect = els.lightboxSideHotspot.getBoundingClientRect();
-  const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 50));
+  const hotspotWidth = Math.max(2, Math.round(hotspotRect?.width || 40));
   const activationLeft = Math.max(0, Math.min(hotspotRect?.left ?? width, width - hotspotWidth));
   // Coordinate-based activation reaches the physical viewport edge even when a
   // fast mouse move lands beyond the DOM hotspot. The page-navigation button on
