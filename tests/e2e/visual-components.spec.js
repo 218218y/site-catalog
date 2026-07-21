@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
 
+const COMPARE_CANONICAL_SCREENSHOTS = process.platform === "linux" && process.env.PLAYWRIGHT_VISUAL_BASELINE === "1";
+
 const ROOT = path.join(__dirname, "..", "..");
 const STYLES = fs.readFileSync(path.join(ROOT, "styles.css"), "utf8");
 const PLACEHOLDER_IMAGE = `data:image/svg+xml;base64,${Buffer.from(`
@@ -66,6 +68,31 @@ async function renderFixture(page, body, options = {}) {
   await page.evaluate(() => document.fonts?.ready);
 }
 
+async function expectVisualComponent(locator, snapshotName, size) {
+  await expect(locator).toBeVisible();
+
+  const box = await locator.boundingBox();
+  expect(box, `${snapshotName}: component has no layout box`).not.toBeNull();
+  expect(Math.abs(Math.round(box.width) - size.width), `${snapshotName}: unexpected width`).toBeLessThanOrEqual(size.widthTolerance ?? 2);
+  expect(Math.round(box.height), `${snapshotName}: component is too short`).toBeGreaterThanOrEqual(size.minHeight);
+  expect(Math.round(box.height), `${snapshotName}: component is too tall`).toBeLessThanOrEqual(size.maxHeight);
+
+  const overflow = await locator.evaluate((element) => ({
+    horizontal: element.scrollWidth - element.clientWidth,
+    vertical: element.scrollHeight - element.clientHeight
+  }));
+  expect(overflow.horizontal, `${snapshotName}: content is clipped horizontally`).toBeLessThanOrEqual(1);
+  expect(overflow.vertical, `${snapshotName}: content is clipped vertically`).toBeLessThanOrEqual(1);
+
+  // Pixel baselines are intentionally canonicalized to the Linux Chromium
+  // environment used by GitHub Actions. Font metrics and anti-aliasing differ
+  // on Windows even when the DOM and CSS are identical, so local runs retain
+  // structural/layout coverage without comparing Linux-generated pixels.
+  if (COMPARE_CANONICAL_SCREENSHOTS) {
+    await expect(locator).toHaveScreenshot(snapshotName);
+  }
+}
+
 function catalogCard(title, description, pages, priority = false) {
   return `<article class="catalog-card seo-catalog-card">
     <a class="catalog-cover-frame" href="#" aria-label="פתיחת ${title}">
@@ -125,7 +152,7 @@ test.describe("visual component regression", () => {
       </section>
     </main>`, { viewport: { width: 1280, height: 860 } });
 
-    await expect(page.locator("#catalogs")).toHaveScreenshot("home-catalog-row.png");
+    await expectVisualComponent(page.locator("#catalogs"), "home-catalog-row.png", { width: 1044, minHeight: 490, maxHeight: 515 });
   });
 
   test("inquiry dialog retains the light visual system", async ({ page }) => {
@@ -155,7 +182,7 @@ test.describe("visual component regression", () => {
       extraCss: ".viewer-inquiry-overlay { position: fixed; }"
     });
 
-    await expect(page.locator(".viewer-inquiry-dialog")).toHaveScreenshot("inquiry-dialog.png");
+    await expectVisualComponent(page.locator(".viewer-inquiry-dialog"), "inquiry-dialog.png", { width: 560, minHeight: 405, maxHeight: 430 });
   });
 
   test("favorites cards retain selection notes and ordering controls", async ({ page }) => {
@@ -185,7 +212,7 @@ test.describe("visual component regression", () => {
       extraCss: ".visual-favorites-dialog { position: static; width: 100%; max-width: none; max-height: none; transform: none; }"
     });
 
-    await expect(page.locator(".visual-favorites-dialog")).toHaveScreenshot("favorites-workspace.png");
+    await expectVisualComponent(page.locator(".visual-favorites-dialog"), "favorites-workspace.png", { width: 1242, minHeight: 600, maxHeight: 645 });
   });
 
   test("viewer image error remains clear and actionable", async ({ page }) => {
@@ -212,6 +239,6 @@ test.describe("visual component regression", () => {
       `
     });
 
-    await expect(page.locator(".visual-error-shell")).toHaveScreenshot("viewer-image-error.png");
+    await expectVisualComponent(page.locator(".visual-error-shell"), "viewer-image-error.png", { width: 820, minHeight: 600, maxHeight: 600 });
   });
 });

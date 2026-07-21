@@ -23,7 +23,7 @@
     "pretest:e2e": "node tools/check_playwright_browser.js",
     "test:e2e": "playwright test",
     "pretest:e2e:update": "node tools/check_playwright_browser.js",
-    "test:e2e:update": "playwright test --update-snapshots",
+    "test:e2e:update": "node tools/update_visual_snapshots.js",
     "pretest": "python tools/setup_python_env.py --quiet",
     "test": "python tools/verify_project.py --quick",
     "preverify": "python tools/setup_python_env.py --quiet && node tools/check_playwright_browser.js",

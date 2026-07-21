@@ -16,7 +16,7 @@ const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), 
 assert.match(packageJson.devDependencies?.["@playwright/test"] || "", /^\^?1\./);
 assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
 assert.equal(packageJson.scripts["test:e2e"], "playwright test");
-assert.equal(packageJson.scripts["test:e2e:update"], "playwright test --update-snapshots");
+assert.equal(packageJson.scripts["test:e2e:update"], "node tools/update_visual_snapshots.js");
 assert.equal(packageJson.scripts["pretest:e2e:update"], "node tools/check_playwright_browser.js");
 assert.doesNotMatch(packageLock, /applied-caas-gateway|internal\.api\.openai/i);
 assert.equal(packageJson.scripts["test:js"], "python tools/verify_project.py --javascript-only");
@@ -63,12 +63,16 @@ assert.match(visualSpec, /home catalog row preserves hierarchy and spacing/);
 assert.match(visualSpec, /inquiry dialog retains the light visual system/);
 assert.match(visualSpec, /favorites cards retain selection notes and ordering controls/);
 assert.match(visualSpec, /viewer image error remains clear and actionable/);
+assert.match(visualSpec, /COMPARE_CANONICAL_SCREENSHOTS/);
+assert.match(visualSpec, /PLAYWRIGHT_VISUAL_BASELINE/);
+assert.match(visualSpec, /expectVisualComponent/);
 assert.match(visualSpec, /toHaveScreenshot/);
 assert.match(verifier, /Playwright browser journeys/);
 
 for (const relative of [
   "tools/e2e_server.js",
   "tools/check_playwright_browser.js",
+  "tools/update_visual_snapshots.js",
   "tests/e2e/__screenshots__/catalog-card.png",
   "tests/e2e/__screenshots__/viewer-stage.png",
   "tests/e2e/__screenshots__/home-catalog-row.png",
