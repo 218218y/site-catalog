@@ -188,9 +188,32 @@ async function expectCurrentViewerImageReady(page) {
 }
 
 async function revealViewerTopToolbar(page) {
-  await page.mouse.move(18, 4);
-  await expect(page.locator("#lightbox")).toHaveClass(/show-ui/);
-  await expect(page.locator("#lightboxCopyLink")).toBeInViewport();
+  const toolbarControl = page.locator("#lightboxCopyLink");
+  const controlInViewport = await toolbarControl.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0
+      && rect.height > 0
+      && rect.bottom > 0
+      && rect.right > 0
+      && rect.top < window.innerHeight
+      && rect.left < window.innerWidth;
+  });
+
+  if (!controlInViewport) {
+    const hotspot = page.locator("#topHotspot");
+    if (await hotspot.isVisible()) {
+      // Keyboard activation reaches the same click handler without racing the
+      // toolbar slide-in animation, which can temporarily cover the hotspot.
+      await hotspot.focus();
+      await page.keyboard.press("Enter");
+    } else {
+      await page.mouse.move(18, 4);
+    }
+  }
+
+  // The shell can remain visible through hover/focus CSS after the transient
+  // show-ui class has already cleared, so viewport visibility is the contract.
+  await expect(toolbarControl).toBeInViewport();
 }
 
 async function expectViewerFrameCentered(page, options = {}) {
@@ -1219,6 +1242,46 @@ test("favorites workspace supports notes, ordering, filtering, focused sharing, 
   }
 });
 
+test("viewer toolbar keeps desktop controls separated until the mobile breakpoint", async ({ page }) => {
+  await preparePage(page);
+  await page.setViewportSize({ width: 1050, height: 720 });
+  await openDirectViewer(page);
+
+  for (const width of [1050, 960, 844, 800, 761]) {
+    await page.setViewportSize({ width, height: 720 });
+    await page.evaluate(() => document.querySelector("#lightbox")?.classList.add("show-ui"));
+    await expect(page.locator("#lightboxBar")).toBeInViewport();
+
+    await expect(page.locator("#lightboxPinTopBar")).toBeVisible();
+    await expect(page.locator("#lightboxCatalogMenuToggle")).toBeVisible();
+    await expect(page.locator("#viewerMobileMoreToggle")).toBeHidden();
+
+    await expect.poll(() => page.evaluate(() => {
+      const pin = document.querySelector("#lightboxPinTopBar")?.getBoundingClientRect();
+      const catalogToggle = document.querySelector("#lightboxCatalogMenuToggle")?.getBoundingClientRect();
+      if (!pin || !catalogToggle) return -Infinity;
+      return Math.max(pin.left - catalogToggle.right, catalogToggle.left - pin.right);
+    })).toBeGreaterThanOrEqual(8);
+
+    await expect.poll(() => page.evaluate(() => {
+      const brandActions = document.querySelector(".lightbox-brand-actions");
+      if (!brandActions) return Infinity;
+      return brandActions.scrollWidth - brandActions.clientWidth;
+    })).toBeLessThanOrEqual(1);
+
+    await expect.poll(() => page.evaluate(() => {
+      const search = document.querySelector(".lightbox-search")?.getBoundingClientRect();
+      if (!search) return Infinity;
+      return Math.abs((search.left + search.width / 2) - window.innerWidth / 2);
+    })).toBeLessThanOrEqual(1);
+  }
+
+  await page.setViewportSize({ width: 760, height: 720 });
+  await expect(page.locator("#lightboxPinTopBar")).toBeHidden();
+  await expect(page.locator("#lightboxCatalogMenuToggle")).toBeHidden();
+  await expect(page.locator("#viewerMobileMoreToggle")).toBeVisible();
+});
+
 test("mobile home and viewer survive portrait and landscape orientation", async ({ browser }) => {
   const context = await browser.newContext({
     locale: "he-IL",
@@ -1268,7 +1331,9 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#fitHeightBtn")).toHaveAttribute("aria-pressed", "false");
 
-  await page.locator("#fitWidthBtn").click({ force: true });
+  await revealViewerTopToolbar(page);
+  await expect(page.locator("#fitWidthBtn")).toBeInViewport();
+  await page.locator("#fitWidthBtn").click();
   await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
 
   // An explicit user choice owns the fit mode for the rest of this viewer
@@ -1282,6 +1347,8 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
 
   // The new automatic control explicitly returns ownership to the viewport
   // policy and resumes orientation-driven changes immediately.
+  await revealViewerTopToolbar(page);
+  await expect(page.locator("#fitAutoBtn")).toBeInViewport();
   await page.locator("#fitAutoBtn").click();
   await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#fitWidthBtn")).toHaveAttribute("aria-pressed", "false");

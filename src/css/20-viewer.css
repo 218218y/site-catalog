@@ -122,7 +122,16 @@
   position: relative;
   z-index: 30;
   width: 100%;
-  grid-template-columns: minmax(190px, 1fr) minmax(220px, 560px) minmax(220px, 1fr);
+  /* The brand side contains the logo plus three non-shrinking quick-action
+     buttons. Its measured minimum footprint is 230px at desktop/intermediate
+     widths. Reserve that same minimum on both sides so the centered search
+     column cannot be invaded by overflowing controls while the desktop toolbar
+     is still active. */
+  --lightbox-header-side-min: 230px;
+  grid-template-columns:
+    minmax(var(--lightbox-header-side-min), 1fr)
+    minmax(220px, 560px)
+    minmax(var(--lightbox-header-side-min), 1fr);
   justify-content: stretch;
 }
 .lightbox-actions {
@@ -763,6 +772,12 @@
   right: 0;
   left: 0;
   height: 34px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
 }
 .reader-side-hotspot {
   z-index: 35;

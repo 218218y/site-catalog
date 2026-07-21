@@ -2332,7 +2332,16 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   position: relative;
   z-index: 30;
   width: 100%;
-  grid-template-columns: minmax(190px, 1fr) minmax(220px, 560px) minmax(220px, 1fr);
+  /* The brand side contains the logo plus three non-shrinking quick-action
+     buttons. Its measured minimum footprint is 230px at desktop/intermediate
+     widths. Reserve that same minimum on both sides so the centered search
+     column cannot be invaded by overflowing controls while the desktop toolbar
+     is still active. */
+  --lightbox-header-side-min: 230px;
+  grid-template-columns:
+    minmax(var(--lightbox-header-side-min), 1fr)
+    minmax(220px, 560px)
+    minmax(var(--lightbox-header-side-min), 1fr);
   justify-content: stretch;
 }
 .lightbox-actions {
@@ -2973,6 +2982,12 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   right: 0;
   left: 0;
   height: 34px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
 }
 .reader-side-hotspot {
   z-index: 35;
@@ -5005,7 +5020,12 @@ body[data-app-ready="true"] > .site-footer {
   .section-head { flex-direction: column; align-items: stretch; }
   .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .reader-header { grid-template-columns: minmax(170px, .85fr) minmax(180px, 520px) minmax(170px, .85fr); }
-  .reader-header.lightbox-reader-header { grid-template-columns: minmax(170px, .85fr) minmax(180px, 520px) minmax(220px, .85fr); }
+  .reader-header.lightbox-reader-header {
+    grid-template-columns:
+      minmax(var(--lightbox-header-side-min), .85fr)
+      minmax(180px, 520px)
+      minmax(var(--lightbox-header-side-min), .85fr);
+  }
   .lightbox-actions { justify-content: flex-end; }
   .lightbox-actions .reader-button { flex: 0 0 auto; }
 }

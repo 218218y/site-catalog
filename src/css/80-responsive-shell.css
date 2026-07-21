@@ -20,7 +20,12 @@
   .section-head { flex-direction: column; align-items: stretch; }
   .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .reader-header { grid-template-columns: minmax(170px, .85fr) minmax(180px, 520px) minmax(170px, .85fr); }
-  .reader-header.lightbox-reader-header { grid-template-columns: minmax(170px, .85fr) minmax(180px, 520px) minmax(220px, .85fr); }
+  .reader-header.lightbox-reader-header {
+    grid-template-columns:
+      minmax(var(--lightbox-header-side-min), .85fr)
+      minmax(180px, 520px)
+      minmax(var(--lightbox-header-side-min), .85fr);
+  }
   .lightbox-actions { justify-content: flex-end; }
   .lightbox-actions .reader-button { flex: 0 0 auto; }
 }
