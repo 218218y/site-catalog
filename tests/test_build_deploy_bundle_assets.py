@@ -38,6 +38,12 @@ def test_project_manifest_icons_are_discovered() -> None:
     assert "favicon.ico" in assets
 
 
+def test_image_delivery_policy_is_part_of_bundle_freshness_inputs() -> None:
+    inputs = {path.relative_to(ROOT).as_posix() for path in MODULE.discover_build_input_paths(ROOT)}
+    assert "catalog-assets.config.js" in inputs
+    assert "tools/catalog_image_policy.py" in inputs
+
+
 def test_manifest_assets_and_custom_icon_family_are_copied(tmp_path: Path) -> None:
     root = tmp_path / "project"
     out = tmp_path / "bundle"
@@ -114,6 +120,37 @@ def test_line_endings_are_normalized_before_hashing(tmp_path: Path) -> None:
 
     assert windows_asset.read_bytes() == unix_asset.read_bytes()
     assert MODULE.content_hash(windows_asset) == MODULE.content_hash(unix_asset)
+
+
+def test_runtime_asset_config_preserves_full_only_delivery_mode(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    out = tmp_path / "bundle"
+    root.mkdir()
+    out.mkdir()
+    (root / "catalog-assets.config.js").write_text(
+        'window.BARGIG_CATALOG_ASSET_BASE_URL = "";\n'
+        'window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";\n',
+        encoding="utf-8",
+    )
+
+    stats = MODULE.write_asset_config(root, out, "https://cdn.example.test/")
+    generated = (out / "catalog-assets.config.js").read_text(encoding="utf-8")
+
+    assert stats.files == 1
+    assert 'window.BARGIG_CATALOG_ASSET_BASE_URL = "https://cdn.example.test/";' in generated
+    assert 'window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";' in generated
+
+
+def test_runtime_asset_config_rejects_unknown_delivery_mode(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "catalog-assets.config.js").write_text(
+        'window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "mystery";\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Unsupported catalog image delivery mode"):
+        MODULE.catalog_image_delivery_mode(root)
 
 
 def test_atomic_output_replacement_publishes_only_complete_staging_bundle(tmp_path: Path) -> None:

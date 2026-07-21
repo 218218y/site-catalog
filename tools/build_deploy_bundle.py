@@ -41,6 +41,12 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from build_frontend_assets import build_frontend_assets
+from catalog_image_policy import (
+    DEFAULT_CATALOG_IMAGE_DELIVERY_MODE,
+    load_catalog_image_delivery_mode as catalog_image_delivery_mode,
+    normalize_catalog_image_delivery_mode,
+    runtime_uses_medium_images,
+)
 from build_site_pages import (
     PAGE_DOCUMENTS,
     TECHNICAL_SHELL_FILENAMES,
@@ -156,6 +162,7 @@ BUILD_INPUT_FILES = (
     "favorites-store.js",
     "site-routes.js",
     "catalog-snapshot.js",
+    "catalog-assets.config.js",
     "favicon-loader.js",
     "brand-logo.svg",
     "brand-logo-header.svg",
@@ -170,6 +177,7 @@ BUILD_TOOL_FILES = (
     "tools/seo_site.py",
     "tools/seo_route_lock.py",
     "tools/footer_content.py",
+    "tools/catalog_image_policy.py",
 )
 
 
@@ -493,19 +501,26 @@ def normalize_base_url(url: str) -> str:
     return value if value.endswith("/") else f"{value}/"
 
 
-def asset_config_content(base_url: str) -> str:
+def asset_config_content(base_url: str, image_delivery_mode: str = DEFAULT_CATALOG_IMAGE_DELIVERY_MODE) -> str:
+    mode = normalize_catalog_image_delivery_mode(image_delivery_mode)
     return (
         "// Runtime catalog image storage configuration.\n"
         "// R2 deployment mode: catalog page images stay outside the Cloudflare Pages upload folder.\n"
         "// Relative image paths from catalogs.generated.* are resolved against this CDN/R2 base URL.\n"
         f"window.BARGIG_CATALOG_ASSET_BASE_URL = {json.dumps(base_url, ensure_ascii=False)};\n"
+        "\n"
+        "// Runtime image delivery policy. Keep this aligned with the checked-in source config.\n"
+        f"window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = {json.dumps(mode, ensure_ascii=False)};\n"
     )
 
 
-def write_asset_config(out_dir: Path, base_url: str) -> CopyStats:
+def write_asset_config(root: Path, out_dir: Path, base_url: str) -> CopyStats:
     target = out_dir / "catalog-assets.config.js"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(asset_config_content(base_url), encoding="utf-8")
+    target.write_text(
+        asset_config_content(base_url, catalog_image_delivery_mode(root)),
+        encoding="utf-8",
+    )
     return CopyStats(files=1, bytes=target.stat().st_size)
 
 
@@ -1257,7 +1272,7 @@ def main() -> int:
             for relative in JSON_DEPLOY_FILES:
                 stats = add_stats(stats, copy_optional_file(root, staging_dir, relative))
 
-        stats = add_stats(stats, write_asset_config(staging_dir, args.external_assets_url))
+        stats = add_stats(stats, write_asset_config(root, staging_dir, args.external_assets_url))
         fingerprinted_search_index = fingerprint_search_index(staging_dir)
         fingerprinted_assets = fingerprint_source_assets(
             root,
@@ -1321,6 +1336,7 @@ def main() -> int:
                 args.external_assets_url,
                 checker=check_asset_via_range_get,
                 versioned=True,
+                include_medium=runtime_uses_medium_images(catalog_image_delivery_mode(root)),
             )
             if remote_failures:
                 sample = "; ".join(f"{item.url}: {item.reason}" for item in remote_failures[:12])

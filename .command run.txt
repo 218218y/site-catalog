@@ -137,3 +137,9 @@ catalog-taxonomy.config.json
 קטגוריה קיימת שאין בה עוד קטלוגים מושמטת אוטומטית:
 
 מהניווט.מדף הבית.מעמודי הקטגוריות.מהנתונים המובנים.מה־sitemap.
+
+
+בשביל להחזיר תמיכה בתמונות בינוניות  catalog-assets.config.js
+window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "responsive";
+תמונות גדולות בלבד
+window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";

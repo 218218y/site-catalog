@@ -46,18 +46,16 @@ const candidates = catalogImageRecoveryCandidates(
   'https://cdn.example.test/full.webp?v=release-full-u2',
   'https://cdn.example.test/thumb.webp'
 );
-assert.equal(candidates.length, 4);
+assert.equal(candidates.length, 3);
 assert.equal(candidates[0].role, 'primary');
-assert.equal(candidates[1].role, 'origin');
+assert.equal(candidates[1].role, 'direct-retry');
 assert.doesNotMatch(candidates[1].src, /[?&]v=/);
 assert.match(candidates[1].src, /bargig_retry=/);
-assert.equal(candidates[2].role, 'retry');
-assert.match(candidates[2].src, /bargig_retry=/);
-assert.equal(candidates[3].role, 'fallback');
-assert.equal(candidates[3].fallback, true);
+assert.equal(candidates[2].role, 'fallback');
+assert.equal(candidates[2].fallback, true);
 
 const tiered = catalogImageRecoveryCandidates(
-  'https://cdn.example.test/medium.webp',
+  'https://cdn.example.test/medium.webp?v=release-medium-u2',
   '',
   {
     primaryTier: 'medium',

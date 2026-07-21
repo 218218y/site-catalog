@@ -14,13 +14,14 @@ if exist ".venv\Scripts\python.exe" (
   )
 )
 
-echo Verifying that this catalog image release completed an R2 sync...
+echo Checking whether the current catalog image release was already synced to R2...
+echo Site-only code or design changes do not require another image sync.
 echo.
 %PYTHON_EXE% tools\verify_r2_catalog_sync_state.py
 if errorlevel 1 (
   echo.
-  echo Site build stopped because the generated image release was not synced to R2.
-  echo Run .07-sync-r2-images.bat, then run this file again.
+  echo Site build stopped because catalog image files or their generated metadata changed after the last R2 sync.
+  echo Run .07-sync-r2-images.bat once, then run this file again.
   pause
   exit /b 1
 )

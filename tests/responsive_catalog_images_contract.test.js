@@ -14,10 +14,17 @@ const favorites = fs.readFileSync(path.join(root, "src/js/35-favorites-workspace
 const converter = fs.readFileSync(path.join(root, "tools/build_catalogs.py"), "utf8");
 const searchRuntime = fs.readFileSync(path.join(root, "catalog-search.js"), "utf8");
 const remoteVerifier = fs.readFileSync(path.join(root, "tools/verify_remote_catalog_assets.py"), "utf8");
+const assetConfig = fs.readFileSync(path.join(root, "catalog-assets.config.js"), "utf8");
 
+assert.match(appState, /const CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE = "responsive";/);
+assert.match(appState, /const CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY = "full-only";/);
 assert.match(appState, /const DEFAULT_CATALOG_MEDIUM_MAX_SIDE = 1600;/);
 assert.match(appState, /const VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1\.35;/);
 assert.match(sharedUi, /function mediumSrc\(catalog, page\)/);
+assert.match(sharedUi, /function catalogImageDeliveryMode\(\)/);
+assert.match(sharedUi, /function catalogMediumImagesEnabled\(\)/);
+assert.match(sharedUi, /tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled\(\)/);
+assert.match(sharedUi, /if \(!catalogMediumImagesEnabled\(\)\) return 1;/);
 assert.match(sharedUi, /function catalogAssetVersionForTier\(catalog, tier\)/);
 assert.match(sharedUi, /function unversionedCatalogImageUrl\(url\)/);
 assert.match(sharedUi, /function viewerPageImageRequest\(catalog, page, options = \{\}\)/);
@@ -27,7 +34,7 @@ assert.match(sharedUi, /function isSaveDataEnabled\(\)/);
 assert.match(sharedUi, /effectiveType === "3g"\) return 1/);
 assert.match(sharedUi, /fallbackCandidates: candidates\.slice\(1\)/);
 assert.match(catalog, /function preloadNeighbors\(\)[\s\S]*?const radius = catalogNeighborPreloadRadius\(\);/);
-assert.match(catalog, /viewerPageSrc\(state\.catalog, page, \{ forceMedium: true \}\)/);
+assert.match(catalog, /viewerPageSrc\(state\.catalog, page, \{ preferMedium: true \}\)/);
 assert.match(viewer, /const request = viewerPageImageRequest\(catalog, state\.page\);/);
 assert.match(searchUi, /if \(isSaveDataEnabled\(\)\) return;/);
 assert.match(searchUi, /const rawImage = rawThumb \|\| rawPreview;/);
@@ -40,5 +47,6 @@ assert.match(searchRuntime, /const ASSET_URL_SCHEMA_VERSION = 2;/);
 assert.match(searchRuntime, /function assetVersionForTier\(catalog, tier\)/);
 assert.match(remoteVerifier, /CATALOG_ASSET_URL_SCHEMA_VERSION = 2/);
 assert.match(remoteVerifier, /versioned: bool = False/);
+assert.match(assetConfig, /window\.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";/);
 
 console.log("responsive_catalog_images_contract.test.js: PASS");

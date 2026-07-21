@@ -46,7 +46,7 @@
     "clean:artifacts": "python tools/clean_project_artifacts.py",
     "check:node-tools": "node tools/check_node_install_scripts.js",
     "postinstall": "node tools/check_node_install_scripts.js",
-    "verify:r2:origin": "python tools/verify_remote_catalog_assets.py --base-url https://cdn.bargig-furniture.com"
+    "verify:r2:origin": "python tools/verify_remote_catalog_assets.py --base-url https://cdn.bargig-furniture.com --all-tiers"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",

@@ -994,7 +994,7 @@ function preloadNeighbors() {
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
         const entry = entries[index];
-        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, { forceMedium: true }), { priority: "low" }).catch(() => {});
+        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, { preferMedium: true }), { priority: "low" }).catch(() => {});
       });
     return;
   }
@@ -1006,7 +1006,7 @@ function preloadNeighbors() {
   ))
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
-      prepareCatalogImage(viewerPageSrc(state.catalog, page, { forceMedium: true }), { priority: "low" }).catch(() => {});
+      prepareCatalogImage(viewerPageSrc(state.catalog, page, { preferMedium: true }), { priority: "low" }).catch(() => {});
     });
 }
 

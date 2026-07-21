@@ -52,6 +52,17 @@ function isSaveDataEnabled() {
   return Boolean(networkInformation()?.saveData);
 }
 
+function catalogImageDeliveryMode() {
+  const configured = String(window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE || "").trim().toLowerCase();
+  return configured === CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY
+    ? CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY
+    : CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
+}
+
+function catalogMediumImagesEnabled() {
+  return catalogImageDeliveryMode() === CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
+}
+
 function networkEffectiveType() {
   return String(networkInformation()?.effectiveType || "").trim().toLowerCase();
 }
@@ -61,6 +72,7 @@ function catalogNeighborPreloadRadius() {
   const effectiveType = networkEffectiveType();
   if (effectiveType === "slow-2g" || effectiveType === "2g") return 1;
   if (effectiveType === "3g") return 1;
+  if (!catalogMediumImagesEnabled()) return 1;
   return 2;
 }
 
@@ -120,9 +132,8 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
   );
   const unversionedPrimary = unversionedCatalogImageUrl(primary);
   if (unversionedPrimary && unversionedPrimary !== primary) {
-    push(cacheBustedCatalogImageUrl(unversionedPrimary), "origin", primaryTier);
+    push(cacheBustedCatalogImageUrl(unversionedPrimary), "direct-retry", primaryTier);
   }
-  push(cacheBustedCatalogImageUrl(primary), "retry", primaryTier);
   if (fallback && fallback !== primary) push(fallback, "fallback", String(options.fallbackTier || ""));
   (Array.isArray(options.fallbackCandidates) ? options.fallbackCandidates : []).forEach((candidate, index) => {
     if (!candidate || typeof candidate !== "object") return;
@@ -545,6 +556,7 @@ function thumbSrc(catalog, page) {
 }
 
 function catalogImageVariant(catalog, tier) {
+  if (tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled()) return null;
   const variants = catalog?.imageVariants;
   if (variants && typeof variants === "object" && variants[tier] && typeof variants[tier] === "object") {
     return variants[tier];
@@ -608,7 +620,7 @@ function preferredViewerImageTier(catalog, page, options = {}) {
   if (options.forceFull || !catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)) {
     return CATALOG_IMAGE_TIER_FULL;
   }
-  if (options.forceMedium) return CATALOG_IMAGE_TIER_MEDIUM;
+  if (options.preferMedium) return CATALOG_IMAGE_TIER_MEDIUM;
 
   const zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(state.zoom || 1);
   if (zoom >= VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD) return CATALOG_IMAGE_TIER_FULL;

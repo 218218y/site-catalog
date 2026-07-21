@@ -14,6 +14,7 @@ def main() -> int:
             "R2 image sync state is current: "
             f"{state.get('catalogCount', 0)} catalogs, synced {state.get('syncedAtUtc', '(unknown time)')}."
         )
+        print("No R2 image sync is needed for site-only code, content, style, or layout changes.")
         return 0
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

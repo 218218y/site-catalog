@@ -46,6 +46,35 @@ def test_expected_assets_include_advertised_medium_tier() -> None:
     ]
 
 
+def test_full_only_verification_skips_inactive_medium_tier() -> None:
+    catalogs = [{
+        "id": "demo",
+        "dir": "assets/pages/demo",
+        "pages": 1,
+        "imageExt": "webp",
+        "imageVariants": {
+            "thumb": {"directory": "thumbs", "maxSide": 420},
+            "medium": {"directory": "medium", "maxSide": 1600},
+            "full": {"directory": "", "maxSide": 2800},
+        },
+    }]
+    paths = list(MODULE.iter_expected_asset_paths(catalogs, include_medium=False))
+    assert paths == [
+        "assets/pages/demo/page-001.webp",
+        "assets/pages/demo/thumbs/page-001.webp",
+    ]
+    urls = MODULE.build_asset_urls(
+        catalogs,
+        "https://cdn.example.test",
+        versioned=True,
+        include_medium=False,
+    )
+    assert urls == [
+        "https://cdn.example.test/assets/pages/demo/page-001.webp",
+        "https://cdn.example.test/assets/pages/demo/thumbs/page-001.webp",
+    ]
+
+
 def test_verify_remote_assets_reports_failures_without_network() -> None:
     catalogs = [{"id": "demo", "dir": "assets/pages/demo", "pages": 1, "imageExt": "webp"}]
 
