@@ -47,6 +47,13 @@ assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?contain:\s*layout paint st
 assert.doesNotMatch(css, /width var\(--image-swap-duration\)|height var\(--image-swap-duration\)/);
 assert.match(css, /\.viewer-page-indicator\s*\{/);
 
+const pageThumbRule = css.match(/\.page-thumb\s*\{([\s\S]*?)\}/);
+assert.ok(pageThumbRule, 'catalog preview thumbnail rule should exist');
+assert.match(pageThumbRule[1], /width:\s*100%/);
+assert.match(pageThumbRule[1], /height:\s*auto/, 'preview thumbnails must override intrinsic height attributes after responsive width sizing');
+assert.match(pageThumbRule[1], /aspect-ratio:\s*var\(--page-thumb-aspect-ratio/, 'preview thumbnails must keep each catalog page ratio');
+assert.match(pageThumbRule[1], /object-fit:\s*contain/);
+
 const placeholderRule = css.match(/\.image-placeholder-frame\s*\{([\s\S]*?)\}/);
 assert.ok(placeholderRule, 'shared image placeholder rule should exist');
 assert.doesNotMatch(placeholderRule[1], /position\s*:/, 'placeholder styling must not override the viewer frame layout position');

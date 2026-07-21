@@ -1034,6 +1034,10 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .page-thumb {
   display: block;
   width: 100%;
+  /* The HTML width/height attributes reserve intrinsic space before loading.
+     Once the grid fixes the rendered width, height must remain automatic;
+     otherwise the source-pixel height (often ~2000px) becomes the card height. */
+  height: auto;
   aspect-ratio: var(--page-thumb-aspect-ratio, 1.42 / 1);
   object-fit: contain;
   border-radius: 14px;

@@ -586,6 +586,8 @@ python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furni
 npm run verify:seo:public
 ```
 
+פקודות ביקורת ה־SEO מופעלות דרך סביבת Python המקומית המנוהלת של הפרויקט (`.venv`), ולכן הן אינן תלויות בחבילות כמו Pillow המותקנות במקרה ב־Python הכללי של המחשב או של GitHub Actions.
+
 הפקודה בונה באנדל public מוגן תחת `.artifacts/public-seo-preview`, בודקת נעילת
 כתובות, קישורים פנימיים, canonical, H1, Open Graph, Twitter Card, JSON-LD,
 robots.txt ו־sitemap. ה־CI מריץ אותה ומעלה artifact לצפייה, אך אינו מפרסם אותו.

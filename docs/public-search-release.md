@@ -42,6 +42,8 @@ npm run seo:routes:update -- --confirm-route-lock-update
 npm run verify:seo:public
 ```
 
+הפקודה רצה דרך `tools/run_with_project_python.py`, שמוודא שסביבת `.venv` מוכנה ומפעיל את כלי הביקורת בעזרתה. כך Pillow ושאר תלויות ה־SEO זהות ב־Windows וב־CI.
+
 הפקודה:
 
 1. בודקת את נעילת הכתובות;
