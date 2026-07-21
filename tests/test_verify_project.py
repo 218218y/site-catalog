@@ -27,7 +27,7 @@ def test_venv_python_path_is_platform_specific(tmp_path: Path) -> None:
     assert MODULE.venv_python_path(tmp_path, platform="posix") == tmp_path / ".venv/bin/python"
 
 
-def test_quick_verification_omits_deploy_build() -> None:
+def test_quick_verification_reuses_the_guarded_public_build() -> None:
     steps = MODULE.verification_steps(ROOT, quick=True, python_executable="project-python")
     titles = [step.title for step in steps]
     commands = [step.command for step in steps]
@@ -36,12 +36,16 @@ def test_quick_verification_omits_deploy_build() -> None:
     assert "Generated site pages are current" in titles
     assert commands[0][0] == "project-python"
     assert any(command[:2] == ("node", "--check") for command in commands)
-    assert any(
-        command == ("project-python", "-m", "pytest", "-q", "-m", "not release_gate")
-        for command in commands
-    )
+    assert ("project-python", "-m", "pytest", "-q") in commands
+    assert (
+        "project-python",
+        "tools/verify_public_seo.py",
+        "--out",
+        "dist/site-public-preview",
+        "--clean-legacy-artifacts",
+    ) in commands
     assert not any("playwright" in " ".join(command).lower() for command in commands)
-    assert not any("build_deploy_bundle.py" in command for command in commands)
+    assert not any(".artifacts/verify-deploy" in command for command in commands)
 
 
 def test_complete_verification_builds_a_clean_deploy_bundle() -> None:
@@ -60,6 +64,16 @@ def test_complete_verification_builds_a_clean_deploy_bundle() -> None:
     assert "Generated site pages are current" in titles
     assert MODULE.VerificationStep(
         "Python tests", ("project-python", "-m", "pytest", "-q")
+    ) in steps
+    assert MODULE.VerificationStep(
+        "Guarded public SEO preview",
+        (
+            "project-python",
+            "tools/verify_public_seo.py",
+            "--out",
+            "dist/site-public-preview",
+            "--clean-legacy-artifacts",
+        ),
     ) in steps
     assert "Playwright Chromium is installed" in titles
     assert "Playwright browser journeys" in titles

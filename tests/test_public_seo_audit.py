@@ -26,14 +26,34 @@ AUDIT_SPEC.loader.exec_module(AUDIT)
 @pytest.fixture(scope="module")
 def public_bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
     output = tmp_path_factory.mktemp("public-seo-audit")
-    BUILD.render_site_pages(
-        ROOT,
-        output,
-        build_assets=False,
-        seo_mode="public",
-        include_seo_routes=True,
-        confirm_public_indexing=True,
+    catalogs = BUILD.read_catalogs(ROOT)
+    primary = next(item for item in catalogs if item["id"] == "opening-fredi-2026")
+    secondary = next(
+        item
+        for item in catalogs
+        if item["id"] != primary["id"] and item.get("category") != primary.get("category")
     )
+
+    def compact(catalog: dict[str, object]) -> dict[str, object]:
+        value = dict(catalog)
+        sizes = list(value.get("pageSizes") or [[1200, 1600]])
+        value["pages"] = 2
+        value["pageSizes"] = (sizes + [sizes[-1]])[:2]
+        return value
+
+    original_read_catalogs = BUILD.read_catalogs
+    BUILD.read_catalogs = lambda _root: [compact(primary), compact(secondary)]
+    try:
+        BUILD.render_site_pages(
+            ROOT,
+            output,
+            build_assets=False,
+            seo_mode="public",
+            include_seo_routes=True,
+            confirm_public_indexing=True,
+        )
+    finally:
+        BUILD.read_catalogs = original_read_catalogs
     (output / "social-share-default.png").write_bytes(
         (ROOT / "social-share-default.png").read_bytes()
     )
@@ -46,9 +66,8 @@ def parse_document(html: str) -> object:
     return document
 
 
-@pytest.mark.release_gate
-def test_public_bundle_passes_complete_seo_audit(public_bundle: Path) -> None:
-    """Release-only disk audit; the dedicated SEO gate runs it in CI and verify."""
+def test_representative_public_bundle_passes_complete_seo_audit(public_bundle: Path) -> None:
+    """Exercise every audit rule cheaply; the project gate checks the full catalog."""
 
     assert AUDIT.audit_local_bundle(public_bundle, ROOT) == []
 

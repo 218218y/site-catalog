@@ -47,17 +47,25 @@ npm run verify:seo:public
 הפקודה:
 
 1. בודקת את נעילת הכתובות;
-2. יוצרת באנדל public מאושר תחת `.artifacts/public-seo-preview`;
+2. בונה או מאמתת באנדל public קבוע תחת `dist/site-public-preview`;
 3. בודקת את כל הקישורים הפנימיים;
 4. בודקת canonical ייחודי ותואם לדומיין;
 5. בודקת title, description ו־H1 בכל עמוד indexable;
 6. מפענחת כל JSON-LD ומוודאת מבנה מתאים;
 7. בודקת Open Graph ו־Twitter Card, כולל סוג ומידות תמונה;
 8. משווה את `sitemap.xml` בדיוק לרשימת העמודים ה־indexable;
-9. מוודאת ש־robots.txt מפרסם את ה־sitemap ושאין noindex גלובלי ב־headers.
+9. מוודאת ש־robots.txt מפרסם את ה־sitemap ושאין noindex גלובלי ב־headers;
+10. שומרת מחוץ לבאנדל חתימת ביקורת הקשורה למלאי ול־hash של כל קובץ ולקוד
+    הביקורת עצמו.
 
-ה־CI מריץ את הבדיקה הזאת בכל push ומעלה את הבאנדל הציבורי כ־artifact לבדיקה,
-אך אינו מפרסם אותו.
+הפקודה כלולה ב־`npm test` וב־`npm run verify`. כאשר החתימות עדכניות היא אינה
+יוצרת או סורקת מחדש מאות קובצי HTML; שינוי בתוכן, באפשרויות הבנייה, במלאי
+הקבצים, בתלויות הביקורת או בקוד הביקורת פוסל את התוצאה ומפעיל בנייה או ביקורת
+מלאה לפי הצורך. ה־CI מעלה את `dist/site-public-preview` כ־artifact לבדיקה, אך
+אינו מפרסם אותו.
+
+לסריקה מלאה יזומה משתמשים ב־`npm run verify:seo:public:full`. כדי לכפות גם
+בנייה מחדש משתמשים ב־`npm run verify:seo:public:rebuild`.
 
 ## בדיקה חיצונית לאחר פריסה
 
@@ -108,13 +116,12 @@ npm run verify:seo:live -- --expected-mode public
 
 1. `npm test`
 2. `npm run verify`
-3. `npm run verify:seo:public`
-4. סקירת artifact הציבורי ב־CI או מקומית
-5. בדיקה שכל תמונות הקטלוג הדרושות קיימות ב־R2
-6. בניית `npm run build:deploy:public`
-7. העלאה באמצעות Wrangler
-8. `npm run verify:seo:live -- --expected-mode public`
-9. Rich Results Test עבור הבית וקטלוג לדוגמה
-10. שליחת sitemap ב־Search Console
+3. סקירת `dist/site-public-preview` או ה־artifact הציבורי של ה־CI
+4. בדיקה שכל תמונות הקטלוג הדרושות קיימות ב־R2
+5. בניית `npm run build:deploy:public` — מעתיקה את התוצר המבוקר בלי רינדור נוסף
+6. העלאה באמצעות Wrangler
+7. `npm run verify:seo:live -- --expected-mode public`
+8. Rich Results Test עבור הבית וקטלוג לדוגמה
+9. שליחת sitemap ב־Search Console
 
 אין לשנות את `seo.config.json` ל־public כדרך קיצור. האישור הכפול נשאר בכוונה.

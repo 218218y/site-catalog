@@ -370,15 +370,26 @@ def test_legacy_seo_artifacts_are_removed_without_touching_canonical_outputs(tmp
     write_asset(root, "dist/seo-public/old.html")
     write_asset(root, "dist/site-e2e/old.html")
     write_asset(root, "dist/site-e2e.build.json", b"{}")
+    write_asset(root, ".artifacts/public-seo-preview/old.html")
+    write_asset(root, ".artifacts/public-seo-preview.build.json", b"{}")
+    write_asset(root, ".artifacts/public-seo-preview.audit.json", b"{}")
     write_asset(root, "dist/site-upload-r2/index.html")
     write_asset(root, "dist/site-local/index.html")
 
     removed = MODULE.clean_legacy_artifacts(root)
 
-    assert removed == ["dist/seo-private", "dist/seo-public", "dist/site-e2e"]
+    assert removed == [
+        "dist/seo-private",
+        "dist/seo-public",
+        "dist/site-e2e",
+        ".artifacts/public-seo-preview",
+    ]
     assert not (root / "dist/seo-private").exists()
     assert not (root / "dist/seo-public").exists()
     assert not (root / "dist/site-e2e").exists()
     assert not (root / "dist/site-e2e.build.json").exists()
+    assert not (root / ".artifacts/public-seo-preview").exists()
+    assert not (root / ".artifacts/public-seo-preview.build.json").exists()
+    assert not (root / ".artifacts/public-seo-preview.audit.json").exists()
     assert (root / "dist/site-upload-r2/index.html").is_file()
     assert (root / "dist/site-local/index.html").is_file()

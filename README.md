@@ -90,15 +90,16 @@ npm run seo:routes:update -- --confirm-route-lock-update
 
 ## תיקיות `dist`
 
-בזרימת העבודה הרגילה קיימות שתי תיקיות אתר בלבד:
+בזרימת העבודה קיימים שני תוצרי עבודה פרטיים ותוצר ציבורי שמור ונפרד:
 
 ```text
 dist/site-upload-r2   התוצר המאומת שמועלה ל־Cloudflare Pages
 dist/site-local       עותק זהה שמוגש על ידי .05-start-server.bat
+dist/site-public-preview   מועמד public מאומת; אינו נפרס אוטומטית
 .03-check-and-start-server.bat   בדיקת עדכניות אופציונלית לפני הפעלת השרת
 ```
 
-לצדן נשמרים קובצי `*.build.json` עם חתימות המקורות ומלאי הקבצים. הם נמצאים מחוץ לתיקיית האתר ואינם מועלים. בדיקות Playwright משתמשות באותו `dist/site-local`: לפני פתיחת שרת הבדיקות מתבצעת בדיקת חתימה, ורק אם המקורות השתנו התוצר המקומי נבנה מחדש. כך אין באנדל שלישי ואין תיקיית `dist/site-e2e`. `dist/site-public-preview` נוצר רק בבדיקת מצב public מפורשת. התיקיות הישנות `dist/seo-private`, `dist/seo-public` ו־`dist/site-e2e` אינן בשימוש ומנוקות בבנייה הרגילה.
+לצדן נשמרים קובצי `*.build.json` עם חתימות המקורות ומלאי הקבצים. הם נמצאים מחוץ לתיקיות האתר ואינם מועלים. לתוצר הציבורי נשמר גם `site-public-preview.audit.json`, הקושר תוצאת ביקורת מוצלחת לתוכן המדויק של התוצר ולקוד כלי הביקורת. בדיקות Playwright משתמשות באותו `dist/site-local`: לפני פתיחת שרת הבדיקות מתבצעת בדיקת חתימה, ורק אם המקורות השתנו התוצר המקומי נבנה מחדש. כך אין תיקיית `dist/site-e2e`. התיקיות הישנות `dist/seo-private`, `dist/seo-public` ו־`dist/site-e2e` אינן בשימוש ומנוקות בבנייה הרגילה.
 
 ## מה מעלים ל-Cloudflare Pages
 
@@ -485,12 +486,12 @@ npm run build          rem בניית app.js, styles.css וכל דפי HTML
 npm run test:js        rem בדיקות JavaScript, תחביר ודפים שנוצרו
 npm run test:python    rem בדיקות Python מתוך .venv
 npm run test:e2e       rem מסלולי שימוש אמיתיים בדפדפן Chromium
-npm test               rem בדיקה מהירה: JavaScript + Python, ללא דפדפן ופריסה
+npm test               rem בדיקה מהירה: JavaScript + Python + שער public שמור, ללא דפדפן ופריסה
 npm run verify         rem אימות מלא לפני העלאה
 npm run clean:artifacts rem ניקוי __pycache__, bytecode ועותקי תמונת שיתוף ישנים
 ```
 
-`npm test` מיועד ללולאת העבודה היומית ולכן אינו בונה וסורק את כל מאות דפי ה־public preview. ביקורת ה־SEO המלאה, שהיא בדיקת release עתירת קבצים, נשארת חלק מ־`npm run verify`, מ־`npm run verify:seo:public` ומ־CI. ההפרדה מונעת מ־Windows Defender לסרוק שוב ושוב מאות קובצי HTML זמניים בכל בדיקה מקומית, בלי לוותר על שער הפרסום המלא.
+`npm test` כולל את שער ה־SEO הציבורי המלא. התוצר נשמר ב־`dist/site-public-preview`: חתימת מקורות ומלאי קבצים קובעים אם צריך לבנות מחדש, וחתימת ביקורת נפרדת קובעת אם צריך לסרוק שוב את כל דפי ה־HTML. לכן שינוי רלוונטי מפעיל בנייה וביקורת אמיתיות פעם אחת, ואילו הרצה חוזרת ללא שינוי מבצעת בדיקת עדכניות קלה בלבד. כך Windows Defender אינו נדרש לסרוק מאות קבצים חדשים בכל הרצה, בלי לדלג על שער הפרסום.
 
 
 אפשר להפעיל את הניקוי גם דרך `.020-clean-project-artifacts.bat`. `.01-bundle-site-r2.bat` מפעיל אותו אוטומטית אחרי בנייה מוצלחת.
@@ -501,8 +502,9 @@ npm run clean:artifacts rem ניקוי __pycache__, bytecode ועותקי תמו
 2. אימות שכל ששת דפי האתר תואמים לתבניות, לתוכן הפוטר ול־footer המשותף.
 3. בדיקת תחביר וכל בדיקות החוזה של JavaScript.
 4. כל בדיקות Python.
-5. בדיקות Playwright בדפדפן אמיתי.
-6. בניית חבילת Cloudflare Pages נקייה ואימות קובצי ה־hash.
+5. בנייה או שימוש חוזר בתוצר public וביקורת SEO מלאה כשחתימת התוכן או כלי הביקורת השתנתה.
+6. בדיקות Playwright בדפדפן אמיתי.
+7. בניית חבילת Cloudflare Pages פרטית נקייה ואימות קובצי ה־hash.
 
 בדיקות Playwright מכסות פתיחת קטלוג, תצוגה מקדימה ופתיחת עמוד נבחר, מעבר עמודים, חיפוש, שמירת מועדף לאחר רענון, שיתוף רשימת מועדפים לדפדפן נקי, קישור ישיר ושיתוף הכתובת המדויקת, חזרה מהצופה וניווט פנימי בטוח בזמן מסך מלא, סיור ההדרכה החד־פעמי, צפייה במובייל ושינוי orientation, מרכוז הצופה, כשל תמונה, ניווט מקלדת ובדיקות צילום מסך. בנוסף, כל מסלול נכשל אם נזרקת שגיאת JavaScript לא מטופלת בדפדפן. תמונות הקטלוג נענות בבדיקות באמצעות fixture מקומי, ולכן הבדיקות אינן תלויות ב־R2 או באינטרנט.
 
@@ -591,9 +593,15 @@ npm run verify:seo:public
 
 פקודות ביקורת ה־SEO מופעלות דרך סביבת Python המקומית המנוהלת של הפרויקט (`.venv`), ולכן הן אינן תלויות בחבילות כמו Pillow המותקנות במקרה ב־Python הכללי של המחשב או של GitHub Actions.
 
-הפקודה בונה באנדל public מוגן תחת `.artifacts/public-seo-preview`, בודקת נעילת
+הפקודה בונה או מאמתת באנדל public מוגן תחת `dist/site-public-preview`, בודקת נעילת
 כתובות, קישורים פנימיים, canonical, H1, Open Graph, Twitter Card, JSON-LD,
-robots.txt ו־sitemap. ה־CI מריץ אותה ומעלה artifact לצפייה, אך אינו מפרסם אותו.
+robots.txt ו־sitemap. התוצר וחתימת הביקורת נשמרים בין הרצות; אם המקורות, מלאי
+הקבצים או כלי הביקורת השתנו, ה־cache נפסל אוטומטית. ה־CI מעלה את התוצר כ־artifact
+לצפייה, אך אינו מפרסם אותו.
+
+לבדיקה יזומה ללא שימוש בתוצאת ביקורת קודמת מריצים
+`npm run verify:seo:public:full`; לבנייה וביקורת מחדש מריצים
+`npm run verify:seo:public:rebuild`.
 
 בדיקה חיצונית לאחר deployment:
 
@@ -622,6 +630,10 @@ npm run build:deploy:private
 npm run build:seo:public
 npm run build:deploy:public
 ```
+
+`build:deploy:public` מאמת תחילה את `dist/site-public-preview`, ואז מעתיק את אותו
+תוצר שעבר ביקורת אל `dist/site-upload-r2` ואל `dist/site-local`; הוא אינו מייצר
+שוב את מאות הדפים לצורך ההעלאה.
 
 הגדרות הדומיין ופרטי העסק נמצאות ב־`seo.config.json`; הטקסונומיה והכתובות של
 הקטגוריות נמצאות ב־`catalog-taxonomy.config.json`. פירוט מלא נמצא ב־

@@ -125,7 +125,12 @@ SEARCH_INDEX_RUNTIME_RE = re.compile(r'const SEARCH_INDEX_SCRIPT_SRC = "(?P<url>
 ARTIFACT_STATE_SCHEMA = 2
 ARTIFACT_STATE_SUFFIX = ".build.json"
 BUILD_SIGNATURE_VERSION = "site-bundle-v3"
-LEGACY_ARTIFACT_DIRS = ("dist/seo-private", "dist/seo-public", "dist/site-e2e")
+LEGACY_ARTIFACT_DIRS = (
+    "dist/seo-private",
+    "dist/seo-public",
+    "dist/site-e2e",
+    ".artifacts/public-seo-preview",
+)
 BUILD_INPUT_FILES = (
     "_headers.template",
     "_redirects",
@@ -469,6 +474,9 @@ def clean_legacy_artifacts(root: Path) -> list[str]:
         state = artifact_state_path(path)
         if state.exists():
             state.unlink()
+        audit_state = path.with_name(f"{path.name}.audit.json")
+        if audit_state.exists():
+            audit_state.unlink()
     return removed
 
 

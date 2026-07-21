@@ -150,10 +150,21 @@ def verification_steps(
         )
 
     if scope in {"all", "python"}:
-        pytest_command = [python, "-m", "pytest", "-q"]
-        if quick:
-            pytest_command.extend(("-m", "not release_gate"))
-        steps.append(VerificationStep("Python tests", tuple(pytest_command)))
+        steps.append(VerificationStep("Python tests", (python, "-m", "pytest", "-q")))
+
+    if scope == "all":
+        steps.append(
+            VerificationStep(
+                "Guarded public SEO preview",
+                (
+                    python,
+                    "tools/verify_public_seo.py",
+                    "--out",
+                    "dist/site-public-preview",
+                    "--clean-legacy-artifacts",
+                ),
+            )
+        )
 
     if scope == "all" and not quick:
         steps.extend((
@@ -215,7 +226,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Run source, syntax and unit checks without browser journeys or a deploy bundle.",
+        help=(
+            "Run source, syntax, unit and cached public-SEO checks without "
+            "browser journeys or a private deploy bundle."
+        ),
     )
     scope_group = parser.add_mutually_exclusive_group()
     scope_group.add_argument(
