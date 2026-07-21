@@ -410,20 +410,27 @@ function renderLightboxPageRail() {
 
 function syncViewerFitModeUi() {
   const fitMode = normalizeViewerFitMode(state.imageFitMode);
+  const automatic = viewerUsesAutomaticFitMode();
   state.imageFitMode = fitMode;
 
   els.lightbox?.classList.toggle("fit-height", fitMode === VIEWER_FIT_HEIGHT);
   els.lightbox?.classList.toggle("fit-width", fitMode === VIEWER_FIT_WIDTH);
 
+  if (els.fitAutoBtn) {
+    els.fitAutoBtn.setAttribute("aria-pressed", automatic ? "true" : "false");
+    els.fitAutoBtn.setAttribute("aria-label", "התאמת תצוגה אוטומטי");
+    setTooltipText(els.fitAutoBtn, "התאמת תצוגה אוטומטי", { updateDefault: true });
+  }
+
   if (els.fitHeightBtn) {
-    const isActive = fitMode === VIEWER_FIT_HEIGHT;
+    const isActive = !automatic && fitMode === VIEWER_FIT_HEIGHT;
     els.fitHeightBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
     els.fitHeightBtn.setAttribute("aria-label", "התאמת התמונה לגובה");
     setTooltipText(els.fitHeightBtn, "התאמה לגובה", { updateDefault: true });
   }
 
   if (els.fitWidthBtn) {
-    const isActive = fitMode === VIEWER_FIT_WIDTH;
+    const isActive = !automatic && fitMode === VIEWER_FIT_WIDTH;
     els.fitWidthBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
     els.fitWidthBtn.setAttribute("aria-label", "התאמת התמונה לרוחב");
     setTooltipText(els.fitWidthBtn, "התאמה לרוחב", { updateDefault: true });
@@ -511,16 +518,20 @@ function setViewerFitMode(fitMode, options = {}) {
   if (showUi) showTopUiTemporarily(1600);
 }
 
+function setViewerAutomaticFitMode(options = {}) {
+  setViewerFitMode(getAutomaticViewerFitMode(), {
+    ...options,
+    source: VIEWER_FIT_SOURCE_AUTO
+  });
+}
+
 function syncAutomaticViewerFitMode(options = {}) {
   if (!viewerUsesAutomaticFitMode()) return false;
 
   const nextFitMode = getAutomaticViewerFitMode();
   if (nextFitMode === state.imageFitMode) return false;
 
-  setViewerFitMode(nextFitMode, {
-    ...options,
-    source: VIEWER_FIT_SOURCE_AUTO
-  });
+  setViewerAutomaticFitMode(options);
   return true;
 }
 

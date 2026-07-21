@@ -416,6 +416,8 @@ function syncFavoritesUi(options = {}) {
   const count = entries.length;
   syncFavoritesShortcut(els.headerFavoritesButton, els.headerFavoritesCount, count);
   syncFavoritesShortcut(els.lightboxFavoritesButton, els.lightboxFavoritesCount, count);
+  els.lightboxFavoritesSeparator?.classList.toggle("hidden", count === 0);
+  els.lightboxFavoritesSeparator?.setAttribute("aria-hidden", count === 0 ? "true" : "false");
   syncViewerFavoriteButtonUi();
   syncFavoritesShareButton(count);
   if (renderPanel) {

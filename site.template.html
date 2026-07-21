@@ -353,7 +353,11 @@
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.7 3.4 20.6 9.3 17.2 10.5 13.7 14 14.4 18.2 12.9 19.7 9.4 16.2 4.9 20.7 3.3 19.1 7.8 14.6 4.3 11.1 5.8 9.6 10 10.3 13.5 6.8 14.7 3.4Z" /></svg>
                   <span data-viewer-mobile-pin-label>נעיצת הסרגל</span>
                 </button>
-                <button type="button" role="menuitemradio" data-viewer-mobile-action="fit-height" aria-checked="true">
+                <button type="button" role="menuitemradio" data-viewer-mobile-action="fit-auto" aria-checked="true">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5 10.2 5.3h3.6L12 3.5Zm0 17 1.8-1.8h-3.6l1.8 1.8ZM3.5 12l1.8 1.8v-3.6L3.5 12Zm17 0-1.8-1.8v3.6l1.8-1.8ZM8 8h8v8H8Z" /></svg>
+                  <span>התאמת תצוגה אוטומטי</span>
+                </button>
+                <button type="button" role="menuitemradio" data-viewer-mobile-action="fit-height" aria-checked="false">
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.8 9.8 6h4.4L12 3.8Zm0 16.4 2.2-2.2H9.8l2.2 2.2ZM12 6v12M7.4 7.7h9.2a1.4 1.4 0 0 1 1.4 1.4v5.8a1.4 1.4 0 0 1-1.4 1.4H7.4A1.4 1.4 0 0 1 6 14.9V9.1a1.4 1.4 0 0 1 1.4-1.4Z" /></svg>
                   <span>התאמה לגובה</span>
                 </button>
@@ -367,7 +371,12 @@
                 </a>
               </div>
             </div>
-            <span class="viewer-control-separator" aria-hidden="true"></span>
+            <span class="viewer-control-separator viewer-fit-separator" aria-hidden="true"></span>
+            <button class="reader-button reader-control-icon-button viewer-fit-control" id="fitAutoBtn" type="button" aria-label="התאמת תצוגה אוטומטי" aria-pressed="true" title="התאמת תצוגה אוטומטי">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M12 3.5 10.2 5.3h3.6L12 3.5Zm0 17 1.8-1.8h-3.6l1.8 1.8ZM3.5 12l1.8 1.8v-3.6L3.5 12Zm17 0-1.8-1.8v3.6l1.8-1.8ZM8 8h8v8H8Z" />
+              </svg>
+            </button>
             <button class="reader-button reader-control-icon-button viewer-fit-control" id="fitHeightBtn" type="button" aria-label="התאמת התמונה לגובה" aria-pressed="false" title="התאמה לגובה">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M12 3.8 9.8 6h4.4L12 3.8Zm0 16.4 2.2-2.2H9.8l2.2 2.2ZM12 6v12M7.4 7.7h9.2a1.4 1.4 0 0 1 1.4 1.4v5.8a1.4 1.4 0 0 1-1.4 1.4H7.4A1.4 1.4 0 0 1 6 14.9V9.1a1.4 1.4 0 0 1 1.4-1.4Z" />
@@ -378,6 +387,7 @@
                 <path d="M3.8 12 6 9.8v4.4L3.8 12Zm16.4 0L18 14.2V9.8l2.2 2.2ZM6 12h12M7.7 7.4v9.2A1.4 1.4 0 0 0 9.1 18h5.8a1.4 1.4 0 0 0 1.4-1.4V7.4A1.4 1.4 0 0 0 14.9 6H9.1a1.4 1.4 0 0 0-1.4 1.4Z" />
               </svg>
             </button>
+            <span class="viewer-control-separator viewer-favorites-separator hidden" id="lightboxFavoritesSeparator" aria-hidden="true"></span>
             <a class="reader-button reader-control-icon-button lightbox-favorites-button hidden" id="lightboxFavoritesButton" href="favorites.html" aria-label="פתיחת מועדפים" title="מועדפים">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="m12 3.25 2.64 5.35 5.91.86-4.28 4.17 1.01 5.89L12 16.74l-5.28 2.78 1.01-5.89-4.28-4.17 5.91-.86L12 3.25Z" />

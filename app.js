@@ -550,8 +550,10 @@ const els = {
   nextPageBtn: $("nextPageBtn"),
   fullscreenToggle: $("fullscreenToggle"),
   viewerScrollPages: $("viewerScrollPages"),
+  fitAutoBtn: $("fitAutoBtn"),
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
+  lightboxFavoritesSeparator: $("lightboxFavoritesSeparator"),
   viewerAutoZoomBtn: $("viewerAutoZoomBtn"),
   viewerFavoriteButton: $("viewerFavoriteButton"),
   viewerInquiryButton: $("viewerInquiryButton"),
@@ -2522,6 +2524,8 @@ function syncFavoritesUi(options = {}) {
   const count = entries.length;
   syncFavoritesShortcut(els.headerFavoritesButton, els.headerFavoritesCount, count);
   syncFavoritesShortcut(els.lightboxFavoritesButton, els.lightboxFavoritesCount, count);
+  els.lightboxFavoritesSeparator?.classList.toggle("hidden", count === 0);
+  els.lightboxFavoritesSeparator?.setAttribute("aria-hidden", count === 0 ? "true" : "false");
   syncViewerFavoriteButtonUi();
   syncFavoritesShareButton(count);
   if (renderPanel) {
@@ -6547,20 +6551,27 @@ function renderLightboxPageRail() {
 
 function syncViewerFitModeUi() {
   const fitMode = normalizeViewerFitMode(state.imageFitMode);
+  const automatic = viewerUsesAutomaticFitMode();
   state.imageFitMode = fitMode;
 
   els.lightbox?.classList.toggle("fit-height", fitMode === VIEWER_FIT_HEIGHT);
   els.lightbox?.classList.toggle("fit-width", fitMode === VIEWER_FIT_WIDTH);
 
+  if (els.fitAutoBtn) {
+    els.fitAutoBtn.setAttribute("aria-pressed", automatic ? "true" : "false");
+    els.fitAutoBtn.setAttribute("aria-label", "התאמת תצוגה אוטומטי");
+    setTooltipText(els.fitAutoBtn, "התאמת תצוגה אוטומטי", { updateDefault: true });
+  }
+
   if (els.fitHeightBtn) {
-    const isActive = fitMode === VIEWER_FIT_HEIGHT;
+    const isActive = !automatic && fitMode === VIEWER_FIT_HEIGHT;
     els.fitHeightBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
     els.fitHeightBtn.setAttribute("aria-label", "התאמת התמונה לגובה");
     setTooltipText(els.fitHeightBtn, "התאמה לגובה", { updateDefault: true });
   }
 
   if (els.fitWidthBtn) {
-    const isActive = fitMode === VIEWER_FIT_WIDTH;
+    const isActive = !automatic && fitMode === VIEWER_FIT_WIDTH;
     els.fitWidthBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
     els.fitWidthBtn.setAttribute("aria-label", "התאמת התמונה לרוחב");
     setTooltipText(els.fitWidthBtn, "התאמה לרוחב", { updateDefault: true });
@@ -6648,16 +6659,20 @@ function setViewerFitMode(fitMode, options = {}) {
   if (showUi) showTopUiTemporarily(1600);
 }
 
+function setViewerAutomaticFitMode(options = {}) {
+  setViewerFitMode(getAutomaticViewerFitMode(), {
+    ...options,
+    source: VIEWER_FIT_SOURCE_AUTO
+  });
+}
+
 function syncAutomaticViewerFitMode(options = {}) {
   if (!viewerUsesAutomaticFitMode()) return false;
 
   const nextFitMode = getAutomaticViewerFitMode();
   if (nextFitMode === state.imageFitMode) return false;
 
-  setViewerFitMode(nextFitMode, {
-    ...options,
-    source: VIEWER_FIT_SOURCE_AUTO
-  });
+  setViewerAutomaticFitMode(options);
   return true;
 }
 
@@ -8020,6 +8035,7 @@ function attachViewerEvents() {
   els.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.fullscreenToggle));
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
+  els.fitAutoBtn?.addEventListener("click", () => setViewerAutomaticFitMode());
   els.fitHeightBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_HEIGHT));
   els.fitWidthBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_WIDTH));
   els.viewerAutoZoomBtn?.addEventListener("click", (event) => {
@@ -8393,7 +8409,9 @@ function syncViewerMobileMoreMenuState() {
   const menu = els.viewerMobileMoreMenu;
   if (!menu) return;
   const fitMode = normalizeViewerFitMode(state.imageFitMode);
+  const automatic = viewerUsesAutomaticFitMode();
   const pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]');
+  const autoItem = menu.querySelector('[data-viewer-mobile-action="fit-auto"]');
   const heightItem = menu.querySelector('[data-viewer-mobile-action="fit-height"]');
   const widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]');
   const pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
@@ -8401,10 +8419,12 @@ function syncViewerMobileMoreMenuState() {
   pinItem?.setAttribute("aria-checked", state.topUiPinned ? "true" : "false");
   pinItem?.classList.toggle("active", state.topUiPinned);
   if (pinLabel) pinLabel.textContent = state.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
-  heightItem?.setAttribute("aria-checked", fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
-  heightItem?.classList.toggle("active", fitMode === VIEWER_FIT_HEIGHT);
-  widthItem?.setAttribute("aria-checked", fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
-  widthItem?.classList.toggle("active", fitMode === VIEWER_FIT_WIDTH);
+  autoItem?.setAttribute("aria-checked", automatic ? "true" : "false");
+  autoItem?.classList.toggle("active", automatic);
+  heightItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
+  heightItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_HEIGHT);
+  widthItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
+  widthItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_WIDTH);
   if (els.viewerMobileFavoritesLink) els.viewerMobileFavoritesLink.href = favoritesDocumentUrl();
 }
 
@@ -8465,6 +8485,7 @@ function handleViewerMobileMoreAction(event) {
 
   if (action === "download") downloadCurrentLightboxImage();
   else if (action === "pin") toggleTopUiPinned();
+  else if (action === "fit-auto") setViewerAutomaticFitMode({ showUi: false });
   else if (action === "fit-height") setViewerFitMode(VIEWER_FIT_HEIGHT, { showUi: false });
   else if (action === "fit-width") setViewerFitMode(VIEWER_FIT_WIDTH, { showUi: false });
 

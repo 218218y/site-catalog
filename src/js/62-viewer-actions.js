@@ -311,7 +311,9 @@ function syncViewerMobileMoreMenuState() {
   const menu = els.viewerMobileMoreMenu;
   if (!menu) return;
   const fitMode = normalizeViewerFitMode(state.imageFitMode);
+  const automatic = viewerUsesAutomaticFitMode();
   const pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]');
+  const autoItem = menu.querySelector('[data-viewer-mobile-action="fit-auto"]');
   const heightItem = menu.querySelector('[data-viewer-mobile-action="fit-height"]');
   const widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]');
   const pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
@@ -319,10 +321,12 @@ function syncViewerMobileMoreMenuState() {
   pinItem?.setAttribute("aria-checked", state.topUiPinned ? "true" : "false");
   pinItem?.classList.toggle("active", state.topUiPinned);
   if (pinLabel) pinLabel.textContent = state.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
-  heightItem?.setAttribute("aria-checked", fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
-  heightItem?.classList.toggle("active", fitMode === VIEWER_FIT_HEIGHT);
-  widthItem?.setAttribute("aria-checked", fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
-  widthItem?.classList.toggle("active", fitMode === VIEWER_FIT_WIDTH);
+  autoItem?.setAttribute("aria-checked", automatic ? "true" : "false");
+  autoItem?.classList.toggle("active", automatic);
+  heightItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
+  heightItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_HEIGHT);
+  widthItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
+  widthItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_WIDTH);
   if (els.viewerMobileFavoritesLink) els.viewerMobileFavoritesLink.href = favoritesDocumentUrl();
 }
 
@@ -383,6 +387,7 @@ function handleViewerMobileMoreAction(event) {
 
   if (action === "download") downloadCurrentLightboxImage();
   else if (action === "pin") toggleTopUiPinned();
+  else if (action === "fit-auto") setViewerAutomaticFitMode({ showUi: false });
   else if (action === "fit-height") setViewerFitMode(VIEWER_FIT_HEIGHT, { showUi: false });
   else if (action === "fit-width") setViewerFitMode(VIEWER_FIT_WIDTH, { showUi: false });
 

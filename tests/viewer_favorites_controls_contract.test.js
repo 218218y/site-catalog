@@ -12,7 +12,7 @@ const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxFavoritesButton"[^>]*href="favorites\.html"/);
-  assert.match(html, /id="lightboxFavoritesButton"[\s\S]*?id="lightboxFavoritesCount"/);
+  assert.match(html, /id="fitWidthBtn"[\s\S]*?id="lightboxFavoritesSeparator"[\s\S]*?id="lightboxFavoritesButton"[\s\S]*?id="lightboxFavoritesCount"/);
   assert.match(html, /id="viewerFavoriteButton"[\s\S]*?id="fullscreenToggle"/);
   assert.match(html, /class="reader-button viewer-fullscreen-toggle viewer-fullscreen-float"[^>]*id="fullscreenToggle"/);
   const toolbar = html.match(/<div class="lightbox-actions">([\s\S]*?)<\/div>\s*<\/header>/)?.[1] || '';
@@ -21,9 +21,11 @@ for (const html of [template, viewer]) {
 
 assert.match(app, /lightboxFavoritesButton: \$\("lightboxFavoritesButton"\)/);
 assert.match(app, /lightboxFavoritesCount: \$\("lightboxFavoritesCount"\)/);
+assert.match(app, /lightboxFavoritesSeparator: \$\("lightboxFavoritesSeparator"\)/);
 assert.match(app, /function syncFavoritesShortcut\(button, countElement, count\)/);
 assert.match(app, /syncFavoritesShortcut\(els\.headerFavoritesButton, els\.headerFavoritesCount, count\)/);
 assert.match(app, /syncFavoritesShortcut\(els\.lightboxFavoritesButton, els\.lightboxFavoritesCount, count\)/);
+assert.match(app, /els\.lightboxFavoritesSeparator\?\.classList\.toggle\("hidden", count === 0\)/);
 
 assert.match(css, /--viewer-side-control-near-top:\s*calc\(50% - var\(--viewer-side-control-step\)\)/);
 assert.match(css, /--viewer-side-control-far-top:\s*calc\(50% - var\(--viewer-side-control-step\) - var\(--viewer-side-control-step\)\)/);

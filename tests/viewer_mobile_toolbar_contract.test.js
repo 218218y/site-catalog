@@ -12,7 +12,7 @@ const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 assert.match(template, /id="lightboxSearchPanel"/);
 assert.match(template, /id="lightboxMobileSearchToggle"[^>]*aria-controls="lightboxSearchPanel"/);
 assert.match(template, /id="lightboxMobileSearchClose"/);
-assert.match(template, /id="lightboxMobileSearchToggle"[\s\S]*?id="viewerMobileMoreToggle"[\s\S]*?id="viewerMobileMoreMenu"[\s\S]*?id="fitHeightBtn"/);
+assert.match(template, /id="lightboxMobileSearchToggle"[\s\S]*?id="viewerMobileMoreToggle"[\s\S]*?id="viewerMobileMoreMenu"[\s\S]*?data-viewer-mobile-action="fit-auto"[\s\S]*?id="fitAutoBtn"[\s\S]*?id="fitHeightBtn"/);
 
 assert.match(app, /const MOBILE_READER_SEARCH_MEDIA = "\(max-width: 760px\)";/);
 assert.match(app, /lightboxMobileSearchOpen: false/);

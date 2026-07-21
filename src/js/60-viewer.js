@@ -381,6 +381,7 @@ function attachViewerEvents() {
   els.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(els.fullscreenToggle));
   els.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   els.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
+  els.fitAutoBtn?.addEventListener("click", () => setViewerAutomaticFitMode());
   els.fitHeightBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_HEIGHT));
   els.fitWidthBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_WIDTH));
   els.viewerAutoZoomBtn?.addEventListener("click", (event) => {

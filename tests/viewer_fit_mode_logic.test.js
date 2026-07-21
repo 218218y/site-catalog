@@ -9,6 +9,11 @@ const root = path.join(__dirname, "..");
 const geometrySource = fs.readFileSync(path.join(root, "src/js/54-viewer-geometry.js"), "utf8");
 const shellSource = fs.readFileSync(path.join(root, "src/js/56-viewer-shell.js"), "utf8");
 
+assert.match(shellSource, /const automatic = viewerUsesAutomaticFitMode\(\);[\s\S]*?fitAutoBtn/);
+assert.match(shellSource, /setTooltipText\(els\.fitAutoBtn, "התאמת תצוגה אוטומטי"/);
+assert.match(shellSource, /const isActive = !automatic && fitMode === VIEWER_FIT_HEIGHT/);
+assert.match(shellSource, /const isActive = !automatic && fitMode === VIEWER_FIT_WIDTH/);
+
 function sourceBetween(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
   const end = source.indexOf(endMarker, start + startMarker.length);
@@ -67,6 +72,7 @@ const context = {
 vm.runInNewContext(`${fitPolicySource}\n${fitSetterSource}\nglobalThis.fitApi = {
   getAutomaticViewerFitMode,
   setViewerFitMode,
+  setViewerAutomaticFitMode,
   syncAutomaticViewerFitMode,
   viewerUsesAutomaticFitMode
 };`, context);
@@ -100,5 +106,23 @@ context.els.stageCanvas.clientWidth = 844;
 context.els.stageCanvas.clientHeight = 390;
 assert.equal(api.syncAutomaticViewerFitMode({ showUi: false }), false);
 assert.equal(context.state.imageFitMode, "width", "manual fit must survive later orientation changes");
+
+// Returning to the dedicated automatic option transfers ownership back to the
+// viewport policy immediately, then future orientation changes follow it again.
+api.setViewerAutomaticFitMode({ showUi: false });
+assert.equal(context.state.imageFitModeSource, "auto");
+assert.equal(context.state.imageFitMode, "height", "automatic mode should immediately match the current landscape viewport");
+context.els.stageCanvas.clientWidth = 390;
+context.els.stageCanvas.clientHeight = 844;
+assert.equal(api.syncAutomaticViewerFitMode({ showUi: false }), true);
+assert.equal(context.state.imageFitMode, "width", "automatic mode should resume following portrait changes");
+
+// Re-selecting automatic while the effective geometry already matches must
+// still restore automatic ownership rather than leaving a hidden manual lock.
+api.setViewerFitMode("width", { showUi: false });
+assert.equal(context.state.imageFitModeSource, "manual");
+api.setViewerAutomaticFitMode({ showUi: false });
+assert.equal(context.state.imageFitModeSource, "auto");
+assert.equal(context.state.imageFitMode, "width");
 
 console.log("viewer_fit_mode_logic.test.js: PASS");

@@ -193,13 +193,22 @@ async function revealViewerTopToolbar(page) {
   await expect(page.locator("#lightboxCopyLink")).toBeInViewport();
 }
 
-async function expectViewerFrameCentered(page, tolerance = 1.5) {
-  await expect.poll(async () => (await currentViewerSurface(page)).evaluate((frame) => {
+async function expectViewerFrameCentered(page, options = {}) {
+  const {
+    tolerance = 1.5,
+    horizontal = true,
+    vertical = true
+  } = options;
+  await expect.poll(async () => (await currentViewerSurface(page)).evaluate((frame, axes) => {
     const rect = frame.getBoundingClientRect();
-    const horizontal = Math.abs((rect.left + rect.width / 2) - window.innerWidth / 2);
-    const vertical = Math.abs((rect.top + rect.height / 2) - window.innerHeight / 2);
-    return Math.max(horizontal, vertical);
-  })).toBeLessThanOrEqual(tolerance);
+    const horizontalOffset = axes.horizontal
+      ? Math.abs((rect.left + rect.width / 2) - window.innerWidth / 2)
+      : 0;
+    const verticalOffset = axes.vertical
+      ? Math.abs((rect.top + rect.height / 2) - window.innerHeight / 2)
+      : 0;
+    return Math.max(horizontalOffset, verticalOffset);
+  }, { horizontal, vertical })).toBeLessThanOrEqual(tolerance);
 }
 
 // The production class exists for only 240 ms. Observe it before the action
@@ -394,13 +403,19 @@ test.describe("critical catalog journeys", () => {
     await preparePage(page);
     await openDirectViewer(page, 3);
 
+    await expect(page.locator("#lightboxFavoritesButton")).toBeHidden();
+    await expect(page.locator("#lightboxFavoritesSeparator")).toBeHidden();
     await page.locator("#viewerFavoriteButton").click();
     await expect(page.locator("#viewerFavoriteButton")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#lightboxFavoritesButton")).toBeVisible();
+    await expect(page.locator("#lightboxFavoritesSeparator")).toBeVisible();
     await expect(page.locator("#siteActionToast")).toContainText("נשמר");
 
     await page.reload();
     await waitForApp(page);
     await expect(page.locator("#viewerFavoriteButton")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#lightboxFavoritesButton")).toBeVisible();
+    await expect(page.locator("#lightboxFavoritesSeparator")).toBeVisible();
 
     await page.goto("/favorites.html");
     await waitForApp(page);
@@ -1226,9 +1241,13 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await page.locator(".catalog-open-button").first().click();
   await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/1/$`));
   await expectCurrentViewerImageReady(page);
-  await expectViewerFrameCentered(page);
+  // Fit-width deliberately starts a portrait page at its top edge so the reader
+  // can scroll through it naturally. Only the fitted horizontal axis should be
+  // centered; requiring vertical centering would hide the beginning of the page.
+  await expectViewerFrameCentered(page, { vertical: false });
   await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
-  await expect(page.locator('[data-viewer-mobile-action="fit-width"]')).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator('[data-viewer-mobile-action="fit-auto"]')).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator('[data-viewer-mobile-action="fit-width"]')).toHaveAttribute("aria-checked", "false");
   await expect(page.locator("#viewerMobileMoreToggle")).toBeVisible();
   await expect(page.locator("#lightboxScreenshot")).toBeHidden();
   await expect(page.locator("#lightboxPinTopBar")).toBeHidden();
@@ -1236,6 +1255,7 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await page.locator("#viewerMobileMoreToggle").click();
   await expect(page.locator("#viewerMobileMoreMenu")).toBeVisible();
   await expect(page.locator('[data-viewer-mobile-action="download"]')).toBeVisible();
+  await expect(page.locator('[data-viewer-mobile-action="fit-auto"]')).toBeVisible();
   await expect(page.locator('[data-viewer-mobile-action="fit-width"]')).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#viewerMobileMoreMenu")).toBeHidden();
@@ -1245,17 +1265,31 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await page.setViewportSize({ width: 844, height: 390 });
   await expectViewerFrameCentered(page);
   await expect(page.locator("#lightbox")).toHaveClass(/fit-height/);
-  await expect(page.locator("#fitHeightBtn")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#fitHeightBtn")).toHaveAttribute("aria-pressed", "false");
 
   await page.locator("#fitWidthBtn").click({ force: true });
   await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
 
   // An explicit user choice owns the fit mode for the rest of this viewer
   // session, even when a hybrid/touch device changes orientation repeatedly.
+  await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("#fitWidthBtn")).toHaveAttribute("aria-pressed", "true");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
+
+  // The new automatic control explicitly returns ownership to the viewport
+  // policy and resumes orientation-driven changes immediately.
+  await page.locator("#fitAutoBtn").click();
+  await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#fitWidthBtn")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("#lightbox")).toHaveClass(/fit-height/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
+  await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");
+
   overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(runtimeErrors, "Mobile context runtime errors").toEqual([]);

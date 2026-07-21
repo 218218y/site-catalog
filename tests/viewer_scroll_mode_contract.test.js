@@ -11,7 +11,7 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 
 for (const html of [template, viewer]) {
-  assert.match(html, /id="lightboxMobileSearchToggle"[\s\S]*?class="viewer-control-separator"[\s\S]*?id="fitHeightBtn"/);
+  assert.match(html, /id="lightboxMobileSearchToggle"[\s\S]*?class="viewer-control-separator viewer-fit-separator"[\s\S]*?id="fitAutoBtn"[\s\S]*?id="fitHeightBtn"/);
   assert.doesNotMatch(html, /id="viewerLayoutToggle"/);
   assert.doesNotMatch(html, /viewer-layout-icon-(?:scroll|side)/);
   assert.match(html, /id="viewerScrollPages"[^>]*role="list"/);

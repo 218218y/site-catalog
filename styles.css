@@ -2375,7 +2375,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   background: linear-gradient(180deg, transparent, var(--viewer-chrome-border-strong), transparent);
   box-shadow: 1px 0 0 rgba(255,255,255,0.58);
 }
-.lightbox.favorites-viewer-mode .viewer-control-separator {
+.lightbox.favorites-viewer-mode .viewer-fit-separator {
   display: none;
 }
 
@@ -5780,6 +5780,9 @@ body[data-app-ready="true"] > .site-footer {
   fill: #b88433;
   stroke: rgba(91, 59, 19, 0.38);
   stroke-width: .7;
+}
+.viewer-favorites-separator {
+  order: 9;
 }
 .lightbox-favorites-button {
   position: relative;

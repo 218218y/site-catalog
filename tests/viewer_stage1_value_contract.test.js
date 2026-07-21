@@ -34,6 +34,7 @@ assert.doesNotMatch(template.match(/id="viewerInquiryGmail"[^>]*>/)?.[0] || "", 
 assert.doesNotMatch(template.match(/id="viewerInquiryEmail"[^>]*>/)?.[0] || "", /title=|data-tooltip=/);
 assert.doesNotMatch(template, /id="viewerInquiryMobile"|id="viewerInquiryPhone"/);
 assert.match(template, /data-viewer-mobile-action="download"/);
+assert.match(template, /data-viewer-mobile-action="fit-auto"/);
 assert.match(template, /data-viewer-mobile-action="fit-height"/);
 assert.match(template, /data-viewer-mobile-action="fit-width"/);
 assert.match(template, /id="viewerMobileFavoritesLink"/);
