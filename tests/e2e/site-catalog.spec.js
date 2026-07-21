@@ -607,7 +607,29 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
     await expect.poll(() => isolatedFrame.evaluate((element) => Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0)).not.toBe(initialPan.x);
 
-    await page.mouse.wheel(0, 2400);
+    const lowerEdgeTravel = await page.evaluate(() => {
+      const stage = document.querySelector("#stageCanvas");
+      const frame = document.querySelector("#lightboxImageFrame");
+      if (!stage || !frame) throw new Error("Missing isolated zoom geometry");
+      const stageRect = stage.getBoundingClientRect();
+      const frameRect = frame.getBoundingClientRect();
+      const exitBuffer = Math.min(220, Math.max(96, stageRect.height * 0.24));
+      return {
+        toImageEdge: Math.max(0, frameRect.bottom - stageRect.bottom),
+        exitBuffer
+      };
+    });
+
+    await page.mouse.wheel(0, lowerEdgeTravel.toImageEdge + lowerEdgeTravel.exitBuffer * 0.55);
+    await expect(page.locator("#lightbox")).toHaveClass(/viewer-scroll-zoom-isolated/);
+    await expect.poll(() => page.evaluate(() => {
+      const stageRect = document.querySelector("#stageCanvas")?.getBoundingClientRect();
+      const frameRect = document.querySelector("#lightboxImageFrame")?.getBoundingClientRect();
+      if (!stageRect || !frameRect) return 0;
+      return Math.round(stageRect.bottom - frameRect.bottom);
+    })).toBeGreaterThan(Math.round(lowerEdgeTravel.exitBuffer * 0.35));
+
+    await page.mouse.wheel(0, lowerEdgeTravel.exitBuffer);
     await expect(page.locator("#lightbox")).not.toHaveClass(/viewer-scroll-zoom-isolated/);
     await expect(scrollPages).toBeVisible();
     await expect(autoZoomButton).toBeHidden();

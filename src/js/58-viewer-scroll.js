@@ -171,8 +171,9 @@ function consumeViewerScrollIsolatedPan(deltaX = 0, deltaY = 0) {
   const previousPanY = state.panY;
 
   // Wheel, precision-trackpad and touch input all consume movement through this
-  // single boundary calculation. The enlarged image receives as much movement
-  // as its real pan range allows; only the unconsumed remainder may leave zoom.
+  // single boundary calculation. clampSinglePan includes the isolated viewer's
+  // black-canvas exit buffer, so only movement beyond both the real image edge
+  // and that deliberate safety distance may leave zoom.
   state.panX = previousPanX - safeDeltaX;
   state.panY = previousPanY - safeDeltaY;
   clampSinglePan();

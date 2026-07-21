@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'js', '58-viewer-scroll.js'), 'utf8');
+const geometrySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'js', '54-viewer-geometry.js'), 'utf8');
 
 function sourceBetween(startMarker, endMarker) {
   const start = source.indexOf(startMarker);
@@ -27,6 +28,53 @@ const state = {
 let isolated = true;
 let metrics = { overflowX: 40, overflowY: 100 };
 let applyCalls = 0;
+const stageCanvas = { clientHeight: 800 };
+
+function geometrySourceBetween(startMarker, endMarker) {
+  const start = geometrySource.indexOf(startMarker);
+  const end = geometrySource.indexOf(endMarker, start + startMarker.length);
+  assert.notEqual(start, -1, `Missing ${startMarker}`);
+  assert.notEqual(end, -1, `Missing ${endMarker}`);
+  return geometrySource.slice(start, end);
+}
+
+const isolatedPanBoundarySource = geometrySourceBetween(
+  'function getViewerScrollIsolatedExitBuffer()',
+  'function shouldPreserveSingleManualPosition(options = {})'
+);
+
+const isolatedPanBoundaryApi = new Function(
+  'state',
+  'els',
+  'window',
+  'isViewerScrollIsolatedZoom',
+  'clampValue',
+  'getSingleImageDisplayMetrics',
+  'VIEWER_SCROLL_ZOOM_EXIT_BUFFER_VIEWPORT_RATIO',
+  'VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX',
+  'VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MAX_PX',
+  `${isolatedPanBoundarySource}; return {
+    getViewerScrollIsolatedExitBuffer,
+    clampSinglePan
+  };`
+)(
+  state,
+  { stageCanvas },
+  { innerHeight: 0 },
+  () => isolated,
+  (value, min, max) => Math.min(max, Math.max(min, value)),
+  () => metrics,
+  0.24,
+  96,
+  220
+);
+
+assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 192);
+stageCanvas.clientHeight = 300;
+assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 96, 'small screens should keep a usable fixed minimum');
+stageCanvas.clientHeight = 1200;
+assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 220, 'large screens should cap the black-canvas travel');
+stageCanvas.clientHeight = 800;
 
 const consumeViewerScrollIsolatedPan = new Function(
   'state',
@@ -39,26 +87,32 @@ const consumeViewerScrollIsolatedPan = new Function(
   state,
   () => isolated,
   () => metrics,
-  () => {
-    state.panX = Math.min(metrics.overflowX, Math.max(-metrics.overflowX, state.panX));
-    state.panY = Math.min(metrics.overflowY, Math.max(-metrics.overflowY, state.panY));
-  },
+  isolatedPanBoundaryApi.clampSinglePan,
   () => { applyCalls += 1; }
 );
 
 let result = consumeViewerScrollIsolatedPan(0, 20);
-assert.equal(state.panY, -100, 'touch movement should consume the remaining in-image pan range first');
-assert.equal(result.remainingDeltaY, 10, 'only movement beyond the lower image edge should be handed off');
+assert.equal(state.panY, -110, 'movement should continue beyond the image edge into the black exit buffer');
+assert.equal(result.remainingDeltaY, 0, 'reaching the real image edge must not dismiss zoom');
 assert.equal(result.hasVerticalExitIntent, true);
 assert.equal(applyCalls, 1, 'consumed in-image movement should render once');
 assert.equal(state.singleImageFitOriginPending, false);
 
-result = consumeViewerScrollIsolatedPan(0, -30);
-assert.equal(state.panY, -70, 'reverse movement should return inside the zoomed image normally');
+result = consumeViewerScrollIsolatedPan(0, 180);
+assert.equal(state.panY, -290, 'the safety distance should be consumed almost completely before handoff');
+assert.equal(result.remainingDeltaY, 0);
+
+result = consumeViewerScrollIsolatedPan(0, 20);
+assert.equal(state.panY, -292, 'vertical travel should clamp at image overflow plus the adaptive exit buffer');
+assert.equal(result.remainingDeltaY, 18, 'only movement beyond the complete safety distance should be handed off');
+
+result = consumeViewerScrollIsolatedPan(0, -220);
+assert.equal(state.panY, -72, 'reverse movement should return from the black buffer into the zoomed image normally');
 assert.equal(result.remainingDeltaY, 0, 'movement fully consumed by the image must not exit zoom');
-assert.equal(applyCalls, 2);
+assert.equal(applyCalls, 4);
 
 state.panX = 35;
+state.panY = 0;
 result = consumeViewerScrollIsolatedPan(-20, 2);
 assert.equal(state.panX, 40, 'horizontal panning should still clamp at the real image boundary');
 assert.equal(result.remainingDeltaX, -15);
@@ -68,10 +122,16 @@ metrics = { overflowX: 80, overflowY: 0 };
 state.panX = 0;
 state.panY = 0;
 result = consumeViewerScrollIsolatedPan(0, 18);
-assert.equal(result.remainingDeltaY, 18, 'when no vertical pan is available, a vertical swipe should hand off immediately');
+assert.equal(state.panY, -18, 'even a landscape image should expose black canvas before zoom exits');
+assert.equal(result.remainingDeltaY, 0);
 assert.equal(result.hasVerticalExitIntent, true);
 
+result = consumeViewerScrollIsolatedPan(0, 200);
+assert.equal(state.panY, -192);
+assert.equal(result.remainingDeltaY, 26, 'handoff should begin only after the fixed safety range is exhausted');
+
 isolated = false;
+assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 0);
 assert.equal(consumeViewerScrollIsolatedPan(0, 20), null, 'handoff math must be inactive outside isolated zoom');
 
 const inputSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'js', '70-viewer-input.js'), 'utf8');

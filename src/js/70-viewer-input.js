@@ -114,6 +114,7 @@ function startPointerInteraction(event) {
     isViewerScrollIsolatedZoom()
     && event.currentTarget === els.stageCanvas
     && !els.lightboxImageFrame?.contains(event.target)
+    && !isTouchLikePointer(event)
   ) {
     event.preventDefault();
     setZoom(AUTO_VIEWER_ZOOM, { showUi: false });

@@ -319,6 +319,9 @@ const VIEWER_SCROLL_MULTI_COMMAND_WINDOW_MS = 260;
 const VIEWER_SCROLL_WHEEL_FIRST_PAGE_DELTA_PX = 20;
 const VIEWER_SCROLL_WHEEL_PAGE_DELTA_PX = 100;
 const VIEWER_SCROLL_WHEEL_SETTLE_MS = 150;
+const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_VIEWPORT_RATIO = 0.24;
+const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX = 96;
+const VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MAX_PX = 220;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
 const CATALOG_EAGER_COVER_COUNT = 2;
 const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
@@ -5772,6 +5775,21 @@ function viewerCanPan() {
   return singleImageCanPan();
 }
 
+function getViewerScrollIsolatedExitBuffer() {
+  if (!isViewerScrollIsolatedZoom()) return 0;
+
+  const viewportHeight = els.stageCanvas?.clientHeight || window.innerHeight || 0;
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) {
+    return VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX;
+  }
+
+  return clampValue(
+    viewportHeight * VIEWER_SCROLL_ZOOM_EXIT_BUFFER_VIEWPORT_RATIO,
+    VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX,
+    VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MAX_PX
+  );
+}
+
 function clampSinglePan() {
   const metrics = getSingleImageDisplayMetrics();
   if (!metrics) return;
@@ -5779,8 +5797,14 @@ function clampSinglePan() {
   if (metrics.overflowX <= 1) state.panX = 0;
   else state.panX = clampValue(state.panX, -metrics.overflowX, metrics.overflowX);
 
-  if (metrics.overflowY <= 1) state.panY = 0;
-  else state.panY = clampValue(state.panY, -metrics.overflowY, metrics.overflowY);
+  // In the continuous viewer, manual zoom is intentionally allowed to travel
+  // beyond the real vertical image edge before it hands control back to page
+  // scrolling. The exposed area is the viewer's black canvas, so the reader can
+  // inspect the last part of the image without an accidental zoom dismissal.
+  const verticalExitBuffer = getViewerScrollIsolatedExitBuffer();
+  const verticalPanLimit = metrics.overflowY + verticalExitBuffer;
+  if (verticalPanLimit <= 1) state.panY = 0;
+  else state.panY = clampValue(state.panY, -verticalPanLimit, verticalPanLimit);
 }
 
 function shouldPreserveSingleManualPosition(options = {}) {
@@ -6966,8 +6990,9 @@ function consumeViewerScrollIsolatedPan(deltaX = 0, deltaY = 0) {
   const previousPanY = state.panY;
 
   // Wheel, precision-trackpad and touch input all consume movement through this
-  // single boundary calculation. The enlarged image receives as much movement
-  // as its real pan range allows; only the unconsumed remainder may leave zoom.
+  // single boundary calculation. clampSinglePan includes the isolated viewer's
+  // black-canvas exit buffer, so only movement beyond both the real image edge
+  // and that deliberate safety distance may leave zoom.
   state.panX = previousPanX - safeDeltaX;
   state.panY = previousPanY - safeDeltaY;
   clampSinglePan();
@@ -9134,6 +9159,7 @@ function startPointerInteraction(event) {
     isViewerScrollIsolatedZoom()
     && event.currentTarget === els.stageCanvas
     && !els.lightboxImageFrame?.contains(event.target)
+    && !isTouchLikePointer(event)
   ) {
     event.preventDefault();
     setZoom(AUTO_VIEWER_ZOOM, { showUi: false });

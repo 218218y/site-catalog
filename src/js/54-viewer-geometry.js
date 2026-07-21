@@ -121,6 +121,21 @@ function viewerCanPan() {
   return singleImageCanPan();
 }
 
+function getViewerScrollIsolatedExitBuffer() {
+  if (!isViewerScrollIsolatedZoom()) return 0;
+
+  const viewportHeight = els.stageCanvas?.clientHeight || window.innerHeight || 0;
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) {
+    return VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX;
+  }
+
+  return clampValue(
+    viewportHeight * VIEWER_SCROLL_ZOOM_EXIT_BUFFER_VIEWPORT_RATIO,
+    VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MIN_PX,
+    VIEWER_SCROLL_ZOOM_EXIT_BUFFER_MAX_PX
+  );
+}
+
 function clampSinglePan() {
   const metrics = getSingleImageDisplayMetrics();
   if (!metrics) return;
@@ -128,8 +143,14 @@ function clampSinglePan() {
   if (metrics.overflowX <= 1) state.panX = 0;
   else state.panX = clampValue(state.panX, -metrics.overflowX, metrics.overflowX);
 
-  if (metrics.overflowY <= 1) state.panY = 0;
-  else state.panY = clampValue(state.panY, -metrics.overflowY, metrics.overflowY);
+  // In the continuous viewer, manual zoom is intentionally allowed to travel
+  // beyond the real vertical image edge before it hands control back to page
+  // scrolling. The exposed area is the viewer's black canvas, so the reader can
+  // inspect the last part of the image without an accidental zoom dismissal.
+  const verticalExitBuffer = getViewerScrollIsolatedExitBuffer();
+  const verticalPanLimit = metrics.overflowY + verticalExitBuffer;
+  if (verticalPanLimit <= 1) state.panY = 0;
+  else state.panY = clampValue(state.panY, -verticalPanLimit, verticalPanLimit);
 }
 
 function shouldPreserveSingleManualPosition(options = {}) {
