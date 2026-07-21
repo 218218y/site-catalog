@@ -417,7 +417,6 @@ function attachViewerEvents() {
   els.lightboxPageRail?.addEventListener("focusin", () => keepPageRailOpen({ scrollIntoView: false }));
   els.lightboxPageRail?.addEventListener("focusout", schedulePageRailClose);
 
-  els.topHotspot?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.topHotspot?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();

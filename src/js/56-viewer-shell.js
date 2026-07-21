@@ -213,7 +213,15 @@ function openLightboxEdgeUiForPointer(point) {
 function handleLightboxEdgeHoverMove(event) {
   if (!shouldUseLightboxHoverPointer(event)) return;
   const point = getViewportPointer(event);
-  openLightboxEdgeUiForPointer(point);
+  const targetsExplicitTopOpener = Boolean(els.topHotspot?.contains?.(event.target));
+
+  // The centered arrow is an explicit click/touch control. Revealing the
+  // toolbar while the pointer is moving onto that control would immediately
+  // disable and cover the target before click can fire. The remaining top edge
+  // continues to use the normal coordinate-based hover activation.
+  if (!targetsExplicitTopOpener) openLightboxEdgeUiForPointer(point);
+  else if (isPointInPageRailEdgeActivationZone(point)) showPageRailTemporarily(0);
+
   handleLightboxHoverHoldPointerMove(event);
 }
 
