@@ -598,6 +598,12 @@ function hasRecentTouchLikeViewportInput(timeout = 900) {
   return Date.now() - state.lastTouchLikeViewportInputAt < timeout;
 }
 
+function openTopUiFromHotspot(event = null) {
+  if (!isViewerSessionOpen() || state.viewerOnboardingOpen) return;
+  markTouchLikeViewportInput(event);
+  showTopUiTemporarily(0);
+}
+
 function markTouchLikeRailInput(event) {
   if (isTouchLikePointer(event)) {
     state.lastTouchLikeRailInputAt = Date.now();

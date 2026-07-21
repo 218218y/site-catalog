@@ -220,10 +220,14 @@ async function revealViewerTopToolbar(page) {
   if (!controlInViewport) {
     const hotspot = page.locator("#topHotspot");
     if (await hotspot.isVisible()) {
-      // Keyboard activation reaches the same click handler without racing the
-      // toolbar slide-in animation, which can temporarily cover the hotspot.
-      await hotspot.focus();
-      await page.keyboard.press("Enter");
+      const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);
+      if (hasTouch) {
+        // Exercise the real mobile input path. The toolbar opens on pointer-down
+        // before its animation can move the hotspot behind the toolbar.
+        await hotspot.tap();
+      } else {
+        await hotspot.press("Enter");
+      }
     } else {
       await page.mouse.move(18, 4);
     }
@@ -1377,6 +1381,15 @@ test("viewer toolbar keeps desktop controls separated until the mobile breakpoin
   await expect(page.locator("#lightboxPinTopBar")).toBeHidden();
   await expect(page.locator("#lightboxCatalogMenuToggle")).toBeHidden();
   await expect(page.locator("#viewerMobileMoreToggle")).toBeVisible();
+
+  // The top-edge opener is a real control, so keyboard-only users have the
+  // same reliable path as touch and hover users after the toolbar retracts.
+  await page.mouse.move(380, 360);
+  await expect(page.locator("#lightbox")).not.toHaveClass(/show-ui/);
+  await page.locator("#topHotspot").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#lightbox")).toHaveClass(/show-ui/);
+  await expect(page.locator("#lightboxBar")).toBeInViewport();
 });
 
 test("mobile home and viewer survive portrait and landscape orientation", async ({ browser }) => {

@@ -2986,6 +2986,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   margin: 0;
   padding: 0;
   border: 0;
+  appearance: none;
   background: transparent;
   font: inherit;
   cursor: pointer;

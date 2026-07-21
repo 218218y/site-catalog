@@ -418,7 +418,12 @@ function attachViewerEvents() {
   els.lightboxPageRail?.addEventListener("focusin", () => keepPageRailOpen({ scrollIntoView: false }));
   els.lightboxPageRail?.addEventListener("focusout", schedulePageRailClose);
 
-  els.topHotspot?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
+  // Pointer-down is the reliable first event on touch devices; opening here
+  // avoids depending on synthetic hover/click events after the hotspot moves
+  // behind the revealed toolbar. Native click keeps keyboard activation intact.
+  els.topHotspot?.addEventListener("pointerdown", openTopUiFromHotspot);
+  els.topHotspot?.addEventListener("mouseenter", openTopUiFromHotspot);
+  els.topHotspot?.addEventListener("click", openTopUiFromHotspot);
   els.lightboxBar?.addEventListener("mouseenter", () => showTopUiTemporarily(0));
   els.lightboxBar?.addEventListener("mouseleave", scheduleTopUiClose);
   document.addEventListener("pointerdown", markTouchLikeViewportInput, { passive: true });
