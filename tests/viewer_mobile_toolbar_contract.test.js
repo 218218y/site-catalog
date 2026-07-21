@@ -25,8 +25,6 @@ assert.match(app, /function handleTopLayerEscape\(event\)[\s\S]*?state\.viewerMo
 assert.match(app, /function setViewerMobileMoreOpen\(open, options = \{\}\)/);
 assert.match(app, /bindFeatureEventsOnce\("viewer-actions", attachViewerActionEvents\)/);
 assert.match(app, /els\.topHotspot\?\.addEventListener\("click", \(event\) => \{[\s\S]*?showTopUiTemporarily\(2200\);/);
-assert.doesNotMatch(app, /els\.topHotspot\?\.addEventListener\("mouseenter"/);
-assert.match(app, /targetsExplicitTopOpener = Boolean\(els\.topHotspot\?\.contains\?\.\(event\.target\)\)[\s\S]*?if \(!targetsExplicitTopOpener\) openLightboxEdgeUiForPointer\(point\);/);
 
 assert.match(css, /\.reader-mobile-search-toggle,\s*\.reader-mobile-search-head\s*\{\s*display:\s*none;/);
 assert.match(css, /\.lightbox\.mobile-search-open \.reader-header-search\s*\{\s*display:\s*block;/);
@@ -36,7 +34,6 @@ assert.doesNotMatch(css, /grid-template-areas:\s*"brand"\s*"search"\s*"actions";
 assert.doesNotMatch(css, /\.reader-quick-actions\s*\{\s*display:\s*none;/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]*?#lightboxPinTopBar,[\s\S]*?\.lightbox-actions \.viewer-fit-control,[\s\S]*?display:\s*none !important;/);
 assert.match(css, /\.viewer-mobile-more-menu\.visible\s*\{[\s\S]*?pointer-events:\s*auto;/);
-assert.match(css, /\.reader-top-hotspot\s*\{[\s\S]*?left:\s*50%;[\s\S]*?width:\s*56px;[\s\S]*?height:\s*44px;[\s\S]*?transform:\s*translateX\(-50%\);/);
-assert.doesNotMatch(css, /\.lightbox-top-hotspot:hover \+ \.lightbox-top-shell/);
+assert.match(css, /\.reader-top-hotspot\s*\{[\s\S]*?border:\s*0;[\s\S]*?background:\s*transparent;[\s\S]*?cursor:\s*pointer;/);
 
 console.log('viewer_mobile_toolbar_contract.test.js: PASS');

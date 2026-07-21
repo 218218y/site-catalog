@@ -187,8 +187,10 @@ async function expectCurrentViewerImageReady(page) {
   }).toMatch(/image-ready/);
 }
 
-async function locatorIntersectsViewport(locator) {
-  return locator.evaluate((element) => {
+async function revealViewerTopToolbar(page) {
+  const lightbox = page.locator("#lightbox");
+  const toolbarControl = page.locator("#lightboxCopyLink");
+  const controlInViewport = await toolbarControl.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return rect.width > 0
       && rect.height > 0
@@ -197,34 +199,18 @@ async function locatorIntersectsViewport(locator) {
       && rect.top < window.innerHeight
       && rect.left < window.innerWidth;
   });
-}
 
-async function revealViewerTopToolbar(page, targetSelector = "#lightboxCopyLink") {
-  const lightbox = page.locator("#lightbox");
-  const toolbarTarget = page.locator(targetSelector);
-  if (await locatorIntersectsViewport(toolbarTarget)) return;
-
-  const toolbarAlreadyOpening = await lightbox.evaluate((element) => (
-    element.classList.contains("show-ui")
-      || element.classList.contains("top-ui-pinned")
-      || element.classList.contains("mobile-more-open")
-  ));
-
-  if (!toolbarAlreadyOpening) {
-    const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);
-    if (hasTouch) {
-      // A real touch does not synthesize the hover move that can reveal the
-      // toolbar before the opener receives its activation.
-      await page.locator("#topHotspot").tap();
+  if (!controlInViewport) {
+    const hotspot = page.locator("#topHotspot");
+    if (await hotspot.isVisible()) {
+      await hotspot.click();
     } else {
-      // Desktop users reveal the toolbar from the physical top edge; target a
-      // coordinate rather than a moving control whose state changes on hover.
-      await page.mouse.move(18, 1);
+      await page.mouse.move(18, 4);
     }
   }
 
   await expect(lightbox).toHaveClass(/show-ui/);
-  await expect(toolbarTarget).toBeInViewport();
+  await expect(toolbarControl).toBeInViewport();
 }
 
 async function expectViewerFrameCentered(page, options = {}) {
@@ -1302,7 +1288,7 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#fitHeightBtn")).toHaveAttribute("aria-pressed", "false");
 
-  await revealViewerTopToolbar(page, "#fitWidthBtn");
+  await revealViewerTopToolbar(page);
   await expect(page.locator("#fitWidthBtn")).toBeInViewport();
   await page.locator("#fitWidthBtn").click();
   await expect(page.locator("#lightbox")).toHaveClass(/fit-width/);
@@ -1318,7 +1304,7 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
 
   // The new automatic control explicitly returns ownership to the viewport
   // policy and resumes orientation-driven changes immediately.
-  await revealViewerTopToolbar(page, "#fitAutoBtn");
+  await revealViewerTopToolbar(page);
   await expect(page.locator("#fitAutoBtn")).toBeInViewport();
   await page.locator("#fitAutoBtn").click();
   await expect(page.locator("#fitAutoBtn")).toHaveAttribute("aria-pressed", "true");

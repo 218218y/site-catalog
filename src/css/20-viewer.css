@@ -107,6 +107,7 @@
   z-index: 35;
 }
 .lightbox.show-ui .lightbox-top-shell,
+.lightbox-top-hotspot:hover + .lightbox-top-shell,
 .lightbox-top-shell:hover,
 .lightbox-top-shell:focus-within {
   transform: translateY(0);
@@ -759,17 +760,15 @@
 .reader-top-hotspot {
   z-index: 34;
   top: 0;
-  right: auto;
-  left: 50%;
-  width: 56px;
-  height: 44px;
+  right: 0;
+  left: 0;
+  height: 34px;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
   font: inherit;
   cursor: pointer;
-  transform: translateX(-50%);
 }
 .reader-side-hotspot {
   z-index: 35;
