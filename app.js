@@ -289,6 +289,12 @@ const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
 const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
 const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
+const CATALOG_IMAGE_TIER_THUMB = "thumb";
+const CATALOG_IMAGE_TIER_MEDIUM = "medium";
+const CATALOG_IMAGE_TIER_FULL = "full";
+const DEFAULT_CATALOG_MEDIUM_MAX_SIDE = 1600;
+const VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35;
+const VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96;
 const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
 const VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_SHARE_PARAM = "selection";
@@ -1265,6 +1271,26 @@ function setCatalogImageSource(img, url) {
   img.src = url;
 }
 
+function networkInformation() {
+  return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+}
+
+function isSaveDataEnabled() {
+  return Boolean(networkInformation()?.saveData);
+}
+
+function networkEffectiveType() {
+  return String(networkInformation()?.effectiveType || "").trim().toLowerCase();
+}
+
+function catalogNeighborPreloadRadius() {
+  if (isSaveDataEnabled()) return 1;
+  const effectiveType = networkEffectiveType();
+  if (effectiveType === "slow-2g" || effectiveType === "2g") return 1;
+  if (effectiveType === "3g") return 1;
+  return 2;
+}
+
 function normalizeCatalogImageUrl(url) {
   const value = String(url || "").trim();
   if (!value) return "";
@@ -1295,14 +1321,27 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
   const primary = normalizeCatalogImageUrl(primarySrc);
   const fallback = normalizeCatalogImageUrl(fallbackSrc);
   const candidates = [];
-  const push = (src, role) => {
+  const push = (src, role, tier = "") => {
     if (!src || candidates.some((candidate) => candidate.src === src)) return;
-    candidates.push({ src, role, fallback: role === "fallback" });
+    candidates.push({ src, role, tier, fallback: role.startsWith("fallback") });
   };
 
-  push(options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary, options.forceRefresh ? "manual" : "primary");
-  push(cacheBustedCatalogImageUrl(primary), "retry");
-  if (fallback && fallback !== primary) push(fallback, "fallback");
+  const primaryTier = String(options.primaryTier || "");
+  push(
+    options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary,
+    options.forceRefresh ? "manual" : "primary",
+    primaryTier
+  );
+  push(cacheBustedCatalogImageUrl(primary), "retry", primaryTier);
+  if (fallback && fallback !== primary) push(fallback, "fallback", String(options.fallbackTier || ""));
+  (Array.isArray(options.fallbackCandidates) ? options.fallbackCandidates : []).forEach((candidate, index) => {
+    if (!candidate || typeof candidate !== "object") return;
+    push(
+      normalizeCatalogImageUrl(candidate.src),
+      String(candidate.role || `fallback-${index + 1}`),
+      String(candidate.tier || "")
+    );
+  });
   return candidates;
 }
 
@@ -1478,11 +1517,15 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
 
 function showSingleLightboxImage(catalog, page, src) {
   const options = arguments[3] || {};
-  if (!els.lightboxImage || !catalog || !src) return;
+  if (!els.lightboxImage || !catalog) return;
 
   const token = ++state.singleImageLoadToken;
   const image = els.lightboxImage;
-  const primarySrc = normalizeCatalogImageUrl(src);
+  const request = options.imageRequest || viewerPageImageRequest(catalog, page, {
+    forceFull: Boolean(options.forceFull)
+  });
+  const primarySrc = normalizeCatalogImageUrl(src || request.primarySrc);
+  if (!primarySrc) return;
   const currentLogicalSrc = image.dataset.logicalSrc || normalizeCatalogImageUrl(image.getAttribute("src") || "");
   if (!options.forceRefresh && currentLogicalSrc === primarySrc && image.complete && image.naturalWidth && image.dataset.loadedQuality !== "fallback") {
     applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
@@ -1506,7 +1549,8 @@ function showSingleLightboxImage(catalog, page, src) {
 
   loadCatalogImageWithRecovery(image, {
     primarySrc,
-    fallbackSrc: thumbSrc(catalog, page),
+    primaryTier: request.primaryTier,
+    fallbackCandidates: request.fallbackCandidates,
     forceRefresh: Boolean(options.forceRefresh),
     isCurrent: () => (
       token === state.singleImageLoadToken
@@ -1516,20 +1560,24 @@ function showSingleLightboxImage(catalog, page, src) {
     ),
     telemetryDetail: "viewer-single",
     onSuccess: (candidate) => {
-      image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
+      const loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL;
+      const degraded = catalogImageTierRank(loadedTier) < catalogImageTierRank(request.primaryTier);
+      image.dataset.loadedTier = loadedTier;
+      image.dataset.loadedQuality = degraded ? "fallback" : loadedTier;
       if (image.naturalWidth && image.naturalHeight) {
         applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
       }
       finishSingleImageSwap(token);
       els.lightboxImageFrame?.setAttribute("aria-busy", "false");
       runSingleImageSwapAnimation();
-      if (candidate.fallback) {
-        setSingleViewerImageFeedback("fallback", "התמונה המלאה לא נטענה. מוצגת תצוגה מוקטנת; אפשר לנסות שוב.");
+      if (degraded) {
+        setSingleViewerImageFeedback("fallback", "שכבת התמונה המועדפת לא נטענה. מוצגת חלופה מוקטנת; אפשר לנסות שוב.");
       } else {
         setSingleViewerImageFeedback();
       }
     },
     onExhausted: () => {
+      delete image.dataset.loadedTier;
       delete image.dataset.loadedQuality;
       finishSingleImageSwap(token);
       els.lightboxImageFrame?.setAttribute("aria-busy", "false");
@@ -1689,6 +1737,131 @@ function pageSrc(catalog, page) {
 
 function thumbSrc(catalog, page) {
   return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+}
+
+function catalogImageVariant(catalog, tier) {
+  const variants = catalog?.imageVariants;
+  if (variants && typeof variants === "object" && variants[tier] && typeof variants[tier] === "object") {
+    return variants[tier];
+  }
+  if (tier === CATALOG_IMAGE_TIER_THUMB) return { directory: "thumbs", maxSide: 420 };
+  if (tier === CATALOG_IMAGE_TIER_FULL) {
+    const size = pageSize(catalog, 1);
+    return { directory: "", maxSide: size ? Math.max(size.width, size.height) : 2800 };
+  }
+  return null;
+}
+
+function catalogSupportsImageTier(catalog, tier) {
+  return Boolean(catalogImageVariant(catalog, tier));
+}
+
+function catalogImageTierMaxSide(catalog, tier) {
+  const value = Number(catalogImageVariant(catalog, tier)?.maxSide);
+  if (Number.isFinite(value) && value > 0) return value;
+  return tier === CATALOG_IMAGE_TIER_MEDIUM ? DEFAULT_CATALOG_MEDIUM_MAX_SIDE : 0;
+}
+
+function mediumSrc(catalog, page) {
+  const variant = catalogImageVariant(catalog, CATALOG_IMAGE_TIER_MEDIUM);
+  if (!variant) return "";
+  const directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
+  return withAssetVersion(`${catalogDir(catalog)}/${directory}/page-${pad(page)}.${imageExt(catalog)}`, catalog);
+}
+
+function catalogPageImageSrc(catalog, page, tier) {
+  if (tier === CATALOG_IMAGE_TIER_THUMB) return thumbSrc(catalog, page);
+  if (tier === CATALOG_IMAGE_TIER_MEDIUM) return mediumSrc(catalog, page);
+  return pageSrc(catalog, page);
+}
+
+function renderedViewerPagePhysicalLongSide(catalog, page, zoom = state.zoom) {
+  let frame = null;
+  if (isScrollViewerMode?.() && !isViewerScrollIsolatedZoom?.()) {
+    frame = els.viewerScrollPages?.querySelector?.(`[data-scroll-page="${page}"]`) || null;
+  } else {
+    frame = els.lightboxImageFrame || null;
+  }
+  const rect = frame?.getBoundingClientRect?.();
+  const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
+  if (rect?.width && rect?.height) return Math.max(rect.width, rect.height) * dpr;
+
+  const size = pageSize(catalog, page);
+  const stageWidth = Math.max(1, els.stageCanvas?.clientWidth || window.innerWidth || 1);
+  const stageHeight = Math.max(1, els.stageCanvas?.clientHeight || window.innerHeight || 1);
+  if (!size) return Math.max(stageWidth, stageHeight) * dpr;
+
+  const fitMode = String(state.imageFitMode || VIEWER_FIT_HEIGHT);
+  const scale = fitMode === VIEWER_FIT_WIDTH
+    ? stageWidth / size.width
+    : fitMode === VIEWER_FIT_HEIGHT
+      ? stageHeight / size.height
+      : Math.min(stageWidth / size.width, stageHeight / size.height);
+  return Math.max(size.width, size.height) * Math.max(0.01, scale) * dpr * Math.max(1, Number(zoom) || 1);
+}
+
+function preferredViewerImageTier(catalog, page, options = {}) {
+  if (options.forceFull || !catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)) {
+    return CATALOG_IMAGE_TIER_FULL;
+  }
+
+  const zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(state.zoom || 1);
+  if (zoom >= VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD) return CATALOG_IMAGE_TIER_FULL;
+
+  if (!isSaveDataEnabled()) {
+    const mediumMaxSide = catalogImageTierMaxSide(catalog, CATALOG_IMAGE_TIER_MEDIUM);
+    const requiredPixels = renderedViewerPagePhysicalLongSide(catalog, page, zoom);
+    if (requiredPixels > mediumMaxSide * VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO) {
+      return CATALOG_IMAGE_TIER_FULL;
+    }
+  }
+  return CATALOG_IMAGE_TIER_MEDIUM;
+}
+
+function viewerPageImageRequest(catalog, page, options = {}) {
+  const primaryTier = preferredViewerImageTier(catalog, page, options);
+  const tierOrder = primaryTier === CATALOG_IMAGE_TIER_FULL
+    ? [CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB]
+    : [CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_THUMB];
+  const candidates = tierOrder
+    .filter((tier) => catalogSupportsImageTier(catalog, tier))
+    .map((tier) => ({ tier, src: catalogPageImageSrc(catalog, page, tier) }))
+    .filter((candidate) => candidate.src);
+  const primary = candidates[0] || { tier: CATALOG_IMAGE_TIER_FULL, src: pageSrc(catalog, page) };
+  return {
+    primarySrc: primary.src,
+    primaryTier: primary.tier,
+    fallbackCandidates: candidates.slice(1).map((candidate, index) => ({
+      ...candidate,
+      role: `fallback-${index + 1}`
+    }))
+  };
+}
+
+function viewerPageSrc(catalog, page, options = {}) {
+  return viewerPageImageRequest(catalog, page, options).primarySrc;
+}
+
+function catalogImageTierRank(tier) {
+  if (tier === CATALOG_IMAGE_TIER_FULL) return 3;
+  if (tier === CATALOG_IMAGE_TIER_MEDIUM) return 2;
+  if (tier === CATALOG_IMAGE_TIER_THUMB) return 1;
+  return 0;
+}
+
+function refreshSingleViewerImageResolution(options = {}) {
+  if (!isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
+  if (isScrollViewerMode() && !isViewerScrollIsolatedZoom()) return false;
+
+  const request = viewerPageImageRequest(state.catalog, state.page, options);
+  const currentSrc = normalizeCatalogImageUrl(els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src") || "");
+  const nextSrc = normalizeCatalogImageUrl(request.primarySrc);
+  const loadedTier = String(els.lightboxImage.dataset.loadedTier || "");
+  if (currentSrc === nextSrc) return false;
+  if (catalogImageTierRank(loadedTier) > catalogImageTierRank(request.primaryTier)) return false;
+
+  showSingleLightboxImage(state.catalog, state.page, request.primarySrc, { imageRequest: request });
+  return true;
 }
 
 function catalogCoverSrc(catalog) {
@@ -2957,7 +3130,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
   const key = favoriteWorkspaceEntryKey(entry);
   const identityCatalog = escapeHtml(catalog.id);
   const title = escapeHtml(catalog.title || "קטלוג");
-  const image = pageSrc(catalog, page);
+  const image = thumbSrc(catalog, page);
   const selected = state.favoritesSelectedKeys.has(key);
   const note = String(entry.note || "").trim();
   const noteActionLabel = note ? "עריכת ההערה" : "הוספת הערה";
@@ -4241,7 +4414,7 @@ function renderCatalogDetail() {
   updateDetailCatalogMenuLabel(catalog);
   if (els.catalogCoverPreview) {
     applyCatalogImageDimensions(els.catalogCoverPreview, catalog, 1);
-    setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
+    setCatalogImageSource(els.catalogCoverPreview, coverThumbSrc(catalog));
     els.catalogCoverPreview.loading = "lazy";
     els.catalogCoverPreview.decoding = "async";
     els.catalogCoverPreview.alt = `שער ${catalog.title}`;
@@ -4254,22 +4427,32 @@ function renderCatalogDetail() {
 
 function preloadNeighbors() {
   if (!state.catalog) return;
+  const radius = catalogNeighborPreloadRadius();
+  if (radius < 1) return;
 
   if (isFavoritesLightboxMode()) {
     const entries = getFavoriteEntries();
-    [state.favoritesViewerIndex - 2, state.favoritesViewerIndex - 1, state.favoritesViewerIndex + 1, state.favoritesViewerIndex + 2]
+    Array.from({ length: radius * 2 }, (_unused, index) => (
+      index < radius
+        ? state.favoritesViewerIndex - (radius - index)
+        : state.favoritesViewerIndex + (index - radius + 1)
+    ))
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
         const entry = entries[index];
-        prepareCatalogImage(pageSrc(entry.catalog, entry.page), { priority: "low" }).catch(() => {});
+        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page), { priority: "low" }).catch(() => {});
       });
     return;
   }
 
-  [state.page - 2, state.page - 1, state.page + 1, state.page + 2]
+  Array.from({ length: radius * 2 }, (_unused, index) => (
+    index < radius
+      ? state.page - (radius - index)
+      : state.page + (index - radius + 1)
+  ))
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
-      prepareCatalogImage(pageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
+      prepareCatalogImage(viewerPageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
     });
 }
 
@@ -4405,7 +4588,9 @@ function ensureSearchIndexLoaded(options = {}) {
 
 function scheduleSearchIndexPreload() {
   window.clearTimeout(state.searchIndexPreloadTimer);
+  if (isSaveDataEnabled()) return;
   state.searchIndexPreloadTimer = window.setTimeout(() => {
+    if (isSaveDataEnabled()) return;
     const preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {});
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(preload, { timeout: 2500 });
@@ -5123,9 +5308,9 @@ function renderLightboxSearchResults(query) {
   els.lightboxSearchResults.innerHTML = results.map((result) => {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
     const page = clampPage(result.page, catalog);
-    const rawPreview = result.image || pageSrc(catalog, page);
+    const rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page);
     const rawThumb = result.thumb || thumbSrc(catalog, page);
-    const rawImage = rawPreview || rawThumb;
+    const rawImage = rawThumb || rawPreview;
     const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
     return `
       <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
@@ -5308,8 +5493,8 @@ function renderSearchResults(query) {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
     const page = clampPage(result.page, catalog);
     const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
-    const rawPreview = result.image || (catalog ? pageSrc(catalog, page) : rawThumb);
-    const rawImage = rawPreview || rawThumb;
+    const rawPreview = result.image || (catalog ? (mediumSrc(catalog, page) || pageSrc(catalog, page)) : rawThumb);
+    const rawImage = rawThumb || rawPreview;
     const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
     return `
       <article class="search-result-card">
@@ -6123,6 +6308,7 @@ function setZoom(nextZoom, options = {}) {
   if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
     showViewerZoomIndicator(state.zoom);
   }
+  refreshSingleViewerImageResolution();
   if (showUi) showTopUiTemporarily(1600);
 }
 
@@ -7019,14 +7205,15 @@ function syncViewerScrollIsolatedZoomUi() {
 function prepareViewerScrollIsolatedImage(page) {
   if (!state.catalog || !els.lightboxImage) return;
   const targetPage = clampPage(page, state.catalog);
-  const src = pageSrc(state.catalog, targetPage);
+  const request = viewerPageImageRequest(state.catalog, targetPage);
+  const src = request.primarySrc;
 
   primeLightboxFrameForCatalogPage(state.catalog, targetPage);
   if (els.lightboxImage.getAttribute("src") !== src) {
     els.lightboxImage.removeAttribute("src");
     prepareImagePlaceholder(els.lightboxImage);
   }
-  showSingleLightboxImage(state.catalog, targetPage, src);
+  showSingleLightboxImage(state.catalog, targetPage, src, { imageRequest: request });
 }
 
 function enterViewerScrollIsolatedZoom(nextZoom, focalClientX = null, focalClientY = null) {
@@ -7350,7 +7537,8 @@ function loadViewerScrollPage(page, priority = "low") {
   if (!image) return;
 
   const catalog = state.catalog;
-  const src = normalizeCatalogImageUrl(pageSrc(catalog, page));
+  const request = viewerPageImageRequest(catalog, page);
+  const src = normalizeCatalogImageUrl(request.primarySrc);
   if (!options.forceRefresh && image.dataset.loadedSrc === src && image.dataset.loadedQuality !== "fallback") return;
   if (!options.forceRefresh && image.dataset.loadingSrc === src) return;
   image.dataset.loadingSrc = src;
@@ -7364,26 +7552,31 @@ function loadViewerScrollPage(page, priority = "low") {
   const token = state.viewerScrollLoadToken;
   loadCatalogImageWithRecovery(image, {
     primarySrc: src,
-    fallbackSrc: thumbSrc(catalog, page),
     forceRefresh: Boolean(options.forceRefresh),
     isCurrent: () => (
       token === state.viewerScrollLoadToken
       && isScrollViewerMode()
       && state.catalog === catalog
-      && normalizeCatalogImageUrl(pageSrc(catalog, page)) === src
+      && normalizeCatalogImageUrl(viewerPageImageRequest(catalog, page).primarySrc) === src
     ),
+    primaryTier: request.primaryTier,
+    fallbackCandidates: request.fallbackCandidates,
     telemetryDetail: "viewer-scroll",
     onSuccess: (candidate) => {
       delete image.dataset.loadingSrc;
       image.dataset.loadedSrc = src;
-      image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
+      const loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL;
+      const degraded = catalogImageTierRank(loadedTier) < catalogImageTierRank(request.primaryTier);
+      image.dataset.loadedTier = loadedTier;
+      image.dataset.loadedQuality = degraded ? "fallback" : loadedTier;
       syncImagePlaceholderState(image);
       frame.setAttribute("aria-busy", "false");
-      setViewerScrollImageFeedback(frame, page, candidate.fallback ? "fallback" : "");
+      setViewerScrollImageFeedback(frame, page, degraded ? "fallback" : "");
     },
     onExhausted: () => {
       delete image.dataset.loadingSrc;
       delete image.dataset.loadedSrc;
+      delete image.dataset.loadedTier;
       delete image.dataset.loadedQuality;
       syncImagePlaceholderState(image);
       frame.setAttribute("aria-busy", "false");
@@ -7403,13 +7596,18 @@ function handleViewerScrollImageRetry(event) {
 
 function retryCurrentViewerImage() {
   if (!isViewerSessionOpen() || !state.catalog) return;
-  showSingleLightboxImage(state.catalog, state.page, pageSrc(state.catalog, state.page), { forceRefresh: true });
+  const request = viewerPageImageRequest(state.catalog, state.page);
+  showSingleLightboxImage(state.catalog, state.page, request.primarySrc, {
+    imageRequest: request,
+    forceRefresh: true
+  });
 }
 
 function loadViewerScrollWindow(centerPage) {
   if (!state.catalog || !isScrollViewerMode()) return;
   const center = clampPage(centerPage, state.catalog);
-  for (let page = Math.max(1, center - 2); page <= Math.min(state.catalog.pages, center + 2); page += 1) {
+  const radius = catalogNeighborPreloadRadius();
+  for (let page = Math.max(1, center - radius); page <= Math.min(state.catalog.pages, center + radius); page += 1) {
     loadViewerScrollPage(page, page === center ? "high" : "low");
   }
 }
@@ -7777,10 +7975,11 @@ function updateLightbox(options = {}) {
     return;
   }
 
-  const src = pageSrc(catalog, state.page);
-  const currentSrc = els.lightboxImage.getAttribute("src");
+  const request = viewerPageImageRequest(catalog, state.page);
+  const src = request.primarySrc;
+  const currentSrc = els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src");
   if (currentSrc !== src) {
-    showSingleLightboxImage(catalog, state.page, src);
+    showSingleLightboxImage(catalog, state.page, src, { imageRequest: request });
   } else {
     setViewerLoading(false);
     els.lightbox?.classList.remove("is-page-loading");
@@ -7843,7 +8042,7 @@ function openLightbox(page = 1, options = {}) {
   transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox");
   telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
-  const initialSrc = pageSrc(state.catalog, state.page);
+  const initialSrc = viewerPageSrc(state.catalog, state.page);
   if (els.lightboxImage?.getAttribute("src") !== initialSrc) {
     els.lightboxImage?.removeAttribute("src");
     prepareImagePlaceholder(els.lightboxImage);

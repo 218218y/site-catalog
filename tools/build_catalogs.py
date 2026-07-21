@@ -7,7 +7,7 @@ images and thumbnails, and writes catalogs.generated.js for the website.
 Defaults are tuned for fast catalog browsing:
 - WebP output by default
 - 220 DPI render, capped to 2800px on the long side for quick browsing
-- separate lightweight thumbnails
+- 1600px medium pages for normal viewers and separate lightweight thumbnails
 - OCR prefers embedded PDF text and only falls back to full-page OCR for scanned/empty pages
 - every run removes stale output folders and config entries whose source PDF is missing
 - no PDF links in the site output
@@ -119,8 +119,10 @@ class RenderOptions:
     dpi: int
     max_width: int
     max_height: int
+    medium_size: int
     thumb_size: int
     quality: int
+    medium_quality: int
     thumb_quality: int
     image_format: str
     clean: bool
@@ -183,29 +185,32 @@ def inspect_existing_catalog_output(out_dir: Path, preferred_format: str) -> Exi
     """Check whether a catalog output folder is complete enough to reuse safely.
 
     A reusable catalog must have a consecutive page sequence starting at 1, and a
-    matching thumbnail for every page. This prevents the site from pointing to
-    broken/missing page images when a previous conversion was interrupted.
+    matching medium image and thumbnail for every page. This prevents the site
+    from advertising a responsive image tier that is only partially present.
     """
     if not out_dir.is_dir():
         return None
 
     page_numbers = _collect_page_numbers(out_dir)
+    medium_numbers = _collect_page_numbers(out_dir / "medium")
     thumb_numbers = _collect_page_numbers(out_dir / "thumbs")
     formats = [preferred_format, *sorted(SUPPORTED_FORMATS - {preferred_format})]
     incomplete: list[ExistingCatalogOutput] = []
 
     for image_format in formats:
         pages = page_numbers.get(image_format, set())
+        medium = medium_numbers.get(image_format, set())
         thumbs = thumb_numbers.get(image_format, set())
         if not pages:
             continue
 
         expected = set(range(1, max(pages) + 1))
         missing_pages = sorted(expected - pages)
+        missing_medium = sorted(expected - medium)
         missing_thumbs = sorted(expected - thumbs)
         page_count = len(pages)
 
-        if 1 in pages and not missing_pages and not missing_thumbs:
+        if 1 in pages and not missing_pages and not missing_medium and not missing_thumbs:
             return ExistingCatalogOutput(max(pages), image_format, True)
 
         reason_parts = []
@@ -215,6 +220,10 @@ def inspect_existing_catalog_output(out_dir: Path, preferred_format: str) -> Exi
             preview = ", ".join(f"page-{number:03d}" for number in missing_pages[:5])
             suffix = "..." if len(missing_pages) > 5 else ""
             reason_parts.append(f"missing pages: {preview}{suffix}")
+        if missing_medium:
+            preview = ", ".join(f"page-{number:03d}" for number in missing_medium[:5])
+            suffix = "..." if len(missing_medium) > 5 else ""
+            reason_parts.append(f"missing medium images: {preview}{suffix}")
         if missing_thumbs:
             preview = ", ".join(f"page-{number:03d}" for number in missing_thumbs[:5])
             suffix = "..." if len(missing_thumbs) > 5 else ""
@@ -245,6 +254,7 @@ def catalog_asset_version(out_dir: Path, image_format: str, page_count: int) -> 
     for page_number in range(1, max(0, int(page_count)) + 1):
         for relative in (
             Path(f"page-{page_number:03d}.{image_format}"),
+            Path("medium") / f"page-{page_number:03d}.{image_format}",
             Path("thumbs") / f"page-{page_number:03d}.{image_format}",
         ):
             file_path = out_dir / relative
@@ -272,8 +282,10 @@ def render_options_metadata(options: RenderOptions) -> dict[str, Any]:
         "dpi": int(options.dpi),
         "maxWidth": int(options.max_width),
         "maxHeight": int(options.max_height),
+        "mediumSize": int(options.medium_size),
         "thumbSize": int(options.thumb_size),
         "quality": int(options.quality),
+        "mediumQuality": int(options.medium_quality),
         "thumbQuality": int(options.thumb_quality),
         "imageFormat": str(options.image_format),
         "sharpen": float(options.sharpen),
@@ -311,8 +323,10 @@ def _image_render_options_from_manifest(value: Any) -> dict[str, Any] | None:
         "dpi",
         "maxWidth",
         "maxHeight",
+        "mediumSize",
         "thumbSize",
         "quality",
+        "mediumQuality",
         "thumbQuality",
         "imageFormat",
         "sharpen",
@@ -355,7 +369,7 @@ def write_render_manifest(
         return
 
     payload = {
-        "version": 1,
+        "version": 2,
         "sourcePdf": source_pdf_metadata(pdf_path),
         "renderOptions": render_options_metadata(options),
         "searchOptions": search_options_metadata(options),
@@ -372,6 +386,7 @@ def output_newest_mtime_ns(out_dir: Path, image_format: str, page_count: int) ->
     for page_number in range(1, max(0, int(page_count)) + 1):
         for relative in (
             Path(f"page-{page_number:03d}.{image_format}"),
+            Path("medium") / f"page-{page_number:03d}.{image_format}",
             Path("thumbs") / f"page-{page_number:03d}.{image_format}",
         ):
             file_path = out_dir / relative
@@ -620,6 +635,7 @@ def delete_stale_catalog_outputs(root: Path, configured_ids: set[str]) -> list[P
 def prepare_output_dir(out_dir: Path, clean: bool) -> None:
     if clean and out_dir.exists():
         shutil.rmtree(out_dir)
+    (out_dir / "medium").mkdir(parents=True, exist_ok=True)
     (out_dir / "thumbs").mkdir(parents=True, exist_ok=True)
 
 
@@ -1101,6 +1117,7 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pag
             raise ValueError(f"PDF has no pages: {pdf_path}")
 
         prepare_output_dir(out_dir, options.clean)
+        medium_dir = out_dir / "medium"
         thumb_dir = out_dir / "thumbs"
         ext = options.image_format
 
@@ -1110,6 +1127,7 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pag
 
         for page_number, page in enumerate(doc, start=1):
             page_file = out_dir / f"page-{page_number:03d}.{ext}"
+            medium_file = medium_dir / f"page-{page_number:03d}.{ext}"
             thumb_file = thumb_dir / f"page-{page_number:03d}.{ext}"
             label = f"{pdf_path.name} page {page_number}/{len(doc)}"
 
@@ -1117,7 +1135,7 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pag
             if page_text:
                 search_pages.append({"page": page_number, "text": page_text})
 
-            if options.skip_existing and page_file.exists() and thumb_file.exists():
+            if options.skip_existing and page_file.exists() and medium_file.exists() and thumb_file.exists():
                 try:
                     with Image.open(page_file) as existing_image:
                         page_sizes.append([int(existing_image.width), int(existing_image.height)])
@@ -1139,6 +1157,11 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pag
             except (OSError, ValueError):
                 page_sizes.append([int(image.width), int(image.height)])
 
+            medium = image.copy()
+            medium.thumbnail((options.medium_size, options.medium_size), Image.Resampling.LANCZOS)
+            medium = maybe_sharpen(medium, max(0, options.sharpen * 0.8))
+            save_image(medium, medium_file, ext, options.medium_quality if ext != "png" else options.quality)
+
             thumb = image.copy()
             thumb.thumbnail((options.thumb_size, options.thumb_size), Image.Resampling.LANCZOS)
             thumb = maybe_sharpen(thumb, max(0, options.sharpen * 0.65))
@@ -1154,6 +1177,7 @@ def build_generated_entry(
     pages: int,
     out_dir: Path,
     image_format: str,
+    options: RenderOptions,
     page_sizes: list[list[int]] | None = None,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
@@ -1166,6 +1190,11 @@ def build_generated_entry(
         "cover": f"{rel_to_root(out_dir)}/page-001.{image_format}",
         "imageExt": image_format,
         "assetVersion": catalog_asset_version(out_dir, image_format, pages),
+        "imageVariants": {
+            "thumb": {"directory": "thumbs", "maxSide": int(options.thumb_size)},
+            "medium": {"directory": "medium", "maxSide": int(options.medium_size)},
+            "full": {"directory": "", "maxSide": max(int(options.max_width), int(options.max_height))},
+        },
     }
 
     if page_sizes and len(page_sizes) >= pages:
@@ -1215,9 +1244,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dpi", type=int, default=220, help="Render DPI for PDF pages before optional downscale")
     parser.add_argument("--max-width", type=int, default=2800, help="Max rendered page width in pixels")
     parser.add_argument("--max-height", type=int, default=2800, help="Max rendered page height in pixels")
+    parser.add_argument("--medium-size", type=int, default=1600, help="Max medium image width/height in pixels")
     parser.add_argument("--thumb-size", type=int, default=420, help="Max thumbnail width/height in pixels")
-    parser.add_argument("--quality", type=int, default=94, help="Image quality for webp/jpg, 1-100")
-    parser.add_argument("--thumb-quality", type=int, default=88, help="Thumbnail quality for webp/jpg, 1-100")
+    parser.add_argument("--quality", type=int, default=84, help="Image quality for full webp/jpg pages, 1-100")
+    parser.add_argument("--medium-quality", type=int, default=82, help="Image quality for medium webp/jpg pages, 1-100")
+    parser.add_argument("--thumb-quality", type=int, default=76, help="Thumbnail quality for webp/jpg, 1-100")
     parser.add_argument("--format", choices=sorted(SUPPORTED_FORMATS), default="webp", help="Output image format")
     parser.add_argument("--sharpen", type=float, default=1.0, help="Sharpen amount after resize, 0 disables")
     parser.add_argument(
@@ -1268,8 +1299,10 @@ def main() -> int:
         dpi=max(72, int(args.dpi)),
         max_width=max(600, int(args.max_width)),
         max_height=max(600, int(args.max_height)),
+        medium_size=max(320, int(args.medium_size)),
         thumb_size=max(80, int(args.thumb_size)),
         quality=max(1, min(100, int(args.quality))),
+        medium_quality=max(1, min(100, int(args.medium_quality))),
         thumb_quality=max(1, min(100, int(args.thumb_quality))),
         image_format=args.format,
         clean=not args.no_clean,
@@ -1349,7 +1382,14 @@ def main() -> int:
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
                 if adopt_legacy_manifest or search_refresh_reason:
                     write_render_manifest(out_dir, pdf_path, catalog_options, existing_output.pages, existing_output.image_format, page_sizes)
-                generated.append(build_generated_entry(item, existing_output.pages, out_dir, existing_output.image_format, page_sizes))
+                generated.append(build_generated_entry(
+                    item,
+                    existing_output.pages,
+                    out_dir,
+                    existing_output.image_format,
+                    catalog_options,
+                    page_sizes,
+                ))
                 search_generated.append(build_search_entry(item, search_pages))
                 continue
 
@@ -1364,7 +1404,14 @@ def main() -> int:
             pages, search_pages, page_sizes = render_pdf(pdf_path, out_dir, catalog_options, manual_pages)
             page_sizes = collect_page_sizes(out_dir, catalog_options.image_format, pages)
             write_render_manifest(out_dir, pdf_path, catalog_options, pages, catalog_options.image_format, page_sizes)
-            generated.append(build_generated_entry(item, pages, out_dir, catalog_options.image_format, page_sizes))
+            generated.append(build_generated_entry(
+                item,
+                pages,
+                out_dir,
+                catalog_options.image_format,
+                catalog_options,
+                page_sizes,
+            ))
             search_generated.append(build_search_entry(item, search_pages))
 
         generated.sort(key=lambda row: row.get("sort", 9999))

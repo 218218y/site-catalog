@@ -113,12 +113,15 @@ def test_conversion_always_reconciles_removed_catalogs(
     saved_config = json.loads((root / "catalogs.config.json").read_text(encoding="utf-8"))
     assert [item["id"] for item in saved_config] == ["keep"]
     assert (root / "assets/pages/keep/page-001.png").is_file()
+    assert (root / "assets/pages/keep/medium/page-001.png").is_file()
+    assert (root / "assets/pages/keep/thumbs/page-001.png").is_file()
     assert not (root / "assets/pages/missing-pdf").exists()
     assert not (root / "assets/pages/unlisted").exists()
 
     generated = json.loads((root / "catalogs.generated.json").read_text(encoding="utf-8"))
     search = json.loads((root / "catalogs.search.json").read_text(encoding="utf-8"))
     assert [entry["id"] for entry in generated] == ["keep"]
+    assert generated[0]["imageVariants"]["medium"] == {"directory": "medium", "maxSide": 1600}
     assert [entry["catalogId"] for entry in search] == ["keep"]
 
 

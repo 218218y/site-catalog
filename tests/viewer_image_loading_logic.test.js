@@ -49,6 +49,21 @@ assert.match(candidates[1].src, /bargig_retry=/);
 assert.equal(candidates[2].role, 'fallback');
 assert.equal(candidates[2].fallback, true);
 
+const tiered = catalogImageRecoveryCandidates(
+  'https://cdn.example.test/medium.webp',
+  '',
+  {
+    primaryTier: 'medium',
+    fallbackCandidates: [
+      { src: 'https://cdn.example.test/full.webp', role: 'fallback-full', tier: 'full' },
+      { src: 'https://cdn.example.test/thumb.webp', role: 'fallback-thumb', tier: 'thumb' }
+    ]
+  }
+);
+assert.deepEqual(tiered.map((candidate) => candidate.tier), ['medium', 'medium', 'full', 'thumb']);
+assert.equal(tiered[2].fallback, true);
+assert.equal(tiered[3].fallback, true);
+
 const manual = catalogImageRecoveryCandidates(
   'https://cdn.example.test/full.webp?bargig_retry=old',
   'https://cdn.example.test/thumb.webp',

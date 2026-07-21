@@ -85,7 +85,9 @@ function ensureSearchIndexLoaded(options = {}) {
 
 function scheduleSearchIndexPreload() {
   window.clearTimeout(state.searchIndexPreloadTimer);
+  if (isSaveDataEnabled()) return;
   state.searchIndexPreloadTimer = window.setTimeout(() => {
+    if (isSaveDataEnabled()) return;
     const preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {});
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(preload, { timeout: 2500 });
@@ -803,9 +805,9 @@ function renderLightboxSearchResults(query) {
   els.lightboxSearchResults.innerHTML = results.map((result) => {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
     const page = clampPage(result.page, catalog);
-    const rawPreview = result.image || pageSrc(catalog, page);
+    const rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page);
     const rawThumb = result.thumb || thumbSrc(catalog, page);
-    const rawImage = rawPreview || rawThumb;
+    const rawImage = rawThumb || rawPreview;
     const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
     return `
       <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
@@ -988,8 +990,8 @@ function renderSearchResults(query) {
     const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
     const page = clampPage(result.page, catalog);
     const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
-    const rawPreview = result.image || (catalog ? pageSrc(catalog, page) : rawThumb);
-    const rawImage = rawPreview || rawThumb;
+    const rawPreview = result.image || (catalog ? (mediumSrc(catalog, page) || pageSrc(catalog, page)) : rawThumb);
+    const rawImage = rawThumb || rawPreview;
     const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
     return `
       <article class="search-result-card">

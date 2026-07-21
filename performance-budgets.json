@@ -2,7 +2,7 @@
   "appJavaScript": {
     "source": "app.js",
     "bundlePattern": "static/app.*.js",
-    "rawBytes": 390000,
+    "rawBytes": 400000,
     "gzipBytes": 90000
   },
   "stylesCss": {

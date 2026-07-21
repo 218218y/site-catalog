@@ -968,7 +968,7 @@ function renderCatalogDetail() {
   updateDetailCatalogMenuLabel(catalog);
   if (els.catalogCoverPreview) {
     applyCatalogImageDimensions(els.catalogCoverPreview, catalog, 1);
-    setCatalogImageSource(els.catalogCoverPreview, catalogCoverSrc(catalog));
+    setCatalogImageSource(els.catalogCoverPreview, coverThumbSrc(catalog));
     els.catalogCoverPreview.loading = "lazy";
     els.catalogCoverPreview.decoding = "async";
     els.catalogCoverPreview.alt = `שער ${catalog.title}`;
@@ -981,22 +981,32 @@ function renderCatalogDetail() {
 
 function preloadNeighbors() {
   if (!state.catalog) return;
+  const radius = catalogNeighborPreloadRadius();
+  if (radius < 1) return;
 
   if (isFavoritesLightboxMode()) {
     const entries = getFavoriteEntries();
-    [state.favoritesViewerIndex - 2, state.favoritesViewerIndex - 1, state.favoritesViewerIndex + 1, state.favoritesViewerIndex + 2]
+    Array.from({ length: radius * 2 }, (_unused, index) => (
+      index < radius
+        ? state.favoritesViewerIndex - (radius - index)
+        : state.favoritesViewerIndex + (index - radius + 1)
+    ))
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
         const entry = entries[index];
-        prepareCatalogImage(pageSrc(entry.catalog, entry.page), { priority: "low" }).catch(() => {});
+        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page), { priority: "low" }).catch(() => {});
       });
     return;
   }
 
-  [state.page - 2, state.page - 1, state.page + 1, state.page + 2]
+  Array.from({ length: radius * 2 }, (_unused, index) => (
+    index < radius
+      ? state.page - (radius - index)
+      : state.page + (index - radius + 1)
+  ))
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
-      prepareCatalogImage(pageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
+      prepareCatalogImage(viewerPageSrc(state.catalog, page), { priority: "low" }).catch(() => {});
     });
 }
 

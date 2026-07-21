@@ -75,14 +75,15 @@ function syncViewerScrollIsolatedZoomUi() {
 function prepareViewerScrollIsolatedImage(page) {
   if (!state.catalog || !els.lightboxImage) return;
   const targetPage = clampPage(page, state.catalog);
-  const src = pageSrc(state.catalog, targetPage);
+  const request = viewerPageImageRequest(state.catalog, targetPage);
+  const src = request.primarySrc;
 
   primeLightboxFrameForCatalogPage(state.catalog, targetPage);
   if (els.lightboxImage.getAttribute("src") !== src) {
     els.lightboxImage.removeAttribute("src");
     prepareImagePlaceholder(els.lightboxImage);
   }
-  showSingleLightboxImage(state.catalog, targetPage, src);
+  showSingleLightboxImage(state.catalog, targetPage, src, { imageRequest: request });
 }
 
 function enterViewerScrollIsolatedZoom(nextZoom, focalClientX = null, focalClientY = null) {
@@ -406,7 +407,8 @@ function loadViewerScrollPage(page, priority = "low") {
   if (!image) return;
 
   const catalog = state.catalog;
-  const src = normalizeCatalogImageUrl(pageSrc(catalog, page));
+  const request = viewerPageImageRequest(catalog, page);
+  const src = normalizeCatalogImageUrl(request.primarySrc);
   if (!options.forceRefresh && image.dataset.loadedSrc === src && image.dataset.loadedQuality !== "fallback") return;
   if (!options.forceRefresh && image.dataset.loadingSrc === src) return;
   image.dataset.loadingSrc = src;
@@ -420,26 +422,31 @@ function loadViewerScrollPage(page, priority = "low") {
   const token = state.viewerScrollLoadToken;
   loadCatalogImageWithRecovery(image, {
     primarySrc: src,
-    fallbackSrc: thumbSrc(catalog, page),
     forceRefresh: Boolean(options.forceRefresh),
     isCurrent: () => (
       token === state.viewerScrollLoadToken
       && isScrollViewerMode()
       && state.catalog === catalog
-      && normalizeCatalogImageUrl(pageSrc(catalog, page)) === src
+      && normalizeCatalogImageUrl(viewerPageImageRequest(catalog, page).primarySrc) === src
     ),
+    primaryTier: request.primaryTier,
+    fallbackCandidates: request.fallbackCandidates,
     telemetryDetail: "viewer-scroll",
     onSuccess: (candidate) => {
       delete image.dataset.loadingSrc;
       image.dataset.loadedSrc = src;
-      image.dataset.loadedQuality = candidate.fallback ? "fallback" : "full";
+      const loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL;
+      const degraded = catalogImageTierRank(loadedTier) < catalogImageTierRank(request.primaryTier);
+      image.dataset.loadedTier = loadedTier;
+      image.dataset.loadedQuality = degraded ? "fallback" : loadedTier;
       syncImagePlaceholderState(image);
       frame.setAttribute("aria-busy", "false");
-      setViewerScrollImageFeedback(frame, page, candidate.fallback ? "fallback" : "");
+      setViewerScrollImageFeedback(frame, page, degraded ? "fallback" : "");
     },
     onExhausted: () => {
       delete image.dataset.loadingSrc;
       delete image.dataset.loadedSrc;
+      delete image.dataset.loadedTier;
       delete image.dataset.loadedQuality;
       syncImagePlaceholderState(image);
       frame.setAttribute("aria-busy", "false");
@@ -459,13 +466,18 @@ function handleViewerScrollImageRetry(event) {
 
 function retryCurrentViewerImage() {
   if (!isViewerSessionOpen() || !state.catalog) return;
-  showSingleLightboxImage(state.catalog, state.page, pageSrc(state.catalog, state.page), { forceRefresh: true });
+  const request = viewerPageImageRequest(state.catalog, state.page);
+  showSingleLightboxImage(state.catalog, state.page, request.primarySrc, {
+    imageRequest: request,
+    forceRefresh: true
+  });
 }
 
 function loadViewerScrollWindow(centerPage) {
   if (!state.catalog || !isScrollViewerMode()) return;
   const center = clampPage(centerPage, state.catalog);
-  for (let page = Math.max(1, center - 2); page <= Math.min(state.catalog.pages, center + 2); page += 1) {
+  const radius = catalogNeighborPreloadRadius();
+  for (let page = Math.max(1, center - radius); page <= Math.min(state.catalog.pages, center + radius); page += 1) {
     loadViewerScrollPage(page, page === center ? "high" : "low");
   }
 }

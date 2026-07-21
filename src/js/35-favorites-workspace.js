@@ -177,7 +177,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
   const key = favoriteWorkspaceEntryKey(entry);
   const identityCatalog = escapeHtml(catalog.id);
   const title = escapeHtml(catalog.title || "קטלוג");
-  const image = pageSrc(catalog, page);
+  const image = thumbSrc(catalog, page);
   const selected = state.favoritesSelectedKeys.has(key);
   const note = String(entry.note || "").trim();
   const noteActionLabel = note ? "עריכת ההערה" : "הוספת הערה";

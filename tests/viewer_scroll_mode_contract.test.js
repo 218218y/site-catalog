@@ -26,7 +26,8 @@ assert.doesNotMatch(app, /VIEWER_LAYOUT_STORAGE_KEY|readViewerLayoutPreference|w
 assert.doesNotMatch(app, /viewerLayoutToggle|toggleViewerLayoutMode|setViewerLayoutMode/);
 assert.match(app, /function renderViewerScrollPages\(\)/);
 assert.match(app, /function loadViewerScrollWindow\(centerPage\)/);
-assert.match(app, /for \(let page = Math\.max\(1, center - 2\); page <= Math\.min\(state\.catalog\.pages, center \+ 2\); page \+= 1\)/);
+assert.match(app, /const radius = catalogNeighborPreloadRadius\(\);/);
+assert.match(app, /for \(let page = Math\.max\(1, center - radius\); page <= Math\.min\(state\.catalog\.pages, center \+ radius\); page \+= 1\)/);
 assert.match(app, /function handleViewerScrollPagesScroll\(\)/);
 assert.match(app, /viewerScrollPages\?\.addEventListener\("scroll", handleViewerScrollPagesScroll, \{ passive: true \}\)/);
 assert.match(app, /scrollToPage: isScrollViewerMode\(\)/);

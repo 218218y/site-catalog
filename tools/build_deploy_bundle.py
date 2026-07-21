@@ -1083,9 +1083,15 @@ def validate_catalog_assets(root: Path) -> list[str]:
                 continue
             if pages > 0:
                 first_page = dir_path / f"page-001.{image_ext}"
+                variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), dict) else {}
+                medium = variants.get("medium") if isinstance(variants.get("medium"), dict) else None
+                medium_directory = str((medium or {}).get("directory") or "").strip().strip("/")
+                first_medium = dir_path / medium_directory / f"page-001.{image_ext}" if medium_directory else None
                 first_thumb = dir_path / "thumbs" / f"page-001.{image_ext}"
                 if not first_page.is_file():
                     warnings.append(f"Catalog {catalog_id}: missing first page image {rel_to_root(first_page)}")
+                if first_medium is not None and not first_medium.is_file():
+                    warnings.append(f"Catalog {catalog_id}: missing first medium image {rel_to_root(first_medium)}")
                 if not first_thumb.is_file():
                     warnings.append(f"Catalog {catalog_id}: missing first thumbnail {rel_to_root(first_thumb)}")
     return warnings

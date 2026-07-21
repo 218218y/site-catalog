@@ -28,9 +28,11 @@ def main() -> int:
     parser.add_argument("--dpi", type=int, default=220)
     parser.add_argument("--max-width", type=int, default=2800)
     parser.add_argument("--max-height", type=int, default=2800)
+    parser.add_argument("--medium-size", type=int, default=1600)
     parser.add_argument("--thumb-size", type=int, default=420)
-    parser.add_argument("--quality", type=int, default=94)
-    parser.add_argument("--thumb-quality", type=int, default=88)
+    parser.add_argument("--quality", type=int, default=84)
+    parser.add_argument("--medium-quality", type=int, default=82)
+    parser.add_argument("--thumb-quality", type=int, default=76)
     parser.add_argument("--format", choices=["webp", "jpg", "png"], default="jpg")
     parser.add_argument("--sharpen", type=float, default=1.0)
     parser.add_argument("--ocr", choices=["auto", "always", "never"], default="auto")
@@ -51,8 +53,10 @@ def main() -> int:
         dpi=args.dpi,
         max_width=args.max_width,
         max_height=args.max_height,
+        medium_size=args.medium_size,
         thumb_size=args.thumb_size,
         quality=args.quality,
+        medium_quality=args.medium_quality,
         thumb_quality=args.thumb_quality,
         image_format=args.format,
         clean=not args.no_clean,

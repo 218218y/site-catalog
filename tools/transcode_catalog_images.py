@@ -100,6 +100,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert existing assets/pages JPG/PNG/WebP catalog images to another format.")
     parser.add_argument("--format", choices=sorted(SUPPORTED_OUTPUT_FORMATS), default="webp", help="Output image format")
     parser.add_argument("--quality", type=int, default=84, help="Quality for full pages when writing JPG/WebP")
+    parser.add_argument("--medium-quality", type=int, default=82, help="Quality for files inside medium folders")
     parser.add_argument("--thumb-quality", type=int, default=76, help="Quality for files inside thumbs folders")
     parser.add_argument("--skip-existing", action="store_true", help="Do not overwrite existing target files")
     return parser.parse_args()
@@ -115,7 +116,13 @@ def main() -> int:
 
     stats = Stats()
     for source in iter_source_images(root, args.format):
-        quality = max(1, min(100, int(args.thumb_quality if "thumbs" in source.parts else args.quality)))
+        if "thumbs" in source.parts:
+            requested_quality = args.thumb_quality
+        elif "medium" in source.parts:
+            requested_quality = args.medium_quality
+        else:
+            requested_quality = args.quality
+        quality = max(1, min(100, int(requested_quality)))
         stats = stats.add(transcode_one(source, args.format, quality, args.skip_existing))
 
     print("\nDone.")

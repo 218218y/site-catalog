@@ -67,9 +67,16 @@ def iter_expected_asset_paths(catalogs: Iterable[dict]) -> Iterable[str]:
         if not directory or pages < 1:
             raise ValueError(f"Catalog {catalog_id} is missing a valid image directory/pages count")
 
+        variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), dict) else {}
+        medium = variants.get("medium") if isinstance(variants.get("medium"), dict) else None
+        medium_directory = str((medium or {}).get("directory") or "").strip().strip("/")
+
         for page in range(1, pages + 1):
             filename = f"page-{page:03d}.{extension}"
-            for relative in (f"{directory}/{filename}", f"{directory}/thumbs/{filename}"):
+            relatives = [f"{directory}/{filename}", f"{directory}/thumbs/{filename}"]
+            if medium_directory:
+                relatives.insert(1, f"{directory}/{medium_directory}/{filename}")
+            for relative in relatives:
                 if relative not in seen:
                     seen.add(relative)
                     yield relative

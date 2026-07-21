@@ -462,6 +462,7 @@ function setZoom(nextZoom, options = {}) {
   if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
     showViewerZoomIndicator(state.zoom);
   }
+  refreshSingleViewerImageResolution();
   if (showUi) showTopUiTemporarily(1600);
 }
 

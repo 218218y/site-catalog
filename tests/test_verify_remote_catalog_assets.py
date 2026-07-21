@@ -27,6 +27,25 @@ def test_expected_assets_include_every_page_and_thumbnail() -> None:
     ]
 
 
+def test_expected_assets_include_advertised_medium_tier() -> None:
+    paths = list(MODULE.iter_expected_asset_paths([{
+        "id": "demo",
+        "dir": "assets/pages/demo",
+        "pages": 1,
+        "imageExt": "webp",
+        "imageVariants": {
+            "thumb": {"directory": "thumbs", "maxSide": 420},
+            "medium": {"directory": "medium", "maxSide": 1600},
+            "full": {"directory": "", "maxSide": 2800},
+        },
+    }]))
+    assert paths == [
+        "assets/pages/demo/page-001.webp",
+        "assets/pages/demo/medium/page-001.webp",
+        "assets/pages/demo/thumbs/page-001.webp",
+    ]
+
+
 def test_verify_remote_assets_reports_failures_without_network() -> None:
     catalogs = [{"id": "demo", "dir": "assets/pages/demo", "pages": 1, "imageExt": "webp"}]
 

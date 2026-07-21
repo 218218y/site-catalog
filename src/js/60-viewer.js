@@ -75,10 +75,11 @@ function updateLightbox(options = {}) {
     return;
   }
 
-  const src = pageSrc(catalog, state.page);
-  const currentSrc = els.lightboxImage.getAttribute("src");
+  const request = viewerPageImageRequest(catalog, state.page);
+  const src = request.primarySrc;
+  const currentSrc = els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src");
   if (currentSrc !== src) {
-    showSingleLightboxImage(catalog, state.page, src);
+    showSingleLightboxImage(catalog, state.page, src, { imageRequest: request });
   } else {
     setViewerLoading(false);
     els.lightbox?.classList.remove("is-page-loading");
@@ -141,7 +142,7 @@ function openLightbox(page = 1, options = {}) {
   transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox");
   telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
-  const initialSrc = pageSrc(state.catalog, state.page);
+  const initialSrc = viewerPageSrc(state.catalog, state.page);
   if (els.lightboxImage?.getAttribute("src") !== initialSrc) {
     els.lightboxImage?.removeAttribute("src");
     prepareImagePlaceholder(els.lightboxImage);

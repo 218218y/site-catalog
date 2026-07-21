@@ -74,8 +74,10 @@ BASE_CONVERT_ARGS = [
     "--dpi", "220",
     "--max-width", "2800",
     "--max-height", "2800",
+    "--medium-size", "1600",
     "--thumb-size", "420",
     "--quality", "84",
+    "--medium-quality", "82",
     "--thumb-quality", "76",
     "--sharpen", "0.8",
     "--ocr-lang", "heb+eng",
@@ -101,12 +103,12 @@ ACTIONS: dict[str, Action] = {
     ),
     "convert": Action(
         "המרה רגילה",
-        "ממיר רק קטלוגים חסרים/שהשתנו, ומנקה אוטומטית קטלוגים שהוסרו מהרשימה או שה-PDF שלהם נמחק. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
+        "ממיר קטלוגים חסרים/שהשתנו לשלוש שכבות תמונה: thumbnail, medium ו-full. מנקה אוטומטית קטלוגים שהוסרו מהרשימה או שה-PDF שלהם נמחק. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
         [*BASE_CONVERT_ARGS, "--ocr", "auto"],
     ),
     "convert_force": Action(
         "המרה מחדש לכל הקטלוגים",
-        "מרנדר מחדש את כל הקטלוגים התקינים, ומנקה אוטומטית קטלוגים שהוסרו מהרשימה או שה-PDF שלהם נמחק.",
+        "מרנדר מחדש את כל הקטלוגים התקינים עם שכבות thumbnail, medium ו-full, ומנקה אוטומטית קטלוגים שהוסרו מהרשימה או שה-PDF שלהם נמחק.",
         ["tools/build_catalogs.py", "--force", *BASE_CONVERT_ARGS[1:], "--ocr", "auto"],
     ),
     "refresh_ocr": Action(
@@ -1135,6 +1137,7 @@ def catalog_output_status(catalog_id: str) -> dict[str, Any]:
         return {"state": "missing", "label": "לא הומר"}
 
     pages_by_ext: dict[str, set[int]] = {}
+    medium_by_ext: dict[str, set[int]] = {}
     thumbs_by_ext: dict[str, set[int]] = {}
     for file_path in out_dir.iterdir():
         if file_path.is_file():
@@ -1142,6 +1145,13 @@ def catalog_output_status(catalog_id: str) -> dict[str, Any]:
             if match:
                 pages_by_ext.setdefault(match.group(2).lower(), set()).add(int(match.group(1)))
     thumb_dir = out_dir / "thumbs"
+    medium_dir = out_dir / "medium"
+    if medium_dir.is_dir():
+        for file_path in medium_dir.iterdir():
+            if file_path.is_file():
+                match = PAGE_RE.match(file_path.name)
+                if match:
+                    medium_by_ext.setdefault(match.group(2).lower(), set()).add(int(match.group(1)))
     if thumb_dir.is_dir():
         for file_path in thumb_dir.iterdir():
             if file_path.is_file():
@@ -1155,8 +1165,9 @@ def catalog_output_status(catalog_id: str) -> dict[str, Any]:
             continue
         expected = set(range(1, max(pages) + 1))
         missing_pages = expected - pages
+        missing_medium = expected - medium_by_ext.get(ext, set())
         missing_thumbs = expected - thumbs_by_ext.get(ext, set())
-        if 1 in pages and not missing_pages and not missing_thumbs:
+        if 1 in pages and not missing_pages and not missing_medium and not missing_thumbs:
             return {"state": "ready", "label": f"מוכן · {max(pages)} עמודים · {ext.upper()}"}
         return {"state": "partial", "label": f"חלקי · {len(pages)} עמודים · {ext.upper()}"}
     return {"state": "empty", "label": "תיקייה קיימת בלי עמודים"}
