@@ -613,7 +613,7 @@ test.describe("critical catalog journeys", () => {
       if (!stage || !frame) throw new Error("Missing isolated zoom geometry");
       const stageRect = stage.getBoundingClientRect();
       const frameRect = frame.getBoundingClientRect();
-      const exitBuffer = Math.min(220, Math.max(96, stageRect.height * 0.24));
+      const exitBuffer = Math.min(330, Math.max(144, stageRect.height * 0.36));
       return {
         toImageEdge: Math.max(0, frameRect.bottom - stageRect.bottom),
         exitBuffer

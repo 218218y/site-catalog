@@ -64,16 +64,16 @@ const isolatedPanBoundaryApi = new Function(
   () => isolated,
   (value, min, max) => Math.min(max, Math.max(min, value)),
   () => metrics,
-  0.24,
-  96,
-  220
+  0.36,
+  144,
+  330
 );
 
-assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 192);
+assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 288);
 stageCanvas.clientHeight = 300;
-assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 96, 'small screens should keep a usable fixed minimum');
+assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 144, 'small screens should keep the enlarged fixed minimum');
 stageCanvas.clientHeight = 1200;
-assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 220, 'large screens should cap the black-canvas travel');
+assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 330, 'large screens should cap the enlarged black-canvas travel');
 stageCanvas.clientHeight = 800;
 
 const consumeViewerScrollIsolatedPan = new Function(
@@ -98,16 +98,16 @@ assert.equal(result.hasVerticalExitIntent, true);
 assert.equal(applyCalls, 1, 'consumed in-image movement should render once');
 assert.equal(state.singleImageFitOriginPending, false);
 
-result = consumeViewerScrollIsolatedPan(0, 180);
-assert.equal(state.panY, -290, 'the safety distance should be consumed almost completely before handoff');
+result = consumeViewerScrollIsolatedPan(0, 270);
+assert.equal(state.panY, -380, 'the enlarged safety distance should be consumed almost completely before handoff');
 assert.equal(result.remainingDeltaY, 0);
 
 result = consumeViewerScrollIsolatedPan(0, 20);
-assert.equal(state.panY, -292, 'vertical travel should clamp at image overflow plus the adaptive exit buffer');
-assert.equal(result.remainingDeltaY, 18, 'only movement beyond the complete safety distance should be handed off');
+assert.equal(state.panY, -388, 'vertical travel should clamp at image overflow plus the enlarged adaptive exit buffer');
+assert.equal(result.remainingDeltaY, 12, 'only movement beyond the complete enlarged safety distance should be handed off');
 
-result = consumeViewerScrollIsolatedPan(0, -220);
-assert.equal(state.panY, -72, 'reverse movement should return from the black buffer into the zoomed image normally');
+result = consumeViewerScrollIsolatedPan(0, -330);
+assert.equal(state.panY, -58, 'reverse movement should return from the enlarged black buffer into the zoomed image normally');
 assert.equal(result.remainingDeltaY, 0, 'movement fully consumed by the image must not exit zoom');
 assert.equal(applyCalls, 4);
 
@@ -126,9 +126,9 @@ assert.equal(state.panY, -18, 'even a landscape image should expose black canvas
 assert.equal(result.remainingDeltaY, 0);
 assert.equal(result.hasVerticalExitIntent, true);
 
-result = consumeViewerScrollIsolatedPan(0, 200);
-assert.equal(state.panY, -192);
-assert.equal(result.remainingDeltaY, 26, 'handoff should begin only after the fixed safety range is exhausted');
+result = consumeViewerScrollIsolatedPan(0, 300);
+assert.equal(state.panY, -288);
+assert.equal(result.remainingDeltaY, 30, 'handoff should begin only after the enlarged fixed safety range is exhausted');
 
 isolated = false;
 assert.equal(isolatedPanBoundaryApi.getViewerScrollIsolatedExitBuffer(), 0);

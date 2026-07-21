@@ -262,7 +262,7 @@
 
 @media (max-width: 760px) {
   .viewer-scroll-pages {
-    gap: 9px;
+    gap: 27px;
     padding: 9px 9px 28px;
     scroll-snap-type: y proximity;
   }
