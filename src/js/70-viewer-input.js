@@ -14,13 +14,45 @@ function isActiveZoomSurface(surface) {
   return Boolean(getZoomSurfaceName(surface));
 }
 
+function captureViewerPointer(surface, pointerId) {
+  if (!surface || typeof surface.setPointerCapture !== "function") return false;
+
+  try {
+    surface.setPointerCapture(pointerId);
+    return true;
+  } catch (error) {
+    // Synthetic pointer events and a pointer that ended during a browser-driven
+    // transition may not be eligible for capture. The gesture remains usable
+    // without capture, so only suppress the expected lifecycle exception.
+    if (error?.name === "NotFoundError") return false;
+    throw error;
+  }
+}
+
+function releaseViewerPointerCapture(surface, pointerId) {
+  if (!surface || typeof surface.releasePointerCapture !== "function") return false;
+
+  try {
+    if (typeof surface.hasPointerCapture === "function" && !surface.hasPointerCapture(pointerId)) {
+      return false;
+    }
+    surface.releasePointerCapture(pointerId);
+    return true;
+  } catch (error) {
+    // Pointer capture can be released implicitly before pointerup/pointercancel
+    // reaches this handler. That is a normal browser lifecycle race, not an app
+    // failure. Preserve unexpected exceptions so real defects remain visible.
+    if (error?.name === "NotFoundError") return false;
+    throw error;
+  }
+}
+
 function startPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
   if (state.pointers.size === 0) {
     state.pointerGestureHadMultiplePointers = false;
     state.pointerGestureConsumedPan = false;
-    state.singlePageTurnPointerId = null;
   }
 
   state.pointers.set(event.pointerId, {
@@ -32,7 +64,7 @@ function startPointerInteraction(event) {
   if (state.pointers.size >= 2) state.pointerGestureHadMultiplePointers = true;
 
   if (singleViewerUsesBoundaryPan() || state.pointers.size >= 2) {
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    captureViewerPointer(event.currentTarget, event.pointerId);
   }
 
   const pointers = getPointerList();
@@ -49,7 +81,7 @@ function startPointerInteraction(event) {
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
     for (const pointerId of state.pointers.keys()) {
-      event.currentTarget.setPointerCapture?.(pointerId);
+      captureViewerPointer(event.currentTarget, pointerId);
     }
     event.preventDefault();
   }
@@ -57,11 +89,6 @@ function startPointerInteraction(event) {
 
 function movePointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
-
-  if (state.singlePageTurnPointerId === event.pointerId) {
-    event.preventDefault();
-    return;
-  }
 
   const previousPoint = state.pointers.get(event.pointerId);
   if (!previousPoint) return;
@@ -163,18 +190,6 @@ function handleViewerPageSwipe(event, startedX, startedY) {
 }
 
 function endPointerInteraction(event) {
-  if (state.singlePageTurnPointerId === event.pointerId) {
-    state.singlePageTurnPointerId = null;
-    state.pointers.delete(event.pointerId);
-    event.preventDefault?.();
-    event.currentTarget?.releasePointerCapture?.(event.pointerId);
-    if (state.pointers.size === 0) {
-      state.pointerGestureHadMultiplePointers = false;
-      state.pointerGestureConsumedPan = false;
-    }
-    return;
-  }
-
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
   const tracked = state.pointers.get(event.pointerId);
   if (!tracked) return;
@@ -194,11 +209,10 @@ function endPointerInteraction(event) {
     state.pointerGestureHadMultiplePointers = false;
     state.pointerGestureConsumedPan = false;
   }
-  event.currentTarget?.releasePointerCapture?.(event.pointerId);
+  releaseViewerPointerCapture(event.currentTarget, event.pointerId);
 }
 
 function cancelPointerInteraction(event) {
-  if (state.singlePageTurnPointerId === event.pointerId) state.singlePageTurnPointerId = null;
   if (!state.pointers.has(event.pointerId)) return;
   state.pointers.delete(event.pointerId);
   if (state.pointers.size === 0) {

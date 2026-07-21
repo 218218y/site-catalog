@@ -175,7 +175,79 @@ assert.deepEqual(moveCalls[0], [1, {
   keepZoom: true,
   positionMode: 'page-turn',
   pageTurnDirection: 1,
-  pageTurnAxis: 'y'
+  pageTurnAxis: 'y',
+  preservePointerInteraction: false
 }]);
+assert.equal(navigationApi.moveLightboxFromPageTurn(-1, 'x', { preservePointerInteraction: true }), true);
+assert.deepEqual(moveCalls[1], [-1, {
+  keepZoom: true,
+  positionMode: 'page-turn',
+  pageTurnDirection: -1,
+  pageTurnAxis: 'x',
+  preservePointerInteraction: true
+}]);
+
+const boundarySlice = sourceBetween(
+  navigationSource,
+  'function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0)',
+  'function settleViewerPageWheelGesture()'
+);
+const boundaryMoveCalls = [];
+const boundaryApi = new Function(
+  'VIEWER_PAGE_TURN_REMAINDER_EPSILON',
+  'canMoveLightbox',
+  'moveLightbox',
+  'consumeSingleViewerPanInput',
+  `${boundarySlice}\nreturn { consumeSingleViewerBoundaryInput };`
+)(
+  0.75,
+  () => true,
+  (...args) => boundaryMoveCalls.push(args),
+  () => ({
+    moved: true,
+    remainingDeltaX: 0,
+    remainingDeltaY: 18
+  })
+);
+const boundaryResult = boundaryApi.consumeSingleViewerBoundaryInput(0, 40, { pointerId: 91 });
+assert.equal(boundaryResult.turned, true);
+assert.deepEqual(boundaryMoveCalls[0], [1, {
+  keepZoom: true,
+  positionMode: 'page-turn',
+  pageTurnDirection: 1,
+  pageTurnAxis: 'y',
+  preservePointerInteraction: true
+}], 'a touch edge turn must preserve the live pointer stream on the next image');
+
+const wheelHandlerStart = navigationSource.indexOf('function handleViewerPageWheel(event)');
+assert.notEqual(wheelHandlerStart, -1, 'Missing handleViewerPageWheel');
+const wheelHandlerSource = navigationSource.slice(wheelHandlerStart);
+let prevented = 0;
+let boundaryInputs = 0;
+const wheelApi = new Function(
+  'state',
+  'isViewerSessionOpen',
+  'normalizeViewerPageWheelDeltas',
+  'singleViewerUsesBoundaryPan',
+  'clearViewerPageWheelGesture',
+  'consumeSingleViewerBoundaryInput',
+  `${wheelHandlerSource}\nreturn { handleViewerPageWheel };`
+)(
+  { catalog: {} },
+  () => true,
+  (event) => ({ deltaX: event.deltaX, deltaY: event.deltaY }),
+  () => true,
+  () => {},
+  () => { boundaryInputs += 1; }
+);
+const wheelEvent = {
+  deltaX: 0,
+  deltaY: 48,
+  preventDefault() { prevented += 1; }
+};
+assert.equal(wheelApi.handleViewerPageWheel(wheelEvent), true);
+assert.equal(wheelApi.handleViewerPageWheel(wheelEvent), true);
+assert.equal(boundaryInputs, 2, 'continuous wheel/trackpad events must reach the newly opened image without a settle pause');
+assert.equal(prevented, 2);
 
 console.log('viewer_page_turn_pan_logic.test.js: PASS');

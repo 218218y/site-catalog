@@ -371,7 +371,6 @@ const state = {
   pinchLastMidY: 0,
   pointerGestureHadMultiplePointers: false,
   pointerGestureConsumedPan: false,
-  singlePageTurnPointerId: null,
   pointers: new Map(),
   viewerPhase: VIEWER_PHASE_CLOSED,
   viewerPhaseReason: "initial",
@@ -403,8 +402,6 @@ const state = {
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,
   viewerPageWheelSettleTimer: 0,
-  viewerPageWheelLocked: false,
-  viewerPageWheelUnlockTimer: 0,
   catalogImageLoadCache: new Map(),
   catalogLayoutColumns: 0,
   catalogLayoutResizeTimer: 0,
@@ -6818,11 +6815,9 @@ function setViewerFitMode(fitMode, options = {}) {
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
     clearViewerPageWheelGesture();
-    unlockViewerPageWheel();
     state.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: true });
     state.pointers.clear();
-    state.singlePageTurnPointerId = null;
   }
 
   syncViewerFitModeUi();
@@ -7139,21 +7134,6 @@ function clearViewerPageWheelGesture() {
   state.viewerPageWheelTargetPage = 0;
 }
 
-function unlockViewerPageWheel() {
-  window.clearTimeout(state.viewerPageWheelUnlockTimer);
-  state.viewerPageWheelUnlockTimer = 0;
-  state.viewerPageWheelLocked = false;
-}
-
-function keepViewerPageWheelLockedUntilSettle() {
-  state.viewerPageWheelLocked = true;
-  window.clearTimeout(state.viewerPageWheelUnlockTimer);
-  state.viewerPageWheelUnlockTimer = window.setTimeout(
-    unlockViewerPageWheel,
-    VIEWER_PAGE_WHEEL_SETTLE_MS
-  );
-}
-
 function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0) {
   const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
   if (deltaMode === pageMode) {
@@ -7206,7 +7186,7 @@ function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
   };
 }
 
-function moveLightboxFromPageTurn(direction, axis = "y") {
+function moveLightboxFromPageTurn(direction, axis = "y", options = {}) {
   const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
   if (!step || !canMoveLightbox(step)) return false;
 
@@ -7214,7 +7194,8 @@ function moveLightboxFromPageTurn(direction, axis = "y") {
     keepZoom: true,
     positionMode: "page-turn",
     pageTurnDirection: step,
-    pageTurnAxis: axis
+    pageTurnAxis: axis,
+    preservePointerInteraction: options.preservePointerInteraction === true
   });
   return true;
 }
@@ -7224,10 +7205,9 @@ function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) 
   if (!result) return { handled: false, turned: false, moved: false };
 
   const intent = getSingleViewerPageTurnIntent(result, deltaX, deltaY);
-  const turned = Boolean(intent && moveLightboxFromPageTurn(intent.direction, intent.axis));
-  if (turned && Number.isFinite(options.pointerId)) {
-    state.singlePageTurnPointerId = options.pointerId;
-  }
+  const turned = Boolean(intent && moveLightboxFromPageTurn(intent.direction, intent.axis, {
+    preservePointerInteraction: Number.isFinite(options.pointerId)
+  }));
 
   return {
     handled: true,
@@ -7250,15 +7230,9 @@ function handleViewerPageWheel(event) {
 
   event.preventDefault();
 
-  if (state.viewerPageWheelLocked) {
-    keepViewerPageWheelLockedUntilSettle();
-    return true;
-  }
-
   if (singleViewerUsesBoundaryPan()) {
     clearViewerPageWheelGesture();
-    const boundary = consumeSingleViewerBoundaryInput(deltaX, deltaY);
-    if (boundary.turned) keepViewerPageWheelLockedUntilSettle();
+    consumeSingleViewerBoundaryInput(deltaX, deltaY);
     return true;
   }
 
@@ -7410,7 +7384,6 @@ function openLightbox(page = 1, options = {}) {
     ? getAutomaticViewerFitMode()
     : normalizeViewerFitMode(state.imageFitMode);
   clearViewerPageWheelGesture();
-  unlockViewerPageWheel();
   state.page = clampPage(page, state.catalog);
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
@@ -7452,8 +7425,6 @@ function hideLightboxUi() {
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
   clearViewerPageWheelGesture();
-  unlockViewerPageWheel();
-  state.singlePageTurnPointerId = null;
   clearSingleImagePendingPosition();
   window.clearTimeout(state.singleImageAnimationTimer);
   els.lightbox?.classList.add("hidden");
@@ -7503,7 +7474,8 @@ function setLightboxPage(page, options = {}) {
     resetPosition = isAutoViewerZoom(),
     positionMode = "auto",
     pageTurnDirection = Math.sign(nextPage - state.page),
-    pageTurnAxis = "y"
+    pageTurnAxis = "y",
+    preservePointerInteraction = false
   } = options;
   const shouldResetZoom = resetZoom || keepZoom === false;
   const shouldResetPosition = shouldResetZoom || resetPosition;
@@ -7524,9 +7496,10 @@ function setLightboxPage(page, options = {}) {
     queueSingleImageRelativePosition(nextPage, relativePosition);
   }
 
-  state.pointers.clear();
+  if (!preservePointerInteraction) state.pointers.clear();
   state.page = nextPage;
-  primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  const geometryPrimed = primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  if (geometryPrimed) applyZoom();
   updateLightbox({ thumbScrollIntoView });
 }
 
@@ -7545,7 +7518,8 @@ function setFavoriteViewerIndex(index, options = {}) {
     resetPosition = isAutoViewerZoom(),
     positionMode = "auto",
     pageTurnDirection = Math.sign((Number.parseInt(index, 10) || 0) - state.favoritesViewerIndex),
-    pageTurnAxis = "y"
+    pageTurnAxis = "y",
+    preservePointerInteraction = false
   } = options;
   const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
   const entry = entries[nextIndex];
@@ -7570,10 +7544,11 @@ function setFavoriteViewerIndex(index, options = {}) {
   } else if (relativePosition) {
     queueSingleImageRelativePosition(entry.page, relativePosition);
   }
-  state.pointers.clear();
+  if (!preservePointerInteraction) state.pointers.clear();
 
   setFavoriteViewerEntry(entries, nextIndex);
-  primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  const geometryPrimed = primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  if (geometryPrimed) applyZoom();
   updateLightbox({ thumbScrollIntoView });
 }
 
@@ -8759,13 +8734,45 @@ function isActiveZoomSurface(surface) {
   return Boolean(getZoomSurfaceName(surface));
 }
 
+function captureViewerPointer(surface, pointerId) {
+  if (!surface || typeof surface.setPointerCapture !== "function") return false;
+
+  try {
+    surface.setPointerCapture(pointerId);
+    return true;
+  } catch (error) {
+    // Synthetic pointer events and a pointer that ended during a browser-driven
+    // transition may not be eligible for capture. The gesture remains usable
+    // without capture, so only suppress the expected lifecycle exception.
+    if (error?.name === "NotFoundError") return false;
+    throw error;
+  }
+}
+
+function releaseViewerPointerCapture(surface, pointerId) {
+  if (!surface || typeof surface.releasePointerCapture !== "function") return false;
+
+  try {
+    if (typeof surface.hasPointerCapture === "function" && !surface.hasPointerCapture(pointerId)) {
+      return false;
+    }
+    surface.releasePointerCapture(pointerId);
+    return true;
+  } catch (error) {
+    // Pointer capture can be released implicitly before pointerup/pointercancel
+    // reaches this handler. That is a normal browser lifecycle race, not an app
+    // failure. Preserve unexpected exceptions so real defects remain visible.
+    if (error?.name === "NotFoundError") return false;
+    throw error;
+  }
+}
+
 function startPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
   if (state.pointers.size === 0) {
     state.pointerGestureHadMultiplePointers = false;
     state.pointerGestureConsumedPan = false;
-    state.singlePageTurnPointerId = null;
   }
 
   state.pointers.set(event.pointerId, {
@@ -8777,7 +8784,7 @@ function startPointerInteraction(event) {
   if (state.pointers.size >= 2) state.pointerGestureHadMultiplePointers = true;
 
   if (singleViewerUsesBoundaryPan() || state.pointers.size >= 2) {
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    captureViewerPointer(event.currentTarget, event.pointerId);
   }
 
   const pointers = getPointerList();
@@ -8794,7 +8801,7 @@ function startPointerInteraction(event) {
     state.pinchLastMidX = mid.x;
     state.pinchLastMidY = mid.y;
     for (const pointerId of state.pointers.keys()) {
-      event.currentTarget.setPointerCapture?.(pointerId);
+      captureViewerPointer(event.currentTarget, pointerId);
     }
     event.preventDefault();
   }
@@ -8802,11 +8809,6 @@ function startPointerInteraction(event) {
 
 function movePointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
-
-  if (state.singlePageTurnPointerId === event.pointerId) {
-    event.preventDefault();
-    return;
-  }
 
   const previousPoint = state.pointers.get(event.pointerId);
   if (!previousPoint) return;
@@ -8908,18 +8910,6 @@ function handleViewerPageSwipe(event, startedX, startedY) {
 }
 
 function endPointerInteraction(event) {
-  if (state.singlePageTurnPointerId === event.pointerId) {
-    state.singlePageTurnPointerId = null;
-    state.pointers.delete(event.pointerId);
-    event.preventDefault?.();
-    event.currentTarget?.releasePointerCapture?.(event.pointerId);
-    if (state.pointers.size === 0) {
-      state.pointerGestureHadMultiplePointers = false;
-      state.pointerGestureConsumedPan = false;
-    }
-    return;
-  }
-
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
   const tracked = state.pointers.get(event.pointerId);
   if (!tracked) return;
@@ -8939,11 +8929,10 @@ function endPointerInteraction(event) {
     state.pointerGestureHadMultiplePointers = false;
     state.pointerGestureConsumedPan = false;
   }
-  event.currentTarget?.releasePointerCapture?.(event.pointerId);
+  releaseViewerPointerCapture(event.currentTarget, event.pointerId);
 }
 
 function cancelPointerInteraction(event) {
-  if (state.singlePageTurnPointerId === event.pointerId) state.singlePageTurnPointerId = null;
   if (!state.pointers.has(event.pointerId)) return;
   state.pointers.delete(event.pointerId);
   if (state.pointers.size === 0) {

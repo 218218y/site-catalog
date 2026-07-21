@@ -43,8 +43,7 @@ const context = {
     imageFitMode: "height",
     imageFitModeSource: "auto",
     zoom: 1,
-    pointers: new Map(),
-    singlePageTurnPointerId: null
+    pointers: new Map()
   },
   els: {
     stageCanvas: { clientWidth: 1440, clientHeight: 900 }
@@ -58,7 +57,6 @@ const context = {
     documentElement: { clientWidth: 1440, clientHeight: 900 }
   },
   clearViewerPageWheelGesture() {},
-  unlockViewerPageWheel() {},
   resetImagePosition() {},
   syncViewerFitModeUi() {},
   applyZoom() {},

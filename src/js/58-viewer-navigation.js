@@ -52,21 +52,6 @@ function clearViewerPageWheelGesture() {
   state.viewerPageWheelTargetPage = 0;
 }
 
-function unlockViewerPageWheel() {
-  window.clearTimeout(state.viewerPageWheelUnlockTimer);
-  state.viewerPageWheelUnlockTimer = 0;
-  state.viewerPageWheelLocked = false;
-}
-
-function keepViewerPageWheelLockedUntilSettle() {
-  state.viewerPageWheelLocked = true;
-  window.clearTimeout(state.viewerPageWheelUnlockTimer);
-  state.viewerPageWheelUnlockTimer = window.setTimeout(
-    unlockViewerPageWheel,
-    VIEWER_PAGE_WHEEL_SETTLE_MS
-  );
-}
-
 function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0) {
   const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
   if (deltaMode === pageMode) {
@@ -119,7 +104,7 @@ function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
   };
 }
 
-function moveLightboxFromPageTurn(direction, axis = "y") {
+function moveLightboxFromPageTurn(direction, axis = "y", options = {}) {
   const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
   if (!step || !canMoveLightbox(step)) return false;
 
@@ -127,7 +112,8 @@ function moveLightboxFromPageTurn(direction, axis = "y") {
     keepZoom: true,
     positionMode: "page-turn",
     pageTurnDirection: step,
-    pageTurnAxis: axis
+    pageTurnAxis: axis,
+    preservePointerInteraction: options.preservePointerInteraction === true
   });
   return true;
 }
@@ -137,10 +123,9 @@ function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) 
   if (!result) return { handled: false, turned: false, moved: false };
 
   const intent = getSingleViewerPageTurnIntent(result, deltaX, deltaY);
-  const turned = Boolean(intent && moveLightboxFromPageTurn(intent.direction, intent.axis));
-  if (turned && Number.isFinite(options.pointerId)) {
-    state.singlePageTurnPointerId = options.pointerId;
-  }
+  const turned = Boolean(intent && moveLightboxFromPageTurn(intent.direction, intent.axis, {
+    preservePointerInteraction: Number.isFinite(options.pointerId)
+  }));
 
   return {
     handled: true,
@@ -163,15 +148,9 @@ function handleViewerPageWheel(event) {
 
   event.preventDefault();
 
-  if (state.viewerPageWheelLocked) {
-    keepViewerPageWheelLockedUntilSettle();
-    return true;
-  }
-
   if (singleViewerUsesBoundaryPan()) {
     clearViewerPageWheelGesture();
-    const boundary = consumeSingleViewerBoundaryInput(deltaX, deltaY);
-    if (boundary.turned) keepViewerPageWheelLockedUntilSettle();
+    consumeSingleViewerBoundaryInput(deltaX, deltaY);
     return true;
   }
 

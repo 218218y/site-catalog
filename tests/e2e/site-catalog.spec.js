@@ -660,13 +660,15 @@ test.describe("critical catalog journeys", () => {
       return panY + overflowY + buffer + 48;
     });
     await stage.evaluate((element, deltaY) => {
-      element.dispatchEvent(new WheelEvent("wheel", {
-        deltaX: 0,
-        deltaY,
-        deltaMode: 0,
-        bubbles: true,
-        cancelable: true
-      }));
+      [deltaY, 72].forEach((streamDelta) => {
+        element.dispatchEvent(new WheelEvent("wheel", {
+          deltaX: 0,
+          deltaY: streamDelta,
+          deltaMode: 0,
+          bubbles: true,
+          cancelable: true
+        }));
+      });
     }, edgeDelta);
 
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(edgeTarget));
@@ -679,19 +681,25 @@ test.describe("critical catalog journeys", () => {
     await expect.poll(() => page.evaluate(() => {
       const stageRect = document.querySelector("#stageCanvas")?.getBoundingClientRect();
       const frameRect = document.querySelector("#lightboxImageFrame")?.getBoundingClientRect();
-      if (!stageRect || !frameRect) return Number.POSITIVE_INFINITY;
-      return Math.abs(frameRect.top - stageRect.top);
-    })).toBeLessThanOrEqual(3);
+      if (!stageRect || !frameRect) return 0;
+      return stageRect.top - frameRect.top;
+    })).toBeGreaterThan(40);
+
+    const continuedPosition = await frame.evaluate((element) => ({
+      x: Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0,
+      y: Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0,
+      zoom: Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1
+    }));
 
     await page.keyboard.press("ArrowRight");
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage + 1));
     await expectCurrentViewerImageReady(page);
-    await expect.poll(() => page.evaluate(() => {
-      const stageRect = document.querySelector("#stageCanvas")?.getBoundingClientRect();
-      const frameRect = document.querySelector("#lightboxImageFrame")?.getBoundingClientRect();
-      if (!stageRect || !frameRect) return Number.POSITIVE_INFINITY;
-      return Math.abs(frameRect.top - stageRect.top);
-    })).toBeLessThanOrEqual(3);
+    await expect.poll(() => frame.evaluate((element, expected) => {
+      const x = Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0;
+      const y = Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0;
+      const zoom = Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1;
+      return Math.max(Math.abs(x - expected.x), Math.abs(y - expected.y), Math.abs(zoom - expected.zoom));
+    }, continuedPosition)).toBeLessThanOrEqual(2);
   });
 
   test("toggles manual zoom with one double-click per gesture in paged layout", async ({ page }) => {

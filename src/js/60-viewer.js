@@ -101,7 +101,6 @@ function openLightbox(page = 1, options = {}) {
     ? getAutomaticViewerFitMode()
     : normalizeViewerFitMode(state.imageFitMode);
   clearViewerPageWheelGesture();
-  unlockViewerPageWheel();
   state.page = clampPage(page, state.catalog);
   state.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
@@ -143,8 +142,6 @@ function hideLightboxUi() {
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
   clearViewerPageWheelGesture();
-  unlockViewerPageWheel();
-  state.singlePageTurnPointerId = null;
   clearSingleImagePendingPosition();
   window.clearTimeout(state.singleImageAnimationTimer);
   els.lightbox?.classList.add("hidden");
@@ -194,7 +191,8 @@ function setLightboxPage(page, options = {}) {
     resetPosition = isAutoViewerZoom(),
     positionMode = "auto",
     pageTurnDirection = Math.sign(nextPage - state.page),
-    pageTurnAxis = "y"
+    pageTurnAxis = "y",
+    preservePointerInteraction = false
   } = options;
   const shouldResetZoom = resetZoom || keepZoom === false;
   const shouldResetPosition = shouldResetZoom || resetPosition;
@@ -215,9 +213,10 @@ function setLightboxPage(page, options = {}) {
     queueSingleImageRelativePosition(nextPage, relativePosition);
   }
 
-  state.pointers.clear();
+  if (!preservePointerInteraction) state.pointers.clear();
   state.page = nextPage;
-  primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  const geometryPrimed = primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  if (geometryPrimed) applyZoom();
   updateLightbox({ thumbScrollIntoView });
 }
 
@@ -236,7 +235,8 @@ function setFavoriteViewerIndex(index, options = {}) {
     resetPosition = isAutoViewerZoom(),
     positionMode = "auto",
     pageTurnDirection = Math.sign((Number.parseInt(index, 10) || 0) - state.favoritesViewerIndex),
-    pageTurnAxis = "y"
+    pageTurnAxis = "y",
+    preservePointerInteraction = false
   } = options;
   const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
   const entry = entries[nextIndex];
@@ -261,10 +261,11 @@ function setFavoriteViewerIndex(index, options = {}) {
   } else if (relativePosition) {
     queueSingleImageRelativePosition(entry.page, relativePosition);
   }
-  state.pointers.clear();
+  if (!preservePointerInteraction) state.pointers.clear();
 
   setFavoriteViewerEntry(entries, nextIndex);
-  primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  const geometryPrimed = primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  if (geometryPrimed) applyZoom();
   updateLightbox({ thumbScrollIntoView });
 }
 

@@ -498,11 +498,9 @@ function setViewerFitMode(fitMode, options = {}) {
   state.imageFitMode = nextFitMode;
   if (shouldResetView) {
     clearViewerPageWheelGesture();
-    unlockViewerPageWheel();
     state.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: true });
     state.pointers.clear();
-    state.singlePageTurnPointerId = null;
   }
 
   syncViewerFitModeUi();

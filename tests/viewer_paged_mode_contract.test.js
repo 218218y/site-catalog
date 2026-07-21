@@ -34,7 +34,7 @@ assert.match(stateSource, /const VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330;/);
 assert.match(stateSource, /singleImagePendingRelativePosition: null/);
 assert.match(stateSource, /singleImagePendingPageTurnOrigin: null/);
 assert.match(stateSource, /viewerPageWheelAccumulator: 0/);
-assert.match(stateSource, /viewerPageWheelLocked: false/);
+assert.doesNotMatch(stateSource, /viewerPageWheelLocked|viewerPageWheelUnlockTimer|singlePageTurnPointerId/);
 
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?classList\.add\("viewer-layout-paged"\)/);
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?lightboxImageFrame\?\.classList\.remove\("hidden"\)/);
@@ -59,16 +59,23 @@ assert.match(geometry, /getSafeViewerZoom\(\) > AUTO_VIEWER_ZOOM \+ 0\.001 \|\| 
 assert.match(navigation, /function normalizeViewerPageWheelDeltas\(event\)/);
 assert.match(navigation, /function getViewerPageWheelRequestedSteps\(accumulator\)/);
 assert.match(navigation, /function consumeSingleViewerBoundaryInput\(deltaX = 0, deltaY = 0, options = \{\}\)/);
-assert.match(navigation, /function moveLightboxFromPageTurn\(direction, axis = "y"\)[\s\S]*?positionMode: "page-turn"[\s\S]*?keepZoom: true/);
+assert.match(navigation, /function moveLightboxFromPageTurn\(direction, axis = "y", options = \{\}\)[\s\S]*?keepZoom: true[\s\S]*?positionMode: "page-turn"[\s\S]*?preservePointerInteraction/);
 assert.match(navigation, /if \(singleViewerUsesBoundaryPan\(\)\)[\s\S]*?consumeSingleViewerBoundaryInput\(deltaX, deltaY\)/);
-assert.match(navigation, /keepViewerPageWheelLockedUntilSettle/);
+assert.doesNotMatch(navigation, /viewerPageWheelLocked|keepViewerPageWheelLockedUntilSettle|unlockViewerPageWheel/);
 assert.doesNotMatch(navigation, /renderViewerScrollPages|scrollTop|scrollIntoView|viewerScroll/);
+
+assert.match(viewerSource, /preservePointerInteraction = false/);
+assert.match(viewerSource, /if \(!preservePointerInteraction\) state\.pointers\.clear\(\)/);
+assert.match(viewerSource, /const geometryPrimed = primeLightboxFrameForCatalogPage\(state\.catalog, state\.page\);[\s\S]*?if \(geometryPrimed\) applyZoom\(\);[\s\S]*?updateLightbox/);
 
 assert.match(input, /function handleViewerPageSwipe\(event, startedX, startedY\)[\s\S]*?isTouchLikePointer\(event\)/);
 assert.match(input, /const direction = horizontal[\s\S]*?dx > 0 \? 1 : -1[\s\S]*?dy < 0 \? 1 : -1/);
 assert.match(input, /positionMode: "page-turn"/);
 assert.match(input, /state\.pointerGestureConsumedPan/);
-assert.match(input, /state\.singlePageTurnPointerId === event\.pointerId/);
+assert.match(input, /function captureViewerPointer\(surface, pointerId\)/);
+assert.match(input, /function releaseViewerPointerCapture\(surface, pointerId\)/);
+assert.match(input, /hasPointerCapture\(pointerId\)/);
+assert.doesNotMatch(input, /singlePageTurnPointerId/);
 assert.match(input, /attachZoomSurfaceGestures\(els\.stageCanvas\)/);
 assert.doesNotMatch(input, /viewerScrollPages|PointerHandoff|IsolatedZoom/);
 
