@@ -141,5 +141,6 @@ catalog-taxonomy.config.json
 
 בשביל להחזיר תמיכה בתמונות בינוניות  catalog-assets.config.js
 window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "responsive";
+אם פותחים תמונות בינוניות לבדוק אם להוסיף פתיחה של יותר תמונות סמוכות ולא רק 2 הסמוכות
 תמונות גדולות בלבד
 window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";
