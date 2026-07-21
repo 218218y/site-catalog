@@ -1,7 +1,7 @@
 npm run build:frontend
 npm run build:pages
-npm test
 npm run verify
+npm test
 
 
 בנייה ציבורית
