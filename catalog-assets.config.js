@@ -7,4 +7,4 @@ window.BARGIG_CATALOG_ASSET_BASE_URL = "";
 // - "responsive": use medium images for normal viewer display and full images for large screens / zoom.
 // - "full-only": never request medium images; thumbnails are still used for cards and as an emergency fallback.
 // Keep this as the single switch when comparing the two delivery strategies.
-window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";
+window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "responsive";
