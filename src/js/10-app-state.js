@@ -72,7 +72,6 @@ const CATALOG_EAGER_COVER_COUNT = 2;
 const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
 const CATALOG_ASSET_VERSION_PARAM = "v";
 const CATALOG_ASSET_URL_SCHEMA_VERSION = 2;
-const IMAGE_PLACEHOLDER_POLICY_PRESERVE_FRAME = "preserve-frame";
 
 const boundEventFeatures = new Set();
 
