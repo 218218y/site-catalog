@@ -316,6 +316,222 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
   if (mode !== "error") els.lightboxImageFrame?.classList.remove("image-terminal-error");
 }
 
+function ensureSingleViewerResolutionUpgradeImage() {
+  const frame = els.lightboxImageFrame;
+  if (!frame) return null;
+
+  let image = frame.querySelector(".lightbox-image-resolution-upgrade");
+  if (image) return image;
+
+  image = new Image();
+  image.className = "lightbox-image lightbox-image-resolution-upgrade";
+  image.alt = "";
+  image.draggable = false;
+  image.decoding = "async";
+  image.setAttribute("aria-hidden", "true");
+  applyCatalogImageCrossOrigin(image);
+  frame.appendChild(image);
+  return image;
+}
+
+function clearSingleViewerResolutionUpgrade() {
+  state.singleImageResolutionUpgradeToken += 1;
+  state.singleImageResolutionUpgradeStop?.();
+  state.singleImageResolutionUpgradeStop = null;
+  state.singleImageResolutionWaitCleanup?.();
+  state.singleImageResolutionWaitCleanup = null;
+  state.singleImageResolutionUpgradeKey = "";
+  window.clearTimeout(state.singleImageResolutionPromoteTimer);
+  state.singleImageResolutionPromoteTimer = 0;
+
+  const image = els.lightboxImageFrame?.querySelector?.(".lightbox-image-resolution-upgrade");
+  if (!image) return;
+  image.classList.remove("is-visible");
+  delete image.dataset.logicalSrc;
+  delete image.dataset.loadedTier;
+  image.removeAttribute("src");
+}
+
+function singleViewerResolutionUpgradeKey(catalog, page, src) {
+  return `${String(catalog?.id || "catalog")}:${Number(page) || 1}:${normalizeCatalogImageUrl(src)}`;
+}
+
+function singleViewerResolutionCrossfadeMs() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+    ? 0
+    : VIEWER_RESOLUTION_CROSSFADE_MS;
+}
+
+function revealSingleViewerResolutionUpgrade(token, canonicalSrc, loadedSrc) {
+  if (token !== state.singleImageResolutionUpgradeToken) return;
+  const baseImage = els.lightboxImage;
+  const upgradeImage = els.lightboxImageFrame?.querySelector?.(".lightbox-image-resolution-upgrade");
+  if (!baseImage || !upgradeImage) return;
+
+  const samePage = (
+    baseImage.dataset.catalogId === String(state.catalog?.id || "")
+    && Number(baseImage.dataset.page) === Number(state.page)
+  );
+  const loadedTier = String(baseImage.dataset.loadedTier || "");
+  if (samePage && catalogImageTierRank(loadedTier) >= catalogImageTierRank(CATALOG_IMAGE_TIER_FULL)) {
+    clearSingleViewerResolutionUpgrade();
+    return;
+  }
+
+  const baseReady = Boolean(
+    samePage
+    && baseImage.complete
+    && baseImage.naturalWidth
+    && loadedTier
+    && !els.lightboxImageFrame?.classList.contains("is-preparing-swap")
+  );
+  if (!baseReady) {
+    state.singleImageResolutionWaitCleanup?.();
+    const handleBaseReady = () => {
+      state.singleImageResolutionWaitCleanup?.();
+      state.singleImageResolutionWaitCleanup = null;
+      queueMicrotask(() => revealSingleViewerResolutionUpgrade(token, canonicalSrc, loadedSrc));
+    };
+    baseImage.addEventListener("load", handleBaseReady, { once: true });
+    state.singleImageResolutionWaitCleanup = () => {
+      baseImage.removeEventListener("load", handleBaseReady);
+    };
+    return;
+  }
+
+  state.singleImageResolutionWaitCleanup?.();
+  state.singleImageResolutionWaitCleanup = null;
+  window.requestAnimationFrame(() => {
+    if (token !== state.singleImageResolutionUpgradeToken) return;
+    upgradeImage.classList.add("is-visible");
+    state.singleImageResolutionPromoteTimer = window.setTimeout(() => {
+      finishSingleViewerResolutionPromotion(token, canonicalSrc, loadedSrc);
+    }, singleViewerResolutionCrossfadeMs());
+  });
+}
+
+function finishSingleViewerResolutionPromotion(token, canonicalSrc, loadedSrc) {
+  if (token !== state.singleImageResolutionUpgradeToken) return;
+  const baseImage = els.lightboxImage;
+  const upgradeImage = els.lightboxImageFrame?.querySelector?.(".lightbox-image-resolution-upgrade");
+  if (!baseImage || !upgradeImage || !upgradeImage.classList.contains("is-visible")) return;
+
+  let settled = false;
+  const settle = async (loaded) => {
+    if (settled) return;
+    settled = true;
+    if (loaded && typeof baseImage.decode === "function") {
+      try {
+        await baseImage.decode();
+      } catch (_error) {
+        loaded = Boolean(baseImage.complete && baseImage.naturalWidth);
+      }
+    }
+    if (token !== state.singleImageResolutionUpgradeToken) return;
+
+    if (loaded && baseImage.naturalWidth > 0) {
+      baseImage.dataset.logicalSrc = canonicalSrc;
+      baseImage.dataset.loadedTier = CATALOG_IMAGE_TIER_FULL;
+      baseImage.dataset.loadedQuality = CATALOG_IMAGE_TIER_FULL;
+      syncImagePlaceholderState(baseImage);
+      upgradeImage.classList.remove("is-visible");
+      state.singleImageResolutionPromoteTimer = window.setTimeout(() => {
+        if (token !== state.singleImageResolutionUpgradeToken) return;
+        upgradeImage.removeAttribute("src");
+        delete upgradeImage.dataset.logicalSrc;
+        delete upgradeImage.dataset.loadedTier;
+        state.singleImageResolutionUpgradeKey = "";
+        state.singleImageResolutionUpgradeStop = null;
+        state.singleImageResolutionPromoteTimer = 0;
+      }, singleViewerResolutionCrossfadeMs());
+      return;
+    }
+
+    // The decoded overlay is already the full-quality visible layer. Keep it in
+    // place for this page rather than exposing a flash or a broken replacement.
+    baseImage.dataset.logicalSrc = canonicalSrc;
+    baseImage.dataset.loadedTier = CATALOG_IMAGE_TIER_FULL;
+    baseImage.dataset.loadedQuality = CATALOG_IMAGE_TIER_FULL;
+    state.singleImageResolutionUpgradeStop = null;
+  };
+
+  baseImage.addEventListener("load", () => { void settle(true); }, { once: true });
+  baseImage.addEventListener("error", () => { void settle(false); }, { once: true });
+  setCatalogImageSource(baseImage, loadedSrc);
+  if (baseImage.complete) queueMicrotask(() => { void settle(Boolean(baseImage.naturalWidth)); });
+}
+
+function requestSingleViewerResolutionUpgrade(options = {}) {
+  if (!catalogMediumImagesEnabled() || !isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
+  if (catalogImageTierRank(els.lightboxImage.dataset.loadedTier) >= catalogImageTierRank(CATALOG_IMAGE_TIER_FULL)) return false;
+
+  const targetTier = options.forceFull
+    ? CATALOG_IMAGE_TIER_FULL
+    : preferredViewerImageTier(state.catalog, state.page, options);
+  if (targetTier !== CATALOG_IMAGE_TIER_FULL) return false;
+
+  const request = viewerPageImageRequest(state.catalog, state.page, { forceFull: true });
+  const canonicalSrc = normalizeCatalogImageUrl(request.primarySrc);
+  if (!canonicalSrc) return false;
+
+  const key = singleViewerResolutionUpgradeKey(state.catalog, state.page, canonicalSrc);
+  if (state.singleImageResolutionUpgradeKey === key && state.singleImageResolutionUpgradeStop) return true;
+
+  clearSingleViewerResolutionUpgrade();
+  const token = state.singleImageResolutionUpgradeToken;
+  const catalog = state.catalog;
+  const page = state.page;
+  const upgradeImage = ensureSingleViewerResolutionUpgradeImage();
+  if (!upgradeImage) return false;
+
+  state.singleImageResolutionUpgradeKey = key;
+  upgradeImage.classList.remove("is-visible");
+  upgradeImage.fetchPriority = options.priority || "high";
+  upgradeImage.dataset.logicalSrc = canonicalSrc;
+
+  state.singleImageResolutionUpgradeStop = loadCatalogImageWithRecovery(upgradeImage, {
+    primarySrc: canonicalSrc,
+    primaryTier: CATALOG_IMAGE_TIER_FULL,
+    isCurrent: () => (
+      token === state.singleImageResolutionUpgradeToken
+      && isViewerSessionOpen()
+      && state.catalog === catalog
+      && state.page === page
+    ),
+    telemetryDetail: "viewer-resolution-upgrade",
+    onSuccess: async (candidate) => {
+      if (typeof upgradeImage.decode === "function") {
+        try {
+          await upgradeImage.decode();
+        } catch (_error) {
+          if (!upgradeImage.complete || !upgradeImage.naturalWidth) return;
+        }
+      }
+      if (
+        token !== state.singleImageResolutionUpgradeToken
+        || !isViewerSessionOpen()
+        || state.catalog !== catalog
+        || state.page !== page
+      ) return;
+
+      upgradeImage.dataset.loadedTier = CATALOG_IMAGE_TIER_FULL;
+      revealSingleViewerResolutionUpgrade(token, canonicalSrc, candidate.src);
+    },
+    onExhausted: () => {
+      if (token !== state.singleImageResolutionUpgradeToken) return;
+      clearSingleViewerResolutionUpgrade();
+    }
+  });
+  return true;
+}
+
+function syncSingleViewerResolutionForCurrentState(options = {}) {
+  if (!catalogMediumImagesEnabled() || !isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
+  const loadedTier = String(els.lightboxImage.dataset.loadedTier || "");
+  if (catalogImageTierRank(loadedTier) >= catalogImageTierRank(CATALOG_IMAGE_TIER_FULL)) return false;
+  return requestSingleViewerResolutionUpgrade(options);
+}
+
 function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!els.lightboxImage || !catalog) return;
 
@@ -327,13 +543,25 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   const primarySrc = normalizeCatalogImageUrl(src || request.primarySrc);
   if (!primarySrc) return;
   const currentLogicalSrc = image.dataset.logicalSrc || normalizeCatalogImageUrl(image.getAttribute("src") || "");
-  if (!options.forceRefresh && currentLogicalSrc === primarySrc && image.complete && image.naturalWidth && image.dataset.loadedQuality !== "fallback") {
+  const samePage = image.dataset.catalogId === String(catalog.id) && Number(image.dataset.page) === Number(page);
+  const loadedTier = String(image.dataset.loadedTier || "");
+  const currentTierIsSufficient = catalogImageTierRank(loadedTier) >= catalogImageTierRank(request.primaryTier);
+  if (
+    !options.forceRefresh
+    && samePage
+    && image.complete
+    && image.naturalWidth
+    && image.dataset.loadedQuality !== "fallback"
+    && (currentLogicalSrc === primarySrc || currentTierIsSufficient)
+  ) {
     applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
     setSingleViewerImageFeedback();
     finishSingleImageSwap(token);
+    syncSingleViewerResolutionForCurrentState({ reason: "page-already-ready" });
     return;
   }
 
+  clearSingleViewerResolutionUpgrade();
   setViewerLoading(true);
   els.lightboxImageFrame?.setAttribute("aria-busy", "true");
   setSingleViewerImageFeedback();
@@ -346,6 +574,8 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   image.decoding = "async";
   image.fetchPriority = "high";
   image.dataset.logicalSrc = primarySrc;
+  image.dataset.catalogId = String(catalog.id);
+  image.dataset.page = String(page);
 
   loadCatalogImageWithRecovery(image, {
     primarySrc,
@@ -374,6 +604,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
         setSingleViewerImageFeedback("fallback", "שכבת התמונה המועדפת לא נטענה. מוצגת חלופה מוקטנת; אפשר לנסות שוב.");
       } else {
         setSingleViewerImageFeedback();
+        syncSingleViewerResolutionForCurrentState({ reason: "page-ready" });
       }
     },
     onExhausted: () => {
@@ -636,7 +867,13 @@ function preferredViewerImageTier(catalog, page, options = {}) {
 }
 
 function viewerPageImageRequest(catalog, page, options = {}) {
-  const primaryTier = preferredViewerImageTier(catalog, page, options);
+  const targetTier = preferredViewerImageTier(catalog, page, options);
+  const progressiveMedium = Boolean(
+    options.progressive
+    && !options.forceFull
+    && catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)
+  );
+  const primaryTier = progressiveMedium ? CATALOG_IMAGE_TIER_MEDIUM : targetTier;
   const tierOrder = primaryTier === CATALOG_IMAGE_TIER_FULL
     ? [CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB]
     : [CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_THUMB];
@@ -648,6 +885,7 @@ function viewerPageImageRequest(catalog, page, options = {}) {
   return {
     primarySrc: primary.src,
     primaryTier: primary.tier,
+    targetTier,
     fallbackCandidates: candidates.slice(1).map((candidate, index) => ({
       ...candidate,
       role: `fallback-${index + 1}`
@@ -668,15 +906,16 @@ function catalogImageTierRank(tier) {
 
 function refreshSingleViewerImageResolution(options = {}) {
   if (!isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
-  const request = viewerPageImageRequest(state.catalog, state.page, options);
-  const currentSrc = normalizeCatalogImageUrl(els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src") || "");
-  const nextSrc = normalizeCatalogImageUrl(request.primarySrc);
+  const targetTier = preferredViewerImageTier(state.catalog, state.page, options);
   const loadedTier = String(els.lightboxImage.dataset.loadedTier || "");
-  if (currentSrc === nextSrc) return false;
-  if (catalogImageTierRank(loadedTier) > catalogImageTierRank(request.primaryTier)) return false;
+  if (catalogImageTierRank(loadedTier) >= catalogImageTierRank(targetTier)) return false;
+  if (targetTier !== CATALOG_IMAGE_TIER_FULL) return false;
 
-  showSingleLightboxImage(state.catalog, state.page, request.primarySrc, { imageRequest: request });
-  return true;
+  return requestSingleViewerResolutionUpgrade({
+    ...options,
+    forceFull: true,
+    reason: options.reason || "resolution-refresh"
+  });
 }
 
 function catalogCoverSrc(catalog) {

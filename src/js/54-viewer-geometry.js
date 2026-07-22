@@ -456,6 +456,13 @@ function setZoom(nextZoom, options = {}) {
   } = options;
   const previousZoom = state.zoom;
   const zoom = clampViewerZoom(nextZoom);
+  if (zoom > VIEWER_FULL_RESOLUTION_PRELOAD_ZOOM_THRESHOLD) {
+    requestSingleViewerResolutionUpgrade({
+      forceFull: true,
+      priority: "high",
+      reason: "zoom-intent"
+    });
+  }
   const hasFocal = Number.isFinite(focalClientX) && Number.isFinite(focalClientY);
   const focal = hasFocal
     ? { x: focalClientX, y: focalClientY }
