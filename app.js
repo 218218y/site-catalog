@@ -334,6 +334,7 @@ const CATALOG_EAGER_COVER_COUNT = 2;
 const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
 const CATALOG_ASSET_VERSION_PARAM = "v";
 const CATALOG_ASSET_URL_SCHEMA_VERSION = 2;
+const IMAGE_PLACEHOLDER_POLICY_PRESERVE_FRAME = "preserve-frame";
 
 const boundEventFeatures = new Set();
 
@@ -1372,6 +1373,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
   const candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options);
   const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
   const telemetryDetail = telemetryCleanText(options.telemetryDetail, 40);
+  const managePlaceholder = options.managePlaceholder !== false;
   let index = 0;
   let stopped = false;
   let failedAttempts = 0;
@@ -1397,16 +1399,18 @@ function loadCatalogImageWithRecovery(img, options = {}) {
 
     const candidate = candidates[index++];
     lastCandidate = candidate;
-    img.dataset.imageLoadPending = "true";
-    prepareImagePlaceholder(img);
+    if (managePlaceholder) {
+      img.dataset.imageLoadPending = "true";
+      prepareImagePlaceholder(img);
+    }
     let settled = false;
     const settle = (loaded) => {
       if (settled) return;
       settled = true;
-      delete img.dataset.imageLoadPending;
+      if (managePlaceholder) delete img.dataset.imageLoadPending;
       if (stopped || !isCurrent() || img.getAttribute("src") !== candidate.src) return;
       if (loaded && img.naturalWidth > 0) {
-        syncImagePlaceholderState(img);
+        if (managePlaceholder) syncImagePlaceholderState(img);
         if (telemetryDetail && failedAttempts > 0) {
           telemetryTrackImageRecovery(candidate.src, {
             img,
@@ -1550,6 +1554,7 @@ function ensureSingleViewerResolutionUpgradeImage() {
   image.alt = "";
   image.draggable = false;
   image.decoding = "async";
+  image.dataset.placeholderPolicy = IMAGE_PLACEHOLDER_POLICY_PRESERVE_FRAME;
   image.setAttribute("aria-hidden", "true");
   applyCatalogImageCrossOrigin(image);
   frame.appendChild(image);
@@ -1566,9 +1571,15 @@ function clearSingleViewerResolutionUpgrade() {
   window.clearTimeout(state.singleImageResolutionPromoteTimer);
   state.singleImageResolutionPromoteTimer = 0;
 
+  if (els.lightboxImage?.dataset.placeholderPolicy === IMAGE_PLACEHOLDER_POLICY_PRESERVE_FRAME) {
+    delete els.lightboxImage.dataset.placeholderPolicy;
+    syncImagePlaceholderState(els.lightboxImage);
+  }
+
   const image = els.lightboxImageFrame?.querySelector?.(".lightbox-image-resolution-upgrade");
   if (!image) return;
   image.classList.remove("is-visible");
+  delete image.dataset.imageLoadPending;
   delete image.dataset.logicalSrc;
   delete image.dataset.loadedTier;
   image.removeAttribute("src");
@@ -1582,6 +1593,13 @@ function singleViewerResolutionCrossfadeMs() {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
     ? 0
     : VIEWER_RESOLUTION_CROSSFADE_MS;
+}
+
+function keepSingleViewerPlaceholderReady() {
+  const frame = els.lightboxImageFrame;
+  if (!frame) return;
+  frame.classList.add("image-placeholder-frame", "image-ready");
+  frame.classList.remove("image-loading", "image-error");
 }
 
 function revealSingleViewerResolutionUpgrade(token, canonicalSrc, loadedSrc) {
@@ -1655,7 +1673,7 @@ function finishSingleViewerResolutionPromotion(token, canonicalSrc, loadedSrc) {
       baseImage.dataset.logicalSrc = canonicalSrc;
       baseImage.dataset.loadedTier = CATALOG_IMAGE_TIER_FULL;
       baseImage.dataset.loadedQuality = CATALOG_IMAGE_TIER_FULL;
-      syncImagePlaceholderState(baseImage);
+      keepSingleViewerPlaceholderReady();
       upgradeImage.classList.remove("is-visible");
       state.singleImageResolutionPromoteTimer = window.setTimeout(() => {
         if (token !== state.singleImageResolutionUpgradeToken) return;
@@ -1674,9 +1692,11 @@ function finishSingleViewerResolutionPromotion(token, canonicalSrc, loadedSrc) {
     baseImage.dataset.logicalSrc = canonicalSrc;
     baseImage.dataset.loadedTier = CATALOG_IMAGE_TIER_FULL;
     baseImage.dataset.loadedQuality = CATALOG_IMAGE_TIER_FULL;
+    keepSingleViewerPlaceholderReady();
     state.singleImageResolutionUpgradeStop = null;
   };
 
+  baseImage.dataset.placeholderPolicy = IMAGE_PLACEHOLDER_POLICY_PRESERVE_FRAME;
   baseImage.addEventListener("load", () => { void settle(true); }, { once: true });
   baseImage.addEventListener("error", () => { void settle(false); }, { once: true });
   setCatalogImageSource(baseImage, loadedSrc);
@@ -1721,6 +1741,7 @@ function requestSingleViewerResolutionUpgrade(options = {}) {
       && state.page === page
     ),
     telemetryDetail: "viewer-resolution-upgrade",
+    managePlaceholder: false,
     onSuccess: async (candidate) => {
       if (typeof upgradeImage.decode === "function") {
         try {
@@ -2309,6 +2330,7 @@ const IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
 ].join(", ");
 
 function imagePlaceholderFrame(img) {
+  if (img?.dataset?.placeholderPolicy === IMAGE_PLACEHOLDER_POLICY_PRESERVE_FRAME) return null;
   return img?.closest?.(IMAGE_PLACEHOLDER_FRAME_SELECTOR) || null;
 }
 
