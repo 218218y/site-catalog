@@ -176,4 +176,8 @@ const responsiveRequest = createRequestApi(true)(requestCatalog, 1, { zoom: 1 })
 assert.equal(responsiveRequest.primaryTier, 'medium');
 assert.deepEqual(responsiveRequest.fallbackCandidates.map((candidate) => candidate.tier), ['full', 'thumb']);
 
+const zoomedResponsiveRequest = createRequestApi(true)(requestCatalog, 1, { zoom: 2 });
+assert.equal(zoomedResponsiveRequest.primaryTier, 'full', 'manual zoom above the threshold must request full resolution');
+assert.deepEqual(zoomedResponsiveRequest.fallbackCandidates.map((candidate) => candidate.tier), ['medium', 'thumb']);
+
 console.log('catalog_image_delivery_mode_logic.test.js: PASS');

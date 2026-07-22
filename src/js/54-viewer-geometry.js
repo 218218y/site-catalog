@@ -424,8 +424,22 @@ function getSingleContentPointFromClientPoint(clientX, clientY) {
   };
 }
 
+function finalizeSingleViewerZoomChange(previousZoom, options = {}) {
+  const { showUi = true } = options;
+  applyZoom();
+
+  if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
+    showViewerZoomIndicator(state.zoom);
+  }
+  refreshSingleViewerImageResolution({
+    warmFull: shouldWarmSingleViewerFullResolution(previousZoom)
+  });
+  if (showUi) showTopUiTemporarily(1600);
+}
+
 function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   if (!point) return false;
+  const previousZoom = state.zoom;
   const zoom = clampViewerZoom(nextZoom);
   if (isAutoViewerZoom(zoom)) {
     setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
@@ -436,8 +450,7 @@ function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   state.zoom = zoom;
   state.panX = -point.x * zoom;
   state.panY = -point.y * zoom;
-  applyZoom();
-  showViewerZoomIndicator(zoom);
+  finalizeSingleViewerZoomChange(previousZoom, { showUi: false });
   return true;
 }
 
@@ -471,15 +484,7 @@ function setZoom(nextZoom, options = {}) {
     }
     state.zoom = zoom;
   }
-  applyZoom();
-
-  if (Math.abs(getSafeViewerZoom(state.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
-    showViewerZoomIndicator(state.zoom);
-  }
-  refreshSingleViewerImageResolution({
-    warmFull: shouldWarmSingleViewerFullResolution(previousZoom)
-  });
-  if (showUi) showTopUiTemporarily(1600);
+  finalizeSingleViewerZoomChange(previousZoom, { showUi });
 }
 
 function toggleZoomAtPoint(clientX, clientY) {
