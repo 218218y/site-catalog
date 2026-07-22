@@ -39,7 +39,7 @@ assert.doesNotMatch(stateSource, /viewerPageWheelLocked|viewerPageWheelUnlockTim
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?classList\.add\("viewer-layout-paged"\)/);
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?lightboxImageFrame\?\.classList\.remove\("hidden"\)/);
 assert.doesNotMatch(viewerSource, /renderViewerScrollPages|loadViewerScrollWindow|handleViewerScrollPagesScroll/);
-assert.match(viewerSource, /const request = viewerPageImageRequest\(catalog, state\.page\);[\s\S]*?showSingleLightboxImage/);
+assert.match(viewerSource, /const preserveFullResolutionTier = !isAutoViewerZoom\(\)[\s\S]*?const request = viewerPageImageRequest\(catalog, state\.page, \{[\s\S]*?forceFull: preserveFullResolutionTier[\s\S]*?showSingleLightboxImage/);
 assert.match(viewerSource, /function moveLightbox\(delta, options = \{\}\)[\s\S]*?setFavoriteViewerIndex\(state\.favoritesViewerIndex \+ delta, options\)[\s\S]*?setLightboxPage\(state\.page \+ delta, options\)/);
 
 assert.match(geometry, /function captureSingleImageRelativePosition\(\)/);

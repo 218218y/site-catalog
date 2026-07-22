@@ -4302,13 +4302,18 @@ a.reader-home:focus-visible {
   user-select: none;
   cursor: grab;
 }
-.lightbox-image-frame .lightbox-image {
-  position: static;
+.lightbox-image-frame > .lightbox-image:not(.lightbox-image-resolution) {
+  position: absolute;
+  inset: 0;
+  display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   max-width: none;
   max-height: none;
+  margin: 0;
   transform: none;
+  object-fit: contain;
+  object-position: center center;
   border-radius: inherit;
   background: #fff;
   box-shadow: none;
@@ -6684,9 +6689,15 @@ body[data-page="viewer"] {
 }
 
 .image-placeholder-frame > img:not([data-placeholder-ignore="true"]) {
-  position: relative;
   z-index: 2;
   transition: opacity var(--motion-standard) ease, filter var(--motion-standard) ease;
+}
+
+/* Card/media placeholders may establish their image as a positioned stacking
+   layer. The viewer frame owns both image layers itself and must never inherit
+   a relative 50% offset from the legacy standalone .lightbox-image contract. */
+.image-placeholder-frame:not(.lightbox-image-frame) > img:not([data-placeholder-ignore="true"]) {
+  position: relative;
 }
 
 .image-placeholder-frame.image-loading:not(.image-ready) > img:not([data-placeholder-ignore="true"]) {

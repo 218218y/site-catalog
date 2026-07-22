@@ -42,6 +42,8 @@ assert.match(single, /fallbackCandidates: request\.fallbackCandidates/);
 assert.match(single, /image\.dataset\.loadedTier/);
 assert.match(single, /telemetryDetail: "viewer-single"/);
 assert.match(single, /const preserveCurrentImage = Boolean\(/);
+assert.match(single, /retainSingleViewerResolutionLayerForSwap\(\)/);
+assert.match(single, /releaseSingleViewerRetainedResolutionLayer\(\)/);
 assert.match(single, /image\.dataset\.placeholderIgnore = "true"/);
 assert.match(single, /prepareCatalogImage\(primarySrc, \{ priority: "high", detail: "viewer-page-stage" \}\)/);
 assert.match(single, /\.catch\(\(\) => null\)[\s\S]*?\.then\(commitImageRequest\)/);
@@ -59,6 +61,8 @@ assert.match(css, /\.lightbox\.is-page-loading \.lightbox-image-frame\s*\{[\s\S]
 assert.match(app, /function prepareSingleViewerResolutionUpgrade\(/);
 assert.match(app, /telemetryDetail: "viewer-resolution-upgrade"/);
 assert.match(app, /activeSingleViewerImageLogicalSrc\(\)/);
+assert.match(css, /\.lightbox-image-frame > \.lightbox-image:not\(\.lightbox-image-resolution\)\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?display:\s*block;[\s\S]*?width:\s*100%;[\s\S]*?height:\s*100%;/);
+assert.match(css, /\.image-placeholder-frame:not\(\.lightbox-image-frame\) > img:not\(\[data-placeholder-ignore=\"true\"\]\)\s*\{[\s\S]*?position:\s*relative;/);
 assert.match(css, /\.lightbox-image-frame \.lightbox-image-resolution/);
 assert.match(css, /\.lightbox-image-frame\.is-resolution-upgrade-ready \.lightbox-image-resolution/);
 

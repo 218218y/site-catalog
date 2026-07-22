@@ -80,9 +80,15 @@
 }
 
 .image-placeholder-frame > img:not([data-placeholder-ignore="true"]) {
-  position: relative;
   z-index: 2;
   transition: opacity var(--motion-standard) ease, filter var(--motion-standard) ease;
+}
+
+/* Card/media placeholders may establish their image as a positioned stacking
+   layer. The viewer frame owns both image layers itself and must never inherit
+   a relative 50% offset from the legacy standalone .lightbox-image contract. */
+.image-placeholder-frame:not(.lightbox-image-frame) > img:not([data-placeholder-ignore="true"]) {
+  position: relative;
 }
 
 .image-placeholder-frame.image-loading:not(.image-ready) > img:not([data-placeholder-ignore="true"]) {

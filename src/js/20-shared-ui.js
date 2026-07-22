@@ -337,15 +337,65 @@ function clearSingleViewerResolutionUpgrade() {
   state.singleImageResolutionReady = false;
   state.singleImageResolutionVisible = false;
   state.singleImageResolutionCommitPending = false;
+  state.singleImageResolutionRetainedForSwap = false;
   els.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready");
 
   const image = state.singleImageResolutionImage;
   if (!image) return;
   image.removeAttribute("src");
+  delete image.dataset.resolutionRetainedForSwap;
   delete image.dataset.logicalSrc;
   delete image.dataset.loadedTier;
   delete image.dataset.loadedQuality;
   delete image.dataset.imageLoadPending;
+}
+
+function retainSingleViewerResolutionLayerForSwap() {
+  const image = state.singleImageResolutionImage;
+  if (state.singleImageResolutionRetainedForSwap) {
+    return Boolean(image?.isConnected && image.naturalWidth > 0);
+  }
+  if (
+    !state.singleImageResolutionVisible
+    || !state.singleImageResolutionReady
+    || !image?.isConnected
+    || image.naturalWidth <= 0
+  ) {
+    return false;
+  }
+
+  // Freeze the already-decoded high-resolution layer as the visual front buffer.
+  // Its ownership metadata is retired immediately, so it cannot be mistaken for
+  // the target page, but its pixels remain painted until the next page is decoded.
+  state.singleImageResolutionLoadToken += 1;
+  state.singleImageResolutionStop?.();
+  state.singleImageResolutionStop = null;
+  state.singleImageResolutionTargetSrc = "";
+  state.singleImageResolutionTargetTier = "";
+  state.singleImageResolutionReady = false;
+  state.singleImageResolutionVisible = false;
+  state.singleImageResolutionCommitPending = false;
+  state.singleImageResolutionRetainedForSwap = true;
+  image.dataset.resolutionRetainedForSwap = "true";
+  els.lightboxImageFrame?.classList.remove("is-resolution-loading");
+  els.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready");
+  return true;
+}
+
+function releaseSingleViewerRetainedResolutionLayer() {
+  if (!state.singleImageResolutionRetainedForSwap) return false;
+  state.singleImageResolutionRetainedForSwap = false;
+  els.lightboxImageFrame?.classList.remove("is-resolution-upgrade-ready");
+
+  const image = state.singleImageResolutionImage;
+  if (!image) return true;
+  image.removeAttribute("src");
+  delete image.dataset.resolutionRetainedForSwap;
+  delete image.dataset.logicalSrc;
+  delete image.dataset.loadedTier;
+  delete image.dataset.loadedQuality;
+  delete image.dataset.imageLoadPending;
+  return true;
 }
 
 function activeSingleViewerImageLogicalSrc() {
@@ -356,6 +406,7 @@ function activeSingleViewerImageLogicalSrc() {
 }
 
 function activeSingleViewerImageTier() {
+  if (state.singleImageResolutionRetainedForSwap) return CATALOG_IMAGE_TIER_FULL;
   if (state.singleImageResolutionVisible && state.singleImageResolutionTargetTier) {
     return state.singleImageResolutionTargetTier;
   }
@@ -501,7 +552,9 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
     && image.naturalWidth > 0
     && !els.lightboxImageFrame?.classList.contains("image-terminal-error")
   );
-  clearSingleViewerResolutionUpgrade();
+  const retainedResolutionLayer = preserveCurrentImage
+    && retainSingleViewerResolutionLayerForSwap();
+  if (!retainedResolutionLayer) clearSingleViewerResolutionUpgrade();
   setViewerLoading(true);
   els.lightboxImageFrame?.setAttribute("aria-busy", "true");
   setSingleViewerImageFeedback();
@@ -546,6 +599,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
         if (image.naturalWidth && image.naturalHeight) {
           applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
         }
+        releaseSingleViewerRetainedResolutionLayer();
         finishSingleImageSwap(token);
         els.lightboxImageFrame?.setAttribute("aria-busy", "false");
         runSingleImageSwapAnimation();
@@ -559,6 +613,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
         delete image.dataset.placeholderIgnore;
         delete image.dataset.loadedTier;
         delete image.dataset.loadedQuality;
+        releaseSingleViewerRetainedResolutionLayer();
         finishSingleImageSwap(token);
         els.lightboxImageFrame?.setAttribute("aria-busy", "false");
         els.lightboxImageFrame?.classList.add("image-terminal-error");
@@ -860,6 +915,7 @@ function catalogImageTierRank(tier) {
 
 function refreshSingleViewerImageResolution(options = {}) {
   if (!isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
+  if (state.singleImageResolutionRetainedForSwap) return false;
   const request = viewerPageImageRequest(state.catalog, state.page, options);
 
   if (options.warmFull && request.primaryTier !== CATALOG_IMAGE_TIER_FULL) {

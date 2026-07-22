@@ -51,7 +51,11 @@ function updateLightbox(options = {}) {
   syncViewerFavoriteButtonUi();
   if (!favoriteEntries) initLightboxSearchStatus();
 
-  const request = viewerPageImageRequest(catalog, state.page);
+  const preserveFullResolutionTier = !isAutoViewerZoom()
+    && activeSingleViewerImageTier() === CATALOG_IMAGE_TIER_FULL;
+  const request = viewerPageImageRequest(catalog, state.page, {
+    forceFull: preserveFullResolutionTier
+  });
   const src = request.primarySrc;
   const currentSrc = activeSingleViewerImageLogicalSrc();
   if (currentSrc !== src) {

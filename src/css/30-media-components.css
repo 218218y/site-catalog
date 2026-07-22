@@ -142,13 +142,18 @@
   user-select: none;
   cursor: grab;
 }
-.lightbox-image-frame .lightbox-image {
-  position: static;
+.lightbox-image-frame > .lightbox-image:not(.lightbox-image-resolution) {
+  position: absolute;
+  inset: 0;
+  display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   max-width: none;
   max-height: none;
+  margin: 0;
   transform: none;
+  object-fit: contain;
+  object-position: center center;
   border-radius: inherit;
   background: #fff;
   box-shadow: none;

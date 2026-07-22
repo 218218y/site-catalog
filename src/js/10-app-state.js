@@ -149,6 +149,7 @@ const state = {
   singleImageResolutionReady: false,
   singleImageResolutionVisible: false,
   singleImageResolutionCommitPending: false,
+  singleImageResolutionRetainedForSwap: false,
   viewerPageWheelAccumulator: 0,
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,
