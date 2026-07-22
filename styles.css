@@ -4313,20 +4313,6 @@ a.reader-home:focus-visible {
   background: #fff;
   box-shadow: none;
 }
-.lightbox-image-frame .lightbox-image-resolution-upgrade {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms ease-out;
-}
-.lightbox-image-frame .lightbox-image-resolution-upgrade.is-visible {
-  opacity: 1;
-}
 .lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
 
 .lightbox.is-page-loading .lightbox-image-frame {
@@ -4336,12 +4322,6 @@ a.reader-home:focus-visible {
 .lightbox-image-frame,
 .lightbox-image-frame .lightbox-image {
   backface-visibility: hidden;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lightbox-image-frame .lightbox-image-resolution-upgrade {
-    transition: none;
-  }
 }
 /* ===== END SOURCE: src/css/30-media-components.css ===== */
 

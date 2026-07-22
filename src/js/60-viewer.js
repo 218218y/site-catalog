@@ -51,7 +51,7 @@ function updateLightbox(options = {}) {
   syncViewerFavoriteButtonUi();
   if (!favoriteEntries) initLightboxSearchStatus();
 
-  const request = viewerPageImageRequest(catalog, state.page, { progressive: true });
+  const request = viewerPageImageRequest(catalog, state.page);
   const src = request.primarySrc;
   const currentSrc = els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src");
   if (currentSrc !== src) {
@@ -60,7 +60,6 @@ function updateLightbox(options = {}) {
     setViewerLoading(false);
     els.lightbox?.classList.remove("is-page-loading");
     applyZoom();
-    syncSingleViewerResolutionForCurrentState({ reason: "page-reused" });
   }
 
   updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
@@ -112,16 +111,8 @@ function openLightbox(page = 1, options = {}) {
   transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox");
   telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
-  const initialRequest = viewerPageImageRequest(state.catalog, state.page, { progressive: true });
-  const initialSrc = initialRequest.primarySrc;
-  const initialImageReady = Boolean(
-    els.lightboxImage?.complete
-    && els.lightboxImage?.naturalWidth
-    && els.lightboxImage?.dataset.catalogId === String(state.catalog.id)
-    && Number(els.lightboxImage?.dataset.page) === Number(state.page)
-    && catalogImageTierRank(els.lightboxImage?.dataset.loadedTier) >= catalogImageTierRank(initialRequest.primaryTier)
-  );
-  if (!initialImageReady && els.lightboxImage?.getAttribute("src") !== initialSrc) {
+  const initialSrc = viewerPageSrc(state.catalog, state.page);
+  if (els.lightboxImage?.getAttribute("src") !== initialSrc) {
     els.lightboxImage?.removeAttribute("src");
     prepareImagePlaceholder(els.lightboxImage);
     els.lightboxImageFrame?.classList.remove("page-swap-enter");
@@ -150,7 +141,6 @@ function hideLightboxUi() {
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
-  clearSingleViewerResolutionUpgrade();
   clearViewerPageWheelGesture();
   clearSingleImagePendingPosition();
   window.clearTimeout(state.singleImageAnimationTimer);

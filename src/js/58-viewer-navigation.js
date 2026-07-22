@@ -8,7 +8,7 @@
 
 function retryCurrentViewerImage() {
   if (!isViewerSessionOpen() || !state.catalog) return;
-  const request = viewerPageImageRequest(state.catalog, state.page, { progressive: true });
+  const request = viewerPageImageRequest(state.catalog, state.page);
   showSingleLightboxImage(state.catalog, state.page, request.primarySrc, {
     imageRequest: request,
     forceRefresh: true

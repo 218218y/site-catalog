@@ -148,16 +148,6 @@ assert.equal(fullOnlyRequest.fallbackCandidates.some((candidate) => candidate.sr
 
 const responsiveRequest = createRequestApi(true)(requestCatalog, 1, { zoom: 1 });
 assert.equal(responsiveRequest.primaryTier, 'medium');
-assert.equal(responsiveRequest.targetTier, 'medium');
 assert.deepEqual(responsiveRequest.fallbackCandidates.map((candidate) => candidate.tier), ['full', 'thumb']);
-
-const responsiveZoomRequest = createRequestApi(true)(requestCatalog, 1, { zoom: 2 });
-assert.equal(responsiveZoomRequest.primaryTier, 'full');
-assert.equal(responsiveZoomRequest.targetTier, 'full');
-
-const progressiveZoomRequest = createRequestApi(true)(requestCatalog, 1, { zoom: 2, progressive: true });
-assert.equal(progressiveZoomRequest.primaryTier, 'medium');
-assert.equal(progressiveZoomRequest.targetTier, 'full');
-assert.deepEqual(progressiveZoomRequest.fallbackCandidates.map((candidate) => candidate.tier), ['full', 'thumb']);
 
 console.log('catalog_image_delivery_mode_logic.test.js: PASS');

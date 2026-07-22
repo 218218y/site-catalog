@@ -51,7 +51,6 @@ function refreshLightboxLayoutForTopUiChange(options = {}) {
   }
 
   applyZoom();
-  refreshSingleViewerImageResolution({ reason: "layout-change" });
 
 }
 

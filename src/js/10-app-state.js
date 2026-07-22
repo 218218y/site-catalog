@@ -32,9 +32,7 @@ const CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE = "responsive";
 const CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY = "full-only";
 const DEFAULT_CATALOG_MEDIUM_MAX_SIDE = 1600;
 const VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35;
-const VIEWER_FULL_RESOLUTION_PRELOAD_ZOOM_THRESHOLD = 1.01;
 const VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96;
-const VIEWER_RESOLUTION_CROSSFADE_MS = 160;
 const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
 const VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_SHARE_PARAM = "selection";
@@ -142,11 +140,6 @@ const state = {
   viewerInquiryContext: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
-  singleImageResolutionUpgradeToken: 0,
-  singleImageResolutionUpgradeKey: "",
-  singleImageResolutionUpgradeStop: null,
-  singleImageResolutionWaitCleanup: null,
-  singleImageResolutionPromoteTimer: 0,
   viewerPageWheelAccumulator: 0,
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,

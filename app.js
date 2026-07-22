@@ -294,9 +294,7 @@ const CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE = "responsive";
 const CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY = "full-only";
 const DEFAULT_CATALOG_MEDIUM_MAX_SIDE = 1600;
 const VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35;
-const VIEWER_FULL_RESOLUTION_PRELOAD_ZOOM_THRESHOLD = 1.01;
 const VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96;
-const VIEWER_RESOLUTION_CROSSFADE_MS = 160;
 const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
 const VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_SHARE_PARAM = "selection";
@@ -404,11 +402,6 @@ const state = {
   viewerInquiryContext: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
-  singleImageResolutionUpgradeToken: 0,
-  singleImageResolutionUpgradeKey: "",
-  singleImageResolutionUpgradeStop: null,
-  singleImageResolutionWaitCleanup: null,
-  singleImageResolutionPromoteTimer: 0,
   viewerPageWheelAccumulator: 0,
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,
@@ -1538,222 +1531,6 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
   if (mode !== "error") els.lightboxImageFrame?.classList.remove("image-terminal-error");
 }
 
-function ensureSingleViewerResolutionUpgradeImage() {
-  const frame = els.lightboxImageFrame;
-  if (!frame) return null;
-
-  let image = frame.querySelector(".lightbox-image-resolution-upgrade");
-  if (image) return image;
-
-  image = new Image();
-  image.className = "lightbox-image lightbox-image-resolution-upgrade";
-  image.alt = "";
-  image.draggable = false;
-  image.decoding = "async";
-  image.setAttribute("aria-hidden", "true");
-  applyCatalogImageCrossOrigin(image);
-  frame.appendChild(image);
-  return image;
-}
-
-function clearSingleViewerResolutionUpgrade() {
-  state.singleImageResolutionUpgradeToken += 1;
-  state.singleImageResolutionUpgradeStop?.();
-  state.singleImageResolutionUpgradeStop = null;
-  state.singleImageResolutionWaitCleanup?.();
-  state.singleImageResolutionWaitCleanup = null;
-  state.singleImageResolutionUpgradeKey = "";
-  window.clearTimeout(state.singleImageResolutionPromoteTimer);
-  state.singleImageResolutionPromoteTimer = 0;
-
-  const image = els.lightboxImageFrame?.querySelector?.(".lightbox-image-resolution-upgrade");
-  if (!image) return;
-  image.classList.remove("is-visible");
-  delete image.dataset.logicalSrc;
-  delete image.dataset.loadedTier;
-  image.removeAttribute("src");
-}
-
-function singleViewerResolutionUpgradeKey(catalog, page, src) {
-  return `${String(catalog?.id || "catalog")}:${Number(page) || 1}:${normalizeCatalogImageUrl(src)}`;
-}
-
-function singleViewerResolutionCrossfadeMs() {
-  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
-    ? 0
-    : VIEWER_RESOLUTION_CROSSFADE_MS;
-}
-
-function revealSingleViewerResolutionUpgrade(token, canonicalSrc, loadedSrc) {
-  if (token !== state.singleImageResolutionUpgradeToken) return;
-  const baseImage = els.lightboxImage;
-  const upgradeImage = els.lightboxImageFrame?.querySelector?.(".lightbox-image-resolution-upgrade");
-  if (!baseImage || !upgradeImage) return;
-
-  const samePage = (
-    baseImage.dataset.catalogId === String(state.catalog?.id || "")
-    && Number(baseImage.dataset.page) === Number(state.page)
-  );
-  const loadedTier = String(baseImage.dataset.loadedTier || "");
-  if (samePage && catalogImageTierRank(loadedTier) >= catalogImageTierRank(CATALOG_IMAGE_TIER_FULL)) {
-    clearSingleViewerResolutionUpgrade();
-    return;
-  }
-
-  const baseReady = Boolean(
-    samePage
-    && baseImage.complete
-    && baseImage.naturalWidth
-    && loadedTier
-    && !els.lightboxImageFrame?.classList.contains("is-preparing-swap")
-  );
-  if (!baseReady) {
-    state.singleImageResolutionWaitCleanup?.();
-    const handleBaseReady = () => {
-      state.singleImageResolutionWaitCleanup?.();
-      state.singleImageResolutionWaitCleanup = null;
-      queueMicrotask(() => revealSingleViewerResolutionUpgrade(token, canonicalSrc, loadedSrc));
-    };
-    baseImage.addEventListener("load", handleBaseReady, { once: true });
-    state.singleImageResolutionWaitCleanup = () => {
-      baseImage.removeEventListener("load", handleBaseReady);
-    };
-    return;
-  }
-
-  state.singleImageResolutionWaitCleanup?.();
-  state.singleImageResolutionWaitCleanup = null;
-  window.requestAnimationFrame(() => {
-    if (token !== state.singleImageResolutionUpgradeToken) return;
-    upgradeImage.classList.add("is-visible");
-    state.singleImageResolutionPromoteTimer = window.setTimeout(() => {
-      finishSingleViewerResolutionPromotion(token, canonicalSrc, loadedSrc);
-    }, singleViewerResolutionCrossfadeMs());
-  });
-}
-
-function finishSingleViewerResolutionPromotion(token, canonicalSrc, loadedSrc) {
-  if (token !== state.singleImageResolutionUpgradeToken) return;
-  const baseImage = els.lightboxImage;
-  const upgradeImage = els.lightboxImageFrame?.querySelector?.(".lightbox-image-resolution-upgrade");
-  if (!baseImage || !upgradeImage || !upgradeImage.classList.contains("is-visible")) return;
-
-  let settled = false;
-  const settle = async (loaded) => {
-    if (settled) return;
-    settled = true;
-    if (loaded && typeof baseImage.decode === "function") {
-      try {
-        await baseImage.decode();
-      } catch (_error) {
-        loaded = Boolean(baseImage.complete && baseImage.naturalWidth);
-      }
-    }
-    if (token !== state.singleImageResolutionUpgradeToken) return;
-
-    if (loaded && baseImage.naturalWidth > 0) {
-      baseImage.dataset.logicalSrc = canonicalSrc;
-      baseImage.dataset.loadedTier = CATALOG_IMAGE_TIER_FULL;
-      baseImage.dataset.loadedQuality = CATALOG_IMAGE_TIER_FULL;
-      syncImagePlaceholderState(baseImage);
-      upgradeImage.classList.remove("is-visible");
-      state.singleImageResolutionPromoteTimer = window.setTimeout(() => {
-        if (token !== state.singleImageResolutionUpgradeToken) return;
-        upgradeImage.removeAttribute("src");
-        delete upgradeImage.dataset.logicalSrc;
-        delete upgradeImage.dataset.loadedTier;
-        state.singleImageResolutionUpgradeKey = "";
-        state.singleImageResolutionUpgradeStop = null;
-        state.singleImageResolutionPromoteTimer = 0;
-      }, singleViewerResolutionCrossfadeMs());
-      return;
-    }
-
-    // The decoded overlay is already the full-quality visible layer. Keep it in
-    // place for this page rather than exposing a flash or a broken replacement.
-    baseImage.dataset.logicalSrc = canonicalSrc;
-    baseImage.dataset.loadedTier = CATALOG_IMAGE_TIER_FULL;
-    baseImage.dataset.loadedQuality = CATALOG_IMAGE_TIER_FULL;
-    state.singleImageResolutionUpgradeStop = null;
-  };
-
-  baseImage.addEventListener("load", () => { void settle(true); }, { once: true });
-  baseImage.addEventListener("error", () => { void settle(false); }, { once: true });
-  setCatalogImageSource(baseImage, loadedSrc);
-  if (baseImage.complete) queueMicrotask(() => { void settle(Boolean(baseImage.naturalWidth)); });
-}
-
-function requestSingleViewerResolutionUpgrade(options = {}) {
-  if (!catalogMediumImagesEnabled() || !isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
-  if (catalogImageTierRank(els.lightboxImage.dataset.loadedTier) >= catalogImageTierRank(CATALOG_IMAGE_TIER_FULL)) return false;
-
-  const targetTier = options.forceFull
-    ? CATALOG_IMAGE_TIER_FULL
-    : preferredViewerImageTier(state.catalog, state.page, options);
-  if (targetTier !== CATALOG_IMAGE_TIER_FULL) return false;
-
-  const request = viewerPageImageRequest(state.catalog, state.page, { forceFull: true });
-  const canonicalSrc = normalizeCatalogImageUrl(request.primarySrc);
-  if (!canonicalSrc) return false;
-
-  const key = singleViewerResolutionUpgradeKey(state.catalog, state.page, canonicalSrc);
-  if (state.singleImageResolutionUpgradeKey === key && state.singleImageResolutionUpgradeStop) return true;
-
-  clearSingleViewerResolutionUpgrade();
-  const token = state.singleImageResolutionUpgradeToken;
-  const catalog = state.catalog;
-  const page = state.page;
-  const upgradeImage = ensureSingleViewerResolutionUpgradeImage();
-  if (!upgradeImage) return false;
-
-  state.singleImageResolutionUpgradeKey = key;
-  upgradeImage.classList.remove("is-visible");
-  upgradeImage.fetchPriority = options.priority || "high";
-  upgradeImage.dataset.logicalSrc = canonicalSrc;
-
-  state.singleImageResolutionUpgradeStop = loadCatalogImageWithRecovery(upgradeImage, {
-    primarySrc: canonicalSrc,
-    primaryTier: CATALOG_IMAGE_TIER_FULL,
-    isCurrent: () => (
-      token === state.singleImageResolutionUpgradeToken
-      && isViewerSessionOpen()
-      && state.catalog === catalog
-      && state.page === page
-    ),
-    telemetryDetail: "viewer-resolution-upgrade",
-    onSuccess: async (candidate) => {
-      if (typeof upgradeImage.decode === "function") {
-        try {
-          await upgradeImage.decode();
-        } catch (_error) {
-          if (!upgradeImage.complete || !upgradeImage.naturalWidth) return;
-        }
-      }
-      if (
-        token !== state.singleImageResolutionUpgradeToken
-        || !isViewerSessionOpen()
-        || state.catalog !== catalog
-        || state.page !== page
-      ) return;
-
-      upgradeImage.dataset.loadedTier = CATALOG_IMAGE_TIER_FULL;
-      revealSingleViewerResolutionUpgrade(token, canonicalSrc, candidate.src);
-    },
-    onExhausted: () => {
-      if (token !== state.singleImageResolutionUpgradeToken) return;
-      clearSingleViewerResolutionUpgrade();
-    }
-  });
-  return true;
-}
-
-function syncSingleViewerResolutionForCurrentState(options = {}) {
-  if (!catalogMediumImagesEnabled() || !isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
-  const loadedTier = String(els.lightboxImage.dataset.loadedTier || "");
-  if (catalogImageTierRank(loadedTier) >= catalogImageTierRank(CATALOG_IMAGE_TIER_FULL)) return false;
-  return requestSingleViewerResolutionUpgrade(options);
-}
-
 function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!els.lightboxImage || !catalog) return;
 
@@ -1765,25 +1542,13 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   const primarySrc = normalizeCatalogImageUrl(src || request.primarySrc);
   if (!primarySrc) return;
   const currentLogicalSrc = image.dataset.logicalSrc || normalizeCatalogImageUrl(image.getAttribute("src") || "");
-  const samePage = image.dataset.catalogId === String(catalog.id) && Number(image.dataset.page) === Number(page);
-  const loadedTier = String(image.dataset.loadedTier || "");
-  const currentTierIsSufficient = catalogImageTierRank(loadedTier) >= catalogImageTierRank(request.primaryTier);
-  if (
-    !options.forceRefresh
-    && samePage
-    && image.complete
-    && image.naturalWidth
-    && image.dataset.loadedQuality !== "fallback"
-    && (currentLogicalSrc === primarySrc || currentTierIsSufficient)
-  ) {
+  if (!options.forceRefresh && currentLogicalSrc === primarySrc && image.complete && image.naturalWidth && image.dataset.loadedQuality !== "fallback") {
     applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
     setSingleViewerImageFeedback();
     finishSingleImageSwap(token);
-    syncSingleViewerResolutionForCurrentState({ reason: "page-already-ready" });
     return;
   }
 
-  clearSingleViewerResolutionUpgrade();
   setViewerLoading(true);
   els.lightboxImageFrame?.setAttribute("aria-busy", "true");
   setSingleViewerImageFeedback();
@@ -1796,8 +1561,6 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   image.decoding = "async";
   image.fetchPriority = "high";
   image.dataset.logicalSrc = primarySrc;
-  image.dataset.catalogId = String(catalog.id);
-  image.dataset.page = String(page);
 
   loadCatalogImageWithRecovery(image, {
     primarySrc,
@@ -1826,7 +1589,6 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
         setSingleViewerImageFeedback("fallback", "שכבת התמונה המועדפת לא נטענה. מוצגת חלופה מוקטנת; אפשר לנסות שוב.");
       } else {
         setSingleViewerImageFeedback();
-        syncSingleViewerResolutionForCurrentState({ reason: "page-ready" });
       }
     },
     onExhausted: () => {
@@ -2089,13 +1851,7 @@ function preferredViewerImageTier(catalog, page, options = {}) {
 }
 
 function viewerPageImageRequest(catalog, page, options = {}) {
-  const targetTier = preferredViewerImageTier(catalog, page, options);
-  const progressiveMedium = Boolean(
-    options.progressive
-    && !options.forceFull
-    && catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)
-  );
-  const primaryTier = progressiveMedium ? CATALOG_IMAGE_TIER_MEDIUM : targetTier;
+  const primaryTier = preferredViewerImageTier(catalog, page, options);
   const tierOrder = primaryTier === CATALOG_IMAGE_TIER_FULL
     ? [CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB]
     : [CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_THUMB];
@@ -2107,7 +1863,6 @@ function viewerPageImageRequest(catalog, page, options = {}) {
   return {
     primarySrc: primary.src,
     primaryTier: primary.tier,
-    targetTier,
     fallbackCandidates: candidates.slice(1).map((candidate, index) => ({
       ...candidate,
       role: `fallback-${index + 1}`
@@ -2128,16 +1883,15 @@ function catalogImageTierRank(tier) {
 
 function refreshSingleViewerImageResolution(options = {}) {
   if (!isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
-  const targetTier = preferredViewerImageTier(state.catalog, state.page, options);
+  const request = viewerPageImageRequest(state.catalog, state.page, options);
+  const currentSrc = normalizeCatalogImageUrl(els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src") || "");
+  const nextSrc = normalizeCatalogImageUrl(request.primarySrc);
   const loadedTier = String(els.lightboxImage.dataset.loadedTier || "");
-  if (catalogImageTierRank(loadedTier) >= catalogImageTierRank(targetTier)) return false;
-  if (targetTier !== CATALOG_IMAGE_TIER_FULL) return false;
+  if (currentSrc === nextSrc) return false;
+  if (catalogImageTierRank(loadedTier) > catalogImageTierRank(request.primaryTier)) return false;
 
-  return requestSingleViewerResolutionUpgrade({
-    ...options,
-    forceFull: true,
-    reason: options.reason || "resolution-refresh"
-  });
+  showSingleLightboxImage(state.catalog, state.page, request.primarySrc, { imageRequest: request });
+  return true;
 }
 
 function catalogCoverSrc(catalog) {
@@ -6577,13 +6331,6 @@ function setZoom(nextZoom, options = {}) {
   } = options;
   const previousZoom = state.zoom;
   const zoom = clampViewerZoom(nextZoom);
-  if (zoom > VIEWER_FULL_RESOLUTION_PRELOAD_ZOOM_THRESHOLD) {
-    requestSingleViewerResolutionUpgrade({
-      forceFull: true,
-      priority: "high",
-      reason: "zoom-intent"
-    });
-  }
   const hasFocal = Number.isFinite(focalClientX) && Number.isFinite(focalClientY);
   const focal = hasFocal
     ? { x: focalClientX, y: focalClientY }
@@ -6674,7 +6421,6 @@ function refreshLightboxLayoutForTopUiChange(options = {}) {
   }
 
   applyZoom();
-  refreshSingleViewerImageResolution({ reason: "layout-change" });
 
 }
 
@@ -7397,7 +7143,7 @@ function syncViewerLayoutModeUi() {
 
 function retryCurrentViewerImage() {
   if (!isViewerSessionOpen() || !state.catalog) return;
-  const request = viewerPageImageRequest(state.catalog, state.page, { progressive: true });
+  const request = viewerPageImageRequest(state.catalog, state.page);
   showSingleLightboxImage(state.catalog, state.page, request.primarySrc, {
     imageRequest: request,
     forceRefresh: true
@@ -7641,7 +7387,7 @@ function updateLightbox(options = {}) {
   syncViewerFavoriteButtonUi();
   if (!favoriteEntries) initLightboxSearchStatus();
 
-  const request = viewerPageImageRequest(catalog, state.page, { progressive: true });
+  const request = viewerPageImageRequest(catalog, state.page);
   const src = request.primarySrc;
   const currentSrc = els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src");
   if (currentSrc !== src) {
@@ -7650,7 +7396,6 @@ function updateLightbox(options = {}) {
     setViewerLoading(false);
     els.lightbox?.classList.remove("is-page-loading");
     applyZoom();
-    syncSingleViewerResolutionForCurrentState({ reason: "page-reused" });
   }
 
   updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
@@ -7702,16 +7447,8 @@ function openLightbox(page = 1, options = {}) {
   transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox");
   telemetryTrackCatalogOpen(state.catalog, state.page, state.lightboxSource);
   primeLightboxFrameForCatalogPage(state.catalog, state.page);
-  const initialRequest = viewerPageImageRequest(state.catalog, state.page, { progressive: true });
-  const initialSrc = initialRequest.primarySrc;
-  const initialImageReady = Boolean(
-    els.lightboxImage?.complete
-    && els.lightboxImage?.naturalWidth
-    && els.lightboxImage?.dataset.catalogId === String(state.catalog.id)
-    && Number(els.lightboxImage?.dataset.page) === Number(state.page)
-    && catalogImageTierRank(els.lightboxImage?.dataset.loadedTier) >= catalogImageTierRank(initialRequest.primaryTier)
-  );
-  if (!initialImageReady && els.lightboxImage?.getAttribute("src") !== initialSrc) {
+  const initialSrc = viewerPageSrc(state.catalog, state.page);
+  if (els.lightboxImage?.getAttribute("src") !== initialSrc) {
     els.lightboxImage?.removeAttribute("src");
     prepareImagePlaceholder(els.lightboxImage);
     els.lightboxImageFrame?.classList.remove("page-swap-enter");
@@ -7740,7 +7477,6 @@ function hideLightboxUi() {
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
-  clearSingleViewerResolutionUpgrade();
   clearViewerPageWheelGesture();
   clearSingleImagePendingPosition();
   window.clearTimeout(state.singleImageAnimationTimer);
