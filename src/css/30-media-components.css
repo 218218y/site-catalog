@@ -156,7 +156,8 @@
 .lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
 
 .lightbox.is-page-loading .lightbox-image-frame {
-  filter: brightness(.92);
+  /* Keep loading feedback perceptible without making the current page flash dark. */
+  filter: brightness(.97);
 }
 
 .lightbox-image-frame,

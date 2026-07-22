@@ -981,7 +981,10 @@ function renderCatalogDetail() {
 
 function preloadNeighbors() {
   if (!state.catalog) return;
-  const radius = catalogNeighborPreloadRadius();
+  const preferredTier = preferredViewerImageTier(state.catalog, state.page);
+  const preloadFull = preferredTier === CATALOG_IMAGE_TIER_FULL;
+  const radius = preloadFull ? 1 : catalogNeighborPreloadRadius();
+  const requestOptions = preloadFull ? { forceFull: true } : { preferMedium: true };
   if (radius < 1) return;
 
   if (isFavoritesLightboxMode()) {
@@ -994,7 +997,7 @@ function preloadNeighbors() {
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
         const entry = entries[index];
-        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, { preferMedium: true }), { priority: "low" }).catch(() => {});
+        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, requestOptions), { priority: "low" }).catch(() => {});
       });
     return;
   }
@@ -1006,7 +1009,7 @@ function preloadNeighbors() {
   ))
     .filter((page) => page >= 1 && page <= state.catalog.pages)
     .forEach((page) => {
-      prepareCatalogImage(viewerPageSrc(state.catalog, page, { preferMedium: true }), { priority: "low" }).catch(() => {});
+      prepareCatalogImage(viewerPageSrc(state.catalog, page, requestOptions), { priority: "low" }).catch(() => {});
     });
 }
 

@@ -50,6 +50,32 @@ assert.equal(createModeApi('responsive', { effectiveType: '3g' }).catalogNeighbo
 assert.equal(createModeApi('responsive', { saveData: true }).catalogNeighborPreloadRadius(), 1);
 assert.equal(createModeApi('unknown').catalogImageDeliveryMode(), 'responsive');
 
+const warmupSource = sourceBetween(
+  'function shouldWarmSingleViewerFullResolution(previousZoom = state.zoom)',
+  'function commitSingleViewerResolutionUpgrade'
+);
+function createWarmupApi({ zoom = 1, saveData = false, effectiveType = '4g' } = {}) {
+  return new Function(
+    'state',
+    'isSaveDataEnabled',
+    'networkEffectiveType',
+    'AUTO_VIEWER_ZOOM',
+    'VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON',
+    `${warmupSource}; return shouldWarmSingleViewerFullResolution;`
+  )(
+    { zoom },
+    () => saveData,
+    () => effectiveType,
+    1,
+    0.01
+  );
+}
+assert.equal(createWarmupApi({ zoom: 1.02 })(1), true);
+assert.equal(createWarmupApi({ zoom: 1.005 })(1), false);
+assert.equal(createWarmupApi({ zoom: 1.2 })(1.25), false);
+assert.equal(createWarmupApi({ zoom: 1.2, saveData: true })(1), false);
+assert.equal(createWarmupApi({ zoom: 1.2, effectiveType: '3g' })(1), false);
+
 const variantSource = sourceBetween(
   'function catalogImageVariant(catalog, tier)',
   'function catalogSupportsImageTier(catalog, tier)'

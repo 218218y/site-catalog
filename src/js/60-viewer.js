@@ -8,7 +8,7 @@
 
 function updateLightbox(options = {}) {
   if (!state.catalog) return;
-  const { thumbScrollIntoView = true } = options;
+  const { thumbScrollIntoView = true, preserveCurrentImage = false } = options;
   let favoriteEntries = null;
 
   if (isFavoritesLightboxMode()) {
@@ -53,9 +53,9 @@ function updateLightbox(options = {}) {
 
   const request = viewerPageImageRequest(catalog, state.page);
   const src = request.primarySrc;
-  const currentSrc = els.lightboxImage.dataset.logicalSrc || els.lightboxImage.getAttribute("src");
+  const currentSrc = activeSingleViewerImageLogicalSrc();
   if (currentSrc !== src) {
-    showSingleLightboxImage(catalog, state.page, src, { imageRequest: request });
+    showSingleLightboxImage(catalog, state.page, src, { imageRequest: request, preserveCurrentImage });
   } else {
     setViewerLoading(false);
     els.lightbox?.classList.remove("is-page-loading");
@@ -143,6 +143,7 @@ function hideLightboxUi() {
   state.singleImageLoadToken += 1;
   clearViewerPageWheelGesture();
   clearSingleImagePendingPosition();
+  clearSingleViewerResolutionUpgrade();
   window.clearTimeout(state.singleImageAnimationTimer);
   els.lightbox?.classList.add("hidden");
   els.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed");
@@ -214,10 +215,18 @@ function setLightboxPage(page, options = {}) {
   }
 
   if (!preservePointerInteraction) state.pointers.clear();
+  const previousCatalog = state.catalog;
+  const previousPage = state.page;
   state.page = nextPage;
-  const geometryPrimed = primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  const preserveCurrentGeometry = Boolean(
+    els.lightboxImage?.complete
+    && els.lightboxImage.naturalWidth > 0
+    && catalogPagesShareAspectRatio(previousCatalog, previousPage, state.catalog, state.page)
+  );
+  const geometryPrimed = !preserveCurrentGeometry
+    && primeLightboxFrameForCatalogPage(state.catalog, state.page);
   if (geometryPrimed) applyZoom();
-  updateLightbox({ thumbScrollIntoView });
+  updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
 }
 
 function setFavoriteViewerIndex(index, options = {}) {
@@ -263,10 +272,18 @@ function setFavoriteViewerIndex(index, options = {}) {
   }
   if (!preservePointerInteraction) state.pointers.clear();
 
+  const previousCatalog = state.catalog;
+  const previousPage = state.page;
   setFavoriteViewerEntry(entries, nextIndex);
-  const geometryPrimed = primeLightboxFrameForCatalogPage(state.catalog, state.page);
+  const preserveCurrentGeometry = Boolean(
+    els.lightboxImage?.complete
+    && els.lightboxImage.naturalWidth > 0
+    && catalogPagesShareAspectRatio(previousCatalog, previousPage, state.catalog, state.page)
+  );
+  const geometryPrimed = !preserveCurrentGeometry
+    && primeLightboxFrameForCatalogPage(state.catalog, state.page);
   if (geometryPrimed) applyZoom();
-  updateLightbox({ thumbScrollIntoView });
+  updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
 }
 
 function moveLightbox(delta, options = {}) {

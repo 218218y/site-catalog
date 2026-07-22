@@ -51,6 +51,7 @@ function refreshLightboxLayoutForTopUiChange(options = {}) {
   }
 
   applyZoom();
+  refreshSingleViewerImageResolution();
 
 }
 
@@ -504,7 +505,10 @@ function setViewerFitMode(fitMode, options = {}) {
   }
 
   syncViewerFitModeUi();
-  if (refreshLayout) applyZoom();
+  if (refreshLayout) {
+    applyZoom();
+    refreshSingleViewerImageResolution();
+  }
   if (showUi) showTopUiTemporarily(1600);
 }
 

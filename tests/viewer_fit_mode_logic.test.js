@@ -60,6 +60,7 @@ const context = {
   resetImagePosition() {},
   syncViewerFitModeUi() {},
   applyZoom() {},
+  refreshSingleViewerImageResolution() {},
   showTopUiTemporarily() {}
 };
 
