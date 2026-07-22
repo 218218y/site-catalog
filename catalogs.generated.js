@@ -10,19 +10,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/opening-tbi-2026",
     "cover": "assets/pages/opening-tbi-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "7fa6b2e9380e",
+    "assetVersion": "37a9721ff2c2",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "4cccc907ddc2"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "90541c9dcd02"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "ee8b19cdb6d6"
       }
     },
     "pageSizes": [
@@ -186,19 +189,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/opening-fredi-2026",
     "cover": "assets/pages/opening-fredi-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "59f97a21ff13",
+    "assetVersion": "d1f6f29497be",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "24826770f2d2"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "b4422743f075"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "717dcd70bd91"
       }
     },
     "pageSizes": [
@@ -638,19 +644,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/sliding-tbi-2026",
     "cover": "assets/pages/sliding-tbi-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "2ed424033021",
+    "assetVersion": "6af2fb718f87",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "ff034f7b96bc"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "f35c9203c772"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "111610e204ec"
       }
     },
     "pageSizes": [
@@ -814,19 +823,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/kids-tbi-2026",
     "cover": "assets/pages/kids-tbi-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "2ca07cedf735",
+    "assetVersion": "c00dea59694e",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "6c3c225cce5f"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "7cb7b7849fdb"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "68e455cea6af"
       }
     },
     "pageSizes": [
@@ -974,19 +986,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/kids-fredi-2026",
     "cover": "assets/pages/kids-fredi-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "7f5634578502",
+    "assetVersion": "9cec8b5aadbb",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "21c98ff212b0"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "e4c106d4ccb9"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "96a5644b5b7d"
       }
     },
     "pageSizes": [
@@ -1154,19 +1169,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/beds-birch-2026",
     "cover": "assets/pages/beds-birch-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "4efd71024fda",
+    "assetVersion": "115ceac5a81e",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "ee62e5946ee7"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "88c17814238f"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "dbd5ce17e152"
       }
     },
     "pageSizes": [
@@ -1370,19 +1388,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/hi-riser-qualita-2026",
     "cover": "assets/pages/hi-riser-qualita-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "261acd7b9116",
+    "assetVersion": "333f9db6d2d4",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "b8aab6f181c6"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "bdcc27bfbe70"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "67d86bfef5ef"
       }
     },
     "pageSizes": [
@@ -1474,19 +1495,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/hi-riser-comfort-2026",
     "cover": "assets/pages/hi-riser-comfort-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "89e99c62e234",
+    "assetVersion": "ae5407d91312",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "3a85f246b01d"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "5fc72f741d1d"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "30387939a285"
       }
     },
     "pageSizes": [
@@ -1742,19 +1766,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/hi-riser-perfect-2026",
     "cover": "assets/pages/hi-riser-perfect-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "8adac7274845",
+    "assetVersion": "860107e6ab0f",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "c640a645ae34"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "cac737d291b8"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "deddde9e00b5"
       }
     },
     "pageSizes": [
@@ -1838,19 +1865,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/kachtan-2026",
     "cover": "assets/pages/kachtan-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "f870af26d236",
+    "assetVersion": "f74f9f10bab7",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "60f834f9cb30"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "c6baf4abd2fe"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "7cabe89c2a87"
       }
     },
     "pageSizes": [
@@ -2022,19 +2052,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/custom-upholstered",
     "cover": "assets/pages/custom-upholstered/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "c21822170030",
+    "assetVersion": "50529c4d763a",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "9bc2b72c0192"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "f8738e7713ff"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "056c27f35dfd"
       }
     },
     "pageSizes": [
@@ -2158,19 +2191,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/bedrooms-upholstered-fredi",
     "cover": "assets/pages/bedrooms-upholstered-fredi/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "bc4a90ee172c",
+    "assetVersion": "df82993266ff",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "df06d60bc564"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "fd289739f23e"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "fbb0e846e09a"
       }
     },
     "pageSizes": [
@@ -2406,19 +2442,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/bedrooms-tbi-2026",
     "cover": "assets/pages/bedrooms-tbi-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "ff2fd490019a",
+    "assetVersion": "220135789c89",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "afde77fa5b4b"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "e5af5a80d1da"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "9734122aa4e9"
       }
     },
     "pageSizes": [
@@ -2534,19 +2573,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/bedrooms-guber-gallery",
     "cover": "assets/pages/bedrooms-guber-gallery/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "c003fc55846f",
+    "assetVersion": "4feb2ac72a4a",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "618f23d15be4"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "cfc41c02a199"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "c5a350e221de"
       }
     },
     "pageSizes": [
@@ -2878,19 +2920,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/libraries-tbi-2026",
     "cover": "assets/pages/libraries-tbi-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "0bebf986e18b",
+    "assetVersion": "cb969e1802d0",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "7c4a55020935"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "1851363028e9"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "62130b58d7fa"
       }
     },
     "pageSizes": [
@@ -3014,19 +3059,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/libraries-fredi-2026",
     "cover": "assets/pages/libraries-fredi-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "e6b4b6cc0b02",
+    "assetVersion": "f5433e2d01c8",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
-        "maxSide": 420
+        "maxSide": 420,
+        "version": "ffa71faa00bc"
       },
       "medium": {
         "directory": "medium",
-        "maxSide": 1600
+        "maxSide": 1600,
+        "version": "9c4c5d92d72f"
       },
       "full": {
         "directory": "",
-        "maxSide": 2800
+        "maxSide": 2800,
+        "version": "f21ae56b94bb"
       }
     },
     "pageSizes": [
