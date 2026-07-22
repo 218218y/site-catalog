@@ -66,6 +66,12 @@ const VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36;
 const VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144;
 const VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330;
 const VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75;
+const VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0.08;
+const VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS = 2.6;
+const VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 0.0048;
+const VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS = 34;
+const VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS = 80;
+const VIEWER_TOUCH_VELOCITY_BLEND = 0.45;
 const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
 const CATALOG_EAGER_COVER_COUNT = 2;
 const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
@@ -115,6 +121,10 @@ const state = {
   pointerGestureHadMultiplePointers: false,
   pointerGestureConsumedPan: false,
   pointers: new Map(),
+  viewerTouchMomentumRaf: 0,
+  viewerTouchMomentumVelocityX: 0,
+  viewerTouchMomentumVelocityY: 0,
+  viewerTouchMomentumLastTime: 0,
   viewerPhase: VIEWER_PHASE_CLOSED,
   viewerPhaseReason: "initial",
   viewerFullscreenPhase: VIEWER_FULLSCREEN_INACTIVE,

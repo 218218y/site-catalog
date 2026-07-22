@@ -31,8 +31,11 @@ assert.match(stateSource, /const VIEWER_PAGE_WHEEL_SETTLE_MS = 150;/);
 assert.match(stateSource, /const VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0\.36;/);
 assert.match(stateSource, /const VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144;/);
 assert.match(stateSource, /const VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330;/);
+assert.match(stateSource, /const VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0\.08;/);
+assert.match(stateSource, /const VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 0\.0048;/);
 assert.match(stateSource, /singleImagePendingRelativePosition: null/);
 assert.match(stateSource, /singleImagePendingPageTurnOrigin: null/);
+assert.match(stateSource, /viewerTouchMomentumRaf: 0/);
 assert.match(stateSource, /viewerPageWheelAccumulator: 0/);
 assert.doesNotMatch(stateSource, /viewerPageWheelLocked|viewerPageWheelUnlockTimer|singlePageTurnPointerId/);
 
@@ -59,6 +62,8 @@ assert.match(geometry, /getSafeViewerZoom\(\) > AUTO_VIEWER_ZOOM \+ 0\.001 \|\| 
 assert.match(navigation, /function normalizeViewerPageWheelDeltas\(event\)/);
 assert.match(navigation, /function getViewerPageWheelRequestedSteps\(accumulator\)/);
 assert.match(navigation, /function consumeSingleViewerBoundaryInput\(deltaX = 0, deltaY = 0, options = \{\}\)/);
+assert.match(navigation, /function getSingleViewerPageTurnIntent[\s\S]*?const remaining = result\.remainingDeltaY;[\s\S]*?axis: "y"/);
+assert.doesNotMatch(navigation, /remainingDeltaX[\s\S]{0,240}page-turn intent/);
 assert.match(navigation, /function moveLightboxFromPageTurn\(direction, axis = "y", options = \{\}\)[\s\S]*?keepZoom: true[\s\S]*?positionMode: "page-turn"[\s\S]*?preservePointerInteraction/);
 assert.match(navigation, /if \(singleViewerUsesBoundaryPan\(\)\)[\s\S]*?consumeSingleViewerBoundaryInput\(deltaX, deltaY\)/);
 assert.doesNotMatch(navigation, /viewerPageWheelLocked|keepViewerPageWheelLockedUntilSettle|unlockViewerPageWheel/);
@@ -72,6 +77,12 @@ assert.match(input, /function handleViewerPageSwipe\(event, startedX, startedY\)
 assert.match(input, /const direction = horizontal[\s\S]*?dx > 0 \? 1 : -1[\s\S]*?dy < 0 \? 1 : -1/);
 assert.match(input, /positionMode: "page-turn"/);
 assert.match(input, /state\.pointerGestureConsumedPan/);
+assert.match(input, /function getViewerPointerMoveSamples\(event\)/);
+assert.match(input, /getCoalescedEvents\(\)/);
+assert.match(input, /function startViewerTouchMomentum\(velocityX, velocityY\)/);
+assert.match(input, /function runViewerTouchMomentumFrame\(timestamp\)/);
+assert.match(input, /Math\.exp\(-VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS \* elapsed\)/);
+assert.match(input, /if \(pan\.handled\) state\.pointerGestureConsumedPan = true;/);
 assert.match(input, /function captureViewerPointer\(surface, pointerId\)/);
 assert.match(input, /function releaseViewerPointerCapture\(surface, pointerId\)/);
 assert.match(input, /hasPointerCapture\(pointerId\)/);

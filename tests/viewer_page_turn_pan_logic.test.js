@@ -167,8 +167,8 @@ assert.deepEqual(
 );
 assert.deepEqual(
   navigationApi.getSingleViewerPageTurnIntent({ remainingDeltaX: -12, remainingDeltaY: 0 }, -20, 1),
-  { axis: 'x', direction: 1 },
-  'RTL horizontal intent maps leftward wheel remainder to the next page'
+  null,
+  'horizontal black-buffer overflow is a terminal pan boundary and never turns a zoomed page'
 );
 assert.equal(navigationApi.moveLightboxFromPageTurn(1, 'y'), true);
 assert.deepEqual(moveCalls[0], [1, {
@@ -193,6 +193,11 @@ const boundarySlice = sourceBetween(
   'function settleViewerPageWheelGesture()'
 );
 const boundaryMoveCalls = [];
+let boundaryPanResult = {
+  moved: true,
+  remainingDeltaX: 0,
+  remainingDeltaY: 18
+};
 const boundaryApi = new Function(
   'VIEWER_PAGE_TURN_REMAINDER_EPSILON',
   'canMoveLightbox',
@@ -203,11 +208,7 @@ const boundaryApi = new Function(
   0.75,
   () => true,
   (...args) => boundaryMoveCalls.push(args),
-  () => ({
-    moved: true,
-    remainingDeltaX: 0,
-    remainingDeltaY: 18
-  })
+  () => boundaryPanResult
 );
 const boundaryResult = boundaryApi.consumeSingleViewerBoundaryInput(0, 40, { pointerId: 91 });
 assert.equal(boundaryResult.turned, true);
@@ -218,6 +219,16 @@ assert.deepEqual(boundaryMoveCalls[0], [1, {
   pageTurnAxis: 'y',
   preservePointerInteraction: true
 }], 'a touch edge turn must preserve the live pointer stream on the next image');
+
+boundaryPanResult = {
+  moved: false,
+  remainingDeltaX: 18,
+  remainingDeltaY: 0
+};
+const horizontalBoundaryResult = boundaryApi.consumeSingleViewerBoundaryInput(40, 0, { pointerId: 92 });
+assert.equal(horizontalBoundaryResult.turned, false);
+assert.equal(horizontalBoundaryResult.intent, null);
+assert.equal(boundaryMoveCalls.length, 1, 'horizontal boundary overflow must stop without issuing another page command');
 
 const wheelHandlerStart = navigationSource.indexOf('function handleViewerPageWheel(event)');
 assert.notEqual(wheelHandlerStart, -1, 'Missing handleViewerPageWheel');

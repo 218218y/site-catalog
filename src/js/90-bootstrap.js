@@ -81,6 +81,10 @@ function attachShellEvents() {
     const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
     if (isTyping) return;
 
+    if (["ArrowDown", "PageDown", "ArrowUp", "PageUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) {
+      stopViewerTouchMomentum();
+    }
+
     if (["ArrowDown", "PageDown"].includes(event.key)) {
       event.preventDefault();
       moveLightbox(1);

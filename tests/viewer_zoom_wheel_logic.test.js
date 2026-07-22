@@ -57,12 +57,14 @@ assert.ok(fastMouseIn < 1.41, 'even a combined large wheel event must remain bou
 
 let prevented = 0;
 let stopped = 0;
+let momentumStops = 0;
 const zoomCalls = [];
 const state = { viewerPhase: 'open', zoom: 1 };
 const handleZoomSurfaceWheel = new Function(
   'state',
   'isViewerSessionOpen',
   'isActiveZoomSurface',
+  'stopViewerTouchMomentum',
   'getWheelZoomFactor',
   'setZoom',
   `${wheelHandlerSource}; return handleZoomSurfaceWheel;`
@@ -70,6 +72,7 @@ const handleZoomSurfaceWheel = new Function(
   state,
   () => state.viewerPhase === 'open',
   () => true,
+  () => { momentumStops += 1; },
   getWheelZoomFactor,
   (...args) => zoomCalls.push(args)
 );
@@ -88,6 +91,7 @@ handleZoomSurfaceWheel({
 
 assert.equal(prevented, 1, 'browser page zoom must be suppressed');
 assert.equal(stopped, 1, 'nested viewer surfaces must not process the same wheel event twice');
+assert.equal(momentumStops, 1, 'wheel input must cancel any active touch inertia first');
 assert.equal(zoomCalls.length, 1, 'one physical wheel event must produce one zoom update');
 assert.ok(zoomCalls[0][0] > 1.11 && zoomCalls[0][0] < 1.13);
 assert.deepEqual(zoomCalls[0][1], {

@@ -104,6 +104,7 @@ function openLightbox(page = 1, options = {}) {
   state.imageFitMode = viewerUsesAutomaticFitMode()
     ? getAutomaticViewerFitMode()
     : normalizeViewerFitMode(state.imageFitMode);
+  stopViewerTouchMomentum();
   clearViewerPageWheelGesture();
   state.page = clampPage(page, state.catalog);
   state.zoom = AUTO_VIEWER_ZOOM;
@@ -145,6 +146,7 @@ function hideLightboxUi() {
   state.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
   state.singleImageLoadToken += 1;
+  stopViewerTouchMomentum();
   clearViewerPageWheelGesture();
   clearSingleImagePendingPosition();
   clearSingleViewerResolutionUpgrade();

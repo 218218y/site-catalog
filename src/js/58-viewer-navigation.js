@@ -93,14 +93,15 @@ function getViewerPageWheelRequestedSteps(accumulator) {
 
 function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
   if (!result) return null;
-  const preferVertical = Math.abs(deltaY) >= Math.abs(deltaX);
-  const axis = preferVertical ? "y" : "x";
-  const remaining = axis === "y" ? result.remainingDeltaY : result.remainingDeltaX;
+  // A zoomed/pannable image may expose the same black safety buffer on both
+  // axes, but only vertical reading intent is allowed to turn the page. The
+  // horizontal buffer is a terminal pan boundary, not another navigation rail.
+  const remaining = result.remainingDeltaY;
   if (Math.abs(remaining) <= VIEWER_PAGE_TURN_REMAINDER_EPSILON) return null;
 
   return {
-    axis,
-    direction: axis === "y" ? Math.sign(remaining) : -Math.sign(remaining)
+    axis: "y",
+    direction: Math.sign(remaining)
   };
 }
 
