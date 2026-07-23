@@ -2571,22 +2571,22 @@
     "dir": "assets/pages/bedrooms-guber-gallery",
     "cover": "assets/pages/bedrooms-guber-gallery/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "4feb2ac72a4a",
+    "assetVersion": "f54534169594",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
         "maxSide": 420,
-        "version": "618f23d15be4"
+        "version": "b4045a4fa3d2"
       },
       "medium": {
         "directory": "medium",
         "maxSide": 1600,
-        "version": "cfc41c02a199"
+        "version": "6176e16fff67"
       },
       "full": {
         "directory": "",
         "maxSide": 2800,
-        "version": "c5a350e221de"
+        "version": "25e496c2d32b"
       }
     },
     "pageSizes": [
@@ -2780,7 +2780,7 @@
       ],
       [
         2800,
-        1985
+        1981
       ],
       [
         2800,
