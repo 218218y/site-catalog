@@ -150,7 +150,7 @@
     "category": "פינות אוכל",
     "subcategory": "",
     "pdf": "assets/pdfs/roya-2026.pdf",
-    "ocr": true
+    "ocr": false
   },
   {
     "id": "cocktail-2026",
