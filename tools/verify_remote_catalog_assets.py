@@ -12,6 +12,7 @@ import argparse
 import concurrent.futures
 import json
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,7 +25,13 @@ from catalog_image_policy import load_catalog_image_delivery_mode, runtime_uses_
 DEFAULT_BASE_URL = "https://cdn.bargig-furniture.com/"
 DEFAULT_TIMEOUT = 12.0
 DEFAULT_WORKERS = 12
+DEFAULT_RETRIES = 3
+DEFAULT_RETRY_WORKERS = 4
+DEFAULT_RETRY_DELAY = 0.5
+DEFAULT_MAX_TOLERATED_TRANSIENT_FAILURES = 50
+DEFAULT_MAX_TOLERATED_TRANSIENT_RATIO = 0.02
 CATALOG_ASSET_URL_SCHEMA_VERSION = 2
+TRANSIENT_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -40,6 +47,36 @@ class AssetCheckResult:
     ok: bool
     reason: str = ""
     status: int = 0
+
+
+def is_transient_failure(result: AssetCheckResult) -> bool:
+    if result.ok:
+        return False
+    if result.status in TRANSIENT_HTTP_STATUSES:
+        return True
+    return result.reason.startswith("network error:")
+
+
+def split_failures(
+    failures: Iterable[AssetCheckResult],
+) -> tuple[list[AssetCheckResult], list[AssetCheckResult]]:
+    hard: list[AssetCheckResult] = []
+    transient: list[AssetCheckResult] = []
+    for failure in failures:
+        (transient if is_transient_failure(failure) else hard).append(failure)
+    return hard, transient
+
+
+def can_tolerate_transient_failures(
+    total: int,
+    failures: Sequence[AssetCheckResult],
+    *,
+    max_failures: int = DEFAULT_MAX_TOLERATED_TRANSIENT_FAILURES,
+    max_ratio: float = DEFAULT_MAX_TOLERATED_TRANSIENT_RATIO,
+) -> bool:
+    if total <= 0 or not failures:
+        return False
+    return len(failures) <= max(0, int(max_failures)) and (len(failures) / total) <= max(0.0, float(max_ratio))
 
 
 def project_root() -> Path:
@@ -215,6 +252,10 @@ def verify_remote_assets(
     checker: Callable[[str, float], AssetCheckResult] = check_asset,
     versioned: bool = False,
     include_medium: bool = True,
+    retries: int = DEFAULT_RETRIES,
+    retry_workers: int = DEFAULT_RETRY_WORKERS,
+    retry_delay: float = DEFAULT_RETRY_DELAY,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> tuple[int, list[AssetCheckResult]]:
     urls = build_asset_urls(
         catalogs,
@@ -222,18 +263,37 @@ def verify_remote_assets(
         versioned=versioned,
         include_medium=include_medium,
     )
-    failures: list[AssetCheckResult] = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
-        futures = {executor.submit(checker, url, timeout): url for url in urls}
-        for future in concurrent.futures.as_completed(futures):
-            url = futures[future]
-            try:
-                result = future.result()
-            except Exception as exc:  # Publication must fail closed on checker defects.
-                result = AssetCheckResult(url, False, f"verification error: {exc}")
-            if not result.ok:
-                failures.append(result)
-    failures.sort(key=lambda item: item.url)
+    results: dict[str, AssetCheckResult] = {}
+
+    def run_checks(target_urls: Sequence[str], worker_count: int) -> None:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, worker_count)) as executor:
+            futures = {executor.submit(checker, url, timeout): url for url in target_urls}
+            for future in concurrent.futures.as_completed(futures):
+                url = futures[future]
+                try:
+                    result = future.result()
+                except Exception as exc:  # Publication must fail closed on checker defects.
+                    result = AssetCheckResult(url, False, f"verification error: {exc}")
+                results[url] = result
+
+    run_checks(urls, workers)
+
+    retry_count = max(0, int(retries))
+    for retry_index in range(retry_count):
+        retry_urls = sorted(
+            url for url, result in results.items() if is_transient_failure(result)
+        )
+        if not retry_urls:
+            break
+        delay = max(0.0, float(retry_delay)) * (2 ** retry_index)
+        if delay:
+            sleeper(delay)
+        run_checks(retry_urls, min(max(1, int(retry_workers)), len(retry_urls)))
+
+    failures = sorted(
+        (result for result in results.values() if not result.ok),
+        key=lambda item: item.url,
+    )
     return len(urls), failures
 
 
@@ -243,6 +303,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="Public R2/CDN base URL")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="Concurrent checks")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="Timeout per request in seconds")
+    parser.add_argument("--retries", type=int, default=DEFAULT_RETRIES, help="Retries for transient network/server failures")
+    parser.add_argument(
+        "--retry-workers",
+        type=int,
+        default=DEFAULT_RETRY_WORKERS,
+        help="Lower concurrency used only for transient-failure retries",
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=DEFAULT_RETRY_DELAY,
+        help="Initial retry delay in seconds; later retries use exponential backoff",
+    )
+    parser.add_argument(
+        "--allow-small-transient-network-failures",
+        action="store_true",
+        help=(
+            "Treat a small residual set of network-only failures as inconclusive warnings after retries. "
+            "Definite HTTP/content failures still fail the publication gate."
+        ),
+    )
     parser.add_argument(
         "--versioned",
         action="store_true",
@@ -275,8 +356,32 @@ def main(argv: Sequence[str] | None = None) -> int:
             checker=checker,
             versioned=bool(args.versioned),
             include_medium=include_medium,
+            retries=max(0, int(args.retries)),
+            retry_workers=max(1, int(args.retry_workers)),
+            retry_delay=max(0.0, float(args.retry_delay)),
         )
         if failures:
+            hard_failures, transient_failures = split_failures(failures)
+            if (
+                not hard_failures
+                and args.allow_small_transient_network_failures
+                and can_tolerate_transient_failures(total, transient_failures)
+            ):
+                print(
+                    "WARNING: "
+                    f"{len(transient_failures)} of {total} image URLs remained inconclusive after retries "
+                    "because the network connection was interrupted. No definite missing, empty, or invalid "
+                    "image response was detected, so publication may continue.",
+                    file=sys.stderr,
+                )
+                for failure in transient_failures[:20]:
+                    print(f"  - {failure.url}: {failure.reason}", file=sys.stderr)
+                if len(transient_failures) > 20:
+                    print(
+                        f"  ... and {len(transient_failures) - 20} additional transient failures",
+                        file=sys.stderr,
+                    )
+                return 0
             print(f"ERROR: {len(failures)} of {total} required catalog image assets failed verification.", file=sys.stderr)
             for failure in failures[:50]:
                 print(f"  - {failure.url}: {failure.reason}", file=sys.stderr)

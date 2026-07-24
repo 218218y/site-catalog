@@ -29,7 +29,7 @@ if errorlevel 1 (
 echo Verifying the exact versioned image URLs through the public CDN...
 echo This checks the URLs the browser will use, including cache-busting parameters.
 echo.
-%PYTHON_EXE% tools\verify_remote_catalog_assets.py --base-url "https://cdn.bargig-furniture.com" --versioned --workers 20
+%PYTHON_EXE% tools\verify_remote_catalog_assets.py --base-url "https://cdn.bargig-furniture.com" --versioned --workers 8 --retries 4 --retry-workers 3 --allow-small-transient-network-failures
 if errorlevel 1 (
   echo.
   echo Cloudflare Pages deploy stopped because one or more exact CDN image URLs failed.

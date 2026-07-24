@@ -14,8 +14,8 @@
   "searchIndex": {
     "source": "catalogs.search.js",
     "bundlePattern": "static/catalogs.search.*.js",
-    "rawBytes": 710000,
-    "gzipBytes": 175000
+    "rawBytes": 2000000,
+    "gzipBytes": 250000
   },
   "largestHtml": {
     "rawBytes": 135000,

@@ -83,11 +83,100 @@ def test_verify_remote_assets_reports_failures_without_network() -> None:
             return MODULE.AssetCheckResult(url, False, "HTTP 404", 404)
         return MODULE.AssetCheckResult(url, True, status=200)
 
-    total, failures = MODULE.verify_remote_assets(catalogs, "https://cdn.example.test", workers=2, checker=checker)
+    total, failures = MODULE.verify_remote_assets(
+        catalogs,
+        "https://cdn.example.test",
+        workers=2,
+        checker=checker,
+        retries=0,
+    )
     assert total == 2
     assert len(failures) == 1
     assert failures[0].status == 404
     assert "/thumbs/" in failures[0].url
+
+
+def test_verify_remote_assets_retries_only_transient_failures() -> None:
+    catalogs = [{"id": "demo", "dir": "assets/pages/demo", "pages": 1, "imageExt": "webp"}]
+    calls: dict[str, int] = {}
+
+    def checker(url: str, _timeout: float):
+        calls[url] = calls.get(url, 0) + 1
+        if "/thumbs/" in url and calls[url] < 3:
+            return MODULE.AssetCheckResult(url, False, "network error: connection reset")
+        return MODULE.AssetCheckResult(url, True, status=200)
+
+    total, failures = MODULE.verify_remote_assets(
+        catalogs,
+        "https://cdn.example.test",
+        workers=2,
+        checker=checker,
+        retries=3,
+        retry_workers=1,
+        retry_delay=0,
+    )
+    assert total == 2
+    assert failures == []
+    full_url = next(url for url in calls if "/thumbs/" not in url)
+    thumb_url = next(url for url in calls if "/thumbs/" in url)
+    assert calls[full_url] == 1
+    assert calls[thumb_url] == 3
+
+
+def test_small_transient_failure_set_can_be_tolerated_but_hard_failures_cannot() -> None:
+    transient = [
+        MODULE.AssetCheckResult(
+            f"https://cdn.example.test/page-{index:03d}.webp",
+            False,
+            "network error: connection reset",
+        )
+        for index in range(1, 18)
+    ]
+    assert MODULE.can_tolerate_transient_failures(2472, transient) is True
+    assert MODULE.can_tolerate_transient_failures(100, transient) is False
+
+    hard, soft = MODULE.split_failures([
+        *transient,
+        MODULE.AssetCheckResult("https://cdn.example.test/missing.webp", False, "HTTP 404", 404),
+    ])
+    assert len(hard) == 1
+    assert hard[0].status == 404
+    assert len(soft) == len(transient)
+
+
+def test_cli_allows_only_small_network_only_residue(monkeypatch, capsys) -> None:
+    transient = [
+        MODULE.AssetCheckResult(
+            f"https://cdn.example.test/page-{index:03d}.webp",
+            False,
+            "network error: connection reset",
+        )
+        for index in range(1, 6)
+    ]
+    monkeypatch.setattr(MODULE, "load_catalogs", lambda _path: [{"id": "demo"}])
+    monkeypatch.setattr(MODULE, "load_catalog_image_delivery_mode", lambda _root: "responsive")
+    monkeypatch.setattr(MODULE, "runtime_uses_medium_images", lambda _mode: True)
+    monkeypatch.setattr(MODULE, "verify_remote_assets", lambda *_args, **_kwargs: (1000, transient))
+
+    result = MODULE.main(["--allow-small-transient-network-failures"])
+
+    assert result == 0
+    assert "publication may continue" in capsys.readouterr().err
+
+
+def test_cli_never_tolerates_definite_missing_asset(monkeypatch, capsys) -> None:
+    failures = [
+        MODULE.AssetCheckResult("https://cdn.example.test/missing.webp", False, "HTTP 404", 404),
+    ]
+    monkeypatch.setattr(MODULE, "load_catalogs", lambda _path: [{"id": "demo"}])
+    monkeypatch.setattr(MODULE, "load_catalog_image_delivery_mode", lambda _root: "responsive")
+    monkeypatch.setattr(MODULE, "runtime_uses_medium_images", lambda _mode: True)
+    monkeypatch.setattr(MODULE, "verify_remote_assets", lambda *_args, **_kwargs: (1000, failures))
+
+    result = MODULE.main(["--allow-small-transient-network-failures"])
+
+    assert result == 1
+    assert "HTTP 404" in capsys.readouterr().err
 
 
 def test_versioned_urls_match_tier_specific_browser_cache_keys() -> None:

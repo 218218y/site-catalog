@@ -3386,6 +3386,117 @@ window.BARGIG_CATALOGS = [
     "subcategory": ""
   },
   {
+    "id": "roya-2026",
+    "title": "רויה 2026",
+    "description": "שולחנות חדישים וכסאות מרופדים",
+    "category": "פינות אוכל",
+    "pages": 20,
+    "dir": "assets/pages/roya-2026",
+    "cover": "assets/pages/roya-2026/page-001.webp",
+    "imageExt": "webp",
+    "assetVersion": "4dcd426ae5a1",
+    "imageVariants": {
+      "thumb": {
+        "directory": "thumbs",
+        "maxSide": 420,
+        "version": "97ed18cde378"
+      },
+      "medium": {
+        "directory": "medium",
+        "maxSide": 1600,
+        "version": "4ea0b783d6e7"
+      },
+      "full": {
+        "directory": "",
+        "maxSide": 2800,
+        "version": "1d0412b758fe"
+      }
+    },
+    "pageSizes": [
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ]
+    ],
+    "subcategory": ""
+  },
+  {
     "id": "cocktail-2026",
     "title": "קוקטייל 2026",
     "description": "שולחנות חדישים וכסאות מרופדים",
