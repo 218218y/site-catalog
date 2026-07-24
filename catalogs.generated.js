@@ -3388,7 +3388,7 @@ window.BARGIG_CATALOGS = [
   {
     "id": "cocktail-2026",
     "title": "קוקטייל 2026",
-    "description": "",
+    "description": "שולחנות חדישים וכסאות מרופדים",
     "category": "פינות אוכל",
     "pages": 102,
     "dir": "assets/pages/cocktail-2026",

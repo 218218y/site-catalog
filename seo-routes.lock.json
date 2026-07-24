@@ -19,6 +19,10 @@
       "route": "/catalog/beds-birch-2026/"
     },
     {
+      "id": "cocktail-2026",
+      "route": "/catalog/cocktail-2026/"
+    },
+    {
       "id": "custom-upholstered",
       "route": "/catalog/custom-upholstered/"
     },
@@ -72,6 +76,11 @@
       "name": "חדרי שינה",
       "slug": "bedrooms",
       "route": "/category/bedrooms/"
+    },
+    {
+      "name": "פינות אוכל",
+      "slug": "dining-sets",
+      "route": "/category/dining-sets/"
     },
     {
       "name": "חדרי ילדים",
