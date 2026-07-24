@@ -142,5 +142,14 @@
     "subcategory": "",
     "pdf": "assets/pdfs/libraries-fredi-2026.pdf",
     "ocr": true
+  },
+  {
+    "id": "cocktail-2026",
+    "title": "קוקטייל 2026",
+    "description": "",
+    "category": "פינות אוכל",
+    "subcategory": "",
+    "pdf": "assets/pdfs/cocktail-2026.pdf",
+    "ocr": true
   }
 ]
