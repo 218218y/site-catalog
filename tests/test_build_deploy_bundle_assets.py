@@ -44,6 +44,20 @@ def test_image_delivery_policy_is_part_of_bundle_freshness_inputs() -> None:
     assert "tools/catalog_image_policy.py" in inputs
 
 
+def test_catalog_authoritative_sources_and_compiler_are_bundle_freshness_inputs() -> None:
+    inputs = {path.relative_to(ROOT).as_posix() for path in MODULE.discover_build_input_paths(ROOT)}
+    for relative in (
+        "catalogs.config.json",
+        "catalog-taxonomy.config.json",
+        "catalogs.build-state.json",
+        "schemas/catalogs.config.schema.json",
+        "schemas/catalogs.build-state.schema.json",
+        "tools/catalog_compiler.py",
+        "tools/catalog_schema.py",
+    ):
+        assert relative in inputs
+
+
 def test_manifest_assets_and_custom_icon_family_are_copied(tmp_path: Path) -> None:
     root = tmp_path / "project"
     out = tmp_path / "bundle"

@@ -1,5 +1,5 @@
-// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py
-// כאן נמצא אינדקס החיפוש שנוצר מטקסט ה-PDF ומ-OCR.
+// הקובץ הזה נוצר אוטומטית על ידי tools/catalog_compiler.py
+// אינדקס החיפוש מורכב מנתוני ההמרה וממטא-דאטת הקטלוג; אין לערוך אותו ידנית.
 window.BARGIG_CATALOG_SEARCH = [
   {
     "catalogId": "opening-tbi-2026",

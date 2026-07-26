@@ -28,7 +28,7 @@ assert.match(panel, /\['bundle_r2', 'cloudflare_pages_deploy'\]/);
 
 assert.match(server, /if path == "\/api\/taxonomy"/);
 assert.match(server, /atomic_write_catalogs_and_taxonomy/);
-assert.match(server, /refresh_taxonomy_outputs_if_complete/);
+assert.match(server, /compile_catalog_outputs_after_source_save/);
 assert.match(server, /taxonomy_action_availability/);
 assert.match(server, /"taxonomy": taxonomy/);
 assert.match(server, /append_new_configured_routes_to_lock/);

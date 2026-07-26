@@ -77,6 +77,22 @@ def write_complete_output(root: Path, catalog_id: str, *, value: int = 32) -> No
     )
 
 
+def build_state_artifact(catalog_id: str, *, image_format: str) -> dict[str, object]:
+    return {
+        "id": catalog_id,
+        "pages": 1,
+        "imageExt": image_format,
+        "assetVersion": f"asset-{catalog_id}",
+        "imageVariants": {
+            "thumb": {"maxSide": 80, "version": f"thumb-{catalog_id}"},
+            "medium": {"maxSide": 320, "version": f"medium-{catalog_id}"},
+            "full": {"maxSide": 600, "version": f"full-{catalog_id}"},
+        },
+        "pageSizes": [[24, 24]],
+        "searchPages": [{"page": 1, "text": f"search {catalog_id}"}],
+    }
+
+
 def build_argv(*extra: str) -> list[str]:
     return [
         "build_catalogs.py",
@@ -124,9 +140,23 @@ def build_fixture(root: Path, *, include_missing: bool = False) -> None:
         json.dumps(config, indent=2) + "\n",
         encoding="utf-8",
     )
+    (root / "catalog-taxonomy.config.json").write_text(
+        json.dumps({
+            "categories": [{"name": "קטלוג", "slug": "catalog", "description": "Catalogs"}],
+            "subcategories": [],
+        }, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     write_complete_output(root, "keep")
     if include_missing:
         write_complete_output(root, "missing", value=64)
+    state_catalogs = [build_state_artifact("keep", image_format="png")]
+    if include_missing:
+        state_catalogs.append(build_state_artifact("missing", image_format="png"))
+    (root / "catalogs.build-state.json").write_text(
+        json.dumps({"version": 1, "catalogs": state_catalogs}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     (root / "catalogs.generated.json").write_text('[{"id":"old-public"}]\n', encoding="utf-8")
     (root / "catalogs.generated.js").write_text("window.BARGIG_CATALOGS = [{\"id\":\"old-public\"}];\n", encoding="utf-8")
     (root / "catalogs.search.json").write_text('[{"catalogId":"old-public","pages":[]}]\n', encoding="utf-8")
@@ -192,10 +222,6 @@ def patch_control_paths(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
     monkeypatch.setattr(SERVER, "PROJECT_ROOT", root)
     monkeypatch.setattr(SERVER, "CONFIG_FILE", root / "catalogs.config.json")
     monkeypatch.setattr(SERVER, "TAXONOMY_FILE", root / "catalog-taxonomy.config.json")
-    monkeypatch.setattr(SERVER, "GENERATED_JSON_FILE", root / "catalogs.generated.json")
-    monkeypatch.setattr(SERVER, "GENERATED_JS_FILE", root / "catalogs.generated.js")
-    monkeypatch.setattr(SERVER, "SEARCH_JSON_FILE", root / "catalogs.search.json")
-    monkeypatch.setattr(SERVER, "SEARCH_JS_FILE", root / "catalogs.search.js")
     monkeypatch.setattr(SERVER, "SEARCH_OVERRIDES_FILE", root / "catalogs.search-overrides.json")
     monkeypatch.setattr(SERVER, "PDF_DIR", root / "assets/pdfs")
     monkeypatch.setattr(SERVER, "PAGES_DIR", root / "assets/pages")
@@ -227,6 +253,10 @@ def control_fixture(root: Path) -> tuple[list[dict[str, object]], dict[str, obje
     (root / "catalogs.generated.js").write_text("old generated js\n", encoding="utf-8")
     (root / "catalogs.search.json").write_text(json.dumps(search) + "\n", encoding="utf-8")
     (root / "catalogs.search.js").write_text("old search js\n", encoding="utf-8")
+    (root / "catalogs.build-state.json").write_text(
+        json.dumps({"version": 1, "catalogs": [build_state_artifact("old-id", image_format="webp")]}) + "\n",
+        encoding="utf-8",
+    )
     (root / "catalogs.search-overrides.json").write_text(json.dumps({"old-id": {"1": ["term"]}}) + "\n", encoding="utf-8")
 
     changed = dict(old_catalog)
@@ -393,7 +423,7 @@ def test_directory_replacement_accepts_only_its_own_staging_area(tmp_path: Path)
             transaction.replace_directory(root / "target", unrelated)
 
 
-def test_control_save_rejects_half_missing_generated_file_pairs(
+def test_control_save_reconstructs_half_missing_generated_file_pairs_from_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -402,12 +432,11 @@ def test_control_save_rejects_half_missing_generated_file_pairs(
     catalogs, taxonomy = control_fixture(root)
     patch_control_paths(monkeypatch, root)
     (root / "catalogs.generated.js").unlink()
-    before = snapshot_tree(root)
+    SERVER.save_catalogs_transactionally(catalogs, taxonomy, [])
 
-    with pytest.raises(RuntimeError, match="אינם במצב תואם"):
-        SERVER.save_catalogs_transactionally(catalogs, taxonomy, [])
-
-    assert snapshot_tree(root) == before
+    generated = json.loads((root / "catalogs.generated.json").read_text(encoding="utf-8"))
+    assert (root / "catalogs.generated.js").is_file()
+    assert generated[0]["id"] == "new-id"
 
 
 def test_hard_process_termination_is_recovered_before_the_next_mutation(tmp_path: Path) -> None:

@@ -203,11 +203,17 @@ catalogs.config.json
 
 ```bat
 assets\pages
+catalogs.build-state.json
 catalogs.generated.js
 catalogs.generated.json
 catalogs.search.js
 catalogs.search.json
 ```
+
+`catalogs.config.json` הוא מקור האמת למידע העריכתי, ו־`catalogs.build-state.json`
+הוא מקור האמת היחיד לנתונים שנגזרו מה־PDF. ארבעת קובצי `generated/search` נוצרים
+רק דרך `tools/catalog_compiler.py`; אין לערוך אותם ידנית. פירוט מלא נמצא ב־
+`docs/catalog-data-compiler.md`.
 
 אם כבר קיימות תמונות תקינות, הסקריפט מדלג עליהן ולא מרנדר מחדש בלי צורך. אם אינדקס החיפוש חסר או שצריך OCR מעודכן, הוא מרענן את החיפוש ככל האפשר בלי לגעת בתמונות קיימות.
 
@@ -235,7 +241,7 @@ catalogs.search.json
 בכל הרצה מתבצע גם ניקוי עקבי:
 
 - קטלוג שהוסר מתוך `catalogs.config.json` נמחק מתוך `assets/pages` ומאינדקס החיפוש שנוצר.
-- קטלוג שעדיין רשום אבל קובץ ה־PDF שלו כבר לא קיים מוסר אוטומטית מתוך `catalogs.config.json`, תיקיית התמונות שלו נמחקת והוא מוסר מאינדקס החיפוש.
+- קטלוג שעדיין רשום אבל קובץ ה־PDF שלו חסר עוצר את ההמרה בלי למחוק דבר. הסרה מתבצעת רק לאחר אישור מפורש בלוח השליטה או בהרצה מאושרת עם `--prune-missing-pdfs`.
 - קובצי PDF קיימים לעולם אינם נמחקים על ידי פקודת ההמרה.
 
 אפשרויות תחזוקה נוספות:
@@ -436,6 +442,10 @@ catalog-snapshot.js                הורדת/צילום עמוד עם הלוג�
 catalog-assets.config.js           כתובת בסיס התמונות ומדיניות responsive/full-only; בבאנדל R2 מוחלף רק URL ה-CDN
 social-share-default.png            תמונת ברירת המחדל לשיתוף קישור ותגיות Open Graph/Twitter (1200×630)
 catalogs.config.json               רשימת הקטלוגים לעריכה
+catalogs.build-state.json          מצב ההמרה הסמכותי: עמודים, גרסאות תמונה, מידות וטקסט חיפוש
+schemas/                           חוזי JSON Schema רשמיים למקורות ולתוצרי הקטלוג
+tools/catalog_compiler.py          Compiler יחיד ודטרמיניסטי לכל נתוני הקטלוג והחיפוש הנגזרים
+tools/catalog_schema.py            אימות Schema ואילוצים חוצי־קבצים ללא תלות חיצונית נוספת
 partials/site-footer.html          תבנית מבנה הפוטר; העיצוב והתגיות נשארים קבועים
 partials/site-footer.content.json  טקסטי הפוטר הנערכים דרך לוח השליטה
 tools/footer_content.py            אימות, escaping ובניית קישורי הפוטר מתוך קובץ התוכן

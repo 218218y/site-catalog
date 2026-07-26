@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bargig-furniture.com/schemas/catalogs.build-state.schema.json",
+  "title": "Catalog compiler build state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "catalogs"],
+  "properties": {
+    "version": {"const": 1},
+    "catalogs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/artifact"}
+    }
+  },
+  "$defs": {
+    "pageSize": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {"type": "integer", "minimum": 1}
+    },
+    "searchPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page", "text"],
+      "properties": {
+        "page": {"type": "integer", "minimum": 1},
+        "text": {"type": "string"}
+      }
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxSide", "version"],
+      "properties": {
+        "maxSide": {"type": "integer", "minimum": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "pages", "imageExt", "assetVersion", "imageVariants", "searchPages"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"},
+        "pages": {"type": "integer", "minimum": 1},
+        "imageExt": {"enum": ["webp", "jpg", "png"]},
+        "assetVersion": {"type": "string", "minLength": 1},
+        "imageVariants": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["thumb", "medium", "full"],
+          "properties": {
+            "thumb": {"$ref": "#/$defs/variant"},
+            "medium": {"$ref": "#/$defs/variant"},
+            "full": {"$ref": "#/$defs/variant"}
+          }
+        },
+        "pageSizes": {"type": "array", "items": {"$ref": "#/$defs/pageSize"}},
+        "searchPages": {"type": "array", "items": {"$ref": "#/$defs/searchPage"}}
+      }
+    }
+  }
+}

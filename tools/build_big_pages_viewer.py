@@ -41,17 +41,9 @@ def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def load_catalogs(root: Path) -> list[dict[str, Any]]:
-    path = root / CATALOGS_RELATIVE_PATH
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    except FileNotFoundError as exc:
-        raise FileNotFoundError(f"Generated catalog metadata is missing: {path}") from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Generated catalog metadata is invalid JSON: {path}: {exc}") from exc
-
+def normalize_catalogs(payload: Any, *, source: str = "catalog metadata") -> list[dict[str, Any]]:
     if not isinstance(payload, list):
-        raise ValueError(f"Generated catalog metadata must be a JSON array: {path}")
+        raise ValueError(f"Generated catalog metadata must be a JSON array: {source}")
 
     catalogs: list[dict[str, Any]] = []
     for index, raw in enumerate(payload, start=1):
@@ -77,6 +69,18 @@ def load_catalogs(root: Path) -> list[dict[str, Any]]:
         catalogs.append(item)
 
     return catalogs
+
+
+def load_catalogs(root: Path) -> list[dict[str, Any]]:
+    path = root / CATALOGS_RELATIVE_PATH
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"Generated catalog metadata is missing: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Generated catalog metadata is invalid JSON: {path}: {exc}") from exc
+
+    return normalize_catalogs(payload, source=str(path))
 
 
 def replace_generated_block(text: str, start_marker: str, end_marker: str, replacement: str) -> str:
@@ -112,8 +116,11 @@ def readme_stats_block(catalogs: list[dict[str, Any]]) -> str:
     )
 
 
-def render_updated_files(root: Path) -> tuple[str, str | None]:
-    catalogs = load_catalogs(root)
+def render_updated_files_from_catalogs(
+    root: Path,
+    catalogs: list[dict[str, Any]],
+) -> tuple[str, str | None]:
+    catalogs = normalize_catalogs(catalogs, source="compiler output")
     viewer_path = root / VIEWER_RELATIVE_PATH
     if not viewer_path.is_file():
         raise FileNotFoundError(f"Standalone viewer is missing: {viewer_path}")
@@ -135,6 +142,10 @@ def render_updated_files(root: Path) -> tuple[str, str | None]:
             readme_stats_block(catalogs),
         )
     return viewer_text, readme_text
+
+
+def render_updated_files(root: Path) -> tuple[str, str | None]:
+    return render_updated_files_from_catalogs(root, load_catalogs(root))
 
 
 def build_big_pages_viewer(root: Path | None = None, *, check: bool = False) -> bool:

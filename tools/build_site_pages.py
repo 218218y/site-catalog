@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from build_frontend_assets import build_frontend_assets
+from catalog_compiler import verify_managed_outputs_reconstructable
 from footer_content import read_footer_content, render_footer_template, validate_footer_content
 from seo_site import (
     SeoConfig,
@@ -1002,6 +1003,7 @@ def render_site_pages_atomic(
 
 
 def check_site_pages(root: Path) -> tuple[Path, ...]:
+    verify_managed_outputs_reconstructable(root)
     build_frontend_assets(root, check=True)
     build_taxonomy_asset(root, check=True)
     checked_relatives = [Path(page.filename) for page in PAGE_DOCUMENTS] + [Path("_headers"), Path("robots.txt")]

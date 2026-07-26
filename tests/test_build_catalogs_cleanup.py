@@ -67,6 +67,13 @@ def test_conversion_always_reconciles_removed_catalogs(
         json.dumps(config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    (root / "catalog-taxonomy.config.json").write_text(
+        json.dumps({
+            "categories": [{"name": "קטלוג", "slug": "catalog", "description": "Catalogs"}],
+            "subcategories": [],
+        }, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     (root / "catalogs.search.json").write_text(
         json.dumps(
             [
@@ -77,6 +84,7 @@ def test_conversion_always_reconciles_removed_catalogs(
         ),
         encoding="utf-8",
     )
+    (root / "catalogs.search.js").write_text("legacy search js\n", encoding="utf-8")
 
     for catalog_id in ("missing-pdf", "unlisted"):
         output = root / "assets/pages" / catalog_id
@@ -138,3 +146,100 @@ def test_only_two_conversion_actions_and_batch_files_remain() -> None:
     assert not (ROOT / "convert-catalogsdelete.bat").exists()
     assert not (ROOT / "convert-catalogs-deleteforce.bat").exists()
     assert all("--delete-unlisted" not in action.command for action in CONTROL.ACTIONS.values())
+
+
+def test_full_conversion_and_control_panel_save_emit_identical_catalog_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    write_pdf(root / "assets/pdfs/one.pdf", "one catalog")
+    catalogs = [{
+        "id": "one",
+        "title": "One",
+        "description": "Description",
+        "category": "Category",
+        "subcategory": "Sub",
+        "pdf": "assets/pdfs/one.pdf",
+        "ocr": False,
+    }]
+    taxonomy = {
+        "categories": [{"name": "Category", "slug": "category", "description": "Category description"}],
+        "subcategories": [{"category": "Category", "name": "Sub", "slug": "sub", "description": "Sub description"}],
+    }
+    (root / "catalogs.config.json").write_text(json.dumps(catalogs, indent=2) + "\n", encoding="utf-8")
+    (root / "catalog-taxonomy.config.json").write_text(json.dumps(taxonomy, indent=2) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(BUILD, "project_root", lambda: root)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_catalogs.py", "--ocr", "never", "--format", "png", "--dpi", "72",
+            "--max-width", "600", "--max-height", "600", "--medium-size", "320",
+            "--thumb-size", "80", "--sharpen", "0",
+        ],
+    )
+    assert BUILD.main() == 0
+    managed = (
+        "catalogs.build-state.json",
+        "catalogs.generated.json",
+        "catalogs.generated.js",
+        "catalogs.search.json",
+        "catalogs.search.js",
+    )
+    conversion_bytes = {name: (root / name).read_bytes() for name in managed}
+
+    monkeypatch.setattr(CONTROL, "PROJECT_ROOT", root)
+    monkeypatch.setattr(CONTROL, "CONFIG_FILE", root / "catalogs.config.json")
+    monkeypatch.setattr(CONTROL, "TAXONOMY_FILE", root / "catalog-taxonomy.config.json")
+    monkeypatch.setattr(CONTROL, "SEARCH_OVERRIDES_FILE", root / "catalogs.search-overrides.json")
+    monkeypatch.setattr(CONTROL, "PDF_DIR", root / "assets/pdfs")
+    monkeypatch.setattr(CONTROL, "PAGES_DIR", root / "assets/pages")
+    monkeypatch.setattr(CONTROL, "compile_taxonomy_and_site_pages", lambda *_args, **_kwargs: ())
+    CONTROL.save_catalogs_transactionally(catalogs, taxonomy, [])
+
+    assert {name: (root / name).read_bytes() for name in managed} == conversion_bytes
+
+
+def test_two_consecutive_full_conversions_leave_no_byte_diff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    write_pdf(root / "assets/pdfs/one.pdf", "one catalog")
+    (root / "catalogs.config.json").write_text(
+        json.dumps([{"id": "one", "title": "One", "pdf": "assets/pdfs/one.pdf", "ocr": False}], indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (root / "catalog-taxonomy.config.json").write_text(
+        json.dumps({
+            "categories": [{"name": "קטלוג", "slug": "catalog", "description": "Catalogs"}],
+            "subcategories": [],
+        }, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    argv = [
+        "build_catalogs.py", "--ocr", "never", "--format", "png", "--dpi", "72",
+        "--max-width", "600", "--max-height", "600", "--medium-size", "320",
+        "--thumb-size", "80", "--sharpen", "0",
+    ]
+    monkeypatch.setattr(BUILD, "project_root", lambda: root)
+    monkeypatch.setattr(sys, "argv", argv)
+    assert BUILD.main() == 0
+    first = {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file() and ".site-catalog.mutation.lock" not in path.name
+    }
+
+    monkeypatch.setattr(sys, "argv", argv)
+    assert BUILD.main() == 0
+    second = {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file() and ".site-catalog.mutation.lock" not in path.name
+    }
+    assert second == first

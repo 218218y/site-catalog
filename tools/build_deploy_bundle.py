@@ -41,11 +41,12 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 try:
-    from tools.project_mutation import MutationBusyError, ProjectMutationLock
+    from tools.project_mutation import MutationBusyError, ProjectMutationLock, ProjectTransaction
 except ModuleNotFoundError:  # Direct execution
-    from project_mutation import MutationBusyError, ProjectMutationLock
+    from project_mutation import MutationBusyError, ProjectMutationLock, ProjectTransaction
 
 from build_frontend_assets import build_frontend_assets
+from catalog_compiler import compile_current_project_catalog_data
 from catalog_image_policy import (
     DEFAULT_CATALOG_IMAGE_DELIVERY_MODE,
     load_catalog_image_delivery_mode as catalog_image_delivery_mode,
@@ -139,7 +140,7 @@ SEARCH_INDEX_RUNTIME_RE = re.compile(r'const SEARCH_INDEX_SCRIPT_SRC = "(?P<url>
 
 ARTIFACT_STATE_SCHEMA = 2
 ARTIFACT_STATE_SUFFIX = ".build.json"
-BUILD_SIGNATURE_VERSION = "site-bundle-v3"
+BUILD_SIGNATURE_VERSION = "site-bundle-v4"
 LEGACY_ARTIFACT_DIRS = (
     "dist/seo-private",
     "dist/seo-public",
@@ -157,7 +158,9 @@ BUILD_INPUT_FILES = (
     "seo-page.template.html",
     "seo.config.json",
     "seo-routes.lock.json",
+    "catalogs.config.json",
     "catalog-taxonomy.config.json",
+    "catalogs.build-state.json",
     "catalogs.generated.json",
     "catalogs.generated.js",
     "catalogs.search.js",
@@ -174,11 +177,14 @@ BUILD_INPUT_FILES = (
     "social-share-default.png",
     "site.webmanifest",
 )
-BUILD_INPUT_DIRS = ("src", "partials", "legal")
+BUILD_INPUT_DIRS = ("src", "partials", "legal", "schemas")
 BUILD_TOOL_FILES = (
     "tools/build_deploy_bundle.py",
     "tools/build_site_pages.py",
     "tools/build_frontend_assets.py",
+    "tools/build_big_pages_viewer.py",
+    "tools/catalog_compiler.py",
+    "tools/catalog_schema.py",
     "tools/seo_site.py",
     "tools/seo_route_lock.py",
     "tools/footer_content.py",
@@ -1209,6 +1215,15 @@ def _main_unlocked() -> int:
 
     if args.seo_mode == "public":
         assert_route_lock_current(root)
+
+    # A deployment build never trusts checked-in public catalog metadata.
+    # Recompile it from source configuration and PDF-derived build state first,
+    # using the same compiler path as the control panel.
+    with ProjectTransaction(root, prefix=".catalog-compiler-transaction-") as transaction:
+        compile_current_project_catalog_data(
+            root,
+            writer=transaction.write_bytes,
+        )
 
     options = build_options_payload(
         external_assets_url=args.external_assets_url,

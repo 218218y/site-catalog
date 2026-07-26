@@ -35,7 +35,6 @@ if str(TOOLS_DIR) not in sys.path:
 
 from build_site_pages import PAGE_DOCUMENTS, render_site_pages
 from seo_route_lock import LOCK_FILENAME, append_new_configured_routes_to_lock
-from seo_site import build_taxonomy_asset, load_taxonomy, taxonomy_generated_js
 from taxonomy_editor import (
     TAXONOMY_CONFIG_FILE,
     apply_taxonomy_renames_to_catalogs,
@@ -59,14 +58,17 @@ from project_mutation import (
     read_lock_metadata,
     trigger_fault,
 )
+from catalog_compiler import (
+    compile_and_write_catalog_data,
+    compile_taxonomy_and_site_pages,
+    load_build_state,
+    rename_build_state_catalogs,
+    retain_build_state_catalogs,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "catalogs.config.json"
 TAXONOMY_FILE = PROJECT_ROOT / TAXONOMY_CONFIG_FILE
-GENERATED_JSON_FILE = PROJECT_ROOT / "catalogs.generated.json"
-GENERATED_JS_FILE = PROJECT_ROOT / "catalogs.generated.js"
-SEARCH_JSON_FILE = PROJECT_ROOT / "catalogs.search.json"
-SEARCH_JS_FILE = PROJECT_ROOT / "catalogs.search.js"
 SEARCH_OVERRIDES_FILE = PROJECT_ROOT / "catalogs.search-overrides.json"
 FOOTER_CONTENT_FILE = PROJECT_ROOT / FOOTER_CONTENT_RELATIVE_PATH
 PDF_DIR = PROJECT_ROOT / "assets" / "pdfs"
@@ -340,52 +342,6 @@ def route_lock_sync_warnings(sync: Mapping[str, Sequence[str]]) -> list[str]:
     ]
 
 
-def refresh_taxonomy_outputs_if_complete(
-    taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
-    *,
-    transaction: ProjectTransaction | None = None,
-    strict: bool = False,
-) -> list[str]:
-    issues = taxonomy_completion_issues(taxonomy)
-    if issues:
-        return [
-            f"הטקסונומיה נשמרה כטיוטה, אבל חסרים {len(issues)} שדות. "
-            "יש להשלים אותם לפני יצירת באנדל או העלאה."
-        ]
-    warnings: list[str] = []
-    try:
-        if transaction is None:
-            build_taxonomy_asset(PROJECT_ROOT)
-            render_site_pages(
-                PROJECT_ROOT,
-                build_assets=False,
-                build_taxonomy=False,
-                include_indexing_files=False,
-            )
-        else:
-            taxonomy_asset = taxonomy_generated_js(load_taxonomy(PROJECT_ROOT)).encode("utf-8")
-            staged_root = transaction.temp_root / "taxonomy-pages"
-            staged_pages = render_site_pages(
-                PROJECT_ROOT,
-                staged_root,
-                build_assets=False,
-                build_taxonomy=False,
-                include_indexing_files=False,
-            )
-            transaction.write_bytes(
-                PROJECT_ROOT / "catalog-taxonomy.generated.js",
-                taxonomy_asset,
-            )
-            for staged_page in staged_pages:
-                relative = staged_page.relative_to(staged_root)
-                transaction.write_bytes(PROJECT_ROOT / relative, staged_page.read_bytes())
-    except Exception as exc:
-        if strict:
-            raise RuntimeError(f"רענון דפי האתר התלויים בטקסונומיה נכשל: {exc}") from exc
-        warnings.append(f"המקורות נשמרו, אבל רענון דפי האתר התלויים בטקסונומיה נכשל: {exc}")
-    return warnings
-
-
 def prepare_taxonomy_and_catalogs_for_save(
     taxonomy_value: Any,
     catalogs: list[dict[str, Any]],
@@ -501,19 +457,6 @@ def strip_control_panel_fields(item: dict[str, Any]) -> dict[str, Any]:
     row.pop("_originalId", None)
     row.pop("__original_id", None)
     return row
-
-
-def catalog_asset_path_for_renamed_id(value: Any, old_id: str, new_id: str) -> Any:
-    if not isinstance(value, str) or old_id == new_id:
-        return value
-    normalized = value.replace("\\", "/")
-    old_prefix = f"assets/pages/{old_id}"
-    new_prefix = f"assets/pages/{new_id}"
-    if normalized == old_prefix:
-        return new_prefix
-    if normalized.startswith(old_prefix + "/"):
-        return new_prefix + normalized[len(old_prefix):]
-    return value
 
 
 def build_catalog_rename_map(config: list[dict[str, Any]]) -> dict[str, str]:
@@ -654,182 +597,44 @@ def sync_search_overrides_after_id_rename(
     return warnings
 
 
-def read_json_array(path: Path) -> list[dict[str, Any]] | None:
-    if not path.is_file():
-        return None
-    payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    if not isinstance(payload, list):
-        raise ValueError(f"{rel_to_root(path)} must contain a JSON array")
-    result: list[dict[str, Any]] = []
-    for index, item in enumerate(payload, start=1):
-        if not isinstance(item, dict):
-            raise ValueError(f"{rel_to_root(path)} item #{index} must be an object")
-        result.append(dict(item))
-    return result
-
-
-def write_catalogs_generated_files(
-    entries: list[dict[str, Any]],
+def compile_catalog_outputs_after_source_save(
+    catalogs: list[dict[str, Any]],
+    taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
+    rename_map: Mapping[str, str],
     *,
-    transaction: ProjectTransaction | None = None,
-) -> None:
-    payload = json.dumps(entries, ensure_ascii=False, indent=2)
-    json_bytes = (payload + "\n").encode("utf-8")
-    js_bytes = (
-        "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
-        "// לא מומלץ לערוך אותו ידנית. עריכה עושים בקובץ catalogs.config.json ואז מריצים שוב המרה.\n"
-        f"window.BARGIG_CATALOGS = {payload};\n"
-    ).encode("utf-8")
-    writer = transaction.write_bytes if transaction is not None else atomic_write_bytes
-    writer(GENERATED_JSON_FILE, json_bytes)
-    writer(GENERATED_JS_FILE, js_bytes)
-
-
-def write_catalogs_search_files(
-    entries: list[dict[str, Any]],
-    *,
-    transaction: ProjectTransaction | None = None,
-) -> None:
-    payload = json.dumps(entries, ensure_ascii=False, indent=2)
-    json_bytes = (payload + "\n").encode("utf-8")
-    js_bytes = (
-        "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
-        "// כאן נמצא אינדקס החיפוש שנוצר מטקסט ה-PDF ומ-OCR.\n"
-        f"window.BARGIG_CATALOG_SEARCH = {payload};\n"
-    ).encode("utf-8")
-    writer = transaction.write_bytes if transaction is not None else atomic_write_bytes
-    writer(SEARCH_JSON_FILE, json_bytes)
-    writer(SEARCH_JS_FILE, js_bytes)
-
-
-def sync_generated_metadata_after_config_save(
-    config: list[dict[str, Any]],
-    rename_map: dict[str, str] | None = None,
-    *,
-    transaction: ProjectTransaction | None = None,
-    strict: bool = False,
+    transaction: ProjectTransaction,
 ) -> list[str]:
-    """Keep the already-generated website metadata aligned after UI edits.
-
-    Saving the control panel edits should immediately affect title,
-    description, category, subcategory, deletion, ordering and catalog id
-    changes for catalogs that already exist in catalogs.generated.*. New PDFs
-    still require conversion to create page images and their first generated
-    entry.
-    """
+    """Recompile every catalog-derived output through the shared compiler."""
     warnings: list[str] = []
-    rename_map = rename_map or {}
-    if strict:
-        generated_pair = (GENERATED_JSON_FILE.is_file(), GENERATED_JS_FILE.is_file())
-        if generated_pair[0] != generated_pair[1]:
-            raise RuntimeError(
-                "catalogs.generated.json ו-catalogs.generated.js אינם במצב תואם; "
-                "יש לשחזר או לבנות אותם מחדש לפני שמירת הקטלוגים."
-            )
-        search_pair = (SEARCH_JSON_FILE.is_file(), SEARCH_JS_FILE.is_file())
-        if search_pair[0] != search_pair[1]:
-            raise RuntimeError(
-                "catalogs.search.json ו-catalogs.search.js אינם במצב תואם; "
-                "יש לשחזר או לבנות אותם מחדש לפני שמירת הקטלוגים."
-            )
-    config_by_id = {str(item.get("id", "")): item for item in config}
-    config_order = [str(item.get("id", "")) for item in config]
-    order_index = {catalog_id: index for index, catalog_id in enumerate(config_order)}
-
-    try:
-        generated_entries = read_json_array(GENERATED_JSON_FILE)
-    except Exception as exc:
-        if strict:
-            raise RuntimeError(f"עדכון catalogs.generated.* נכשל: {exc}") from exc
-        warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.generated.* נכשל: {exc}")
-        generated_entries = None
-
-    if generated_entries is not None:
-        updated_generated: list[dict[str, Any]] = []
-        generated_by_id: dict[str, dict[str, Any]] = {}
-        generated_priority: dict[str, int] = {}
-        for item in generated_entries:
-            original_id = str(item.get("id", ""))
-            effective_id = rename_map.get(original_id, original_id)
-            if effective_id not in config_by_id:
-                continue
-            updated = dict(item)
-            if effective_id != original_id:
-                updated["id"] = effective_id
-                updated["dir"] = catalog_asset_path_for_renamed_id(updated.get("dir"), original_id, effective_id)
-                updated["cover"] = catalog_asset_path_for_renamed_id(updated.get("cover"), original_id, effective_id)
-            priority = 1 if original_id in rename_map else 0
-            if effective_id not in generated_by_id or priority >= generated_priority.get(effective_id, 0):
-                generated_by_id[effective_id] = updated
-                generated_priority[effective_id] = priority
-
-        for catalog_id in config_order:
-            entry = generated_by_id.get(catalog_id)
-            source = config_by_id.get(catalog_id)
-            if not entry or not source:
-                continue
-            updated = dict(entry)
-            updated["id"] = catalog_id
-            updated["title"] = str(source.get("title", catalog_id))
-            updated["description"] = str(source.get("description", ""))
-            updated["category"] = str(source.get("category", "קטלוג")) or "קטלוג"
-
-            subcategory = str(source.get("subcategory", source.get("subCategory", "")))
-            if subcategory or "subcategory" in updated:
-                updated["subcategory"] = subcategory
-
-            for key in ("sort", "badge"):
-                if key in source:
-                    updated[key] = source[key]
-                elif key in updated and key not in source:
-                    updated.pop(key, None)
-
-            updated_generated.append(updated)
-
-        try:
-            write_catalogs_generated_files(updated_generated, transaction=transaction)
-        except Exception as exc:
-            if strict:
-                raise RuntimeError(f"כתיבת catalogs.generated.* נכשלה: {exc}") from exc
-            warnings.append(f"catalogs.config.json נשמר, אבל כתיבת catalogs.generated.* נכשלה: {exc}")
-
-    try:
-        search_entries = read_json_array(SEARCH_JSON_FILE)
-    except Exception as exc:
-        if strict:
-            raise RuntimeError(f"עדכון catalogs.search.* נכשל: {exc}") from exc
-        warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search.* נכשל: {exc}")
-        search_entries = None
-
-    if search_entries is not None:
-        search_by_id: dict[str, dict[str, Any]] = {}
-        search_priority: dict[str, int] = {}
-        for item in search_entries:
-            original_id = str(item.get("catalogId", ""))
-            effective_id = rename_map.get(original_id, original_id)
-            if effective_id not in config_by_id:
-                continue
-            entry = dict(item)
-            entry["catalogId"] = effective_id
-            priority = 1 if original_id in rename_map else 0
-            if effective_id not in search_by_id or priority >= search_priority.get(effective_id, 0):
-                search_by_id[effective_id] = entry
-                search_priority[effective_id] = priority
-
-        updated_search: list[dict[str, Any]] = []
-        for catalog_id in sorted(search_by_id, key=lambda item: order_index.get(item, 10**9)):
-            entry = search_by_id[catalog_id]
-            source = config_by_id[catalog_id]
-            entry["title"] = str(source.get("title", entry.get("title", "")))
-            updated_search.append(entry)
-        try:
-            trigger_fault("during-search-index")
-            write_catalogs_search_files(updated_search, transaction=transaction)
-        except Exception as exc:
-            if strict:
-                raise RuntimeError(f"כתיבת catalogs.search.* נכשלה: {exc}") from exc
-            warnings.append(f"catalogs.config.json נשמר, אבל כתיבת catalogs.search.* נכשלה: {exc}")
-
+    build_state = load_build_state(PROJECT_ROOT, allow_legacy_migration=False)
+    build_state = rename_build_state_catalogs(build_state, rename_map)
+    build_state = retain_build_state_catalogs(
+        build_state,
+        (str(item["id"]) for item in catalogs),
+    )
+    taxonomy_issues = taxonomy_completion_issues(taxonomy)
+    compiler_taxonomy = json.loads(serialize_taxonomy(taxonomy).decode("utf-8"))
+    trigger_fault("during-search-index")
+    compile_and_write_catalog_data(
+        catalogs,
+        compiler_taxonomy,
+        build_state,
+        PROJECT_ROOT,
+        writer=transaction.write_bytes,
+        require_taxonomy_coverage=not taxonomy_issues,
+        write_build_state=True,
+    )
+    if taxonomy_issues:
+        warnings.append(
+            f"הטקסונומיה נשמרה כטיוטה, אבל חסרים {len(taxonomy_issues)} שדות. "
+            "תוצרי הקטלוג והחיפוש נבנו מה-Compiler המשותף; דפי הטקסונומיה יחודשו לאחר השלמת השדות."
+        )
+    else:
+        compile_taxonomy_and_site_pages(
+            PROJECT_ROOT,
+            writer=transaction.write_bytes,
+            staging_root=transaction.temp_root,
+        )
     return warnings
 
 
@@ -1507,18 +1312,11 @@ def save_catalogs_transactionally(
                 )
             )
             warnings.extend(
-                sync_generated_metadata_after_config_save(
+                compile_catalog_outputs_after_source_save(
                     file_catalogs,
+                    taxonomy,
                     rename_map,
                     transaction=transaction,
-                    strict=True,
-                )
-            )
-            warnings.extend(
-                refresh_taxonomy_outputs_if_complete(
-                    taxonomy,
-                    transaction=transaction,
-                    strict=True,
                 )
             )
 
@@ -1547,17 +1345,11 @@ def save_taxonomy_transactionally(taxonomy_value: Any) -> dict[str, Any]:
             )
             warnings.extend(route_lock_sync_warnings(route_lock_sync))
             warnings.extend(
-                sync_generated_metadata_after_config_save(
+                compile_catalog_outputs_after_source_save(
                     file_catalogs,
-                    transaction=transaction,
-                    strict=True,
-                )
-            )
-            warnings.extend(
-                refresh_taxonomy_outputs_if_complete(
                     taxonomy,
+                    {},
                     transaction=transaction,
-                    strict=True,
                 )
             )
         return {

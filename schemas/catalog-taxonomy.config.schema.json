@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bargig-furniture.com/schemas/catalog-taxonomy.config.schema.json",
+  "title": "Catalog taxonomy source configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["categories", "subcategories"],
+  "properties": {
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/category"}
+    },
+    "subcategories": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/subcategory"}
+    }
+  },
+  "$defs": {
+    "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"},
+    "category": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "slug", "description"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "slug": {"$ref": "#/$defs/slug"},
+        "description": {"type": "string", "minLength": 1}
+      }
+    },
+    "subcategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "name", "slug", "description"],
+      "properties": {
+        "category": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "slug": {"$ref": "#/$defs/slug"},
+        "description": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bargig-furniture.com/schemas/catalogs.search.schema.json",
+  "title": "Compiled public catalog search index",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["catalogId", "title", "pages"],
+    "properties": {
+      "catalogId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"},
+      "title": {"type": "string", "minLength": 1},
+      "pages": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["page", "text"],
+          "properties": {
+            "page": {"type": "integer", "minimum": 1},
+            "text": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}

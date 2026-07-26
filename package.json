@@ -9,6 +9,8 @@
     "setup:browsers": "playwright install chromium",
     "build": "npm run build:local",
     "build:frontend": "python tools/build_frontend_assets.py",
+    "build:catalog-data": "python tools/catalog_compiler.py",
+    "check:catalog-data": "python tools/catalog_compiler.py --check",
     "check:frontend": "python tools/build_frontend_assets.py --check",
     "build:pages": "python tools/build_site_pages.py",
     "build:seo:private": "npm run build:local",

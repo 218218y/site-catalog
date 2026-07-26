@@ -1,5 +1,5 @@
-// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py
-// לא מומלץ לערוך אותו ידנית. עריכה עושים בקובץ catalogs.config.json ואז מריצים שוב המרה.
+// הקובץ הזה נוצר אוטומטית על ידי tools/catalog_compiler.py
+// מקור העריכה הוא catalogs.config.json; נתוני ההמרה מגיעים מ-catalogs.build-state.json.
 window.BARGIG_CATALOGS = [
   {
     "id": "opening-tbi-2026",

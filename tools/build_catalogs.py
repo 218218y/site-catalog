@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build a static image-based catalog site from local PDF files.
+"""Build catalog image artifacts from local PDF files.
 
 The script reads catalogs.config.json, renders each PDF into high-quality page
-images and thumbnails, and writes catalogs.generated.js for the website.
+images and thumbnails, and records PDF-derived facts in catalogs.build-state.json.
+All public metadata/search files are emitted by tools/catalog_compiler.py.
 
 Defaults are tuned for fast catalog browsing:
 - WebP output by default
@@ -40,6 +41,21 @@ try:
     from tools.project_mutation import ProjectMutationLock, ProjectTransaction, trigger_fault
 except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
     from project_mutation import ProjectMutationLock, ProjectTransaction, trigger_fault
+
+try:
+    from tools.catalog_compiler import (
+        build_artifact_entry,
+        build_state_from_artifacts,
+        compile_and_write_catalog_data,
+        load_build_state,
+    )
+except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
+    from catalog_compiler import (
+        build_artifact_entry,
+        build_state_from_artifacts,
+        compile_and_write_catalog_data,
+        load_build_state,
+    )
 
 try:
     from tools.ocr_search_quality import (
@@ -543,29 +559,18 @@ def effective_catalog_options(item: dict[str, Any], base_options: RenderOptions)
 
 
 def load_previous_search_pages(root: Path) -> dict[str, list[dict[str, Any]]]:
-    """Load the last generated OCR/search index so skipped catalogs keep search."""
-    search_json = root / "catalogs.search.json"
-    if not search_json.exists():
+    """Load PDF-derived search text from compiler state, never public output."""
+    state_path = root / "catalogs.build-state.json"
+    if not state_path.is_file():
         return {}
-
-    try:
-        payload = json.loads(search_json.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"[warn] Could not read previous search index: {exc}", file=sys.stderr)
-        return {}
-
-    if not isinstance(payload, list):
-        return {}
-
-    result: dict[str, list[dict[str, Any]]] = {}
-    for entry in payload:
-        if not isinstance(entry, dict):
-            continue
-        catalog_id = str(entry.get("catalogId", "")).strip()
-        pages = entry.get("pages", [])
-        if catalog_id and isinstance(pages, list):
-            result[catalog_id] = [page for page in pages if isinstance(page, dict)]
-    return result
+    # Build state is authoritative. Corruption must abort rather than silently
+    # replacing valid OCR/search data with an empty index.
+    state = load_build_state(root, allow_legacy_migration=False)
+    return {
+        str(entry.get("id", "")): [dict(page) for page in entry.get("searchPages", []) if isinstance(page, dict)]
+        for entry in state.get("catalogs", [])
+        if isinstance(entry, dict) and str(entry.get("id", "")).strip()
+    }
 
 
 def _read_config_payload(config_path: Path) -> list[dict[str, Any]]:
@@ -1255,114 +1260,39 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pag
         return len(doc), search_pages, page_sizes
 
 
-def build_generated_entry(
-    item: dict[str, Any],
+def build_catalog_artifact(
+    catalog_id: str,
     pages: int,
     out_dir: Path,
     image_format: str,
     options: RenderOptions,
+    search_pages: list[dict[str, Any]],
     page_sizes: list[list[int]] | None = None,
-    *,
-    public_out_dir: Path | None = None,
 ) -> dict[str, Any]:
+    """Create compiler state from one validated rendered catalog."""
     asset_versions = catalog_asset_versions(out_dir, image_format, pages)
-    public_dir = public_out_dir or out_dir
-    entry: dict[str, Any] = {
-        "id": item["id"],
-        "title": item["title"],
-        "description": item.get("description", ""),
-        "category": item.get("category", "קטלוג"),
-        "pages": pages,
-        "dir": rel_to_root(public_dir),
-        "cover": f"{rel_to_root(public_dir)}/page-001.{image_format}",
-        "imageExt": image_format,
-        "assetVersion": asset_versions["catalog"],
-        "imageVariants": {
+    return build_artifact_entry(
+        catalog_id=catalog_id,
+        pages=pages,
+        image_format=image_format,
+        asset_version=asset_versions["catalog"],
+        image_variants={
             "thumb": {
-                "directory": "thumbs",
                 "maxSide": int(options.thumb_size),
                 "version": asset_versions["thumb"],
             },
             "medium": {
-                "directory": "medium",
                 "maxSide": int(options.medium_size),
                 "version": asset_versions["medium"],
             },
             "full": {
-                "directory": "",
                 "maxSide": max(int(options.max_width), int(options.max_height)),
                 "version": asset_versions["full"],
             },
         },
-    }
-
-    if page_sizes and len(page_sizes) >= pages:
-        entry["pageSizes"] = page_sizes[:pages]
-
-    subcategory = item.get("subcategory", item.get("subCategory", item.get("sub_category", item.get("subcategories", ""))))
-    if "subcategory" in item or "subCategory" in item or "sub_category" in item or "subcategories" in item:
-        entry["subcategory"] = subcategory
-
-    for key in ("sort", "badge"):
-        if key in item:
-            entry[key] = item[key]
-    return entry
-
-
-def build_search_entry(item: dict[str, Any], search_pages: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
-        "catalogId": item["id"],
-        "title": item["title"],
-        "pages": search_pages,
-    }
-
-
-def write_generated_files(
-    entries: list[dict[str, Any]],
-    search_entries: list[dict[str, Any]],
-    *,
-    root: Path | None = None,
-    transaction: ProjectTransaction | None = None,
-) -> None:
-    root = (root or project_root()).resolve()
-    payload = json.dumps(entries, ensure_ascii=False, indent=2)
-    search_payload = json.dumps(search_entries, ensure_ascii=False, indent=2)
-    generated_js = (
-        "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
-        "// לא מומלץ לערוך אותו ידנית. עריכה עושים בקובץ catalogs.config.json ואז מריצים שוב המרה.\n"
-        f"window.BARGIG_CATALOGS = {payload};\n"
+        search_pages=search_pages,
+        page_sizes=page_sizes[:pages] if page_sizes and len(page_sizes) >= pages else None,
     )
-    search_js = (
-        "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
-        "// כאן נמצא אינדקס החיפוש שנוצר מטקסט ה-PDF ומ-OCR.\n"
-        f"window.BARGIG_CATALOG_SEARCH = {search_payload};\n"
-    )
-    files = {
-        root / "catalogs.generated.json": (payload + "\n").encode("utf-8"),
-        root / "catalogs.generated.js": generated_js.encode("utf-8"),
-        root / "catalogs.search.json": (search_payload + "\n").encode("utf-8"),
-        root / "catalogs.search.js": search_js.encode("utf-8"),
-    }
-    for path, data in files.items():
-        if transaction is not None:
-            transaction.write_bytes(path, data)
-        else:
-            path.write_bytes(data)
-
-    standalone_viewer = root / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
-    if standalone_viewer.is_file():
-        try:
-            from tools.build_big_pages_viewer import build_big_pages_viewer
-        except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
-            from build_big_pages_viewer import build_big_pages_viewer
-        if transaction is not None:
-            transaction.track_files(
-                [
-                    standalone_viewer,
-                    root / "catalog-big-pages-viewer-netfree/README.txt",
-                ]
-            )
-        build_big_pages_viewer(root)
 
 
 def parse_args() -> argparse.Namespace:
@@ -1478,8 +1408,7 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
     stale_output_dirs = stale_catalog_output_dirs(root, configured_ids)
 
     with ProjectTransaction(root, prefix=".catalog-build-transaction-") as transaction:
-        generated: list[dict[str, Any]] = []
-        search_generated: list[dict[str, Any]] = []
+        artifacts: list[dict[str, Any]] = []
         previous_search_pages = load_previous_search_pages(root)
         manual_search_overrides = load_manual_search_overrides(root)
         staged_replacements: list[tuple[Path, Path]] = []
@@ -1553,15 +1482,15 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
                             page_sizes,
                         ),
                     ))
-                generated.append(build_generated_entry(
-                    item,
+                artifacts.append(build_catalog_artifact(
+                    catalog_id,
                     existing_output.pages,
                     out_dir,
                     existing_output.image_format,
                     catalog_options,
+                    search_pages,
                     page_sizes,
                 ))
-                search_generated.append(build_search_entry(item, search_pages))
                 continue
 
             if rebuild_reason:
@@ -1597,19 +1526,16 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
                 reason = staged_output.reason if staged_output else "staged output could not be inspected"
                 raise RuntimeError(f"Staged catalog {catalog_id} failed validation: {reason}")
             staged_replacements.append((out_dir, staged_out_dir))
-            generated.append(build_generated_entry(
-                item,
+            artifacts.append(build_catalog_artifact(
+                catalog_id,
                 pages,
                 staged_out_dir,
                 catalog_options.image_format,
                 catalog_options,
+                search_pages,
                 page_sizes,
-                public_out_dir=out_dir,
             ))
-            search_generated.append(build_search_entry(item, search_pages))
 
-        generated.sort(key=lambda row: row.get("sort", 9999))
-        search_generated.sort(key=lambda row: next((item.get("sort", 9999) for item in config if item["id"] == row["catalogId"]), 9999))
         trigger_fault("during-search-index")
 
         if removed_missing_pdf_ids:
@@ -1634,16 +1560,24 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
         for manifest_path, manifest_bytes in pending_manifests:
             transaction.write_bytes(manifest_path, manifest_bytes)
 
-        write_generated_files(
-            generated,
-            search_generated,
-            root=root,
-            transaction=transaction,
+        taxonomy_path = root / "catalog-taxonomy.config.json"
+        if not taxonomy_path.is_file():
+            raise FileNotFoundError(f"Required catalog taxonomy is missing: {taxonomy_path}")
+        taxonomy = json.loads(taxonomy_path.read_text(encoding="utf-8-sig"))
+        build_state = build_state_from_artifacts(artifacts, root)
+        compiled = compile_and_write_catalog_data(
+            config,
+            taxonomy,
+            build_state,
+            root,
+            writer=transaction.write_bytes,
+            write_build_state=True,
         )
 
         print("\nDone.")
-        print(f"Catalogs: {len(generated)}")
+        print(f"Catalogs: {len(compiled.generated)}")
         print(f"Format: {options.image_format.upper()}")
+        print("Generated: catalogs.build-state.json")
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
         if (root / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html").is_file():

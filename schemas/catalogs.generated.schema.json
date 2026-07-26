@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bargig-furniture.com/schemas/catalogs.generated.schema.json",
+  "title": "Compiled public catalog metadata",
+  "type": "array",
+  "items": {"$ref": "#/$defs/catalog"},
+  "$defs": {
+    "pageSize": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {"type": "integer", "minimum": 1}
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directory", "maxSide", "version"],
+      "properties": {
+        "directory": {"type": "string"},
+        "maxSide": {"type": "integer", "minimum": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "category", "pages", "dir", "cover", "imageExt", "assetVersion", "imageVariants"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"},
+        "title": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "category": {"type": "string", "minLength": 1},
+        "subcategory": {"type": "string"},
+        "pages": {"type": "integer", "minimum": 1},
+        "dir": {"type": "string", "pattern": "^assets/pages/[a-z0-9][a-z0-9-]{0,79}$"},
+        "cover": {"type": "string", "pattern": "^assets/pages/[a-z0-9][a-z0-9-]{0,79}/page-001\\.(webp|jpg|png)$"},
+        "imageExt": {"enum": ["webp", "jpg", "png"]},
+        "assetVersion": {"type": "string", "minLength": 1},
+        "imageVariants": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["thumb", "medium", "full"],
+          "properties": {
+            "thumb": {
+              "allOf": [
+                {"$ref": "#/$defs/variant"},
+                {"properties": {"directory": {"const": "thumbs"}}}
+              ]
+            },
+            "medium": {
+              "allOf": [
+                {"$ref": "#/$defs/variant"},
+                {"properties": {"directory": {"const": "medium"}}}
+              ]
+            },
+            "full": {
+              "allOf": [
+                {"$ref": "#/$defs/variant"},
+                {"properties": {"directory": {"const": ""}}}
+              ]
+            }
+          }
+        },
+        "pageSizes": {"type": "array", "items": {"$ref": "#/$defs/pageSize"}},
+        "sort": {"type": "integer"},
+        "badge": {"type": "string"}
+      }
+    }
+  }
+}
