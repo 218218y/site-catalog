@@ -3,17 +3,23 @@
 
 The lock is intentionally separate from generated pages. Public builds must match
 it exactly so a renamed catalog id or taxonomy slug cannot silently move an
-already-published URL. Updating the lock is an explicit review action.
+already-published URL. New catalog/category routes may be appended automatically
+from the control-panel sources; destructive route changes still require explicit
+review and a confirmed full lock update.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import uuid
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from build_site_pages import read_catalogs
 from seo_site import (
+    CATALOG_ID_RE,
+    Taxonomy,
     catalog_path,
     category_path,
     load_seo_config,
@@ -23,16 +29,19 @@ from seo_site import (
 
 LOCK_FILENAME = "seo-routes.lock.json"
 LOCK_SCHEMA = 1
+_ROUTE_GROUPS = (
+    ("catalogs", ("id",), "catalog id"),
+    ("categories", ("name",), "category"),
+    ("subcategories", ("category", "name"), "subcategory"),
+)
 
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def route_snapshot(root: Path) -> dict[str, Any]:
+def _route_snapshot(root: Path, catalogs: Sequence[Mapping[str, Any]], taxonomy: Taxonomy) -> dict[str, Any]:
     config = load_seo_config(root)
-    taxonomy = load_taxonomy(root)
-    catalogs = read_catalogs(root)
     return {
         "schema": LOCK_SCHEMA,
         "siteUrl": config.site_url,
@@ -64,6 +73,46 @@ def route_snapshot(root: Path) -> dict[str, Any]:
             )
         ],
     }
+
+
+def route_snapshot(root: Path) -> dict[str, Any]:
+    """Return the routes that the currently generated public site can expose."""
+
+    return _route_snapshot(root, read_catalogs(root), load_taxonomy(root))
+
+
+def read_configured_catalogs(root: Path) -> list[dict[str, Any]]:
+    """Read route identities directly from the control-panel catalog source."""
+
+    path = root / "catalogs.config.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except FileNotFoundError as exc:
+        raise FileNotFoundError("Required catalog source is missing: catalogs.config.json") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Could not parse catalogs.config.json: {exc}") from exc
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("catalogs.config.json must contain at least one catalog")
+
+    catalogs: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, item in enumerate(payload, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"catalogs.config.json item #{index} must be an object")
+        catalog_id = str(item.get("id", "")).strip()
+        if not CATALOG_ID_RE.fullmatch(catalog_id):
+            raise ValueError(f"catalogs.config.json item #{index} has invalid id: {catalog_id or '<empty>'}")
+        if catalog_id in seen:
+            raise ValueError(f"catalogs.config.json contains duplicate id: {catalog_id}")
+        seen.add(catalog_id)
+        catalogs.append(dict(item))
+    return catalogs
+
+
+def configured_route_snapshot(root: Path) -> dict[str, Any]:
+    """Return intended routes before PDF conversion/generated metadata catches up."""
+
+    return _route_snapshot(root, read_configured_catalogs(root), load_taxonomy(root))
 
 
 def read_lock(root: Path) -> dict[str, Any]:
@@ -101,12 +150,7 @@ def snapshot_differences(expected: Mapping[str, Any], current: Mapping[str, Any]
             f"site URL changed: {expected.get('siteUrl')!r} -> {current.get('siteUrl')!r}"
         )
 
-    groups = (
-        ("catalogs", ("id",), "catalog id"),
-        ("categories", ("name",), "category"),
-        ("subcategories", ("category", "name"), "subcategory"),
-    )
-    for field, keys, label in groups:
+    for field, keys, label in _ROUTE_GROUPS:
         locked = _indexed(expected.get(field), keys)
         live = _indexed(current.get(field), keys)
         for key in sorted(set(locked) - set(live)):
@@ -123,6 +167,57 @@ def snapshot_differences(expected: Mapping[str, Any], current: Mapping[str, Any]
                     f"{json.dumps(live_item, ensure_ascii=False, sort_keys=True)}"
                 )
     return differences
+
+
+def _atomic_write_lock(path: Path, payload: Mapping[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=False) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def append_new_configured_routes_to_lock(root: Path) -> dict[str, list[str]]:
+    """Append only brand-new configured routes to an existing public lock.
+
+    New catalog IDs and newly completed taxonomy entries are safe to register
+    automatically because they cannot move an existing public URL. Existing
+    entries are never removed or rewritten here. Renames, slug changes, site URL
+    changes and deletions remain visible as unresolved differences and continue
+    to block a public build until explicitly reviewed.
+    """
+
+    locked = read_lock(root)
+    configured = configured_route_snapshot(root)
+    updated = json.loads(json.dumps(locked, ensure_ascii=False))
+    additions: list[str] = []
+
+    for field, keys, label in _ROUTE_GROUPS:
+        locked_items = updated.get(field)
+        if not isinstance(locked_items, list):
+            raise ValueError(f"{LOCK_FILENAME} field '{field}' must be a JSON array")
+        known = _indexed(locked_items, keys)
+        live_items = configured.get(field)
+        if not isinstance(live_items, list):
+            raise ValueError(f"Configured route snapshot field '{field}' must be a list")
+        for item in live_items:
+            key = tuple(str(item.get(name, "")) for name in keys)
+            if key in known:
+                continue
+            copied = dict(item)
+            locked_items.append(copied)
+            known[key] = copied
+            additions.append(f"{label}: {' / '.join(key)}")
+
+    unresolved = snapshot_differences(updated, configured)
+    if additions:
+        _atomic_write_lock(root / LOCK_FILENAME, updated)
+    return {"added": additions, "unresolved": unresolved}
 
 
 def assert_route_lock_current(root: Path) -> None:
@@ -147,11 +242,7 @@ def write_route_lock(root: Path, *, confirmed: bool) -> Path:
             "Review every changed catalog id and taxonomy slug first."
         )
     target = root / LOCK_FILENAME
-    target.write_text(
-        json.dumps(route_snapshot(root), ensure_ascii=False, indent=2, sort_keys=False) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _atomic_write_lock(target, route_snapshot(root))
     return target
 
 

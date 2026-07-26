@@ -886,7 +886,16 @@
         renderTaxonomyEditor();
         renderActions();
         const warnings = payload.warnings || [];
-        setTaxonomySaveStatus(warnings.length ? `נשמר, אבל: ${warnings.join(' | ')}` : 'הגדרות הקטגוריות נשמרו ועודכנו.', warnings.length ? 'err' : 'ok');
+        const routeLockUpdates = payload.routeLockUpdates || [];
+        const routeLockText = routeLockUpdates.length
+          ? ` נעילת כתובות SEO עודכנה אוטומטית עבור ${routeLockUpdates.length} נתיבים חדשים.`
+          : '';
+        setTaxonomySaveStatus(
+          warnings.length
+            ? `נשמר, אבל: ${warnings.join(' | ')}`
+            : `הגדרות הקטגוריות נשמרו ועודכנו.${routeLockText}`,
+          warnings.length ? 'err' : 'ok'
+        );
       } catch (error) {
         setTaxonomySaveStatus(error.message, 'err');
       } finally {
@@ -1408,9 +1417,13 @@
         renderActions();
         const warnings = payload.warnings || [];
         const deletedAssets = payload.deletedAssets || [];
+        const routeLockUpdates = payload.routeLockUpdates || [];
+        const routeLockText = routeLockUpdates.length
+          ? ` נעילת כתובות SEO עודכנה אוטומטית עבור ${routeLockUpdates.length} נתיבים חדשים.`
+          : '';
         const successText = deletedAssets.length
-          ? `נשמר בהצלחה. נמחקו נכסים פיזיים: ${deletedAssets.join(' | ')}`
-          : 'נשמר בהצלחה.';
+          ? `נשמר בהצלחה. נמחקו נכסים פיזיים: ${deletedAssets.join(' | ')}.${routeLockText}`
+          : `נשמר בהצלחה.${routeLockText}`;
         setSaveStatus(warnings.length ? `נשמר, אבל: ${warnings.join(' | ')}` : successText, warnings.length ? 'err' : 'ok');
       } catch (error) {
         setSaveStatus(error.message, 'err');

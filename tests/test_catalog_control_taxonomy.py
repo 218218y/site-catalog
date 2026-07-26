@@ -164,3 +164,130 @@ def test_taxonomy_serialization_written_by_server_has_no_editor_metadata(
         ],
         "subcategories": [],
     }
+
+
+def write_route_sync_fixture(root: Path) -> None:
+    (root / "seo.config.json").write_text(
+        json.dumps(
+            {
+                "defaultMode": "private",
+                "siteUrl": "https://example.com",
+                "assetBaseUrl": "https://cdn.example.com",
+                "siteName": "Example",
+                "locale": "he_IL",
+                "defaultShareImage": "share.png",
+                "business": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / "seo-routes.lock.json").write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "siteUrl": "https://example.com",
+                "catalogs": [
+                    {"id": "cocktail-2026", "route": "/catalog/cocktail-2026/"}
+                ],
+                "categories": [
+                    {
+                        "name": "קטגוריה",
+                        "slug": "category",
+                        "route": "/category/category/",
+                    }
+                ],
+                "subcategories": [],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_atomic_control_panel_save_appends_new_public_routes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "catalogs.config.json"
+    taxonomy_path = tmp_path / "catalog-taxonomy.config.json"
+    config_path.write_text('[{"id":"cocktail-2026","category":"קטגוריה"}]\n', encoding="utf-8")
+    taxonomy_path.write_text(
+        json.dumps(complete_taxonomy(), ensure_ascii=False), encoding="utf-8"
+    )
+    write_route_sync_fixture(tmp_path)
+    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", taxonomy_path)
+
+    result = SERVER.atomic_write_catalogs_and_taxonomy(
+        [
+            {"id": "cocktail-2026", "category": "קטגוריה"},
+            {"id": "roya-2026", "category": "קטגוריה"},
+        ],
+        complete_taxonomy(),
+    )
+
+    assert result == {"added": ["catalog id: roya-2026"], "unresolved": []}
+    route_lock = json.loads((tmp_path / "seo-routes.lock.json").read_text(encoding="utf-8"))
+    assert {item["id"] for item in route_lock["catalogs"]} == {
+        "cocktail-2026",
+        "roya-2026",
+    }
+
+
+def test_incomplete_taxonomy_draft_does_not_force_route_lock_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "catalogs.config.json"
+    taxonomy_path = tmp_path / "catalog-taxonomy.config.json"
+    config_path.write_text('[]\n', encoding="utf-8")
+    taxonomy_path.write_text('{"categories":[],"subcategories":[]}\n', encoding="utf-8")
+    write_route_sync_fixture(tmp_path)
+    before_lock = (tmp_path / "seo-routes.lock.json").read_bytes()
+    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", taxonomy_path)
+
+    result = SERVER.atomic_write_catalogs_and_taxonomy(
+        [{"id": "new-catalog", "category": "קטגוריה חדשה"}],
+        {
+            "categories": [
+                {"name": "קטגוריה חדשה", "slug": "", "description": ""}
+            ],
+            "subcategories": [],
+        },
+    )
+
+    assert result == {"added": [], "unresolved": []}
+    assert (tmp_path / "seo-routes.lock.json").read_bytes() == before_lock
+
+
+def test_route_lock_sync_failure_rolls_back_catalog_taxonomy_and_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "catalogs.config.json"
+    taxonomy_path = tmp_path / "catalog-taxonomy.config.json"
+    config_path.write_text('[{"id":"old","category":"קטגוריה"}]\n', encoding="utf-8")
+    taxonomy_path.write_text(
+        json.dumps(complete_taxonomy(), ensure_ascii=False), encoding="utf-8"
+    )
+    write_route_sync_fixture(tmp_path)
+    route_lock_path = tmp_path / "seo-routes.lock.json"
+    before = {
+        config_path: config_path.read_bytes(),
+        taxonomy_path: taxonomy_path.read_bytes(),
+        route_lock_path: route_lock_path.read_bytes(),
+    }
+    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", taxonomy_path)
+
+    def fail_route_sync(root: Path) -> dict[str, list[str]]:
+        route_lock_path.write_text('{"partially":"changed"}\n', encoding="utf-8")
+        raise OSError("route lock sync failed")
+
+    monkeypatch.setattr(SERVER, "append_new_configured_routes_to_lock", fail_route_sync)
+    with pytest.raises(OSError, match="route lock sync failed"):
+        SERVER.atomic_write_catalogs_and_taxonomy(
+            [{"id": "new", "category": "קטגוריה"}], complete_taxonomy()
+        )
+
+    assert config_path.read_bytes() == before[config_path]
+    assert taxonomy_path.read_bytes() == before[taxonomy_path]
+    assert route_lock_path.read_bytes() == before[route_lock_path]

@@ -17,6 +17,8 @@ assert.match(panel, /function reconcileTaxonomyDraftFromCatalogs/);
 assert.match(panel, /function renderTaxonomyEditor/);
 assert.match(panel, /api\('\/api\/taxonomy'/);
 assert.match(panel, /taxonomy: taxonomyPayload\(\)/);
+assert.match(panel, /routeLockUpdates/);
+assert.match(panel, /נעילת כתובות SEO עודכנה אוטומטית/);
 assert.match(panel, /placeholder="חסר — לדוגמה dining-tables"/);
 assert.match(panel, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 assert.equal((panel.match(/class="taxonomy-panel-scroll"/g) || []).length, 2);
@@ -29,6 +31,9 @@ assert.match(server, /atomic_write_catalogs_and_taxonomy/);
 assert.match(server, /refresh_taxonomy_outputs_if_complete/);
 assert.match(server, /taxonomy_action_availability/);
 assert.match(server, /"taxonomy": taxonomy/);
+assert.match(server, /append_new_configured_routes_to_lock/);
+assert.match(server, /routeLockUpdates/);
+assert.match(server, /route_lock_sync_warnings/);
 
 assert.match(editor, /def reconcile_taxonomy_with_catalogs/);
 assert.match(editor, /def apply_taxonomy_renames_to_catalogs/);

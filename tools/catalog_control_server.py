@@ -34,6 +34,7 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
 from build_site_pages import PAGE_DOCUMENTS, render_site_pages
+from seo_route_lock import LOCK_FILENAME, append_new_configured_routes_to_lock
 from seo_site import build_taxonomy_asset
 from taxonomy_editor import (
     TAXONOMY_CONFIG_FILE,
@@ -253,19 +254,55 @@ def taxonomy_action_availability(action_key: str, taxonomy_state: Mapping[str, A
 def atomic_write_catalogs_and_taxonomy(
     catalogs: list[dict[str, Any]],
     taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
-) -> None:
+) -> dict[str, list[str]]:
     previous_catalogs = CONFIG_FILE.read_bytes() if CONFIG_FILE.is_file() else None
     previous_taxonomy = TAXONOMY_FILE.read_bytes() if TAXONOMY_FILE.is_file() else None
+    save_root = CONFIG_FILE.parent if CONFIG_FILE.parent == TAXONOMY_FILE.parent else None
+    route_lock_path = save_root / LOCK_FILENAME if save_root is not None else None
+    should_sync_route_lock = bool(
+        route_lock_path
+        and route_lock_path.is_file()
+        and not taxonomy_completion_issues(taxonomy)
+    )
+    previous_route_lock = (
+        route_lock_path.read_bytes()
+        if should_sync_route_lock and route_lock_path is not None
+        else None
+    )
+    route_lock_sync = {"added": [], "unresolved": []}
     try:
         atomic_write_bytes(
             CONFIG_FILE,
             (json.dumps(catalogs, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
         )
         atomic_write_bytes(TAXONOMY_FILE, serialize_taxonomy(taxonomy))
+        if should_sync_route_lock and save_root is not None:
+            route_lock_sync = append_new_configured_routes_to_lock(save_root)
     except Exception:
         restore_file_bytes(CONFIG_FILE, previous_catalogs)
         restore_file_bytes(TAXONOMY_FILE, previous_taxonomy)
+        if should_sync_route_lock and route_lock_path is not None:
+            restore_file_bytes(route_lock_path, previous_route_lock)
         raise
+    return route_lock_sync
+
+
+def route_lock_sync_warnings(sync: Mapping[str, Sequence[str]]) -> list[str]:
+    additions = list(sync.get("added", []))
+    unresolved = list(sync.get("unresolved", []))
+    if not unresolved:
+        return []
+    sample = " | ".join(unresolved[:4])
+    extra = f" | ועוד {len(unresolved) - 4}" if len(unresolved) > 4 else ""
+    prefix = (
+        "כתובות חדשות נוספו לנעילת ה-SEO, אבל "
+        if additions
+        else "נעילת ה-SEO לא שונתה אוטומטית משום ש"
+    )
+    return [
+        f"{prefix}שינוי או הסרה של כתובות קיימות דורשים בדיקה ידנית "
+        f"לפני פרסום ציבורי: {sample}{extra}"
+    ]
 
 
 def refresh_taxonomy_outputs_if_complete(
@@ -1416,9 +1453,10 @@ class ControlHandler(BaseHTTPRequestHandler):
                         warnings.extend(delete_warnings)
                         warnings.extend(stage_warnings)
                         rename_map = build_catalog_rename_map(catalogs)
-                        warnings.extend(apply_pages_dir_renames(rename_map))
                         file_catalogs = config_for_file(catalogs)
-                        atomic_write_catalogs_and_taxonomy(file_catalogs, taxonomy)
+                        route_lock_sync = atomic_write_catalogs_and_taxonomy(file_catalogs, taxonomy)
+                        warnings.extend(route_lock_sync_warnings(route_lock_sync))
+                        warnings.extend(apply_pages_dir_renames(rename_map))
                         try:
                             warnings.extend(sync_search_overrides_after_id_rename(rename_map))
                         except Exception as exc:
@@ -1436,6 +1474,7 @@ class ControlHandler(BaseHTTPRequestHandler):
                     "autoAddedTaxonomy": auto_added,
                     "grouped": True,
                     "deletedAssets": [item.label for item in staged_deletes],
+                    "routeLockUpdates": route_lock_sync.get("added", []),
                 })
                 return
             if path == "/api/taxonomy":
@@ -1446,14 +1485,16 @@ class ControlHandler(BaseHTTPRequestHandler):
                     )
                     catalogs = group_catalogs_by_category_subcategory(catalogs)
                     file_catalogs = config_for_file(catalogs)
-                    atomic_write_catalogs_and_taxonomy(file_catalogs, taxonomy)
-                    warnings = sync_generated_metadata_after_config_save(file_catalogs)
+                    route_lock_sync = atomic_write_catalogs_and_taxonomy(file_catalogs, taxonomy)
+                    warnings = route_lock_sync_warnings(route_lock_sync)
+                    warnings.extend(sync_generated_metadata_after_config_save(file_catalogs))
                     warnings.extend(refresh_taxonomy_outputs_if_complete(taxonomy))
                 self.send_json({
                     "ok": True,
                     "state": state_payload(),
                     "warnings": warnings,
                     "autoAddedTaxonomy": auto_added,
+                    "routeLockUpdates": route_lock_sync.get("added", []),
                 })
                 return
             if path == "/api/run":
