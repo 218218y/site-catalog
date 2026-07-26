@@ -19,6 +19,7 @@ const schemaNames = [
   "catalogs.build-state.schema.json",
   "catalogs.generated.schema.json",
   "catalogs.search.schema.json",
+  "catalogs.search-index.schema.json",
 ];
 for (const name of schemaNames) {
   const fullPath = path.join(root, "schemas", name);
@@ -37,6 +38,8 @@ assert.match(compiler, /def compile_catalog_data\(/);
 assert.match(compiler, /def compile_current_project_catalog_data\(/);
 assert.match(compiler, /def verify_managed_outputs_reconstructable\(/);
 assert.match(compiler, /BUILD_STATE_FILE = "catalogs\.build-state\.json"/);
+assert.match(compiler, /SEARCH_INDEX_FILE = "catalogs\.search-index\.json"/);
+assert.match(compiler, /build_normalized_search_index/);
 assert.match(compiler, /def load_build_state\(root: Path, \*, allow_legacy_migration: bool = False\)/);
 assert.match(compiler, /--migrate-legacy-state/);
 assert.match(schema, /class SchemaValidationError/);
@@ -73,5 +76,9 @@ assert.match(compiler, /catalog-big-pages-viewer-netfree\/catalog-big-pages-view
 
 assert.match(fs.readFileSync(path.join(root, "catalogs.generated.js"), "utf8"), /tools\/catalog_compiler\.py/);
 assert.match(fs.readFileSync(path.join(root, "catalogs.search.js"), "utf8"), /tools\/catalog_compiler\.py/);
+const normalizedSearchIndex = JSON.parse(fs.readFileSync(path.join(root, "catalogs.search-index.json"), "utf8"));
+assert.equal(normalizedSearchIndex.version, 1);
+assert.equal(normalizedSearchIndex.documents.length, normalizedSearchIndex.stats.pages);
+assert.ok(normalizedSearchIndex.stats.tokens > 0);
 
 console.log("catalog_compiler_contract.test.js: PASS");

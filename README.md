@@ -208,10 +208,11 @@ catalogs.generated.js
 catalogs.generated.json
 catalogs.search.js
 catalogs.search.json
+catalogs.search-index.json
 ```
 
 `catalogs.config.json` הוא מקור האמת למידע העריכתי, ו־`catalogs.build-state.json`
-הוא מקור האמת היחיד לנתונים שנגזרו מה־PDF. ארבעת קובצי `generated/search` נוצרים
+הוא מקור האמת היחיד לנתונים שנגזרו מה־PDF. קובצי `generated/search` והאינדקס המנורמל נוצרים
 רק דרך `tools/catalog_compiler.py`; אין לערוך אותם ידנית. פירוט מלא נמצא ב־
 `docs/catalog-data-compiler.md`.
 
@@ -437,7 +438,9 @@ src/js/                            מקורות JavaScript לפי תחומים; 
 styles.css                         באנדל CSS שנוצר אוטומטית מכל src/css
 app.js                             באנדל JavaScript שנוצר אוטומטית מכל src/js
 tools/build_frontend_assets.py    בנייה אטומית ובדיקת עדכניות של שני קובצי הממשק
-catalog-search.js                  חיפוש בתוך הקטלוגים
+catalog-search.js                  לקוח אסינכרוני לחיפוש בתוך הקטלוגים
+catalog-search-worker.js           מנוע החיפוש שרץ מחוץ ל־Main Thread
+catalogs.search-index.json         אינדקס הפוך ומנורמל שנבנה מראש בזמן Build
 catalog-snapshot.js                הורדת/צילום עמוד עם הלוגו
 catalog-assets.config.js           כתובת בסיס התמונות ומדיניות responsive/full-only; בבאנדל R2 מוחלף רק URL ה-CDN
 social-share-default.png            תמונת ברירת המחדל לשיתוף קישור ותגיות Open Graph/Twitter (1200×630)
@@ -450,7 +453,8 @@ partials/site-footer.html          תבנית מבנה הפוטר; העיצוב 
 partials/site-footer.content.json  טקסטי הפוטר הנערכים דרך לוח השליטה
 tools/footer_content.py            אימות, escaping ובניית קישורי הפוטר מתוך קובץ התוכן
 catalogs.generated.js              נתוני קטלוגים שנוצרו אוטומטית
-catalogs.search.js                 אינדקס חיפוש שנוצר אוטומטית
+catalogs.search.js                 תוצר חיפוש תאימות שנוצר אוטומטית; אינו נטען באתר
+catalogs.search-index.json         אינדקס החיפוש הפעיל והדטרמיניסטי עבור ה־Worker
 .04-catalog-control-panel.bat          פתיחת לוח השליטה המקומי
 catalog-control-panel.html         ממשק לוח השליטה המקומי
 .02-bundle-site-r2-upload cloudflare.bat      העלאת dist/site-upload-r2 ל-Cloudflare Pages בלבד
@@ -604,9 +608,13 @@ python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furni
 
 לבדיקת עצם קיום כל האובייקטים שנוצרו ב־R2, כולל שכבת Medium גם כאשר היא כבויה באתר, משתמשים ב־`npm run verify:r2:origin`. פרסום Pages דרך `.02-bundle-site-r2-upload cloudflare.bat` בודק רק את השכבות שהאתר הנוכחי באמת יבקש ומריץ אוטומטית את בדיקת כתובות הגרסה המלאה לפני ההעלאה, ולכן 404 שנשמר ב־CDN אינו יכול לעבור לפרסום חדש בשקט.
 
-## גרסת אינדקס החיפוש
+## מנוע החיפוש ואינדקס הגרסה
 
-`catalogs.search.js` נטען דינמית, אך בבאנדל הפריסה הוא מקבל כעת שם בעל hash תחת `static/`, והנתיב החדש נכתב לתוך `app.js` לפני שגם `app.js` מקבל hash. בדיקת הבאנדל מאמתת את שני הקבצים ואת הקשר ביניהם, ולכן דפדפן אינו יכול להישאר עם אינדקס חיפוש ישן לאחר עדכון קטלוגים.
+החיפוש הפעיל משתמש ב־`catalogs.search-index.json`, אינדקס הפוך ומנורמל שנבנה פעם אחת על ידי ה־Compiler. `catalog-search.js` מנהל בקשות וביטול שאילתות, ו־`catalog-search-worker.js` מבצע את איתור המועמדים, הדירוג והפקת קטעי ההתאמה מחוץ ל־Main Thread.
+
+בבאנדל הפריסה ה־Worker והאינדקס מקבלים שמות בעלי hash תחת `static/`. הנתיבים המדויקים נכתבים לתוך `catalog-search.js` לפני שגם הוא מקבל hash. בדיקת הבאנדל מאמתת את שרשרת שלושת הקבצים ואת תוכנם, ולכן דפדפן אינו יכול לשלב לקוח חדש עם Worker או אינדקס ישן.
+
+בדיקת הביצועים על מספר העמודים האמיתי זמינה ב־`npm run test:search-performance`, והיא נכללת גם בחוזי JavaScript של CI. בדיקת Playwright נוספת מפעילה האטת CPU פי 4 ומוודאת שהממשק נשאר מגיב ושרק תוצאת השאילתה האחרונה מוצגת. פירוט הארכיטקטורה נמצא ב־`docs/catalog-search-worker.md`.
 
 ## CI ובדיקות דפדפן
 

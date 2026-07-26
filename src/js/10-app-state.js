@@ -23,7 +23,7 @@ const VIEWER_FULLSCREEN_ACTIVE = "active";
 const VIEWER_FULLSCREEN_EXITING = "exiting";
 const LIGHTBOX_SOURCE_CATALOG = "catalog";
 const LIGHTBOX_SOURCE_FAVORITES = "favorites";
-const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";
+const SEARCH_INPUT_DEBOUNCE_MS = 90;
 const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
 const CATALOG_IMAGE_TIER_THUMB = "thumb";
 const CATALOG_IMAGE_TIER_MEDIUM = "medium";
@@ -170,7 +170,7 @@ const state = {
   categoryFocusTimer: 0,
   categoryFocusTargetId: "",
   categoryNavFitRaf: 0,
-  searchIndexLoadState: Array.isArray(window.BARGIG_CATALOG_SEARCH) ? "ready" : "idle",
+  searchIndexLoadState: catalogSearch?.isReady?.() ? "ready" : "idle",
   searchIndexLoadPromise: null,
   searchIndexPreloadTimer: 0,
   catalogScrollTopButtonRaf: 0,

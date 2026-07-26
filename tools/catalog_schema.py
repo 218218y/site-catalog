@@ -21,6 +21,7 @@ TAXONOMY_SCHEMA = "catalog-taxonomy.config.schema.json"
 BUILD_STATE_SCHEMA = "catalogs.build-state.schema.json"
 GENERATED_SCHEMA = "catalogs.generated.schema.json"
 SEARCH_SCHEMA = "catalogs.search.schema.json"
+SEARCH_INDEX_SCHEMA = "catalogs.search-index.schema.json"
 
 
 class SchemaValidationError(ValueError):
@@ -318,6 +319,59 @@ def validate_search(value: Any, project_root: Path) -> list[dict[str, Any]]:
             seen_pages.add(page_number)
     return rows
 
+
+
+def validate_search_index(value: Any, project_root: Path) -> dict[str, Any]:
+    validate_against_schema(value, project_root, SEARCH_INDEX_SCHEMA)
+    payload = deepcopy(dict(value))
+    catalogs = [dict(item) for item in payload["catalogs"]]
+    documents = [dict(item) for item in payload["documents"]]
+    _ensure_unique(catalogs, "id", label="search-index catalog id")
+    seen_document_pages: set[tuple[int, int]] = set()
+    for index, document in enumerate(documents):
+        catalog_index = int(document["catalog"])
+        if catalog_index < 0 or catalog_index >= len(catalogs):
+            raise SchemaValidationError(
+                f"Search-index document #{index} references catalog index {catalog_index}, "
+                f"but only {len(catalogs)} catalog(s) exist"
+            )
+        page_key = (catalog_index, int(document["page"]))
+        if page_key in seen_document_pages:
+            raise SchemaValidationError(
+                f"Search-index repeats catalog index {catalog_index}, page {page_key[1]}"
+            )
+        seen_document_pages.add(page_key)
+    document_count = len(documents)
+    terms = dict(payload["terms"])
+    for token, postings in terms.items():
+        if not str(token).strip():
+            raise SchemaValidationError("Search-index terms may not contain an empty token")
+        previous = -1
+        for document_id in postings:
+            document_id = int(document_id)
+            if document_id <= previous:
+                raise SchemaValidationError(
+                    f"Search-index postings for {token!r} must be strictly increasing"
+                )
+            if document_id < 0 or document_id >= document_count:
+                raise SchemaValidationError(
+                    f"Search-index token {token!r} references missing document {document_id}"
+                )
+            previous = document_id
+    stats = dict(payload["stats"])
+    if int(stats["catalogs"]) != len(catalogs):
+        raise SchemaValidationError("Search-index catalog count does not match catalogs array")
+    if int(stats["pages"]) != document_count:
+        raise SchemaValidationError("Search-index page count does not match documents array")
+    if int(stats["tokens"]) != len(terms):
+        raise SchemaValidationError("Search-index token count does not match terms object")
+    category_pages = dict(stats["categoryPages"])
+    if sum(int(count) for count in category_pages.values()) != document_count:
+        raise SchemaValidationError("Search-index category page counts do not match documents array")
+    payload["catalogs"] = catalogs
+    payload["documents"] = documents
+    payload["terms"] = terms
+    return payload
 
 def validate_compiled_pair(
     generated: Sequence[Mapping[str, Any]],

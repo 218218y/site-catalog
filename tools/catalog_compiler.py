@@ -28,6 +28,7 @@ try:
         validate_generated,
         validate_compiled_pair,
         validate_search,
+        validate_search_index,
         validate_taxonomy_config,
         validate_taxonomy_coverage,
     )
@@ -38,21 +39,29 @@ except ModuleNotFoundError:  # Direct execution from tools/
         validate_generated,
         validate_compiled_pair,
         validate_search,
+        validate_search_index,
         validate_taxonomy_config,
         validate_taxonomy_coverage,
     )
+
+try:
+    from tools.catalog_search_index import build_normalized_search_index
+except ModuleNotFoundError:  # Direct execution from tools/
+    from catalog_search_index import build_normalized_search_index
 
 BUILD_STATE_FILE = "catalogs.build-state.json"
 GENERATED_JSON_FILE = "catalogs.generated.json"
 GENERATED_JS_FILE = "catalogs.generated.js"
 SEARCH_JSON_FILE = "catalogs.search.json"
 SEARCH_JS_FILE = "catalogs.search.js"
+SEARCH_INDEX_FILE = "catalogs.search-index.json"
 TAXONOMY_JS_FILE = "catalog-taxonomy.generated.js"
 MANAGED_CATALOG_OUTPUTS = (
     Path(GENERATED_JSON_FILE),
     Path(GENERATED_JS_FILE),
     Path(SEARCH_JSON_FILE),
     Path(SEARCH_JS_FILE),
+    Path(SEARCH_INDEX_FILE),
 )
 VARIANT_DIRECTORIES = {
     "thumb": "thumbs",
@@ -70,6 +79,7 @@ class CompiledCatalogData:
     build_state: dict[str, Any]
     generated: list[dict[str, Any]]
     search: list[dict[str, Any]]
+    search_index: dict[str, Any]
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -101,6 +111,7 @@ def compiled_catalog_file_bytes(compiled: CompiledCatalogData) -> dict[Path, byt
         Path(GENERATED_JS_FILE): _generated_js_bytes(compiled.generated),
         Path(SEARCH_JSON_FILE): _json_bytes(compiled.search),
         Path(SEARCH_JS_FILE): _search_js_bytes(compiled.search),
+        Path(SEARCH_INDEX_FILE): _json_bytes(compiled.search_index),
     }
 
 
@@ -431,7 +442,11 @@ def compile_catalog_data(
     generated = validate_generated(generated, project_root)
     search = validate_search(search, project_root)
     validate_compiled_pair(generated, search)
-    return CompiledCatalogData(normalized_state, generated, search)
+    search_index = validate_search_index(
+        build_normalized_search_index(generated, search),
+        project_root,
+    )
+    return CompiledCatalogData(normalized_state, generated, search, search_index)
 
 
 def write_compiled_catalog_data(

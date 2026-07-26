@@ -152,6 +152,7 @@ def check_performance_budgets(root: Path, bundle_dir: Path | None = None) -> lis
         ("appJavaScript", "Application JavaScript"),
         ("stylesCss", "Application CSS"),
         ("searchIndex", "Search index"),
+        ("searchWorker", "Search worker"),
     ):
         budget = budgets[key]
         path = root / str(budget["source"])
@@ -165,6 +166,7 @@ def check_performance_budgets(root: Path, bundle_dir: Path | None = None) -> lis
             ("appJavaScript", "Deploy JavaScript"),
             ("stylesCss", "Deploy CSS"),
             ("searchIndex", "Deploy search index"),
+            ("searchWorker", "Deploy search worker"),
         ):
             budget = budgets[key]
             path = resolve_bundle_asset(resolved_bundle, str(budget["bundlePattern"]))

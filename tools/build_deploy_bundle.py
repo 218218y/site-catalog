@@ -77,6 +77,8 @@ DEPLOY_FILES = [
     "styles.css",
     "app.js",
     "catalog-search.js",
+    "catalog-search-worker.js",
+    "catalogs.search-index.json",
     "tooltip-manager.js",
     "favorites-store.js",
     "site-routes.js",
@@ -87,7 +89,6 @@ DEPLOY_FILES = [
     "favicon-loader.js",
     "catalogs.generated.js",
     "catalog-taxonomy.generated.js",
-    "catalogs.search.js",
     "social-share-default.png",
 ]
 
@@ -125,6 +126,8 @@ GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 FINGERPRINTED_ASSET_DIR = "static"
 FINGERPRINTED_EXTENSIONS = {".css", ".js"}
+DYNAMIC_FINGERPRINTED_EXTENSIONS = {".js", ".json"}
+ALL_FINGERPRINTED_EXTENSIONS = FINGERPRINTED_EXTENSIONS | DYNAMIC_FINGERPRINTED_EXTENSIONS
 # Root documents retained for unit-test fixtures; deploy fingerprinting discovers nested HTML dynamically.
 FINGERPRINT_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
 FINGERPRINT_SOURCE_HTML_FILES = tuple(
@@ -134,13 +137,14 @@ FINGERPRINT_SOURCE_HTML_FILES = tuple(
     )
 )
 HASHED_ASSET_FILENAME_RE = re.compile(
-    r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js)$"
+    r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js|json)$"
 )
-SEARCH_INDEX_RUNTIME_RE = re.compile(r'const SEARCH_INDEX_SCRIPT_SRC = "(?P<url>[^"]+)";')
+SEARCH_WORKER_RUNTIME_RE = re.compile(r'const SEARCH_WORKER_SCRIPT_SRC = "(?P<url>[^"]+)";')
+SEARCH_INDEX_RUNTIME_RE = re.compile(r'const SEARCH_INDEX_DATA_SRC = "(?P<url>[^"]+)";')
 
 ARTIFACT_STATE_SCHEMA = 2
 ARTIFACT_STATE_SUFFIX = ".build.json"
-BUILD_SIGNATURE_VERSION = "site-bundle-v4"
+BUILD_SIGNATURE_VERSION = "site-bundle-v5"
 LEGACY_ARTIFACT_DIRS = (
     "dist/seo-private",
     "dist/seo-public",
@@ -165,7 +169,9 @@ BUILD_INPUT_FILES = (
     "catalogs.generated.js",
     "catalogs.search.js",
     "catalogs.search.json",
+    "catalogs.search-index.json",
     "catalog-search.js",
+    "catalog-search-worker.js",
     "tooltip-manager.js",
     "favorites-store.js",
     "site-routes.js",
@@ -185,6 +191,7 @@ BUILD_TOOL_FILES = (
     "tools/build_big_pages_viewer.py",
     "tools/catalog_compiler.py",
     "tools/catalog_schema.py",
+    "tools/catalog_search_index.py",
     "tools/seo_site.py",
     "tools/seo_route_lock.py",
     "tools/footer_content.py",
@@ -598,32 +605,50 @@ def rebase_css_asset_urls(source: Path, target_dir: Path, bundle_root: Path) -> 
         source.write_text(rewritten, encoding="utf-8")
 
 
-def fingerprint_search_index(out_dir: Path) -> str:
-    """Fingerprint the dynamically loaded search index and rewrite app.js."""
+def fingerprint_search_runtime_assets(out_dir: Path) -> dict[str, str]:
+    """Fingerprint the worker and normalized JSON index, then wire the client runtime."""
 
-    search_source = out_dir / "catalogs.search.js"
-    app_source = out_dir / "app.js"
-    if not search_source.is_file() or not app_source.is_file():
-        raise FileNotFoundError("app.js and catalogs.search.js are required before fingerprinting")
+    runtime_source = out_dir / "catalog-search.js"
+    worker_source = out_dir / "catalog-search-worker.js"
+    index_source = out_dir / "catalogs.search-index.json"
+    if not runtime_source.is_file() or not worker_source.is_file() or not index_source.is_file():
+        raise FileNotFoundError(
+            "catalog-search.js, catalog-search-worker.js and catalogs.search-index.json are required before fingerprinting"
+        )
 
-    normalize_fingerprinted_text(search_source)
-    target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(search_source)
-    target = out_dir / target_relative
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists():
-        target.unlink()
-    shutil.move(str(search_source), str(target))
+    normalize_fingerprinted_text(worker_source)
+    targets: dict[str, str] = {}
+    for logical_name, source in (
+        ("catalog-search-worker.js", worker_source),
+        ("catalogs.search-index.json", index_source),
+    ):
+        target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(source)
+        target = out_dir / target_relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            target.unlink()
+        shutil.move(str(source), str(target))
+        targets[logical_name] = target_relative.as_posix()
 
-    app_text = app_source.read_text(encoding="utf-8", errors="replace")
-    rewritten, replacements = SEARCH_INDEX_RUNTIME_RE.subn(
-        f'const SEARCH_INDEX_SCRIPT_SRC = "{target_relative.as_posix()}";',
-        app_text,
+    runtime_text = runtime_source.read_text(encoding="utf-8", errors="replace")
+    # Worker() resolves URLs against the document, while fetch() inside the
+    # worker resolves the index URL against the worker script itself.
+    worker_runtime_url = targets["catalog-search-worker.js"]
+    index_runtime_url = Path(targets["catalogs.search-index.json"]).name
+    runtime_text, worker_replacements = SEARCH_WORKER_RUNTIME_RE.subn(
+        f'const SEARCH_WORKER_SCRIPT_SRC = "{worker_runtime_url}";',
+        runtime_text,
         count=1,
     )
-    if replacements != 1:
-        raise ValueError("app.js does not contain one searchable SEARCH_INDEX_SCRIPT_SRC constant")
-    app_source.write_text(rewritten, encoding="utf-8")
-    return target_relative.as_posix()
+    runtime_text, index_replacements = SEARCH_INDEX_RUNTIME_RE.subn(
+        f'const SEARCH_INDEX_DATA_SRC = "{index_runtime_url}";',
+        runtime_text,
+        count=1,
+    )
+    if worker_replacements != 1 or index_replacements != 1:
+        raise ValueError("catalog-search.js must contain one worker URL and one normalized index URL constant")
+    runtime_source.write_text(runtime_text, encoding="utf-8")
+    return targets
 
 
 def discover_bundle_html(out_dir: Path) -> list[Path]:
@@ -880,42 +905,76 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
     app_assets = sorted(asset for asset in referenced_assets if Path(asset).name.startswith("app."))
     if len(app_assets) != 1:
         invalid_assets.append(f"expected one fingerprinted app.js reference, found {len(app_assets)}")
+
+    search_runtime_assets = sorted(
+        asset for asset in referenced_assets if Path(asset).name.startswith("catalog-search.")
+    )
+    if len(search_runtime_assets) != 1:
+        invalid_assets.append(
+            f"expected one fingerprinted catalog-search.js reference, found {len(search_runtime_assets)}"
+        )
     else:
-        app_text = (out_dir / app_assets[0]).read_text(encoding="utf-8", errors="replace")
-        match = SEARCH_INDEX_RUNTIME_RE.search(app_text)
-        if match is None:
-            invalid_assets.append("fingerprinted app.js is missing SEARCH_INDEX_SCRIPT_SRC")
-        else:
+        runtime_text = (out_dir / search_runtime_assets[0]).read_text(encoding="utf-8", errors="replace")
+        dynamic_specs = (
+            (SEARCH_WORKER_RUNTIME_RE, "catalog-search-worker", ".js", "worker"),
+            (SEARCH_INDEX_RUNTIME_RE, "catalogs.search-index", ".json", "search index"),
+        )
+        for runtime_pattern, expected_stem, expected_suffix, label in dynamic_specs:
+            match = runtime_pattern.search(runtime_text)
+            if match is None:
+                invalid_assets.append(f"fingerprinted catalog-search.js is missing its {label} URL")
+                continue
             dynamic_reference = match.group("url")
-            dynamic_relative = Path(dynamic_reference)
+            raw_dynamic_relative = Path(dynamic_reference)
+            if raw_dynamic_relative.is_absolute() or ".." in raw_dynamic_relative.parts:
+                invalid_assets.append(f"catalog-search.js -> {dynamic_reference} (unsafe path)")
+                continue
+            runtime_relative = Path(search_runtime_assets[0])
+            dynamic_relative = (
+                raw_dynamic_relative
+                if raw_dynamic_relative.parts and raw_dynamic_relative.parts[0] == FINGERPRINTED_ASSET_DIR
+                else runtime_relative.parent / raw_dynamic_relative
+            )
             dynamic_path = out_dir / dynamic_relative
             if not dynamic_path.is_file():
-                missing_assets.append(f"app.js -> {dynamic_reference}")
-            elif not dynamic_relative.parts or dynamic_relative.parts[0] != FINGERPRINTED_ASSET_DIR:
-                invalid_assets.append(f"app.js -> {dynamic_reference} (not fingerprinted under static/)")
-            else:
-                dynamic_name = HASHED_ASSET_FILENAME_RE.fullmatch(dynamic_relative.name)
-                if dynamic_name is None or dynamic_name.group("stem") != "catalogs.search":
-                    invalid_assets.append(f"app.js -> {dynamic_reference} (invalid search-index fingerprint)")
-                elif dynamic_name.group("digest") != cached_content_hash(dynamic_path):
-                    invalid_assets.append(f"app.js -> {dynamic_reference} (filename hash does not match file contents)")
-                else:
-                    referenced_assets.add(dynamic_relative.as_posix())
+                missing_assets.append(f"catalog-search.js -> {dynamic_reference}")
+                continue
+            if not dynamic_relative.parts or dynamic_relative.parts[0] != FINGERPRINTED_ASSET_DIR:
+                invalid_assets.append(
+                    f"catalog-search.js -> {dynamic_reference} (not fingerprinted under static/)"
+                )
+                continue
+            dynamic_name = HASHED_ASSET_FILENAME_RE.fullmatch(dynamic_relative.name)
+            if (
+                dynamic_name is None
+                or dynamic_name.group("stem") != expected_stem
+                or dynamic_relative.suffix != expected_suffix
+            ):
+                invalid_assets.append(
+                    f"catalog-search.js -> {dynamic_reference} (invalid {label} fingerprint)"
+                )
+                continue
+            if dynamic_name.group("digest") != cached_content_hash(dynamic_path):
+                invalid_assets.append(
+                    f"catalog-search.js -> {dynamic_reference} (filename hash does not match file contents)"
+                )
+                continue
+            referenced_assets.add(dynamic_relative.as_posix())
 
     if missing_assets:
         raise FileNotFoundError(
-            "Bundle HTML references missing CSS/JS assets: " + ", ".join(sorted(set(missing_assets)))
+            "Bundle references missing fingerprinted assets: " + ", ".join(sorted(set(missing_assets)))
         )
     if invalid_assets:
         raise ValueError(
-            "Bundle contains invalid CSS/JS references: " + ", ".join(sorted(set(invalid_assets)))
+            "Bundle contains invalid fingerprinted asset references: " + ", ".join(sorted(set(invalid_assets)))
         )
 
     static_dir = out_dir / FINGERPRINTED_ASSET_DIR
     deployed_assets = {
         path.relative_to(out_dir).as_posix()
         for path in static_dir.rglob("*")
-        if path.is_file() and path.suffix.lower() in FINGERPRINTED_EXTENSIONS
+        if path.is_file() and path.suffix.lower() in ALL_FINGERPRINTED_EXTENSIONS
     } if static_dir.is_dir() else set()
     unreferenced = sorted(deployed_assets - referenced_assets)
     if unreferenced:
@@ -1293,13 +1352,13 @@ def _main_unlocked() -> int:
                 stats = add_stats(stats, copy_optional_file(root, staging_dir, relative))
 
         stats = add_stats(stats, write_asset_config(root, staging_dir, args.external_assets_url))
-        fingerprinted_search_index = fingerprint_search_index(staging_dir)
+        fingerprinted_search_assets = fingerprint_search_runtime_assets(staging_dir)
         fingerprinted_assets = fingerprint_source_assets(
             root,
             staging_dir,
             include_big_pages_viewer=args.include_big_pages_viewer,
         )
-        fingerprinted_assets["catalogs.search.js"] = fingerprinted_search_index
+        fingerprinted_assets.update(fingerprinted_search_assets)
         rewrite_existing_bundle_html(staging_dir, fingerprinted_assets)
         asset_stage_seconds = time.perf_counter() - asset_stage_started
 

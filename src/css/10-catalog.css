@@ -640,7 +640,7 @@
   height: 100%;
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 8px;
   align-items: stretch;
   padding: 10px;
@@ -1087,4 +1087,40 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   background: rgba(154, 122, 98, 0.12);
   color: var(--ink);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+/* Worker-backed search results explain the match instead of showing an opaque thumbnail. */
+.search-result-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  align-content: start;
+}
+.search-result-meta {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+.search-result-excerpt {
+  min-width: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: color-mix(in srgb, var(--ink) 80%, transparent);
+  font-size: .82rem;
+  font-weight: 650;
+  line-height: 1.48;
+}
+.search-match-highlight {
+  padding: 0 .08em;
+  border-radius: .22em;
+  color: inherit;
+  background: rgba(234, 194, 91, .48);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.search-results[aria-busy="true"] {
+  cursor: progress;
 }

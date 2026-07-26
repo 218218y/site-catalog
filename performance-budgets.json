@@ -12,10 +12,10 @@
     "gzipBytes": 45000
   },
   "searchIndex": {
-    "source": "catalogs.search.js",
-    "bundlePattern": "static/catalogs.search.*.js",
-    "rawBytes": 2000000,
-    "gzipBytes": 250000
+    "source": "catalogs.search-index.json",
+    "bundlePattern": "static/catalogs.search-index.*.json",
+    "rawBytes": 2500000,
+    "gzipBytes": 300000
   },
   "largestHtml": {
     "rawBytes": 135000,
@@ -26,5 +26,11 @@
     "rawBytes": 400000,
     "width": 1200,
     "height": 630
+  },
+  "searchWorker": {
+    "source": "catalog-search-worker.js",
+    "bundlePattern": "static/catalog-search-worker.*.js",
+    "rawBytes": 40000,
+    "gzipBytes": 12000
   }
 }

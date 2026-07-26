@@ -207,10 +207,21 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
     static_dir = bundle_dir / "static"
     static_dir.mkdir()
 
-    search_content = b"window.BARGIG_SEARCH = [];\n"
-    search_name = f"catalogs.search.{hashlib.sha256(search_content).hexdigest()[:12]}.js"
-    (static_dir / search_name).write_bytes(search_content)
-    app_content = f'const SEARCH_INDEX_SCRIPT_SRC = "static/{search_name}";\nwindow.test = true;\n'.encode("utf-8")
+    worker_content = b"self.addEventListener('message', () => {});\n"
+    index_content = b'{"version":1,"stats":{"catalogs":0,"pages":0,"tokens":0,"categoryPages":{}},"catalogs":[],"documents":[],"terms":{}}\n'
+    worker_name = f"catalog-search-worker.{hashlib.sha256(worker_content).hexdigest()[:12]}.js"
+    index_name = f"catalogs.search-index.{hashlib.sha256(index_content).hexdigest()[:12]}.json"
+    (static_dir / worker_name).write_bytes(worker_content)
+    (static_dir / index_name).write_bytes(index_content)
+
+    runtime_content = (
+        f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
+        f'const SEARCH_INDEX_DATA_SRC = "static/{index_name}";\n'
+    ).encode("utf-8")
+    runtime_name = f"catalog-search.{hashlib.sha256(runtime_content).hexdigest()[:12]}.js"
+    (static_dir / runtime_name).write_bytes(runtime_content)
+
+    app_content = b"window.test = true;\n"
     style_content = b"body {}\n"
     app_name = f"app.{hashlib.sha256(app_content).hexdigest()[:12]}.js"
     style_name = f"styles.{hashlib.sha256(style_content).hexdigest()[:12]}.css"
@@ -222,7 +233,7 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
         if missing_reference and missing_reference[0] == html_name:
             script = missing_reference[1]
         (bundle_dir / html_name).write_text(
-            f'<link rel="stylesheet" href="static/{style_name}"><script src="{script}"></script>',
+            f'<link rel="stylesheet" href="static/{style_name}">'            f'<script src="static/{runtime_name}"></script>'            f'<script src="{script}"></script>',
             encoding="utf-8",
         )
 
@@ -238,7 +249,8 @@ def test_bundle_validation_accepts_runtime_loaded_search_index(tmp_path: Path) -
     write_minimal_bundle(bundle_dir)
 
     MODULE.validate_bundle(bundle_dir)
-    assert len(list((bundle_dir / "static").glob("catalogs.search.*.js"))) == 1
+    assert len(list((bundle_dir / "static").glob("catalogs.search-index.*.json"))) == 1
+    assert len(list((bundle_dir / "static").glob("catalog-search-worker.*.js"))) == 1
 
 
 def test_bundle_validation_rejects_missing_asset_in_non_index_page(tmp_path: Path) -> None:

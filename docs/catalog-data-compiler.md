@@ -23,11 +23,12 @@ catalogs.generated.json
 catalogs.generated.js
 catalogs.search.json
 catalogs.search.js
+catalogs.search-index.json
 ```
 
 The control panel and `tools/build_catalogs.py` both call the same compiler. The
 control panel changes source metadata; PDF conversion changes build state. The
-compiler is the only component that serializes the public catalog/search files.
+compiler is the only component that serializes the public catalog/search files. The normalized search index is compiled from the same generated/search model, so it cannot drift from catalog metadata or PDF-derived page text.
 
 ## Official schemas
 
@@ -39,6 +40,7 @@ catalog-taxonomy.config.schema.json
 catalogs.build-state.schema.json
 catalogs.generated.schema.json
 catalogs.search.schema.json
+catalogs.search-index.schema.json
 ```
 
 `tools/catalog_schema.py` validates those contracts without adding a new runtime

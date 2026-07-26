@@ -1767,7 +1767,7 @@ main {
   height: 100%;
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 8px;
   align-items: stretch;
   padding: 10px;
@@ -2214,6 +2214,42 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   background: rgba(154, 122, 98, 0.12);
   color: var(--ink);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+/* Worker-backed search results explain the match instead of showing an opaque thumbnail. */
+.search-result-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  align-content: start;
+}
+.search-result-meta {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+.search-result-excerpt {
+  min-width: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: color-mix(in srgb, var(--ink) 80%, transparent);
+  font-size: .82rem;
+  font-weight: 650;
+  line-height: 1.48;
+}
+.search-match-highlight {
+  padding: 0 .08em;
+  border-radius: .22em;
+  color: inherit;
+  background: rgba(234, 194, 91, .48);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.search-results[aria-busy="true"] {
+  cursor: progress;
 }
 /* ===== END SOURCE: src/css/10-catalog.css ===== */
 
@@ -3531,7 +3567,7 @@ a.reader-home:focus-visible {
   width: 100%;
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
   gap: 8px;
   align-items: stretch;
   padding: 9px;
@@ -3777,6 +3813,35 @@ a.reader-home:focus-visible {
   color: #fff;
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.14);
+}
+
+.reader-search-result-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.reader-search-result-copy .search-result-meta {
+  color: var(--viewer-chrome-muted, rgba(255,255,255,.72));
+  font-size: .72rem;
+  font-weight: 800;
+}
+.reader-search-result-copy .search-result-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--viewer-chrome-text, #fff);
+  font-size: .76rem;
+  font-weight: 650;
+  line-height: 1.42;
+}
+.reader-search-result-copy .search-match-highlight {
+  color: #1b150e;
+  background: rgba(255, 211, 94, .9);
+}
+.reader-search-results[aria-busy="true"] {
+  cursor: progress;
 }
 /* ===== END SOURCE: src/css/20-viewer.css ===== */
 

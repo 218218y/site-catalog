@@ -181,28 +181,48 @@ def test_atomic_output_replacement_publishes_only_complete_staging_bundle(tmp_pa
     assert not out.with_name(f".{out.name}.previous").exists()
 
 
-def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None:
-    out = tmp_path / "bundle"
-    out.mkdir()
+def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
     static = out / "static"
-    static.mkdir()
-    search = static / "catalogs.search.222222222222.js"
-    search.write_text("window.search = true;\n", encoding="utf-8")
-    valid_search_name = f"catalogs.search.{MODULE.content_hash(search)}.js"
-    search.rename(static / valid_search_name)
-    source = out / "app.js"
-    source.write_text(
-        f'const SEARCH_INDEX_SCRIPT_SRC = "static/{valid_search_name}";\nwindow.current = true;\n',
+    static.mkdir(parents=True, exist_ok=True)
+
+    worker = static / "catalog-search-worker.js"
+    worker.write_text("self.onmessage = () => {};\n", encoding="utf-8")
+    worker_name = f"catalog-search-worker.{MODULE.content_hash(worker)}.js"
+    worker = worker.rename(static / worker_name)
+
+    index = static / "catalogs.search-index.json"
+    index.write_text('{"version":1}\n', encoding="utf-8")
+    index_name = f"catalogs.search-index.{MODULE.content_hash(index)}.json"
+    index = index.rename(static / index_name)
+
+    runtime = static / "catalog-search.js"
+    runtime.write_text(
+        f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
+        f'const SEARCH_INDEX_DATA_SRC = "static/{index_name}";\n',
         encoding="utf-8",
     )
-    current_name = f"app.{MODULE.content_hash(source)}.js"
-    source.rename(static / current_name)
-    for html_name in MODULE.FINGERPRINT_HTML_FILES:
-        (out / html_name).write_text(
-            f'<script src="static/{current_name}"></script>',
+    runtime_name = f"catalog-search.{MODULE.content_hash(runtime)}.js"
+    runtime = runtime.rename(static / runtime_name)
+
+    app = static / "app.js"
+    app.write_text("window.current = true;\n", encoding="utf-8")
+    app_name = f"app.{MODULE.content_hash(app)}.js"
+    app = app.rename(static / app_name)
+
+    for html_name in ("index.html", "nested/index.html"):
+        html = out / html_name
+        html.parent.mkdir(parents=True, exist_ok=True)
+        html.write_text(
+            f'<script src="static/{runtime_name}"></script><script src="static/{app_name}"></script>',
             encoding="utf-8",
         )
-    (static / "app.111111111111.js").write_text("window.old = true;\n", encoding="utf-8")
+    return {"app": app, "runtime": runtime, "worker": worker, "index": index}
+
+
+def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    assets = write_search_runtime_bundle(out)
+    (out / "static/app.111111111111.js").write_text("window.old = true;\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="stale or unreferenced"):
         MODULE.validate_fingerprinted_bundle(out)
@@ -213,27 +233,7 @@ def test_bundle_validation_hashes_each_shared_asset_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     out = tmp_path / "bundle"
-    static = out / "static"
-    static.mkdir(parents=True)
-
-    search = static / "catalogs.search.js"
-    search.write_text("window.search = true;\n", encoding="utf-8")
-    search_name = f"catalogs.search.{MODULE.content_hash(search)}.js"
-    search = search.rename(static / search_name)
-
-    app = static / "app.js"
-    app.write_text(
-        f'const SEARCH_INDEX_SCRIPT_SRC = "static/{search_name}";\n',
-        encoding="utf-8",
-    )
-    app_name = f"app.{MODULE.content_hash(app)}.js"
-    app = app.rename(static / app_name)
-
-    for html_name in ("index.html", "nested/index.html"):
-        html = out / html_name
-        html.parent.mkdir(parents=True, exist_ok=True)
-        html.write_text(f'<script src="static/{app_name}"></script>', encoding="utf-8")
-
+    assets = write_search_runtime_bundle(out)
     real_content_hash = MODULE.content_hash
     hash_calls: dict[Path, int] = {}
 
@@ -243,8 +243,8 @@ def test_bundle_validation_hashes_each_shared_asset_once(
 
     monkeypatch.setattr(MODULE, "content_hash", counting_content_hash)
 
-    assert MODULE.validate_fingerprinted_bundle(out) == 2
-    assert hash_calls == {app: 1, search: 1}
+    assert MODULE.validate_fingerprinted_bundle(out) == 4
+    assert hash_calls == {path: 1 for path in assets.values()}
 
 
 def test_public_html_routes_keep_original_cache_policy_and_include_404() -> None:
@@ -319,33 +319,35 @@ def test_css_rebase_rejects_missing_local_dependencies(tmp_path: Path) -> None:
         MODULE.rebase_css_asset_urls(css, root / "static", root)
 
 
-def test_search_index_is_fingerprinted_before_app_bundle(tmp_path: Path) -> None:
+def test_search_runtime_assets_are_fingerprinted_before_runtime_bundle(tmp_path: Path) -> None:
     out = tmp_path / "bundle"
     out.mkdir()
-    (out / "catalogs.search.js").write_text("window.BARGIG_SEARCH = [];\n", encoding="utf-8")
-    (out / "app.js").write_text('const SEARCH_INDEX_SCRIPT_SRC = "catalogs.search.js";\n', encoding="utf-8")
+    (out / "catalog-search-worker.js").write_text("self.onmessage = () => {};\n", encoding="utf-8")
+    (out / "catalogs.search-index.json").write_text('{"version":1}\n', encoding="utf-8")
+    (out / "catalog-search.js").write_text(
+        'const SEARCH_WORKER_SCRIPT_SRC = "catalog-search-worker.js";\n'
+        'const SEARCH_INDEX_DATA_SRC = "catalogs.search-index.json";\n',
+        encoding="utf-8",
+    )
 
-    relative = MODULE.fingerprint_search_index(out)
+    relatives = MODULE.fingerprint_search_runtime_assets(out)
 
-    assert relative.startswith("static/catalogs.search.")
-    assert (out / relative).is_file()
-    assert not (out / "catalogs.search.js").exists()
-    assert f'const SEARCH_INDEX_SCRIPT_SRC = "{relative}";' in (out / "app.js").read_text(encoding="utf-8")
+    assert relatives["catalog-search-worker.js"].startswith("static/catalog-search-worker.")
+    assert relatives["catalogs.search-index.json"].startswith("static/catalogs.search-index.")
+    assert not (out / "catalog-search-worker.js").exists()
+    assert not (out / "catalogs.search-index.json").exists()
+    runtime = (out / "catalog-search.js").read_text(encoding="utf-8")
+    assert f'const SEARCH_WORKER_SCRIPT_SRC = "{relatives["catalog-search-worker.js"]}";' in runtime
+    assert f'const SEARCH_INDEX_DATA_SRC = "{Path(relatives["catalogs.search-index.json"]).name}";' in runtime
+    assert 'static/static/' not in runtime
 
 
-def test_search_index_validation_rejects_missing_dynamic_asset(tmp_path: Path) -> None:
+def test_search_runtime_validation_rejects_missing_dynamic_asset(tmp_path: Path) -> None:
     out = tmp_path / "bundle"
-    out.mkdir()
-    static = out / "static"
-    static.mkdir()
-    app = out / "app.js"
-    app.write_text('const SEARCH_INDEX_SCRIPT_SRC = "static/catalogs.search.111111111111.js";\n', encoding="utf-8")
-    app_name = f"app.{MODULE.content_hash(app)}.js"
-    app.rename(static / app_name)
-    for html_name in MODULE.FINGERPRINT_HTML_FILES:
-        (out / html_name).write_text(f'<script src="static/{app_name}"></script>', encoding="utf-8")
+    assets = write_search_runtime_bundle(out)
+    assets["index"].unlink()
 
-    with pytest.raises(FileNotFoundError, match="catalogs.search"):
+    with pytest.raises(FileNotFoundError, match="catalogs.search-index"):
         MODULE.validate_fingerprinted_bundle(out)
 
 

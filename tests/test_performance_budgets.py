@@ -22,7 +22,8 @@ SPEC.loader.exec_module(MODULE)
 def write_fixture(root: Path, *, app_size: int = 100, html_size: int = 100) -> Path:
     (root / "app.js").write_bytes(b"a" * app_size)
     (root / "styles.css").write_bytes(b"b" * 100)
-    (root / "catalogs.search.js").write_bytes(b"c" * 100)
+    (root / "catalogs.search-index.json").write_bytes(b"c" * 100)
+    (root / "catalog-search-worker.js").write_bytes(b"d" * 100)
     Image.new("RGB", (1200, 630), "white").save(root / "social-share-default.png", optimize=True)
     budget = {
         "appJavaScript": {
@@ -38,8 +39,14 @@ def write_fixture(root: Path, *, app_size: int = 100, html_size: int = 100) -> P
             "gzipBytes": 100,
         },
         "searchIndex": {
-            "source": "catalogs.search.js",
-            "bundlePattern": "static/catalogs.search.*.js",
+            "source": "catalogs.search-index.json",
+            "bundlePattern": "static/catalogs.search-index.*.json",
+            "rawBytes": 500,
+            "gzipBytes": 100,
+        },
+        "searchWorker": {
+            "source": "catalog-search-worker.js",
+            "bundlePattern": "static/catalog-search-worker.*.js",
             "rawBytes": 500,
             "gzipBytes": 100,
         },
@@ -57,7 +64,8 @@ def write_fixture(root: Path, *, app_size: int = 100, html_size: int = 100) -> P
     (bundle / "static").mkdir(parents=True)
     (bundle / "static" / "app.abc.js").write_bytes(b"a" * app_size)
     (bundle / "static" / "styles.abc.css").write_bytes(b"b" * 100)
-    (bundle / "static" / "catalogs.search.abc.js").write_bytes(b"c" * 100)
+    (bundle / "static" / "catalogs.search-index.abc.json").write_bytes(b"c" * 100)
+    (bundle / "static" / "catalog-search-worker.abc.js").write_bytes(b"d" * 100)
     (bundle / "index.html").write_bytes(b"<" + b"x" * html_size + b">")
     return bundle
 

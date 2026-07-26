@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bargig-furniture.com/schemas/catalogs.search-index.schema.json",
+  "title": "Normalized catalog search worker index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "stats", "catalogs", "documents", "terms"],
+  "properties": {
+    "version": {"const": 1},
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalogs", "pages", "tokens", "categoryPages"],
+      "properties": {
+        "catalogs": {"type": "integer", "minimum": 0},
+        "pages": {"type": "integer", "minimum": 0},
+        "tokens": {"type": "integer", "minimum": 0},
+        "categoryPages": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "catalogs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "description", "category", "sort", "normalized"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"},
+          "title": {"type": "string", "minLength": 1},
+          "description": {"type": "string"},
+          "category": {"type": "string", "minLength": 1},
+          "sort": {"type": "integer"},
+          "normalized": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "description", "category"],
+            "properties": {
+              "title": {"type": "string"},
+              "description": {"type": "string"},
+              "category": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["catalog", "page", "text", "normalized"],
+        "properties": {
+          "catalog": {"type": "integer", "minimum": 0},
+          "page": {"type": "integer", "minimum": 1},
+          "text": {"type": "string"},
+          "normalized": {"type": "string"}
+        }
+      }
+    },
+    "terms": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "integer", "minimum": 0},
+        "uniqueItems": true
+      }
+    }
+  }
+}

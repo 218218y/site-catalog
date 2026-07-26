@@ -81,12 +81,14 @@ def test_checked_in_catalog_sources_and_outputs_match_official_schemas() -> None
     state = json.loads((ROOT / COMPILER.BUILD_STATE_FILE).read_text(encoding="utf-8"))
     generated = json.loads((ROOT / COMPILER.GENERATED_JSON_FILE).read_text(encoding="utf-8"))
     search = json.loads((ROOT / COMPILER.SEARCH_JSON_FILE).read_text(encoding="utf-8"))
+    search_index = json.loads((ROOT / COMPILER.SEARCH_INDEX_FILE).read_text(encoding="utf-8"))
 
     SCHEMA.validate_catalog_config(catalogs, ROOT)
     SCHEMA.validate_taxonomy_config(taxonomy_payload, ROOT)
     SCHEMA.validate_build_state(state, ROOT)
     SCHEMA.validate_generated(generated, ROOT)
     SCHEMA.validate_search(search, ROOT)
+    SCHEMA.validate_search_index(search_index, ROOT)
     SCHEMA.validate_taxonomy_coverage(catalogs, taxonomy_payload)
 
 
@@ -98,6 +100,7 @@ def test_checked_in_catalog_sources_and_outputs_match_official_schemas() -> None
         SCHEMA.BUILD_STATE_SCHEMA,
         SCHEMA.GENERATED_SCHEMA,
         SCHEMA.SEARCH_SCHEMA,
+        SCHEMA.SEARCH_INDEX_SCHEMA,
     ],
 )
 def test_official_schemas_are_draft_2020_12_documents(schema_name: str) -> None:
@@ -105,6 +108,28 @@ def test_official_schemas_are_draft_2020_12_documents(schema_name: str) -> None:
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["$id"].endswith("/" + schema_name)
 
+
+
+def test_search_index_keeps_pages_without_extractable_text_searchable_by_metadata(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    catalogs = [source_catalog("image-only", "Unique Furniture Title", pdf="assets/pdfs/image-only.pdf")]
+    state_artifact = artifact("image-only", text="")
+    state_artifact["pages"] = 3
+    state_artifact["pageSizes"] = [[1200, 900], [1200, 900], [1200, 900]]
+    state_artifact["searchPages"] = []
+    write_sources(root, catalogs, {"version": 1, "catalogs": [state_artifact]})
+
+    compiled = COMPILER.compile_current_project_catalog_data(
+        root, writer=lambda path, data: path.write_bytes(data)
+    )
+
+    assert compiled.search[0]["pages"] == []
+    assert compiled.search_index["stats"]["pages"] == 3
+    assert [document["page"] for document in compiled.search_index["documents"]] == [1, 2, 3]
+    assert all(document["text"] == "" for document in compiled.search_index["documents"])
+    title_token = "unique"
+    assert compiled.search_index["terms"][title_token] == [0, 1, 2]
 
 def test_compiler_is_byte_deterministic_and_second_write_is_a_noop(tmp_path: Path) -> None:
     root = tmp_path / "project"
@@ -132,6 +157,7 @@ def test_compiler_is_byte_deterministic_and_second_write_is_a_noop(tmp_path: Pat
         COMPILER.GENERATED_JS_FILE,
         COMPILER.SEARCH_JSON_FILE,
         COMPILER.SEARCH_JS_FILE,
+        COMPILER.SEARCH_INDEX_FILE,
     }
 
 

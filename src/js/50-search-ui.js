@@ -6,8 +6,17 @@
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
+let globalSearchRenderTimer = 0;
+let lightboxSearchRenderTimer = 0;
+let globalSearchRenderSequence = 0;
+let lightboxSearchRenderSequence = 0;
+let lastGlobalSearchResults = [];
+let lastLightboxSearchResults = [];
+let lastGlobalSearchKey = "";
+let lastLightboxSearchKey = "";
+
 function isSearchIndexReady() {
-  return Array.isArray(window.BARGIG_CATALOG_SEARCH);
+  return Boolean(catalogSearch?.isReady?.());
 }
 
 function refreshSearchUiAfterIndexLoad() {
@@ -23,63 +32,34 @@ function refreshSearchUiAfterIndexLoad() {
 }
 
 function ensureSearchIndexLoaded(options = {}) {
+  if (!catalogSearch?.ensureReady) {
+    state.searchIndexLoadState = "error";
+    return Promise.reject(new Error("Catalog search runtime is unavailable"));
+  }
   if (isSearchIndexReady()) {
     state.searchIndexLoadState = "ready";
-    refreshSearchUiAfterIndexLoad();
     return Promise.resolve(true);
   }
-
   if (state.searchIndexLoadPromise) return state.searchIndexLoadPromise;
 
   state.searchIndexLoadState = "loading";
   initLightboxSearchStatus();
-
   const loadTrigger = telemetryCleanText(options.trigger || "interactive", 40);
-  state.searchIndexLoadPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
-    const script = existing || document.createElement("script");
-    script.dataset.telemetryResourceRole = "search-index";
-    script.dataset.telemetrySearchTrigger = loadTrigger;
-
-    const handleLoad = () => {
-      state.searchIndexLoadState = isSearchIndexReady() ? "ready" : "error";
+  state.searchIndexLoadPromise = catalogSearch.ensureReady()
+    .then(() => {
+      state.searchIndexLoadState = "ready";
       state.searchIndexLoadPromise = null;
       refreshSearchUiAfterIndexLoad();
-      if (state.searchIndexLoadState === "ready") {
-        resolve(true);
-      } else {
-        telemetryTrackSearchIndexFailure("missing-data", {
-          target: script,
-          trigger: loadTrigger
-        });
-        script.remove();
-        reject(new Error("Search index loaded without data"));
-      }
-    };
-
-    const handleError = () => {
+      return true;
+    })
+    .catch((error) => {
       state.searchIndexLoadState = "error";
       state.searchIndexLoadPromise = null;
-      telemetryTrackSearchIndexFailure("network-error", {
-        target: script,
-        trigger: loadTrigger
-      });
-      script.remove();
+      telemetryTrackSearchIndexFailure("network-error", { trigger: loadTrigger });
+      initSearchStatus();
       initLightboxSearchStatus();
-      reject(new Error("Failed to load the catalog search index"));
-    };
-
-    script.addEventListener("load", handleLoad, { once: true });
-    script.addEventListener("error", handleError, { once: true });
-
-    if (!existing) {
-      script.src = SEARCH_INDEX_SCRIPT_SRC;
-      script.async = true;
-      script.dataset.searchIndexSrc = SEARCH_INDEX_SCRIPT_SRC;
-      document.head.appendChild(script);
-    }
-  });
-
+      throw error;
+    });
   return state.searchIndexLoadPromise;
 }
 
@@ -95,6 +75,69 @@ function scheduleSearchIndexPreload() {
       preload();
     }
   }, SEARCH_INDEX_PRELOAD_DELAY_MS);
+}
+
+function cancelScheduledSearch(channel) {
+  if (channel === "global") {
+    window.clearTimeout(globalSearchRenderTimer);
+    globalSearchRenderTimer = 0;
+    globalSearchRenderSequence += 1;
+  } else {
+    window.clearTimeout(lightboxSearchRenderTimer);
+    lightboxSearchRenderTimer = 0;
+    lightboxSearchRenderSequence += 1;
+  }
+  catalogSearch?.cancel?.(channel);
+}
+
+function scheduleSearchRender(channel, query, options = {}) {
+  const delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS;
+  const callback = channel === "global"
+    ? () => renderSearchResults(query)
+    : () => renderLightboxSearchResults(query);
+  catalogSearch?.cancel?.(channel);
+  if (channel === "global") {
+    globalSearchRenderSequence += 1;
+    window.clearTimeout(globalSearchRenderTimer);
+    globalSearchRenderTimer = window.setTimeout(callback, delay);
+  } else {
+    lightboxSearchRenderSequence += 1;
+    window.clearTimeout(lightboxSearchRenderTimer);
+    lightboxSearchRenderTimer = window.setTimeout(callback, delay);
+  }
+}
+
+function highlightedSearchText(text, ranges = []) {
+  const raw = String(text || "");
+  if (!raw) return "";
+  const normalizedRanges = Array.isArray(ranges)
+    ? ranges
+      .map((range) => ({
+        start: Math.max(0, Math.min(raw.length, Number(range?.start) || 0)),
+        end: Math.max(0, Math.min(raw.length, Number(range?.end) || 0))
+      }))
+      .filter((range) => range.end > range.start)
+      .sort((a, b) => a.start - b.start || a.end - b.end)
+    : [];
+  let cursor = 0;
+  let markup = "";
+  normalizedRanges.forEach((range) => {
+    if (range.start < cursor) return;
+    markup += escapeHtml(raw.slice(cursor, range.start));
+    markup += `<mark class="search-match-highlight">${escapeHtml(raw.slice(range.start, range.end))}</mark>`;
+    cursor = range.end;
+  });
+  return markup + escapeHtml(raw.slice(cursor));
+}
+
+function searchResultDetailsMarkup(result) {
+  const page = Math.max(1, Number(result?.page) || 1);
+  const reason = String(result?.matchReason || "התאמה בטקסט הקטלוג");
+  const excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
+  return `
+    <span class="search-result-meta">עמוד ${page} · ${escapeHtml(reason)}</span>
+    ${excerpt ? `<span class="search-result-excerpt">${excerpt}</span>` : ""}
+  `;
 }
 
 function getGlobalSearchCategories() {
@@ -159,6 +202,7 @@ function setGlobalSearchPanelOpen(open, options = {}) {
 
   closeGlobalSearchScopeMenu();
   hideSearchFloatingPreview();
+  cancelScheduledSearch("global");
   if (options.hideResults !== false) {
     els.globalSearchResults?.classList.add("hidden");
   }
@@ -370,24 +414,33 @@ function resetLightboxSearch() {
   initLightboxSearchStatus();
 }
 
-function getLightboxSearchResults(query, limit = 24) {
-  const rawQuery = String(query || "").trim();
-  if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.()) return [];
+function lightboxSearchKey(query) {
+  const scope = getLightboxSearchScope();
+  return [String(query || "").trim(), scope, scope === "all" ? "" : (state.catalog?.id || "")].join("\u0000");
+}
 
-  const options = { limit, includeExcerpt: false };
+async function getLightboxSearchResults(query, limit = 24) {
+  const rawQuery = String(query || "").trim();
+  if (rawQuery.length < 2) return [];
+  await ensureSearchIndexLoaded({ trigger: "viewer-search" });
+  if (!catalogSearch?.hasIndex?.()) return [];
+
+  const options = { limit, channel: "viewer" };
   if (getLightboxSearchScope() !== "all") {
     if (!state.catalog) return [];
     options.catalogId = state.catalog.id;
   }
-
-  const results = catalogSearch.search(rawQuery, options);
+  const results = await catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 
-function trackCompletedLightboxSearch(completion, query = els.lightboxSearchInput?.value || "") {
+async function trackCompletedLightboxSearch(completion, query = els.lightboxSearchInput?.value || "") {
   const rawQuery = String(query || "").trim();
   const scope = getLightboxSearchScope();
-  const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+  const key = lightboxSearchKey(rawQuery);
+  const results = key === lastLightboxSearchKey
+    ? lastLightboxSearchResults
+    : await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
   telemetryTrackSearch(rawQuery, results.length, {
     surface: "viewer",
     scope,
@@ -419,10 +472,10 @@ function openLightboxSearchResult(result) {
   return true;
 }
 
-function submitLightboxSearch() {
+async function submitLightboxSearch() {
   const rawQuery = String(els.lightboxSearchInput?.value || "").trim();
-  renderLightboxSearchResults(rawQuery);
-  const results = trackCompletedLightboxSearch("submit", rawQuery);
+  const results = await renderLightboxSearchResults(rawQuery);
+  await trackCompletedLightboxSearch("submit", rawQuery);
   return openLightboxSearchResult(results[0]);
 }
 
@@ -739,16 +792,21 @@ function searchIndexErrorMarkup(options = {}) {
 function retrySearchIndexLoad(options = {}) {
   state.searchIndexLoadPromise = null;
   state.searchIndexLoadState = "idle";
-  const existing = document.querySelector(`script[data-search-index-src="${SEARCH_INDEX_SCRIPT_SRC}"]`);
-  existing?.remove?.();
-  ensureSearchIndexLoaded({ trigger: "retry" }).catch(() => {});
-  if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
-  else renderSearchResults(els.globalSearchInput?.value || "");
+  ensureSearchIndexLoaded({ trigger: "retry" })
+    .then(() => {
+      if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
+      else renderSearchResults(els.globalSearchInput?.value || "");
+    })
+    .catch(() => {
+      if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
+      else renderSearchResults(els.globalSearchInput?.value || "");
+    });
 }
 
-function renderLightboxSearchResults(query) {
+async function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
-  if (!els.lightboxSearchResults || !els.lightboxSearchStatus) return;
+  if (!els.lightboxSearchResults || !els.lightboxSearchStatus) return [];
+  const renderSequence = ++lightboxSearchRenderSequence;
 
   normalizeSearchResultsDirection(els.lightboxSearchResults);
   hideSearchFloatingPreview();
@@ -756,81 +814,99 @@ function renderLightboxSearchResults(query) {
   els.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
+    catalogSearch?.cancel?.("viewer");
+    lastLightboxSearchKey = "";
+    lastLightboxSearchResults = [];
     els.lightboxSearchResults.classList.add("hidden");
+    els.lightboxSearchResults.removeAttribute("aria-busy");
     els.lightboxSearchResults.innerHTML = "";
     initLightboxSearchStatus();
-    return;
+    return [];
   }
 
-  if (!state.catalog || !catalogSearch?.hasIndex?.()) {
-    if (state.catalog && state.searchIndexLoadState === "error") {
-      els.lightboxSearchResults.classList.remove("hidden");
-      els.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: true });
-      els.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: true }));
-      els.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.";
-    } else {
-      els.lightboxSearchResults.classList.add("hidden");
-      els.lightboxSearchResults.innerHTML = "";
-      els.lightboxSearchStatus.textContent = "אין אינדקס חיפוש פעיל לקטלוג הזה.";
+  if (!state.catalog) {
+    els.lightboxSearchResults.classList.add("hidden");
+    els.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
+    return [];
+  }
+
+  els.lightboxSearchResults.setAttribute("aria-busy", "true");
+  els.lightboxSearchStatus.textContent = "מחפש באינדקס…";
+
+  try {
+    const scope = getLightboxSearchScope();
+    const results = await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+    if (renderSequence !== lightboxSearchRenderSequence || lightboxSearchKey(rawQuery) !== lightboxSearchKey(els.lightboxSearchInput?.value || "")) {
+      return [];
     }
-    return;
-  }
 
-  const scope = getLightboxSearchScope();
-  const results = getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
-  updateLightboxSearchResultsLayout(results.length);
-  els.lightboxSearchResults.classList.remove("hidden");
+    lastLightboxSearchKey = lightboxSearchKey(rawQuery);
+    lastLightboxSearchResults = results;
+    updateLightboxSearchResultsLayout(results.length);
+    els.lightboxSearchResults.classList.remove("hidden");
+    els.lightboxSearchResults.removeAttribute("aria-busy");
 
-  if (!results.length) {
+    if (!results.length) {
+      els.lightboxSearchStatus.textContent = scope === "all"
+        ? "לא נמצאו תוצאות בכל הקטלוגים."
+        : "לא נמצאו תוצאות בקטלוג הפתוח.";
+      els.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
+        rawQuery,
+        "נסה חלק קצר יותר של הדגם או מילה אחרת.",
+        { reader: true }
+      );
+      els.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        els.lightboxSearchInput.value = "";
+        renderLightboxSearchResults("");
+        els.lightboxSearchInput.focus();
+      });
+      return [];
+    }
+
     els.lightboxSearchStatus.textContent = scope === "all"
-      ? "לא נמצאו תוצאות בכל הקטלוגים."
-      : "לא נמצאו תוצאות בקטלוג הפתוח.";
-    els.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
-      rawQuery,
-      "נסה חלק קצר יותר של הדגם או מילה אחרת.",
-      { reader: true }
-    );
-    els.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      els.lightboxSearchInput.value = "";
-      renderLightboxSearchResults("");
-      els.lightboxSearchInput.focus();
-    });
-    return;
-  }
+      ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.`
+      : `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
+    els.lightboxSearchResults.innerHTML = results.map((result) => {
+      const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
+      const page = clampPage(result.page, catalog);
+      const rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page);
+      const rawThumb = result.thumb || thumbSrc(catalog, page);
+      const rawImage = rawThumb || rawPreview;
+      const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+      return `
+        <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+          <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
+          <span class="reader-search-thumb-frame catalog-image-frame">
+            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+          </span>
+          <span class="reader-search-result-copy">${searchResultDetailsMarkup(result)}</span>
+        </button>
+      `;
+    }).join("");
 
-  els.lightboxSearchStatus.textContent = scope === "all"
-    ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.`
-    : `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
-  els.lightboxSearchResults.innerHTML = results.map((result) => {
-    const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
-    const page = clampPage(result.page, catalog);
-    const rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page);
-    const rawThumb = result.thumb || thumbSrc(catalog, page);
-    const rawImage = rawThumb || rawPreview;
-    const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
-    return `
-      <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
-        <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
-        <span class="reader-search-thumb-frame catalog-image-frame">
-          <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
-        </span>
-      </button>
-    `;
-  }).join("");
-
-  bindSearchFloatingPreviewEvents(els.lightboxSearchResults);
-
-  els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
-    button.addEventListener("click", () => {
-      trackCompletedLightboxSearch("result-open");
-      hideSearchFloatingPreview();
-      openLightboxSearchResult({
-        catalogId: button.dataset.lightboxSearchCatalog,
-        page: button.dataset.lightboxSearchPage
+    bindSearchFloatingPreviewEvents(els.lightboxSearchResults);
+    els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        await trackCompletedLightboxSearch("result-open");
+        hideSearchFloatingPreview();
+        openLightboxSearchResult({
+          catalogId: button.dataset.lightboxSearchCatalog,
+          page: button.dataset.lightboxSearchPage
+        });
       });
     });
-  });
+    return results;
+  } catch (error) {
+    if (catalogSearch?.isCancelledError?.(error) || renderSequence !== lightboxSearchRenderSequence) return [];
+    state.searchIndexLoadState = "error";
+    els.lightboxSearchResults.removeAttribute("aria-busy");
+    els.lightboxSearchResults.classList.remove("hidden");
+    els.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: true });
+    els.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: true }));
+    els.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.";
+    return [];
+  }
 }
 
 function renderCatalogCategoryMenu(menu, { activeCatalogId = state.catalog?.id } = {}) {
@@ -891,22 +967,30 @@ function renderDetailCatalogMenu() {
   });
 }
 
-function getGlobalSearchResults(query, limit = 72) {
+function globalSearchKey(query) {
+  return [String(query || "").trim(), getGlobalSearchCategory()].join("\u0000");
+}
+
+async function getGlobalSearchResults(query, limit = 72) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
-  if (rawQuery.length < 2 || !catalogSearch?.hasIndex?.({ category })) return [];
+  if (rawQuery.length < 2) return [];
+  await ensureSearchIndexLoaded({ trigger: "global-search" });
+  if (!catalogSearch?.hasIndex?.({ category })) return [];
 
-  const options = { limit, includeExcerpt: false };
+  const options = { limit, channel: "global" };
   if (category) options.category = category;
-
-  const results = catalogSearch.search(rawQuery, options);
+  const results = await catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 
-function trackCompletedGlobalSearch(completion, query = els.globalSearchInput?.value || "", options = {}) {
+async function trackCompletedGlobalSearch(completion, query = els.globalSearchInput?.value || "", options = {}) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
-  const results = getGlobalSearchResults(rawQuery, 72);
+  const key = globalSearchKey(rawQuery);
+  const results = key === lastGlobalSearchKey
+    ? lastGlobalSearchResults
+    : await getGlobalSearchResults(rawQuery, 72);
   telemetryTrackSearch(rawQuery, results.length, {
     surface: "global",
     scope: category || "all",
@@ -917,9 +1001,6 @@ function trackCompletedGlobalSearch(completion, query = els.globalSearchInput?.v
 }
 
 function flushGlobalSearchTelemetryBeforeNavigation() {
-  // Search-result clicks leave the current document immediately. Start a
-  // keepalive request synchronously instead of relying on the delayed batch
-  // timer or on pagehide, both of which can be skipped by fast navigations.
   telemetryFlush().catch(() => {});
 }
 
@@ -931,89 +1012,101 @@ function openGlobalSearchResult(result) {
   return true;
 }
 
-function submitGlobalSearch() {
+async function submitGlobalSearch() {
   const rawQuery = String(els.globalSearchInput?.value || "").trim();
-  renderSearchResults(rawQuery);
-  const results = trackCompletedGlobalSearch("submit", rawQuery, { immediate: true });
+  const results = await renderSearchResults(rawQuery);
+  await trackCompletedGlobalSearch("submit", rawQuery, { immediate: true });
   flushGlobalSearchTelemetryBeforeNavigation();
   return openGlobalSearchResult(results[0]);
 }
 
-function renderSearchResults(query) {
+async function renderSearchResults(query) {
   const rawQuery = String(query || "").trim();
-  if (!els.globalSearchResults) return;
+  if (!els.globalSearchResults) return [];
+  const renderSequence = ++globalSearchRenderSequence;
 
   normalizeSearchResultsDirection(els.globalSearchResults);
   hideSearchFloatingPreview();
   els.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
+    catalogSearch?.cancel?.("global");
+    lastGlobalSearchKey = "";
+    lastGlobalSearchResults = [];
     els.globalSearchResults.classList.add("hidden");
+    els.globalSearchResults.removeAttribute("aria-busy");
     els.globalSearchResults.innerHTML = "";
     initSearchStatus();
-    return;
+    return [];
   }
 
   const category = getGlobalSearchCategory();
+  els.globalSearchResults.setAttribute("aria-busy", "true");
 
-  if (!catalogSearch?.hasIndex?.({ category })) {
-    if (state.searchIndexLoadState === "error") {
-      els.globalSearchResults.classList.remove("hidden");
-      els.globalSearchResults.innerHTML = searchIndexErrorMarkup();
-      els.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad());
-    } else {
-      els.globalSearchResults.classList.add("hidden");
-      els.globalSearchResults.innerHTML = "";
+  try {
+    const results = await getGlobalSearchResults(rawQuery, 72);
+    if (renderSequence !== globalSearchRenderSequence || globalSearchKey(rawQuery) !== globalSearchKey(els.globalSearchInput?.value || "")) {
+      return [];
     }
-    return;
-  }
 
-  const results = getGlobalSearchResults(rawQuery, 72);
-  if (!results.length) {
+    lastGlobalSearchKey = globalSearchKey(rawQuery);
+    lastGlobalSearchResults = results;
+    els.globalSearchResults.removeAttribute("aria-busy");
+    if (!results.length) {
+      els.globalSearchResults.classList.remove("hidden");
+      els.globalSearchResults.innerHTML = searchEmptyStateMarkup(
+        rawQuery,
+        category
+          ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים."
+          : "נסה מספר דגם קצר יותר או חלק מהמילה."
+      );
+      els.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
+        els.globalSearchInput.value = "";
+        renderSearchResults("");
+        els.globalSearchInput.focus();
+      });
+      return [];
+    }
+
     els.globalSearchResults.classList.remove("hidden");
-    els.globalSearchResults.innerHTML = searchEmptyStateMarkup(
-      rawQuery,
-      category
-        ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים."
-        : "נסה מספר דגם קצר יותר או חלק מהמילה."
-    );
-    els.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
-      els.globalSearchInput.value = "";
-      renderSearchResults("");
-      els.globalSearchInput.focus();
+    els.globalSearchResults.innerHTML = results.map((result) => {
+      const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
+      const page = clampPage(result.page, catalog);
+      const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
+      const rawPreview = result.image || (catalog ? (mediumSrc(catalog, page) || pageSrc(catalog, page)) : rawThumb);
+      const rawImage = rawThumb || rawPreview;
+      const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+      return `
+        <article class="search-result-card">
+          <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+            <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
+            <span class="search-result-thumb-frame catalog-image-frame">
+              <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+            </span>
+            <span class="search-result-copy">${searchResultDetailsMarkup(result)}</span>
+          </button>
+        </article>
+      `;
+    }).join("");
+
+    bindSearchFloatingPreviewEvents(els.globalSearchResults);
+    els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        await trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
+        flushGlobalSearchTelemetryBeforeNavigation();
+        openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
+      });
     });
-    return;
+    return results;
+  } catch (error) {
+    if (catalogSearch?.isCancelledError?.(error) || renderSequence !== globalSearchRenderSequence) return [];
+    state.searchIndexLoadState = "error";
+    els.globalSearchResults.removeAttribute("aria-busy");
+    els.globalSearchResults.classList.remove("hidden");
+    els.globalSearchResults.innerHTML = searchIndexErrorMarkup();
+    els.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad());
+    return [];
   }
-
-  els.globalSearchResults.classList.remove("hidden");
-  els.globalSearchResults.innerHTML = results.map((result) => {
-    const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
-    const page = clampPage(result.page, catalog);
-    const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
-    const rawPreview = result.image || (catalog ? (mediumSrc(catalog, page) || pageSrc(catalog, page)) : rawThumb);
-    const rawImage = rawThumb || rawPreview;
-    const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
-    return `
-      <article class="search-result-card">
-        <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
-          <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
-          <span class="search-result-thumb-frame catalog-image-frame">
-            <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
-          </span>
-        </button>
-      </article>
-    `;
-  }).join("");
-
-  bindSearchFloatingPreviewEvents(els.globalSearchResults);
-
-  els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
-    button.addEventListener("click", () => {
-      trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
-      flushGlobalSearchTelemetryBeforeNavigation();
-      openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
-    });
-  });
 }
 
 function attachSearchUiEvents() {
@@ -1033,18 +1126,20 @@ function attachSearchUiEvents() {
   });
 
   els.globalSearchInput?.addEventListener("input", () => {
-    ensureSearchIndexLoaded().then(() => renderSearchResults(els.globalSearchInput.value)).catch(() => renderSearchResults(els.globalSearchInput.value));
+    scheduleSearchRender("global", els.globalSearchInput.value);
   });
   els.globalSearchInput?.addEventListener("focus", () => {
-    ensureSearchIndexLoaded().then(() => renderSearchResults(els.globalSearchInput.value)).catch(() => renderSearchResults(els.globalSearchInput.value));
+    ensureSearchIndexLoaded().catch(() => {});
+    scheduleSearchRender("global", els.globalSearchInput.value, { immediate: true });
   });
-  els.globalSearchInput?.addEventListener("click", () => renderSearchResults(els.globalSearchInput.value));
+  els.globalSearchInput?.addEventListener("click", () => scheduleSearchRender("global", els.globalSearchInput.value, { immediate: true }));
   els.globalSearchInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
     event.preventDefault();
-    submitGlobalSearch();
+    submitGlobalSearch().catch(() => {});
   });
   els.globalSearchClear?.addEventListener("click", () => {
+    cancelScheduledSearch("global");
     els.globalSearchInput.value = "";
     els.globalSearchInput.focus();
     renderSearchResults("");
@@ -1077,22 +1172,24 @@ function attachSearchUiEvents() {
   els.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
 
   els.lightboxSearchInput?.addEventListener("input", () => {
-    ensureSearchIndexLoaded().then(() => renderLightboxSearchResults(els.lightboxSearchInput.value)).catch(() => renderLightboxSearchResults(els.lightboxSearchInput.value));
+    scheduleSearchRender("viewer", els.lightboxSearchInput.value);
   });
   els.lightboxSearchInput?.addEventListener("focus", () => {
     showTopUiTemporarily(0);
-    ensureSearchIndexLoaded().then(() => renderLightboxSearchResults(els.lightboxSearchInput.value)).catch(() => renderLightboxSearchResults(els.lightboxSearchInput.value));
+    ensureSearchIndexLoaded().catch(() => {});
+    scheduleSearchRender("viewer", els.lightboxSearchInput.value, { immediate: true });
   });
   els.lightboxSearchInput?.addEventListener("click", () => {
     showTopUiTemporarily(0);
-    renderLightboxSearchResults(els.lightboxSearchInput.value);
+    scheduleSearchRender("viewer", els.lightboxSearchInput.value, { immediate: true });
   });
   els.lightboxSearchInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
     event.preventDefault();
-    submitLightboxSearch();
+    submitLightboxSearch().catch(() => {});
   });
   els.lightboxSearchClear?.addEventListener("click", () => {
+    cancelScheduledSearch("viewer");
     els.lightboxSearchInput.value = "";
     els.lightboxSearchInput.focus();
     renderLightboxSearchResults("");
