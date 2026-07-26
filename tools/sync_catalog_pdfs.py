@@ -15,6 +15,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+try:
+    from tools.project_mutation import MutationBusyError, ProjectMutationLock
+except ModuleNotFoundError:  # Direct execution
+    from project_mutation import MutationBusyError, ProjectMutationLock
+
 BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 DEFAULT_CONFIG = "catalogs.config.json"
 DEFAULT_PDF_DIR = "assets/pdfs"
@@ -328,7 +333,7 @@ def parse_args() -> argparse.Namespace:
 
 
 
-def main() -> int:
+def _main_unlocked() -> int:
     args = parse_args()
     root = project_root()
     config_path = (root / str(args.config)).resolve()
@@ -367,6 +372,15 @@ def main() -> int:
     elif result.renamed_pdfs or result.updated_pdf_refs:
         print("Done. Hidden direction markers were cleaned from PDF filenames/references.")
     return 0
+
+
+def main() -> int:
+    try:
+        with ProjectMutationLock(project_root(), "סנכרון קובצי PDF לקטלוגים"):
+            return _main_unlocked()
+    except MutationBusyError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

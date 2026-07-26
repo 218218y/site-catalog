@@ -49,19 +49,49 @@ try {
   fail("sharp's installed native runtime is unavailable.", error);
 }
 
-const wranglerBin = process.platform === "win32"
-  ? path.join(root, "node_modules", ".bin", "wrangler.cmd")
-  : path.join(root, "node_modules", ".bin", "wrangler");
-if (!fs.existsSync(wranglerBin)) {
-  fail("The local Wrangler executable is missing.");
+const wranglerPackageDir = path.join(root, "node_modules", "wrangler");
+const wranglerPackagePath = path.join(wranglerPackageDir, "package.json");
+if (!fs.existsSync(wranglerPackagePath)) {
+  fail("The local Wrangler package is missing.");
 }
-const wrangler = spawnSync(wranglerBin, ["--version"], {
+
+let wranglerPackage;
+try {
+  wranglerPackage = JSON.parse(fs.readFileSync(wranglerPackagePath, "utf8"));
+} catch (error) {
+  fail("Wrangler's installed package metadata is unreadable.", error);
+}
+const wranglerBinRelative = typeof wranglerPackage.bin === "string"
+  ? wranglerPackage.bin
+  : wranglerPackage.bin?.wrangler;
+if (typeof wranglerBinRelative !== "string" || !wranglerBinRelative.trim()) {
+  fail("Wrangler's installed package does not declare its CLI entry point.");
+}
+const wranglerCli = path.resolve(wranglerPackageDir, wranglerBinRelative);
+const wranglerCliRelative = path.relative(wranglerPackageDir, wranglerCli);
+if (wranglerCliRelative.startsWith("..") || path.isAbsolute(wranglerCliRelative)) {
+  fail("Wrangler's CLI entry point escapes its installed package directory.");
+}
+if (!fs.existsSync(wranglerCli)) {
+  fail("Wrangler's local CLI entry point is missing.");
+}
+
+// Run the JavaScript entry point directly with this Node executable.  Invoking
+// node_modules/.bin/wrangler.cmd through cmd.exe breaks on Windows project paths
+// containing spaces, Hebrew or bidirectional Unicode marks.  shell:false keeps
+// the executable and every argument as distinct OS-level values.
+const wrangler = spawnSync(process.execPath, [wranglerCli, "--version"], {
   cwd: root,
   encoding: "utf8",
-  shell: process.platform === "win32",
+  shell: false,
+  windowsHide: true,
 });
 if (wrangler.error || wrangler.status !== 0) {
-  fail("Wrangler/workerd could not start.", wrangler.error || new Error(wrangler.stderr || wrangler.stdout));
+  const details = [wrangler.error?.message, wrangler.stderr, wrangler.stdout]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  fail("Wrangler/workerd could not start.", new Error(details || `Wrangler exited with status ${wrangler.status}.`));
 }
 if (!`${wrangler.stdout}\n${wrangler.stderr}`.includes(packageJson.devDependencies.wrangler)) {
   fail(`Wrangler started, but did not report the pinned version ${packageJson.devDependencies.wrangler}.`);

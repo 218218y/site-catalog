@@ -30,6 +30,11 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+try:
+    from tools.project_mutation import MutationBusyError, ProjectMutationLock
+except ModuleNotFoundError:  # Direct execution
+    from project_mutation import MutationBusyError, ProjectMutationLock
+
 from build_deploy_bundle import (
     build_options_payload,
     validate_current_artifact,
@@ -347,7 +352,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _main_unlocked(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     root = project_root()
 
@@ -434,6 +439,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         return returncode
     except Exception as exc:
         print(f"\nERROR: {exc}", file=sys.stderr)
+        return 1
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    resolved_argv = list(argv) if argv is not None else list(sys.argv[1:])
+    parsed = parse_args(resolved_argv)
+
+    # --build-first launches the bundle builder, which owns the same shared lock
+    # inside its worker process.  Run that phase first, then lock the validation
+    # and deploy phase; otherwise the child would correctly reject the parent's
+    # already-held lock.  The existing artifact validation between both phases
+    # prevents deploying if another operation changes the bundle in the gap.
+    if parsed.build_first and not parsed.cors_only:
+        print("Updating the validated site artifacts before Cloudflare Pages deploy...", flush=True)
+        build_code = build_bundle(parsed)
+        if build_code != 0:
+            print(f"\nERROR: Bundle creation failed with return code {build_code}.", file=sys.stderr)
+            return build_code
+        resolved_argv = [value for value in resolved_argv if value != "--build-first"]
+
+    try:
+        with ProjectMutationLock(project_root(), "פריסת האתר ל-Cloudflare"):
+            return _main_unlocked(resolved_argv)
+    except MutationBusyError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
 

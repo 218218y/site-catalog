@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Sequence
 
 from build_deploy_bundle import artifact_is_current, build_options_payload
+from project_mutation import MutationBusyError, ProjectMutationLock
 
 DEFAULT_OUT = "dist/site-local"
 DEFAULT_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
@@ -147,6 +148,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     root = project_root()
     try:
+        with ProjectMutationLock(root, "בדיקת ושחזור מצב הפרויקט לפני תצוגה מקומית") as lock:
+            if lock.recovered_transactions:
+                print(f"Recovered {len(lock.recovered_transactions)} interrupted project transaction(s).")
         out_dir = resolve_output(root, args.out)
         if args.build_first:
             build_preview(root, out_dir, str(args.asset_base_url).strip())
@@ -164,7 +168,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise FileNotFoundError(
                 f"Preview is missing {out_dir / 'index.html'}. Run .01-bundle-site-r2.bat once, then start the server again"
             )
-    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+    except (FileNotFoundError, MutationBusyError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

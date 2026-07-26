@@ -105,6 +105,7 @@ def test_conversion_always_reconciles_removed_catalogs(
             "80",
             "--sharpen",
             "0",
+            "--prune-missing-pdfs",
         ],
     )
 

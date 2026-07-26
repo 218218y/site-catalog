@@ -35,7 +35,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 from build_site_pages import PAGE_DOCUMENTS, render_site_pages
 from seo_route_lock import LOCK_FILENAME, append_new_configured_routes_to_lock
-from seo_site import build_taxonomy_asset
+from seo_site import build_taxonomy_asset, load_taxonomy, taxonomy_generated_js
 from taxonomy_editor import (
     TAXONOMY_CONFIG_FILE,
     apply_taxonomy_renames_to_catalogs,
@@ -51,6 +51,13 @@ from footer_content import (
     read_footer_content,
     serialize_footer_content,
     validate_footer_content,
+)
+from project_mutation import (
+    MutationBusyError,
+    ProjectMutationLock,
+    ProjectTransaction,
+    read_lock_metadata,
+    trigger_fault,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -104,12 +111,12 @@ ACTIONS: dict[str, Action] = {
     ),
     "convert": Action(
         "המרה רגילה",
-        "ממיר קטלוגים חסרים/שהשתנו לשלוש שכבות תמונה: thumbnail, medium ו-full. מנקה אוטומטית קטלוגים שהוסרו מהרשימה או שה-PDF שלהם נמחק. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
+        "ממיר קטלוגים חסרים/שהשתנו לשלוש שכבות תמונה: thumbnail, medium ו-full. קטלוג שהוסר מהרשימה ינוקה; PDF חסר לעולם לא יגרום למחיקה בלי אישור מפורש. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
         [*BASE_CONVERT_ARGS, "--ocr", "auto"],
     ),
     "convert_force": Action(
         "המרה מחדש לכל הקטלוגים",
-        "מרנדר מחדש את כל הקטלוגים התקינים עם שכבות thumbnail, medium ו-full, ומנקה אוטומטית קטלוגים שהוסרו מהרשימה או שה-PDF שלהם נמחק.",
+        "מרנדר מחדש את כל הקטלוגים התקינים עם שכבות thumbnail, medium ו-full. PDF חסר עוצר את הפעולה, אלא אם המשתמש מאשר במפורש להסיר את הקטלוג החסר.",
         ["tools/build_catalogs.py", "--force", *BASE_CONVERT_ARGS[1:], "--ocr", "auto"],
     ),
     "refresh_ocr": Action(
@@ -181,6 +188,7 @@ class StagedAssetDelete:
 
 jobs: dict[str, Job] = {}
 jobs_lock = threading.Lock()
+job_start_lock = threading.Lock()
 native_dialog_lock = threading.Lock()
 footer_save_lock = threading.Lock()
 taxonomy_save_lock = threading.Lock()
@@ -222,13 +230,28 @@ def read_config() -> list[dict[str, Any]]:
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    previous_mode = path.stat().st_mode if path.exists() else None
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
-        temporary.write_bytes(data)
+        with temporary.open("wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if previous_mode is not None:
+            os.chmod(temporary, previous_mode)
         os.replace(temporary, path)
+        if os.name != "nt":
+            try:
+                descriptor = os.open(path.parent, os.O_RDONLY)
+            except OSError:
+                descriptor = None
+            if descriptor is not None:
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
     finally:
-        if temporary.exists():
-            temporary.unlink()
+        temporary.unlink(missing_ok=True)
 
 
 def restore_file_bytes(path: Path, previous: bytes | None) -> None:
@@ -254,6 +277,8 @@ def taxonomy_action_availability(action_key: str, taxonomy_state: Mapping[str, A
 def atomic_write_catalogs_and_taxonomy(
     catalogs: list[dict[str, Any]],
     taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    transaction: ProjectTransaction | None = None,
 ) -> dict[str, list[str]]:
     previous_catalogs = CONFIG_FILE.read_bytes() if CONFIG_FILE.is_file() else None
     previous_taxonomy = TAXONOMY_FILE.read_bytes() if TAXONOMY_FILE.is_file() else None
@@ -270,15 +295,25 @@ def atomic_write_catalogs_and_taxonomy(
         else None
     )
     route_lock_sync = {"added": [], "unresolved": []}
+    write_bytes = transaction.write_bytes if transaction is not None else atomic_write_bytes
+    if transaction is not None:
+        transaction.track_files(
+            path
+            for path in (CONFIG_FILE, TAXONOMY_FILE, route_lock_path)
+            if path is not None
+        )
     try:
-        atomic_write_bytes(
+        write_bytes(
             CONFIG_FILE,
             (json.dumps(catalogs, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
         )
-        atomic_write_bytes(TAXONOMY_FILE, serialize_taxonomy(taxonomy))
+        trigger_fault("after-config-write")
+        write_bytes(TAXONOMY_FILE, serialize_taxonomy(taxonomy))
         if should_sync_route_lock and save_root is not None:
             route_lock_sync = append_new_configured_routes_to_lock(save_root)
     except Exception:
+        if transaction is not None:
+            raise
         restore_file_bytes(CONFIG_FILE, previous_catalogs)
         restore_file_bytes(TAXONOMY_FILE, previous_taxonomy)
         if should_sync_route_lock and route_lock_path is not None:
@@ -307,6 +342,9 @@ def route_lock_sync_warnings(sync: Mapping[str, Sequence[str]]) -> list[str]:
 
 def refresh_taxonomy_outputs_if_complete(
     taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    transaction: ProjectTransaction | None = None,
+    strict: bool = False,
 ) -> list[str]:
     issues = taxonomy_completion_issues(taxonomy)
     if issues:
@@ -316,14 +354,34 @@ def refresh_taxonomy_outputs_if_complete(
         ]
     warnings: list[str] = []
     try:
-        build_taxonomy_asset(PROJECT_ROOT)
-        render_site_pages(
-            PROJECT_ROOT,
-            build_assets=False,
-            build_taxonomy=False,
-            include_indexing_files=False,
-        )
+        if transaction is None:
+            build_taxonomy_asset(PROJECT_ROOT)
+            render_site_pages(
+                PROJECT_ROOT,
+                build_assets=False,
+                build_taxonomy=False,
+                include_indexing_files=False,
+            )
+        else:
+            taxonomy_asset = taxonomy_generated_js(load_taxonomy(PROJECT_ROOT)).encode("utf-8")
+            staged_root = transaction.temp_root / "taxonomy-pages"
+            staged_pages = render_site_pages(
+                PROJECT_ROOT,
+                staged_root,
+                build_assets=False,
+                build_taxonomy=False,
+                include_indexing_files=False,
+            )
+            transaction.write_bytes(
+                PROJECT_ROOT / "catalog-taxonomy.generated.js",
+                taxonomy_asset,
+            )
+            for staged_page in staged_pages:
+                relative = staged_page.relative_to(staged_root)
+                transaction.write_bytes(PROJECT_ROOT / relative, staged_page.read_bytes())
     except Exception as exc:
+        if strict:
+            raise RuntimeError(f"רענון דפי האתר התלויים בטקסונומיה נכשל: {exc}") from exc
         warnings.append(f"המקורות נשמרו, אבל רענון דפי האתר התלויים בטקסונומיה נכשל: {exc}")
     return warnings
 
@@ -472,7 +530,11 @@ def config_for_file(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [strip_control_panel_fields(item) for item in config]
 
 
-def apply_pages_dir_renames(rename_map: dict[str, str]) -> list[str]:
+def apply_pages_dir_renames(
+    rename_map: dict[str, str],
+    *,
+    transaction: ProjectTransaction | None = None,
+) -> list[str]:
     warnings: list[str] = []
     if not rename_map:
         return warnings
@@ -495,6 +557,16 @@ def apply_pages_dir_renames(rename_map: dict[str, str]) -> list[str]:
                 f"אי אפשר לשנות id מ-{old_id} ל-{new_id}: התיקייה assets/pages/{new_id} כבר קיימת. "
                 "מחק או שנה אותה ידנית לפני השמירה כדי למנוע דריסה."
             )
+
+    if transaction is not None:
+        transaction.rename_paths(
+            {existing_sources[old_id]: target_dirs[old_id] for old_id in existing_sources}
+        )
+        trigger_fault("after-directory-rename")
+        for old_id, new_id in rename_map.items():
+            if old_id not in existing_sources:
+                warnings.append(f"לא נמצאה תיקיית assets/pages/{old_id}; עודכנו רק קבצי ההגדרות ל-{new_id}.")
+        return warnings
 
     temp_root = PAGES_DIR / f".catalog-id-rename-{uuid.uuid4().hex}"
     temp_root.mkdir(parents=True, exist_ok=False)
@@ -543,7 +615,11 @@ def merge_override_terms(existing: Any, incoming: Any) -> Any:
     return existing if existing not in (None, [], {}) else incoming
 
 
-def sync_search_overrides_after_id_rename(rename_map: dict[str, str]) -> list[str]:
+def sync_search_overrides_after_id_rename(
+    rename_map: dict[str, str],
+    *,
+    transaction: ProjectTransaction | None = None,
+) -> list[str]:
     warnings: list[str] = []
     if not rename_map or not SEARCH_OVERRIDES_FILE.is_file():
         return warnings
@@ -570,7 +646,11 @@ def sync_search_overrides_after_id_rename(rename_map: dict[str, str]) -> list[st
         changed = True
 
     if changed:
-        SEARCH_OVERRIDES_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        data = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        if transaction is not None:
+            transaction.write_bytes(SEARCH_OVERRIDES_FILE, data)
+        else:
+            atomic_write_bytes(SEARCH_OVERRIDES_FILE, data)
     return warnings
 
 
@@ -588,29 +668,47 @@ def read_json_array(path: Path) -> list[dict[str, Any]] | None:
     return result
 
 
-def write_catalogs_generated_files(entries: list[dict[str, Any]]) -> None:
+def write_catalogs_generated_files(
+    entries: list[dict[str, Any]],
+    *,
+    transaction: ProjectTransaction | None = None,
+) -> None:
     payload = json.dumps(entries, ensure_ascii=False, indent=2)
-    GENERATED_JSON_FILE.write_text(payload + "\n", encoding="utf-8")
-    GENERATED_JS_FILE.write_text(
+    json_bytes = (payload + "\n").encode("utf-8")
+    js_bytes = (
         "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
         "// לא מומלץ לערוך אותו ידנית. עריכה עושים בקובץ catalogs.config.json ואז מריצים שוב המרה.\n"
-        f"window.BARGIG_CATALOGS = {payload};\n",
-        encoding="utf-8",
-    )
+        f"window.BARGIG_CATALOGS = {payload};\n"
+    ).encode("utf-8")
+    writer = transaction.write_bytes if transaction is not None else atomic_write_bytes
+    writer(GENERATED_JSON_FILE, json_bytes)
+    writer(GENERATED_JS_FILE, js_bytes)
 
 
-def write_catalogs_search_files(entries: list[dict[str, Any]]) -> None:
+def write_catalogs_search_files(
+    entries: list[dict[str, Any]],
+    *,
+    transaction: ProjectTransaction | None = None,
+) -> None:
     payload = json.dumps(entries, ensure_ascii=False, indent=2)
-    SEARCH_JSON_FILE.write_text(payload + "\n", encoding="utf-8")
-    SEARCH_JS_FILE.write_text(
+    json_bytes = (payload + "\n").encode("utf-8")
+    js_bytes = (
         "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
         "// כאן נמצא אינדקס החיפוש שנוצר מטקסט ה-PDF ומ-OCR.\n"
-        f"window.BARGIG_CATALOG_SEARCH = {payload};\n",
-        encoding="utf-8",
-    )
+        f"window.BARGIG_CATALOG_SEARCH = {payload};\n"
+    ).encode("utf-8")
+    writer = transaction.write_bytes if transaction is not None else atomic_write_bytes
+    writer(SEARCH_JSON_FILE, json_bytes)
+    writer(SEARCH_JS_FILE, js_bytes)
 
 
-def sync_generated_metadata_after_config_save(config: list[dict[str, Any]], rename_map: dict[str, str] | None = None) -> list[str]:
+def sync_generated_metadata_after_config_save(
+    config: list[dict[str, Any]],
+    rename_map: dict[str, str] | None = None,
+    *,
+    transaction: ProjectTransaction | None = None,
+    strict: bool = False,
+) -> list[str]:
     """Keep the already-generated website metadata aligned after UI edits.
 
     Saving the control panel edits should immediately affect title,
@@ -621,6 +719,19 @@ def sync_generated_metadata_after_config_save(config: list[dict[str, Any]], rena
     """
     warnings: list[str] = []
     rename_map = rename_map or {}
+    if strict:
+        generated_pair = (GENERATED_JSON_FILE.is_file(), GENERATED_JS_FILE.is_file())
+        if generated_pair[0] != generated_pair[1]:
+            raise RuntimeError(
+                "catalogs.generated.json ו-catalogs.generated.js אינם במצב תואם; "
+                "יש לשחזר או לבנות אותם מחדש לפני שמירת הקטלוגים."
+            )
+        search_pair = (SEARCH_JSON_FILE.is_file(), SEARCH_JS_FILE.is_file())
+        if search_pair[0] != search_pair[1]:
+            raise RuntimeError(
+                "catalogs.search.json ו-catalogs.search.js אינם במצב תואם; "
+                "יש לשחזר או לבנות אותם מחדש לפני שמירת הקטלוגים."
+            )
     config_by_id = {str(item.get("id", "")): item for item in config}
     config_order = [str(item.get("id", "")) for item in config]
     order_index = {catalog_id: index for index, catalog_id in enumerate(config_order)}
@@ -628,6 +739,8 @@ def sync_generated_metadata_after_config_save(config: list[dict[str, Any]], rena
     try:
         generated_entries = read_json_array(GENERATED_JSON_FILE)
     except Exception as exc:
+        if strict:
+            raise RuntimeError(f"עדכון catalogs.generated.* נכשל: {exc}") from exc
         warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.generated.* נכשל: {exc}")
         generated_entries = None
 
@@ -674,13 +787,17 @@ def sync_generated_metadata_after_config_save(config: list[dict[str, Any]], rena
             updated_generated.append(updated)
 
         try:
-            write_catalogs_generated_files(updated_generated)
+            write_catalogs_generated_files(updated_generated, transaction=transaction)
         except Exception as exc:
+            if strict:
+                raise RuntimeError(f"כתיבת catalogs.generated.* נכשלה: {exc}") from exc
             warnings.append(f"catalogs.config.json נשמר, אבל כתיבת catalogs.generated.* נכשלה: {exc}")
 
     try:
         search_entries = read_json_array(SEARCH_JSON_FILE)
     except Exception as exc:
+        if strict:
+            raise RuntimeError(f"עדכון catalogs.search.* נכשל: {exc}") from exc
         warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search.* נכשל: {exc}")
         search_entries = None
 
@@ -706,8 +823,11 @@ def sync_generated_metadata_after_config_save(config: list[dict[str, Any]], rena
             entry["title"] = str(source.get("title", entry.get("title", "")))
             updated_search.append(entry)
         try:
-            write_catalogs_search_files(updated_search)
+            trigger_fault("during-search-index")
+            write_catalogs_search_files(updated_search, transaction=transaction)
         except Exception as exc:
+            if strict:
+                raise RuntimeError(f"כתיבת catalogs.search.* נכשלה: {exc}") from exc
             warnings.append(f"catalogs.config.json נשמר, אבל כתיבת catalogs.search.* נכשלה: {exc}")
 
     return warnings
@@ -888,29 +1008,30 @@ def target_pdf_path_for_filename(filename: str) -> tuple[str, Path]:
 
 
 def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, Any]:
-    safe_name, target = target_pdf_path_for_filename(filename)
+    with ProjectMutationLock(PROJECT_ROOT, "העלאת PDF מלוח השליטה"):
+        safe_name, target = target_pdf_path_for_filename(filename)
 
-    if target.exists():
-        existing = target.read_bytes()
-        if existing != content:
-            raise ValueError(
-                f"כבר קיים PDF בשם {safe_name} בתוך {rel_to_root(PDF_DIR)}. "
-                "אם הקובץ כבר נמצא שם — בחר אותו דרך חלון הבחירה המקומי. "
-                "אם זה קובץ אחר מחוץ לתיקייה — שנה לו שם כדי למנוע דריסה שקטה."
-            )
-        return {"path": rel_to_root(target), "name": safe_name, "status": "existing"}
+        if target.exists():
+            existing = target.read_bytes()
+            if existing != content:
+                raise ValueError(
+                    f"כבר קיים PDF בשם {safe_name} בתוך {rel_to_root(PDF_DIR)}. "
+                    "אם הקובץ כבר נמצא שם — בחר אותו דרך חלון הבחירה המקומי. "
+                    "אם זה קובץ אחר מחוץ לתיקייה — שנה לו שם כדי למנוע דריסה שקטה."
+                )
+            return {"path": rel_to_root(target), "name": safe_name, "status": "existing"}
 
-    temp_path = target.with_name(f".upload-{uuid.uuid4().hex}-{safe_name}")
-    try:
-        temp_path.write_bytes(content)
-        temp_path.replace(target)
-    finally:
-        if temp_path.exists():
-            try:
-                temp_path.unlink()
-            except OSError:
-                pass
-    return {"path": rel_to_root(target), "name": safe_name, "status": "created"}
+        temp_path = target.with_name(f".upload-{uuid.uuid4().hex}-{safe_name}")
+        try:
+            temp_path.write_bytes(content)
+            temp_path.replace(target)
+        finally:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
+        return {"path": rel_to_root(target), "name": safe_name, "status": "created"}
 
 
 def selected_pdf_payload(source_path: Path) -> dict[str, Any]:
@@ -928,36 +1049,37 @@ def selected_pdf_payload(source_path: Path) -> dict[str, Any]:
     else:
         return {"path": rel_to_root(source), "name": source.name, "status": "selected"}
 
-    safe_name, target = target_pdf_path_for_filename(source.name)
-    try:
-        if target.exists() and source.samefile(target):
-            return {"path": rel_to_root(target), "name": safe_name, "status": "selected"}
-    except OSError:
-        pass
-
-    if target.exists():
+    with ProjectMutationLock(PROJECT_ROOT, "העתקת PDF מלוח השליטה"):
+        safe_name, target = target_pdf_path_for_filename(source.name)
         try:
-            identical = filecmp.cmp(source, target, shallow=False)
+            if target.exists() and source.samefile(target):
+                return {"path": rel_to_root(target), "name": safe_name, "status": "selected"}
         except OSError:
-            identical = False
-        if identical:
-            return {"path": rel_to_root(target), "name": safe_name, "status": "existing"}
-        raise ValueError(
-            f"כבר קיים PDF בשם {safe_name} בתוך {rel_to_root(PDF_DIR)}, אבל זה לא אותו קובץ. "
-            "בחר את הקובץ הקיים מתוך assets/pdfs, או שנה שם לקובץ החיצוני כדי למנוע דריסה."
-        )
+            pass
 
-    temp_path = target.with_name(f".copy-{uuid.uuid4().hex}-{safe_name}")
-    try:
-        shutil.copy2(source, temp_path)
-        temp_path.replace(target)
-    finally:
-        if temp_path.exists():
+        if target.exists():
             try:
-                temp_path.unlink()
+                identical = filecmp.cmp(source, target, shallow=False)
             except OSError:
-                pass
-    return {"path": rel_to_root(target), "name": safe_name, "status": "copied"}
+                identical = False
+            if identical:
+                return {"path": rel_to_root(target), "name": safe_name, "status": "existing"}
+            raise ValueError(
+                f"כבר קיים PDF בשם {safe_name} בתוך {rel_to_root(PDF_DIR)}, אבל זה לא אותו קובץ. "
+                "בחר את הקובץ הקיים מתוך assets/pdfs, או שנה שם לקובץ החיצוני כדי למנוע דריסה."
+            )
+
+        temp_path = target.with_name(f".copy-{uuid.uuid4().hex}-{safe_name}")
+        try:
+            shutil.copy2(source, temp_path)
+            temp_path.replace(target)
+        finally:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
+        return {"path": rel_to_root(target), "name": safe_name, "status": "copied"}
 
 
 def pick_pdf_with_powershell() -> str:
@@ -1213,11 +1335,20 @@ def catalog_output_status(catalog_id: str) -> dict[str, Any]:
 def state_payload() -> dict[str, Any]:
     config = read_config()
     taxonomy = current_taxonomy_state(config)
+    missing_configured = configured_missing_pdfs(config)
+    mutation = read_lock_metadata(PROJECT_ROOT) or {}
     with jobs_lock:
+        active_jobs = [job for job in jobs.values() if job.status == "running"]
         job_summaries = [serialize_job(job, include_log=False) for job in sorted(jobs.values(), key=lambda item: item.started_at, reverse=True)[:10]]
+    active_job = max(active_jobs, key=lambda item: item.started_at) if active_jobs else None
+    mutation_active = bool(mutation.get("token") or active_job)
+    mutation_action = str(mutation.get("action") or (active_job.label if active_job else ""))
     actions: list[dict[str, Any]] = []
     for key, action in ACTIONS.items():
         enabled, reason = taxonomy_action_availability(key, taxonomy)
+        if enabled and mutation_active:
+            enabled = False
+            reason = f"פעולת תחזוקה אחרת פעילה כעת: {mutation_action or 'פעולה אחרת'}"
         actions.append({
             "key": key,
             "label": action.label,
@@ -1234,6 +1365,7 @@ def state_payload() -> dict[str, Any]:
             "catalogs": len(config),
             "pdfs": len(iter_pdf_files()),
             "missingPdfs": missing_pdf_count(config),
+            "configuredMissingPdfs": len(missing_configured),
             "ocrDisabled": sum(1 for item in config if not catalog_ocr_enabled(item)),
             "converted": sum(1 for item in config if catalog_output_status(str(item.get("id", ""))).get("state") == "ready"),
             "taxonomyMissing": len(taxonomy.get("issues", [])),
@@ -1248,6 +1380,12 @@ def state_payload() -> dict[str, Any]:
             "footerContent": rel_to_root(FOOTER_CONTENT_FILE),
         },
         "pdfFiles": pdf_files_payload(),
+        "configuredMissingPdfs": missing_configured,
+        "mutation": {
+            "active": mutation_active,
+            "action": mutation_action,
+            "startedAt": mutation.get("startedAt") or (active_job.started_at if active_job else None),
+        },
         "actions": actions,
         "jobs": job_summaries,
     }
@@ -1296,6 +1434,139 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
     return result
 
 
+def configured_missing_pdfs(config: Sequence[Mapping[str, Any]] | None = None) -> list[dict[str, str]]:
+    rows = list(config) if config is not None else read_config()
+    missing: list[dict[str, str]] = []
+    for item in rows:
+        pdf_value = str(item.get("pdf", "")).strip()
+        if not pdf_value:
+            continue
+        pdf_path = (PROJECT_ROOT / pdf_value).resolve(strict=False)
+        if pdf_path.is_file():
+            continue
+        missing.append({
+            "id": str(item.get("id", "")).strip(),
+            "title": str(item.get("title", item.get("id", ""))).strip(),
+            "pdf": normalized_project_path(pdf_value),
+        })
+    return missing
+
+
+def _transactional_delete_assets(
+    transaction: ProjectTransaction,
+    targets: Sequence[AssetDeleteTarget],
+) -> tuple[list[str], list[str]]:
+    deleted: list[str] = []
+    warnings: list[str] = []
+    for target in targets:
+        if transaction.delete_path(target.path):
+            deleted.append(target.label)
+        else:
+            warnings.append(f"לא נמצא למחיקה: {target.label}")
+    return deleted, warnings
+
+
+def save_catalogs_transactionally(
+    catalogs_value: Any,
+    taxonomy_value: Any,
+    asset_deletes_value: Any,
+) -> dict[str, Any]:
+    """Commit one complete control-panel catalog save or restore everything."""
+
+    with ProjectMutationLock(PROJECT_ROOT, "שמירת קטלוגים מלוח השליטה"):
+        catalogs = validate_catalogs_for_save(catalogs_value)
+        catalogs, taxonomy, auto_added = prepare_taxonomy_and_catalogs_for_save(
+            taxonomy_value, catalogs
+        )
+        catalogs = group_catalogs_by_category_subcategory(catalogs)
+        delete_targets, delete_warnings = validate_asset_delete_requests(
+            asset_deletes_value, catalogs
+        )
+        rename_map = build_catalog_rename_map(catalogs)
+        file_catalogs = config_for_file(catalogs)
+        warnings = list(delete_warnings)
+
+        with ProjectTransaction(PROJECT_ROOT, prefix=".catalog-save-transaction-") as transaction:
+            deleted_assets, staged_warnings = _transactional_delete_assets(
+                transaction, delete_targets
+            )
+            warnings.extend(staged_warnings)
+            route_lock_sync = atomic_write_catalogs_and_taxonomy(
+                file_catalogs,
+                taxonomy,
+                transaction=transaction,
+            )
+            warnings.extend(route_lock_sync_warnings(route_lock_sync))
+            warnings.extend(
+                apply_pages_dir_renames(rename_map, transaction=transaction)
+            )
+            warnings.extend(
+                sync_search_overrides_after_id_rename(
+                    rename_map,
+                    transaction=transaction,
+                )
+            )
+            warnings.extend(
+                sync_generated_metadata_after_config_save(
+                    file_catalogs,
+                    rename_map,
+                    transaction=transaction,
+                    strict=True,
+                )
+            )
+            warnings.extend(
+                refresh_taxonomy_outputs_if_complete(
+                    taxonomy,
+                    transaction=transaction,
+                    strict=True,
+                )
+            )
+
+        return {
+            "warnings": warnings,
+            "autoAddedTaxonomy": auto_added,
+            "deletedAssets": deleted_assets,
+            "routeLockUpdates": route_lock_sync.get("added", []),
+        }
+
+
+def save_taxonomy_transactionally(taxonomy_value: Any) -> dict[str, Any]:
+    with ProjectMutationLock(PROJECT_ROOT, "שמירת טקסונומיה מלוח השליטה"):
+        catalogs = validate_catalogs_for_save(read_config())
+        catalogs, taxonomy, auto_added = prepare_taxonomy_and_catalogs_for_save(
+            taxonomy_value, catalogs
+        )
+        catalogs = group_catalogs_by_category_subcategory(catalogs)
+        file_catalogs = config_for_file(catalogs)
+        warnings: list[str] = []
+        with ProjectTransaction(PROJECT_ROOT, prefix=".taxonomy-save-transaction-") as transaction:
+            route_lock_sync = atomic_write_catalogs_and_taxonomy(
+                file_catalogs,
+                taxonomy,
+                transaction=transaction,
+            )
+            warnings.extend(route_lock_sync_warnings(route_lock_sync))
+            warnings.extend(
+                sync_generated_metadata_after_config_save(
+                    file_catalogs,
+                    transaction=transaction,
+                    strict=True,
+                )
+            )
+            warnings.extend(
+                refresh_taxonomy_outputs_if_complete(
+                    taxonomy,
+                    transaction=transaction,
+                    strict=True,
+                )
+            )
+        return {
+            "warnings": warnings,
+            "autoAddedTaxonomy": auto_added,
+            "routeLockUpdates": route_lock_sync.get("added", []),
+        }
+
+
 def python_executable() -> str:
     venv = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
     if venv.is_file():
@@ -1303,7 +1574,7 @@ def python_executable() -> str:
     return sys.executable
 
 
-def start_job(action_key: str) -> Job:
+def start_job(action_key: str, *, prune_missing_pdfs: bool = False) -> Job:
     action = ACTIONS.get(action_key)
     if not action:
         raise ValueError(f"Unknown action: {action_key}")
@@ -1311,20 +1582,43 @@ def start_job(action_key: str) -> Job:
     if not enabled:
         raise ValueError(reason)
 
-    job = Job(id=uuid.uuid4().hex[:12], action_key=action_key, label=action.label, started_at=time.time())
-    with jobs_lock:
-        jobs[job.id] = job
+    with job_start_lock:
+        with jobs_lock:
+            running = [item for item in jobs.values() if item.status == "running"]
+        if running:
+            current = max(running, key=lambda item: item.started_at)
+            raise MutationBusyError(
+                f"לא ניתן להתחיל פעולה חדשה משום ש-{current.label} עדיין פועלת."
+            )
 
-    thread = threading.Thread(target=run_job, args=(job, action), daemon=True)
-    thread.start()
-    return job
+        # Probe the cross-process lock before registering the job.  The worker
+        # then acquires and owns the lock inside its own process, so closing the
+        # control panel cannot release protection while the worker continues.
+        with ProjectMutationLock(PROJECT_ROOT, f"בדיקת זמינות לפני {action.label}"):
+            pass
+
+        job = Job(id=uuid.uuid4().hex[:12], action_key=action_key, label=action.label, started_at=time.time())
+        command = list(action.command)
+        if prune_missing_pdfs and action_key in {"convert", "convert_force", "refresh_ocr"}:
+            command.append("--prune-missing-pdfs")
+        with jobs_lock:
+            jobs[job.id] = job
+
+        try:
+            thread = threading.Thread(target=run_job, args=(job, command), daemon=True)
+            thread.start()
+        except Exception:
+            with jobs_lock:
+                jobs.pop(job.id, None)
+            raise
+        return job
 
 
-def run_job(job: Job, action: Action) -> None:
-    command = [python_executable(), *action.command]
+def run_job(job: Job, action_command: Sequence[str]) -> None:
+    command = [python_executable(), *action_command]
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
-    append_job_log(job, f"$ {' '.join(action.command)}")
+    append_job_log(job, f"$ {' '.join(action_command)}")
     try:
         process = subprocess.Popen(
             command,
@@ -1434,71 +1728,43 @@ class ControlHandler(BaseHTTPRequestHandler):
             payload = read_json_body(self)
             if path == "/api/footer":
                 with footer_save_lock:
-                    footer = save_footer_content_and_render_pages(payload.get("footer"))
+                    with ProjectMutationLock(PROJECT_ROOT, "שמירת הפוטר מלוח השליטה"):
+                        footer = save_footer_content_and_render_pages(payload.get("footer"))
                 self.send_json({"ok": True, "footer": footer, "state": state_payload(), "updatedPages": [page.filename for page in PAGE_DOCUMENTS]})
                 return
             if path == "/api/catalogs":
                 with taxonomy_save_lock:
-                    catalogs = validate_catalogs_for_save(payload.get("catalogs"))
-                    catalogs, taxonomy, auto_added = prepare_taxonomy_and_catalogs_for_save(
-                        payload.get("taxonomy"), catalogs
+                    result = save_catalogs_transactionally(
+                        payload.get("catalogs"),
+                        payload.get("taxonomy"),
+                        payload.get("assetDeletes"),
                     )
-                    catalogs = group_catalogs_by_category_subcategory(catalogs)
-                    delete_targets, delete_warnings = validate_asset_delete_requests(payload.get("assetDeletes"), catalogs)
-                    staged_deletes: list[StagedAssetDelete] = []
-                    delete_temp_root: Path | None = None
-                    warnings: list[str] = []
-                    try:
-                        staged_deletes, stage_warnings, delete_temp_root = stage_asset_deletions(delete_targets)
-                        warnings.extend(delete_warnings)
-                        warnings.extend(stage_warnings)
-                        rename_map = build_catalog_rename_map(catalogs)
-                        file_catalogs = config_for_file(catalogs)
-                        route_lock_sync = atomic_write_catalogs_and_taxonomy(file_catalogs, taxonomy)
-                        warnings.extend(route_lock_sync_warnings(route_lock_sync))
-                        warnings.extend(apply_pages_dir_renames(rename_map))
-                        try:
-                            warnings.extend(sync_search_overrides_after_id_rename(rename_map))
-                        except Exception as exc:
-                            warnings.append(f"catalogs.config.json נשמר, אבל עדכון catalogs.search-overrides.json נכשל: {exc}")
-                        warnings.extend(sync_generated_metadata_after_config_save(file_catalogs, rename_map))
-                        warnings.extend(refresh_taxonomy_outputs_if_complete(taxonomy))
-                    except Exception:
-                        restore_staged_deletions(staged_deletes, delete_temp_root)
-                        raise
-                    warnings.extend(finalize_staged_deletions(staged_deletes, delete_temp_root))
                 self.send_json({
                     "ok": True,
                     "state": state_payload(),
-                    "warnings": warnings,
-                    "autoAddedTaxonomy": auto_added,
+                    "warnings": result["warnings"],
+                    "autoAddedTaxonomy": result["autoAddedTaxonomy"],
                     "grouped": True,
-                    "deletedAssets": [item.label for item in staged_deletes],
-                    "routeLockUpdates": route_lock_sync.get("added", []),
+                    "deletedAssets": result["deletedAssets"],
+                    "routeLockUpdates": result["routeLockUpdates"],
                 })
                 return
             if path == "/api/taxonomy":
                 with taxonomy_save_lock:
-                    catalogs = validate_catalogs_for_save(read_config())
-                    catalogs, taxonomy, auto_added = prepare_taxonomy_and_catalogs_for_save(
-                        payload.get("taxonomy"), catalogs
-                    )
-                    catalogs = group_catalogs_by_category_subcategory(catalogs)
-                    file_catalogs = config_for_file(catalogs)
-                    route_lock_sync = atomic_write_catalogs_and_taxonomy(file_catalogs, taxonomy)
-                    warnings = route_lock_sync_warnings(route_lock_sync)
-                    warnings.extend(sync_generated_metadata_after_config_save(file_catalogs))
-                    warnings.extend(refresh_taxonomy_outputs_if_complete(taxonomy))
+                    result = save_taxonomy_transactionally(payload.get("taxonomy"))
                 self.send_json({
                     "ok": True,
                     "state": state_payload(),
-                    "warnings": warnings,
-                    "autoAddedTaxonomy": auto_added,
-                    "routeLockUpdates": route_lock_sync.get("added", []),
+                    "warnings": result["warnings"],
+                    "autoAddedTaxonomy": result["autoAddedTaxonomy"],
+                    "routeLockUpdates": result["routeLockUpdates"],
                 })
                 return
             if path == "/api/run":
-                job = start_job(str(payload.get("action", "")).strip())
+                job = start_job(
+                    str(payload.get("action", "")).strip(),
+                    prune_missing_pdfs=bool(payload.get("pruneMissingPdfs")),
+                )
                 self.send_json({"ok": True, "job": serialize_job(job)})
                 return
             self.send_error_json(HTTPStatus.NOT_FOUND, "Unknown API route")
@@ -1552,6 +1818,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    try:
+        with ProjectMutationLock(PROJECT_ROOT, "בדיקת ושחזור מצב הפרויקט לפני פתיחת לוח השליטה") as lock:
+            if lock.recovered_transactions:
+                print(f"Recovered {len(lock.recovered_transactions)} interrupted project transaction(s).")
+    except MutationBusyError:
+        # Another valid worker may already be active.  The panel can still open,
+        # display that operation and keep all mutation actions disabled.
+        pass
+    except Exception as exc:
+        print(f"ERROR: Failed to recover the project before starting the control panel: {exc}", file=sys.stderr)
+        return 1
     server = ThreadingHTTPServer((str(args.host), int(args.port)), ControlHandler)
     url = f"http://{args.host}:{args.port}/catalog-control-panel.html"
     print(f"Catalog control panel: {url}")

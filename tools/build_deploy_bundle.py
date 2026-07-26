@@ -40,6 +40,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
+try:
+    from tools.project_mutation import MutationBusyError, ProjectMutationLock
+except ModuleNotFoundError:  # Direct execution
+    from project_mutation import MutationBusyError, ProjectMutationLock
+
 from build_frontend_assets import build_frontend_assets
 from catalog_image_policy import (
     DEFAULT_CATALOG_IMAGE_DELIVERY_MODE,
@@ -1191,7 +1196,7 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def main() -> int:
+def _main_unlocked() -> int:
     total_started = time.perf_counter()
     args = parse_args()
     root = project_root()
@@ -1400,6 +1405,15 @@ def main() -> int:
         if staging_dir.exists():
             shutil.rmtree(staging_dir, ignore_errors=True)
         print(f"\nERROR: {exc}", file=sys.stderr)
+        return 1
+
+
+def main() -> int:
+    try:
+        with ProjectMutationLock(project_root(), "בניית באנדל האתר"):
+            return _main_unlocked()
+    except MutationBusyError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
 

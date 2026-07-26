@@ -39,6 +39,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+try:
+    from tools.project_mutation import MutationBusyError, ProjectMutationLock
+except ModuleNotFoundError:  # Direct execution
+    from project_mutation import MutationBusyError, ProjectMutationLock
+
 from r2_catalog_sync_state import write_sync_state
 
 DEFAULT_BUCKET = "bargig-catalog"
@@ -489,7 +494,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def _main_unlocked(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     root = project_root()
     env_path = Path(args.env_file)
@@ -554,6 +559,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except Exception as exc:
         print(f"\nERROR: {exc}", file=sys.stderr)
+        return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        with ProjectMutationLock(project_root(), "סנכרון תמונות קטלוגים מול R2"):
+            return _main_unlocked(argv)
+    except MutationBusyError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
 

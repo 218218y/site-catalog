@@ -9,7 +9,8 @@ Defaults are tuned for fast catalog browsing:
 - 220 DPI render, capped to 2800px on the long side for quick browsing
 - 1600px medium pages for normal viewers and separate lightweight thumbnails
 - OCR prefers embedded PDF text and only falls back to full-page OCR for scanned/empty pages
-- every run removes stale output folders and config entries whose source PDF is missing
+- missing source PDFs stop the build unless explicit pruning is confirmed
+- rendered catalogs are built in staging and replace live output only after validation
 - no PDF links in the site output
 
 Examples:
@@ -34,6 +35,11 @@ from typing import Any
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageFilter, ImageOps
+
+try:
+    from tools.project_mutation import ProjectMutationLock, ProjectTransaction, trigger_fault
+except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
+    from project_mutation import ProjectMutationLock, ProjectTransaction, trigger_fault
 
 try:
     from tools.ocr_search_quality import (
@@ -413,6 +419,25 @@ def write_render_manifest(
     manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def render_manifest_bytes(
+    pdf_path: Path,
+    options: RenderOptions,
+    pages: int,
+    image_format: str,
+    page_sizes: list[list[int]],
+) -> bytes:
+    payload = {
+        "version": 2,
+        "sourcePdf": source_pdf_metadata(pdf_path),
+        "renderOptions": render_options_metadata(options),
+        "searchOptions": search_options_metadata(options),
+        "pages": int(pages),
+        "imageFormat": str(image_format),
+        "pageSizes": page_sizes[: max(0, int(pages))],
+    }
+    return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
 def output_newest_mtime_ns(out_dir: Path, image_format: str, page_count: int) -> int:
     newest = 0
     for page_number in range(1, max(0, int(page_count)) + 1):
@@ -606,13 +631,13 @@ def remove_catalogs_with_missing_pdfs(
     root: Path,
     config_path: Path,
     config: list[dict[str, Any]],
+    *,
+    persist: bool = True,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Remove config entries whose source PDF no longer exists.
+    """Explicitly prune config entries whose source PDF no longer exists.
 
-    Missing source files are treated as an intentional catalog deletion. The
-    corresponding generated image folder is removed later by the shared stale
-    output cleanup, and regenerated catalog/search files are rebuilt only from
-    the remaining config entries.
+    Callers must request this operation explicitly.  Normal conversion treats
+    a missing source file as an error and leaves config and public output alone.
     """
     kept: list[dict[str, Any]] = []
     removed_ids: list[str] = []
@@ -630,11 +655,35 @@ def remove_catalogs_with_missing_pdfs(
             f"because its source PDF is missing: {rel_to_root(pdf_path)}"
         )
 
-    if removed_ids:
+    if removed_ids and persist:
         write_config_atomic(config_path, kept)
         print(f"[config] Removed {len(removed_ids)} catalog(s) whose source PDF no longer exists.")
 
     return kept, removed_ids
+
+
+def catalog_entries_with_missing_pdfs(
+    root: Path,
+    config: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        item
+        for item in config
+        if not (root / str(item["pdf"])).resolve().is_file()
+    ]
+
+
+def stale_catalog_output_dirs(root: Path, configured_ids: set[str]) -> list[Path]:
+    pages_root = root / "assets" / "pages"
+    if not pages_root.is_dir():
+        return []
+    return [
+        output_dir
+        for output_dir in sorted(pages_root.iterdir(), key=lambda path: path.name.lower())
+        if output_dir.is_dir()
+        and not output_dir.name.startswith(".")
+        and output_dir.name not in configured_ids
+    ]
 
 
 def delete_stale_catalog_outputs(root: Path, configured_ids: set[str]) -> list[Path]:
@@ -1199,6 +1248,8 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pag
             thumb = maybe_sharpen(thumb, max(0, options.sharpen * 0.65))
             save_image(thumb, thumb_file, ext, options.thumb_quality if ext != "png" else options.quality)
 
+            trigger_fault("during-page-render")
+
             print(f"[render] {pdf_path.name}: page {page_number}/{len(doc)} -> {rel_to_root(page_file)}")
 
         return len(doc), search_pages, page_sizes
@@ -1211,16 +1262,19 @@ def build_generated_entry(
     image_format: str,
     options: RenderOptions,
     page_sizes: list[list[int]] | None = None,
+    *,
+    public_out_dir: Path | None = None,
 ) -> dict[str, Any]:
     asset_versions = catalog_asset_versions(out_dir, image_format, pages)
+    public_dir = public_out_dir or out_dir
     entry: dict[str, Any] = {
         "id": item["id"],
         "title": item["title"],
         "description": item.get("description", ""),
         "category": item.get("category", "קטלוג"),
         "pages": pages,
-        "dir": rel_to_root(out_dir),
-        "cover": f"{rel_to_root(out_dir)}/page-001.{image_format}",
+        "dir": rel_to_root(public_dir),
+        "cover": f"{rel_to_root(public_dir)}/page-001.{image_format}",
         "imageExt": image_format,
         "assetVersion": asset_versions["catalog"],
         "imageVariants": {
@@ -1263,24 +1317,37 @@ def build_search_entry(item: dict[str, Any], search_pages: list[dict[str, Any]])
     }
 
 
-def write_generated_files(entries: list[dict[str, Any]], search_entries: list[dict[str, Any]]) -> None:
-    root = project_root()
+def write_generated_files(
+    entries: list[dict[str, Any]],
+    search_entries: list[dict[str, Any]],
+    *,
+    root: Path | None = None,
+    transaction: ProjectTransaction | None = None,
+) -> None:
+    root = (root or project_root()).resolve()
     payload = json.dumps(entries, ensure_ascii=False, indent=2)
     search_payload = json.dumps(search_entries, ensure_ascii=False, indent=2)
-    (root / "catalogs.generated.json").write_text(payload + "\n", encoding="utf-8")
-    (root / "catalogs.generated.js").write_text(
+    generated_js = (
         "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
         "// לא מומלץ לערוך אותו ידנית. עריכה עושים בקובץ catalogs.config.json ואז מריצים שוב המרה.\n"
-        f"window.BARGIG_CATALOGS = {payload};\n",
-        encoding="utf-8",
+        f"window.BARGIG_CATALOGS = {payload};\n"
     )
-    (root / "catalogs.search.json").write_text(search_payload + "\n", encoding="utf-8")
-    (root / "catalogs.search.js").write_text(
+    search_js = (
         "// הקובץ הזה נוצר אוטומטית על ידי tools/build_catalogs.py\n"
         "// כאן נמצא אינדקס החיפוש שנוצר מטקסט ה-PDF ומ-OCR.\n"
-        f"window.BARGIG_CATALOG_SEARCH = {search_payload};\n",
-        encoding="utf-8",
+        f"window.BARGIG_CATALOG_SEARCH = {search_payload};\n"
     )
+    files = {
+        root / "catalogs.generated.json": (payload + "\n").encode("utf-8"),
+        root / "catalogs.generated.js": generated_js.encode("utf-8"),
+        root / "catalogs.search.json": (search_payload + "\n").encode("utf-8"),
+        root / "catalogs.search.js": search_js.encode("utf-8"),
+    }
+    for path, data in files.items():
+        if transaction is not None:
+            transaction.write_bytes(path, data)
+        else:
+            path.write_bytes(data)
 
     standalone_viewer = root / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html"
     if standalone_viewer.is_file():
@@ -1288,6 +1355,13 @@ def write_generated_files(entries: list[dict[str, Any]], search_entries: list[di
             from tools.build_big_pages_viewer import build_big_pages_viewer
         except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
             from build_big_pages_viewer import build_big_pages_viewer
+        if transaction is not None:
+            transaction.track_files(
+                [
+                    standalone_viewer,
+                    root / "catalog-big-pages-viewer-netfree/README.txt",
+                ]
+            )
         build_big_pages_viewer(root)
 
 
@@ -1341,14 +1415,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--no-clean", action="store_true", help="When rendering, do not delete the old output folder first")
     parser.add_argument("--skip-existing", action="store_true", help="Skip pages that already have image and thumbnail files")
+    parser.add_argument(
+        "--prune-missing-pdfs",
+        action="store_true",
+        help="Explicitly remove config entries and generated outputs whose configured source PDF is missing",
+    )
     return parser.parse_args()
 
 
-def main() -> int:
-    args = parse_args()
-    root = project_root()
-    config_path = (root / args.config).resolve()
-    options = RenderOptions(
+def build_options_from_args(args: argparse.Namespace) -> RenderOptions:
+    return RenderOptions(
         dpi=max(72, int(args.dpi)),
         max_width=max(600, int(args.max_width)),
         max_height=max(600, int(args.max_height)),
@@ -1372,16 +1448,42 @@ def main() -> int:
         require_ocr=bool(args.require_ocr),
     )
 
-    try:
-        config = load_config(config_path)
-        config, removed_missing_pdf_ids = remove_catalogs_with_missing_pdfs(root, config_path, config)
-        configured_ids = {str(item["id"]) for item in config}
-        deleted_output_dirs = delete_stale_catalog_outputs(root, configured_ids)
 
+def run_build(args: argparse.Namespace, root: Path) -> int:
+    config_path = (root / args.config).resolve()
+    options = build_options_from_args(args)
+    config = load_config(config_path)
+    missing_entries = catalog_entries_with_missing_pdfs(root, config)
+    if missing_entries and not args.prune_missing_pdfs:
+        details = "\n".join(
+            f"  - {item['id']}: {item['pdf']}"
+            for item in missing_entries
+        )
+        raise RuntimeError(
+            "Configured source PDF files are missing. Nothing was deleted.\n"
+            f"{details}\n"
+            "Restore the files, remove the catalogs explicitly in the control panel, "
+            "or rerun with --prune-missing-pdfs after confirming deletion."
+        )
+
+    removed_missing_pdf_ids: list[str] = []
+    if missing_entries:
+        config, removed_missing_pdf_ids = remove_catalogs_with_missing_pdfs(
+            root,
+            config_path,
+            config,
+            persist=False,
+        )
+    configured_ids = {str(item["id"]) for item in config}
+    stale_output_dirs = stale_catalog_output_dirs(root, configured_ids)
+
+    with ProjectTransaction(root, prefix=".catalog-build-transaction-") as transaction:
         generated: list[dict[str, Any]] = []
         search_generated: list[dict[str, Any]] = []
         previous_search_pages = load_previous_search_pages(root)
         manual_search_overrides = load_manual_search_overrides(root)
+        staged_replacements: list[tuple[Path, Path]] = []
+        pending_manifests: list[tuple[Path, bytes]] = []
 
         for item in config:
             catalog_id = str(item["id"])
@@ -1407,14 +1509,21 @@ def main() -> int:
                 elif mismatch_reason:
                     rebuild_reason = mismatch_reason
 
-            if existing_output and existing_output.is_complete and not args.force and not rebuild_reason:
+            reuse_existing_images = bool(
+                existing_output
+                and existing_output.is_complete
+                and ((not args.force and not rebuild_reason) or args.skip_existing)
+            )
+            if reuse_existing_images and existing_output is not None:
                 print(f"[skip-catalog] Already converted: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
 
                 previous_pages_for_catalog = previous_search_pages.get(catalog_id, [])
                 search_refresh_reason = ""
                 if adopt_legacy_manifest:
                     print(f"[adopt] Existing images do not have {MANIFEST_FILE}; adopting them for future change detection.")
-                if not previous_pages_for_catalog:
+                if args.force and args.skip_existing:
+                    search_refresh_reason = "forced OCR/search refresh with existing images preserved"
+                elif not previous_pages_for_catalog:
                     search_refresh_reason = "no previous OCR/search text found"
                 else:
                     search_refresh_reason = search_manifest_mismatch_reason(out_dir, catalog_options)
@@ -1434,7 +1543,16 @@ def main() -> int:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
                 if adopt_legacy_manifest or search_refresh_reason:
-                    write_render_manifest(out_dir, pdf_path, catalog_options, existing_output.pages, existing_output.image_format, page_sizes)
+                    pending_manifests.append((
+                        render_manifest_path(out_dir),
+                        render_manifest_bytes(
+                            pdf_path,
+                            catalog_options,
+                            existing_output.pages,
+                            existing_output.image_format,
+                            page_sizes,
+                        ),
+                    ))
                 generated.append(build_generated_entry(
                     item,
                     existing_output.pages,
@@ -1454,38 +1572,98 @@ def main() -> int:
             elif existing_output and args.force:
                 print(f"[force] Rebuilding existing output: {_format_output_status(out_dir, existing_output.image_format, existing_output.pages)}")
 
-            pages, search_pages, page_sizes = render_pdf(pdf_path, out_dir, catalog_options, manual_pages)
-            page_sizes = collect_page_sizes(out_dir, catalog_options.image_format, pages)
-            write_render_manifest(out_dir, pdf_path, catalog_options, pages, catalog_options.image_format, page_sizes)
+            staged_out_dir = transaction.temp_root / "catalogs" / catalog_id
+            staged_options = replace(catalog_options, clean=True, skip_existing=False)
+            pages, search_pages, page_sizes = render_pdf(
+                pdf_path,
+                staged_out_dir,
+                staged_options,
+                manual_pages,
+            )
+            page_sizes = collect_page_sizes(staged_out_dir, catalog_options.image_format, pages)
+            write_render_manifest(
+                staged_out_dir,
+                pdf_path,
+                catalog_options,
+                pages,
+                catalog_options.image_format,
+                page_sizes,
+            )
+            staged_output = inspect_existing_catalog_output(
+                staged_out_dir,
+                catalog_options.image_format,
+            )
+            if not staged_output or not staged_output.is_complete or staged_output.pages != pages:
+                reason = staged_output.reason if staged_output else "staged output could not be inspected"
+                raise RuntimeError(f"Staged catalog {catalog_id} failed validation: {reason}")
+            staged_replacements.append((out_dir, staged_out_dir))
             generated.append(build_generated_entry(
                 item,
                 pages,
-                out_dir,
+                staged_out_dir,
                 catalog_options.image_format,
                 catalog_options,
                 page_sizes,
+                public_out_dir=out_dir,
             ))
             search_generated.append(build_search_entry(item, search_pages))
 
         generated.sort(key=lambda row: row.get("sort", 9999))
         search_generated.sort(key=lambda row: next((item.get("sort", 9999) for item in config if item["id"] == row["catalogId"]), 9999))
-        write_generated_files(generated, search_generated)
+        trigger_fault("during-search-index")
+
+        if removed_missing_pdf_ids:
+            transaction.write_bytes(
+                config_path,
+                (json.dumps(config, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            )
+            trigger_fault("after-config-write")
+
+        deleted_output_dirs: list[Path] = []
+        for output_dir in stale_output_dirs:
+            if transaction.delete_path(output_dir):
+                deleted_output_dirs.append(output_dir)
+
+        for final_out_dir, staged_out_dir in staged_replacements:
+            transaction.replace_directory(
+                final_out_dir,
+                staged_out_dir,
+                fault_point="during-output-replacement",
+            )
+
+        for manifest_path, manifest_bytes in pending_manifests:
+            transaction.write_bytes(manifest_path, manifest_bytes)
+
+        write_generated_files(
+            generated,
+            search_generated,
+            root=root,
+            transaction=transaction,
+        )
 
         print("\nDone.")
         print(f"Catalogs: {len(generated)}")
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.generated.js")
         print("Generated: catalogs.search.js")
-        if (project_root() / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html").is_file():
+        if (root / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html").is_file():
             print("Generated: catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html")
         print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings can refresh the search index without re-rendering images. Use --force to rebuild all catalogs.")
         if removed_missing_pdf_ids:
             print(f"Removed from config because their source PDF was missing: {', '.join(removed_missing_pdf_ids)}")
         if deleted_output_dirs:
             print(f"Deleted stale converted catalog folders: {len(deleted_output_dirs)}")
-        print("Catalogs removed from catalogs.config.json, or whose source PDF was deleted, are also removed from assets/pages and the generated search index.")
+        print("Catalogs removed explicitly from catalogs.config.json are also removed from assets/pages and the generated search index.")
         print("Run .01-bundle-site-r2.bat to update the complete clean-route site, then .05-start-server.bat to preview it.")
         return 0
+
+
+def main() -> int:
+    args = parse_args()
+    root = project_root()
+    try:
+        with ProjectMutationLock(root, "המרת קטלוגים ובניית אינדקס חיפוש"):
+            return run_build(args, root)
     except Exception as exc:
         print(f"\nERROR: {exc}", file=sys.stderr)
         return 1

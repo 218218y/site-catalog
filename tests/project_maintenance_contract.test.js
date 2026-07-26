@@ -38,6 +38,7 @@ const localServer = fs.readFileSync(path.join(root, "tools", "serve_site.py"), "
 const startServer = readLauncher(windowsLaunchers.startServer);
 const checkedStartServer = readLauncher(windowsLaunchers.checkedStartServer);
 const deployTool = fs.readFileSync(path.join(root, "tools", "deploy_cloudflare_pages.py"), "utf8");
+const nodeInstallCheck = fs.readFileSync(path.join(root, "tools", "check_node_install_scripts.js"), "utf8");
 const requirements = fs.readFileSync(path.join(root, "tools", "requirements.txt"), "utf8");
 const devRequirements = fs.readFileSync(path.join(root, "tools", "requirements-dev.txt"), "utf8");
 const bundleSite = readLauncher(windowsLaunchers.bundleSite);
@@ -72,6 +73,9 @@ assert.equal(lockfile.packages["node_modules/workerd"].version, "1.20260714.1");
 assert.equal(fs.readFileSync(path.join(root, ".npmrc"), "utf8").trim(), "save-exact=true");
 assert.equal(fs.readFileSync(path.join(root, ".nvmrc"), "utf8").trim(), "24.18.0");
 assert.equal(fs.existsSync(path.join(root, "tools", "check_node_install_scripts.js")), true);
+assert.match(nodeInstallCheck, /spawnSync\(process\.execPath, \[wranglerCli, "--version"\]/);
+assert.match(nodeInstallCheck, /shell: false/);
+assert.doesNotMatch(nodeInstallCheck, /path\.join\(root, "node_modules", "\.bin"|shell: process\.platform/);
 assert.match(deployTool, /def find_local_wrangler\(/);
 assert.doesNotMatch(deployTool, /def find_npx\(|npx was not found|--yes[\s\S]{0,40}wrangler/);
 assert.match(requirements, /^PyMuPDF==1\.28\.0$/m);

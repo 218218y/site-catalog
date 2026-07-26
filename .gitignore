@@ -22,3 +22,10 @@ reports/telemetry/
 
 # Local publication gate written after a successful R2 image sync
 .r2-catalog-sync-state.json
+
+# Local mutation coordination and rollback staging
+.site-catalog.mutation.lock
+.catalog-build-transaction-*/
+.catalog-save-transaction-*/
+.taxonomy-save-transaction-*/
+.site-catalog-transaction-*/

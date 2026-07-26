@@ -4,8 +4,14 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 from typing import Iterable, Sequence
+
+try:
+    from tools.project_mutation import MutationBusyError, ProjectMutationLock
+except ModuleNotFoundError:  # Direct execution
+    from project_mutation import MutationBusyError, ProjectMutationLock
 
 DUPLICATE_SHARE_IMAGES: tuple[str, ...] = (
     "social-share-default(2).png",
@@ -60,7 +66,7 @@ def clean_project_artifacts(root: Path | None = None, *, check: bool = False) ->
     return candidates
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _main_unlocked(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Fail when removable artifacts are present without deleting them.")
     args = parser.parse_args(argv)
@@ -76,6 +82,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print("No removable local artifacts were found.")
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        with ProjectMutationLock(project_root(), "ניקוי תוצרי תחזוקה מקומיים"):
+            return _main_unlocked(argv)
+    except MutationBusyError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
