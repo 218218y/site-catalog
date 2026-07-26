@@ -67,6 +67,10 @@
       "route": "/catalog/opening-tbi-2026/"
     },
     {
+      "id": "roya-2026",
+      "route": "/catalog/roya-2026/"
+    },
+    {
       "id": "sliding-tbi-2026",
       "route": "/catalog/sliding-tbi-2026/"
     }
