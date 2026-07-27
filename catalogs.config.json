@@ -123,7 +123,7 @@
     "category": "חדרי שינה",
     "subcategory": "חדרי שינה",
     "pdf": "assets/pdfs/bedrooms-guber-gallery.pdf",
-    "ocr": true
+    "ocr": false
   },
   {
     "id": "libraries-tbi-2026",
