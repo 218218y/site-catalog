@@ -81,6 +81,25 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
         assert (ROOT / relative).is_file(), relative
 
 
+def test_shared_header_favorites_styles_ship_on_every_application_route() -> None:
+    specs = {spec.output_name: spec for spec in MODULE.BUNDLE_SPECS}
+    application_styles = (
+        "styles-catalog.css",
+        "styles-favorites.css",
+        "styles-viewer.css",
+    )
+
+    for output_name in application_styles:
+        assert "src/css/06-shell-components.css" in specs[output_name].modules
+        bundle = (ROOT / output_name).read_text(encoding="utf-8")
+        assert ".header-favorites-button {" in bundle
+        assert ".header-favorites-count {" in bundle
+        assert "position: absolute;" in bundle[bundle.index(".header-favorites-count {"):bundle.index(".header-favorites-count {") + 420]
+
+    catalog_bundle = (ROOT / "styles-catalog.css").read_text(encoding="utf-8")
+    assert "BEGIN SOURCE: src/css/85-favorites-routing.css" not in catalog_bundle
+
+
 def test_generated_bundles_preserve_each_declared_module_order() -> None:
     for spec in MODULE.BUNDLE_SPECS:
         output = (ROOT / spec.output_name).read_text(encoding="utf-8")

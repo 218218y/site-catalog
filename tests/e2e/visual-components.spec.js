@@ -140,6 +140,53 @@ function favoriteCard(title, page, note, selected = false) {
 }
 
 test.describe("visual component regression", () => {
+  test("header favorites shortcut keeps the same badge geometry on every route bundle", async ({ page }) => {
+    const routeMetrics = {};
+    for (const route of ["catalog", "favorites", "viewer"]) {
+      await renderFixture(page, `<header class="site-header">
+        <span class="brand-lockup" aria-hidden="true"></span>
+        <nav class="top-nav" aria-label="ניווט"></nav>
+        <a class="top-search-button header-favorites-button" href="#" aria-label="פתיחת מועדפים">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg>
+          <span class="header-favorites-count" aria-hidden="true">12</span>
+        </a>
+      </header>`, { route, bodyAttributes: 'data-page="home"', viewport: { width: 960, height: 240 } });
+
+      routeMetrics[route] = await page.locator(".header-favorites-button").evaluate((button) => {
+        const badge = button.querySelector(".header-favorites-count");
+        const icon = button.querySelector("svg");
+        const buttonStyle = getComputedStyle(button);
+        const badgeStyle = getComputedStyle(badge);
+        const iconStyle = getComputedStyle(icon);
+        const buttonRect = button.getBoundingClientRect();
+        const badgeRect = badge.getBoundingClientRect();
+        return {
+          buttonPosition: buttonStyle.position,
+          buttonWidth: Math.round(buttonRect.width),
+          buttonHeight: Math.round(buttonRect.height),
+          badgePosition: badgeStyle.position,
+          badgeDisplay: badgeStyle.display,
+          badgeWidth: Math.round(badgeRect.width),
+          badgeHeight: Math.round(badgeRect.height),
+          badgeOffsetX: Math.round(badgeRect.left - buttonRect.left),
+          badgeOffsetY: Math.round(badgeRect.top - buttonRect.top),
+          iconFill: iconStyle.fill
+        };
+      });
+    }
+
+    expect(routeMetrics.catalog).toEqual(routeMetrics.favorites);
+    expect(routeMetrics.catalog).toEqual(routeMetrics.viewer);
+    expect(routeMetrics.catalog).toMatchObject({
+      buttonPosition: "relative",
+      buttonWidth: 42,
+      buttonHeight: 42,
+      badgePosition: "absolute",
+      badgeDisplay: "grid",
+      badgeHeight: 20,
+      iconFill: "rgb(184, 132, 51)"
+    });
+  });
   test("home catalog row preserves hierarchy and spacing", async ({ page }) => {
     await renderFixture(page, `<main class="visual-fixture">
       <section class="catalogs-section panel reveal in-view" id="catalogs" aria-label="קטלוגים">

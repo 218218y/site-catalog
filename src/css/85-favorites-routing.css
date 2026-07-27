@@ -6,14 +6,6 @@
  */
 
 /* Saved catalog pages */
-.header-favorites-button {
-  position: relative;
-}
-.header-favorites-button svg {
-  fill: #b88433;
-  stroke: rgba(91, 59, 19, 0.38);
-  stroke-width: .7;
-}
 .viewer-favorites-separator {
   order: 9;
 }
@@ -45,25 +37,6 @@
   left: -7px;
   border-color: rgba(252, 246, 241, 0.98);
 }
-.header-favorites-count {
-  position: absolute;
-  top: -5px;
-  left: -5px;
-  min-width: 20px;
-  height: 20px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0 5px;
-  border: 2px solid rgba(250, 245, 239, 0.96);
-  border-radius: 999px;
-  color: #fff;
-  background: var(--brand-dark);
-  box-shadow: 0 6px 14px rgba(55, 37, 24, 0.24);
-  font-size: .72rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
 .favorites-panel {
   position: fixed;
   inset: 0;
@@ -376,11 +349,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-}
-
-/* Keep the favorites entry as the physical leftmost header action in RTL layouts. */
-.header-favorites-button {
-  order: 10;
 }
 
 /* Multi-document application layout.
