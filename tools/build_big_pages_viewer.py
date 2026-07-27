@@ -169,10 +169,25 @@ def build_big_pages_viewer(root: Path | None = None, *, check: bool = False) -> 
 
     if check:
         if stale:
+            line_ending_only = [
+                path
+                for path in stale
+                if path.is_file()
+                and path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+                == rendered_bytes[path].replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+            ]
             relative = ", ".join(path.relative_to(root).as_posix() for path in stale)
+            suffix = ""
+            if line_ending_only:
+                endings = ", ".join(path.relative_to(root).as_posix() for path in line_ending_only)
+                suffix = (
+                    f" Line endings are non-canonical in: {endings}. "
+                    "These generated files must remain LF on every platform; "
+                    "the repository .gitattributes policy prevents Windows core.autocrlf conversion."
+                )
             raise RuntimeError(
                 "Standalone catalog viewer is stale. Run: python tools/build_big_pages_viewer.py "
-                f"(outdated: {relative})"
+                f"(outdated: {relative}).{suffix}"
             )
         return False
 

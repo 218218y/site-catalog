@@ -44,6 +44,13 @@ def test_standalone_viewer_snapshot_matches_generated_catalogs() -> None:
     assert "kachtan-2026" in {catalog["id"] for catalog in embedded}
 
 
+def test_generated_readme_has_cross_platform_lf_checkout_policy() -> None:
+    attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
+    rules = {line.strip() for line in attributes if line.strip() and not line.lstrip().startswith("#")}
+
+    assert "catalog-big-pages-viewer-netfree/README.txt text eol=lf" in rules
+
+
 def test_standalone_viewer_supports_all_three_r2_image_tiers() -> None:
     html = VIEWER.read_text(encoding="utf-8")
 
@@ -94,7 +101,7 @@ def test_standalone_viewer_check_is_byte_exact_for_line_endings(tmp_path: Path) 
     assert b"\r\n" not in canonical
 
     readme.write_bytes(canonical.replace(b"\n", b"\r\n"))
-    with pytest.raises(RuntimeError, match="README.txt"):
+    with pytest.raises(RuntimeError, match="Line endings are non-canonical"):
         BUILD.build_big_pages_viewer(root, check=True)
 
     assert BUILD.build_big_pages_viewer(root) is True

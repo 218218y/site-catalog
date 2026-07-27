@@ -11,4 +11,7 @@
 *.yaml text eol=lf
 # Cloudflare control files have no normal extension; keep them deterministic too.
 _headers* text eol=lf
+# Human-readable generated artifacts are also byte-checked; prevent
+# core.autocrlf from rewriting them on Windows checkouts.
+catalog-big-pages-viewer-netfree/README.txt text eol=lf
 robots.txt text eol=lf
