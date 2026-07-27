@@ -3,13 +3,14 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const fullLogoAssetPath = path.join(root, 'brand-logo.svg');
 const headerLogoAssetPath = path.join(root, 'brand-logo-header.svg');
 const fullLogoSvg = fs.readFileSync(fullLogoAssetPath, 'utf8');
 const headerLogoSvg = fs.readFileSync(headerLogoAssetPath, 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const css = readAllCssBundles();
 const pageFiles = ['site.template.html', 'index.html', 'catalog.html', 'favorites.html', 'viewer.html'];
 
 for (const [name, svg] of [['full logo', fullLogoSvg], ['header logo', headerLogoSvg]]) {

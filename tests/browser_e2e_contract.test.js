@@ -8,7 +8,19 @@ const root = path.join(__dirname, "..");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const packageLock = fs.readFileSync(path.join(root, "package-lock.json"), "utf8");
 const config = fs.readFileSync(path.join(root, "playwright.config.js"), "utf8");
-const playwrightConfig = require(path.join(root, "playwright.config.js"));
+const vm = require("node:vm");
+const configModule = { exports: {} };
+vm.runInNewContext(config, {
+  require(request) {
+    if (request === "node:fs") return fs;
+    if (request === "@playwright/test") return { defineConfig: (value) => value };
+    throw new Error(`Unexpected playwright config dependency: ${request}`);
+  },
+  module: configModule,
+  exports: configModule.exports,
+  process: { env: {} }
+}, { filename: "playwright.config.js" });
+const playwrightConfig = configModule.exports;
 const spec = fs.readFileSync(path.join(root, "tests", "e2e", "site-catalog.spec.js"), "utf8");
 const visualSpec = fs.readFileSync(path.join(root, "tests", "e2e", "visual-components.spec.js"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");

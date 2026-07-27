@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const publicPages = ['index.html', 'catalog.html', 'favorites.html', 'viewer.html', 'terms.html', 'privacy.html', 'accessibility.html'];
@@ -68,7 +69,7 @@ const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.p
 const controlPanel = fs.readFileSync(path.join(root, 'catalog-control-panel.html'), 'utf8');
 const controlServer = fs.readFileSync(path.join(root, 'tools', 'catalog_control_server.py'), 'utf8');
 const deployTool = fs.readFileSync(path.join(root, 'tools', 'deploy_cloudflare_pages.py'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const css = readAllCssBundles();
 
 assert.match(template, /\{\{SITE_FOOTER\}\}/);
 assert.match(legalTemplate, /\{\{LEGAL_CONTENT\}\}/);

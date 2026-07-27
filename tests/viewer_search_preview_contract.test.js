@@ -3,12 +3,13 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const app = readAllBundles();
+const css = readAllCssBundles();
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxSearchResults"/);
@@ -27,9 +28,9 @@ assert.doesNotMatch(
   'viewer shell cleanup must not hide the shared search preview overlay'
 );
 
-assert.match(app, /bindSearchFloatingPreviewEvents\(els\.lightboxSearchResults\)/);
-assert.match(app, /els\.lightboxSearchResults\?\.addEventListener\("wheel", handleSearchPreviewScrollIntent/);
-assert.match(app, /els\.lightboxSearchResults\?\.addEventListener\("scroll", \(\) => suppressSearchFloatingPreview\(\)/);
+assert.match(app, /bindSearchFloatingPreviewEvents\(searchElements\.lightboxSearchResults\)/);
+assert.match(app, /searchElements\.lightboxSearchResults\?\.addEventListener\("wheel", handleSearchPreviewScrollIntent/);
+assert.match(app, /searchElements\.lightboxSearchResults\?\.addEventListener\("scroll", \(\) => suppressSearchFloatingPreview\(\)/);
 assert.match(app, /function restoreSearchFloatingPreviewAfterSuppression\(\)/);
 
 console.log('viewer_search_preview_contract.test.js: PASS');

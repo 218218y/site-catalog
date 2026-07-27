@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const sharedSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'js', '20-shared-ui.js'), 'utf8');
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'js', '56-viewer-shell.js'), 'utf8');
 const viewerCss = fs.readFileSync(path.join(__dirname, '..', 'src', 'css', '20-viewer.css'), 'utf8');
 
@@ -13,12 +14,12 @@ assert.match(
   'the page-rail activation strip should remain exactly 40px wide'
 );
 
-function sourceBetween(startMarker, endMarker) {
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker, start + startMarker.length);
+function sourceBetween(startMarker, endMarker, input = source) {
+  const start = input.indexOf(startMarker);
+  const end = input.indexOf(endMarker, start + startMarker.length);
   assert.notEqual(start, -1, `Missing ${startMarker}`);
   assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return source.slice(start, end);
+  return input.slice(start, end);
 }
 
 const geometrySource = sourceBetween(
@@ -32,7 +33,7 @@ const navRects = {
 };
 const hotspotRect = { left: 960, right: 1000, top: 0, bottom: 800, width: 40, height: 800 };
 const geometryApi = new Function(
-  'els',
+  'viewerElements',
   'window',
   'document',
   `${geometrySource}; return {
@@ -61,17 +62,23 @@ assert.equal(geometryApi.isPointInPageRailNavigationConflictZone({ x: 962, y: 40
 assert.equal(geometryApi.isPointInPageRailEdgeActivationZone({ x: 962, y: 400 }), false, 'an overlapping navigation button must keep its own hit area');
 assert.equal(geometryApi.isPointInPageRailEdgeActivationZone({ x: 995, y: 400 }), true, 'the physical edge beside the button must still reveal the rail');
 
-const hoverSource = sourceBetween(
+const pointerCapabilitySource = sourceBetween(
   'function hasHoverPointer()',
+  'function getCurrentCatalogFocusUrlTargetId()',
+  sharedSource
+);
+const viewerHoverSource = sourceBetween(
+  'function isObservedMouseHoverEvent(event = null)',
   'function showPageRailTemporarily(delay = 2600, options = {})'
 );
+const hoverSource = `${pointerCapabilitySource}\n${viewerHoverSource}`;
 const hoverState = {
   lastTouchLikeViewportInputAt: 0,
   lastTouchLikeRailInputAt: 0
 };
 const hoverApi = new Function(
   'window',
-  'state',
+  'viewerState',
   'isViewerSessionOpen',
   `${hoverSource}; return { shouldUseLightboxHoverPointer, shouldUsePageRailHover };`
 )(

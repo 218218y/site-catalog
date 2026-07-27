@@ -3,29 +3,36 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const app = readAllBundles();
+const sharedUi = fs.readFileSync(path.join(root, 'src/js/20-shared-ui.js'), 'utf8');
+const viewerImage = fs.readFileSync(path.join(root, 'src/js/53-viewer-image.js'), 'utf8');
+const viewerNavigation = fs.readFileSync(path.join(root, 'src/js/58-viewer-navigation.js'), 'utf8');
+const css = readAllCssBundles();
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 
-function sourceBetween(startMarker, endMarker) {
-  const start = app.indexOf(startMarker);
-  const end = app.indexOf(endMarker, start + startMarker.length);
+function sourceBetween(source, startMarker, endMarker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
   assert.notEqual(start, -1, `Missing ${startMarker}`);
   assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return app.slice(start, end);
+  return source.slice(start, end);
 }
 
 const recovery = sourceBetween(
+  sharedUi,
   'function loadCatalogImageWithRecovery(img, options = {})',
   'function prepareCatalogImage(url, options = {})'
 );
 const single = sourceBetween(
+  viewerImage,
   'function showSingleLightboxImage(catalog, page, src, options = {})',
-  'function pad(num)'
+  'function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zoom)'
 );
 const retry = sourceBetween(
+  viewerNavigation,
   'function retryCurrentViewerImage()',
   'function getViewerNavigationPosition()'
 );
@@ -49,8 +56,8 @@ assert.match(single, /prepareCatalogImage\(primarySrc, \{ priority: "high", deta
 assert.match(single, /\.catch\(\(\) => null\)[\s\S]*?\.then\(commitImageRequest\)/);
 assert.match(single, /delete image\.dataset\.placeholderIgnore/);
 assert.match(single, /התמונה לא הצליחה להיטען/);
-assert.match(retry, /viewerPageImageRequest\(state\.catalog, state\.page\)/);
-assert.match(retry, /showSingleLightboxImage\(state\.catalog, state\.page, request\.primarySrc/);
+assert.match(retry, /viewerPageImageRequest\(navigationState\.catalog, navigationState\.page\)/);
+assert.match(retry, /showSingleLightboxImage\(navigationState\.catalog, navigationState\.page, request\.primarySrc/);
 assert.match(retry, /forceRefresh: true/);
 assert.match(template, /id="viewerImageFeedback"[^>]*role="status"/);
 assert.match(template, /id="viewerImageRetry"/);

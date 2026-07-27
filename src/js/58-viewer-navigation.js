@@ -7,21 +7,21 @@
  */
 
 function retryCurrentViewerImage() {
-  if (!isViewerSessionOpen() || !state.catalog) return;
-  const request = viewerPageImageRequest(state.catalog, state.page);
-  showSingleLightboxImage(state.catalog, state.page, request.primarySrc, {
+  if (!isViewerSessionOpen() || !navigationState.catalog) return;
+  const request = viewerPageImageRequest(navigationState.catalog, navigationState.page);
+  showSingleLightboxImage(navigationState.catalog, navigationState.page, request.primarySrc, {
     imageRequest: request,
     forceRefresh: true
   });
 }
 
 function getViewerNavigationPosition() {
-  return isFavoritesLightboxMode() ? state.favoritesViewerIndex : state.page - 1;
+  return isFavoritesLightboxMode() ? favoritesState.favoritesViewerIndex : navigationState.page - 1;
 }
 
 function getViewerNavigationMaximumPosition() {
   if (isFavoritesLightboxMode()) return Math.max(0, getFavoriteEntries().length - 1);
-  return Math.max(0, (state.catalog?.pages || 1) - 1);
+  return Math.max(0, (navigationState.catalog?.pages || 1) - 1);
 }
 
 function setViewerNavigationPosition(position, options = {}) {
@@ -45,11 +45,11 @@ function canMoveLightbox(direction) {
 }
 
 function clearViewerPageWheelGesture() {
-  window.clearTimeout(state.viewerPageWheelSettleTimer);
-  state.viewerPageWheelSettleTimer = 0;
-  state.viewerPageWheelAccumulator = 0;
-  state.viewerPageWheelBasePage = 0;
-  state.viewerPageWheelTargetPage = 0;
+  window.clearTimeout(viewerState.viewerPageWheelSettleTimer);
+  viewerState.viewerPageWheelSettleTimer = 0;
+  viewerState.viewerPageWheelAccumulator = 0;
+  viewerState.viewerPageWheelBasePage = 0;
+  viewerState.viewerPageWheelTargetPage = 0;
 }
 
 function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0) {
@@ -65,12 +65,12 @@ function normalizeViewerPageWheelDeltas(event) {
     deltaX: normalizeViewerPageWheelAxisDelta(
       event?.deltaX,
       event?.deltaMode,
-      event?.currentTarget?.clientWidth || els.stageCanvas?.clientWidth || 0
+      event?.currentTarget?.clientWidth || viewerElements.stageCanvas?.clientWidth || 0
     ),
     deltaY: normalizeViewerPageWheelAxisDelta(
       event?.deltaY,
       event?.deltaMode,
-      event?.currentTarget?.clientHeight || els.stageCanvas?.clientHeight || 0
+      event?.currentTarget?.clientHeight || viewerElements.stageCanvas?.clientHeight || 0
     )
   };
 }
@@ -142,7 +142,7 @@ function settleViewerPageWheelGesture() {
 }
 
 function handleViewerPageWheel(event) {
-  if (!isViewerSessionOpen() || !state.catalog) return false;
+  if (!isViewerSessionOpen() || !navigationState.catalog) return false;
 
   const { deltaX, deltaY } = normalizeViewerPageWheelDeltas(event);
   if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return false;
@@ -158,25 +158,25 @@ function handleViewerPageWheel(event) {
   const logicalDelta = getViewerPageWheelLogicalDelta(deltaX, deltaY);
   if (Math.abs(logicalDelta) < 0.01) return true;
 
-  const gestureStarted = !state.viewerPageWheelBasePage;
+  const gestureStarted = !viewerState.viewerPageWheelBasePage;
   if (gestureStarted) {
     const currentPosition = getViewerNavigationPosition();
     // Store one-based values so zero remains the explicit "no gesture" sentinel.
-    state.viewerPageWheelBasePage = currentPosition + 1;
-    state.viewerPageWheelTargetPage = currentPosition + 1;
-    state.viewerPageWheelAccumulator = 0;
+    viewerState.viewerPageWheelBasePage = currentPosition + 1;
+    viewerState.viewerPageWheelTargetPage = currentPosition + 1;
+    viewerState.viewerPageWheelAccumulator = 0;
   }
 
-  state.viewerPageWheelAccumulator += logicalDelta;
-  const requestedSteps = getViewerPageWheelRequestedSteps(state.viewerPageWheelAccumulator);
-  const basePosition = state.viewerPageWheelBasePage - 1;
+  viewerState.viewerPageWheelAccumulator += logicalDelta;
+  const requestedSteps = getViewerPageWheelRequestedSteps(viewerState.viewerPageWheelAccumulator);
+  const basePosition = viewerState.viewerPageWheelBasePage - 1;
   const targetPosition = clampValue(
     basePosition + requestedSteps,
     0,
     getViewerNavigationMaximumPosition()
   );
-  const previousTargetPosition = state.viewerPageWheelTargetPage - 1;
-  state.viewerPageWheelTargetPage = targetPosition + 1;
+  const previousTargetPosition = viewerState.viewerPageWheelTargetPage - 1;
+  viewerState.viewerPageWheelTargetPage = targetPosition + 1;
 
   if (targetPosition !== previousTargetPosition) {
     const direction = Math.sign(targetPosition - previousTargetPosition)
@@ -190,8 +190,8 @@ function handleViewerPageWheel(event) {
     });
   }
 
-  window.clearTimeout(state.viewerPageWheelSettleTimer);
-  state.viewerPageWheelSettleTimer = window.setTimeout(
+  window.clearTimeout(viewerState.viewerPageWheelSettleTimer);
+  viewerState.viewerPageWheelSettleTimer = window.setTimeout(
     settleViewerPageWheelGesture,
     VIEWER_PAGE_WHEEL_SETTLE_MS
   );

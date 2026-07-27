@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Build the browser-facing JavaScript and CSS from maintainable source modules.
 
-The public HTML intentionally continues to load exactly one ``app.js`` and one
-``styles.css`` file. Source code is maintained under ``src/js`` and ``src/css``
-and concatenated in a fixed, reviewed order. JavaScript is wrapped in one
-private strict-mode scope, so implementation helpers do not leak into ``window``.
-The manifest is validated before writing. This gives the project clear feature
-boundaries without adding runtime requests or requiring a JavaScript package
-manager on the deployment machine.
+Interactive documents load one route-specific JavaScript bundle and one
+route-specific stylesheet. Source code is maintained under ``src/js`` and
+``src/css`` and concatenated in fixed, reviewed feature manifests. Each
+JavaScript entrypoint is wrapped in its own private strict-mode scope, so a
+feature omitted from a route is not downloaded or exposed at runtime.
+
+The legal/SEO shell uses the small shared ``styles.css`` bundle and no
+application JavaScript. Manifests are validated before writing and outputs are
+written atomically, preserving the project's deterministic, package-manager-
+independent deployment model.
 
 Usage:
     python tools/build_frontend_assets.py
@@ -21,23 +24,56 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
-JS_MODULES: tuple[str, ...] = (
+COMMON_JS_MODULES: tuple[str, ...] = (
     "src/js/00-navigation.js",
+    "src/js/05-app-contracts.js",
     "src/js/10-app-state.js",
+    "src/js/11-navigation-state.js",
+    "src/js/12-catalog-state.js",
+    "src/js/13-search-state.js",
+    "src/js/14-favorites-state.js",
     "src/js/15-telemetry.js",
     "src/js/20-shared-ui.js",
     "src/js/30-favorites-share.js",
+)
+
+CATALOG_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
+    "src/js/40-catalog-grid.js",
+    "src/js/50-search-ui.js",
+    "src/js/90-bootstrap.js",
+)
+
+FAVORITES_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
     "src/js/35-favorites-workspace.js",
     "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
+    "src/js/90-bootstrap.js",
+)
+
+VIEWER_JS_MODULES: tuple[str, ...] = (
+    "src/js/00-navigation.js",
+    "src/js/05-app-contracts.js",
+    "src/js/10-app-state.js",
+    "src/js/11-navigation-state.js",
+    "src/js/12-catalog-state.js",
+    "src/js/13-search-state.js",
+    "src/js/14-favorites-state.js",
+    "src/js/15-telemetry.js",
+    "src/js/16-viewer-state.js",
+    "src/js/20-shared-ui.js",
+    "src/js/30-favorites-share.js",
+    "src/js/31-viewer-share.js",
+    "src/js/50-search-ui.js",
     "src/js/52-viewer-session.js",
+    "src/js/53-viewer-image.js",
     "src/js/54-viewer-geometry.js",
     "src/js/56-viewer-shell.js",
     "src/js/58-viewer-navigation.js",
@@ -48,13 +84,34 @@ JS_MODULES: tuple[str, ...] = (
     "src/js/90-bootstrap.js",
 )
 
-CSS_MODULES: tuple[str, ...] = (
+CORE_CSS_MODULES: tuple[str, ...] = (
     "src/css/00-foundation.css",
-    "src/css/05-viewer-onboarding.css",
+    "src/css/06-shell-components.css",
+    "src/css/30-media-components.css",
+    "src/css/50-footer-legal.css",
+    "src/css/80-responsive-shell.css",
+    "src/css/90-visual-polish.css",
+    "src/css/95-accessibility-consistency.css",
+    "src/css/97-seo-foundation.css",
+)
+
+CATALOG_CSS_MODULES: tuple[str, ...] = (
+    "src/css/00-foundation.css",
     "src/css/06-shell-components.css",
     "src/css/10-catalog.css",
-    "src/css/20-viewer.css",
-    "src/css/25-viewer-actions.css",
+    "src/css/30-media-components.css",
+    "src/css/40-catalog-refinements.css",
+    "src/css/50-footer-legal.css",
+    "src/css/80-responsive-shell.css",
+    "src/css/90-visual-polish.css",
+    "src/css/95-accessibility-consistency.css",
+    "src/css/97-seo-foundation.css",
+)
+
+FAVORITES_CSS_MODULES: tuple[str, ...] = (
+    "src/css/00-foundation.css",
+    "src/css/06-shell-components.css",
+    "src/css/10-catalog.css",
     "src/css/30-media-components.css",
     "src/css/40-catalog-refinements.css",
     "src/css/50-footer-legal.css",
@@ -66,7 +123,71 @@ CSS_MODULES: tuple[str, ...] = (
     "src/css/97-seo-foundation.css",
 )
 
-GENERATED_FILES: tuple[str, ...] = ("app.js", "styles.css")
+VIEWER_CSS_MODULES: tuple[str, ...] = (
+    "src/css/00-foundation.css",
+    "src/css/05-viewer-onboarding.css",
+    "src/css/06-shell-components.css",
+    "src/css/10-catalog.css",
+    "src/css/20-viewer.css",
+    "src/css/25-viewer-actions.css",
+    "src/css/30-media-components.css",
+    "src/css/50-footer-legal.css",
+    "src/css/80-responsive-shell.css",
+    "src/css/85-favorites-routing.css",
+    "src/css/90-visual-polish.css",
+    "src/css/95-accessibility-consistency.css",
+    "src/css/97-seo-foundation.css",
+)
+
+@dataclass(frozen=True)
+class FrontendBundleSpec:
+    output_name: str
+    kind: str
+    modules: tuple[str, ...]
+    capabilities: Mapping[str, bool] | None = None
+
+
+BUNDLE_SPECS: tuple[FrontendBundleSpec, ...] = (
+    FrontendBundleSpec("styles.css", "css", CORE_CSS_MODULES),
+    FrontendBundleSpec("styles-catalog.css", "css", CATALOG_CSS_MODULES),
+    FrontendBundleSpec("styles-favorites.css", "css", FAVORITES_CSS_MODULES),
+    FrontendBundleSpec("styles-viewer.css", "css", VIEWER_CSS_MODULES),
+    FrontendBundleSpec(
+        "app-catalog.js",
+        "js",
+        CATALOG_JS_MODULES,
+        {"viewer": False, "favoritesWorkspace": False, "catalogGrid": True, "search": True},
+    ),
+    FrontendBundleSpec(
+        "app-favorites.js",
+        "js",
+        FAVORITES_JS_MODULES,
+        {"viewer": False, "favoritesWorkspace": True, "catalogGrid": True, "search": True},
+    ),
+    FrontendBundleSpec(
+        "app-viewer.js",
+        "js",
+        VIEWER_JS_MODULES,
+        {"viewer": True, "favoritesWorkspace": False, "catalogGrid": False, "search": True},
+    ),
+)
+
+LEGACY_LOADER_NAME = "app.js"
+ROUTE_GENERATED_FILES: tuple[str, ...] = tuple(spec.output_name for spec in BUNDLE_SPECS)
+DEPLOY_GENERATED_FILES: tuple[str, ...] = ROUTE_GENERATED_FILES
+GENERATED_FILES: tuple[str, ...] = (*ROUTE_GENERATED_FILES, LEGACY_LOADER_NAME)
+GENERATED_JS_FILES: tuple[str, ...] = (
+    *(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "js"),
+    LEGACY_LOADER_NAME,
+)
+GENERATED_CSS_FILES: tuple[str, ...] = tuple(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "css")
+ROUTE_ASSETS: Mapping[str, tuple[str, str]] = {
+    "home": ("styles-catalog.css", "app-catalog.js"),
+    "catalog": ("styles-catalog.css", "app-catalog.js"),
+    "favorites": ("styles-favorites.css", "app-favorites.js"),
+    "viewer": ("styles-viewer.css", "app-viewer.js"),
+}
+
 MODULE_NAME_PATTERN = re.compile(r"^(?P<order>\d{2})-[a-z0-9-]+\.(?P<extension>js|css)$")
 TOP_LEVEL_DECLARATION_PATTERN = re.compile(
     r"^(?:(?:async\s+)?function(?:\s*\*)?\s+|class\s+|(?:const|let|var)\s+)"
@@ -171,7 +292,14 @@ def validate_js_module_boundaries(root: Path, module_paths: Sequence[str]) -> di
     return owners
 
 
-def render_bundle(root: Path, *, kind: str, module_paths: Sequence[str]) -> str:
+def render_bundle(
+    root: Path,
+    *,
+    target: str,
+    kind: str,
+    module_paths: Sequence[str],
+    capabilities: Mapping[str, bool] | None = None,
+) -> str:
     if kind not in {"js", "css"}:
         raise ValueError(f"Unsupported frontend bundle kind: {kind}")
 
@@ -180,7 +308,6 @@ def render_bundle(root: Path, *, kind: str, module_paths: Sequence[str]) -> str:
         validate_js_module_boundaries(root, module_paths)
 
     comment_open, comment_close = "/*", "*/"
-    target = "app.js" if kind == "js" else "styles.css"
     banner = (
         f"{comment_open}\n"
         " * GENERATED FILE — DO NOT EDIT DIRECTLY.\n"
@@ -196,6 +323,17 @@ def render_bundle(root: Path, *, kind: str, module_paths: Sequence[str]) -> str:
         # One private strict-mode scope prevents hundreds of implementation helpers from
         # becoming mutable window globals while preserving a single cacheable browser file.
         sections.append('\n(() => {\n"use strict";\n')
+        normalized_capabilities = {
+            "viewer": False,
+            "favoritesWorkspace": False,
+            "catalogGrid": False,
+            "search": False,
+            **dict(capabilities or {}),
+        }
+        sections.append(
+            "\n/** @type {FeatureCapabilities} */\n"
+            f"const featureCapabilities = Object.freeze({json.dumps(normalized_capabilities, separators=(',', ':'))});\n"
+        )
 
     for relative_path in module_paths:
         content = read_source_module(root, relative_path)
@@ -234,9 +372,18 @@ def atomic_write_text(path: Path, content: str) -> bool:
     return True
 
 
-def build_one(root: Path, output_name: str, kind: str, module_paths: Sequence[str], *, check: bool) -> FrontendBuildResult:
+def build_one(root: Path, spec: FrontendBundleSpec, *, check: bool) -> FrontendBuildResult:
+    output_name = spec.output_name
+    kind = spec.kind
+    module_paths = spec.modules
     output = root / output_name
-    content = render_bundle(root, kind=kind, module_paths=module_paths)
+    content = render_bundle(
+        root,
+        target=output_name,
+        kind=kind,
+        module_paths=module_paths,
+        capabilities=spec.capabilities,
+    )
     expected = content.encode("utf-8")
     current = output.read_bytes() if output.is_file() else None
     stale = current != expected
@@ -257,12 +404,64 @@ def build_one(root: Path, output_name: str, kind: str, module_paths: Sequence[st
     )
 
 
+def render_legacy_loader() -> str:
+    """Return a tiny compatibility loader for old local documents.
+
+    Current generated pages reference route bundles directly. Keeping ``app.js``
+    deterministic prevents an obsolete monolithic bundle from lingering in
+    copied projects or cached local HTML while avoiding an extra network hop on
+    current pages.
+    """
+
+    route_map = {
+        "favorites": ROUTE_ASSETS["favorites"][1],
+        "viewer": ROUTE_ASSETS["viewer"][1],
+        "home": ROUTE_ASSETS["home"][1],
+        "catalog": ROUTE_ASSETS["catalog"][1],
+    }
+    return normalize_text(
+        "/* GENERATED COMPATIBILITY LOADER — current pages do not reference this file. */\n"
+        "(() => {\n"
+        '  "use strict";\n'
+        "  if (document.querySelector('script[data-bargig-route-bundle]')) return;\n"
+        f"  const routeAssets = Object.freeze({json.dumps(route_map, separators=(',', ':'))});\n"
+        '  const page = String(document.body?.dataset?.page || "home");\n'
+        '  const asset = routeAssets[page] || routeAssets.home;\n'
+        '  const currentSource = document.currentScript?.src || document.baseURI;\n'
+        '  const script = document.createElement("script");\n'
+        '  script.src = new URL(asset, currentSource).href;\n'
+        '  script.async = false;\n'
+        '  script.dataset.bargigRouteBundle = page;\n'
+        '  document.head.appendChild(script);\n'
+        "})();\n"
+    )
+
+
+def build_legacy_loader(root: Path, *, check: bool) -> FrontendBuildResult:
+    output = root / LEGACY_LOADER_NAME
+    content = render_legacy_loader()
+    expected = content.encode("utf-8")
+    current = output.read_bytes() if output.is_file() else None
+    stale = current != expected
+    if check and stale:
+        raise RuntimeError(
+            f"Generated frontend compatibility loader is stale: {LEGACY_LOADER_NAME}. "
+            "Run: python tools/build_frontend_assets.py"
+        )
+    changed = False if check else atomic_write_text(output, content)
+    return FrontendBuildResult(
+        output=output,
+        modules=0,
+        bytes=len(expected),
+        changed=changed,
+        digest=sha256_text(content),
+    )
+
+
 def build_frontend_assets(root: Path | None = None, *, check: bool = False) -> tuple[FrontendBuildResult, ...]:
     base = (root or project_root()).resolve()
-    return (
-        build_one(base, "app.js", "js", JS_MODULES, check=check),
-        build_one(base, "styles.css", "css", CSS_MODULES, check=check),
-    )
+    route_results = tuple(build_one(base, spec, check=check) for spec in BUNDLE_SPECS)
+    return (*route_results, build_legacy_loader(base, check=check))
 
 
 def main() -> int:
@@ -270,7 +469,7 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Verify that app.js and styles.css match the source modules without writing files.",
+        help="Verify that every route bundle matches its source manifest without writing files.",
     )
     args = parser.parse_args()
 

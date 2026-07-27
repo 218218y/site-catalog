@@ -224,7 +224,7 @@ function prepareCatalogImage(url, options = {}) {
   const src = String(url || "");
   if (!src) return Promise.reject(new Error("missing-image-src"));
 
-  const cached = state.catalogImageLoadCache.get(src);
+  const cached = catalogAssetState.imageLoadCache.get(src);
   if (cached) return cached;
 
   const image = new Image();
@@ -255,7 +255,7 @@ function prepareCatalogImage(url, options = {}) {
     }, { once: true });
 
     image.addEventListener("error", () => {
-      state.catalogImageLoadCache.delete(src);
+      catalogAssetState.imageLoadCache.delete(src);
       telemetryTrackImageAttemptFailure(src, {
         detail: options.detail || "preload",
         action: "preload",
@@ -267,372 +267,18 @@ function prepareCatalogImage(url, options = {}) {
     image.src = src;
   });
 
-  if (state.catalogImageLoadCache.size >= CATALOG_IMAGE_PRELOAD_CACHE_LIMIT) {
-    const oldestSrc = state.catalogImageLoadCache.keys().next().value;
-    if (oldestSrc) state.catalogImageLoadCache.delete(oldestSrc);
+  if (catalogAssetState.imageLoadCache.size >= CATALOG_IMAGE_PRELOAD_CACHE_LIMIT) {
+    const oldestSrc = catalogAssetState.imageLoadCache.keys().next().value;
+    if (oldestSrc) catalogAssetState.imageLoadCache.delete(oldestSrc);
   }
-  state.catalogImageLoadCache.set(src, promise);
+  catalogAssetState.imageLoadCache.set(src, promise);
   return promise;
 }
 
-function runViewerPageSwapAnimation(element, options = {}) {
-  const { timerKey, root = element?.parentElement } = options;
-  if (!element || !timerKey || !(timerKey in state)) return;
-
-  window.clearTimeout(state[timerKey]);
-  root?.querySelectorAll?.(".page-swap-enter")
-    .forEach((animatedElement) => animatedElement.classList.remove("page-swap-enter"));
-
-  // Restart the entrance animation only after the target page geometry and
-  // positioning are ready, so the incoming single frame never animates from a
-  // stale size or location.
-  void element.offsetWidth;
-  element.classList.add("page-swap-enter");
-  state[timerKey] = window.setTimeout(() => {
-    element.classList.remove("page-swap-enter");
-    state[timerKey] = 0;
-  }, VIEWER_PAGE_SWAP_CLEANUP_MS);
+function clampValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
-function runSingleImageSwapAnimation() {
-  runViewerPageSwapAnimation(els.lightboxImageFrame, {
-    timerKey: "singleImageAnimationTimer",
-    root: els.stageCanvas
-  });
-}
-
-
-function finishSingleImageSwap(token) {
-  if (token !== state.singleImageLoadToken) return;
-  setViewerLoading(false);
-  els.lightbox?.classList.remove("is-page-loading");
-  els.lightboxImageFrame?.classList.remove("is-preparing-swap");
-  syncImagePlaceholderState(els.lightboxImage);
-  applyZoom();
-}
-
-function ensureSingleViewerResolutionImage() {
-  if (state.singleImageResolutionImage?.isConnected) return state.singleImageResolutionImage;
-  if (!els.lightboxImageFrame) return null;
-
-  const image = new Image();
-  image.className = "lightbox-image lightbox-image-resolution";
-  image.alt = "";
-  image.draggable = false;
-  image.decoding = "async";
-  image.fetchPriority = "high";
-  image.setAttribute("aria-hidden", "true");
-  image.dataset.placeholderIgnore = "true";
-  els.lightboxImageFrame.append(image);
-  state.singleImageResolutionImage = image;
-  return image;
-}
-
-function clearSingleViewerResolutionUpgrade() {
-  state.singleImageResolutionLoadToken += 1;
-  state.singleImageResolutionStop?.();
-  state.singleImageResolutionStop = null;
-  state.singleImageResolutionTargetSrc = "";
-  state.singleImageResolutionTargetTier = "";
-  state.singleImageResolutionReady = false;
-  state.singleImageResolutionVisible = false;
-  state.singleImageResolutionCommitPending = false;
-  state.singleImageResolutionRetainedForSwap = false;
-  els.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready");
-
-  const image = state.singleImageResolutionImage;
-  if (!image) return;
-  image.removeAttribute("src");
-  delete image.dataset.resolutionRetainedForSwap;
-  delete image.dataset.logicalSrc;
-  delete image.dataset.loadedTier;
-  delete image.dataset.loadedQuality;
-  delete image.dataset.imageLoadPending;
-}
-
-function retainSingleViewerResolutionLayerForSwap() {
-  const image = state.singleImageResolutionImage;
-  if (state.singleImageResolutionRetainedForSwap) {
-    return Boolean(image?.isConnected && image.naturalWidth > 0);
-  }
-  if (
-    !state.singleImageResolutionVisible
-    || !state.singleImageResolutionReady
-    || !image?.isConnected
-    || image.naturalWidth <= 0
-  ) {
-    return false;
-  }
-
-  // Freeze the already-decoded high-resolution layer as the visual front buffer.
-  // Its ownership metadata is retired immediately, so it cannot be mistaken for
-  // the target page, but its pixels remain painted until the next page is decoded.
-  state.singleImageResolutionLoadToken += 1;
-  state.singleImageResolutionStop?.();
-  state.singleImageResolutionStop = null;
-  state.singleImageResolutionTargetSrc = "";
-  state.singleImageResolutionTargetTier = "";
-  state.singleImageResolutionReady = false;
-  state.singleImageResolutionVisible = false;
-  state.singleImageResolutionCommitPending = false;
-  state.singleImageResolutionRetainedForSwap = true;
-  image.dataset.resolutionRetainedForSwap = "true";
-  els.lightboxImageFrame?.classList.remove("is-resolution-loading");
-  els.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready");
-  return true;
-}
-
-function releaseSingleViewerRetainedResolutionLayer() {
-  if (!state.singleImageResolutionRetainedForSwap) return false;
-  state.singleImageResolutionRetainedForSwap = false;
-  els.lightboxImageFrame?.classList.remove("is-resolution-upgrade-ready");
-
-  const image = state.singleImageResolutionImage;
-  if (!image) return true;
-  image.removeAttribute("src");
-  delete image.dataset.resolutionRetainedForSwap;
-  delete image.dataset.logicalSrc;
-  delete image.dataset.loadedTier;
-  delete image.dataset.loadedQuality;
-  delete image.dataset.imageLoadPending;
-  return true;
-}
-
-function activeSingleViewerImageLogicalSrc() {
-  if (state.singleImageResolutionVisible && state.singleImageResolutionTargetSrc) {
-    return state.singleImageResolutionTargetSrc;
-  }
-  return normalizeCatalogImageUrl(els.lightboxImage?.dataset.logicalSrc || els.lightboxImage?.getAttribute("src") || "");
-}
-
-function activeSingleViewerImageTier() {
-  if (state.singleImageResolutionRetainedForSwap) return CATALOG_IMAGE_TIER_FULL;
-  if (state.singleImageResolutionVisible && state.singleImageResolutionTargetTier) {
-    return state.singleImageResolutionTargetTier;
-  }
-  return String(els.lightboxImage?.dataset.loadedTier || "");
-}
-
-function shouldWarmSingleViewerFullResolution(previousZoom = state.zoom) {
-  if (isSaveDataEnabled()) return false;
-  const effectiveType = networkEffectiveType();
-  if (effectiveType === "slow-2g" || effectiveType === "2g" || effectiveType === "3g") return false;
-
-  const zoom = Number(state.zoom) || AUTO_VIEWER_ZOOM;
-  const previous = Number(previousZoom) || AUTO_VIEWER_ZOOM;
-  return zoom > AUTO_VIEWER_ZOOM + VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON
-    && zoom > previous + 0.001;
-}
-
-function commitSingleViewerResolutionUpgrade(token = state.singleImageResolutionLoadToken) {
-  if (token !== state.singleImageResolutionLoadToken || !state.singleImageResolutionReady) {
-    state.singleImageResolutionCommitPending = true;
-    return false;
-  }
-
-  state.singleImageResolutionCommitPending = false;
-  state.singleImageResolutionVisible = true;
-  requestAnimationFrame(() => {
-    if (token !== state.singleImageResolutionLoadToken || !state.singleImageResolutionVisible) return;
-    els.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready");
-  });
-  return true;
-}
-
-function prepareSingleViewerResolutionUpgrade(catalog, page, request, options = {}) {
-  if (!catalog || !request?.primarySrc || request.primaryTier !== CATALOG_IMAGE_TIER_FULL) return false;
-  const targetSrc = normalizeCatalogImageUrl(request.primarySrc);
-  if (!targetSrc) return false;
-
-  const sameTarget = state.singleImageResolutionTargetSrc === targetSrc
-    && state.singleImageResolutionTargetTier === request.primaryTier;
-  if (sameTarget) {
-    if (options.commit) {
-      state.singleImageResolutionCommitPending = true;
-      if (state.singleImageResolutionReady) commitSingleViewerResolutionUpgrade();
-    }
-    return true;
-  }
-
-  clearSingleViewerResolutionUpgrade();
-  const image = ensureSingleViewerResolutionImage();
-  if (!image) return false;
-
-  const token = ++state.singleImageResolutionLoadToken;
-  state.singleImageResolutionTargetSrc = targetSrc;
-  state.singleImageResolutionTargetTier = request.primaryTier;
-  state.singleImageResolutionCommitPending = Boolean(options.commit);
-  els.lightboxImageFrame?.classList.add("is-resolution-loading");
-
-  state.singleImageResolutionStop = loadCatalogImageWithRecovery(image, {
-    primarySrc: targetSrc,
-    primaryTier: request.primaryTier,
-    isCurrent: () => (
-      token === state.singleImageResolutionLoadToken
-      && isViewerSessionOpen()
-      && state.catalog === catalog
-      && state.page === page
-      && state.singleImageResolutionTargetSrc === targetSrc
-    ),
-    telemetryDetail: "viewer-resolution-upgrade",
-    onSuccess: (candidate) => {
-      const finishReady = () => {
-        if (token !== state.singleImageResolutionLoadToken || !image.naturalWidth) return;
-        state.singleImageResolutionStop = null;
-        state.singleImageResolutionReady = true;
-        image.dataset.logicalSrc = targetSrc;
-        image.dataset.loadedTier = candidate.tier || request.primaryTier;
-        image.dataset.loadedQuality = image.dataset.loadedTier;
-        els.lightboxImageFrame?.classList.remove("is-resolution-loading");
-
-        const preferredTier = preferredViewerImageTier(catalog, page);
-        if (state.singleImageResolutionCommitPending || preferredTier === CATALOG_IMAGE_TIER_FULL) {
-          commitSingleViewerResolutionUpgrade(token);
-        }
-      };
-
-      if (typeof image.decode === "function") {
-        image.decode().catch(() => {}).then(finishReady);
-      } else {
-        finishReady();
-      }
-    },
-    onExhausted: () => {
-      if (token !== state.singleImageResolutionLoadToken) return;
-      state.singleImageResolutionStop = null;
-      state.singleImageResolutionTargetSrc = "";
-      state.singleImageResolutionTargetTier = "";
-      state.singleImageResolutionReady = false;
-      state.singleImageResolutionVisible = false;
-      state.singleImageResolutionCommitPending = false;
-      els.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready");
-      image.removeAttribute("src");
-    }
-  });
-  return true;
-}
-
-function setSingleViewerImageFeedback(mode = "", message = "") {
-  const visible = Boolean(mode && message);
-  const isError = mode === "error";
-  els.viewerImageFeedback?.classList.toggle("hidden", !visible);
-  if (els.viewerImageFeedback) {
-    els.viewerImageFeedback.dataset.mode = visible ? mode : "";
-    els.viewerImageFeedback.dataset.state = visible ? (isError ? "error" : "warning") : "";
-    els.viewerImageFeedback.setAttribute("role", isError ? "alert" : "status");
-    els.viewerImageFeedback.setAttribute("aria-live", isError ? "assertive" : "polite");
-  }
-  if (els.viewerImageFeedbackText) els.viewerImageFeedbackText.textContent = message;
-  els.viewerImageRetry?.classList.toggle("hidden", !visible);
-  els.lightboxImageFrame?.classList.toggle("image-fallback", mode === "fallback");
-  if (mode !== "error") els.lightboxImageFrame?.classList.remove("image-terminal-error");
-}
-
-function showSingleLightboxImage(catalog, page, src, options = {}) {
-  if (!els.lightboxImage || !catalog) return;
-
-  const token = ++state.singleImageLoadToken;
-  const image = els.lightboxImage;
-  const request = options.imageRequest || viewerPageImageRequest(catalog, page, {
-    forceFull: Boolean(options.forceFull)
-  });
-  const primarySrc = normalizeCatalogImageUrl(src || request.primarySrc);
-  if (!primarySrc) return;
-  const currentLogicalSrc = image.dataset.logicalSrc || normalizeCatalogImageUrl(image.getAttribute("src") || "");
-  if (!options.forceRefresh && currentLogicalSrc === primarySrc && image.complete && image.naturalWidth && image.dataset.loadedQuality !== "fallback") {
-    applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
-    setSingleViewerImageFeedback();
-    finishSingleImageSwap(token);
-    return;
-  }
-
-  const preserveCurrentImage = Boolean(
-    options.preserveCurrentImage
-    && image.complete
-    && image.naturalWidth > 0
-    && !els.lightboxImageFrame?.classList.contains("image-terminal-error")
-  );
-  const retainedResolutionLayer = preserveCurrentImage
-    && retainSingleViewerResolutionLayerForSwap();
-  if (!retainedResolutionLayer) clearSingleViewerResolutionUpgrade();
-  setViewerLoading(true);
-  els.lightboxImageFrame?.setAttribute("aria-busy", "true");
-  setSingleViewerImageFeedback();
-  els.lightbox?.classList.add("is-page-loading");
-  els.lightboxImageFrame?.classList.toggle("is-preparing-swap", !preserveCurrentImage);
-  els.lightboxImageFrame?.classList.remove("image-terminal-error");
-  if (preserveCurrentImage) {
-    // Keep the decoded current page painted while the browser's pending image
-    // request is replaced. The frame receives only a slight loading dim instead
-    // of exposing the viewer background between pages.
-    image.dataset.placeholderIgnore = "true";
-  } else {
-    prepareImagePlaceholder(image);
-  }
-  image.alt = `${catalog.title} - עמוד ${page}`;
-  applyCatalogImageDimensions(image, catalog, page);
-  image.decoding = "async";
-  image.fetchPriority = "high";
-  image.dataset.logicalSrc = primarySrc;
-
-  const requestIsCurrent = () => (
-    token === state.singleImageLoadToken
-    && isViewerSessionOpen()
-    && state.catalog === catalog
-    && state.page === page
-  );
-  const commitImageRequest = () => {
-    if (!requestIsCurrent()) return;
-    loadCatalogImageWithRecovery(image, {
-      primarySrc,
-      primaryTier: request.primaryTier,
-      fallbackCandidates: request.fallbackCandidates,
-      forceRefresh: Boolean(options.forceRefresh),
-      isCurrent: requestIsCurrent,
-      telemetryDetail: "viewer-single",
-      onSuccess: (candidate) => {
-        delete image.dataset.placeholderIgnore;
-        const loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL;
-        const degraded = catalogImageTierRank(loadedTier) < catalogImageTierRank(request.primaryTier);
-        image.dataset.loadedTier = loadedTier;
-        image.dataset.loadedQuality = degraded ? "fallback" : loadedTier;
-        if (image.naturalWidth && image.naturalHeight) {
-          applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
-        }
-        releaseSingleViewerRetainedResolutionLayer();
-        finishSingleImageSwap(token);
-        els.lightboxImageFrame?.setAttribute("aria-busy", "false");
-        runSingleImageSwapAnimation();
-        if (degraded) {
-          setSingleViewerImageFeedback("fallback", "שכבת התמונה המועדפת לא נטענה. מוצגת חלופה מוקטנת; אפשר לנסות שוב.");
-        } else {
-          setSingleViewerImageFeedback();
-        }
-      },
-      onExhausted: () => {
-        delete image.dataset.placeholderIgnore;
-        delete image.dataset.loadedTier;
-        delete image.dataset.loadedQuality;
-        releaseSingleViewerRetainedResolutionLayer();
-        finishSingleImageSwap(token);
-        els.lightboxImageFrame?.setAttribute("aria-busy", "false");
-        els.lightboxImageFrame?.classList.add("image-terminal-error");
-        setSingleViewerImageFeedback("error", "התמונה לא הצליחה להיטען. אפשר לנסות שוב.");
-      }
-    });
-  };
-
-  if (preserveCurrentImage) {
-    // Decode the target in a detached image first. Only then replace the visible
-    // image source, so even browsers that clear an <img> during a src change can
-    // reuse a decoded resource instead of exposing the viewer background.
-    prepareCatalogImage(primarySrc, { priority: "high", detail: "viewer-page-stage" })
-      .catch(() => null)
-      .then(commitImageRequest);
-  } else {
-    commitImageRequest();
-  }
-}
 function pad(num) {
   return String(num).padStart(3, "0");
 }
@@ -843,102 +489,6 @@ function catalogPageImageSrc(catalog, page, tier) {
   return pageSrc(catalog, page);
 }
 
-function renderedViewerPagePhysicalLongSide(catalog, page, zoom = state.zoom) {
-  const frame = els.lightboxImageFrame || null;
-  const rect = frame?.getBoundingClientRect?.();
-  const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
-  if (rect?.width && rect?.height) return Math.max(rect.width, rect.height) * dpr;
-
-  const size = pageSize(catalog, page);
-  const stageWidth = Math.max(1, els.stageCanvas?.clientWidth || window.innerWidth || 1);
-  const stageHeight = Math.max(1, els.stageCanvas?.clientHeight || window.innerHeight || 1);
-  if (!size) return Math.max(stageWidth, stageHeight) * dpr;
-
-  const fitMode = String(state.imageFitMode || VIEWER_FIT_HEIGHT);
-  const scale = fitMode === VIEWER_FIT_WIDTH
-    ? stageWidth / size.width
-    : fitMode === VIEWER_FIT_HEIGHT
-      ? stageHeight / size.height
-      : Math.min(stageWidth / size.width, stageHeight / size.height);
-  return Math.max(size.width, size.height) * Math.max(0.01, scale) * dpr * Math.max(1, Number(zoom) || 1);
-}
-
-function preferredViewerImageTier(catalog, page, options = {}) {
-  if (options.forceFull || !catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)) {
-    return CATALOG_IMAGE_TIER_FULL;
-  }
-  if (options.preferMedium) return CATALOG_IMAGE_TIER_MEDIUM;
-
-  const zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(state.zoom || 1);
-  if (zoom >= VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD) return CATALOG_IMAGE_TIER_FULL;
-
-  if (!isSaveDataEnabled()) {
-    const mediumMaxSide = catalogImageTierMaxSide(catalog, CATALOG_IMAGE_TIER_MEDIUM);
-    const requiredPixels = renderedViewerPagePhysicalLongSide(catalog, page, zoom);
-    if (requiredPixels > mediumMaxSide * VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO) {
-      return CATALOG_IMAGE_TIER_FULL;
-    }
-  }
-  return CATALOG_IMAGE_TIER_MEDIUM;
-}
-
-function viewerPageImageRequest(catalog, page, options = {}) {
-  const primaryTier = preferredViewerImageTier(catalog, page, options);
-  const tierOrder = primaryTier === CATALOG_IMAGE_TIER_FULL
-    ? [CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB]
-    : [CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_THUMB];
-  const candidates = tierOrder
-    .filter((tier) => catalogSupportsImageTier(catalog, tier))
-    .map((tier) => ({ tier, src: catalogPageImageSrc(catalog, page, tier) }))
-    .filter((candidate) => candidate.src);
-  const primary = candidates[0] || { tier: CATALOG_IMAGE_TIER_FULL, src: pageSrc(catalog, page) };
-  return {
-    primarySrc: primary.src,
-    primaryTier: primary.tier,
-    fallbackCandidates: candidates.slice(1).map((candidate, index) => ({
-      ...candidate,
-      role: `fallback-${index + 1}`
-    }))
-  };
-}
-
-function viewerPageSrc(catalog, page, options = {}) {
-  return viewerPageImageRequest(catalog, page, options).primarySrc;
-}
-
-function catalogImageTierRank(tier) {
-  if (tier === CATALOG_IMAGE_TIER_FULL) return 3;
-  if (tier === CATALOG_IMAGE_TIER_MEDIUM) return 2;
-  if (tier === CATALOG_IMAGE_TIER_THUMB) return 1;
-  return 0;
-}
-
-function refreshSingleViewerImageResolution(options = {}) {
-  if (!isViewerSessionOpen() || !state.catalog || !els.lightboxImage) return false;
-  if (state.singleImageResolutionRetainedForSwap) return false;
-  const request = viewerPageImageRequest(state.catalog, state.page, options);
-
-  if (options.warmFull && request.primaryTier !== CATALOG_IMAGE_TIER_FULL) {
-    const fullRequest = viewerPageImageRequest(state.catalog, state.page, { forceFull: true });
-    prepareSingleViewerResolutionUpgrade(state.catalog, state.page, fullRequest, { commit: false });
-  }
-
-  const currentSrc = activeSingleViewerImageLogicalSrc();
-  const nextSrc = normalizeCatalogImageUrl(request.primarySrc);
-  const loadedTier = activeSingleViewerImageTier();
-  if (currentSrc === nextSrc) return Boolean(options.warmFull);
-  if (catalogImageTierRank(loadedTier) > catalogImageTierRank(request.primaryTier)) return false;
-
-  if (request.primaryTier === CATALOG_IMAGE_TIER_FULL) {
-    return prepareSingleViewerResolutionUpgrade(state.catalog, state.page, request, { commit: true });
-  }
-
-  if (!state.singleImageResolutionVisible && !state.singleImageResolutionReady) {
-    clearSingleViewerResolutionUpgrade();
-  }
-  return false;
-}
-
 function catalogCoverSrc(catalog) {
   return catalog?.cover ? withAssetVersion(resolveCatalogAssetUrl(catalog.cover), catalog) : pageSrc(catalog, 1);
 }
@@ -1015,10 +565,10 @@ function applyLoadedPageAspect(img) {
   frame.style.aspectRatio = `${width} / ${height}`;
 
   const page = Number.parseInt(frame.dataset.page || "", 10);
-  if (!state.catalog || !Number.isFinite(page) || page < 1) return;
+  if (!navigationState.catalog || !Number.isFinite(page) || page < 1) return;
 
-  if (!Array.isArray(state.catalog.pageSizes)) state.catalog.pageSizes = [];
-  state.catalog.pageSizes[page - 1] = [width, height];
+  if (!Array.isArray(navigationState.catalog.pageSizes)) navigationState.catalog.pageSizes = [];
+  navigationState.catalog.pageSizes[page - 1] = [width, height];
 
 }
 
@@ -1033,7 +583,7 @@ function watchLoadedPageAspect(img) {
   img.addEventListener("load", () => applyLoadedPageAspect(img), { once: true });
 }
 
-function clampPage(page, catalog = state.catalog) {
+function clampPage(page, catalog = navigationState.catalog) {
   const parsed = Number.parseInt(page, 10);
   if (!Number.isFinite(parsed)) return 1;
   const maxPage = Math.max(1, Number(catalog?.pages || 1));
@@ -1086,21 +636,21 @@ function actionToastTone(message) {
 }
 
 function showActionToast(message, options = {}) {
-  if (!els.siteActionToast || !message) return;
+  if (!shellElements.siteActionToast || !message) return;
   const normalizedOptions = typeof options === "number" ? { duration: options } : options;
   const duration = Math.max(1000, Number(normalizedOptions.duration) || 1000);
 
-  window.clearTimeout(state.actionToastTimer);
-  els.siteActionToast.textContent = message;
-  els.siteActionToast.dataset.tone = normalizedOptions.tone || actionToastTone(message);
-  els.siteActionToast.classList.remove("hidden", "visible");
-  void els.siteActionToast.offsetWidth;
-  window.requestAnimationFrame(() => els.siteActionToast.classList.add("visible"));
-  state.actionToastTimer = window.setTimeout(() => {
-    els.siteActionToast.classList.remove("visible");
+  window.clearTimeout(uiRuntime.actionToastTimer);
+  shellElements.siteActionToast.textContent = message;
+  shellElements.siteActionToast.dataset.tone = normalizedOptions.tone || actionToastTone(message);
+  shellElements.siteActionToast.classList.remove("hidden", "visible");
+  void shellElements.siteActionToast.offsetWidth;
+  window.requestAnimationFrame(() => shellElements.siteActionToast.classList.add("visible"));
+  uiRuntime.actionToastTimer = window.setTimeout(() => {
+    shellElements.siteActionToast.classList.remove("visible");
     window.setTimeout(() => {
-      if (!els.siteActionToast.classList.contains("visible")) {
-        els.siteActionToast.classList.add("hidden");
+      if (!shellElements.siteActionToast.classList.contains("visible")) {
+        shellElements.siteActionToast.classList.add("hidden");
       }
     }, 180);
   }, duration);
@@ -1243,14 +793,26 @@ async function downloadCatalogPageSnapshot(catalog, page, button) {
   }
 }
 
+function hasHoverPointer() {
+  if (typeof window.matchMedia !== "function") return true;
+  const primaryFineHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const anyFineHover = window.matchMedia("(any-hover: hover) and (any-pointer: fine)").matches;
+  return primaryFineHover || anyFineHover;
+}
+
+function isTouchLikePointer(event) {
+  return event?.pointerType === "touch" || event?.pointerType === "pen";
+}
+
 function getCurrentCatalogFocusUrlTargetId() {
-  const hashTargetId = resolveCatalogCategoryTargetIdFromHash();
-  if (hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length) {
+  const catalogGrid = getFeatureInterface("catalog-grid");
+  const hashTargetId = catalogGrid?.resolveCategoryTargetIdFromHash?.() || "";
+  if (hashTargetId && catalogGrid?.hasCategoryTarget?.(hashTargetId)) {
     return hashTargetId;
   }
 
-  const activeTargetId = String(state.categoryFocusTargetId || "");
-  if (activeTargetId && getCatalogCategorySectionsByTargetId(activeTargetId).length) {
+  const activeTargetId = catalogGrid?.activeCategoryTargetId?.() || "";
+  if (activeTargetId && catalogGrid?.hasCategoryTarget?.(activeTargetId)) {
     return activeTargetId;
   }
 
@@ -1286,78 +848,28 @@ function findCatalogById(id) {
   return catalogs.find((item) => String(item.id || "") === catalogId) || null;
 }
 
+function syncDocumentLock() {
+  let documentLocked = false;
+  let viewerOpen = false;
+  featureInterfaces.forEach((api) => {
+    if (typeof api.requiresDocumentLock === "function" && api.requiresDocumentLock()) {
+      documentLocked = true;
+    }
+    if (typeof api.isViewerOpen === "function" && api.isViewerOpen()) {
+      viewerOpen = true;
+    }
+  });
+  document.body.classList.toggle("no-scroll", documentLocked);
+  document.documentElement.classList.toggle("viewer-open", viewerOpen);
+}
+
 function handleTopLayerEscape(event) {
   if (event.key !== "Escape" || event.defaultPrevented) return false;
 
-  const closeLayer = (callback) => {
+  for (const api of featureInterfacesByEscapePriority()) {
+    if (api.closeTopLayer(event) !== true) continue;
     event.preventDefault();
-    callback();
     return true;
-  };
-
-  // Escape always dismisses the innermost active layer first. This order is
-  // intentionally shared by every route so one key press cannot close a child
-  // dialog and then continue into its parent screen during event bubbling.
-  if (state.favoriteNoteEditingKey) {
-    return closeLayer(() => closeFavoriteNoteEditor());
   }
-  if (state.favoritesTransferPending) {
-    return closeLayer(() => closeFavoritesTransferDialog({
-      cleanUrl: state.favoritesTransferPending?.source === "link"
-    }));
-  }
-  if (state.favoritesOpen) {
-    return closeLayer(() => closeFavoritesPanel());
-  }
-  if (isMobileCategoryMenuOpen()) {
-    return closeLayer(() => closeMobileCategoryMenu({ focusButton: true }));
-  }
-  if (isGlobalSearchPanelOpen()) {
-    if (els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden")) {
-      return closeLayer(() => closeGlobalSearchScopeMenu());
-    }
-    return closeLayer(() => closeGlobalSearchPanel({ focusButton: true }));
-  }
-  if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) {
-    return closeLayer(() => closeDetailCatalogMenu());
-  }
-  if (!isViewerSessionOpen()) return false;
-
-  if (state.viewerInquiryOpen) {
-    return closeLayer(() => closeViewerInquiry());
-  }
-  if (state.viewerMobileMoreOpen) {
-    return closeLayer(() => closeViewerMobileMoreMenu({ returnFocus: true }));
-  }
-  if (state.viewerOnboardingOpen) {
-    return closeLayer(() => closeViewerOnboarding());
-  }
-  if (state.lightboxMobileSearchOpen) {
-    return closeLayer(() => setLightboxMobileSearchOpen(false, {
-      returnFocus: true,
-      hideResults: true
-    }));
-  }
-  if (
-    (els.lightboxCatalogMenu && !els.lightboxCatalogMenu.classList.contains("hidden")) ||
-    (els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden"))
-  ) {
-    return closeLayer(() => {
-      closeLightboxCatalogMenu();
-      closeLightboxSearchScopeMenu();
-    });
-  }
-  if (isBrowserFullscreenActive()) {
-    return closeLayer(() => {
-      exitBrowserFullscreen().catch(() => {});
-    });
-  }
-
-  const target = event.target;
-  const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-  if (isTyping) {
-    return closeLayer(() => hideLightboxSearchResults({ blurTopUiFocus: true }));
-  }
-
-  return closeLayer(() => closeLightbox());
+  return false;
 }

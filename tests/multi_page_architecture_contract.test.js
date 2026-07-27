@@ -3,27 +3,30 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const pages = {
-  'index.html': 'home',
-  'catalog.html': 'catalog',
-  'favorites.html': 'favorites',
-  'viewer.html': 'viewer'
+  'index.html': { mode: 'home', script: 'app-catalog.js', stylesheet: 'styles-catalog.css' },
+  'catalog.html': { mode: 'catalog', script: 'app-catalog.js', stylesheet: 'styles-catalog.css' },
+  'favorites.html': { mode: 'favorites', script: 'app-favorites.js', stylesheet: 'styles-favorites.css' },
+  'viewer.html': { mode: 'viewer', script: 'app-viewer.js', stylesheet: 'styles-viewer.css' }
 };
 
-for (const [filename, mode] of Object.entries(pages)) {
+for (const [filename, { mode, script, stylesheet }] of Object.entries(pages)) {
   const html = fs.readFileSync(path.join(root, filename), 'utf8');
   assert.match(html, new RegExp(`<body data-page="${mode}"`));
   assert.doesNotMatch(html, /data-clean-routes/);
-  assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app\.js"><\/script>/);
+  assert.match(html, new RegExp(`<link rel="stylesheet" href="${stylesheet.replace(".", "\\.")}"`));
+  assert.match(html, new RegExp(`<script src="${script.replace(".", "\\.")}"><\/script>`));
+  assert.doesNotMatch(html, /<script src="app\.js"><\/script>/);
   assert.doesNotMatch(html, /page-transition\.js|sitePageTransition|site-page-transition|site-transition-(?:pending|leaving|entering)/);
   assert.match(html, /href="index\.html" aria-label="רהיטי ברגיג - דף הבית"/);
 }
 
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const app = readAllBundles();
+const css = readAllCssBundles();
 const builder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
@@ -34,14 +37,14 @@ const mainIndex = template.indexOf('<main id="main-content" tabindex="-1">');
 assert.ok(globalSearchIndex >= 0 && globalSearchIndex < mainIndex, 'global search must remain outside page-specific main content');
 assert.doesNotMatch(app, /parseLegacyHash/);
 assert.match(template, /class="back-link catalog-back-button"[\s\S]*?<svg/);
-assert.match(app, /els\.globalSearchOpen\?\.addEventListener\("click"[\s\S]*?setGlobalSearchPanelOpen/);
+assert.match(app, /searchElements\.globalSearchOpen\?\.addEventListener\("click"[\s\S]*?setGlobalSearchPanelOpen/);
 assert.match(css, /\.catalog-back-button\s*\{[\s\S]*?border-radius:\s*999px;/);
 assert.match(pageBuilder, /PAGE_DOCUMENTS = \(/);
 assert.match(pageBuilder, /render_site_pages/);
 assert.match(builder, /from build_site_pages import \([\s\S]*?PAGE_DOCUMENTS,[\s\S]*?TECHNICAL_SHELL_FILENAMES,[\s\S]*?render_site_pages,/);
 assert.match(builder, /function discover_bundle_html|def discover_bundle_html/);
 assert.match(builder, /html_paths = discover_bundle_html\(out_dir\)/);
-assert.match(app, /navigateTo\(viewerDocumentUrl\(state\.catalog\.id, page, \{ source \}\)\)/);
+assert.match(app, /navigateTo\(viewerDocumentUrl\(navigationState\.catalog\.id, page, \{ source \}\)\)/);
 assert.match(app, /navigateTo\(favoritesDocumentUrl\(\)\)/);
 assert.match(app, /siteRoutes\?\.parseLocation/);
 assert.match(css, /body\[data-page="favorites"\] \.favorites-panel\.favorites-standalone-page/);
@@ -55,19 +58,19 @@ assert.doesNotMatch(app, /const APP_PAGE/);
 assert.match(app, /let currentAppPage = siteRoutes\?\.pageFromLocation/);
 assert.match(app, /function setCurrentAppPage\([\s\S]*?document\.body\.dataset\.page = currentAppPage/);
 assert.match(app, /function isInternalAppDocumentUrl\([\s\S]*?siteRoutes\?\.isSameAppDocumentLocation\?\.\(window\.location, url, currentAppPage\)/);
-assert.match(app, /function canNavigateWithinCurrentDocument\([\s\S]*?viewerUsesInDocumentFullscreenNavigation\(\)[\s\S]*?isInternalAppDocumentUrl\(url\)/);
+assert.match(app, /function canNavigateWithinCurrentDocument\([\s\S]*?getFeatureInterface\("viewer"\)\?\.usesInDocumentFullscreenNavigation\?\.\(\)[\s\S]*?isInternalAppDocumentUrl\(url\)/);
 assert.match(fs.readFileSync(path.join(root, 'site-routes.js'), 'utf8'), /function matchPageFromLocation\([\s\S]*?function basePathFromLocation\([\s\S]*?function isDocumentLocation\([\s\S]*?function isSameAppDocumentLocation\(/);
 assert.match(app, /function navigateWithinCurrentDocument\([\s\S]*?history\.pushState\([\s\S]*?initDocumentRoute\(\{ scrollPosition/);
 assert.match(app, /function navigateTo\([\s\S]*?canNavigateWithinCurrentDocument\(targetUrl\)[\s\S]*?window\.location\.replace\(targetUrl\?\.href \|\| target\)[\s\S]*?window\.location\.assign\(targetUrl\?\.href \|\| target\)/);
-assert.match(app, /function handleInternalAppLinkClick\([\s\S]*?viewerUsesInDocumentFullscreenNavigation\(\)[\s\S]*?navigateWithinCurrentDocument\(targetUrl\)/);
+assert.match(app, /function handleInternalAppLinkClick\([\s\S]*?getFeatureInterface\("viewer"\)\?\.usesInDocumentFullscreenNavigation\?\.\(\)[\s\S]*?navigateWithinCurrentDocument\(targetUrl\)/);
 assert.match(app, /window\.addEventListener\("popstate"[\s\S]*?initDocumentRoute\(\{/);
 assert.match(app, /function syncDocumentRouteShell\([\s\S]*?nextPage === "home"[\s\S]*?catalogsSection\.classList\.toggle\("hidden", !showCatalogs\)/);
-assert.match(app, /function prepareDocumentRoute\([\s\S]*?hideLightboxUi\(\)[\s\S]*?hideFavoritesPanelUi\(\)[\s\S]*?setCurrentAppPage\(nextPage\)[\s\S]*?syncDocumentRouteShell\(nextPage\)/);
+assert.match(app, /function prepareDocumentRoute\([\s\S]*?getFeatureInterface\("viewer"\)\?\.prepareRoute\?\.\(nextPage\)[\s\S]*?hideFavoritesPanelUi\(\)[\s\S]*?setCurrentAppPage\(nextPage\)[\s\S]*?syncDocumentRouteShell\(nextPage\)/);
 assert.match(app, /function navigateBack\(\) \{\s*window\.history\.back\(\);\s*\}/);
 assert.match(app, /function currentVisibleDocumentUrl\(\) \{\s*return window\.location\.href;\s*\}/);
 assert.match(app, /function shareOrCopyCurrentLink\([\s\S]*?currentVisibleDocumentUrl\(\)/);
-assert.match(app, /function shareCurrentMainHeaderLink\([\s\S]*?shareOrCopyCurrentLink\(els\.headerCopyLink\)/);
-assert.match(app, /function shareCurrentLightboxLink\([\s\S]*?shareOrCopyCurrentLink\(els\.lightboxCopyLink\)/);
+assert.match(app, /function shareCurrentMainHeaderLink\([\s\S]*?shareOrCopyCurrentLink\(shellElements\.headerCopyLink\)/);
+assert.match(app, /function shareCurrentLightboxLink\([\s\S]*?shareOrCopyCurrentLink\(viewerElements\.lightboxCopyLink\)/);
 assert.doesNotMatch(app, /function build(?:MainHeader|LightboxPage)Url/);
 assert.match(app, /function markAppReady\(\) \{[\s\S]*?data-app-ready/);
 assert.match(app, /return initDocumentRoute\(\)/);

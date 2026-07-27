@@ -3,8 +3,9 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readBundle } = require('./frontend_test_assets');
 
-const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const app = readBundle('viewer');
 
 function sourceBetween(startMarker, endMarker) {
   const start = app.indexOf(startMarker);

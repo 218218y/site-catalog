@@ -24,14 +24,14 @@ const context = {
   VIEWER_FULLSCREEN_ENTERING: "entering",
   VIEWER_FULLSCREEN_ACTIVE: "active",
   VIEWER_FULLSCREEN_EXITING: "exiting",
-  state: {
+  viewerState: {
     viewerPhase: "closed",
     viewerPhaseReason: "initial",
     viewerFullscreenPhase: "inactive",
     viewerFullscreenReason: "initial"
   },
   document,
-  els: { fullscreenToggle: null },
+  viewerElements: { fullscreenToggle: null },
   console: { warn: (...args) => warnings.push(args) },
   setTooltipText() {},
   refreshLightboxLayoutForTopUiChange() {},
@@ -51,9 +51,9 @@ assert.equal(api.transitionViewerPhase("opening", "test-open"), true);
 assert.equal(api.isViewerSessionOpen(), true);
 assert.equal(document.body.dataset.viewerPhase, "opening");
 assert.equal(api.transitionViewerPhase("open", "ready"), true);
-assert.equal(context.state.viewerPhaseReason, "ready");
+assert.equal(context.viewerState.viewerPhaseReason, "ready");
 assert.equal(api.transitionViewerPhase("closed", "invalid-skip"), false, "open must close through the closing phase");
-assert.equal(context.state.viewerPhase, "open", "invalid transitions must not mutate state");
+assert.equal(context.viewerState.viewerPhase, "open", "invalid transitions must not mutate state");
 assert.equal(warnings.length, 1);
 assert.equal(api.transitionViewerPhase("closing", "close"), true);
 assert.equal(api.isViewerSessionOpen(), false);
@@ -65,13 +65,13 @@ assert.equal(api.viewerUsesInDocumentFullscreenNavigation(), false);
 assert.equal(api.transitionViewerFullscreenPhase("entering", "request"), true);
 document.fullscreenElement = document.documentElement;
 api.reconcileViewerFullscreenPhase("browser-entered");
-assert.equal(context.state.viewerFullscreenPhase, "active");
+assert.equal(context.viewerState.viewerFullscreenPhase, "active");
 assert.equal(document.documentElement.dataset.viewerFullscreenPhase, "active");
 assert.equal(api.viewerUsesInDocumentFullscreenNavigation(), true);
 assert.equal(api.transitionViewerFullscreenPhase("exiting", "exit"), true);
 document.fullscreenElement = null;
 api.reconcileViewerFullscreenPhase("browser-exited");
-assert.equal(context.state.viewerFullscreenPhase, "inactive");
+assert.equal(context.viewerState.viewerFullscreenPhase, "inactive");
 assert.equal(api.viewerUsesInDocumentFullscreenNavigation(), false);
 
 console.log("viewer_session_state_logic.test.js: PASS");

@@ -30,7 +30,7 @@ function transitionStatePhase({ current, next, transitions, label, reason }) {
 }
 
 function transitionViewerPhase(nextPhase, reason = "unspecified") {
-  const currentPhase = state.viewerPhase || VIEWER_PHASE_CLOSED;
+  const currentPhase = viewerState.viewerPhase || VIEWER_PHASE_CLOSED;
   if (!transitionStatePhase({
     current: currentPhase,
     next: nextPhase,
@@ -39,22 +39,22 @@ function transitionViewerPhase(nextPhase, reason = "unspecified") {
     reason
   })) return false;
 
-  state.viewerPhase = nextPhase;
-  state.viewerPhaseReason = String(reason || "unspecified");
+  viewerState.viewerPhase = nextPhase;
+  viewerState.viewerPhaseReason = String(reason || "unspecified");
   if (document.body) document.body.dataset.viewerPhase = nextPhase;
   return true;
 }
 
 function isViewerSessionOpen() {
-  return state.viewerPhase === VIEWER_PHASE_OPENING || state.viewerPhase === VIEWER_PHASE_OPEN;
+  return viewerState.viewerPhase === VIEWER_PHASE_OPENING || viewerState.viewerPhase === VIEWER_PHASE_OPEN;
 }
 
 function isViewerSessionVisible() {
-  return isViewerSessionOpen() || state.viewerPhase === VIEWER_PHASE_CLOSING;
+  return isViewerSessionOpen() || viewerState.viewerPhase === VIEWER_PHASE_CLOSING;
 }
 
 function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
-  const currentPhase = state.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
+  const currentPhase = viewerState.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
   if (!transitionStatePhase({
     current: currentPhase,
     next: nextPhase,
@@ -63,8 +63,8 @@ function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
     reason
   })) return false;
 
-  state.viewerFullscreenPhase = nextPhase;
-  state.viewerFullscreenReason = String(reason || "unspecified");
+  viewerState.viewerFullscreenPhase = nextPhase;
+  viewerState.viewerFullscreenReason = String(reason || "unspecified");
   if (document.documentElement) document.documentElement.dataset.viewerFullscreenPhase = nextPhase;
   return true;
 }
@@ -92,7 +92,7 @@ function isBrowserFullscreenSupported() {
 }
 
 function isViewerFullscreenPending() {
-  return state.viewerFullscreenPhase === VIEWER_FULLSCREEN_ENTERING || state.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
+  return viewerState.viewerFullscreenPhase === VIEWER_FULLSCREEN_ENTERING || viewerState.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
 }
 
 function reconcileViewerFullscreenPhase(reason = "browser-state") {
@@ -122,7 +122,7 @@ function exitBrowserFullscreen() {
 }
 
 function getFullscreenToggleButtons() {
-  return els.fullscreenToggle ? [els.fullscreenToggle] : [];
+  return viewerElements.fullscreenToggle ? [viewerElements.fullscreenToggle] : [];
 }
 
 function syncFullscreenButtonUi() {
@@ -136,7 +136,7 @@ function syncFullscreenButtonUi() {
 
   buttons.forEach((button) => {
     button.dataset.fullscreenActive = isActive ? "true" : "false";
-    button.dataset.fullscreenPhase = state.viewerFullscreenPhase;
+    button.dataset.fullscreenPhase = viewerState.viewerFullscreenPhase;
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
     button.setAttribute("aria-label", label);
     setTooltipText(button, label, { updateDefault: true });
@@ -155,7 +155,7 @@ function handleBrowserFullscreenChange() {
 }
 
 async function toggleBrowserFullscreen(sourceButton = null) {
-  const button = sourceButton || els.fullscreenToggle;
+  const button = sourceButton || viewerElements.fullscreenToggle;
   if (isViewerFullscreenPending()) return;
   const wasActive = isBrowserFullscreenActive();
 

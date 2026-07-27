@@ -22,8 +22,16 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
+def all_source_modules() -> tuple[str, ...]:
+    return tuple(dict.fromkeys(
+        relative
+        for spec in MODULE.BUNDLE_SPECS
+        for relative in spec.modules
+    ))
+
+
 def copy_frontend_sources(target: Path) -> None:
-    for relative in (*MODULE.JS_MODULES, *MODULE.CSS_MODULES):
+    for relative in all_source_modules():
         source = ROOT / relative
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -32,81 +40,69 @@ def copy_frontend_sources(target: Path) -> None:
 
 def test_generated_frontend_assets_are_current() -> None:
     results = MODULE.build_frontend_assets(ROOT, check=True)
-    assert {result.output.name for result in results} == {"app.js", "styles.css"}
+    assert {result.output.name for result in results} == set(MODULE.GENERATED_FILES)
     assert all(result.changed is False for result in results)
 
 
-def test_frontend_manifest_uses_reviewed_feature_modules() -> None:
-    assert MODULE.JS_MODULES == (
-        "src/js/00-navigation.js",
-        "src/js/10-app-state.js",
-        "src/js/15-telemetry.js",
-        "src/js/20-shared-ui.js",
-        "src/js/30-favorites-share.js",
-        "src/js/35-favorites-workspace.js",
-        "src/js/40-catalog-grid.js",
-        "src/js/50-search-ui.js",
-        "src/js/52-viewer-session.js",
-        "src/js/54-viewer-geometry.js",
-        "src/js/56-viewer-shell.js",
-        "src/js/58-viewer-navigation.js",
-        "src/js/60-viewer.js",
-        "src/js/62-viewer-actions.js",
-        "src/js/65-viewer-onboarding.js",
-        "src/js/70-viewer-input.js",
-        "src/js/90-bootstrap.js",
-    )
-    assert MODULE.CSS_MODULES == (
-        "src/css/00-foundation.css",
-        "src/css/05-viewer-onboarding.css",
-        "src/css/06-shell-components.css",
-        "src/css/10-catalog.css",
-        "src/css/20-viewer.css",
-        "src/css/25-viewer-actions.css",
-        "src/css/30-media-components.css",
-        "src/css/40-catalog-refinements.css",
-        "src/css/50-footer-legal.css",
-        "src/css/80-responsive-shell.css",
-        "src/css/85-favorites-routing.css",
-        "src/css/87-favorites-workspace.css",
-        "src/css/90-visual-polish.css",
-        "src/css/95-accessibility-consistency.css",
-        "src/css/97-seo-foundation.css",
-    )
-    for relative in (*MODULE.JS_MODULES, *MODULE.CSS_MODULES):
+def test_frontend_manifests_define_real_route_boundaries() -> None:
+    assert MODULE.ROUTE_ASSETS == {
+        "home": ("styles-catalog.css", "app-catalog.js"),
+        "catalog": ("styles-catalog.css", "app-catalog.js"),
+        "favorites": ("styles-favorites.css", "app-favorites.js"),
+        "viewer": ("styles-viewer.css", "app-viewer.js"),
+    }
+    specs = {spec.output_name: spec for spec in MODULE.BUNDLE_SPECS}
+    assert set(specs) == {
+        "styles.css",
+        "styles-catalog.css",
+        "styles-favorites.css",
+        "styles-viewer.css",
+        "app-catalog.js",
+        "app-favorites.js",
+        "app-viewer.js",
+    }
+
+    catalog_modules = specs["app-catalog.js"].modules
+    favorites_modules = specs["app-favorites.js"].modules
+    viewer_modules = specs["app-viewer.js"].modules
+    assert "src/js/16-viewer-state.js" not in catalog_modules
+    assert "src/js/16-viewer-state.js" not in favorites_modules
+    assert "src/js/52-viewer-session.js" not in catalog_modules
+    assert "src/js/52-viewer-session.js" not in favorites_modules
+    assert "src/js/35-favorites-workspace.js" not in catalog_modules
+    assert "src/js/35-favorites-workspace.js" in favorites_modules
+    assert "src/js/40-catalog-grid.js" not in viewer_modules
+    assert "src/js/31-viewer-share.js" in viewer_modules
+
+    for relative in all_source_modules():
         assert (ROOT / relative).is_file(), relative
 
 
-def test_generated_bundle_preserves_declared_module_order() -> None:
-    app = (ROOT / "app.js").read_text(encoding="utf-8")
-    css = (ROOT / "styles.css").read_text(encoding="utf-8")
+def test_generated_bundles_preserve_each_declared_module_order() -> None:
+    for spec in MODULE.BUNDLE_SPECS:
+        output = (ROOT / spec.output_name).read_text(encoding="utf-8")
+        positions = [output.index(f"BEGIN SOURCE: {relative}") for relative in spec.modules]
+        assert positions == sorted(positions), spec.output_name
+        assert output.lstrip().startswith("/*")
+        if spec.kind == "js":
+            assert '\n(() => {\n"use strict";' in output
+            assert output.rstrip().endswith("})();")
 
-    app_positions = [app.index(f"BEGIN SOURCE: {relative}") for relative in MODULE.JS_MODULES]
-    css_positions = [css.index(f"BEGIN SOURCE: {relative}") for relative in MODULE.CSS_MODULES]
-    assert app_positions == sorted(app_positions)
-    assert css_positions == sorted(css_positions)
-
-    module_sources = {relative: (ROOT / relative).read_text(encoding="utf-8") for relative in MODULE.JS_MODULES}
-    assert "function navigateWithinCurrentDocument" in module_sources["src/js/00-navigation.js"]
-    assert "const state =" in module_sources["src/js/10-app-state.js"]
-    assert "function telemetryInit" in module_sources["src/js/15-telemetry.js"]
-    assert "function shareFavoritesList" in module_sources["src/js/30-favorites-share.js"]
-    assert "function renderFavoritesWorkspace" in module_sources["src/js/35-favorites-workspace.js"]
-    assert "function renderCatalogCards" in module_sources["src/js/40-catalog-grid.js"]
-    assert "function renderSearchResults" in module_sources["src/js/50-search-ui.js"]
-    assert "function transitionViewerPhase" in module_sources["src/js/52-viewer-session.js"]
-    assert "function applyZoom" in module_sources["src/js/54-viewer-geometry.js"]
-    assert "function renderLightboxPageRail" in module_sources["src/js/56-viewer-shell.js"]
-    assert "function handleViewerPageWheel" in module_sources["src/js/58-viewer-navigation.js"]
-    assert "function openLightbox" in module_sources["src/js/60-viewer.js"]
-    assert "function openViewerInquiry" in module_sources["src/js/62-viewer-actions.js"]
-    assert "function showViewerOnboardingIfNeeded" in module_sources["src/js/65-viewer-onboarding.js"]
-    assert "function startPointerInteraction" in module_sources["src/js/70-viewer-input.js"]
-    assert "let initResult = true;" in module_sources["src/js/90-bootstrap.js"]
-    assert "initResult = init();" in module_sources["src/js/90-bootstrap.js"]
-    assert app.lstrip().startswith("/*")
-    assert '\n(() => {\n"use strict";' in app
-    assert app.rstrip().endswith("})();")
+    viewer_sources = {
+        relative: (ROOT / relative).read_text(encoding="utf-8")
+        for relative in next(spec.modules for spec in MODULE.BUNDLE_SPECS if spec.output_name == "app-viewer.js")
+    }
+    assert "function navigateWithinCurrentDocument" in viewer_sources["src/js/00-navigation.js"]
+    assert "const featureInterfaces = new Map()" in viewer_sources["src/js/10-app-state.js"]
+    assert "const viewerState =" in viewer_sources["src/js/16-viewer-state.js"]
+    assert "function shareCurrentLightboxLink" in viewer_sources["src/js/31-viewer-share.js"]
+    assert "function transitionViewerPhase" in viewer_sources["src/js/52-viewer-session.js"]
+    assert "function showSingleLightboxImage" in viewer_sources["src/js/53-viewer-image.js"]
+    assert "function applyZoom" in viewer_sources["src/js/54-viewer-geometry.js"]
+    assert "function renderLightboxPageRail" in viewer_sources["src/js/56-viewer-shell.js"]
+    assert "function handleViewerPageWheel" in viewer_sources["src/js/58-viewer-navigation.js"]
+    assert "function openLightbox" in viewer_sources["src/js/60-viewer.js"]
+    assert "let initResult = true;" in viewer_sources["src/js/90-bootstrap.js"]
 
 
 def test_manifest_validation_rejects_duplicates_and_unordered_modules() -> None:
@@ -120,14 +116,14 @@ def test_manifest_validation_rejects_duplicates_and_unordered_modules() -> None:
         MODULE.validate_module_manifest(("src/js/viewer.js",), expected_extension="js")
 
 
-def test_check_mode_detects_a_stale_generated_asset(tmp_path: Path) -> None:
+def test_check_mode_detects_a_stale_route_asset(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
     copy_frontend_sources(root)
     MODULE.build_frontend_assets(root)
-    (root / "app.js").write_text("stale\n", encoding="utf-8")
+    (root / "app-viewer.js").write_text("stale\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="app.js"):
+    with pytest.raises(RuntimeError, match="app-viewer.js"):
         MODULE.build_frontend_assets(root, check=True)
 
 
@@ -176,14 +172,21 @@ def test_js_module_boundary_validation_requires_an_accurate_header(tmp_path: Pat
         MODULE.validate_js_module_boundaries(root, ("src/js/00-first.js",))
 
 
-def test_current_js_sources_have_unique_top_level_ownership() -> None:
-    owners = MODULE.validate_js_module_boundaries(ROOT, MODULE.JS_MODULES)
-    assert len(owners) >= 450
-    assert owners["navigateTo"] == "src/js/00-navigation.js"
-    assert owners["state"] == "src/js/10-app-state.js"
-    assert owners["transitionViewerPhase"] == "src/js/52-viewer-session.js"
-    assert owners["applyZoom"] == "src/js/54-viewer-geometry.js"
-    assert owners["renderLightboxPageRail"] == "src/js/56-viewer-shell.js"
-    assert owners["handleViewerPageWheel"] == "src/js/58-viewer-navigation.js"
-    assert owners["openLightbox"] == "src/js/60-viewer.js"
-    assert owners["init"] == "src/js/90-bootstrap.js"
+def test_current_route_sources_have_unique_top_level_ownership() -> None:
+    specs = [spec for spec in MODULE.BUNDLE_SPECS if spec.kind == "js"]
+    owners_by_bundle = {
+        spec.output_name: MODULE.validate_js_module_boundaries(ROOT, spec.modules)
+        for spec in specs
+    }
+    assert owners_by_bundle["app-catalog.js"]["navigateTo"] == "src/js/00-navigation.js"
+    assert owners_by_bundle["app-catalog.js"]["catalogState"] == "src/js/12-catalog-state.js"
+    assert owners_by_bundle["app-favorites.js"]["renderFavoritesWorkspace"] == "src/js/35-favorites-workspace.js"
+    viewer_owners = owners_by_bundle["app-viewer.js"]
+    assert viewer_owners["viewerState"] == "src/js/16-viewer-state.js"
+    assert viewer_owners["transitionViewerPhase"] == "src/js/52-viewer-session.js"
+    assert viewer_owners["showSingleLightboxImage"] == "src/js/53-viewer-image.js"
+    assert viewer_owners["applyZoom"] == "src/js/54-viewer-geometry.js"
+    assert viewer_owners["renderLightboxPageRail"] == "src/js/56-viewer-shell.js"
+    assert viewer_owners["handleViewerPageWheel"] == "src/js/58-viewer-navigation.js"
+    assert viewer_owners["openLightbox"] == "src/js/60-viewer.js"
+    assert viewer_owners["init"] == "src/js/90-bootstrap.js"

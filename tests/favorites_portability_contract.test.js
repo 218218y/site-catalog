@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
@@ -10,8 +11,8 @@ const favorites = fs.readFileSync(path.join(root, 'favorites.html'), 'utf8');
 const catalog = fs.readFileSync(path.join(root, 'catalog.html'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const app = readAllBundles();
+const css = readAllCssBundles();
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
 for (const html of [template, favorites]) {
@@ -44,7 +45,7 @@ assert.match(app, /function encodeFavoritePageRanges\(/);
 assert.match(app, /function decodeFavoritePageRanges\(/);
 assert.match(app, /function buildFavoritesShareToken\([\s\S]*?canonicalizeFavoriteShareItems\([\s\S]*?encodeFavoritePageRanges/);
 assert.doesNotMatch(app, /FAVORITES_SHARE_LEGACY_VERSION|parseLegacyFavoritesShareToken/);
-assert.match(app, /function shareFavoritesList\([\s\S]*?copyFavoriteWorkspaceLink\(favoriteWorkspaceShareLinkEntries\(\), els\.favoritesShareButton\)/);
+assert.match(app, /function shareFavoritesList\([\s\S]*?getFeatureInterface\("favorites-workspace"\)[\s\S]*?workspace\.copyShareLink\([\s\S]*?workspace\.shareLinkEntries\(\)/);
 assert.match(app, /function copyFavoriteWorkspaceLink\([\s\S]*?copyTextToClipboard\(selectionUrl\)[\s\S]*?קישור המועדפים הועתק/);
 assert.doesNotMatch(app, /function shareFavoriteWorkspaceEntries|navigator\.share\(shareData\)[\s\S]*?favoriteWorkspaceSelectionUrl/);
 assert.doesNotMatch(app, /FAVORITES_MAX_SAFE_SHARE_URL_LENGTH|exportFavoritesList|parseFavoritesImportDocument|requestFavoritesImport|handleFavoritesImportFile/);

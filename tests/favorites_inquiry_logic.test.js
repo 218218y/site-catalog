@@ -30,13 +30,13 @@ const context = {
   window: {},
   document: {},
   requestAnimationFrame(callback) { callback(); },
-  state: {
+  favoritesState: {
     favoritesSelectedKeys: new Set(),
     favoritesFilterCatalogId: "tables",
     favoriteNoteEditingKey: "",
     favoritesDragKey: ""
   },
-  els: {
+  favoritesElements: {
     favoritesInquiryButton: { id: "favoritesInquiryButton" }
   },
   getFavoriteEntries() { return entries; },
@@ -46,7 +46,10 @@ const context = {
   buildFavoritesShareUrl(items) {
     return `https://example.test/favorites.html?selection=${items.map((item) => `${item.catalogId}:${item.page}`).join(",")}`;
   },
-  openViewerInquiry(options) { calls.push(options); },
+  getFeatureInterface(name) {
+    return name === "viewer" ? { openInquiry(options) { calls.push(options); } } : null;
+  },
+  registerFeatureInterface() {},
   escapeHtml(value) { return String(value); },
   thumbSrc() { return ""; },
   pageSrc() { return ""; },
@@ -79,10 +82,10 @@ context.openFavoriteWorkspaceInquiry();
 assert.equal(calls.length, 1);
 assert.equal(calls[0].reference.count, 3, "a visual catalog filter must not narrow the default inquiry");
 assert.equal(calls[0].reference.selected, false);
-assert.equal(calls[0].returnFocus, context.els.favoritesInquiryButton);
+assert.equal(calls[0].returnFocus, context.favoritesElements.favoritesInquiryButton);
 
-context.state.favoritesSelectedKeys.add("chairs\u00002");
-context.state.favoritesSelectedKeys.add("beds\u00007");
+context.favoritesState.favoritesSelectedKeys.add("chairs\u00002");
+context.favoritesState.favoritesSelectedKeys.add("beds\u00007");
 context.openFavoriteWorkspaceInquiry();
 assert.equal(calls.length, 2);
 assert.equal(calls[1].reference.count, 2);

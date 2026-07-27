@@ -9,17 +9,21 @@
 function attachShellEvents() {
   document.addEventListener("click", (event) => {
     const target = event.target;
-    const insideGlobalSearch = Boolean(els.catalogSearch?.contains(target) || els.globalSearchOpen?.contains(target));
+    const insideGlobalSearch = Boolean(searchElements.catalogSearch?.contains(target) || searchElements.globalSearchOpen?.contains(target));
     const insideMobileReaderSearch = Boolean(
-      els.lightboxSearchPanel?.contains(target) || els.lightboxMobileSearchToggle?.contains(target)
+      searchElements.lightboxSearchPanel?.contains(target) || searchElements.lightboxMobileSearchToggle?.contains(target)
     );
 
-    if (!els.mobileCategoryMenu?.contains(target) && !els.mobileCategoryMenuToggle?.contains(target)) {
-      closeMobileCategoryMenu();
+    if (
+      featureCapabilities.catalogGrid &&
+      !shellElements.mobileCategoryMenu?.contains(target) &&
+      !shellElements.mobileCategoryMenuToggle?.contains(target)
+    ) {
+      getFeatureInterface("catalog-grid")?.closeMobileMenu?.();
     }
 
     if (insideGlobalSearch) {
-      if (!els.globalSearchScopeMenu?.contains(target) && !els.globalSearchScopeToggle?.contains(target)) {
+      if (!searchElements.globalSearchScopeMenu?.contains(target) && !searchElements.globalSearchScopeToggle?.contains(target)) {
         closeGlobalSearchScopeMenu();
       }
       closeLightboxSearchScopeMenu();
@@ -28,12 +32,12 @@ function attachShellEvents() {
       return;
     }
     if (insideMobileReaderSearch) return;
-    if (state.lightboxMobileSearchOpen) {
+    if (searchState.lightboxMobileSearchOpen) {
       setLightboxMobileSearchOpen(false, { hideResults: true });
     }
-    if (els.lightboxSearchScopeMenu?.contains(target) || els.lightboxSearchScopeToggle?.contains(target)) return;
-    if (els.lightboxCatalogMenu?.contains(target) || els.lightboxCatalogMenuToggle?.contains(target)) return;
-    if (els.catalogMenu?.contains(target) || els.catalogMenuToggle?.contains(target)) return;
+    if (searchElements.lightboxSearchScopeMenu?.contains(target) || searchElements.lightboxSearchScopeToggle?.contains(target)) return;
+    if (searchElements.lightboxCatalogMenu?.contains(target) || searchElements.lightboxCatalogMenuToggle?.contains(target)) return;
+    if (catalogElements.catalogMenu?.contains(target) || catalogElements.catalogMenuToggle?.contains(target)) return;
     closeGlobalSearchPanel({ focusButton: false });
     closeGlobalSearchScopeMenu();
     closeLightboxSearchScopeMenu();
@@ -42,23 +46,23 @@ function attachShellEvents() {
   });
 
   window.addEventListener("resize", () => {
-    if (!window.matchMedia("(max-width: 760px)").matches) closeMobileCategoryMenu();
-    scheduleCatalogLayoutRefresh();
-    scheduleCategoryNavFit();
-    hideSearchFloatingPreview();
-    scheduleCatalogScrollTopButtonUpdate();
-    updateLightboxSearchResultsLayout(els.lightboxSearchResults?.dataset.resultCount || 0);
-    syncLightboxMobileSearchUi();
-    if (isViewerSessionOpen()) {
-      hideLightboxFloatingPreview();
-      syncAutomaticViewerFitMode({ showUi: false, refreshLayout: false });
-      refreshLightboxLayoutForTopUiChange();
-      if (state.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
+    if (featureCapabilities.catalogGrid) {
+      const catalogGrid = getFeatureInterface("catalog-grid");
+      if (!window.matchMedia("(max-width: 760px)").matches) catalogGrid?.closeMobileMenu?.();
+      catalogGrid?.scheduleLayoutRefresh?.();
+      catalogGrid?.scheduleCategoryNavFit?.();
     }
+    hideSearchFloatingPreview();
+    if (featureCapabilities.catalogGrid) getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.();
+    if (featureCapabilities.search) {
+      updateLightboxSearchResultsLayout(searchElements.lightboxSearchResults?.dataset.resultCount || 0);
+      syncLightboxMobileSearchUi();
+    }
+    getFeatureInterface("viewer")?.handleResize?.();
   });
   window.addEventListener("scroll", () => {
     hideSearchFloatingPreview();
-    scheduleCatalogScrollTopButtonUpdate();
+    if (featureCapabilities.catalogGrid) getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.();
   }, { passive: true });
 
   window.addEventListener("keydown", (event) => {
@@ -67,102 +71,71 @@ function attachShellEvents() {
     // hierarchy for every remaining Escape press.
     if (event.defaultPrevented) return;
     if (handleTopLayerEscape(event)) return;
-    if (!isViewerSessionOpen()) return;
-    if (state.viewerInquiryOpen) {
-      handleViewerInquiryKeydown(event);
-      return;
-    }
-    if (state.viewerOnboardingOpen) {
-      handleViewerOnboardingKeydown(event);
-      return;
-    }
-
-    const target = event.target;
-    const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-    if (isTyping) return;
-
-    if (["ArrowDown", "PageDown", "ArrowUp", "PageUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) {
-      stopViewerTouchMomentum();
-    }
-
-    if (["ArrowDown", "PageDown"].includes(event.key)) {
-      event.preventDefault();
-      moveLightbox(1);
-    } else if (["ArrowUp", "PageUp"].includes(event.key)) {
-      event.preventDefault();
-      moveLightbox(-1);
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault();
-      moveLightbox(-1);
-    } else if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      moveLightbox(1);
-    }
-    else if (event.key === "Home") {
-      if (isFavoritesLightboxMode()) setFavoriteViewerIndex(0);
-      else setLightboxPage(1);
-    } else if (event.key === "End" && state.catalog) {
-      if (isFavoritesLightboxMode()) setFavoriteViewerIndex(getFavoriteEntries().length - 1);
-      else setLightboxPage(state.catalog.pages);
-    }
+    getFeatureInterface("viewer")?.handleGlobalKeydown?.(event);
   });
 }
 
 function attachEvents() {
-  bindFeatureEventsOnce("catalog-grid", attachCatalogGridEvents);
-  bindFeatureEventsOnce("search-ui", attachSearchUiEvents);
+  const catalogGrid = getFeatureInterface("catalog-grid");
+  if (featureCapabilities.catalogGrid && catalogGrid?.attachEvents) {
+    bindFeatureEventsOnce("catalog-grid", catalogGrid.attachEvents);
+  }
+  if (featureCapabilities.search) bindFeatureEventsOnce("search-ui", attachSearchUiEvents);
   bindFeatureEventsOnce("shell", attachShellEvents);
   bindFeatureEventsOnce("favorites-share", attachFavoritesShareEvents);
-  bindFeatureEventsOnce("viewer-actions", attachViewerActionEvents);
-  bindFeatureEventsOnce("viewer-onboarding", attachViewerOnboardingEvents);
-  bindFeatureEventsOnce("viewer", attachViewerEvents);
+  const viewer = getFeatureInterface("viewer");
+  if (featureCapabilities.viewer && viewer?.attachEvents) {
+    bindFeatureEventsOnce("viewer", viewer.attachEvents);
+  }
   bindFeatureEventsOnce("navigation", attachNavigationEvents);
 }
 
 function hideCatalogDetailUi() {
-  els.catalogDetail?.classList.add("hidden");
-  els.catalogDetail?.classList.remove("in-view");
-  setCatalogScrollTopButtonVisible(false);
+  getFeatureInterface("catalog-grid")?.hideDetail?.();
 }
 
 function syncDocumentRouteShell(nextPage) {
   const showCatalogs = nextPage === "home";
-  if (els.catalogsSection) {
-    els.catalogsSection.classList.toggle("hidden", !showCatalogs);
+  if (shellElements.catalogsSection) {
+    shellElements.catalogsSection.classList.toggle("hidden", !showCatalogs);
     if (showCatalogs) {
-      els.catalogsSection.removeAttribute("aria-hidden");
+      shellElements.catalogsSection.removeAttribute("aria-hidden");
       // A route can start from a generated viewer/catalog document where the
       // home section is initially hidden. Reveal it deterministically instead
       // of waiting for an observer that may have skipped the hidden element.
-      els.catalogsSection.classList.add("in-view");
+      shellElements.catalogsSection.classList.add("in-view");
     } else {
-      els.catalogsSection.setAttribute("aria-hidden", "true");
+      shellElements.catalogsSection.setAttribute("aria-hidden", "true");
     }
   }
 }
 
 function prepareDocumentRoute(nextPage) {
-  if (nextPage !== "viewer" && isViewerSessionOpen()) hideLightboxUi();
-  if (nextPage !== "favorites" && state.favoritesTransferPending) {
+  getFeatureInterface("viewer")?.prepareRoute?.(nextPage);
+  if (nextPage !== "favorites" && favoritesState.favoritesTransferPending) {
     closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: true });
   }
-  if (nextPage !== "favorites" && state.favoriteNoteEditingKey) closeFavoriteNoteEditor({ restoreFocus: false });
-  if (nextPage !== "favorites" && (state.favoritesOpen || els.favoritesPanel?.classList.contains("favorites-standalone-page"))) {
+  if (featureCapabilities.favoritesWorkspace && nextPage !== "favorites" && favoritesState.favoriteNoteEditingKey) {
+    getFeatureInterface("favorites-workspace")?.closeNoteEditor?.({ restoreFocus: false });
+  }
+  if (nextPage !== "favorites" && (favoritesState.favoritesOpen || favoritesElements.favoritesPanel?.classList.contains("favorites-standalone-page"))) {
     hideFavoritesPanelUi();
   }
   if (nextPage !== "catalog") hideCatalogDetailUi();
 
-  closeMobileCategoryMenu();
-  closeGlobalSearchPanel({ focusButton: false });
-  closeGlobalSearchScopeMenu();
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
-  closeDetailCatalogMenu();
+  if (featureCapabilities.catalogGrid) getFeatureInterface("catalog-grid")?.closeMobileMenu?.();
+  if (featureCapabilities.search) {
+    closeGlobalSearchPanel({ focusButton: false });
+    closeGlobalSearchScopeMenu();
+    closeLightboxSearchScopeMenu();
+    closeLightboxCatalogMenu();
+    closeDetailCatalogMenu();
+  }
 
   setCurrentAppPage(nextPage);
   syncDocumentRouteShell(nextPage);
   syncDocumentLock();
-  syncFullscreenButtonUi();
+
 }
 
 function restoreDocumentRouteScroll(position) {
@@ -184,17 +157,19 @@ function initDocumentRoute(options = {}) {
 
   prepareDocumentRoute(route.page);
   if (route.page === "home") {
-    state.catalog = null;
-    state.page = 1;
-    syncCatalogCategoryFocusFromHash({ animate: false, scroll: Boolean(window.location.hash) });
+    navigationState.catalog = null;
+    navigationState.page = 1;
+    if (featureCapabilities.catalogGrid) {
+      getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash?.({ animate: false, scroll: Boolean(window.location.hash) });
+    }
     updateDocumentMetadata();
     if (!window.location.hash) restoreDocumentRouteScroll(options.scrollPosition);
     return true;
   }
 
   if (route.page === "favorites") {
-    state.catalog = null;
-    state.page = 1;
+    navigationState.catalog = null;
+    navigationState.page = 1;
     openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
     processFavoritesSelectionFromUrl();
     restoreDocumentRouteScroll(options.scrollPosition);
@@ -208,7 +183,7 @@ function initDocumentRoute(options = {}) {
   }
 
   if (route.page === "catalog") {
-    openCatalog(catalog.id, { scrollBehavior: "auto" });
+    getFeatureInterface("catalog-grid")?.openCatalog?.(catalog.id, { scrollBehavior: "auto" });
     restoreDocumentRouteScroll(options.scrollPosition);
     return true;
   }
@@ -221,14 +196,14 @@ function initDocumentRoute(options = {}) {
         navigateTo(favoritesDocumentUrl(), { replace: true });
         return false;
       }
-      openCatalogInViewer(catalog.id, route.currentPage, {
+      getFeatureInterface("viewer")?.openCatalog?.(catalog.id, route.currentPage, {
         source: LIGHTBOX_SOURCE_FAVORITES,
         favoriteIndex
       });
       return true;
     }
 
-    openCatalogInViewer(catalog.id, route.currentPage);
+    getFeatureInterface("viewer")?.openCatalog?.(catalog.id, route.currentPage);
     return true;
   }
 
@@ -238,23 +213,25 @@ function initDocumentRoute(options = {}) {
 
 function init() {
   telemetryInit();
-  initRevealObserver();
-  initCategoryNavFit();
+  if (featureCapabilities.catalogGrid) {
+    getFeatureInterface("catalog-grid")?.initialize?.();
+  }
   initImagePlaceholderObserver();
   attachEvents();
-  syncLightboxMobileSearchUi();
+  if (featureCapabilities.search) syncLightboxMobileSearchUi();
   syncFavoritesUi({ renderPanel: isAppPage("favorites") });
 
   if (!catalogs.length) {
-    renderEmptyState();
+    if (featureCapabilities.catalogGrid) getFeatureInterface("catalog-grid")?.renderEmptyState?.();
     return true;
   }
 
-  renderCatalogCards();
-  renderGlobalSearchScopeMenu();
-  scheduleSearchIndexPreload();
-  fillCatalogSelect();
-  initSearchStatus();
+  if (featureCapabilities.catalogGrid) getFeatureInterface("catalog-grid")?.renderInitialContent?.();
+  if (featureCapabilities.search) {
+    renderGlobalSearchScopeMenu();
+    scheduleSearchIndexPreload();
+    initSearchStatus();
+  }
   return initDocumentRoute();
 }
 

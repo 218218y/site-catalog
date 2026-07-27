@@ -51,7 +51,7 @@ let boundaryImplementation = () => ({
 });
 
 const api = new Function(
-  'state',
+  'viewerState',
   'window',
   'VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS',
   'VIEWER_TOUCH_VELOCITY_BLEND',

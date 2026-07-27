@@ -24,49 +24,49 @@ function refreshSearchUiAfterIndexLoad() {
   initLightboxSearchStatus();
 
   if (isGlobalSearchPanelOpen()) {
-    renderSearchResults(els.globalSearchInput?.value || "");
+    renderSearchResults(searchElements.globalSearchInput?.value || "");
   }
-  if (isViewerSessionOpen() && els.lightboxSearchInput) {
-    renderLightboxSearchResults(els.lightboxSearchInput.value);
+  if (getFeatureInterface("viewer")?.isViewerOpen?.() && searchElements.lightboxSearchInput) {
+    renderLightboxSearchResults(searchElements.lightboxSearchInput.value);
   }
 }
 
 function ensureSearchIndexLoaded(options = {}) {
   if (!catalogSearch?.ensureReady) {
-    state.searchIndexLoadState = "error";
+    searchState.searchIndexLoadState = "error";
     return Promise.reject(new Error("Catalog search runtime is unavailable"));
   }
   if (isSearchIndexReady()) {
-    state.searchIndexLoadState = "ready";
+    searchState.searchIndexLoadState = "ready";
     return Promise.resolve(true);
   }
-  if (state.searchIndexLoadPromise) return state.searchIndexLoadPromise;
+  if (searchState.searchIndexLoadPromise) return searchState.searchIndexLoadPromise;
 
-  state.searchIndexLoadState = "loading";
+  searchState.searchIndexLoadState = "loading";
   initLightboxSearchStatus();
   const loadTrigger = telemetryCleanText(options.trigger || "interactive", 40);
-  state.searchIndexLoadPromise = catalogSearch.ensureReady()
+  searchState.searchIndexLoadPromise = catalogSearch.ensureReady()
     .then(() => {
-      state.searchIndexLoadState = "ready";
-      state.searchIndexLoadPromise = null;
+      searchState.searchIndexLoadState = "ready";
+      searchState.searchIndexLoadPromise = null;
       refreshSearchUiAfterIndexLoad();
       return true;
     })
     .catch((error) => {
-      state.searchIndexLoadState = "error";
-      state.searchIndexLoadPromise = null;
+      searchState.searchIndexLoadState = "error";
+      searchState.searchIndexLoadPromise = null;
       telemetryTrackSearchIndexFailure("network-error", { trigger: loadTrigger });
       initSearchStatus();
       initLightboxSearchStatus();
       throw error;
     });
-  return state.searchIndexLoadPromise;
+  return searchState.searchIndexLoadPromise;
 }
 
 function scheduleSearchIndexPreload() {
-  window.clearTimeout(state.searchIndexPreloadTimer);
+  window.clearTimeout(searchState.searchIndexPreloadTimer);
   if (isSaveDataEnabled()) return;
-  state.searchIndexPreloadTimer = window.setTimeout(() => {
+  searchState.searchIndexPreloadTimer = window.setTimeout(() => {
     if (isSaveDataEnabled()) return;
     const preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {});
     if ("requestIdleCallback" in window) {
@@ -153,7 +153,7 @@ function hasGlobalSearchCategory(category) {
 }
 
 function getGlobalSearchCategory() {
-  const selectedCategory = String(state.globalSearchCategory || "").trim();
+  const selectedCategory = String(searchState.globalSearchCategory || "").trim();
   if (!selectedCategory) return "";
   return hasGlobalSearchCategory(selectedCategory) ? selectedCategory : "";
 }
@@ -170,32 +170,32 @@ function globalSearchPlaceholder() {
 }
 
 function closeGlobalSearchScopeMenu() {
-  els.globalSearchScopeMenu?.classList.add("hidden");
-  els.globalSearchScopeToggle?.setAttribute("aria-expanded", "false");
+  searchElements.globalSearchScopeMenu?.classList.add("hidden");
+  searchElements.globalSearchScopeToggle?.setAttribute("aria-expanded", "false");
 }
 
 function isGlobalSearchPanelOpen() {
-  return Boolean(state.globalSearchOpen && els.catalogSearch && !els.catalogSearch.classList.contains("hidden"));
+  return Boolean(searchState.globalSearchOpen && searchElements.catalogSearch && !searchElements.catalogSearch.classList.contains("hidden"));
 }
 
 function setGlobalSearchPanelOpen(open, options = {}) {
   const shouldOpen = Boolean(open);
-  state.globalSearchOpen = shouldOpen;
+  searchState.globalSearchOpen = shouldOpen;
 
-  if (!els.catalogSearch) return;
+  if (!searchElements.catalogSearch) return;
 
-  els.catalogSearch.classList.toggle("hidden", !shouldOpen);
-  els.catalogSearch.classList.toggle("is-open", shouldOpen);
-  els.catalogSearch.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
+  searchElements.catalogSearch.classList.toggle("hidden", !shouldOpen);
+  searchElements.catalogSearch.classList.toggle("is-open", shouldOpen);
+  searchElements.catalogSearch.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
 
-  els.globalSearchOpen?.classList.toggle("is-active", shouldOpen);
-  els.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  searchElements.globalSearchOpen?.classList.toggle("is-active", shouldOpen);
+  searchElements.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
 
   if (shouldOpen) {
     renderGlobalSearchScopeMenu();
-    renderSearchResults(els.globalSearchInput?.value || "");
+    renderSearchResults(searchElements.globalSearchInput?.value || "");
     if (options.focus !== false) {
-      window.requestAnimationFrame(() => els.globalSearchInput?.focus({ preventScroll: true }));
+      window.requestAnimationFrame(() => searchElements.globalSearchInput?.focus({ preventScroll: true }));
     }
     return;
   }
@@ -204,10 +204,10 @@ function setGlobalSearchPanelOpen(open, options = {}) {
   hideSearchFloatingPreview();
   cancelScheduledSearch("global");
   if (options.hideResults !== false) {
-    els.globalSearchResults?.classList.add("hidden");
+    searchElements.globalSearchResults?.classList.add("hidden");
   }
   if (options.focusButton) {
-    window.requestAnimationFrame(() => els.globalSearchOpen?.focus({ preventScroll: true }));
+    window.requestAnimationFrame(() => searchElements.globalSearchOpen?.focus({ preventScroll: true }));
   }
 }
 
@@ -220,10 +220,10 @@ function closeGlobalSearchPanel(options = {}) {
 }
 
 function renderGlobalSearchScopeMenu() {
-  if (!els.globalSearchScopeMenu) return;
+  if (!searchElements.globalSearchScopeMenu) return;
 
   const categories = getGlobalSearchCategories();
-  els.globalSearchScopeMenu.innerHTML = `
+  searchElements.globalSearchScopeMenu.innerHTML = `
     <button type="button" role="menuitemradio" aria-checked="true" data-global-search-category="">
       <strong>בכל הקטלוגים</strong>
     </button>
@@ -238,15 +238,15 @@ function renderGlobalSearchScopeMenu() {
 
 function syncGlobalSearchScopeUi() {
   const category = getGlobalSearchCategory();
-  if (els.globalSearchScopeToggle) {
-    els.globalSearchScopeToggle.innerHTML = `${escapeHtml(globalSearchScopeLabel(category))} <span aria-hidden="true">⌄</span>`;
-    els.globalSearchScopeToggle.title = category ? `חיפוש רק בקטגוריית ${category}` : "חיפוש בכל הקטלוגים";
+  if (searchElements.globalSearchScopeToggle) {
+    searchElements.globalSearchScopeToggle.innerHTML = `${escapeHtml(globalSearchScopeLabel(category))} <span aria-hidden="true">⌄</span>`;
+    searchElements.globalSearchScopeToggle.title = category ? `חיפוש רק בקטגוריית ${category}` : "חיפוש בכל הקטלוגים";
   }
-  if (els.globalSearchInput) {
-    els.globalSearchInput.placeholder = globalSearchPlaceholder();
-    els.globalSearchInput.setAttribute("aria-label", globalSearchPlaceholder());
+  if (searchElements.globalSearchInput) {
+    searchElements.globalSearchInput.placeholder = globalSearchPlaceholder();
+    searchElements.globalSearchInput.setAttribute("aria-label", globalSearchPlaceholder());
   }
-  els.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]").forEach((button) => {
+  searchElements.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]").forEach((button) => {
     const selected = String(button.dataset.globalSearchCategory || "") === category;
     button.classList.toggle("active", selected);
     button.setAttribute("aria-checked", selected ? "true" : "false");
@@ -259,19 +259,19 @@ function setGlobalSearchCategory(category, options = {}) {
     ? requestedCategory
     : "";
 
-  if (state.globalSearchCategory === nextCategory) {
+  if (searchState.globalSearchCategory === nextCategory) {
     syncGlobalSearchScopeUi();
     closeGlobalSearchScopeMenu();
     return;
   }
 
-  state.globalSearchCategory = nextCategory;
+  searchState.globalSearchCategory = nextCategory;
   syncGlobalSearchScopeUi();
   closeGlobalSearchScopeMenu();
   initSearchStatus();
 
-  if (options.render !== false && els.globalSearchInput) {
-    renderSearchResults(els.globalSearchInput.value);
+  if (options.render !== false && searchElements.globalSearchInput) {
+    renderSearchResults(searchElements.globalSearchInput.value);
   }
 }
 
@@ -280,7 +280,7 @@ function initSearchStatus() {
 }
 
 function getLightboxSearchScope() {
-  return state.lightboxSearchScope === "all" ? "all" : "catalog";
+  return searchState.lightboxSearchScope === "all" ? "all" : "catalog";
 }
 
 function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
@@ -289,18 +289,18 @@ function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
 
 function lightboxSearchPlaceholder() {
   if (getLightboxSearchScope() === "all") return "חיפוש דגם בכל הקטלוגים...";
-  const title = String(state.catalog?.title || "").trim();
+  const title = String(navigationState.catalog?.title || "").trim();
   return title ? `חיפוש ב: ${title}` : "חיפוש ב...";
 }
 
 function closeLightboxSearchScopeMenu() {
-  els.lightboxSearchScopeMenu?.classList.add("hidden");
-  els.lightboxSearchScopeToggle?.setAttribute("aria-expanded", "false");
+  searchElements.lightboxSearchScopeMenu?.classList.add("hidden");
+  searchElements.lightboxSearchScopeToggle?.setAttribute("aria-expanded", "false");
 }
 
 function closeLightboxCatalogMenu() {
-  els.lightboxCatalogMenu?.classList.add("hidden");
-  els.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
+  searchElements.lightboxCatalogMenu?.classList.add("hidden");
+  searchElements.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
 }
 
 function isMobileReaderSearchMode() {
@@ -309,28 +309,32 @@ function isMobileReaderSearchMode() {
 
 function syncLightboxMobileSearchUi() {
   const compactMode = isMobileReaderSearchMode();
-  const isOpen = compactMode && state.lightboxMobileSearchOpen;
+  const isOpen = compactMode && searchState.lightboxMobileSearchOpen;
 
-  if (!compactMode) state.lightboxMobileSearchOpen = false;
-  els.lightbox?.classList.toggle("mobile-search-open", isOpen);
-  els.lightboxMobileSearchToggle?.setAttribute("aria-expanded", isOpen ? "true" : "false");
-  els.lightboxSearchPanel?.setAttribute("aria-hidden", compactMode && !isOpen ? "true" : "false");
+  if (!compactMode) searchState.lightboxMobileSearchOpen = false;
+  getFeatureInterface("viewer")?.syncMobileSearchUi?.(isOpen);
+  searchElements.lightboxMobileSearchToggle?.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  searchElements.lightboxSearchPanel?.setAttribute("aria-hidden", compactMode && !isOpen ? "true" : "false");
 }
 
 function setLightboxMobileSearchOpen(open, options = {}) {
   const { focusInput = false, returnFocus = false, hideResults = true, hideTopUi = false } = options;
-  const shouldOpen = Boolean(open && isViewerSessionOpen() && isMobileReaderSearchMode());
+  const shouldOpen = Boolean(
+    open &&
+    getFeatureInterface("viewer")?.isViewerOpen?.() &&
+    isMobileReaderSearchMode()
+  );
 
-  state.lightboxMobileSearchOpen = shouldOpen;
+  searchState.lightboxMobileSearchOpen = shouldOpen;
   syncLightboxMobileSearchUi();
 
   if (shouldOpen) {
     closeLightboxCatalogMenu();
     closeLightboxSearchScopeMenu();
-    showTopUiTemporarily(0);
+    getFeatureInterface("viewer")?.showTopUi?.();
     ensureSearchIndexLoaded().catch(() => {});
     if (focusInput) {
-      window.requestAnimationFrame(() => els.lightboxSearchInput?.focus());
+      window.requestAnimationFrame(() => searchElements.lightboxSearchInput?.focus());
     }
     return;
   }
@@ -339,25 +343,25 @@ function setLightboxMobileSearchOpen(open, options = {}) {
     hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi });
   }
   if (returnFocus && isMobileReaderSearchMode()) {
-    els.lightboxMobileSearchToggle?.focus();
+    searchElements.lightboxMobileSearchToggle?.focus();
   }
 }
 
 function closeDetailCatalogMenu() {
-  els.catalogMenu?.classList.add("hidden");
-  els.catalogMenuToggle?.setAttribute("aria-expanded", "false");
+  catalogElements.catalogMenu?.classList.add("hidden");
+  catalogElements.catalogMenuToggle?.setAttribute("aria-expanded", "false");
 }
 
 function syncLightboxSearchScopeUi() {
   const scope = getLightboxSearchScope();
-  if (els.lightboxSearchScopeToggle) {
-    els.lightboxSearchScopeToggle.innerHTML = `${escapeHtml(lightboxSearchScopeLabel(scope))} <span aria-hidden="true">⌄</span>`;
+  if (searchElements.lightboxSearchScopeToggle) {
+    searchElements.lightboxSearchScopeToggle.innerHTML = `${escapeHtml(lightboxSearchScopeLabel(scope))} <span aria-hidden="true">⌄</span>`;
   }
-  if (els.lightboxSearchInput) {
-    els.lightboxSearchInput.placeholder = lightboxSearchPlaceholder();
-    els.lightboxSearchInput.setAttribute("aria-label", lightboxSearchPlaceholder());
+  if (searchElements.lightboxSearchInput) {
+    searchElements.lightboxSearchInput.placeholder = lightboxSearchPlaceholder();
+    searchElements.lightboxSearchInput.setAttribute("aria-label", lightboxSearchPlaceholder());
   }
-  els.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
+  searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
     const selected = button.dataset.lightboxSearchScope === scope;
     button.classList.toggle("active", selected);
     button.setAttribute("aria-checked", selected ? "true" : "false");
@@ -366,19 +370,19 @@ function syncLightboxSearchScopeUi() {
 
 function setLightboxSearchScope(scope, options = {}) {
   const nextScope = scope === "all" ? "all" : "catalog";
-  if (state.lightboxSearchScope === nextScope) {
+  if (searchState.lightboxSearchScope === nextScope) {
     syncLightboxSearchScopeUi();
     closeLightboxSearchScopeMenu();
     return;
   }
 
-  state.lightboxSearchScope = nextScope;
+  searchState.lightboxSearchScope = nextScope;
   syncLightboxSearchScopeUi();
   closeLightboxSearchScopeMenu();
   initLightboxSearchStatus();
 
-  if (options.render !== false && els.lightboxSearchInput) {
-    renderLightboxSearchResults(els.lightboxSearchInput.value);
+  if (options.render !== false && searchElements.lightboxSearchInput) {
+    renderLightboxSearchResults(searchElements.lightboxSearchInput.value);
   }
 }
 
@@ -386,37 +390,38 @@ function hideLightboxSearchResults(options = {}) {
   const { blurTopUiFocus = false, hideTopUi = false } = options;
 
   hideSearchFloatingPreview();
-  els.lightboxSearchResults?.classList.add("hidden");
+  searchElements.lightboxSearchResults?.classList.add("hidden");
   closeLightboxSearchScopeMenu();
   closeLightboxCatalogMenu();
 
   if (blurTopUiFocus) {
     const activeElement = document.activeElement;
-    if (activeElement && els.lightboxBar?.contains(activeElement) && typeof activeElement.blur === "function") {
+    if (
+      activeElement &&
+      getFeatureInterface("viewer")?.containsTopBarElement?.(activeElement) &&
+      typeof activeElement.blur === "function"
+    ) {
       activeElement.blur();
     }
   }
 
-  if (hideTopUi && !state.topUiPinned) {
-    window.clearTimeout(state.uiHideTimer);
-    els.lightbox?.classList.remove("show-ui");
-  }
+  if (hideTopUi) getFeatureInterface("viewer")?.hideTopUiForSearch?.();
 }
 
 function resetLightboxSearch() {
-  state.lightboxMobileSearchOpen = false;
+  searchState.lightboxMobileSearchOpen = false;
   syncLightboxMobileSearchUi();
-  if (els.lightboxSearchInput) els.lightboxSearchInput.value = "";
+  if (searchElements.lightboxSearchInput) searchElements.lightboxSearchInput.value = "";
   hideLightboxSearchResults({ blurTopUiFocus: true });
-  if (els.lightboxSearchResults) els.lightboxSearchResults.innerHTML = "";
-  els.lightboxSearchClear?.classList.add("hidden");
+  if (searchElements.lightboxSearchResults) searchElements.lightboxSearchResults.innerHTML = "";
+  searchElements.lightboxSearchClear?.classList.add("hidden");
   syncLightboxSearchScopeUi();
   initLightboxSearchStatus();
 }
 
 function lightboxSearchKey(query) {
   const scope = getLightboxSearchScope();
-  return [String(query || "").trim(), scope, scope === "all" ? "" : (state.catalog?.id || "")].join("\u0000");
+  return [String(query || "").trim(), scope, scope === "all" ? "" : (navigationState.catalog?.id || "")].join("\u0000");
 }
 
 async function getLightboxSearchResults(query, limit = 24) {
@@ -427,14 +432,14 @@ async function getLightboxSearchResults(query, limit = 24) {
 
   const options = { limit, channel: "viewer" };
   if (getLightboxSearchScope() !== "all") {
-    if (!state.catalog) return [];
-    options.catalogId = state.catalog.id;
+    if (!navigationState.catalog) return [];
+    options.catalogId = navigationState.catalog.id;
   }
   const results = await catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 
-async function trackCompletedLightboxSearch(completion, query = els.lightboxSearchInput?.value || "") {
+async function trackCompletedLightboxSearch(completion, query = searchElements.lightboxSearchInput?.value || "") {
   const rawQuery = String(query || "").trim();
   const scope = getLightboxSearchScope();
   const key = lightboxSearchKey(rawQuery);
@@ -444,7 +449,7 @@ async function trackCompletedLightboxSearch(completion, query = els.lightboxSear
   telemetryTrackSearch(rawQuery, results.length, {
     surface: "viewer",
     scope,
-    catalogId: scope === "all" ? "" : state.catalog?.id,
+    catalogId: scope === "all" ? "" : navigationState.catalog?.id,
     completion
   });
   return results;
@@ -453,18 +458,18 @@ async function trackCompletedLightboxSearch(completion, query = els.lightboxSear
 function openLightboxSearchResult(result) {
   if (!result) return false;
 
-  const targetCatalogId = result.catalogId || state.catalog?.id;
+  const targetCatalogId = result.catalogId || navigationState.catalog?.id;
   if (!targetCatalogId) return false;
 
-  if (!state.catalog || state.catalog.id !== targetCatalogId) {
-    openCatalogInViewer(targetCatalogId, Number(result.page));
+  if (!navigationState.catalog || navigationState.catalog.id !== targetCatalogId) {
+    getFeatureInterface("viewer")?.openCatalog?.(targetCatalogId, Number(result.page));
     return true;
   }
 
-  const page = clampPage(result.page, state.catalog);
-  setLightboxPage(page);
-  showTopUiTemporarily(0);
-  if (state.lightboxMobileSearchOpen) {
+  const page = clampPage(result.page, navigationState.catalog);
+  getFeatureInterface("viewer")?.setPage?.(page);
+  getFeatureInterface("viewer")?.showTopUi?.();
+  if (searchState.lightboxMobileSearchOpen) {
     setLightboxMobileSearchOpen(false, { hideResults: true });
   } else {
     hideLightboxSearchResults();
@@ -473,48 +478,48 @@ function openLightboxSearchResult(result) {
 }
 
 async function submitLightboxSearch() {
-  const rawQuery = String(els.lightboxSearchInput?.value || "").trim();
+  const rawQuery = String(searchElements.lightboxSearchInput?.value || "").trim();
   const results = await renderLightboxSearchResults(rawQuery);
   await trackCompletedLightboxSearch("submit", rawQuery);
   return openLightboxSearchResult(results[0]);
 }
 
 function initLightboxSearchStatus() {
-  if (!els.lightboxSearchStatus) return;
+  if (!searchElements.lightboxSearchStatus) return;
 
-  const hasCatalog = Boolean(state.catalog);
+  const hasCatalog = Boolean(navigationState.catalog);
   const hasIndex = Boolean(catalogSearch?.hasIndex?.());
-  const indexPending = !hasIndex && state.searchIndexLoadState !== "error";
-  if (els.lightboxSearchInput) els.lightboxSearchInput.disabled = !hasCatalog;
+  const indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
+  if (searchElements.lightboxSearchInput) searchElements.lightboxSearchInput.disabled = !hasCatalog;
   syncLightboxSearchScopeUi();
 
   if (!hasCatalog) {
-    els.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
+    searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
     return;
   }
 
   if (!hasIndex) {
-    els.lightboxSearchStatus.textContent = indexPending
+    searchElements.lightboxSearchStatus.textContent = indexPending
       ? "אינדקס החיפוש נטען לפי הצורך."
       : "אינדקס החיפוש אינו זמין כרגע.";
     return;
   }
 
-  els.lightboxSearchStatus.textContent = getLightboxSearchScope() === "all"
+  searchElements.lightboxSearchStatus.textContent = getLightboxSearchScope() === "all"
     ? "הקלד לפחות 2 תווים לחיפוש בכל הקטלוגים."
     : "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
 }
 
 function hideSearchFloatingPreview() {
-  els.searchFloatingPreview?.classList.remove("visible");
+  searchElements.searchFloatingPreview?.classList.remove("visible");
 }
 
 function isGlobalSearchScopeMenuOpen() {
-  return Boolean(els.globalSearchScopeMenu && !els.globalSearchScopeMenu.classList.contains("hidden"));
+  return Boolean(searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden"));
 }
 
 function isLightboxSearchScopeMenuOpen() {
-  return Boolean(els.lightboxSearchScopeMenu && !els.lightboxSearchScopeMenu.classList.contains("hidden"));
+  return Boolean(searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"));
 }
 
 function rememberSearchPreviewPointer(event) {
@@ -522,33 +527,33 @@ function rememberSearchPreviewPointer(event) {
   const clientY = Number(event?.clientY);
   if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
 
-  state.searchPreviewPointerClientX = clientX;
-  state.searchPreviewPointerClientY = clientY;
+  searchState.searchPreviewPointerClientX = clientX;
+  searchState.searchPreviewPointerClientY = clientY;
 }
 
 function searchPreviewTargetBelongsToOpenResults(target) {
   if (!target || !target.isConnected) return false;
 
-  if (els.globalSearchResults?.contains(target)) {
-    return isGlobalSearchPanelOpen() && !els.globalSearchResults.classList.contains("hidden");
+  if (searchElements.globalSearchResults?.contains(target)) {
+    return isGlobalSearchPanelOpen() && !searchElements.globalSearchResults.classList.contains("hidden");
   }
 
-  if (els.lightboxSearchResults?.contains(target)) {
-    return isViewerSessionOpen() && !els.lightboxSearchResults.classList.contains("hidden");
+  if (searchElements.lightboxSearchResults?.contains(target)) {
+    return Boolean(getFeatureInterface("viewer")?.isViewerOpen?.()) && !searchElements.lightboxSearchResults.classList.contains("hidden");
   }
 
   return false;
 }
 
 function isSearchPreviewBlockedByOpenMenu(target) {
-  if (els.globalSearchResults?.contains(target) && isGlobalSearchScopeMenuOpen()) return true;
-  if (els.lightboxSearchResults?.contains(target) && isLightboxSearchScopeMenuOpen()) return true;
+  if (searchElements.globalSearchResults?.contains(target) && isGlobalSearchScopeMenuOpen()) return true;
+  if (searchElements.lightboxSearchResults?.contains(target) && isLightboxSearchScopeMenuOpen()) return true;
   return false;
 }
 
 function getSearchPreviewTargetAtLastPointer() {
-  const clientX = Number(state.searchPreviewPointerClientX);
-  const clientY = Number(state.searchPreviewPointerClientY);
+  const clientX = Number(searchState.searchPreviewPointerClientX);
+  const clientY = Number(searchState.searchPreviewPointerClientY);
   if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
   if (clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) return null;
 
@@ -558,7 +563,7 @@ function getSearchPreviewTargetAtLastPointer() {
 }
 
 function isSearchPreviewSuppressed() {
-  return Date.now() < (state.searchPreviewSuppressUntil || 0);
+  return Date.now() < (searchState.searchPreviewSuppressUntil || 0);
 }
 
 function restoreSearchFloatingPreviewAfterSuppression() {
@@ -578,15 +583,15 @@ function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS
   const { restoreAfter = true } = options;
   const delay = Math.max(0, Number(duration) || 0);
   suppressSearchFloatingTooltip(delay, { restoreAfter });
-  state.searchPreviewSuppressUntil = Math.max(
-    state.searchPreviewSuppressUntil || 0,
+  searchState.searchPreviewSuppressUntil = Math.max(
+    searchState.searchPreviewSuppressUntil || 0,
     Date.now() + delay
   );
   hideSearchFloatingPreview();
 
-  window.clearTimeout(state.searchPreviewSuppressTimer);
-  state.searchPreviewSuppressTimer = window.setTimeout(() => {
-    state.searchPreviewSuppressTimer = 0;
+  window.clearTimeout(searchState.searchPreviewSuppressTimer);
+  searchState.searchPreviewSuppressTimer = window.setTimeout(() => {
+    searchState.searchPreviewSuppressTimer = 0;
     if (restoreAfter) restoreSearchFloatingPreviewAfterSuppression();
   }, delay + 20);
 }
@@ -596,7 +601,7 @@ function searchPreviewPageLabel(target) {
 }
 
 function positionSearchFloatingPreview(target) {
-  const preview = els.searchFloatingPreview;
+  const preview = searchElements.searchFloatingPreview;
   if (!preview || !target) return;
 
   const targetRect = target.getBoundingClientRect();
@@ -622,7 +627,7 @@ function positionSearchFloatingPreview(target) {
 }
 
 function showSearchFloatingPreview(target) {
-  if (!target || !els.searchFloatingPreview || !els.searchFloatingPreviewImage) return;
+  if (!target || !searchElements.searchFloatingPreview || !searchElements.searchFloatingPreviewImage) return;
   if (!searchPreviewTargetBelongsToOpenResults(target)) return;
   if (isSearchPreviewSuppressed()) return;
   if (isSearchPreviewBlockedByOpenMenu(target)) return;
@@ -633,13 +638,13 @@ function showSearchFloatingPreview(target) {
   const label = searchPreviewPageLabel(target);
   const previewCatalog = findCatalogById(target.dataset.searchCatalog || target.dataset.lightboxSearchCatalog);
   const previewPage = clampPage(target.dataset.searchPage || target.dataset.lightboxSearchPage, previewCatalog);
-  applyCatalogImageDimensions(els.searchFloatingPreviewImage, previewCatalog, previewPage);
-  els.searchFloatingPreviewImage.onload = () => positionSearchFloatingPreview(target);
-  setCatalogImageSource(els.searchFloatingPreviewImage, src);
-  els.searchFloatingPreviewImage.alt = label;
-  if (els.searchFloatingPreviewPage) els.searchFloatingPreviewPage.textContent = label;
+  applyCatalogImageDimensions(searchElements.searchFloatingPreviewImage, previewCatalog, previewPage);
+  searchElements.searchFloatingPreviewImage.onload = () => positionSearchFloatingPreview(target);
+  setCatalogImageSource(searchElements.searchFloatingPreviewImage, src);
+  searchElements.searchFloatingPreviewImage.alt = label;
+  if (searchElements.searchFloatingPreviewPage) searchElements.searchFloatingPreviewPage.textContent = label;
 
-  els.searchFloatingPreview.classList.add("visible");
+  searchElements.searchFloatingPreview.classList.add("visible");
   positionSearchFloatingPreview(target);
 }
 
@@ -684,12 +689,12 @@ function normalizedWheelDeltaY(event, scrollTarget) {
 }
 
 function globalSearchWheelTarget(eventTarget) {
-  if (isGlobalSearchScopeMenuOpen() && els.globalSearchScopeMenu?.contains(eventTarget)) {
-    return els.globalSearchScopeMenu;
+  if (isGlobalSearchScopeMenuOpen() && searchElements.globalSearchScopeMenu?.contains(eventTarget)) {
+    return searchElements.globalSearchScopeMenu;
   }
 
-  if (els.globalSearchResults && !els.globalSearchResults.classList.contains("hidden")) {
-    return els.globalSearchResults;
+  if (searchElements.globalSearchResults && !searchElements.globalSearchResults.classList.contains("hidden")) {
+    return searchElements.globalSearchResults;
   }
 
   return null;
@@ -710,7 +715,7 @@ function scrollElementByWheel(element, event) {
 }
 
 function handleGlobalSearchPanelWheel(event) {
-  if (!isGlobalSearchPanelOpen() || !els.catalogSearch?.contains(event.target)) return;
+  if (!isGlobalSearchPanelOpen() || !searchElements.catalogSearch?.contains(event.target)) return;
 
   handleSearchPreviewScrollIntent(event);
 
@@ -732,18 +737,23 @@ function normalizeSearchResultsDirection(container) {
 }
 
 function lightboxSearchLayoutColumnLimit() {
-  return Math.max(1, Math.min(catalogLayoutColumnCount(), 3));
+  const columns = getFeatureInterface("catalog-grid")?.layoutColumnCount?.();
+  if (Number.isFinite(Number(columns))) {
+    return Math.max(1, Math.min(Number(columns), 3));
+  }
+  const width = Math.max(0, window.innerWidth || document.documentElement?.clientWidth || 0);
+  return width >= 1180 ? 3 : width >= 760 ? 2 : 1;
 }
 
 function updateLightboxSearchResultsLayout(count = 0) {
-  if (!els.lightboxSearchResults) return;
-  normalizeSearchResultsDirection(els.lightboxSearchResults);
+  if (!searchElements.lightboxSearchResults) return;
+  normalizeSearchResultsDirection(searchElements.lightboxSearchResults);
 
   const resultCount = Math.max(0, Number(count) || 0);
   const columns = Math.max(1, Math.min(resultCount || 1, lightboxSearchLayoutColumnLimit()));
-  els.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns));
-  els.lightboxSearchResults.dataset.resultColumns = String(columns);
-  els.lightboxSearchResults.dataset.resultCount = String(resultCount);
+  searchElements.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns));
+  searchElements.lightboxSearchResults.dataset.resultColumns = String(columns);
+  searchElements.lightboxSearchResults.dataset.resultCount = String(resultCount);
 }
 
 function searchEmptyStateMarkup(query, message, options = {}) {
@@ -790,85 +800,85 @@ function searchIndexErrorMarkup(options = {}) {
 }
 
 function retrySearchIndexLoad(options = {}) {
-  state.searchIndexLoadPromise = null;
-  state.searchIndexLoadState = "idle";
+  searchState.searchIndexLoadPromise = null;
+  searchState.searchIndexLoadState = "idle";
   ensureSearchIndexLoaded({ trigger: "retry" })
     .then(() => {
-      if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
-      else renderSearchResults(els.globalSearchInput?.value || "");
+      if (options.reader) renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "");
+      else renderSearchResults(searchElements.globalSearchInput?.value || "");
     })
     .catch(() => {
-      if (options.reader) renderLightboxSearchResults(els.lightboxSearchInput?.value || "");
-      else renderSearchResults(els.globalSearchInput?.value || "");
+      if (options.reader) renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "");
+      else renderSearchResults(searchElements.globalSearchInput?.value || "");
     });
 }
 
 async function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
-  if (!els.lightboxSearchResults || !els.lightboxSearchStatus) return [];
+  if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
   const renderSequence = ++lightboxSearchRenderSequence;
 
-  normalizeSearchResultsDirection(els.lightboxSearchResults);
+  normalizeSearchResultsDirection(searchElements.lightboxSearchResults);
   hideSearchFloatingPreview();
   updateLightboxSearchResultsLayout(0);
-  els.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
+  searchElements.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
     catalogSearch?.cancel?.("viewer");
     lastLightboxSearchKey = "";
     lastLightboxSearchResults = [];
-    els.lightboxSearchResults.classList.add("hidden");
-    els.lightboxSearchResults.removeAttribute("aria-busy");
-    els.lightboxSearchResults.innerHTML = "";
+    searchElements.lightboxSearchResults.classList.add("hidden");
+    searchElements.lightboxSearchResults.removeAttribute("aria-busy");
+    searchElements.lightboxSearchResults.innerHTML = "";
     initLightboxSearchStatus();
     return [];
   }
 
-  if (!state.catalog) {
-    els.lightboxSearchResults.classList.add("hidden");
-    els.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
+  if (!navigationState.catalog) {
+    searchElements.lightboxSearchResults.classList.add("hidden");
+    searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
     return [];
   }
 
-  els.lightboxSearchResults.setAttribute("aria-busy", "true");
-  els.lightboxSearchStatus.textContent = "מחפש באינדקס…";
+  searchElements.lightboxSearchResults.setAttribute("aria-busy", "true");
+  searchElements.lightboxSearchStatus.textContent = "מחפש באינדקס…";
 
   try {
     const scope = getLightboxSearchScope();
     const results = await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
-    if (renderSequence !== lightboxSearchRenderSequence || lightboxSearchKey(rawQuery) !== lightboxSearchKey(els.lightboxSearchInput?.value || "")) {
+    if (renderSequence !== lightboxSearchRenderSequence || lightboxSearchKey(rawQuery) !== lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")) {
       return [];
     }
 
     lastLightboxSearchKey = lightboxSearchKey(rawQuery);
     lastLightboxSearchResults = results;
     updateLightboxSearchResultsLayout(results.length);
-    els.lightboxSearchResults.classList.remove("hidden");
-    els.lightboxSearchResults.removeAttribute("aria-busy");
+    searchElements.lightboxSearchResults.classList.remove("hidden");
+    searchElements.lightboxSearchResults.removeAttribute("aria-busy");
 
     if (!results.length) {
-      els.lightboxSearchStatus.textContent = scope === "all"
+      searchElements.lightboxSearchStatus.textContent = scope === "all"
         ? "לא נמצאו תוצאות בכל הקטלוגים."
         : "לא נמצאו תוצאות בקטלוג הפתוח.";
-      els.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
+      searchElements.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
         rawQuery,
         "נסה חלק קצר יותר של הדגם או מילה אחרת.",
         { reader: true }
       );
-      els.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
+      searchElements.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
         event.stopPropagation();
-        els.lightboxSearchInput.value = "";
+        searchElements.lightboxSearchInput.value = "";
         renderLightboxSearchResults("");
-        els.lightboxSearchInput.focus();
+        searchElements.lightboxSearchInput.focus();
       });
       return [];
     }
 
-    els.lightboxSearchStatus.textContent = scope === "all"
+    searchElements.lightboxSearchStatus.textContent = scope === "all"
       ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.`
       : `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
-    els.lightboxSearchResults.innerHTML = results.map((result) => {
-      const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || state.catalog;
+    searchElements.lightboxSearchResults.innerHTML = results.map((result) => {
+      const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || navigationState.catalog;
       const page = clampPage(result.page, catalog);
       const rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page);
       const rawThumb = result.thumb || thumbSrc(catalog, page);
@@ -885,8 +895,8 @@ async function renderLightboxSearchResults(query) {
       `;
     }).join("");
 
-    bindSearchFloatingPreviewEvents(els.lightboxSearchResults);
-    els.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
+    bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults);
+    searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
       button.addEventListener("click", async () => {
         await trackCompletedLightboxSearch("result-open");
         hideSearchFloatingPreview();
@@ -899,17 +909,17 @@ async function renderLightboxSearchResults(query) {
     return results;
   } catch (error) {
     if (catalogSearch?.isCancelledError?.(error) || renderSequence !== lightboxSearchRenderSequence) return [];
-    state.searchIndexLoadState = "error";
-    els.lightboxSearchResults.removeAttribute("aria-busy");
-    els.lightboxSearchResults.classList.remove("hidden");
-    els.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: true });
-    els.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: true }));
-    els.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.";
+    searchState.searchIndexLoadState = "error";
+    searchElements.lightboxSearchResults.removeAttribute("aria-busy");
+    searchElements.lightboxSearchResults.classList.remove("hidden");
+    searchElements.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: true });
+    searchElements.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: true }));
+    searchElements.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.";
     return [];
   }
 }
 
-function renderCatalogCategoryMenu(menu, { activeCatalogId = state.catalog?.id } = {}) {
+function renderCatalogCategoryMenu(menu, { activeCatalogId = navigationState.catalog?.id } = {}) {
   if (!menu) return;
 
   if (!catalogs.length) {
@@ -933,36 +943,36 @@ function renderCatalogCategoryMenu(menu, { activeCatalogId = state.catalog?.id }
 }
 
 function renderLightboxCatalogMenu() {
-  if (!els.lightboxCatalogMenu) return;
+  if (!searchElements.lightboxCatalogMenu) return;
 
-  renderCatalogCategoryMenu(els.lightboxCatalogMenu);
+  renderCatalogCategoryMenu(searchElements.lightboxCatalogMenu);
 
-  els.lightboxCatalogMenu.querySelectorAll("[data-catalog-menu-id]").forEach((button) => {
+  searchElements.lightboxCatalogMenu.querySelectorAll("[data-catalog-menu-id]").forEach((button) => {
     button.addEventListener("click", () => {
       const catalogId = button.dataset.catalogMenuId;
       closeLightboxCatalogMenu();
-      if (!catalogId || catalogId === state.catalog?.id) return;
-      openCatalogInViewer(catalogId, 1);
+      if (!catalogId || catalogId === navigationState.catalog?.id) return;
+      getFeatureInterface("viewer")?.openCatalog?.(catalogId, 1);
     });
   });
 }
 
-function updateDetailCatalogMenuLabel(catalog = state.catalog) {
-  if (!els.catalogMenuToggleText) return;
-  els.catalogMenuToggleText.textContent = catalog?.title || "בחר קטלוג";
+function updateDetailCatalogMenuLabel(catalog = navigationState.catalog) {
+  if (!catalogElements.catalogMenuToggleText) return;
+  catalogElements.catalogMenuToggleText.textContent = catalog?.title || "בחר קטלוג";
 }
 
 function renderDetailCatalogMenu() {
-  if (!els.catalogMenu) return;
+  if (!catalogElements.catalogMenu) return;
 
-  renderCatalogCategoryMenu(els.catalogMenu);
+  renderCatalogCategoryMenu(catalogElements.catalogMenu);
 
-  els.catalogMenu.querySelectorAll("[data-catalog-menu-id]").forEach((button) => {
+  catalogElements.catalogMenu.querySelectorAll("[data-catalog-menu-id]").forEach((button) => {
     button.addEventListener("click", () => {
       const catalogId = button.dataset.catalogMenuId;
       closeDetailCatalogMenu();
-      if (!catalogId || catalogId === state.catalog?.id) return;
-      openCatalog(catalogId);
+      if (!catalogId || catalogId === navigationState.catalog?.id) return;
+      navigateTo(catalogDocumentUrl(catalogId));
     });
   });
 }
@@ -984,7 +994,7 @@ async function getGlobalSearchResults(query, limit = 72) {
   return Array.isArray(results) ? results : [];
 }
 
-async function trackCompletedGlobalSearch(completion, query = els.globalSearchInput?.value || "", options = {}) {
+async function trackCompletedGlobalSearch(completion, query = searchElements.globalSearchInput?.value || "", options = {}) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
   const key = globalSearchKey(rawQuery);
@@ -1007,13 +1017,13 @@ function flushGlobalSearchTelemetryBeforeNavigation() {
 function openGlobalSearchResult(result) {
   if (!result) return false;
   hideSearchFloatingPreview();
-  openCatalog(result.catalogId, { openPage: Number(result.page) });
+  navigateTo(viewerDocumentUrl(result.catalogId, Number(result.page)));
   closeGlobalSearchPanel({ focusButton: false });
   return true;
 }
 
 async function submitGlobalSearch() {
-  const rawQuery = String(els.globalSearchInput?.value || "").trim();
+  const rawQuery = String(searchElements.globalSearchInput?.value || "").trim();
   const results = await renderSearchResults(rawQuery);
   await trackCompletedGlobalSearch("submit", rawQuery, { immediate: true });
   flushGlobalSearchTelemetryBeforeNavigation();
@@ -1022,54 +1032,54 @@ async function submitGlobalSearch() {
 
 async function renderSearchResults(query) {
   const rawQuery = String(query || "").trim();
-  if (!els.globalSearchResults) return [];
+  if (!searchElements.globalSearchResults) return [];
   const renderSequence = ++globalSearchRenderSequence;
 
-  normalizeSearchResultsDirection(els.globalSearchResults);
+  normalizeSearchResultsDirection(searchElements.globalSearchResults);
   hideSearchFloatingPreview();
-  els.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
+  searchElements.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
     catalogSearch?.cancel?.("global");
     lastGlobalSearchKey = "";
     lastGlobalSearchResults = [];
-    els.globalSearchResults.classList.add("hidden");
-    els.globalSearchResults.removeAttribute("aria-busy");
-    els.globalSearchResults.innerHTML = "";
+    searchElements.globalSearchResults.classList.add("hidden");
+    searchElements.globalSearchResults.removeAttribute("aria-busy");
+    searchElements.globalSearchResults.innerHTML = "";
     initSearchStatus();
     return [];
   }
 
   const category = getGlobalSearchCategory();
-  els.globalSearchResults.setAttribute("aria-busy", "true");
+  searchElements.globalSearchResults.setAttribute("aria-busy", "true");
 
   try {
     const results = await getGlobalSearchResults(rawQuery, 72);
-    if (renderSequence !== globalSearchRenderSequence || globalSearchKey(rawQuery) !== globalSearchKey(els.globalSearchInput?.value || "")) {
+    if (renderSequence !== globalSearchRenderSequence || globalSearchKey(rawQuery) !== globalSearchKey(searchElements.globalSearchInput?.value || "")) {
       return [];
     }
 
     lastGlobalSearchKey = globalSearchKey(rawQuery);
     lastGlobalSearchResults = results;
-    els.globalSearchResults.removeAttribute("aria-busy");
+    searchElements.globalSearchResults.removeAttribute("aria-busy");
     if (!results.length) {
-      els.globalSearchResults.classList.remove("hidden");
-      els.globalSearchResults.innerHTML = searchEmptyStateMarkup(
+      searchElements.globalSearchResults.classList.remove("hidden");
+      searchElements.globalSearchResults.innerHTML = searchEmptyStateMarkup(
         rawQuery,
         category
           ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים."
           : "נסה מספר דגם קצר יותר או חלק מהמילה."
       );
-      els.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
-        els.globalSearchInput.value = "";
+      searchElements.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
+        searchElements.globalSearchInput.value = "";
         renderSearchResults("");
-        els.globalSearchInput.focus();
+        searchElements.globalSearchInput.focus();
       });
       return [];
     }
 
-    els.globalSearchResults.classList.remove("hidden");
-    els.globalSearchResults.innerHTML = results.map((result) => {
+    searchElements.globalSearchResults.classList.remove("hidden");
+    searchElements.globalSearchResults.innerHTML = results.map((result) => {
       const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
       const page = clampPage(result.page, catalog);
       const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
@@ -1089,8 +1099,8 @@ async function renderSearchResults(query) {
       `;
     }).join("");
 
-    bindSearchFloatingPreviewEvents(els.globalSearchResults);
-    els.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
+    bindSearchFloatingPreviewEvents(searchElements.globalSearchResults);
+    searchElements.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
       button.addEventListener("click", async () => {
         await trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
         flushGlobalSearchTelemetryBeforeNavigation();
@@ -1100,17 +1110,26 @@ async function renderSearchResults(query) {
     return results;
   } catch (error) {
     if (catalogSearch?.isCancelledError?.(error) || renderSequence !== globalSearchRenderSequence) return [];
-    state.searchIndexLoadState = "error";
-    els.globalSearchResults.removeAttribute("aria-busy");
-    els.globalSearchResults.classList.remove("hidden");
-    els.globalSearchResults.innerHTML = searchIndexErrorMarkup();
-    els.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad());
+    searchState.searchIndexLoadState = "error";
+    searchElements.globalSearchResults.removeAttribute("aria-busy");
+    searchElements.globalSearchResults.classList.remove("hidden");
+    searchElements.globalSearchResults.innerHTML = searchIndexErrorMarkup();
+    searchElements.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad());
     return [];
   }
 }
 
+function handleLightboxSearchResultsBackgroundClick(event) {
+  const result = event.target?.closest?.("[data-lightbox-search-page]");
+  if (result && searchElements.lightboxSearchResults?.contains(result)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi: true });
+}
+
 function attachSearchUiEvents() {
-  els.globalSearchOpen?.addEventListener("click", (event) => {
+  searchElements.globalSearchOpen?.addEventListener("click", (event) => {
     event.preventDefault();
     ensureSearchIndexLoaded().catch(() => {});
     event.stopPropagation();
@@ -1119,125 +1138,160 @@ function attachSearchUiEvents() {
     closeLightboxSearchScopeMenu();
     setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: true, focusButton: true });
   });
-  els.globalSearchClose?.addEventListener("click", (event) => {
+  searchElements.globalSearchClose?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
     closeGlobalSearchPanel({ focusButton: true });
   });
 
-  els.globalSearchInput?.addEventListener("input", () => {
-    scheduleSearchRender("global", els.globalSearchInput.value);
+  searchElements.globalSearchInput?.addEventListener("input", () => {
+    scheduleSearchRender("global", searchElements.globalSearchInput.value);
   });
-  els.globalSearchInput?.addEventListener("focus", () => {
+  searchElements.globalSearchInput?.addEventListener("focus", () => {
     ensureSearchIndexLoaded().catch(() => {});
-    scheduleSearchRender("global", els.globalSearchInput.value, { immediate: true });
+    scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: true });
   });
-  els.globalSearchInput?.addEventListener("click", () => scheduleSearchRender("global", els.globalSearchInput.value, { immediate: true }));
-  els.globalSearchInput?.addEventListener("keydown", (event) => {
+  searchElements.globalSearchInput?.addEventListener("click", () => scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: true }));
+  searchElements.globalSearchInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
     event.preventDefault();
     submitGlobalSearch().catch(() => {});
   });
-  els.globalSearchClear?.addEventListener("click", () => {
+  searchElements.globalSearchClear?.addEventListener("click", () => {
     cancelScheduledSearch("global");
-    els.globalSearchInput.value = "";
-    els.globalSearchInput.focus();
+    searchElements.globalSearchInput.value = "";
+    searchElements.globalSearchInput.focus();
     renderSearchResults("");
   });
 
-  els.globalSearchScopeToggle?.addEventListener("click", (event) => {
+  searchElements.globalSearchScopeToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
     hideSearchFloatingPreview();
     closeDetailCatalogMenu();
     closeLightboxCatalogMenu();
     closeLightboxSearchScopeMenu();
     renderGlobalSearchScopeMenu();
-    const isOpen = !els.globalSearchScopeMenu?.classList.contains("hidden");
-    els.globalSearchScopeMenu?.classList.toggle("hidden", isOpen);
-    els.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    const isOpen = !searchElements.globalSearchScopeMenu?.classList.contains("hidden");
+    searchElements.globalSearchScopeMenu?.classList.toggle("hidden", isOpen);
+    searchElements.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
   });
-  els.globalSearchScopeMenu?.addEventListener("click", (event) => {
+  searchElements.globalSearchScopeMenu?.addEventListener("click", (event) => {
     event.stopPropagation();
     const button = event.target.closest?.("[data-global-search-category]");
-    if (!button || !els.globalSearchScopeMenu.contains(button)) return;
+    if (!button || !searchElements.globalSearchScopeMenu.contains(button)) return;
     setGlobalSearchCategory(button.dataset.globalSearchCategory);
-    els.globalSearchInput?.focus();
+    searchElements.globalSearchInput?.focus();
   });
-  els.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: false });
-  els.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  els.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  els.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
-  els.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  els.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
-  els.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  searchElements.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: false });
+  searchElements.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  searchElements.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  searchElements.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
+  searchElements.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
+  searchElements.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
+  searchElements.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
 
-  els.lightboxSearchInput?.addEventListener("input", () => {
-    scheduleSearchRender("viewer", els.lightboxSearchInput.value);
+  searchElements.lightboxSearchInput?.addEventListener("input", () => {
+    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value);
   });
-  els.lightboxSearchInput?.addEventListener("focus", () => {
-    showTopUiTemporarily(0);
+  searchElements.lightboxSearchInput?.addEventListener("focus", () => {
+    getFeatureInterface("viewer")?.showTopUi?.();
     ensureSearchIndexLoaded().catch(() => {});
-    scheduleSearchRender("viewer", els.lightboxSearchInput.value, { immediate: true });
+    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: true });
   });
-  els.lightboxSearchInput?.addEventListener("click", () => {
-    showTopUiTemporarily(0);
-    scheduleSearchRender("viewer", els.lightboxSearchInput.value, { immediate: true });
+  searchElements.lightboxSearchInput?.addEventListener("click", () => {
+    getFeatureInterface("viewer")?.showTopUi?.();
+    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: true });
   });
-  els.lightboxSearchInput?.addEventListener("keydown", (event) => {
+  searchElements.lightboxSearchInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
     event.preventDefault();
     submitLightboxSearch().catch(() => {});
   });
-  els.lightboxSearchClear?.addEventListener("click", () => {
+  searchElements.lightboxSearchClear?.addEventListener("click", () => {
     cancelScheduledSearch("viewer");
-    els.lightboxSearchInput.value = "";
-    els.lightboxSearchInput.focus();
+    searchElements.lightboxSearchInput.value = "";
+    searchElements.lightboxSearchInput.focus();
     renderLightboxSearchResults("");
-    showTopUiTemporarily(0);
+    getFeatureInterface("viewer")?.showTopUi?.();
   });
 
-  els.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
+  searchElements.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setLightboxMobileSearchOpen(!state.lightboxMobileSearchOpen, {
+    setLightboxMobileSearchOpen(!searchState.lightboxMobileSearchOpen, {
       focusInput: true,
-      returnFocus: state.lightboxMobileSearchOpen
+      returnFocus: searchState.lightboxMobileSearchOpen
     });
   });
-  els.lightboxMobileSearchClose?.addEventListener("click", (event) => {
+  searchElements.lightboxMobileSearchClose?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
     setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
   });
 
-  els.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
+  searchElements.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
     hideSearchFloatingPreview();
     closeDetailCatalogMenu();
     closeLightboxCatalogMenu();
-    const isOpen = !els.lightboxSearchScopeMenu?.classList.contains("hidden");
-    els.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen);
-    els.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-    showTopUiTemporarily(0);
+    const isOpen = !searchElements.lightboxSearchScopeMenu?.classList.contains("hidden");
+    searchElements.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen);
+    searchElements.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    getFeatureInterface("viewer")?.showTopUi?.();
   });
-  els.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
+  searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       setLightboxSearchScope(button.dataset.lightboxSearchScope);
-      showTopUiTemporarily(0);
-      els.lightboxSearchInput?.focus();
+      getFeatureInterface("viewer")?.showTopUi?.();
+      searchElements.lightboxSearchInput?.focus();
     });
   });
-  els.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
+  searchElements.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
     closeDetailCatalogMenu();
     closeLightboxSearchScopeMenu();
     renderLightboxCatalogMenu();
-    const isOpen = !els.lightboxCatalogMenu?.classList.contains("hidden");
-    els.lightboxCatalogMenu?.classList.toggle("hidden", isOpen);
-    els.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-    showTopUiTemporarily(0);
+    const isOpen = !searchElements.lightboxCatalogMenu?.classList.contains("hidden");
+    searchElements.lightboxCatalogMenu?.classList.toggle("hidden", isOpen);
+    searchElements.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    getFeatureInterface("viewer")?.showTopUi?.();
   });
-  els.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
-  els.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
+  searchElements.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+  searchElements.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
 }
+
+registerFeatureInterface("search", {
+  escapePriority: 300,
+  closeTopLayer: () => {
+    if (!isGlobalSearchPanelOpen()) return false;
+    if (searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden")) {
+      closeGlobalSearchScopeMenu();
+    } else {
+      closeGlobalSearchPanel({ focusButton: true });
+    }
+    return true;
+  },
+  closeViewerTopLayer: () => {
+    if (searchState.lightboxMobileSearchOpen) {
+      setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
+      return true;
+    }
+    if (
+      (searchElements.lightboxCatalogMenu && !searchElements.lightboxCatalogMenu.classList.contains("hidden")) ||
+      (searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"))
+    ) {
+      closeLightboxCatalogMenu();
+      closeLightboxSearchScopeMenu();
+      return true;
+    }
+    return false;
+  },
+  isLightboxMobileOpen: () => searchState.lightboxMobileSearchOpen,
+  setLightboxMobileOpen: (open, options = {}) => setLightboxMobileSearchOpen(open, options),
+  containsLightboxResult: (target) => Boolean(
+    target?.closest?.("[data-lightbox-search-page]") &&
+    searchElements.lightboxSearchResults?.contains(target.closest("[data-lightbox-search-page]"))
+  ),
+  hideViewerResults: (options = {}) => hideLightboxSearchResults(options)
+});

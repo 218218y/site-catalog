@@ -3,10 +3,11 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { readAllBundles, readAllCssBundles } = require("./frontend_test_assets");
 const vm = require("node:vm");
 
 const root = path.join(__dirname, "..");
-const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
+const app = readAllBundles();
 const functionSource = app.match(
   /function viewerInquiryMailtoUrl\(emailAddress, reference\) \{[\s\S]*?\n\}/
 )?.[0];

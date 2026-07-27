@@ -4,13 +4,17 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { readAllBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const hierarchySource = fs.readFileSync(path.join(root, 'src', 'js', '20-shared-ui.js'), 'utf8');
 const bootstrap = fs.readFileSync(path.join(root, 'src', 'js', '90-bootstrap.js'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const app = readAllBundles();
 const favoriteWorkspace = fs.readFileSync(path.join(root, 'src', 'js', '35-favorites-workspace.js'), 'utf8');
 const favoritesShare = fs.readFileSync(path.join(root, 'src', 'js', '30-favorites-share.js'), 'utf8');
+const catalogGrid = fs.readFileSync(path.join(root, 'src', 'js', '40-catalog-grid.js'), 'utf8');
+const searchUi = fs.readFileSync(path.join(root, 'src', 'js', '50-search-ui.js'), 'utf8');
+const viewer = fs.readFileSync(path.join(root, 'src', 'js', '60-viewer.js'), 'utf8');
 const viewerActions = fs.readFileSync(path.join(root, 'src', 'js', '62-viewer-actions.js'), 'utf8');
 
 function extractFunction(text, name) {
@@ -42,123 +46,71 @@ function extractFunction(text, name) {
   throw new Error(`Unable to extract ${name}`);
 }
 
-function createHarness(overrides = {}) {
+function createHarness(layerResults) {
   const calls = [];
-  const state = {
-    favoriteNoteEditingKey: '',
-    favoritesTransferPending: null,
-    favoritesOpen: false,
-    viewerPhase: 'closed',
-    viewerInquiryOpen: false,
-    viewerMobileMoreOpen: false,
-    viewerOnboardingOpen: false,
-    lightboxMobileSearchOpen: false,
-    ...overrides
-  };
-  const context = {
-    state,
-    els: {
-      globalSearchScopeMenu: null,
-      catalogMenu: null,
-      lightboxCatalogMenu: null,
-      lightboxSearchScopeMenu: null
-    },
-    isMobileCategoryMenuOpen: () => false,
-    closeMobileCategoryMenu: () => calls.push('mobile-category'),
-    isGlobalSearchPanelOpen: () => false,
-    closeGlobalSearchScopeMenu: () => calls.push('global-search-scope'),
-    closeGlobalSearchPanel: () => calls.push('global-search'),
-    closeDetailCatalogMenu: () => calls.push('catalog-menu'),
-    closeFavoriteNoteEditor: () => {
-      calls.push('favorite-note');
-      state.favoriteNoteEditingKey = '';
-    },
-    closeFavoritesTransferDialog: () => {
-      calls.push('favorites-transfer');
-      state.favoritesTransferPending = null;
-    },
-    closeFavoritesPanel: () => {
-      calls.push('favorites');
-      state.favoritesOpen = false;
-    },
-    closeViewerInquiry: () => {
-      calls.push('viewer-inquiry');
-      state.viewerInquiryOpen = false;
-    },
-    closeViewerMobileMoreMenu: () => {
-      calls.push('viewer-more');
-      state.viewerMobileMoreOpen = false;
-    },
-    closeViewerOnboarding: () => {
-      calls.push('viewer-onboarding');
-      state.viewerOnboardingOpen = false;
-    },
-    setLightboxMobileSearchOpen: () => {
-      calls.push('viewer-search');
-      state.lightboxMobileSearchOpen = false;
-    },
-    closeLightboxCatalogMenu: () => calls.push('viewer-catalog-menu'),
-    closeLightboxSearchScopeMenu: () => calls.push('viewer-search-scope'),
-    isViewerSessionOpen: () => ['opening', 'open'].includes(state.viewerPhase),
-    isBrowserFullscreenActive: () => false,
-    exitBrowserFullscreen: () => Promise.resolve(),
-    hideLightboxSearchResults: () => calls.push('viewer-search-results'),
-    closeLightbox: () => {
-      calls.push('lightbox');
-      state.viewerPhase = 'closed';
+  const interfaces = layerResults.map(([name, priority, closes]) => ({
+    name,
+    escapePriority: priority,
+    closeTopLayer() {
+      calls.push(name);
+      return closes;
     }
+  })).sort((first, second) => second.escapePriority - first.escapePriority);
+  const context = {
+    featureInterfacesByEscapePriority: () => interfaces
   };
   const handler = vm.runInNewContext(`(${extractFunction(hierarchySource, 'handleTopLayerEscape')})`, context);
-  const event = () => ({
+  const event = {
     key: 'Escape',
     defaultPrevented: false,
-    target: null,
-    preventDefault() {
-      this.defaultPrevented = true;
-    }
-  });
-  return { calls, state, handler, event };
+    preventDefault() { this.defaultPrevented = true; }
+  };
+  return { calls, handler, event };
 }
 
 assert.match(bootstrap, /if \(event\.defaultPrevented\) return;\s*if \(handleTopLayerEscape\(event\)\) return;/);
 assert.match(app, /function handleTopLayerEscape\(event\)/);
+assert.match(hierarchySource, /for \(const api of featureInterfacesByEscapePriority\(\)\)/);
 assert.match(favoriteWorkspace, /event\.key === "Escape"[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeCallback\(\)/);
 assert.match(favoritesShare, /function handleFavoritesTransferKeydown\(event\)[\s\S]*?event\.key === "Escape"[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeFavoritesTransferDialog/);
 assert.match(viewerActions, /function handleViewerInquiryKeydown\(event\)[\s\S]*?event\.key === "Escape"[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeViewerInquiry\(\)/);
 
-{
-  const harness = createHarness({ favoriteNoteEditingKey: 'catalog\u00001', favoritesOpen: true });
-  assert.equal(harness.handler(harness.event()), true);
-  assert.deepEqual(harness.calls, ['favorite-note']);
-  assert.equal(harness.state.favoritesOpen, true, 'first Escape must keep the favorites screen open');
-
-  assert.equal(harness.handler(harness.event()), true);
-  assert.deepEqual(harness.calls, ['favorite-note', 'favorites']);
+for (const [source, name, priority] of [
+  [favoritesShare, 'favorites', 500],
+  [catalogGrid, 'catalog-navigation', 400],
+  [searchUi, 'search', 300],
+  [catalogGrid, 'catalog-detail', 200],
+  [viewer, 'viewer', 100]
+]) {
+  assert.match(source, new RegExp(`registerFeatureInterface\\("${name}",[\\s\\S]*?escapePriority: ${priority}`));
 }
 
 {
-  const harness = createHarness({ viewerInquiryOpen: true, viewerPhase: 'open' });
-  assert.equal(harness.handler(harness.event()), true);
-  assert.deepEqual(harness.calls, ['viewer-inquiry']);
-  assert.equal(harness.state.viewerPhase, 'open', 'first Escape must keep the viewer open');
-
-  assert.equal(harness.handler(harness.event()), true);
-  assert.deepEqual(harness.calls, ['viewer-inquiry', 'lightbox']);
+  const harness = createHarness([
+    ['favorites', 500, false],
+    ['catalog-navigation', 400, false],
+    ['search', 300, true],
+    ['viewer', 100, true]
+  ]);
+  assert.equal(harness.handler(harness.event), true);
+  assert.deepEqual(harness.calls, ['favorites', 'catalog-navigation', 'search']);
+  assert.equal(harness.event.defaultPrevented, true);
 }
 
 {
-  const harness = createHarness({ favoritesTransferPending: { source: 'link' }, favoritesOpen: true });
-  assert.equal(harness.handler(harness.event()), true);
-  assert.deepEqual(harness.calls, ['favorites-transfer']);
-  assert.equal(harness.state.favoritesOpen, true, 'transfer dialog must close before the favorites screen');
+  const harness = createHarness([
+    ['favorites', 500, true],
+    ['viewer', 100, true]
+  ]);
+  assert.equal(harness.handler(harness.event), true);
+  assert.deepEqual(harness.calls, ['favorites'], 'the first closing feature owns the Escape event');
 }
 
 {
-  const harness = createHarness({ favoriteNoteEditingKey: 'catalog\u00001', favoritesOpen: true });
-  const alreadyHandled = harness.event();
-  alreadyHandled.defaultPrevented = true;
-  assert.equal(harness.handler(alreadyHandled), false);
-  assert.deepEqual(harness.calls, [], 'an Escape consumed by a child dialog must not reach its parent layer');
+  const harness = createHarness([['viewer', 100, true]]);
+  harness.event.defaultPrevented = true;
+  assert.equal(harness.handler(harness.event), false);
+  assert.deepEqual(harness.calls, [], 'a child-owned Escape must not reach feature layers');
 }
 
 console.log('escape_layering_contract.test.js: PASS');

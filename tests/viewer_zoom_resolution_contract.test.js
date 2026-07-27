@@ -19,7 +19,7 @@ let uiCalls = 0;
 
 const context = {
   AUTO_VIEWER_ZOOM: 1,
-  state: {
+  viewerState: {
     zoom: 1,
     panX: 0,
     panY: 0
@@ -28,11 +28,11 @@ const context = {
   getSafeViewerZoom(value) { return Number(value) || 1; },
   showViewerZoomIndicator(value) {
     indicatorCalls += 1;
-    assert.equal(value, context.state.zoom);
+    assert.equal(value, context.viewerState.zoom);
   },
   refreshSingleViewerImageResolution(options) { refreshCalls.push(options); },
   shouldWarmSingleViewerFullResolution(previousZoom) {
-    return context.state.zoom > previousZoom;
+    return context.viewerState.zoom > previousZoom;
   },
   showTopUiTemporarily() { uiCalls += 1; },
   clampViewerZoom(value) { return Math.max(1, Math.min(4, Number(value) || 1)); },
@@ -55,9 +55,9 @@ vm.runInNewContext(`${zoomSource}\nglobalThis.zoomApi = {
 };`, context);
 
 context.zoomApi.toggleZoomAtPoint(120, 80);
-assert.equal(context.state.zoom, 2, "double-click/tap zoom should enter manual zoom");
-assert.equal(context.state.panX, -24);
-assert.equal(context.state.panY, -16);
+assert.equal(context.viewerState.zoom, 2, "double-click/tap zoom should enter manual zoom");
+assert.equal(context.viewerState.panX, -24);
+assert.equal(context.viewerState.panY, -16);
 assert.equal(pendingClearCalls, 1);
 assert.equal(applyCalls, 1);
 assert.equal(indicatorCalls, 1);
@@ -66,7 +66,7 @@ assert.equal(refreshCalls[0].warmFull, true, "first zoom movement should warm/co
 assert.equal(uiCalls, 0, "double-click/tap keeps the toolbar behavior unchanged");
 
 context.zoomApi.setZoom(2.5, { showUi: true });
-assert.equal(context.state.zoom, 2.5);
+assert.equal(context.viewerState.zoom, 2.5);
 assert.equal(applyCalls, 2);
 assert.equal(refreshCalls.length, 2, "ordinary zoom must use the same resolution finalizer exactly once");
 assert.equal(uiCalls, 1);

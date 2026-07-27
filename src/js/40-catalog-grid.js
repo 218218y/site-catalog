@@ -38,25 +38,25 @@ function renderEmptyState() {
     </article>
   `;
 
-  if (els.catalogGrid) {
-    els.catalogGrid.innerHTML = html;
-    els.catalogGrid.setAttribute("aria-busy", "false");
-    if (els.catalogLoadStatus) els.catalogLoadStatus.textContent = "אין קטלוגים זמינים כעת.";
+  if (catalogElements.catalogGrid) {
+    catalogElements.catalogGrid.innerHTML = html;
+    catalogElements.catalogGrid.setAttribute("aria-busy", "false");
+    if (catalogElements.catalogLoadStatus) catalogElements.catalogLoadStatus.textContent = "אין קטלוגים זמינים כעת.";
   }
-  if (els.pageGrid) {
-    els.pageGrid.innerHTML = html;
-    els.pageGrid.setAttribute("aria-busy", "false");
+  if (catalogElements.pageGrid) {
+    catalogElements.pageGrid.innerHTML = html;
+    catalogElements.pageGrid.setAttribute("aria-busy", "false");
   }
-  if (els.catalogCount) els.catalogCount.textContent = "0";
-  if (els.pageCount) els.pageCount.textContent = "0";
+  if (shellElements.catalogCount) shellElements.catalogCount.textContent = "0";
+  if (shellElements.pageCount) shellElements.pageCount.textContent = "0";
   renderCategoryNav([]);
   showCatalogDetail();
-  els.catalogTitle.textContent = "עדיין אין קטלוגים להצגה";
-  els.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.";
-  if (els.catalogMenuToggleText) els.catalogMenuToggleText.textContent = "אין קטלוגים";
-  if (els.catalogMenu) els.catalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
-  els.catalogCoverPreview?.removeAttribute("src");
-  if (els.openCatalogEntryFromDetail) els.openCatalogEntryFromDetail.disabled = true;
+  catalogElements.catalogTitle.textContent = "עדיין אין קטלוגים להצגה";
+  catalogElements.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.";
+  if (catalogElements.catalogMenuToggleText) catalogElements.catalogMenuToggleText.textContent = "אין קטלוגים";
+  if (catalogElements.catalogMenu) catalogElements.catalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
+  catalogElements.catalogCoverPreview?.removeAttribute("src");
+  if (catalogElements.openCatalogEntryFromDetail) catalogElements.openCatalogEntryFromDetail.disabled = true;
 }
 
 
@@ -135,8 +135,8 @@ function applyCategoryNavScale(header, metrics, scale) {
 }
 
 function fitCategoryNavToSingleRow() {
-  state.categoryNavFitRaf = 0;
-  const nav = els.categoryNav;
+  catalogState.categoryNavFitRaf = 0;
+  const nav = shellElements.categoryNav;
   const header = nav?.closest?.(".site-header");
   if (!nav || !header) return;
 
@@ -170,13 +170,13 @@ function fitCategoryNavToSingleRow() {
 }
 
 function scheduleCategoryNavFit() {
-  if (!els.categoryNav) return;
-  window.cancelAnimationFrame(state.categoryNavFitRaf);
-  state.categoryNavFitRaf = window.requestAnimationFrame(fitCategoryNavToSingleRow);
+  if (!shellElements.categoryNav) return;
+  window.cancelAnimationFrame(catalogState.categoryNavFitRaf);
+  catalogState.categoryNavFitRaf = window.requestAnimationFrame(fitCategoryNavToSingleRow);
 }
 
 function initCategoryNavFit() {
-  if (!els.categoryNav) return;
+  if (!shellElements.categoryNav) return;
   document.querySelectorAll('img[data-brand-logo="1"]').forEach((image) => {
     image.addEventListener("load", scheduleCategoryNavFit);
   });
@@ -199,14 +199,14 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
     };
   });
 
-  if (els.categoryNav) {
-    els.categoryNav.innerHTML = links.map((link) => `
+  if (shellElements.categoryNav) {
+    shellElements.categoryNav.innerHTML = links.map((link) => `
       <a class="top-nav-link category-nav-link" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">${escapeHtml(link.label)}</a>
     `).join("");
   }
 
-  if (els.mobileCategoryMenu) {
-    els.mobileCategoryMenu.innerHTML = links.length
+  if (shellElements.mobileCategoryMenu) {
+    shellElements.mobileCategoryMenu.innerHTML = links.length
       ? links.map((link) => `
           <a class="mobile-category-menu-link category-nav-link" role="menuitem" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">
             <span>${escapeHtml(link.label)}</span>
@@ -221,23 +221,23 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
 }
 
 function isMobileCategoryMenuOpen() {
-  return Boolean(els.mobileCategoryMenu && !els.mobileCategoryMenu.classList.contains("hidden"));
+  return Boolean(shellElements.mobileCategoryMenu && !shellElements.mobileCategoryMenu.classList.contains("hidden"));
 }
 
 function setMobileCategoryMenuOpen(open, options = {}) {
   const shouldOpen = Boolean(open);
-  if (!els.mobileCategoryMenu || !els.mobileCategoryMenuToggle) return;
+  if (!shellElements.mobileCategoryMenu || !shellElements.mobileCategoryMenuToggle) return;
 
-  els.mobileCategoryMenu.classList.toggle("hidden", !shouldOpen);
-  els.mobileCategoryMenu.classList.toggle("is-open", shouldOpen);
-  els.mobileCategoryMenuToggle.classList.toggle("is-active", shouldOpen);
-  els.mobileCategoryMenuToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-  els.mobileCategoryMenuToggle.setAttribute("aria-label", shouldOpen ? "סגירת תפריט קטגוריות" : "פתיחת תפריט קטגוריות");
+  shellElements.mobileCategoryMenu.classList.toggle("hidden", !shouldOpen);
+  shellElements.mobileCategoryMenu.classList.toggle("is-open", shouldOpen);
+  shellElements.mobileCategoryMenuToggle.classList.toggle("is-active", shouldOpen);
+  shellElements.mobileCategoryMenuToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  shellElements.mobileCategoryMenuToggle.setAttribute("aria-label", shouldOpen ? "סגירת תפריט קטגוריות" : "פתיחת תפריט קטגוריות");
 
   if (shouldOpen && options.focusFirst) {
-    window.requestAnimationFrame(() => els.mobileCategoryMenu?.querySelector(".mobile-category-menu-link")?.focus());
+    window.requestAnimationFrame(() => shellElements.mobileCategoryMenu?.querySelector(".mobile-category-menu-link")?.focus());
   } else if (!shouldOpen && options.focusButton) {
-    window.requestAnimationFrame(() => els.mobileCategoryMenuToggle?.focus({ preventScroll: true }));
+    window.requestAnimationFrame(() => shellElements.mobileCategoryMenuToggle?.focus({ preventScroll: true }));
   }
 }
 
@@ -275,8 +275,8 @@ function getCatalogCategoryFocusTargetId(section) {
 }
 
 function getCatalogFocusSections() {
-  if (!els.catalogGrid) return [];
-  return Array.from(els.catalogGrid.querySelectorAll(".catalog-category-section, .catalog-subcategory-section"));
+  if (!catalogElements.catalogGrid) return [];
+  return Array.from(catalogElements.catalogGrid.querySelectorAll(".catalog-category-section, .catalog-subcategory-section"));
 }
 
 function getCatalogCategorySectionsByTargetId(targetId) {
@@ -332,10 +332,10 @@ function hasCatalogCategoryFocus(targetId) {
     .some((section) => section.classList.contains("is-category-focus"));
 }
 
-function syncActiveCategoryNavLink(activeId = state.categoryFocusTargetId) {
+function syncActiveCategoryNavLink(activeId = catalogState.categoryFocusTargetId) {
   const normalizedActiveId = String(activeId || "");
 
-  [els.categoryNav, els.mobileCategoryMenu].forEach((container) => {
+  [shellElements.categoryNav, shellElements.mobileCategoryMenu].forEach((container) => {
     container?.querySelectorAll(".category-nav-link").forEach((link) => {
       const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
       link.classList.toggle("active", isActive);
@@ -344,7 +344,7 @@ function syncActiveCategoryNavLink(activeId = state.categoryFocusTargetId) {
     });
   });
 
-  els.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link").forEach((link) => {
+  catalogElements.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link").forEach((link) => {
     const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
     link.classList.toggle("active", isActive);
     if (isActive) link.setAttribute("aria-current", "location");
@@ -355,9 +355,9 @@ function syncActiveCategoryNavLink(activeId = state.categoryFocusTargetId) {
 function clearCatalogCategoryFocus(options = {}) {
   const { clearHash = false } = options;
 
-  window.clearTimeout(state.categoryFocusTimer);
-  state.categoryFocusTimer = 0;
-  state.categoryFocusTargetId = "";
+  window.clearTimeout(catalogState.categoryFocusTimer);
+  catalogState.categoryFocusTimer = 0;
+  catalogState.categoryFocusTargetId = "";
   getCatalogFocusSections().forEach((section) => {
     section.classList.remove("is-category-focus");
   });
@@ -379,8 +379,8 @@ function markCatalogCategoryFocus(section, options = {}) {
   const targetSections = getCatalogCategorySectionsByTargetId(targetId);
   if (!targetId || !targetSections.length) return false;
 
-  window.clearTimeout(state.categoryFocusTimer);
-  state.categoryFocusTimer = 0;
+  window.clearTimeout(catalogState.categoryFocusTimer);
+  catalogState.categoryFocusTimer = 0;
 
   getCatalogFocusSections().forEach((activeSection) => {
     if (!targetSections.includes(activeSection)) activeSection.classList.remove("is-category-focus");
@@ -393,7 +393,7 @@ function markCatalogCategoryFocus(section, options = {}) {
   }
   targetSections.forEach((targetSection) => targetSection.classList.add("is-category-focus"));
 
-  state.categoryFocusTargetId = targetId;
+  catalogState.categoryFocusTargetId = targetId;
   syncActiveCategoryNavLink(targetId);
   return true;
 }
@@ -413,7 +413,7 @@ function handleCatalogFocusLinkClick(link, event) {
     return;
   }
 
-  if (state.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
+  if (catalogState.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
     clearCatalogCategoryFocus({ clearHash: true });
     return;
   }
@@ -600,10 +600,10 @@ function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
 
 function scheduleCatalogLayoutRefresh() {
   if (!catalogs.length) return;
-  window.clearTimeout(state.catalogLayoutResizeTimer);
-  state.catalogLayoutResizeTimer = window.setTimeout(() => {
+  window.clearTimeout(catalogState.catalogLayoutResizeTimer);
+  catalogState.catalogLayoutResizeTimer = window.setTimeout(() => {
     const nextColumns = catalogLayoutColumnCount();
-    if (nextColumns !== state.catalogLayoutColumns) renderCatalogCards();
+    if (nextColumns !== catalogState.catalogLayoutColumns) renderCatalogCards();
   }, 120);
 }
 
@@ -804,13 +804,18 @@ function renderCatalogCategorySegment(segment, columns) {
 
 function openCatalogEntry(catalogId, page = 1) {
   if (!catalogId) return;
-  openCatalogInViewer(catalogId, page);
+  const viewer = getFeatureInterface("viewer");
+  if (viewer?.openCatalog) {
+    viewer.openCatalog(catalogId, page);
+    return;
+  }
+  navigateTo(viewerDocumentUrl(catalogId, page));
 }
 
 function bindCatalogCardEvents() {
-  if (!els.catalogGrid) return;
+  if (!catalogElements.catalogGrid) return;
 
-  els.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((control) => {
+  catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((control) => {
     control.addEventListener("click", (event) => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
@@ -818,7 +823,7 @@ function bindCatalogCardEvents() {
     });
   });
 
-  els.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((control) => {
+  catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((control) => {
     control.addEventListener("click", (event) => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
@@ -835,20 +840,20 @@ function renderCatalogCards() {
 
   const groups = getCatalogCategoryGroups();
   const totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
-  if (els.catalogCount) els.catalogCount.textContent = String(catalogs.length);
-  if (els.pageCount) els.pageCount.textContent = String(totalPages);
+  if (shellElements.catalogCount) shellElements.catalogCount.textContent = String(catalogs.length);
+  if (shellElements.pageCount) shellElements.pageCount.textContent = String(totalPages);
   renderCategoryNav(groups);
 
   const columns = catalogLayoutColumnCount();
-  state.catalogLayoutColumns = columns;
+  catalogState.catalogLayoutColumns = columns;
   const categorySegments = catalogCategorySegments(groups, columns);
 
-  els.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
-  els.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
-  els.catalogGrid.setAttribute("aria-busy", "false");
-  if (els.catalogLoadStatus) {
+  catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
+  catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
+  catalogElements.catalogGrid.setAttribute("aria-busy", "false");
+  if (catalogElements.catalogLoadStatus) {
     const count = catalogs.length;
-    els.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
+    catalogElements.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
   }
 
   bindCatalogCardEvents();
@@ -862,12 +867,12 @@ function fillCatalogSelect() {
 
 
 function renderPageGrid() {
-  if (!state.catalog) return;
+  if (!navigationState.catalog) return;
   // Keep generated page cards visually stable during scroll.
   // Older versions attached scroll-time observers here for reveal animation
   // and thumb activation; that caused work exactly when a card entered view.
 
-  const catalog = state.catalog;
+  const catalog = navigationState.catalog;
   const cards = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
     cards.push(`
@@ -885,67 +890,73 @@ function renderPageGrid() {
       </article>
     `);
   }
-  els.pageGrid.setAttribute("aria-busy", "true");
-  els.pageGrid.innerHTML = cards.join("");
-  els.pageGrid.setAttribute("aria-busy", "false");
+  catalogElements.pageGrid.setAttribute("aria-busy", "true");
+  catalogElements.pageGrid.innerHTML = cards.join("");
+  catalogElements.pageGrid.setAttribute("aria-busy", "false");
 
-  els.pageGrid.querySelectorAll("[data-open-page]").forEach((link) => {
+  catalogElements.pageGrid.querySelectorAll("[data-open-page]").forEach((link) => {
     link.addEventListener("click", (event) => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
-      openLightbox(Number(link.dataset.openPage));
+      const page = Number(link.dataset.openPage);
+      const viewer = getFeatureInterface("viewer");
+      if (viewer?.openCatalog && navigationState.catalog) {
+        viewer.openCatalog(navigationState.catalog.id, page);
+      } else if (navigationState.catalog) {
+        navigateTo(viewerDocumentUrl(navigationState.catalog.id, page));
+      }
     });
   });
 }
 
 function showCatalogDetail() {
-  if (!els.catalogDetail) return;
-  els.catalogDetail.classList.remove("hidden");
-  els.catalogDetail.classList.add("in-view");
+  if (!catalogElements.catalogDetail) return;
+  catalogElements.catalogDetail.classList.remove("hidden");
+  catalogElements.catalogDetail.classList.add("in-view");
 }
 
 function scrollCatalogDetailIntoView(options = {}) {
-  if (!els.catalogDetail) return;
+  if (!catalogElements.catalogDetail) return;
   const { behavior = "smooth" } = options;
   requestAnimationFrame(() => {
-    els.catalogDetail.scrollIntoView({ behavior, block: "start" });
+    catalogElements.catalogDetail.scrollIntoView({ behavior, block: "start" });
     scheduleCatalogScrollTopButtonUpdate();
   });
 }
 
 function positionCatalogScrollTopButton() {
-  if (!els.scrollToTopBtn || !els.pageGrid) return;
+  if (!catalogElements.scrollToTopBtn || !catalogElements.pageGrid) return;
 
-  const gridRect = els.pageGrid.getBoundingClientRect();
+  const gridRect = catalogElements.pageGrid.getBoundingClientRect();
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-  const buttonWidth = Math.max(els.scrollToTopBtn.offsetWidth || 46, 46);
+  const buttonWidth = Math.max(catalogElements.scrollToTopBtn.offsetWidth || 46, 46);
   const safeInset = 12;
   const gapFromGrid = 12;
   const maxLeft = Math.max(safeInset, viewportWidth - buttonWidth - safeInset);
   const preferredLeft = gridRect.left - buttonWidth - gapFromGrid;
   const left = clampValue(preferredLeft, safeInset, maxLeft);
 
-  els.scrollToTopBtn.style.setProperty("--catalog-scroll-top-left", `${Math.round(left)}px`);
+  catalogElements.scrollToTopBtn.style.setProperty("--catalog-scroll-top-left", `${Math.round(left)}px`);
 }
 
 function setCatalogScrollTopButtonVisible(visible) {
-  if (!els.scrollToTopBtn) return;
-  els.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
-  els.scrollToTopBtn.setAttribute("aria-hidden", visible ? "false" : "true");
-  els.scrollToTopBtn.tabIndex = visible ? 0 : -1;
+  if (!catalogElements.scrollToTopBtn) return;
+  catalogElements.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
+  catalogElements.scrollToTopBtn.setAttribute("aria-hidden", visible ? "false" : "true");
+  catalogElements.scrollToTopBtn.tabIndex = visible ? 0 : -1;
 }
 
 function updateCatalogScrollTopButton() {
-  state.catalogScrollTopButtonRaf = 0;
-  if (!els.scrollToTopBtn || !els.catalogDetail || !els.pageGrid || els.catalogDetail.classList.contains("hidden") || !state.catalog || isViewerSessionOpen()) {
+  catalogState.catalogScrollTopButtonRaf = 0;
+  if (!catalogElements.scrollToTopBtn || !catalogElements.catalogDetail || !catalogElements.pageGrid || catalogElements.catalogDetail.classList.contains("hidden") || !navigationState.catalog || getFeatureInterface("viewer")?.isViewerOpen?.()) {
     setCatalogScrollTopButtonVisible(false);
     return;
   }
 
   positionCatalogScrollTopButton();
 
-  const detailRect = els.catalogDetail.getBoundingClientRect();
-  const gridRect = els.pageGrid.getBoundingClientRect();
+  const detailRect = catalogElements.catalogDetail.getBoundingClientRect();
+  const gridRect = catalogElements.pageGrid.getBoundingClientRect();
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
   const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 90;
   const startedScrollingInsideGrid = gridRect.top < Math.min(headerHeight + 28, viewportHeight * 0.28);
@@ -955,103 +966,142 @@ function updateCatalogScrollTopButton() {
 }
 
 function scheduleCatalogScrollTopButtonUpdate() {
-  if (state.catalogScrollTopButtonRaf) return;
-  state.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton);
+  if (catalogState.catalogScrollTopButtonRaf) return;
+  catalogState.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton);
 }
 
 function renderCatalogDetail() {
-  if (!state.catalog) return;
-  const catalog = state.catalog;
+  if (!navigationState.catalog) return;
+  const catalog = navigationState.catalog;
   showCatalogDetail();
-  els.catalogTitle.textContent = catalog.title;
-  els.catalogDescription.textContent = catalog.description || "";
+  catalogElements.catalogTitle.textContent = catalog.title;
+  catalogElements.catalogDescription.textContent = catalog.description || "";
   updateDetailCatalogMenuLabel(catalog);
-  if (els.catalogCoverPreview) {
-    applyCatalogImageDimensions(els.catalogCoverPreview, catalog, 1);
-    setCatalogImageSource(els.catalogCoverPreview, coverThumbSrc(catalog));
-    els.catalogCoverPreview.loading = "lazy";
-    els.catalogCoverPreview.decoding = "async";
-    els.catalogCoverPreview.alt = `שער ${catalog.title}`;
+  if (catalogElements.catalogCoverPreview) {
+    applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, 1);
+    setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog));
+    catalogElements.catalogCoverPreview.loading = "lazy";
+    catalogElements.catalogCoverPreview.decoding = "async";
+    catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`;
   }
-  if (els.openCatalogEntryFromDetail) els.openCatalogEntryFromDetail.disabled = catalog.pages < 1;
-  if (els.catalogMenu && !els.catalogMenu.classList.contains("hidden")) renderDetailCatalogMenu();
+  if (catalogElements.openCatalogEntryFromDetail) catalogElements.openCatalogEntryFromDetail.disabled = catalog.pages < 1;
+  if (catalogElements.catalogMenu && !catalogElements.catalogMenu.classList.contains("hidden")) renderDetailCatalogMenu();
   renderPageGrid();
   scheduleCatalogScrollTopButtonUpdate();
 }
 
-function preloadNeighbors() {
-  if (!state.catalog) return;
-  const preferredTier = preferredViewerImageTier(state.catalog, state.page);
-  const preloadFull = preferredTier === CATALOG_IMAGE_TIER_FULL;
-  const radius = preloadFull ? 1 : catalogNeighborPreloadRadius();
-  const requestOptions = preloadFull ? { forceFull: true } : { preferMedium: true };
-  if (radius < 1) return;
+function openCatalog(id, options = {}) {
+  const { scroll = false, openPage = null, scrollBehavior = "smooth" } = options;
+  const catalog = catalogs.find((item) => item.id === id) || null;
+  if (!catalog) return;
 
-  if (isFavoritesLightboxMode()) {
-    const entries = getFavoriteEntries();
-    Array.from({ length: radius * 2 }, (_unused, index) => (
-      index < radius
-        ? state.favoritesViewerIndex - (radius - index)
-        : state.favoritesViewerIndex + (index - radius + 1)
-    ))
-      .filter((index) => index >= 0 && index < entries.length)
-      .forEach((index) => {
-        const entry = entries[index];
-        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, requestOptions), { priority: "low" }).catch(() => {});
-      });
+  if (!isAppPage("catalog")) {
+    navigateTo(openPage != null
+      ? viewerDocumentUrl(catalog.id, openPage)
+      : catalogDocumentUrl(catalog.id));
     return;
   }
 
-  Array.from({ length: radius * 2 }, (_unused, index) => (
-    index < radius
-      ? state.page - (radius - index)
-      : state.page + (index - radius + 1)
-  ))
-    .filter((page) => page >= 1 && page <= state.catalog.pages)
-    .forEach((page) => {
-      prepareCatalogImage(viewerPageSrc(state.catalog, page, requestOptions), { priority: "low" }).catch(() => {});
-    });
+  navigationState.catalog = catalog;
+  navigationState.page = 1;
+  renderCatalogDetail();
+  if (window.history?.replaceState) {
+    history.replaceState(history.state, "", catalogDocumentUrl(catalog.id));
+  }
+
+  if (scroll) scrollCatalogDetailIntoView({ behavior: scrollBehavior });
+  if (openPage != null) navigateTo(viewerDocumentUrl(catalog.id, openPage));
 }
 
 function attachCatalogGridEvents() {
-  els.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
+  shellElements.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
     closeGlobalSearchPanel({ focusButton: false });
     setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
   });
 
-  els.mobileCategoryMenu?.addEventListener("click", (event) => {
+  shellElements.mobileCategoryMenu?.addEventListener("click", (event) => {
     const link = event.target.closest?.(".category-nav-link");
-    if (!link || !els.mobileCategoryMenu.contains(link)) return;
+    if (!link || !shellElements.mobileCategoryMenu.contains(link)) return;
     closeMobileCategoryMenu();
     handleCatalogFocusLinkClick(link, event);
   });
 
-  els.catalogMenuToggle?.addEventListener("click", (event) => {
+  catalogElements.catalogMenuToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
     closeLightboxCatalogMenu();
     closeLightboxSearchScopeMenu();
     renderDetailCatalogMenu();
-    const isOpen = !els.catalogMenu?.classList.contains("hidden");
-    els.catalogMenu?.classList.toggle("hidden", isOpen);
-    els.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    const isOpen = !catalogElements.catalogMenu?.classList.contains("hidden");
+    catalogElements.catalogMenu?.classList.toggle("hidden", isOpen);
+    catalogElements.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
   });
-  els.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+  catalogElements.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
 
-  els.openCatalogEntryFromDetail?.addEventListener("click", () => openLightbox(1));
-  els.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
+  catalogElements.openCatalogEntryFromDetail?.addEventListener("click", () => {
+    if (!navigationState.catalog) return;
+    navigateTo(viewerDocumentUrl(navigationState.catalog.id, 1));
+  });
+  catalogElements.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
 
-  els.categoryNav?.addEventListener("click", (event) => {
+  shellElements.categoryNav?.addEventListener("click", (event) => {
     const link = event.target.closest?.(".category-nav-link");
-    if (!link || !els.categoryNav.contains(link)) return;
+    if (!link || !shellElements.categoryNav.contains(link)) return;
     closeMobileCategoryMenu();
     handleCatalogFocusLinkClick(link, event);
   });
 
-  els.catalogGrid?.addEventListener("click", (event) => {
+  catalogElements.catalogGrid?.addEventListener("click", (event) => {
     const link = event.target.closest?.(".catalog-subcategory-nav-link");
-    if (!link || !els.catalogGrid.contains(link)) return;
+    if (!link || !catalogElements.catalogGrid.contains(link)) return;
     handleCatalogFocusLinkClick(link, event);
   });
 }
+
+registerFeatureInterface("catalog-grid", {
+  attachEvents: attachCatalogGridEvents,
+  initialize: () => {
+    initRevealObserver();
+    initCategoryNavFit();
+  },
+  renderInitialContent: () => {
+    renderCatalogCards();
+    fillCatalogSelect();
+  },
+  renderEmptyState,
+  openCatalog,
+  closeMobileMenu: (options = {}) => closeMobileCategoryMenu(options),
+  scheduleLayoutRefresh: scheduleCatalogLayoutRefresh,
+  scheduleCategoryNavFit,
+  scheduleScrollTopButtonUpdate: scheduleCatalogScrollTopButtonUpdate,
+  setScrollTopButtonVisible: setCatalogScrollTopButtonVisible,
+  syncCategoryFocusFromHash: (options = {}) => syncCatalogCategoryFocusFromHash(options),
+  resolveCategoryTargetIdFromHash: (hash = location.hash) => resolveCatalogCategoryTargetIdFromHash(hash),
+  hasCategoryTarget: (targetId) => getCatalogCategorySectionsByTargetId(targetId).length > 0,
+  activeCategoryTargetId: () => String(catalogState.categoryFocusTargetId || ""),
+  layoutColumnCount: catalogLayoutColumnCount,
+  hideDetail: () => {
+    catalogElements.catalogDetail?.classList.add("hidden");
+    catalogElements.catalogDetail?.classList.remove("in-view");
+    setCatalogScrollTopButtonVisible(false);
+  }
+});
+
+registerFeatureInterface("catalog-navigation", {
+  escapePriority: 400,
+  closeTopLayer: () => {
+    if (!isMobileCategoryMenuOpen()) return false;
+    closeMobileCategoryMenu({ focusButton: true });
+    return true;
+  }
+});
+
+registerFeatureInterface("catalog-detail", {
+  escapePriority: 200,
+  closeTopLayer: () => {
+    if (!catalogElements.catalogMenu || catalogElements.catalogMenu.classList.contains("hidden")) return false;
+    closeDetailCatalogMenu();
+    return true;
+  }
+});

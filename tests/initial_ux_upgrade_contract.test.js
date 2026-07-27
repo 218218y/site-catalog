@@ -3,13 +3,14 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const app = readAllBundles();
+const css = readAllCssBundles();
 
 for (const html of [template, index, viewer]) {
   assert.match(html, /id="headerCopyLink"[^>]*aria-label="שיתוף העמוד הנוכחי"[^>]*title="שיתוף"/);
@@ -39,13 +40,13 @@ assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "top-ba
 assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "pin-top-bar"/);
 assert.doesNotMatch(app, /function getViewerOnboardingSteps\([\s\S]*?id: "page-rail"/);
 assert.match(app, /function viewerNavigationOnboardingCopy\([\s\S]*?החליקו למעלה, למטה, ימינה או שמאלה[\s\S]*?מקשי החצים ו־Page Up\/Down/);
-assert.match(app, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTargets: \(\) => \[[\s\S]*?els\.nextPageBtn[\s\S]*?els\.prevPageBtn[\s\S]*?gesture: "swipe-both"/);
-assert.match(app, /id: "inquiry"[\s\S]*?target: \(\) => els\.viewerInquiryButton[\s\S]*?floatingTargets: \(\) => \[[\s\S]*?els\.viewerInquiryButton[\s\S]*?els\.viewerFavoriteButton/);
-assert.match(app, /viewerOnboardingNext\.textContent = state\.viewerOnboardingStep === steps\.length - 1 \? "סיום" : "הבא"/);
+assert.match(app, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTargets: \(\) => \[[\s\S]*?viewerElements\.nextPageBtn[\s\S]*?viewerElements\.prevPageBtn[\s\S]*?gesture: "swipe-both"/);
+assert.match(app, /id: "inquiry"[\s\S]*?target: \(\) => viewerElements\.viewerInquiryButton[\s\S]*?floatingTargets: \(\) => \[[\s\S]*?viewerElements\.viewerInquiryButton[\s\S]*?favoritesElements\.viewerFavoriteButton/);
+assert.match(app, /viewerOnboardingNext\.textContent = viewerState\.viewerOnboardingStep === steps\.length - 1 \? "סיום" : "הבא"/);
 assert.match(app, /function syncViewerOnboardingFloatingTargetState\([\s\S]*?"data-favorite-active"/);
 assert.match(app, /function updateViewerOnboardingFloatingTargets\([\s\S]*?cloneNode\(true\)[\s\S]*?clone\.dataset\.tourTarget = id[\s\S]*?source\.click\(\)/);
 assert.match(app, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
-assert.match(app, /function scheduleViewerOnboardingLayout\(delay = 0\)[\s\S]*?if \(delay > 0\) \{[\s\S]*?window\.clearTimeout\(state\.viewerOnboardingLayoutTimer\)[\s\S]*?return;[\s\S]*?run\(\);/);
+assert.match(app, /function scheduleViewerOnboardingLayout\(delay = 0\)[\s\S]*?if \(delay > 0\) \{[\s\S]*?window\.clearTimeout\(viewerState\.viewerOnboardingLayoutTimer\)[\s\S]*?return;[\s\S]*?run\(\);/);
 assert.doesNotMatch(app, /thumbsHotspot|lightboxThumbs|show-thumbs|thumbsHideTimer/);
 assert.match(app, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardingWasSeen\(\)[\s\S]*?viewer-tour-active[\s\S]*?renderViewerOnboardingStep\(\{ focus: false, scheduleLayout: false \}\)[\s\S]*?layoutViewerOnboarding\(\)[\s\S]*?layout-ready[\s\S]*?classList\.add\("visible"\)/);
 assert.match(app, /function closeViewerOnboarding\([\s\S]*?markViewerOnboardingSeen\(\)[\s\S]*?restoreViewerUiAfterOnboarding/);

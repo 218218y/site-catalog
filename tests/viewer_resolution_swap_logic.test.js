@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const source = fs.readFileSync(path.join(__dirname, "..", "src/js/20-shared-ui.js"), "utf8");
+const source = fs.readFileSync(path.join(__dirname, "..", "src/js/53-viewer-image.js"), "utf8");
 
 function sourceBetween(startMarker, endMarker) {
   const start = source.indexOf(startMarker);
@@ -60,8 +60,8 @@ function createApi(overrides = {}) {
   };
   const els = { lightboxImageFrame: { classList } };
   const api = new Function(
-    "state",
-    "els",
+    "viewerState",
+    "viewerElements",
     `${retentionSource}; return { retainSingleViewerResolutionLayerForSwap, releaseSingleViewerRetainedResolutionLayer };`
   )(state, els);
   return { api, state, image, classList, getStopCalls: () => stopCalls };

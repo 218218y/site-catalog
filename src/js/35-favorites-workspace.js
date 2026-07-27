@@ -19,17 +19,17 @@ function favoriteWorkspaceCardKey(card) {
 }
 
 function favoriteWorkspaceFindCardByKey(key) {
-  if (!key || !els.favoritesGrid) return null;
-  return Array.from(els.favoritesGrid.querySelectorAll("[data-favorite-catalog][data-favorite-page]"))
+  if (!key || !favoritesElements.favoritesGrid) return null;
+  return Array.from(favoritesElements.favoritesGrid.querySelectorAll("[data-favorite-catalog][data-favorite-page]"))
     .find((card) => favoriteWorkspaceCardKey(card) === key) || null;
 }
 
 function favoriteWorkspaceSelectedEntries(entries = getFavoriteEntries()) {
-  return entries.filter((entry) => state.favoritesSelectedKeys.has(favoriteWorkspaceEntryKey(entry)));
+  return entries.filter((entry) => favoritesState.favoritesSelectedKeys.has(favoriteWorkspaceEntryKey(entry)));
 }
 
 function favoriteWorkspaceVisibleEntries(entries = getFavoriteEntries()) {
-  const filter = String(state.favoritesFilterCatalogId || "");
+  const filter = String(favoritesState.favoritesFilterCatalogId || "");
   return filter ? entries.filter((entry) => String(entry.catalog?.id || entry.catalogId) === filter) : entries;
 }
 
@@ -40,14 +40,14 @@ function favoriteWorkspaceShareLinkEntries(entries = getFavoriteEntries()) {
 
 function pruneFavoritesWorkspaceState(entries = getFavoriteEntries()) {
   const validKeys = new Set(entries.map(favoriteWorkspaceEntryKey).filter(Boolean));
-  for (const key of state.favoritesSelectedKeys) {
-    if (!validKeys.has(key)) state.favoritesSelectedKeys.delete(key);
+  for (const key of favoritesState.favoritesSelectedKeys) {
+    if (!validKeys.has(key)) favoritesState.favoritesSelectedKeys.delete(key);
   }
-  if (state.favoriteNoteEditingKey && !validKeys.has(state.favoriteNoteEditingKey)) {
+  if (favoritesState.favoriteNoteEditingKey && !validKeys.has(favoritesState.favoriteNoteEditingKey)) {
     closeFavoriteNoteEditor({ restoreFocus: false });
   }
-  if (state.favoritesFilterCatalogId && !entries.some((entry) => String(entry.catalog?.id || entry.catalogId) === state.favoritesFilterCatalogId)) {
-    state.favoritesFilterCatalogId = "";
+  if (favoritesState.favoritesFilterCatalogId && !entries.some((entry) => String(entry.catalog?.id || entry.catalogId) === favoritesState.favoritesFilterCatalogId)) {
+    favoritesState.favoritesFilterCatalogId = "";
   }
 }
 
@@ -64,17 +64,17 @@ function favoriteWorkspaceFilterOptions(entries) {
 }
 
 function syncFavoriteWorkspaceFilter(entries) {
-  if (!els.favoritesCatalogFilter) return;
+  if (!favoritesElements.favoritesCatalogFilter) return;
   const options = favoriteWorkspaceFilterOptions(entries);
-  const current = String(state.favoritesFilterCatalogId || "");
-  els.favoritesCatalogFilter.innerHTML = [
+  const current = String(favoritesState.favoritesFilterCatalogId || "");
+  favoritesElements.favoritesCatalogFilter.innerHTML = [
     '<option value="">כל הקטלוגים</option>',
     ...options.map(({ id, catalog, count }) => (
       `<option value="${escapeHtml(id)}">${escapeHtml(catalog?.title || id)} (${count})</option>`
     ))
   ].join("");
-  els.favoritesCatalogFilter.value = options.some((option) => option.id === current) ? current : "";
-  state.favoritesFilterCatalogId = els.favoritesCatalogFilter.value;
+  favoritesElements.favoritesCatalogFilter.value = options.some((option) => option.id === current) ? current : "";
+  favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
 }
 
 function favoriteWorkspaceInquiryReference(entries, options = {}) {
@@ -116,7 +116,10 @@ function openFavoriteWorkspaceInquiry() {
   const actionEntries = selectedEntries.length ? selectedEntries : entries;
   const reference = favoriteWorkspaceInquiryReference(actionEntries, { selected: selectedEntries.length > 0 });
   if (!reference) return;
-  openViewerInquiry({ reference, returnFocus: els.favoritesInquiryButton });
+  getFeatureInterface("viewer")?.openInquiry?.({
+    reference,
+    returnFocus: favoritesElements.favoritesInquiryButton
+  });
 }
 
 function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
@@ -126,39 +129,39 @@ function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
   const shareEntries = selectedCount ? selectedEntries : entries;
   const hasEntries = entries.length > 0;
 
-  els.favoritesHeaderWorkspace?.classList.toggle("hidden", !hasEntries);
-  if (els.favoritesCatalogFilter) els.favoritesCatalogFilter.disabled = !hasEntries;
-  if (els.favoritesVisibleCount) {
-    els.favoritesVisibleCount.textContent = visibleEntries.length === entries.length
+  favoritesElements.favoritesHeaderWorkspace?.classList.toggle("hidden", !hasEntries);
+  if (favoritesElements.favoritesCatalogFilter) favoritesElements.favoritesCatalogFilter.disabled = !hasEntries;
+  if (favoritesElements.favoritesVisibleCount) {
+    favoritesElements.favoritesVisibleCount.textContent = visibleEntries.length === entries.length
       ? `${entries.length} פריטים`
       : `${visibleEntries.length} מתוך ${entries.length}`;
   }
 
-  if (els.favoritesShareButton) {
-    els.favoritesShareButton.disabled = shareEntries.length === 0;
-    els.favoritesShareButton.setAttribute("aria-label", shareEntries.length
+  if (favoritesElements.favoritesShareButton) {
+    favoritesElements.favoritesShareButton.disabled = shareEntries.length === 0;
+    favoritesElements.favoritesShareButton.setAttribute("aria-label", shareEntries.length
       ? (selectedCount
         ? `העתקת קישור עבור ${selectedCount} פריטים שסומנו`
         : `העתקת קישור לכל ${entries.length} המועדפים`)
       : "העתקת קישור למועדפים — אין עדיין פריטים");
   }
-  if (els.favoritesShareLabel) {
-    els.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה";
+  if (favoritesElements.favoritesShareLabel) {
+    favoritesElements.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה";
   }
 
-  if (els.favoritesInquiryButton) {
-    els.favoritesInquiryButton.classList.toggle("hidden", !hasEntries);
-    els.favoritesInquiryButton.disabled = inquiryEntries.length === 0;
-    els.favoritesInquiryButton.setAttribute("aria-label", selectedCount
+  if (favoritesElements.favoritesInquiryButton) {
+    favoritesElements.favoritesInquiryButton.classList.toggle("hidden", !hasEntries);
+    favoritesElements.favoritesInquiryButton.disabled = inquiryEntries.length === 0;
+    favoritesElements.favoritesInquiryButton.setAttribute("aria-label", selectedCount
       ? `בירור על ${selectedCount} הדגמים שנבחרו`
       : `בירור על כל ${entries.length} הדגמים במועדפים`);
   }
-  if (els.favoritesInquiryLabel) {
-    els.favoritesInquiryLabel.textContent = selectedCount ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים";
+  if (favoritesElements.favoritesInquiryLabel) {
+    favoritesElements.favoritesInquiryLabel.textContent = selectedCount ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים";
   }
 
-  els.favoritesSelectionBar?.classList.toggle("hidden", selectedCount === 0);
-  if (els.favoritesSelectionCount) els.favoritesSelectionCount.textContent = String(selectedCount);
+  favoritesElements.favoritesSelectionBar?.classList.toggle("hidden", selectedCount === 0);
+  if (favoritesElements.favoritesSelectionCount) favoritesElements.favoritesSelectionCount.textContent = String(selectedCount);
 }
 
 function favoriteWorkspaceNoteMarkup(entry) {
@@ -178,7 +181,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
   const identityCatalog = escapeHtml(catalog.id);
   const title = escapeHtml(catalog.title || "קטלוג");
   const image = thumbSrc(catalog, page);
-  const selected = state.favoritesSelectedKeys.has(key);
+  const selected = favoritesState.favoritesSelectedKeys.has(key);
   const note = String(entry.note || "").trim();
   const noteActionLabel = note ? "עריכת ההערה" : "הוספת הערה";
   const upDisabled = visibleIndex === 0 ? " disabled" : "";
@@ -225,17 +228,17 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
 }
 
 function renderFavoritesWorkspace(entries = getFavoriteEntries()) {
-  if (!els.favoritesGrid) return;
+  if (!favoritesElements.favoritesGrid) return;
   pruneFavoritesWorkspaceState(entries);
   const count = entries.length;
-  els.favoritesClearButton?.classList.toggle("hidden", count === 0);
-  els.favoritesEmpty?.classList.toggle("hidden", count !== 0);
+  favoritesElements.favoritesClearButton?.classList.toggle("hidden", count === 0);
+  favoritesElements.favoritesEmpty?.classList.toggle("hidden", count !== 0);
   syncFavoriteWorkspaceFilter(entries);
   const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
   syncFavoriteWorkspaceHeaderActions(entries, visibleEntries);
-  els.favoritesFilteredEmpty?.classList.toggle("hidden", count === 0 || visibleEntries.length > 0);
-  els.favoritesGrid.classList.toggle("hidden", count === 0 || visibleEntries.length === 0);
-  els.favoritesGrid.innerHTML = visibleEntries.map((entry, index) => favoriteWorkspaceCardMarkup(entry, index, visibleEntries.length)).join("");
+  favoritesElements.favoritesFilteredEmpty?.classList.toggle("hidden", count === 0 || visibleEntries.length > 0);
+  favoritesElements.favoritesGrid.classList.toggle("hidden", count === 0 || visibleEntries.length === 0);
+  favoritesElements.favoritesGrid.innerHTML = visibleEntries.map((entry, index) => favoriteWorkspaceCardMarkup(entry, index, visibleEntries.length)).join("");
 }
 
 function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
@@ -286,13 +289,13 @@ function reorderFavoriteByDrop(sourceKey, targetKey) {
 
 function setFavoriteWorkspaceSelection(key, selected) {
   if (!key) return;
-  if (selected) state.favoritesSelectedKeys.add(key);
-  else state.favoritesSelectedKeys.delete(key);
+  if (selected) favoritesState.favoritesSelectedKeys.add(key);
+  else favoritesState.favoritesSelectedKeys.delete(key);
   renderFavoritesWorkspace(getFavoriteEntries());
 }
 
 function clearFavoritesSelection() {
-  state.favoritesSelectedKeys.clear();
+  favoritesState.favoritesSelectedKeys.clear();
   renderFavoritesWorkspace(getFavoriteEntries());
 }
 
@@ -334,47 +337,47 @@ function favoriteWorkspaceFindEntryByKey(key) {
 }
 
 function syncFavoriteNoteCount() {
-  if (!els.favoriteNoteCount || !els.favoriteNoteInput) return;
-  els.favoriteNoteCount.textContent = `${els.favoriteNoteInput.value.length}/${FAVORITES_NOTE_MAX_LENGTH}`;
+  if (!favoritesElements.favoriteNoteCount || !favoritesElements.favoriteNoteInput) return;
+  favoritesElements.favoriteNoteCount.textContent = `${favoritesElements.favoriteNoteInput.value.length}/${FAVORITES_NOTE_MAX_LENGTH}`;
 }
 
 function openFavoriteNoteEditor(key, returnFocus = document.activeElement) {
   const entry = favoriteWorkspaceFindEntryByKey(key);
-  if (!entry || !els.favoriteNoteOverlay || !els.favoriteNoteInput) return;
-  state.favoriteNoteEditingKey = key;
-  state.favoriteNoteReturnFocus = returnFocus;
-  if (els.favoriteNoteTitle) els.favoriteNoteTitle.textContent = entry.note ? "עריכת הערה" : "הוספת הערה";
-  if (els.favoriteNoteContext) els.favoriteNoteContext.textContent = `${entry.catalog.title} · עמוד ${entry.page}`;
-  els.favoriteNoteInput.value = String(entry.note || "");
+  if (!entry || !favoritesElements.favoriteNoteOverlay || !favoritesElements.favoriteNoteInput) return;
+  favoritesState.favoriteNoteEditingKey = key;
+  favoritesState.favoriteNoteReturnFocus = returnFocus;
+  if (favoritesElements.favoriteNoteTitle) favoritesElements.favoriteNoteTitle.textContent = entry.note ? "עריכת הערה" : "הוספת הערה";
+  if (favoritesElements.favoriteNoteContext) favoritesElements.favoriteNoteContext.textContent = `${entry.catalog.title} · עמוד ${entry.page}`;
+  favoritesElements.favoriteNoteInput.value = String(entry.note || "");
   syncFavoriteNoteCount();
-  els.favoriteNoteOverlay.classList.remove("hidden");
-  els.favoriteNoteOverlay.setAttribute("aria-hidden", "false");
+  favoritesElements.favoriteNoteOverlay.classList.remove("hidden");
+  favoritesElements.favoriteNoteOverlay.setAttribute("aria-hidden", "false");
   syncDocumentLock();
   requestAnimationFrame(() => {
-    els.favoriteNoteInput.focus();
-    els.favoriteNoteInput.setSelectionRange(els.favoriteNoteInput.value.length, els.favoriteNoteInput.value.length);
+    favoritesElements.favoriteNoteInput.focus();
+    favoritesElements.favoriteNoteInput.setSelectionRange(favoritesElements.favoriteNoteInput.value.length, favoritesElements.favoriteNoteInput.value.length);
   });
 }
 
 function closeFavoriteNoteEditor(options = {}) {
   const { restoreFocus = true } = options;
-  const returnFocus = state.favoriteNoteReturnFocus;
-  state.favoriteNoteEditingKey = "";
-  state.favoriteNoteReturnFocus = null;
-  els.favoriteNoteOverlay?.classList.add("hidden");
-  els.favoriteNoteOverlay?.setAttribute("aria-hidden", "true");
+  const returnFocus = favoritesState.favoriteNoteReturnFocus;
+  favoritesState.favoriteNoteEditingKey = "";
+  favoritesState.favoriteNoteReturnFocus = null;
+  favoritesElements.favoriteNoteOverlay?.classList.add("hidden");
+  favoritesElements.favoriteNoteOverlay?.setAttribute("aria-hidden", "true");
   syncDocumentLock();
   if (restoreFocus) returnFocus?.focus?.();
 }
 
 function saveFavoriteNote() {
-  if (!state.favoriteNoteEditingKey || !favoritesStore || !els.favoriteNoteInput) return;
-  const entry = favoriteWorkspaceFindEntryByKey(state.favoriteNoteEditingKey);
+  if (!favoritesState.favoriteNoteEditingKey || !favoritesStore || !favoritesElements.favoriteNoteInput) return;
+  const entry = favoriteWorkspaceFindEntryByKey(favoritesState.favoriteNoteEditingKey);
   if (!entry) return closeFavoriteNoteEditor({ restoreFocus: false });
-  favoritesStore.setNote({ catalogId: entry.catalog.id, page: entry.page }, els.favoriteNoteInput.value);
+  favoritesStore.setNote({ catalogId: entry.catalog.id, page: entry.page }, favoritesElements.favoriteNoteInput.value);
   closeFavoriteNoteEditor({ restoreFocus: false });
   syncFavoritesUi({ renderPanel: true });
-  showActionToast(els.favoriteNoteInput.value.trim() ? "ההערה נשמרה" : "ההערה הוסרה", { tone: "saved" });
+  showActionToast(favoritesElements.favoriteNoteInput.value.trim() ? "ההערה נשמרה" : "ההערה הוסרה", { tone: "saved" });
   requestAnimationFrame(() => {
     favoriteWorkspaceFindCardByKey(favoriteWorkspaceEntryKey(entry))?.querySelector("[data-edit-favorite-note]")?.focus?.();
   });
@@ -410,7 +413,7 @@ function trapFavoriteWorkspaceDialogFocus(event, container, closeCallback) {
 
 function handleFavoritesWorkspaceGridClick(event) {
   const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
-  if (!card || !els.favoritesGrid?.contains(card)) return false;
+  if (!card || !favoritesElements.favoritesGrid?.contains(card)) return false;
   const key = favoriteWorkspaceCardKey(card);
   if (event.target.closest?.("[data-edit-favorite-note]")) {
     openFavoriteNoteEditor(key, event.target.closest("button"));
@@ -435,56 +438,65 @@ function handleFavoritesWorkspaceDragStart(event) {
   const handle = event.target.closest?.("[data-drag-favorite]");
   const card = handle?.closest?.("[data-favorite-catalog][data-favorite-page]");
   if (!handle || !card) return;
-  state.favoritesDragKey = favoriteWorkspaceCardKey(card);
+  favoritesState.favoritesDragKey = favoriteWorkspaceCardKey(card);
   card.classList.add("is-dragging");
   event.dataTransfer?.setData("text/plain", "favorite-card");
   if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
 }
 
 function handleFavoritesWorkspaceDragOver(event) {
-  if (!state.favoritesDragKey) return;
+  if (!favoritesState.favoritesDragKey) return;
   const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
-  if (!card || favoriteWorkspaceCardKey(card) === state.favoritesDragKey) return;
+  if (!card || favoriteWorkspaceCardKey(card) === favoritesState.favoritesDragKey) return;
   event.preventDefault();
-  els.favoritesGrid?.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target"));
+  favoritesElements.favoritesGrid?.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target"));
   card.classList.add("is-drag-target");
 }
 
 function handleFavoritesWorkspaceDrop(event) {
   const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
-  if (!card || !state.favoritesDragKey) return;
+  if (!card || !favoritesState.favoritesDragKey) return;
   event.preventDefault();
-  reorderFavoriteByDrop(state.favoritesDragKey, favoriteWorkspaceCardKey(card));
-  state.favoritesDragKey = "";
+  reorderFavoriteByDrop(favoritesState.favoritesDragKey, favoriteWorkspaceCardKey(card));
+  favoritesState.favoritesDragKey = "";
 }
 
 function handleFavoritesWorkspaceDragEnd() {
-  state.favoritesDragKey = "";
-  els.favoritesGrid?.querySelectorAll(".is-dragging, .is-drag-target").forEach((item) => item.classList.remove("is-dragging", "is-drag-target"));
+  favoritesState.favoritesDragKey = "";
+  favoritesElements.favoritesGrid?.querySelectorAll(".is-dragging, .is-drag-target").forEach((item) => item.classList.remove("is-dragging", "is-drag-target"));
 }
 
 function attachFavoritesWorkspaceEvents() {
-  els.favoritesCatalogFilter?.addEventListener("change", () => {
-    state.favoritesFilterCatalogId = els.favoritesCatalogFilter.value;
+  favoritesElements.favoritesCatalogFilter?.addEventListener("change", () => {
+    favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
     renderFavoritesWorkspace(getFavoriteEntries());
   });
-  els.favoritesResetFilter?.addEventListener("click", () => {
-    state.favoritesFilterCatalogId = "";
+  favoritesElements.favoritesResetFilter?.addEventListener("click", () => {
+    favoritesState.favoritesFilterCatalogId = "";
     renderFavoritesWorkspace(getFavoriteEntries());
-    requestAnimationFrame(() => els.favoritesCatalogFilter?.focus?.());
+    requestAnimationFrame(() => favoritesElements.favoritesCatalogFilter?.focus?.());
   });
-  els.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection);
-  els.favoritesInquiryButton?.addEventListener("click", openFavoriteWorkspaceInquiry);
-  els.favoritesGrid?.addEventListener("change", handleFavoritesWorkspaceGridChange);
-  els.favoritesGrid?.addEventListener("dragstart", handleFavoritesWorkspaceDragStart);
-  els.favoritesGrid?.addEventListener("dragover", handleFavoritesWorkspaceDragOver);
-  els.favoritesGrid?.addEventListener("drop", handleFavoritesWorkspaceDrop);
-  els.favoritesGrid?.addEventListener("dragend", handleFavoritesWorkspaceDragEnd);
+  favoritesElements.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection);
+  favoritesElements.favoritesInquiryButton?.addEventListener("click", openFavoriteWorkspaceInquiry);
+  favoritesElements.favoritesGrid?.addEventListener("change", handleFavoritesWorkspaceGridChange);
+  favoritesElements.favoritesGrid?.addEventListener("dragstart", handleFavoritesWorkspaceDragStart);
+  favoritesElements.favoritesGrid?.addEventListener("dragover", handleFavoritesWorkspaceDragOver);
+  favoritesElements.favoritesGrid?.addEventListener("drop", handleFavoritesWorkspaceDrop);
+  favoritesElements.favoritesGrid?.addEventListener("dragend", handleFavoritesWorkspaceDragEnd);
 
-  els.favoriteNoteInput?.addEventListener("input", syncFavoriteNoteCount);
-  els.favoriteNoteSave?.addEventListener("click", saveFavoriteNote);
-  els.favoriteNoteCancel?.addEventListener("click", () => closeFavoriteNoteEditor());
-  els.favoriteNoteClose?.addEventListener("click", () => closeFavoriteNoteEditor());
-  els.favoriteNoteBackdrop?.addEventListener("click", () => closeFavoriteNoteEditor());
-  els.favoriteNoteOverlay?.addEventListener("keydown", (event) => trapFavoriteWorkspaceDialogFocus(event, els.favoriteNoteOverlay, closeFavoriteNoteEditor));
+  favoritesElements.favoriteNoteInput?.addEventListener("input", syncFavoriteNoteCount);
+  favoritesElements.favoriteNoteSave?.addEventListener("click", saveFavoriteNote);
+  favoritesElements.favoriteNoteCancel?.addEventListener("click", () => closeFavoriteNoteEditor());
+  favoritesElements.favoriteNoteClose?.addEventListener("click", () => closeFavoriteNoteEditor());
+  favoritesElements.favoriteNoteBackdrop?.addEventListener("click", () => closeFavoriteNoteEditor());
+  favoritesElements.favoriteNoteOverlay?.addEventListener("keydown", (event) => trapFavoriteWorkspaceDialogFocus(event, favoritesElements.favoriteNoteOverlay, closeFavoriteNoteEditor));
 }
+registerFeatureInterface("favorites-workspace", {
+  attachEvents: attachFavoritesWorkspaceEvents,
+  shareLinkEntries: (entries = getFavoriteEntries()) => favoriteWorkspaceShareLinkEntries(entries),
+  copyShareLink: (entries, button = null) => copyFavoriteWorkspaceLink(entries, button),
+  render: (entries = getFavoriteEntries()) => renderFavoritesWorkspace(entries),
+  prune: (entries = getFavoriteEntries()) => pruneFavoritesWorkspaceState(entries),
+  handleGridClick: (event) => handleFavoritesWorkspaceGridClick(event),
+  closeNoteEditor: (options = {}) => closeFavoriteNoteEditor(options)
+});

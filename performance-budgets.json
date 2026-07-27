@@ -1,15 +1,50 @@
 {
-  "appJavaScript": {
-    "source": "app.js",
-    "bundlePattern": "static/app.*.js",
-    "rawBytes": 400000,
-    "gzipBytes": 90000
+  "requiredHeadroomPercent": 15,
+  "javascriptBundles": {
+    "catalog": {
+      "source": "app-catalog.js",
+      "bundlePattern": "static/app-catalog.*.js",
+      "rawBytes": 280000,
+      "gzipBytes": 62000
+    },
+    "favorites": {
+      "source": "app-favorites.js",
+      "bundlePattern": "static/app-favorites.*.js",
+      "rawBytes": 310000,
+      "gzipBytes": 68000
+    },
+    "viewer": {
+      "source": "app-viewer.js",
+      "bundlePattern": "static/app-viewer.*.js",
+      "rawBytes": 440000,
+      "gzipBytes": 95000
+    }
   },
-  "stylesCss": {
-    "source": "styles.css",
-    "bundlePattern": "static/styles.*.css",
-    "rawBytes": 235000,
-    "gzipBytes": 45000
+  "cssBundles": {
+    "core": {
+      "source": "styles.css",
+      "bundlePattern": "static/styles.*.css",
+      "rawBytes": 120000,
+      "gzipBytes": 25000
+    },
+    "catalog": {
+      "source": "styles-catalog.css",
+      "bundlePattern": "static/styles-catalog.*.css",
+      "rawBytes": 165000,
+      "gzipBytes": 33000
+    },
+    "favorites": {
+      "source": "styles-favorites.css",
+      "bundlePattern": "static/styles-favorites.*.css",
+      "rawBytes": 195000,
+      "gzipBytes": 37000
+    },
+    "viewer": {
+      "source": "styles-viewer.css",
+      "bundlePattern": "static/styles-viewer.*.css",
+      "rawBytes": 270000,
+      "gzipBytes": 49000
+    }
   },
   "searchIndex": {
     "source": "catalogs.search-index.json",

@@ -46,7 +46,8 @@ function isInternalAppDocumentUrl(url) {
 
 function canNavigateWithinCurrentDocument(url) {
   return Boolean(
-    viewerUsesInDocumentFullscreenNavigation() &&
+    featureCapabilities.viewer &&
+    getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.() &&
     window.history?.pushState &&
     window.history?.replaceState &&
     isInternalAppDocumentUrl(url)
@@ -91,7 +92,7 @@ function navigateBack() {
 
 function handleInternalAppLinkClick(event) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  if (!viewerUsesInDocumentFullscreenNavigation()) return;
+  if (!featureCapabilities.viewer || !getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.()) return;
 
   const link = event.target.closest?.("a[href]");
   if (!link || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
@@ -155,7 +156,7 @@ function setMetadataContent(selector, value, attribute = "content") {
   if (element && value) element.setAttribute(attribute, value);
 }
 
-function currentDocumentMetadata(catalog = state?.catalog || null) {
+function currentDocumentMetadata(catalog = navigationState?.catalog || null) {
   const brand = "רהיטי ברגיג";
   if (isAppPage("catalog") && catalog) {
     return {
@@ -168,11 +169,11 @@ function currentDocumentMetadata(catalog = state?.catalog || null) {
   }
   if (isAppPage("viewer") && catalog) {
     return {
-      title: `${catalog.title} — עמוד ${state.page} | ${brand}`,
-      description: `צפייה בעמוד ${state.page} מתוך ${catalog.pages} בקטלוג ${catalog.title}.`,
-      url: absoluteDocumentUrl(viewerDocumentUrl(catalog.id, state.page)),
-      image: pageSrc(catalog, state.page),
-      imageAlt: `${catalog.title} — עמוד ${state.page}`
+      title: `${catalog.title} — עמוד ${navigationState.page} | ${brand}`,
+      description: `צפייה בעמוד ${navigationState.page} מתוך ${catalog.pages} בקטלוג ${catalog.title}.`,
+      url: absoluteDocumentUrl(viewerDocumentUrl(catalog.id, navigationState.page)),
+      image: pageSrc(catalog, navigationState.page),
+      imageAlt: `${catalog.title} — עמוד ${navigationState.page}`
     };
   }
   if (isAppPage("favorites")) {
@@ -189,7 +190,7 @@ function currentDocumentMetadata(catalog = state?.catalog || null) {
   };
 }
 
-function updateDocumentMetadata(catalog = state?.catalog || null) {
+function updateDocumentMetadata(catalog = navigationState?.catalog || null) {
   const metadata = currentDocumentMetadata(catalog);
   document.title = metadata.title;
   setMetadataContent('meta[name="description"]', metadata.description);
@@ -226,6 +227,6 @@ function attachNavigationEvents() {
 
   window.addEventListener("hashchange", () => {
     if (!isAppPage("home")) return;
-    syncCatalogCategoryFocusFromHash();
+    getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash?.();
   });
 }

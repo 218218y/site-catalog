@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Sequence
 
+from build_frontend_assets import GENERATED_JS_FILES
+
 REQUIRED_PYTHON_MODULES: tuple[str, ...] = ("pytest", "fitz", "PIL")
 VerificationScope = Literal["all", "javascript", "python"]
 
@@ -131,6 +133,18 @@ def verification_steps(
                 (python, "tools/build_frontend_assets.py", "--check"),
             ),
             VerificationStep(
+                "Frontend feature contracts",
+                (python, "tools/check_frontend_contracts.py"),
+            ),
+            VerificationStep(
+                "Frontend JSDoc type contracts",
+                ("node", "node_modules/typescript/bin/tsc", "-p", "jsconfig.json", "--pretty", "false"),
+            ),
+            VerificationStep(
+                "Frontend route runtime symbols",
+                ("node", "tools/check_frontend_runtime_symbols.js"),
+            ),
+            VerificationStep(
                 "Generated site pages are current",
                 (python, "tools/build_site_pages.py", "--check"),
             ),
@@ -142,8 +156,14 @@ def verification_steps(
                 "Source performance budgets",
                 (python, "tools/check_performance_budgets.py"),
             ),
-            VerificationStep("Generated JavaScript syntax", ("node", "--check", "app.js")),
         ))
+        steps.extend(
+            VerificationStep(
+                f"Generated JavaScript syntax: {filename}",
+                ("node", "--check", filename),
+            )
+            for filename in GENERATED_JS_FILES
+        )
         steps.extend(
             VerificationStep(f"JavaScript contract: {path.name}", ("node", path.as_posix()))
             for path in discover_javascript_tests(root)

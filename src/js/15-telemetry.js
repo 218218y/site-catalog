@@ -355,11 +355,11 @@ function telemetryObserveWebVitals() {
 function telemetryCatalogImageContext(img, src = "") {
   const value = String(src || img?.currentSrc || img?.getAttribute?.("src") || "");
   const match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i);
-  const catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || state.catalog?.id || "", 100);
-  const pageNumber = Number.parseInt(match?.[2] || img?.dataset?.page || state.page || 0, 10) || 0;
+  const catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || navigationState.catalog?.id || "", 100);
+  const pageNumber = Number.parseInt(match?.[2] || img?.dataset?.page || navigationState.page || 0, 10) || 0;
   let detail = "image";
   if (/\/thumbs\//i.test(value)) detail = "thumbnail";
-  else if (img === els.lightboxImage || img?.id === "lightboxImage") detail = "viewer";
+  else if (img?.id === "lightboxImage") detail = "viewer";
   else if (img?.classList?.contains("catalog-cover")) detail = "cover";
   return { catalogId, pageNumber, detail, value };
 }
@@ -466,7 +466,7 @@ function telemetryTrackRuntimeError(event) {
   const errorName = telemetryCleanText(event.error?.name || "Error", 40);
   const message = telemetryCleanText(event.message || event.error?.message || "JavaScript error", 120);
   return telemetryTrack("js_error", {
-    catalogId: state.catalog?.id || "",
+    catalogId: navigationState.catalog?.id || "",
     action: errorName,
     detail: message,
     scope: telemetryErrorSourceScope(filename),
@@ -538,7 +538,7 @@ function telemetryTrackUnhandledRejection(event) {
   const errorName = telemetryCleanText(reason?.name || "UnhandledRejection", 40);
   const message = telemetryCleanText(reason?.message || reason || "Unhandled promise rejection", 120);
   telemetryTrack("js_error", {
-    catalogId: state.catalog?.id || "",
+    catalogId: navigationState.catalog?.id || "",
     action: errorName,
     detail: message,
     scope: "promise",

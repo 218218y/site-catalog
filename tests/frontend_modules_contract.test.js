@@ -3,58 +3,70 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readBundle, readCssBundle } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const catalogBundle = readBundle('catalog');
+const favoritesBundle = readBundle('favorites');
+const viewerBundle = readBundle('viewer');
+const catalogCss = readCssBundle('catalog');
+const favoritesCss = readCssBundle('favorites');
+const viewerCss = readCssBundle('viewer');
+const legacyLoader = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 const deployBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
 const frontendBuilder = fs.readFileSync(path.join(root, 'tools', 'build_frontend_assets.py'), 'utf8');
+const contractChecker = fs.readFileSync(path.join(root, 'tools', 'check_frontend_contracts.py'), 'utf8');
 
-assert.match(app, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
-assert.match(css, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
-assert.match(frontendBuilder, /JS_MODULES:\s*tuple\[str, \.\.\.\]/);
-assert.match(frontendBuilder, /CSS_MODULES:\s*tuple\[str, \.\.\.\]/);
+for (const bundle of [catalogBundle, favoritesBundle, viewerBundle]) {
+  assert.match(bundle, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
+  assert.match(bundle, /\(\(\) => \{\s*"use strict";/);
+  assert.match(bundle, /\}\)\(\);\s*$/);
+  assert.equal((bundle.match(/let initResult = true;/g) || []).length, 1);
+  assert.equal((bundle.match(/initResult = init\(\);/g) || []).length, 1);
+}
+for (const css of [catalogCss, favoritesCss, viewerCss]) {
+  assert.match(css, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
+}
+
+assert.match(frontendBuilder, /BUNDLE_SPECS:\s*tuple\[FrontendBundleSpec, \.\.\.\]/);
+assert.match(frontendBuilder, /ROUTE_ASSETS:/);
+assert.match(frontendBuilder, /DEPLOY_GENERATED_FILES/);
 assert.match(frontendBuilder, /def atomic_write_text/);
 assert.match(frontendBuilder, /def build_frontend_assets/);
 assert.match(frontendBuilder, /def validate_module_manifest/);
-assert.match(app, /\(\(\) => \{\s*"use strict";/);
-assert.match(app, /\}\)\(\);\s*$/);
-assert.match(pageBuilder, /from build_frontend_assets import build_frontend_assets/);
-assert.match(pageBuilder, /if build_assets:\s*\n\s*build_frontend_assets\(root\)/);
+assert.match(frontendBuilder, /def render_legacy_loader/);
+assert.match(legacyLoader, /GENERATED COMPATIBILITY LOADER/);
+assert.match(legacyLoader, /app-catalog\.js/);
+assert.match(legacyLoader, /app-favorites\.js/);
+assert.match(legacyLoader, /app-viewer\.js/);
+
+assert.match(pageBuilder, /from build_frontend_assets import ROUTE_ASSETS, build_frontend_assets/);
+assert.match(pageBuilder, /ROUTE_STYLESHEET/);
+assert.match(pageBuilder, /ROUTE_SCRIPT/);
+assert.match(deployBuilder, /DEPLOY_GENERATED_FILES as FRONTEND_GENERATED_FILES/);
 assert.doesNotMatch(deployBuilder, /src\/js|src\/css/);
 
-const jsSources = [
-  ['src/js/00-navigation.js', /function navigateTo/],
-  ['src/js/10-app-state.js', /const state =/],
-  ['src/js/15-telemetry.js', /function telemetryInit/],
-  ['src/js/20-shared-ui.js', /function showActionToast/],
-  ['src/js/30-favorites-share.js', /function shareFavoritesList/],
-  ['src/js/40-catalog-grid.js', /function renderCatalogCards/],
-  ['src/js/50-search-ui.js', /function renderSearchResults/],
-  ['src/js/52-viewer-session.js', /function transitionViewerPhase/],
-  ['src/js/54-viewer-geometry.js', /function applyZoom/],
-  ['src/js/56-viewer-shell.js', /function renderLightboxPageRail/],
-  ['src/js/58-viewer-navigation.js', /function handleViewerPageWheel/],
-  ['src/js/60-viewer.js', /function openLightbox/],
-  ['src/js/62-viewer-actions.js', /function openViewerInquiry/],
-  ['src/js/65-viewer-onboarding.js', /function showViewerOnboardingIfNeeded/],
-  ['src/js/70-viewer-input.js', /function startPointerInteraction/],
-  ['src/js/90-bootstrap.js', /function attachEvents/]
-];
-for (const [relative, pattern] of jsSources) {
-  const source = fs.readFileSync(path.join(root, relative), 'utf8');
-  assert.match(source, pattern, relative);
-  assert.match(app, new RegExp(`BEGIN SOURCE: ${relative.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
-}
+assert.match(catalogBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
+assert.match(catalogBundle, /BEGIN SOURCE: src\/js\/50-search-ui\.js/);
+assert.doesNotMatch(catalogBundle, /BEGIN SOURCE: src\/js\/16-viewer-state\.js/);
+assert.doesNotMatch(catalogBundle, /BEGIN SOURCE: src\/js\/60-viewer\.js/);
+assert.doesNotMatch(catalogBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
 
-assert.equal((app.match(/let initResult = true;/g) || []).length, 1);
-assert.equal((app.match(/initResult = init\(\);/g) || []).length, 1);
-assert.equal((app.match(/function attachEvents\(/g) || []).length, 1);
-assert.match(app, /function bindFeatureEventsOnce\(/);
-assert.match(app, /bindFeatureEventsOnce\("catalog-grid", attachCatalogGridEvents\)/);
-assert.match(app, /bindFeatureEventsOnce\("viewer-actions", attachViewerActionEvents\)/);
-assert.match(app, /bindFeatureEventsOnce\("viewer-onboarding", attachViewerOnboardingEvents\)/);
-assert.match(app, /bindFeatureEventsOnce\("viewer", attachViewerEvents\)/);
+assert.match(favoritesBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
+assert.match(favoritesBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
+assert.doesNotMatch(favoritesBundle, /BEGIN SOURCE: src\/js\/16-viewer-state\.js/);
+assert.doesNotMatch(favoritesBundle, /BEGIN SOURCE: src\/js\/60-viewer\.js/);
+
+assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/16-viewer-state\.js/);
+assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/31-viewer-share\.js/);
+assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/60-viewer\.js/);
+assert.doesNotMatch(viewerBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
+assert.doesNotMatch(viewerBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
+assert.match(viewerBundle, /getFeatureInterface\("search"\)/);
+
+assert.match(contractChecker, /Viewer implementation reaches into search internals/);
+assert.match(contractChecker, /Search implementation reaches into Viewer internals/);
+assert.match(contractChecker, /app\.js is still a monolithic bundle/);
 
 console.log('frontend_modules_contract.test.js: PASS');

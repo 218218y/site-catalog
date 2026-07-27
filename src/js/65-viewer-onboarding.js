@@ -56,11 +56,11 @@ function getViewerOnboardingSteps() {
       title: "מעבר בין עמודים",
       description: viewerNavigationOnboardingCopy(),
       note: "למעבר מהיר לעמוד רחוק, פתחו את סרגל התמונות הממוזערות מהקצה הימני.",
-      target: () => els.stageCanvas,
+      target: () => viewerElements.stageCanvas,
       targetRect: getViewerOnboardingNavigationFocusRect,
       floatingTargets: () => [
-        { source: els.nextPageBtn, id: "next-page" },
-        { source: els.prevPageBtn, id: "previous-page" }
+        { source: viewerElements.nextPageBtn, id: "next-page" },
+        { source: viewerElements.prevPageBtn, id: "previous-page" }
       ],
       preferredPlacement: "above",
       padding: 0,
@@ -72,7 +72,7 @@ function getViewerOnboardingSteps() {
       eyebrow: "מבט מקרוב",
       title: "הגדלה וגרירת התמונה",
       description: viewerZoomOnboardingCopy(),
-      target: () => els.lightboxImageFrame,
+      target: () => viewerElements.lightboxImageFrame,
       targetRect: getViewerOnboardingImageFocusRect,
       preferredPlacement: "above",
       padding: 0,
@@ -85,10 +85,10 @@ function getViewerOnboardingSteps() {
       title: "שמירה, שיתוף ובירור",
       description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
       note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
-      target: () => els.viewerInquiryButton,
+      target: () => viewerElements.viewerInquiryButton,
       floatingTargets: () => [
-        { source: els.viewerInquiryButton, id: "inquiry" },
-        { source: els.viewerFavoriteButton, id: "favorite" }
+        { source: viewerElements.viewerInquiryButton, id: "inquiry" },
+        { source: favoritesElements.viewerFavoriteButton, id: "favorite" }
       ],
       preferredPlacement: "left",
       padding: 8,
@@ -99,12 +99,12 @@ function getViewerOnboardingSteps() {
 }
 
 function getViewerOnboardingTopBarFocusRect() {
-  const header = els.lightboxBar?.querySelector?.(".lightbox-reader-header");
-  return header?.getBoundingClientRect?.() || els.lightboxBar?.getBoundingClientRect?.() || null;
+  const header = viewerElements.lightboxBar?.querySelector?.(".lightbox-reader-header");
+  return header?.getBoundingClientRect?.() || viewerElements.lightboxBar?.getBoundingClientRect?.() || null;
 }
 
 function getViewerOnboardingPinFocusRect() {
-  const source = els.lightboxPinTopBar?.getBoundingClientRect?.();
+  const source = viewerElements.lightboxPinTopBar?.getBoundingClientRect?.();
   if (!source) return null;
 
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
@@ -137,7 +137,7 @@ function getViewerOnboardingPinFocusRect() {
 }
 
 function getViewerOnboardingNavigationFocusRect() {
-  const source = els.stageCanvas?.getBoundingClientRect?.() || els.lightboxStage?.getBoundingClientRect?.();
+  const source = viewerElements.stageCanvas?.getBoundingClientRect?.() || viewerElements.lightboxStage?.getBoundingClientRect?.();
   if (!source) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -156,7 +156,7 @@ function getViewerOnboardingNavigationFocusRect() {
 }
 
 function getViewerOnboardingPageRailFocusRect() {
-  const source = els.lightboxPageRail?.getBoundingClientRect?.();
+  const source = viewerElements.lightboxPageRail?.getBoundingClientRect?.();
   if (!source) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   if (viewportWidth > 700) return source;
@@ -172,8 +172,8 @@ function getViewerOnboardingPageRailFocusRect() {
 }
 
 function getViewerOnboardingImageFocusRect() {
-  const activeImageSurface = els.lightboxImageFrame;
-  const source = activeImageSurface?.getBoundingClientRect?.() || els.stageCanvas?.getBoundingClientRect?.();
+  const activeImageSurface = viewerElements.lightboxImageFrame;
+  const source = activeImageSurface?.getBoundingClientRect?.() || viewerElements.stageCanvas?.getBoundingClientRect?.();
   if (!source) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -190,13 +190,13 @@ function getViewerOnboardingImageFocusRect() {
 }
 
 function getViewerOnboardingFocusableElements() {
-  if (!els.viewerOnboarding) return [];
-  const controls = Array.from(els.viewerOnboarding.querySelectorAll(
+  if (!viewerElements.viewerOnboarding) return [];
+  const controls = Array.from(viewerElements.viewerOnboarding.querySelectorAll(
     'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )).filter((element) => !element.closest?.(".hidden"));
   const targets = [
-    ...(state.viewerOnboardingFloatingTargets || []).map((entry) => entry.clone),
-    state.viewerOnboardingTarget
+    ...(viewerState.viewerOnboardingFloatingTargets || []).map((entry) => entry.clone),
+    viewerState.viewerOnboardingTarget
   ].filter(Boolean);
   const targetControls = targets.flatMap((target) => [
     ...(target.matches?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') ? [target] : []),
@@ -292,8 +292,8 @@ function calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, prefe
 }
 
 function removeViewerOnboardingFloatingTargets() {
-  (state.viewerOnboardingFloatingTargets || []).forEach((entry) => entry.clone?.remove?.());
-  state.viewerOnboardingFloatingTargets = [];
+  (viewerState.viewerOnboardingFloatingTargets || []).forEach((entry) => entry.clone?.remove?.());
+  viewerState.viewerOnboardingFloatingTargets = [];
 }
 
 function sanitizeViewerOnboardingFloatingTarget(clone) {
@@ -328,7 +328,7 @@ function getViewerOnboardingFloatingTargetDefinitions(step) {
 }
 
 function viewerOnboardingFloatingTargetsMatch(step, definitions) {
-  const current = state.viewerOnboardingFloatingTargets || [];
+  const current = viewerState.viewerOnboardingFloatingTargets || [];
   return current.length === definitions.length && current.every((entry, index) => (
     entry.source === definitions[index].source
     && entry.id === definitions[index].id
@@ -338,14 +338,14 @@ function viewerOnboardingFloatingTargetsMatch(step, definitions) {
 
 function updateViewerOnboardingFloatingTargets(step) {
   const definitions = getViewerOnboardingFloatingTargetDefinitions(step);
-  if (!definitions.length || !els.viewerOnboarding) {
+  if (!definitions.length || !viewerElements.viewerOnboarding) {
     removeViewerOnboardingFloatingTargets();
     return;
   }
 
   if (!viewerOnboardingFloatingTargetsMatch(step, definitions)) {
     removeViewerOnboardingFloatingTargets();
-    state.viewerOnboardingFloatingTargets = definitions.map(({ source, id }) => {
+    viewerState.viewerOnboardingFloatingTargets = definitions.map(({ source, id }) => {
       const clone = source.cloneNode(true);
       sanitizeViewerOnboardingFloatingTarget(clone);
       clone.classList.add("viewer-onboarding-floating-target");
@@ -356,19 +356,19 @@ function updateViewerOnboardingFloatingTargets(step) {
         event.stopPropagation();
         source.click();
         window.requestAnimationFrame(() => {
-          const isCurrentClone = (state.viewerOnboardingFloatingTargets || [])
+          const isCurrentClone = (viewerState.viewerOnboardingFloatingTargets || [])
             .some((entry) => entry.clone === clone);
-          if (!state.viewerOnboardingOpen || !isCurrentClone) return;
+          if (!viewerState.viewerOnboardingOpen || !isCurrentClone) return;
           syncViewerOnboardingFloatingTargetState(source, clone);
           scheduleViewerOnboardingLayout(30);
         });
       });
-      els.viewerOnboarding.appendChild(clone);
+      viewerElements.viewerOnboarding.appendChild(clone);
       return { source, clone, id, stepId: step.id };
     });
   }
 
-  state.viewerOnboardingFloatingTargets.forEach(({ source, clone }) => {
+  viewerState.viewerOnboardingFloatingTargets.forEach(({ source, clone }) => {
     syncViewerOnboardingFloatingTargetState(source, clone);
     const rect = source.getBoundingClientRect();
     clone.style.left = `${rect.left}px`;
@@ -379,13 +379,13 @@ function updateViewerOnboardingFloatingTargets(step) {
 }
 
 function layoutViewerOnboarding() {
-  if (!state.viewerOnboardingOpen || !els.viewerOnboarding || !els.viewerOnboardingCard || !els.viewerOnboardingSpotlight) return;
+  if (!viewerState.viewerOnboardingOpen || !viewerElements.viewerOnboarding || !viewerElements.viewerOnboardingCard || !viewerElements.viewerOnboardingSpotlight) return;
   const steps = getViewerOnboardingSteps();
-  const step = steps[state.viewerOnboardingStep];
+  const step = steps[viewerState.viewerOnboardingStep];
   if (!step) return;
 
   const target = step.target?.() || null;
-  state.viewerOnboardingTarget = target;
+  viewerState.viewerOnboardingTarget = target;
   const rawRect = step.targetRect?.() || target?.getBoundingClientRect?.();
   const targetRect = normalizeViewerOnboardingRect(
     rawRect,
@@ -398,12 +398,12 @@ function layoutViewerOnboarding() {
 
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-  setViewerOnboardingShadeRect(els.viewerOnboardingShadeTop, 0, 0, viewportWidth, targetRect.top);
-  setViewerOnboardingShadeRect(els.viewerOnboardingShadeBottom, 0, targetRect.bottom, viewportWidth, viewportHeight - targetRect.bottom);
-  setViewerOnboardingShadeRect(els.viewerOnboardingShadeLeft, 0, targetRect.top, targetRect.left, targetRect.height);
-  setViewerOnboardingShadeRect(els.viewerOnboardingShadeRight, targetRect.right, targetRect.top, viewportWidth - targetRect.right, targetRect.height);
+  setViewerOnboardingShadeRect(viewerElements.viewerOnboardingShadeTop, 0, 0, viewportWidth, targetRect.top);
+  setViewerOnboardingShadeRect(viewerElements.viewerOnboardingShadeBottom, 0, targetRect.bottom, viewportWidth, viewportHeight - targetRect.bottom);
+  setViewerOnboardingShadeRect(viewerElements.viewerOnboardingShadeLeft, 0, targetRect.top, targetRect.left, targetRect.height);
+  setViewerOnboardingShadeRect(viewerElements.viewerOnboardingShadeRight, targetRect.right, targetRect.top, viewportWidth - targetRect.right, targetRect.height);
 
-  const spotlight = els.viewerOnboardingSpotlight;
+  const spotlight = viewerElements.viewerOnboardingSpotlight;
   spotlight.style.left = `${targetRect.left}px`;
   spotlight.style.top = `${targetRect.top}px`;
   spotlight.style.width = `${targetRect.width}px`;
@@ -412,24 +412,24 @@ function layoutViewerOnboarding() {
   spotlight.dataset.gesture = step.gesture || "";
   spotlight.dataset.tourStep = step.id || "";
 
-  const calloutRect = els.viewerOnboardingCard.getBoundingClientRect();
+  const calloutRect = viewerElements.viewerOnboardingCard.getBoundingClientRect();
   const calloutPosition = calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, step.preferredPlacement || "below");
-  els.viewerOnboardingCard.style.left = `${calloutPosition.left}px`;
-  els.viewerOnboardingCard.style.top = `${calloutPosition.top}px`;
-  els.viewerOnboardingCard.dataset.placement = calloutPosition.placement;
+  viewerElements.viewerOnboardingCard.style.left = `${calloutPosition.left}px`;
+  viewerElements.viewerOnboardingCard.style.top = `${calloutPosition.top}px`;
+  viewerElements.viewerOnboardingCard.dataset.placement = calloutPosition.placement;
 }
 
 function scheduleViewerOnboardingLayout(delay = 0) {
   const run = () => {
-    window.cancelAnimationFrame(state.viewerOnboardingLayoutRaf);
-    state.viewerOnboardingLayoutRaf = window.requestAnimationFrame(layoutViewerOnboarding);
+    window.cancelAnimationFrame(viewerState.viewerOnboardingLayoutRaf);
+    viewerState.viewerOnboardingLayoutRaf = window.requestAnimationFrame(layoutViewerOnboarding);
   };
 
   if (delay > 0) {
     // Keep the immediate layout that was scheduled for this step. The delayed
     // pass only re-measures after toolbar/callout transitions have settled.
-    window.clearTimeout(state.viewerOnboardingLayoutTimer);
-    state.viewerOnboardingLayoutTimer = window.setTimeout(run, delay);
+    window.clearTimeout(viewerState.viewerOnboardingLayoutTimer);
+    viewerState.viewerOnboardingLayoutTimer = window.setTimeout(run, delay);
     return;
   }
 
@@ -437,39 +437,39 @@ function scheduleViewerOnboardingLayout(delay = 0) {
 }
 
 function renderViewerOnboardingStep(options = {}) {
-  if (!state.viewerOnboardingOpen) return;
+  if (!viewerState.viewerOnboardingOpen) return;
   const { focus = true, scheduleLayout = true } = options;
   const steps = getViewerOnboardingSteps();
-  state.viewerOnboardingStep = clampValue(state.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
-  const step = steps[state.viewerOnboardingStep];
+  viewerState.viewerOnboardingStep = clampValue(viewerState.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
+  const step = steps[viewerState.viewerOnboardingStep];
   if (!step) return;
 
-  const floatingTargetsBelongToStep = (state.viewerOnboardingFloatingTargets || [])
+  const floatingTargetsBelongToStep = (viewerState.viewerOnboardingFloatingTargets || [])
     .every((entry) => entry.stepId === step.id);
   if (!floatingTargetsBelongToStep) {
     removeViewerOnboardingFloatingTargets();
   }
 
-  els.lightbox?.classList.toggle("viewer-tour-show-top-ui", Boolean(step.revealTopBar));
-  els.lightbox?.classList.toggle("viewer-tour-show-page-rail", Boolean(step.revealPageRail));
-  if (step.revealTopBar) window.clearTimeout(state.uiHideTimer);
-  if (step.revealPageRail) window.clearTimeout(state.pageRailHideTimer);
+  viewerElements.lightbox?.classList.toggle("viewer-tour-show-top-ui", Boolean(step.revealTopBar));
+  viewerElements.lightbox?.classList.toggle("viewer-tour-show-page-rail", Boolean(step.revealPageRail));
+  if (step.revealTopBar) window.clearTimeout(viewerState.uiHideTimer);
+  if (step.revealPageRail) window.clearTimeout(viewerState.pageRailHideTimer);
 
-  if (els.viewerOnboardingEyebrow) els.viewerOnboardingEyebrow.textContent = step.eyebrow || "סיור קצר";
-  if (els.viewerOnboardingTitle) els.viewerOnboardingTitle.textContent = step.title;
-  if (els.viewerOnboardingDescription) els.viewerOnboardingDescription.textContent = step.description;
-  if (els.viewerOnboardingCounter) els.viewerOnboardingCounter.textContent = `${state.viewerOnboardingStep + 1} מתוך ${steps.length}`;
-  if (els.viewerOnboardingNote) {
-    els.viewerOnboardingNote.textContent = step.note || "";
-    els.viewerOnboardingNote.classList.toggle("hidden", !step.note);
+  if (viewerElements.viewerOnboardingEyebrow) viewerElements.viewerOnboardingEyebrow.textContent = step.eyebrow || "סיור קצר";
+  if (viewerElements.viewerOnboardingTitle) viewerElements.viewerOnboardingTitle.textContent = step.title;
+  if (viewerElements.viewerOnboardingDescription) viewerElements.viewerOnboardingDescription.textContent = step.description;
+  if (viewerElements.viewerOnboardingCounter) viewerElements.viewerOnboardingCounter.textContent = `${viewerState.viewerOnboardingStep + 1} מתוך ${steps.length}`;
+  if (viewerElements.viewerOnboardingNote) {
+    viewerElements.viewerOnboardingNote.textContent = step.note || "";
+    viewerElements.viewerOnboardingNote.classList.toggle("hidden", !step.note);
   }
-  if (els.viewerOnboardingPrevious) els.viewerOnboardingPrevious.disabled = state.viewerOnboardingStep === 0;
-  if (els.viewerOnboardingNext) {
-    els.viewerOnboardingNext.textContent = state.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא";
+  if (viewerElements.viewerOnboardingPrevious) viewerElements.viewerOnboardingPrevious.disabled = viewerState.viewerOnboardingStep === 0;
+  if (viewerElements.viewerOnboardingNext) {
+    viewerElements.viewerOnboardingNext.textContent = viewerState.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא";
   }
-  if (els.viewerOnboardingDots) {
-    els.viewerOnboardingDots.innerHTML = steps.map((_, index) => (
-      `<span${index === state.viewerOnboardingStep ? ' class="active"' : ""}></span>`
+  if (viewerElements.viewerOnboardingDots) {
+    viewerElements.viewerOnboardingDots.innerHTML = steps.map((_, index) => (
+      `<span${index === viewerState.viewerOnboardingStep ? ' class="active"' : ""}></span>`
     )).join("");
   }
 
@@ -477,82 +477,82 @@ function renderViewerOnboardingStep(options = {}) {
     scheduleViewerOnboardingLayout();
     scheduleViewerOnboardingLayout(260);
   }
-  if (focus) window.requestAnimationFrame(() => els.viewerOnboardingNext?.focus?.({ preventScroll: true }));
+  if (focus) window.requestAnimationFrame(() => viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: true }));
 }
 
 function moveViewerOnboardingStep(delta) {
-  if (!state.viewerOnboardingOpen) return;
+  if (!viewerState.viewerOnboardingOpen) return;
   const steps = getViewerOnboardingSteps();
-  const nextStep = state.viewerOnboardingStep + delta;
+  const nextStep = viewerState.viewerOnboardingStep + delta;
   if (nextStep >= steps.length) {
     closeViewerOnboarding();
     return;
   }
-  state.viewerOnboardingStep = clampValue(nextStep, 0, Math.max(0, steps.length - 1));
+  viewerState.viewerOnboardingStep = clampValue(nextStep, 0, Math.max(0, steps.length - 1));
   renderViewerOnboardingStep();
 }
 
 function restoreViewerUiAfterOnboarding() {
-  const restore = state.viewerOnboardingRestoreUi || {};
-  els.lightbox?.classList.remove("viewer-tour-active", "viewer-tour-show-top-ui", "viewer-tour-show-page-rail");
-  if (els.lightbox) {
-    if (state.topUiPinned || restore.showUi) els.lightbox.classList.add("show-ui");
-    else els.lightbox.classList.remove("show-ui");
-    if (restore.showPageRail) els.lightbox.classList.add("show-page-rail");
-    else els.lightbox.classList.remove("show-page-rail");
+  const restore = viewerState.viewerOnboardingRestoreUi || {};
+  viewerElements.lightbox?.classList.remove("viewer-tour-active", "viewer-tour-show-top-ui", "viewer-tour-show-page-rail");
+  if (viewerElements.lightbox) {
+    if (viewerState.topUiPinned || restore.showUi) viewerElements.lightbox.classList.add("show-ui");
+    else viewerElements.lightbox.classList.remove("show-ui");
+    if (restore.showPageRail) viewerElements.lightbox.classList.add("show-page-rail");
+    else viewerElements.lightbox.classList.remove("show-page-rail");
   }
-  state.viewerOnboardingRestoreUi = null;
+  viewerState.viewerOnboardingRestoreUi = null;
 }
 
 function closeViewerOnboarding(options = {}) {
-  if (!state.viewerOnboardingOpen) return;
+  if (!viewerState.viewerOnboardingOpen) return;
   const { restoreFocus = true, remember = true } = options;
-  state.viewerOnboardingOpen = false;
-  state.viewerOnboardingTarget = null;
+  viewerState.viewerOnboardingOpen = false;
+  viewerState.viewerOnboardingTarget = null;
   removeViewerOnboardingFloatingTargets();
-  window.cancelAnimationFrame(state.viewerOnboardingLayoutRaf);
-  window.clearTimeout(state.viewerOnboardingLayoutTimer);
+  window.cancelAnimationFrame(viewerState.viewerOnboardingLayoutRaf);
+  window.clearTimeout(viewerState.viewerOnboardingLayoutTimer);
   if (remember) markViewerOnboardingSeen();
   restoreViewerUiAfterOnboarding();
-  els.viewerOnboarding?.classList.remove("visible");
-  els.viewerOnboarding?.setAttribute("aria-hidden", "true");
+  viewerElements.viewerOnboarding?.classList.remove("visible");
+  viewerElements.viewerOnboarding?.setAttribute("aria-hidden", "true");
   window.setTimeout(() => {
-    if (state.viewerOnboardingOpen) return;
-    els.viewerOnboarding?.classList.add("hidden");
-    els.viewerOnboarding?.classList.remove("layout-ready");
+    if (viewerState.viewerOnboardingOpen) return;
+    viewerElements.viewerOnboarding?.classList.add("hidden");
+    viewerElements.viewerOnboarding?.classList.remove("layout-ready");
   }, 220);
-  if (restoreFocus) els.stageCanvas?.focus?.({ preventScroll: true });
+  if (restoreFocus) viewerElements.stageCanvas?.focus?.({ preventScroll: true });
 }
 
 function showViewerOnboardingIfNeeded() {
-  if (!isViewerSessionOpen() || !els.viewerOnboarding || state.viewerOnboardingOpen) return;
-  if (state.viewerOnboardingShownThisSession || viewerOnboardingWasSeen()) return;
+  if (!isViewerSessionOpen() || !viewerElements.viewerOnboarding || viewerState.viewerOnboardingOpen) return;
+  if (viewerState.viewerOnboardingShownThisSession || viewerOnboardingWasSeen()) return;
 
-  state.viewerOnboardingShownThisSession = true;
-  state.viewerOnboardingOpen = true;
-  state.viewerOnboardingStep = 0;
-  state.viewerOnboardingRestoreUi = {
-    showUi: Boolean(els.lightbox?.classList.contains("show-ui")),
-    showPageRail: Boolean(els.lightbox?.classList.contains("show-page-rail"))
+  viewerState.viewerOnboardingShownThisSession = true;
+  viewerState.viewerOnboardingOpen = true;
+  viewerState.viewerOnboardingStep = 0;
+  viewerState.viewerOnboardingRestoreUi = {
+    showUi: Boolean(viewerElements.lightbox?.classList.contains("show-ui")),
+    showPageRail: Boolean(viewerElements.lightbox?.classList.contains("show-page-rail"))
   };
-  els.lightbox?.classList.add("viewer-tour-active");
-  els.viewerOnboarding.classList.remove("hidden", "visible", "layout-ready");
-  els.viewerOnboarding.setAttribute("aria-hidden", "false");
+  viewerElements.lightbox?.classList.add("viewer-tour-active");
+  viewerElements.viewerOnboarding.classList.remove("hidden", "visible", "layout-ready");
+  viewerElements.viewerOnboarding.setAttribute("aria-hidden", "false");
 
   // Build and measure the first step while the tour is still transparent.
   // Waiting one frame after revealing the real toolbar lets its layout settle,
   // so the callout is already in its final position before the fade-in begins.
   window.requestAnimationFrame(() => {
-    if (!state.viewerOnboardingOpen) return;
+    if (!viewerState.viewerOnboardingOpen) return;
     renderViewerOnboardingStep({ focus: false, scheduleLayout: false });
     window.requestAnimationFrame(() => {
-      if (!state.viewerOnboardingOpen) return;
+      if (!viewerState.viewerOnboardingOpen) return;
       layoutViewerOnboarding();
-      els.viewerOnboarding.classList.add("layout-ready");
+      viewerElements.viewerOnboarding.classList.add("layout-ready");
       window.requestAnimationFrame(() => {
-        if (!state.viewerOnboardingOpen) return;
-        els.viewerOnboarding.classList.add("visible");
-        els.viewerOnboardingNext?.focus?.({ preventScroll: true });
+        if (!viewerState.viewerOnboardingOpen) return;
+        viewerElements.viewerOnboarding.classList.add("visible");
+        viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: true });
         scheduleViewerOnboardingLayout(260);
       });
     });
@@ -560,7 +560,7 @@ function showViewerOnboardingIfNeeded() {
 }
 
 function handleViewerOnboardingKeydown(event) {
-  if (!state.viewerOnboardingOpen) return false;
+  if (!viewerState.viewerOnboardingOpen) return false;
   if (event.key === "Escape") {
     event.preventDefault();
     closeViewerOnboarding();
@@ -586,7 +586,7 @@ function handleViewerOnboardingKeydown(event) {
 }
 
 function attachViewerOnboardingEvents() {
-  els.viewerOnboardingPrevious?.addEventListener("click", () => moveViewerOnboardingStep(-1));
-  els.viewerOnboardingNext?.addEventListener("click", () => moveViewerOnboardingStep(1));
-  els.viewerOnboardingSkip?.addEventListener("click", () => closeViewerOnboarding());
+  viewerElements.viewerOnboardingPrevious?.addEventListener("click", () => moveViewerOnboardingStep(-1));
+  viewerElements.viewerOnboardingNext?.addEventListener("click", () => moveViewerOnboardingStep(1));
+  viewerElements.viewerOnboardingSkip?.addEventListener("click", () => closeViewerOnboarding());
 }

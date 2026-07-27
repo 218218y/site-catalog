@@ -20,23 +20,28 @@ SPEC.loader.exec_module(MODULE)
 
 
 def write_fixture(root: Path, *, app_size: int = 100, html_size: int = 100) -> Path:
-    (root / "app.js").write_bytes(b"a" * app_size)
-    (root / "styles.css").write_bytes(b"b" * 100)
+    (root / "app-catalog.js").write_bytes(b"a" * app_size)
+    (root / "styles-catalog.css").write_bytes(b"b" * 100)
     (root / "catalogs.search-index.json").write_bytes(b"c" * 100)
     (root / "catalog-search-worker.js").write_bytes(b"d" * 100)
     Image.new("RGB", (1200, 630), "white").save(root / "social-share-default.png", optimize=True)
     budget = {
-        "appJavaScript": {
-            "source": "app.js",
-            "bundlePattern": "static/app.*.js",
-            "rawBytes": 500,
-            "gzipBytes": 100,
+        "requiredHeadroomPercent": 0,
+        "javascriptBundles": {
+            "catalog": {
+                "source": "app-catalog.js",
+                "bundlePattern": "static/app-catalog.*.js",
+                "rawBytes": 500,
+                "gzipBytes": 100,
+            }
         },
-        "stylesCss": {
-            "source": "styles.css",
-            "bundlePattern": "static/styles.*.css",
-            "rawBytes": 500,
-            "gzipBytes": 100,
+        "cssBundles": {
+            "catalog": {
+                "source": "styles-catalog.css",
+                "bundlePattern": "static/styles-catalog.*.css",
+                "rawBytes": 500,
+                "gzipBytes": 100,
+            }
         },
         "searchIndex": {
             "source": "catalogs.search-index.json",
@@ -62,8 +67,8 @@ def write_fixture(root: Path, *, app_size: int = 100, html_size: int = 100) -> P
 
     bundle = root / "bundle"
     (bundle / "static").mkdir(parents=True)
-    (bundle / "static" / "app.abc.js").write_bytes(b"a" * app_size)
-    (bundle / "static" / "styles.abc.css").write_bytes(b"b" * 100)
+    (bundle / "static" / "app-catalog.abc.js").write_bytes(b"a" * app_size)
+    (bundle / "static" / "styles-catalog.abc.css").write_bytes(b"b" * 100)
     (bundle / "static" / "catalogs.search-index.abc.json").write_bytes(b"c" * 100)
     (bundle / "static" / "catalog-search-worker.abc.js").write_bytes(b"d" * 100)
     (bundle / "index.html").write_bytes(b"<" + b"x" * html_size + b">")
@@ -74,14 +79,14 @@ def test_budget_checker_accepts_source_and_bundle_within_limits(tmp_path: Path) 
     bundle = write_fixture(tmp_path)
     measurements = MODULE.check_performance_budgets(tmp_path, bundle)
     labels = {item.label for item in measurements}
-    assert "Application JavaScript" in labels
-    assert "Deploy JavaScript" in labels
+    assert "Catalog JavaScript" in labels
+    assert "Deploy catalog JavaScript" in labels
     assert any(label.startswith("Largest HTML") for label in labels)
 
 
 def test_budget_checker_reports_the_specific_exceeded_budget(tmp_path: Path) -> None:
     bundle = write_fixture(tmp_path, app_size=700)
-    with pytest.raises(RuntimeError, match="Application JavaScript raw size"):
+    with pytest.raises(RuntimeError, match="Catalog JavaScript raw size"):
         MODULE.check_performance_budgets(tmp_path, bundle)
 
 

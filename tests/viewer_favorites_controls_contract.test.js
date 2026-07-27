@@ -3,12 +3,13 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const app = readAllBundles();
+const css = readAllCssBundles();
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxFavoritesButton"[^>]*href="favorites\.html"/);
@@ -23,9 +24,9 @@ assert.match(app, /lightboxFavoritesButton: \$\("lightboxFavoritesButton"\)/);
 assert.match(app, /lightboxFavoritesCount: \$\("lightboxFavoritesCount"\)/);
 assert.match(app, /lightboxFavoritesSeparator: \$\("lightboxFavoritesSeparator"\)/);
 assert.match(app, /function syncFavoritesShortcut\(button, countElement, count\)/);
-assert.match(app, /syncFavoritesShortcut\(els\.headerFavoritesButton, els\.headerFavoritesCount, count\)/);
-assert.match(app, /syncFavoritesShortcut\(els\.lightboxFavoritesButton, els\.lightboxFavoritesCount, count\)/);
-assert.match(app, /els\.lightboxFavoritesSeparator\?\.classList\.toggle\("hidden", count === 0\)/);
+assert.match(app, /syncFavoritesShortcut\(shellElements\.headerFavoritesButton, shellElements\.headerFavoritesCount, count\)/);
+assert.match(app, /syncFavoritesShortcut\(favoritesElements\.lightboxFavoritesButton, favoritesElements\.lightboxFavoritesCount, count\)/);
+assert.match(app, /favoritesElements\.lightboxFavoritesSeparator\?\.classList\.toggle\("hidden", count === 0\)/);
 
 assert.match(css, /--viewer-side-control-near-top:\s*calc\(50% - var\(--viewer-side-control-step\)\)/);
 assert.match(css, /--viewer-side-control-far-top:\s*calc\(50% - var\(--viewer-side-control-step\) - var\(--viewer-side-control-step\)\)/);

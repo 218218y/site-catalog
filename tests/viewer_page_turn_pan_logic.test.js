@@ -44,8 +44,9 @@ let applyCalls = 0;
 const clampValue = (value, min, max) => Math.min(max, Math.max(min, value));
 
 const geometryApi = new Function(
-  'state',
-  'els',
+  'viewerState',
+  'viewerElements',
+  'navigationState',
   'window',
   'AUTO_VIEWER_ZOOM',
   'VIEWER_FIT_WIDTH',
@@ -71,6 +72,7 @@ const geometryApi = new Function(
 )(
   state,
   { stageCanvas },
+  state,
   { innerWidth: 0, innerHeight: 0 },
   1,
   'width',
@@ -236,7 +238,7 @@ const wheelHandlerSource = navigationSource.slice(wheelHandlerStart);
 let prevented = 0;
 let boundaryInputs = 0;
 const wheelApi = new Function(
-  'state',
+  'navigationState',
   'isViewerSessionOpen',
   'normalizeViewerPageWheelDeltas',
   'singleViewerUsesBoundaryPan',

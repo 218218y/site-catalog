@@ -5,8 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { normalizeItems } = require('../favorites-store.js');
+const { readBundle } = require('./frontend_test_assets');
 
-const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const app = readBundle('favorites');
 
 function extractFunction(name) {
   const start = app.indexOf(`function ${name}(`);
@@ -59,8 +60,8 @@ const catalogMap = new Map(catalogs.map((catalog) => [catalog.id, catalog]));
 const context = {
   FAVORITES_SHARE_VERSION: 2,
   catalogs,
-  state: { favoritesTransferPending: null },
-  els: {
+  favoritesState: { favoritesTransferPending: null },
+  favoritesElements: {
     favoritesTransferOverlay: {},
     favoritesTransferTitle: { textContent: '' },
     favoritesTransferDescription: { textContent: '' },
@@ -167,7 +168,7 @@ context.currentFavoriteItems = [
   { catalogId: 'catalog-a', page: 8, savedAt: 4 },
   { catalogId: 'catalog-b', page: 9, savedAt: 3 }
 ];
-context.state.favoritesTransferPending = {
+context.favoritesState.favoritesTransferPending = {
   items: [
     { catalogId: 'catalog-a', page: 2, savedAt: 0 },
     { catalogId: 'catalog-b', page: 1, savedAt: 0 },
@@ -177,7 +178,7 @@ context.state.favoritesTransferPending = {
 };
 context.syncFavoritesTransferDialogUi();
 assert.equal(
-  context.els.favoritesTransferSummary.textContent,
+  context.favoritesElements.favoritesTransferSummary.textContent,
   '3 פריטים ברשימה שהתקבלה · 4 פריטים שמורים כעת\n' +
     'מתוכם 2 קיימים ו-1 חדש'
 );
@@ -185,7 +186,7 @@ assert.equal(
 context.currentFavoriteItems = [
   { catalogId: 'catalog-b', page: 1, savedAt: 5 }
 ];
-context.state.favoritesTransferPending = {
+context.favoritesState.favoritesTransferPending = {
   items: [
     { catalogId: 'catalog-a', page: 4, savedAt: 0 },
     { catalogId: 'catalog-b', page: 7, savedAt: 0 }
@@ -194,7 +195,7 @@ context.state.favoritesTransferPending = {
 };
 context.syncFavoritesTransferDialogUi();
 assert.equal(
-  context.els.favoritesTransferSummary.textContent,
+  context.favoritesElements.favoritesTransferSummary.textContent,
   '2 פריטים ברשימה שהתקבלה · 1 פריטים שמורים כעת · 1 פריטים לא היו זמינים באתר זה',
   'the original summary must remain unchanged and single-line when there is no overlap'
 );

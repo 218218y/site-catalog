@@ -10,7 +10,7 @@ const indexBuilder = fs.readFileSync(path.join(root, "tools/catalog_search_index
 const runtime = fs.readFileSync(path.join(root, "catalog-search.js"), "utf8");
 const worker = fs.readFileSync(path.join(root, "catalog-search-worker.js"), "utf8");
 const searchUi = fs.readFileSync(path.join(root, "src/js/50-search-ui.js"), "utf8");
-const appState = fs.readFileSync(path.join(root, "src/js/10-app-state.js"), "utf8");
+const searchState = fs.readFileSync(path.join(root, "src/js/13-search-state.js"), "utf8");
 const deploy = fs.readFileSync(path.join(root, "tools/build_deploy_bundle.py"), "utf8");
 const schema = JSON.parse(fs.readFileSync(path.join(root, "schemas/catalogs.search-index.schema.json"), "utf8"));
 
@@ -35,7 +35,7 @@ assert.match(worker, /matchReason/);
 assert.match(worker, /highlights/);
 assert.match(worker, /yieldToWorkerQueue/);
 
-assert.match(appState, /const SEARCH_INPUT_DEBOUNCE_MS = 90;/);
+assert.match(searchState, /const SEARCH_INPUT_DEBOUNCE_MS = 90;/);
 assert.match(searchUi, /scheduleSearchRender\("global"/);
 assert.match(searchUi, /scheduleSearchRender\("viewer"/);
 assert.match(searchUi, /globalSearchRenderSequence/);

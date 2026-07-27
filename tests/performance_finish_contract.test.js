@@ -35,13 +35,20 @@ assert.match(telemetry, /\(name === "LCP" \|\| name === "INP"\) && value === 0/)
 assert.match(telemetry, /telemetryTrack\("web_vital"/);
 assert.match(telemetryFunction, /"web_vital"/);
 
-assert.ok(budgets.appJavaScript.rawBytes > 0);
-assert.ok(budgets.stylesCss.rawBytes > 0);
+assert.equal(budgets.requiredHeadroomPercent, 15);
+for (const route of ["catalog", "favorites", "viewer"]) {
+  assert.ok(budgets.javascriptBundles[route].rawBytes > 0);
+  assert.ok(budgets.javascriptBundles[route].gzipBytes > 0);
+  assert.ok(budgets.cssBundles[route].rawBytes > 0);
+  assert.ok(budgets.cssBundles[route].gzipBytes > 0);
+}
+assert.ok(budgets.cssBundles.core.rawBytes > 0);
 assert.ok(budgets.searchIndex.rawBytes > 0);
 assert.ok(budgets.largestHtml.rawBytes > 0);
 assert.equal(budgets.socialShareImage.width, 1200);
 assert.equal(budgets.socialShareImage.height, 630);
 assert.match(verifier, /Source performance budgets/);
 assert.match(verifier, /Deploy performance budgets/);
+assert.match(fs.readFileSync(path.join(root, "tools/check_performance_budgets.py"), "utf8"), /operating ceiling/);
 
 console.log("performance_finish_contract.test.js: PASS");

@@ -3,10 +3,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const css = readAllCssBundles();
+const app = readAllBundles();
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const accessibility = fs.readFileSync(path.join(root, 'accessibility.html'), 'utf8');
 const verify = fs.readFileSync(path.join(root, 'tools', 'verify_project.py'), 'utf8');
@@ -24,7 +25,7 @@ assert.match(template, /id="viewerImageFeedback"[\s\S]*?aria-atomic="true"/);
 assert.match(app, /setAttribute\("role", isError \? "alert" : "status"\)/);
 assert.match(app, /function searchIndexErrorMarkup\(/);
 assert.match(app, /data-global-search-index-retry/);
-assert.match(app, /els\.lightboxImageFrame\?\.setAttribute\("aria-busy", "true"\)/);
+assert.match(app, /viewerElements\.lightboxImageFrame\?\.setAttribute\("aria-busy", "true"\)/);
 assert.match(accessibility, /הצהרת נגישות/);
 assert.match(accessibility, /עמודי קטלוג שמקורם בתמונות/);
 assert.match(verify, /Static accessibility audit/);

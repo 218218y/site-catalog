@@ -3,12 +3,13 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const favorites = fs.readFileSync(path.join(root, 'favorites.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const app = readAllBundles();
+const css = readAllCssBundles();
 const store = fs.readFileSync(path.join(root, 'favorites-store.js'), 'utf8');
 const privacy = fs.readFileSync(path.join(root, 'legal', 'privacy.content.html'), 'utf8');
 
@@ -59,7 +60,7 @@ assert.match(app, /function openFavoriteNoteEditor\(/);
 assert.match(app, /class="favorite-remove-button"[^>]*data-remove-favorite="1"[^>]*title="הסרה מהמועדפים"/);
 assert.doesNotMatch(app, /favorite-remove-inline/);
 assert.match(app, /function favoriteWorkspaceInquiryReference\([\s\S]*?purpose: "inquiry"[\s\S]*?קישור לרשימת הדגמים/);
-assert.match(app, /function openFavoriteWorkspaceInquiry\([\s\S]*?selectedEntries\.length \? selectedEntries : entries[\s\S]*?openViewerInquiry\(\{ reference, returnFocus: els\.favoritesInquiryButton \}\)/);
+assert.match(app, /function openFavoriteWorkspaceInquiry\([\s\S]*?selectedEntries\.length \? selectedEntries : entries[\s\S]*?getFeatureInterface\("viewer"\)\?\.openInquiry\?\.\(\{[\s\S]*?reference,[\s\S]*?returnFocus: favoritesElements\.favoritesInquiryButton/);
 assert.match(app, /favoritesInquiryButton\.classList\.toggle\("hidden", !hasEntries\)/);
 assert.match(app, /favoritesInquiryLabel\.textContent = selectedCount \? "בירור על הדגמים שנבחרו" : "בירור על הדגמים"/);
 assert.match(app, /function copyFavoriteWorkspaceLink\([\s\S]*?favoriteWorkspaceSelectionUrl\(entries\)[\s\S]*?copyTextToClipboard\(selectionUrl\)/);

@@ -4,9 +4,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'src/js/20-shared-ui.js'), 'utf8');
+const sharedSource = fs.readFileSync(path.join(__dirname, '..', 'src/js/20-shared-ui.js'), 'utf8');
+const viewerImageSource = fs.readFileSync(path.join(__dirname, '..', 'src/js/53-viewer-image.js'), 'utf8');
 
-function sourceBetween(startMarker, endMarker) {
+function sourceBetween(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
   const end = source.indexOf(endMarker, start + startMarker.length);
   assert.notEqual(start, -1, `Missing ${startMarker}`);
@@ -15,6 +16,7 @@ function sourceBetween(startMarker, endMarker) {
 }
 
 const modeSource = sourceBetween(
+  sharedSource,
   'function catalogImageDeliveryMode()',
   'function normalizeCatalogImageUrl(url)'
 );
@@ -51,12 +53,13 @@ assert.equal(createModeApi('responsive', { saveData: true }).catalogNeighborPrel
 assert.equal(createModeApi('unknown').catalogImageDeliveryMode(), 'responsive');
 
 const warmupSource = sourceBetween(
-  'function shouldWarmSingleViewerFullResolution(previousZoom = state.zoom)',
+  viewerImageSource,
+  'function shouldWarmSingleViewerFullResolution(previousZoom = viewerState.zoom)',
   'function commitSingleViewerResolutionUpgrade'
 );
 function createWarmupApi({ zoom = 1, saveData = false, effectiveType = '4g' } = {}) {
   return new Function(
-    'state',
+    'viewerState',
     'isSaveDataEnabled',
     'networkEffectiveType',
     'AUTO_VIEWER_ZOOM',
@@ -77,6 +80,7 @@ assert.equal(createWarmupApi({ zoom: 1.2, saveData: true })(1), false);
 assert.equal(createWarmupApi({ zoom: 1.2, effectiveType: '3g' })(1), false);
 
 const variantSource = sourceBetween(
+  sharedSource,
   'function catalogImageVariant(catalog, tier)',
   'function catalogSupportsImageTier(catalog, tier)'
 );
@@ -108,10 +112,18 @@ assert.equal(createVariantApi(false)(catalog, 'medium'), null);
 assert.deepEqual(createVariantApi(true)(catalog, 'medium'), catalog.imageVariants.medium);
 assert.deepEqual(createVariantApi(false)(catalog, 'full'), catalog.imageVariants.full);
 
-const requestSource = sourceBetween(
-  'function catalogImageVariant(catalog, tier)',
-  'function catalogImageTierRank(tier)'
-);
+const requestSource = [
+  sourceBetween(
+    sharedSource,
+    'function catalogImageVariant(catalog, tier)',
+    'function catalogCoverSrc(catalog)'
+  ),
+  sourceBetween(
+    viewerImageSource,
+    'function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zoom)',
+    'function refreshSingleViewerImageResolution(options = {})'
+  )
+].join('\n');
 
 function createRequestApi(mediumEnabled) {
   return new Function(
@@ -124,8 +136,8 @@ function createRequestApi(mediumEnabled) {
     'VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO',
     'VIEWER_FIT_WIDTH',
     'VIEWER_FIT_HEIGHT',
-    'state',
-    'els',
+    'viewerState',
+    'viewerElements',
     'window',
     'pageSize',
     'withAssetVersion',

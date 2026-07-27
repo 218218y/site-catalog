@@ -221,19 +221,26 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
     runtime_name = f"catalog-search.{hashlib.sha256(runtime_content).hexdigest()[:12]}.js"
     (static_dir / runtime_name).write_bytes(runtime_content)
 
-    app_content = b"window.test = true;\n"
     style_content = b"body {}\n"
-    app_name = f"app.{hashlib.sha256(app_content).hexdigest()[:12]}.js"
     style_name = f"styles.{hashlib.sha256(style_content).hexdigest()[:12]}.css"
-    (static_dir / app_name).write_bytes(app_content)
     (static_dir / style_name).write_bytes(style_content)
 
-    for html_name in MODULE.PUBLIC_HTML_FILES:
-        script = f"static/{app_name}"
+    route_scripts: dict[str, str] = {}
+    for stem in ("app-catalog", "app-favorites", "app-viewer"):
+        app_content = f"window.{stem.replace('-', '_')} = true;\n".encode("utf-8")
+        app_name = f"{stem}.{hashlib.sha256(app_content).hexdigest()[:12]}.js"
+        (static_dir / app_name).write_bytes(app_content)
+        route_scripts[stem] = app_name
+
+    for html_name in (*MODULE.PUBLIC_HTML_FILES, "viewer.html"):
+        stem = "app-favorites" if html_name == "favorites.html" else "app-viewer" if html_name == "viewer.html" else "app-catalog"
+        script = f"static/{route_scripts[stem]}"
         if missing_reference and missing_reference[0] == html_name:
             script = missing_reference[1]
         (bundle_dir / html_name).write_text(
-            f'<link rel="stylesheet" href="static/{style_name}">'            f'<script src="static/{runtime_name}"></script>'            f'<script src="{script}"></script>',
+            f'<link rel="stylesheet" href="static/{style_name}">'
+            f'<script src="static/{runtime_name}"></script>'
+            f'<script src="{script}"></script>',
             encoding="utf-8",
         )
 

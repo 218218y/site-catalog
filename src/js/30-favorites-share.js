@@ -6,7 +6,7 @@
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
-function favoriteIdentity(catalog = state.catalog, page = state.page) {
+function favoriteIdentity(catalog = navigationState.catalog, page = navigationState.page) {
   if (!catalog) return null;
   return {
     catalogId: String(catalog.id || ""),
@@ -213,54 +213,54 @@ function cleanFavoritesSelectionFromUrl() {
 }
 
 function syncFavoritesTransferDialogUi() {
-  const pending = state.favoritesTransferPending;
-  if (!pending || !els.favoritesTransferOverlay) return;
+  const pending = favoritesState.favoritesTransferPending;
+  if (!pending || !favoritesElements.favoritesTransferOverlay) return;
   const comparison = analyzeFavoriteItemMerge(pending.items, getValidFavoriteItems());
   const incomingCount = comparison.incomingItems.length;
   const currentCount = comparison.existingItems.length;
   const newCount = comparison.newItems.length;
   const alreadyExistingCount = comparison.alreadyExistingItems.length;
-  if (els.favoritesTransferTitle) els.favoritesTransferTitle.textContent = "רשימת מועדפים התקבלה";
-  if (els.favoritesTransferDescription) {
-    els.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת.";
+  if (favoritesElements.favoritesTransferTitle) favoritesElements.favoritesTransferTitle.textContent = "רשימת מועדפים התקבלה";
+  if (favoritesElements.favoritesTransferDescription) {
+    favoritesElements.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת.";
   }
-  if (els.favoritesTransferSummary) {
+  if (favoritesElements.favoritesTransferSummary) {
     const rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "";
     const existingLabel = alreadyExistingCount === 1 ? "קיים" : "קיימים";
     const newLabel = newCount === 1 ? "חדש" : "חדשים";
     const overlapText = alreadyExistingCount > 0
       ? `\nמתוכם ${alreadyExistingCount} ${existingLabel} ו-${newCount} ${newLabel}`
       : "";
-    els.favoritesTransferSummary.textContent = `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}${overlapText}`;
+    favoritesElements.favoritesTransferSummary.textContent = `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}${overlapText}`;
   }
 }
 
 function openFavoritesTransferDialog(transfer, returnFocus = document.activeElement) {
-  if (!transfer?.items?.length || !els.favoritesTransferOverlay) return false;
-  state.favoritesTransferPending = transfer;
-  state.favoritesTransferReturnFocus = returnFocus;
+  if (!transfer?.items?.length || !favoritesElements.favoritesTransferOverlay) return false;
+  favoritesState.favoritesTransferPending = transfer;
+  favoritesState.favoritesTransferReturnFocus = returnFocus;
   syncFavoritesTransferDialogUi();
-  els.favoritesTransferOverlay.classList.remove("hidden");
-  els.favoritesTransferOverlay.setAttribute("aria-hidden", "false");
+  favoritesElements.favoritesTransferOverlay.classList.remove("hidden");
+  favoritesElements.favoritesTransferOverlay.setAttribute("aria-hidden", "false");
   syncDocumentLock();
-  requestAnimationFrame(() => els.favoritesTransferMerge?.focus());
+  requestAnimationFrame(() => favoritesElements.favoritesTransferMerge?.focus());
   return true;
 }
 
 function closeFavoritesTransferDialog(options = {}) {
   const { restoreFocus = true, cleanUrl = false } = options;
-  const returnFocus = state.favoritesTransferReturnFocus;
-  state.favoritesTransferPending = null;
-  state.favoritesTransferReturnFocus = null;
-  els.favoritesTransferOverlay?.classList.add("hidden");
-  els.favoritesTransferOverlay?.setAttribute("aria-hidden", "true");
+  const returnFocus = favoritesState.favoritesTransferReturnFocus;
+  favoritesState.favoritesTransferPending = null;
+  favoritesState.favoritesTransferReturnFocus = null;
+  favoritesElements.favoritesTransferOverlay?.classList.add("hidden");
+  favoritesElements.favoritesTransferOverlay?.setAttribute("aria-hidden", "true");
   if (cleanUrl) cleanFavoritesSelectionFromUrl();
   syncDocumentLock();
   if (restoreFocus && returnFocus?.focus) returnFocus.focus();
 }
 
 function applyFavoritesTransfer(mode) {
-  const pending = state.favoritesTransferPending;
+  const pending = favoritesState.favoritesTransferPending;
   if (!pending?.items?.length || !favoritesStore) return;
   const timestamp = Date.now();
   const incoming = pending.items.map((item, index) => ({
@@ -281,7 +281,7 @@ function applyFavoritesTransfer(mode) {
     ? `${comparison.newItems.length} חדשים · ${comparison.alreadyExistingItems.length} כבר היו שמורים`
     : `${incoming.length} פריטים`;
   showActionToast(`הרשימה ${verb}: ${resultText}${rejectedText}`, { tone: "saved", duration: 2800 });
-  requestAnimationFrame(() => els.favoritesGrid?.querySelector(".favorite-card")?.focus?.());
+  requestAnimationFrame(() => favoritesElements.favoritesGrid?.querySelector(".favorite-card")?.focus?.());
 }
 
 function prepareIncomingFavoritesTransfer(transfer, options = {}) {
@@ -289,7 +289,7 @@ function prepareIncomingFavoritesTransfer(transfer, options = {}) {
   if (!transfer?.valid || !transfer.items.length || !favoritesStore) return false;
   const currentItems = getValidFavoriteItems();
   if (!currentItems.length) {
-    state.favoritesTransferPending = transfer;
+    favoritesState.favoritesTransferPending = transfer;
     applyFavoritesTransfer("replace");
     return true;
   }
@@ -307,32 +307,37 @@ function processFavoritesSelectionFromUrl() {
     showActionToast("הקישור אינו מכיל רשימת בחירה תקינה");
     return;
   }
-  prepareIncomingFavoritesTransfer({ ...parsed, source: "link" }, { returnFocus: els.favoritesShareButton });
+  prepareIncomingFavoritesTransfer({ ...parsed, source: "link" }, { returnFocus: favoritesElements.favoritesShareButton });
 }
 
 function syncFavoritesShareButton(count = getFavoriteEntries().length) {
-  if (!els.favoritesShareButton) return;
+  if (!favoritesElements.favoritesShareButton) return;
   const hasItems = count > 0;
-  els.favoritesShareButton.disabled = !hasItems;
-  els.favoritesShareButton.setAttribute("aria-label", hasItems
+  favoritesElements.favoritesShareButton.disabled = !hasItems;
+  favoritesElements.favoritesShareButton.setAttribute("aria-label", hasItems
     ? `העתקת קישור לרשימת המועדפים, ${count} עמודים שמורים`
     : "העתקת קישור לרשימת המועדפים — אין עדיין עמודים שמורים");
 }
 
 async function shareFavoritesList() {
-  await copyFavoriteWorkspaceLink(favoriteWorkspaceShareLinkEntries(), els.favoritesShareButton);
+  const workspace = getFeatureInterface("favorites-workspace");
+  if (!workspace?.copyShareLink || !workspace?.shareLinkEntries) return;
+  await workspace.copyShareLink(
+    workspace.shareLinkEntries(),
+    favoritesElements.favoritesShareButton
+  );
 }
 
 function handleFavoritesTransferKeydown(event) {
-  if (!state.favoritesTransferPending || !els.favoritesTransferOverlay) return;
+  if (!favoritesState.favoritesTransferPending || !favoritesElements.favoritesTransferOverlay) return;
   if (event.key === "Escape") {
     event.preventDefault();
     event.stopPropagation();
-    closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" });
+    closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" });
     return;
   }
   if (event.key !== "Tab") return;
-  const focusable = Array.from(els.favoritesTransferOverlay.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'));
+  const focusable = Array.from(favoritesElements.favoritesTransferOverlay.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'));
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
@@ -346,7 +351,7 @@ function handleFavoritesTransferKeydown(event) {
 }
 
 function isFavoritesLightboxMode() {
-  return state.lightboxSource === LIGHTBOX_SOURCE_FAVORITES;
+  return navigationState.lightboxSource === LIGHTBOX_SOURCE_FAVORITES;
 }
 
 function findFavoriteEntryIndex(entries, catalogId, page) {
@@ -362,30 +367,31 @@ function setFavoriteViewerEntry(entries, index) {
   if (!entries.length) return false;
   const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
   const entry = entries[nextIndex];
-  state.favoritesViewerIndex = nextIndex;
-  state.catalog = entry.catalog;
-  state.page = entry.page;
+  favoritesState.favoritesViewerIndex = nextIndex;
+  navigationState.catalog = entry.catalog;
+  navigationState.page = entry.page;
   return true;
 }
 
 function syncFavoriteViewerAfterStoreChange(options = {}) {
-  if (!isViewerSessionOpen() || !isFavoritesLightboxMode()) return;
+  const viewer = getFeatureInterface("viewer");
+  if (!viewer?.isViewerOpen?.() || !isFavoritesLightboxMode()) return;
 
-  const { preferredIndex = state.favoritesViewerIndex } = options;
+  const { preferredIndex = favoritesState.favoritesViewerIndex } = options;
   const entries = getFavoriteEntries();
   if (!entries.length) {
-    closeLightbox({ restoreFavorites: true });
+    viewer.close?.({ restoreFavorites: true });
     return;
   }
 
-  const currentIndex = findFavoriteEntryIndex(entries, state.catalog?.id, state.page);
+  const currentIndex = findFavoriteEntryIndex(entries, navigationState.catalog?.id, navigationState.page);
   setFavoriteViewerEntry(entries, currentIndex >= 0 ? currentIndex : preferredIndex);
-  renderLightboxPageRail();
-  updateLightbox({ thumbScrollIntoView: true });
+  viewer.renderPageRail?.();
+  viewer.refresh?.({ thumbScrollIntoView: true });
 }
 
 function syncViewerFavoriteButtonUi() {
-  const button = els.viewerFavoriteButton;
+  const button = favoritesElements.viewerFavoriteButton;
   if (!button) return;
   const identity = favoriteIdentity();
   const isFavorite = Boolean(identity && favoritesStore?.has(identity));
@@ -399,7 +405,7 @@ function syncViewerFavoriteButtonUi() {
 }
 
 function renderFavoritesPanel(entries = getFavoriteEntries()) {
-  renderFavoritesWorkspace(entries);
+  getFeatureInterface("favorites-workspace")?.render?.(entries);
 }
 
 function syncFavoritesShortcut(button, countElement, count) {
@@ -410,20 +416,20 @@ function syncFavoritesShortcut(button, countElement, count) {
 }
 
 function syncFavoritesUi(options = {}) {
-  const { renderPanel = state.favoritesOpen } = options;
+  const { renderPanel = favoritesState.favoritesOpen } = options;
   const entries = getFavoriteEntries();
-  pruneFavoritesWorkspaceState(entries);
+  getFeatureInterface("favorites-workspace")?.prune?.(entries);
   const count = entries.length;
-  syncFavoritesShortcut(els.headerFavoritesButton, els.headerFavoritesCount, count);
-  syncFavoritesShortcut(els.lightboxFavoritesButton, els.lightboxFavoritesCount, count);
-  els.lightboxFavoritesSeparator?.classList.toggle("hidden", count === 0);
-  els.lightboxFavoritesSeparator?.setAttribute("aria-hidden", count === 0 ? "true" : "false");
+  syncFavoritesShortcut(shellElements.headerFavoritesButton, shellElements.headerFavoritesCount, count);
+  syncFavoritesShortcut(favoritesElements.lightboxFavoritesButton, favoritesElements.lightboxFavoritesCount, count);
+  favoritesElements.lightboxFavoritesSeparator?.classList.toggle("hidden", count === 0);
+  favoritesElements.lightboxFavoritesSeparator?.setAttribute("aria-hidden", count === 0 ? "true" : "false");
   syncViewerFavoriteButtonUi();
   syncFavoritesShareButton(count);
   if (renderPanel) {
     renderFavoritesPanel(entries);
-    if (state.favoritesOpen && entries.length === 0) {
-      requestAnimationFrame(() => els.favoritesCloseButton?.focus());
+    if (favoritesState.favoritesOpen && entries.length === 0) {
+      requestAnimationFrame(() => favoritesElements.favoritesCloseButton?.focus());
     }
   }
 }
@@ -437,31 +443,31 @@ function openFavoritesPanel(options = {}) {
     return;
   }
 
-  if (!els.favoritesPanel || (!allowEmpty && !entries.length)) return;
-  if (captureReturnFocus) state.favoritesReturnFocus = document.activeElement;
-  state.favoritesOpen = true;
+  if (!favoritesElements.favoritesPanel || (!allowEmpty && !entries.length)) return;
+  if (captureReturnFocus) favoritesState.favoritesReturnFocus = document.activeElement;
+  favoritesState.favoritesOpen = true;
   renderFavoritesPanel(entries);
-  els.favoritesPanel.classList.remove("hidden");
-  els.favoritesPanel.classList.add("favorites-standalone-page");
-  els.favoritesPanel.setAttribute("aria-hidden", "false");
-  els.favoritesPanel.setAttribute("aria-modal", "false");
+  favoritesElements.favoritesPanel.classList.remove("hidden");
+  favoritesElements.favoritesPanel.classList.add("favorites-standalone-page");
+  favoritesElements.favoritesPanel.setAttribute("aria-hidden", "false");
+  favoritesElements.favoritesPanel.setAttribute("aria-modal", "false");
   syncDocumentLock();
   updateDocumentMetadata();
 }
 
 function hideFavoritesPanelUi(options = {}) {
   const { restoreFocus = false, preserveReturnFocus = false } = options;
-  const returnFocus = state.favoritesReturnFocus;
+  const returnFocus = favoritesState.favoritesReturnFocus;
 
-  state.favoritesOpen = false;
-  els.favoritesPanel?.classList.add("hidden");
-  els.favoritesPanel?.classList.remove("favorites-standalone-page");
-  els.favoritesPanel?.setAttribute("aria-hidden", "true");
-  els.favoritesPanel?.setAttribute("aria-modal", "true");
+  favoritesState.favoritesOpen = false;
+  favoritesElements.favoritesPanel?.classList.add("hidden");
+  favoritesElements.favoritesPanel?.classList.remove("favorites-standalone-page");
+  favoritesElements.favoritesPanel?.setAttribute("aria-hidden", "true");
+  favoritesElements.favoritesPanel?.setAttribute("aria-modal", "true");
   syncDocumentLock();
 
   if (restoreFocus && returnFocus?.focus) returnFocus.focus();
-  if (!preserveReturnFocus) state.favoritesReturnFocus = null;
+  if (!preserveReturnFocus) favoritesState.favoritesReturnFocus = null;
 }
 
 function closeFavoritesPanel(options = {}) {
@@ -471,7 +477,7 @@ function closeFavoritesPanel(options = {}) {
     else navigateTo(homeDocumentUrl(), { replace: true });
     return;
   }
-  if (!state.favoritesOpen) return;
+  if (!favoritesState.favoritesOpen) return;
   hideFavoritesPanelUi({ restoreFocus, preserveReturnFocus });
 }
 
@@ -485,11 +491,11 @@ function openFavoriteViewer(catalogId, page) {
     return;
   }
 
-  state.favoritesViewerOpeningHash = window.location.href;
-  state.favoritesViewerPreviousCatalog = state.catalog;
-  state.favoritesViewerPreviousPage = state.page;
+  favoritesState.favoritesViewerOpeningHash = window.location.href;
+  favoritesState.favoritesViewerPreviousCatalog = navigationState.catalog;
+  favoritesState.favoritesViewerPreviousPage = navigationState.page;
   setFavoriteViewerEntry(entries, index);
-  openLightbox(state.page, {
+  getFeatureInterface("viewer")?.openCatalog?.(catalogId, page, {
     source: LIGHTBOX_SOURCE_FAVORITES,
     favoriteIndex: index
   });
@@ -498,16 +504,16 @@ function openFavoriteViewer(catalogId, page) {
 function toggleCurrentPageFavorite() {
   const identity = favoriteIdentity();
   if (!identity || !favoritesStore) return;
-  const previousFavoriteIndex = state.favoritesViewerIndex;
+  const previousFavoriteIndex = favoritesState.favoritesViewerIndex;
   const added = favoritesStore.toggle({ ...identity, savedAt: Date.now() });
   telemetryTrackFavorite(added ? "add" : "remove", identity.catalogId, identity.page, getFavoriteEntries().length);
   syncFavoritesUi({ renderPanel: true });
   if (isFavoritesLightboxMode() && !added) {
     syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
   }
-  if (isViewerSessionOpen()) {
+  if (getFeatureInterface("viewer")?.isViewerOpen?.()) {
     const feedback = added ? "נשמר" : "הוסר";
-    flashActionButton(els.viewerFavoriteButton, feedback);
+    flashActionButton(favoritesElements.viewerFavoriteButton, feedback);
     showActionToast(feedback, { tone: added ? "saved" : "removed" });
   }
 }
@@ -516,7 +522,7 @@ function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
   const removed = favoritesStore.remove({ catalogId, page });
   if (removed !== false) {
-    state.favoritesSelectedKeys.delete(favoriteItemKey({ catalogId, page }));
+    favoritesState.favoritesSelectedKeys.delete(favoriteItemKey({ catalogId, page }));
     telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
   }
   syncFavoritesUi({ renderPanel: true });
@@ -527,17 +533,17 @@ function clearAllFavorites() {
   if (!favoritesStore || !getFavoriteEntries().length) return;
   if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
   favoritesStore.clear();
-  state.favoritesSelectedKeys.clear();
-  state.favoritesFilterCatalogId = "";
+  favoritesState.favoritesSelectedKeys.clear();
+  favoritesState.favoritesFilterCatalogId = "";
   telemetryTrackFavorite("clear", "", 0, 0);
   syncFavoritesUi({ renderPanel: true });
   showActionToast("כל המועדפים הוסרו", { tone: "removed" });
 }
 
 function handleFavoritesGridClick(event) {
-  if (handleFavoritesWorkspaceGridClick(event)) return;
+  if (getFeatureInterface("favorites-workspace")?.handleGridClick?.(event)) return;
   const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
-  if (!card || !els.favoritesGrid?.contains(card)) return;
+  if (!card || !favoritesElements.favoritesGrid?.contains(card)) return;
   const catalogId = card.dataset.favoriteCatalog;
   const page = Number.parseInt(card.dataset.favoritePage, 10);
   if (event.target.closest?.("[data-remove-favorite]")) {
@@ -550,15 +556,15 @@ function handleFavoritesGridClick(event) {
 function handleFavoritesStorageChange(event) {
   if (!favoritesStore || (event.key !== null && event.key !== favoritesStore.storageKey)) return;
   favoritesStore.reload();
-  pruneFavoritesWorkspaceState(getFavoriteEntries());
+  getFeatureInterface("favorites-workspace")?.prune?.(getFavoriteEntries());
   syncFavoritesUi({ renderPanel: true });
-  if (state.favoritesTransferPending) syncFavoritesTransferDialogUi();
+  if (favoritesState.favoritesTransferPending) syncFavoritesTransferDialogUi();
   syncFavoriteViewerAfterStoreChange();
 }
 
 function handleFavoritesPanelKeydown(event) {
-  if (!state.favoritesOpen || event.key !== "Tab" || !els.favoritesPanel) return;
-  const focusable = Array.from(els.favoritesPanel.querySelectorAll(
+  if (!favoritesState.favoritesOpen || event.key !== "Tab" || !favoritesElements.favoritesPanel) return;
+  const focusable = Array.from(favoritesElements.favoritesPanel.querySelectorAll(
     'button:not([disabled]):not(.hidden), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )).filter((element) => !element.closest?.(".hidden"));
   if (!focusable.length) return;
@@ -594,11 +600,6 @@ async function copyTextToClipboard(value) {
   input.remove();
 }
 
-function downloadCurrentLightboxImage() {
-  if (!state.catalog) return;
-  downloadCatalogPageSnapshot(state.catalog, state.page, els.lightboxScreenshot);
-}
-
 function isMobileShareEnvironment() {
   if (typeof navigator.share !== "function") return false;
   const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
@@ -608,8 +609,8 @@ function isMobileShareEnvironment() {
 }
 
 function currentShareLabel() {
-  if (state.catalog && isAppPage("viewer")) return `${state.catalog.title} · עמוד ${state.page}`;
-  if (state.catalog && isAppPage("catalog")) return state.catalog.title;
+  if (navigationState.catalog && isAppPage("viewer")) return `${navigationState.catalog.title} · עמוד ${navigationState.page}`;
+  if (navigationState.catalog && isAppPage("catalog")) return navigationState.catalog.title;
   if (isAppPage("favorites")) return "המועדפים שלי · רהיטי ברגיג";
   return "קטלוגי רהיטי ברגיג";
 }
@@ -641,29 +642,52 @@ async function shareOrCopyCurrentLink(button) {
 }
 
 async function shareCurrentMainHeaderLink() {
-  await shareOrCopyCurrentLink(els.headerCopyLink);
-}
-
-async function shareCurrentLightboxLink() {
-  await shareOrCopyCurrentLink(els.lightboxCopyLink);
+  await shareOrCopyCurrentLink(shellElements.headerCopyLink);
 }
 
 function attachFavoritesShareEvents() {
-  els.headerCopyLink?.addEventListener("click", () => shareCurrentMainHeaderLink());
-  els.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
-  els.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
-  els.favoritesClearButton?.addEventListener("click", clearAllFavorites);
-  els.favoritesShareButton?.addEventListener("click", () => shareFavoritesList());
-  els.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
-  attachFavoritesWorkspaceEvents();
-  els.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
-  els.favoritesTransferBackdrop?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
-  els.favoritesTransferCancel?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: state.favoritesTransferPending?.source === "link" }));
-  els.favoritesTransferMerge?.addEventListener("click", () => applyFavoritesTransfer("merge"));
-  els.favoritesTransferReplace?.addEventListener("click", () => applyFavoritesTransfer("replace"));
-  els.favoritesTransferOverlay?.addEventListener("keydown", handleFavoritesTransferKeydown);
-  els.lightboxScreenshot?.addEventListener("click", () => downloadCurrentLightboxImage());
-  els.lightboxCopyLink?.addEventListener("click", () => shareCurrentLightboxLink());
+  shellElements.headerCopyLink?.addEventListener("click", () => shareCurrentMainHeaderLink());
+  favoritesElements.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
+  favoritesElements.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
+  favoritesElements.favoritesClearButton?.addEventListener("click", clearAllFavorites);
+  favoritesElements.favoritesShareButton?.addEventListener("click", () => shareFavoritesList());
+  favoritesElements.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
+  const workspace = getFeatureInterface("favorites-workspace");
+  if (workspace?.attachEvents) {
+    bindFeatureEventsOnce("favorites-workspace", workspace.attachEvents);
+  }
+  favoritesElements.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
+  favoritesElements.favoritesTransferBackdrop?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" }));
+  favoritesElements.favoritesTransferCancel?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" }));
+  favoritesElements.favoritesTransferMerge?.addEventListener("click", () => applyFavoritesTransfer("merge"));
+  favoritesElements.favoritesTransferReplace?.addEventListener("click", () => applyFavoritesTransfer("replace"));
+  favoritesElements.favoritesTransferOverlay?.addEventListener("keydown", handleFavoritesTransferKeydown);
 
   window.addEventListener("storage", handleFavoritesStorageChange);
 }
+
+registerFeatureInterface("favorites", {
+  escapePriority: 500,
+  requiresDocumentLock: () => Boolean(
+    (favoritesState.favoritesOpen && !isAppPage("favorites")) ||
+    favoritesState.favoritesTransferPending ||
+    favoritesState.favoriteNoteEditingKey
+  ),
+  closeTopLayer: () => {
+    if (favoritesState.favoriteNoteEditingKey) {
+      getFeatureInterface("favorites-workspace")?.closeNoteEditor?.();
+      return true;
+    }
+    if (favoritesState.favoritesTransferPending) {
+      closeFavoritesTransferDialog({
+        cleanUrl: favoritesState.favoritesTransferPending?.source === "link"
+      });
+      return true;
+    }
+    if (favoritesState.favoritesOpen) {
+      closeFavoritesPanel();
+      return true;
+    }
+    return false;
+  }
+});

@@ -3,11 +3,12 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { readAllBundles, readAllCssBundles } = require("./frontend_test_assets");
 
 const root = path.join(__dirname, "..");
-const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
-assert.doesNotMatch(app, /setTooltipText\(els\.viewerInquiryButton/, "inquiry button must not be registered with the tooltip manager");
-const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
+const app = readAllBundles();
+assert.doesNotMatch(app, /setTooltipText\(viewerElements\.viewerInquiryButton/, "inquiry button must not be registered with the tooltip manager");
+const css = readAllCssBundles();
 const template = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
 
 for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.html"]) {
@@ -39,8 +40,8 @@ assert.match(template, /data-viewer-mobile-action="fit-height"/);
 assert.match(template, /data-viewer-mobile-action="fit-width"/);
 assert.match(template, /id="viewerMobileFavoritesLink"/);
 
-assert.match(app, /function viewerPageInquiryReference\(\)[\s\S]*?viewerDocumentUrl\(state\.catalog\.id, page\)/);
-assert.match(app, /function viewerInquiryReference\(\)[\s\S]*?state\.viewerInquiryContext\?\.reference \|\| viewerPageInquiryReference\(\)/);
+assert.match(app, /function viewerPageInquiryReference\(\)[\s\S]*?viewerDocumentUrl\(navigationState\.catalog\.id, page\)/);
+assert.match(app, /function viewerInquiryReference\(\)[\s\S]*?viewerState\.viewerInquiryContext\?\.reference \|\| viewerPageInquiryReference\(\)/);
 assert.match(app, /`קטלוג: \$\{title\}`/);
 assert.match(app, /`עמוד: \$\{page\}`/);
 assert.match(app, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryCatalog\.textContent = reference\.referenceTitle \|\| reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);

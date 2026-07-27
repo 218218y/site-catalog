@@ -61,7 +61,7 @@ let momentumStops = 0;
 const zoomCalls = [];
 const state = { viewerPhase: 'open', zoom: 1 };
 const handleZoomSurfaceWheel = new Function(
-  'state',
+  'viewerState',
   'isViewerSessionOpen',
   'isActiveZoomSurface',
   'stopViewerTouchMomentum',

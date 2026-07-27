@@ -49,11 +49,15 @@
     "check:node-tools": "node tools/check_node_install_scripts.js",
     "postinstall": "node tools/check_node_install_scripts.js",
     "verify:r2:origin": "python tools/verify_remote_catalog_assets.py --base-url https://cdn.bargig-furniture.com --all-tiers",
-    "test:search-performance": "node tests/catalog_search_worker.test.js"
+    "test:search-performance": "node tests/catalog_search_worker.test.js",
+    "check:frontend-contracts": "python tools/check_frontend_contracts.py",
+    "check:types": "tsc -p jsconfig.json --pretty false",
+    "check:runtime-symbols": "node tools/check_frontend_runtime_symbols.js"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",
-    "wrangler": "4.112.0"
+    "wrangler": "4.112.0",
+    "typescript": "5.8.3"
   },
   "allowScripts": {
     "esbuild": true,

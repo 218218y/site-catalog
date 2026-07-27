@@ -23,11 +23,11 @@ function viewerInquiryEmailAddress() {
 }
 
 function viewerPageInquiryReference() {
-  if (!state.catalog) return null;
-  const page = clampPage(state.page, state.catalog);
-  const url = absoluteDocumentUrl(viewerDocumentUrl(state.catalog.id, page));
-  const title = String(state.catalog.title || "קטלוג").trim() || "קטלוג";
-  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(state.catalog.pages) || 1)}`;
+  if (!navigationState.catalog) return null;
+  const page = clampPage(navigationState.page, navigationState.catalog);
+  const url = absoluteDocumentUrl(viewerDocumentUrl(navigationState.catalog.id, page));
+  const title = String(navigationState.catalog.title || "קטלוג").trim() || "קטלוג";
+  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(navigationState.catalog.pages) || 1)}`;
   const subject = `בירור על דגם – ${title}, עמוד ${page}`;
   const shareText = [
     "שלום,",
@@ -39,7 +39,7 @@ function viewerPageInquiryReference() {
   return {
     kind: "viewer",
     source: "viewer-inquiry",
-    catalog: state.catalog,
+    catalog: navigationState.catalog,
     page,
     title: "בירור על הדגם",
     eyebrow: "פרטי העמוד מצורפים אוטומטית",
@@ -50,18 +50,18 @@ function viewerPageInquiryReference() {
     shareText,
     text,
     url,
-    previewCatalog: state.catalog,
+    previewCatalog: navigationState.catalog,
     previewPage: page,
     telemetry: {
       source: "viewer-inquiry",
-      catalogId: state.catalog.id,
+      catalogId: navigationState.catalog.id,
       pageNumber: page
     }
   };
 }
 
 function viewerInquiryReference() {
-  return state.viewerInquiryContext?.reference || viewerPageInquiryReference();
+  return viewerState.viewerInquiryContext?.reference || viewerPageInquiryReference();
 }
 
 function viewerInquiryGmailUrl(emailAddress, reference) {
@@ -121,26 +121,26 @@ function syncViewerInquiryContactLink(link, href, reference, action) {
 function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   if (!reference) return;
 
-  if (els.viewerInquiryEyebrow) els.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית";
-  if (els.viewerInquiryTitle) els.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם";
-  if (els.viewerInquiryDescription) els.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.";
-  if (els.viewerInquiryCatalog) els.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title;
-  if (els.viewerInquiryPage) els.viewerInquiryPage.textContent = reference.pageLabel || "";
-  els.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites");
+  if (viewerElements.viewerInquiryEyebrow) viewerElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית";
+  if (viewerElements.viewerInquiryTitle) viewerElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם";
+  if (viewerElements.viewerInquiryDescription) viewerElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.";
+  if (viewerElements.viewerInquiryCatalog) viewerElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title;
+  if (viewerElements.viewerInquiryPage) viewerElements.viewerInquiryPage.textContent = reference.pageLabel || "";
+  viewerElements.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites");
 
-  if (els.viewerInquiryButton && reference.kind === "viewer") {
+  if (viewerElements.viewerInquiryButton && reference.kind === "viewer") {
     const label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
-    els.viewerInquiryButton.setAttribute("aria-label", label);
+    viewerElements.viewerInquiryButton.setAttribute("aria-label", label);
   }
 
   const previewCatalog = reference.previewCatalog || reference.catalog;
   const previewPage = Number(reference.previewPage || reference.page) || 1;
-  if (els.viewerInquiryPreview && previewCatalog) {
+  if (viewerElements.viewerInquiryPreview && previewCatalog) {
     const preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
-    if (els.viewerInquiryPreview.getAttribute("src") !== preview) {
-      els.viewerInquiryPreview.src = preview;
+    if (viewerElements.viewerInquiryPreview.getAttribute("src") !== preview) {
+      viewerElements.viewerInquiryPreview.src = preview;
     }
-    els.viewerInquiryPreview.alt = reference.kind === "favorites"
+    viewerElements.viewerInquiryPreview.alt = reference.kind === "favorites"
       ? `תצוגה מקדימה של ${reference.referenceTitle}`
       : `${reference.referenceTitle}, עמוד ${previewPage}`;
   }
@@ -148,13 +148,13 @@ function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   const emailAddress = viewerInquiryEmailAddress();
   const emailAvailable = Boolean(emailAddress);
   syncViewerInquiryContactLink(
-    els.viewerInquiryEmail,
+    viewerElements.viewerInquiryEmail,
     emailAvailable ? viewerInquiryMailtoUrl(emailAddress, reference) : "",
     reference,
     "email"
   );
   syncViewerInquiryContactLink(
-    els.viewerInquiryGmail,
+    viewerElements.viewerInquiryGmail,
     emailAvailable ? viewerInquiryGmailUrl(emailAddress, reference) : "",
     reference,
     "gmail"
@@ -162,65 +162,65 @@ function syncViewerInquiryUi(reference = viewerInquiryReference()) {
 }
 
 function setViewerInquiryTriggerState(open, activeTrigger = null) {
-  [els.viewerInquiryButton, els.favoritesInquiryButton].forEach((button) => {
+  [viewerElements.viewerInquiryButton, favoritesElements.favoritesInquiryButton].forEach((button) => {
     if (!button) return;
     button.setAttribute("aria-expanded", open && button === activeTrigger ? "true" : "false");
   });
 }
 
 function getViewerInquiryFocusableElements() {
-  if (!els.viewerInquiryOverlay) return [];
-  return Array.from(els.viewerInquiryOverlay.querySelectorAll(
+  if (!viewerElements.viewerInquiryOverlay) return [];
+  return Array.from(viewerElements.viewerInquiryOverlay.querySelectorAll(
     'button:not([disabled]), a[href]:not(.hidden), [tabindex]:not([tabindex="-1"])'
   )).filter((element) => !element.closest?.(".hidden"));
 }
 
 function openViewerInquiry(options = {}) {
   const reference = options.reference || viewerPageInquiryReference();
-  if (!reference || !els.viewerInquiryOverlay) return;
-  if (state.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
+  if (!reference || !viewerElements.viewerInquiryOverlay) return;
+  if (viewerState.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
   if (isViewerSessionOpen()) {
     closeViewerMobileMoreMenu();
-    if (state.lightboxMobileSearchOpen) {
-      setLightboxMobileSearchOpen(false, { hideResults: true });
+    if (getFeatureInterface("search")?.isLightboxMobileOpen?.()) {
+      getFeatureInterface("search")?.setLightboxMobileOpen?.(false, { hideResults: true });
     }
   }
 
-  const returnFocus = options.returnFocus || document.activeElement || els.viewerInquiryButton;
-  state.viewerInquiryContext = { reference, trigger: returnFocus };
-  state.viewerInquiryOpen = true;
-  state.viewerInquiryReturnFocus = returnFocus;
+  const returnFocus = options.returnFocus || document.activeElement || viewerElements.viewerInquiryButton;
+  viewerState.viewerInquiryContext = { reference, trigger: returnFocus };
+  viewerState.viewerInquiryOpen = true;
+  viewerState.viewerInquiryReturnFocus = returnFocus;
   syncViewerInquiryUi(reference);
-  els.viewerInquiryOverlay.classList.remove("hidden");
-  els.viewerInquiryOverlay.setAttribute("aria-hidden", "false");
+  viewerElements.viewerInquiryOverlay.classList.remove("hidden");
+  viewerElements.viewerInquiryOverlay.setAttribute("aria-hidden", "false");
   setViewerInquiryTriggerState(true, returnFocus);
   syncDocumentLock();
   window.requestAnimationFrame(() => {
-    if (!state.viewerInquiryOpen) return;
-    els.viewerInquiryOverlay?.classList.add("visible");
-    (els.viewerInquiryClose || getViewerInquiryFocusableElements()[0])?.focus?.({ preventScroll: true });
+    if (!viewerState.viewerInquiryOpen) return;
+    viewerElements.viewerInquiryOverlay?.classList.add("visible");
+    (viewerElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0])?.focus?.({ preventScroll: true });
   });
 }
 
 function closeViewerInquiry(options = {}) {
-  if (!state.viewerInquiryOpen && els.viewerInquiryOverlay?.classList.contains("hidden")) return;
+  if (!viewerState.viewerInquiryOpen && viewerElements.viewerInquiryOverlay?.classList.contains("hidden")) return;
   const { restoreFocus = true } = options;
-  const returnFocus = state.viewerInquiryReturnFocus;
-  state.viewerInquiryOpen = false;
-  state.viewerInquiryReturnFocus = null;
-  state.viewerInquiryContext = null;
-  els.viewerInquiryOverlay?.classList.remove("visible");
-  els.viewerInquiryOverlay?.setAttribute("aria-hidden", "true");
+  const returnFocus = viewerState.viewerInquiryReturnFocus;
+  viewerState.viewerInquiryOpen = false;
+  viewerState.viewerInquiryReturnFocus = null;
+  viewerState.viewerInquiryContext = null;
+  viewerElements.viewerInquiryOverlay?.classList.remove("visible");
+  viewerElements.viewerInquiryOverlay?.setAttribute("aria-hidden", "true");
   setViewerInquiryTriggerState(false);
   syncDocumentLock();
   window.setTimeout(() => {
-    if (!state.viewerInquiryOpen) els.viewerInquiryOverlay?.classList.add("hidden");
+    if (!viewerState.viewerInquiryOpen) viewerElements.viewerInquiryOverlay?.classList.add("hidden");
   }, 180);
-  if (restoreFocus) (returnFocus || els.viewerInquiryButton)?.focus?.({ preventScroll: true });
+  if (restoreFocus) (returnFocus || viewerElements.viewerInquiryButton)?.focus?.({ preventScroll: true });
 }
 
 function handleViewerInquiryKeydown(event) {
-  if (!state.viewerInquiryOpen) return false;
+  if (!viewerState.viewerInquiryOpen) return false;
   if (event.key === "Escape") {
     event.preventDefault();
     event.stopPropagation();
@@ -308,9 +308,9 @@ async function shareViewerInquiryReference() {
 }
 
 function syncViewerMobileMoreMenuState() {
-  const menu = els.viewerMobileMoreMenu;
+  const menu = viewerElements.viewerMobileMoreMenu;
   if (!menu) return;
-  const fitMode = normalizeViewerFitMode(state.imageFitMode);
+  const fitMode = normalizeViewerFitMode(viewerState.imageFitMode);
   const automatic = viewerUsesAutomaticFitMode();
   const pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]');
   const autoItem = menu.querySelector('[data-viewer-mobile-action="fit-auto"]');
@@ -318,35 +318,35 @@ function syncViewerMobileMoreMenuState() {
   const widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]');
   const pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
 
-  pinItem?.setAttribute("aria-checked", state.topUiPinned ? "true" : "false");
-  pinItem?.classList.toggle("active", state.topUiPinned);
-  if (pinLabel) pinLabel.textContent = state.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
+  pinItem?.setAttribute("aria-checked", viewerState.topUiPinned ? "true" : "false");
+  pinItem?.classList.toggle("active", viewerState.topUiPinned);
+  if (pinLabel) pinLabel.textContent = viewerState.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
   autoItem?.setAttribute("aria-checked", automatic ? "true" : "false");
   autoItem?.classList.toggle("active", automatic);
   heightItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
   heightItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_HEIGHT);
   widthItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
   widthItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_WIDTH);
-  if (els.viewerMobileFavoritesLink) els.viewerMobileFavoritesLink.href = favoritesDocumentUrl();
+  if (favoritesElements.viewerMobileFavoritesLink) favoritesElements.viewerMobileFavoritesLink.href = favoritesDocumentUrl();
 }
 
 function setViewerMobileMoreOpen(open, options = {}) {
   const shouldOpen = Boolean(open && isViewerSessionOpen() && isMobileViewerToolbarMode());
-  state.viewerMobileMoreOpen = shouldOpen;
+  viewerState.viewerMobileMoreOpen = shouldOpen;
   syncViewerMobileMoreMenuState();
-  els.viewerMobileMoreMenu?.classList.toggle("hidden", !shouldOpen);
-  els.viewerMobileMoreMenu?.classList.toggle("visible", shouldOpen);
-  els.viewerMobileMoreToggle?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-  els.viewerMobileMoreToggle?.classList.toggle("is-active", shouldOpen);
-  els.lightbox?.classList.toggle("mobile-more-open", shouldOpen);
+  viewerElements.viewerMobileMoreMenu?.classList.toggle("hidden", !shouldOpen);
+  viewerElements.viewerMobileMoreMenu?.classList.toggle("visible", shouldOpen);
+  viewerElements.viewerMobileMoreToggle?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  viewerElements.viewerMobileMoreToggle?.classList.toggle("is-active", shouldOpen);
+  viewerElements.lightbox?.classList.toggle("mobile-more-open", shouldOpen);
 
   if (shouldOpen) {
     showTopUiTemporarily(0);
     window.requestAnimationFrame(() => {
-      els.viewerMobileMoreMenu?.querySelector('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]')?.focus?.({ preventScroll: true });
+      viewerElements.viewerMobileMoreMenu?.querySelector('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]')?.focus?.({ preventScroll: true });
     });
   } else if (options.returnFocus) {
-    els.viewerMobileMoreToggle?.focus?.({ preventScroll: true });
+    viewerElements.viewerMobileMoreToggle?.focus?.({ preventScroll: true });
   }
 }
 
@@ -355,14 +355,14 @@ function closeViewerMobileMoreMenu(options = {}) {
 }
 
 function getViewerMobileMoreItems() {
-  if (!els.viewerMobileMoreMenu) return [];
-  return Array.from(els.viewerMobileMoreMenu.querySelectorAll(
+  if (!viewerElements.viewerMobileMoreMenu) return [];
+  return Array.from(viewerElements.viewerMobileMoreMenu.querySelectorAll(
     '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'
   )).filter((item) => !item.classList.contains("hidden") && item.getAttribute("aria-hidden") !== "true");
 }
 
 function handleViewerMobileMoreKeydown(event) {
-  if (!state.viewerMobileMoreOpen) return;
+  if (!viewerState.viewerMobileMoreOpen) return;
   const items = getViewerMobileMoreItems();
   if (!items.length) return;
 
@@ -380,7 +380,7 @@ function handleViewerMobileMoreKeydown(event) {
 
 function handleViewerMobileMoreAction(event) {
   const item = event.target.closest?.("[data-viewer-mobile-action]");
-  if (!item || !els.viewerMobileMoreMenu?.contains(item)) return;
+  if (!item || !viewerElements.viewerMobileMoreMenu?.contains(item)) return;
   event.preventDefault();
   event.stopPropagation();
   const action = item.dataset.viewerMobileAction;
@@ -396,32 +396,32 @@ function handleViewerMobileMoreAction(event) {
 }
 
 function attachViewerActionEvents() {
-  els.viewerInquiryButton?.addEventListener("click", (event) => {
+  viewerElements.viewerInquiryButton?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    openViewerInquiry({ returnFocus: els.viewerInquiryButton });
+    openViewerInquiry({ returnFocus: viewerElements.viewerInquiryButton });
   });
-  els.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
-  els.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
-  els.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference());
-  els.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference());
-  els.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown);
-  [els.viewerInquiryGmail, els.viewerInquiryEmail].forEach((link) => {
+  viewerElements.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
+  viewerElements.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
+  viewerElements.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference());
+  viewerElements.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference());
+  viewerElements.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown);
+  [viewerElements.viewerInquiryGmail, viewerElements.viewerInquiryEmail].forEach((link) => {
     link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: false }), 0));
   });
 
-  els.viewerMobileMoreToggle?.addEventListener("click", (event) => {
+  viewerElements.viewerMobileMoreToggle?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setViewerMobileMoreOpen(!state.viewerMobileMoreOpen, { returnFocus: state.viewerMobileMoreOpen });
+    setViewerMobileMoreOpen(!viewerState.viewerMobileMoreOpen, { returnFocus: viewerState.viewerMobileMoreOpen });
   });
-  els.viewerMobileMoreMenu?.addEventListener("click", handleViewerMobileMoreAction);
-  els.viewerMobileMoreMenu?.addEventListener("keydown", handleViewerMobileMoreKeydown);
-  els.viewerMobileFavoritesLink?.addEventListener("click", () => closeViewerMobileMoreMenu());
+  viewerElements.viewerMobileMoreMenu?.addEventListener("click", handleViewerMobileMoreAction);
+  viewerElements.viewerMobileMoreMenu?.addEventListener("keydown", handleViewerMobileMoreKeydown);
+  favoritesElements.viewerMobileFavoritesLink?.addEventListener("click", () => closeViewerMobileMoreMenu());
 
   document.addEventListener("pointerdown", (event) => {
-    if (!state.viewerMobileMoreOpen) return;
-    if (els.viewerMobileMoreMenu?.contains(event.target) || els.viewerMobileMoreToggle?.contains(event.target)) return;
+    if (!viewerState.viewerMobileMoreOpen) return;
+    if (viewerElements.viewerMobileMoreMenu?.contains(event.target) || viewerElements.viewerMobileMoreToggle?.contains(event.target)) return;
     closeViewerMobileMoreMenu();
   }, { passive: true });
 

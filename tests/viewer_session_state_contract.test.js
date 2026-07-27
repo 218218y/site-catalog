@@ -5,12 +5,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const state = fs.readFileSync(path.join(root, "src/js/10-app-state.js"), "utf8");
+const state = fs.readFileSync(path.join(root, "src/js/16-viewer-state.js"), "utf8");
 const navigation = fs.readFileSync(path.join(root, "src/js/00-navigation.js"), "utf8");
 const session = fs.readFileSync(path.join(root, "src/js/52-viewer-session.js"), "utf8");
 const lifecycle = fs.readFileSync(path.join(root, "src/js/60-viewer.js"), "utf8");
 const allFeatureSources = fs.readdirSync(path.join(root, "src/js"))
-  .filter((name) => name.endsWith(".js") && !["10-app-state.js", "52-viewer-session.js"].includes(name))
+  .filter((name) => name.endsWith(".js") && !["16-viewer-state.js", "52-viewer-session.js"].includes(name))
   .map((name) => fs.readFileSync(path.join(root, "src/js", name), "utf8"))
   .join("\n");
 
@@ -36,11 +36,11 @@ assert.match(lifecycle, /transitionViewerPhase\(VIEWER_PHASE_OPENING, "open-ligh
 assert.match(lifecycle, /transitionViewerPhase\(VIEWER_PHASE_OPEN, "lightbox-ready"\)/);
 assert.match(lifecycle, /transitionViewerPhase\(VIEWER_PHASE_CLOSING, "hide-lightbox"\)/);
 assert.match(lifecycle, /transitionViewerPhase\(VIEWER_PHASE_CLOSED, "lightbox-hidden"\)/);
-assert.match(navigation, /viewerUsesInDocumentFullscreenNavigation\(\)/);
+assert.match(navigation, /getFeatureInterface\("viewer"\)\?\.usesInDocumentFullscreenNavigation\?\.\(\)/);
 assert.doesNotMatch(allFeatureSources, /state\.lightboxOpen/);
 assert.doesNotMatch(allFeatureSources, /viewerPhase\s*=/);
 assert.doesNotMatch(allFeatureSources, /viewerFullscreenPhase\s*=/);
-assert.match(session, /state\.viewerPhase = nextPhase/);
-assert.match(session, /state\.viewerFullscreenPhase = nextPhase/);
+assert.match(session, /viewerState\.viewerPhase = nextPhase/);
+assert.match(session, /viewerState\.viewerFullscreenPhase = nextPhase/);
 
 console.log("viewer_session_state_contract.test.js: PASS");

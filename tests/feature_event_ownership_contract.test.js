@@ -39,10 +39,11 @@ assert.match(viewerActions, /function attachViewerActionEvents\(/);
 assert.match(onboarding, /function attachViewerOnboardingEvents\(/);
 assert.match(input, /function attachViewerGestures\(/);
 
-assert.doesNotMatch(bootstrap, /els\.globalSearchInput\?\.addEventListener/);
-assert.doesNotMatch(bootstrap, /els\.viewerOnboardingNext\?\.addEventListener/);
-assert.doesNotMatch(bootstrap, /els\.prevPageBtn\?\.addEventListener/);
-assert.match(bootstrap, /function attachEvents\(\) \{[\s\S]*?attachCatalogGridEvents[\s\S]*?attachSearchUiEvents[\s\S]*?attachViewerActionEvents[\s\S]*?attachViewerEvents/);
+assert.doesNotMatch(bootstrap, /searchElements\.globalSearchInput\?\.addEventListener/);
+assert.doesNotMatch(bootstrap, /viewerElements\.viewerOnboardingNext\?\.addEventListener/);
+assert.doesNotMatch(bootstrap, /viewerElements\.prevPageBtn\?\.addEventListener/);
+assert.match(bootstrap, /function attachEvents\(\) \{[\s\S]*?getFeatureInterface\("catalog-grid"\)[\s\S]*?catalogGrid\.attachEvents[\s\S]*?attachSearchUiEvents[\s\S]*?getFeatureInterface\("viewer"\)[\s\S]*?viewer\.attachEvents/);
+assert.match(viewer, /attachEvents: \(\) => \{[\s\S]*?attachViewerActionEvents\(\)[\s\S]*?attachViewerOnboardingEvents\(\)[\s\S]*?attachViewerEvents\(\)/);
 assert.ok(bootstrap.split(/\r?\n/).length < 330, "composition root should stay compact");
 
 assert.match(viewerSession, /function transitionViewerPhase\(/);

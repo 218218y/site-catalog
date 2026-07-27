@@ -45,7 +45,7 @@ try:
 except ModuleNotFoundError:  # Direct execution
     from project_mutation import MutationBusyError, ProjectMutationLock, ProjectTransaction
 
-from build_frontend_assets import build_frontend_assets
+from build_frontend_assets import DEPLOY_GENERATED_FILES as FRONTEND_GENERATED_FILES, build_frontend_assets
 from catalog_compiler import compile_current_project_catalog_data
 from catalog_image_policy import (
     DEFAULT_CATALOG_IMAGE_DELIVERY_MODE,
@@ -74,8 +74,7 @@ DEPLOY_FILES = [
     "404.html",
     "404.css",
     "https-redirect.js",
-    "styles.css",
-    "app.js",
+    *FRONTEND_GENERATED_FILES,
     "catalog-search.js",
     "catalog-search-worker.js",
     "catalogs.search-index.json",
@@ -754,6 +753,9 @@ def fingerprint_source_assets(
             include_big_pages_viewer=include_big_pages_viewer,
         )
     )
+    for frontend_asset in FRONTEND_GENERATED_FILES:
+        if frontend_asset not in references:
+            references.append(frontend_asset)
     return fingerprint_asset_references(out_dir, references)
 
 
@@ -902,9 +904,21 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
                 continue
             referenced_assets.add(relative.as_posix())
 
-    app_assets = sorted(asset for asset in referenced_assets if Path(asset).name.startswith("app."))
-    if len(app_assets) != 1:
-        invalid_assets.append(f"expected one fingerprinted app.js reference, found {len(app_assets)}")
+    expected_route_scripts = {"app-catalog", "app-favorites", "app-viewer"}
+    app_assets = sorted(
+        asset for asset in referenced_assets
+        if any(Path(asset).name.startswith(f"{stem}.") for stem in expected_route_scripts)
+    )
+    found_route_scripts = {
+        stem
+        for stem in expected_route_scripts
+        if any(Path(asset).name.startswith(f"{stem}.") for asset in app_assets)
+    }
+    if found_route_scripts != expected_route_scripts:
+        invalid_assets.append(
+            "expected one fingerprinted script for each interactive route; "
+            f"found {sorted(found_route_scripts)}"
+        )
 
     search_runtime_assets = sorted(
         asset for asset in referenced_assets if Path(asset).name.startswith("catalog-search.")

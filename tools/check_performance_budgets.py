@@ -71,10 +71,27 @@ def format_bytes(value: int) -> str:
     return f"{value / 1024:.1f} KiB"
 
 
-def assert_limit(failures: list[str], *, label: str, kind: str, actual: int, limit: int) -> None:
-    if actual > limit:
+def operating_limit(limit: int, headroom_percent: float) -> int:
+    if not 0 <= headroom_percent < 100:
+        raise ValueError("requiredHeadroomPercent must be between 0 and 100")
+    return int(limit * (1 - (headroom_percent / 100)))
+
+
+def assert_limit(
+    failures: list[str],
+    *,
+    label: str,
+    kind: str,
+    actual: int,
+    limit: int,
+    headroom_percent: float = 0,
+) -> None:
+    allowed = operating_limit(limit, headroom_percent)
+    if actual > allowed:
         failures.append(
-            f"{label} {kind} is {format_bytes(actual)}; budget is {format_bytes(limit)}"
+            f"{label} {kind} is {format_bytes(actual)}; operating ceiling is "
+            f"{format_bytes(allowed)} ({headroom_percent:g}% headroom below the configured "
+            f"{format_bytes(limit)} budget)"
         )
 
 
@@ -85,6 +102,7 @@ def check_asset_budget(
     label: str,
     path: Path,
     budget: Mapping[str, Any],
+    headroom_percent: float = 0,
 ) -> None:
     measurement = measure_file(label, path)
     measurements.append(measurement)
@@ -94,6 +112,7 @@ def check_asset_budget(
         kind="raw size",
         actual=measurement.raw_bytes,
         limit=int(budget["rawBytes"]),
+        headroom_percent=headroom_percent,
     )
     assert_limit(
         failures,
@@ -101,6 +120,7 @@ def check_asset_budget(
         kind="gzip size",
         actual=int(measurement.gzip_bytes or 0),
         limit=int(budget["gzipBytes"]),
+        headroom_percent=headroom_percent,
     )
 
 
@@ -148,12 +168,28 @@ def check_performance_budgets(root: Path, bundle_dir: Path | None = None) -> lis
     failures: list[str] = []
     measurements: list[BudgetMeasurement] = []
 
-    for key, label in (
-        ("appJavaScript", "Application JavaScript"),
-        ("stylesCss", "Application CSS"),
-        ("searchIndex", "Search index"),
-        ("searchWorker", "Search worker"),
-    ):
+    headroom_percent = float(budgets.get("requiredHeadroomPercent", 0))
+
+    grouped_budgets = (
+        ("javascriptBundles", "JavaScript"),
+        ("cssBundles", "CSS"),
+    )
+    for group_key, kind_label in grouped_budgets:
+        group = budgets.get(group_key)
+        if not isinstance(group, dict) or not group:
+            raise ValueError(f"{group_key} must contain at least one named bundle budget")
+        for bundle_name, budget in group.items():
+            path = root / str(budget["source"])
+            check_asset_budget(
+                failures,
+                measurements,
+                label=f"{bundle_name.title()} {kind_label}",
+                path=path,
+                budget=budget,
+                headroom_percent=headroom_percent,
+            )
+
+    for key, label in (("searchIndex", "Search index"), ("searchWorker", "Search worker")):
         budget = budgets[key]
         path = root / str(budget["source"])
         check_asset_budget(failures, measurements, label=label, path=path, budget=budget)
@@ -162,12 +198,19 @@ def check_performance_budgets(root: Path, bundle_dir: Path | None = None) -> lis
 
     if bundle_dir is not None:
         resolved_bundle = bundle_dir.resolve()
-        for key, label in (
-            ("appJavaScript", "Deploy JavaScript"),
-            ("stylesCss", "Deploy CSS"),
-            ("searchIndex", "Deploy search index"),
-            ("searchWorker", "Deploy search worker"),
-        ):
+        for group_key, kind_label in grouped_budgets:
+            for bundle_name, budget in budgets[group_key].items():
+                path = resolve_bundle_asset(resolved_bundle, str(budget["bundlePattern"]))
+                check_asset_budget(
+                    failures,
+                    measurements,
+                    label=f"Deploy {bundle_name} {kind_label}",
+                    path=path,
+                    budget=budget,
+                    headroom_percent=headroom_percent,
+                )
+
+        for key, label in (("searchIndex", "Deploy search index"), ("searchWorker", "Deploy search worker")):
             budget = budgets[key]
             path = resolve_bundle_asset(resolved_bundle, str(budget["bundlePattern"]))
             check_asset_budget(failures, measurements, label=label, path=path, budget=budget)

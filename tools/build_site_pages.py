@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from build_frontend_assets import build_frontend_assets
+from build_frontend_assets import ROUTE_ASSETS, build_frontend_assets
 from catalog_compiler import verify_managed_outputs_reconstructable
 from footer_content import read_footer_content, render_footer_template, validate_footer_content
 from seo_site import (
@@ -399,9 +399,17 @@ def default_site_shell_replacements(
     taxonomy: Taxonomy | None = None,
     catalogs: Sequence[Mapping[str, Any]] = (),
     config: SeoConfig | None = None,
+    asset_rewrites: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     home_ready = page.mode == "home" and taxonomy is not None and config is not None
+    try:
+        route_stylesheet, route_script = ROUTE_ASSETS[page.mode]
+    except KeyError as exc:
+        raise ValueError(f"No frontend route bundle is defined for page mode: {page.mode}") from exc
+    rewrites = asset_rewrites or {}
     return {
+        "{{ROUTE_STYLESHEET}}": rewrites.get(route_stylesheet, route_stylesheet),
+        "{{ROUTE_SCRIPT}}": rewrites.get(route_script, route_script),
         "{{PAGE_MODE}}": page.mode,
         "{{BODY_DATA_ATTRIBUTES}}": "",
         "{{BRAND_HEADING_OPEN}}": (
@@ -464,6 +472,7 @@ def render_base_document(
                 taxonomy=taxonomy,
                 catalogs=catalogs,
                 config=config,
+                asset_rewrites=asset_rewrites,
             )
         )
     else:
@@ -669,6 +678,7 @@ def render_catalog_route(
     site_footer: str,
     mode: str,
     catalog: Mapping[str, Any],
+    asset_rewrites: Mapping[str, str] | None = None,
 ) -> tuple[Path, dict[str, str]]:
     catalog_id = str(catalog.get("id", "")).strip()
     title_text = str(catalog.get("title", "קטלוג")).strip()
@@ -703,7 +713,14 @@ def render_catalog_route(
     )
     synthetic_page = PageDocument("", "catalog", title, description, route_path)
     replacements = common_page_replacements(seo, config, base_tag='<base href="/" />', route_preload=image_preload(image))
-    replacements.update(default_site_shell_replacements(synthetic_page, site_footer, taxonomy=taxonomy, catalogs=(), config=config))
+    replacements.update(default_site_shell_replacements(
+        synthetic_page,
+        site_footer,
+        taxonomy=taxonomy,
+        catalogs=(),
+        config=config,
+        asset_rewrites=asset_rewrites,
+    ))
     replacements.update(
         {
             "{{BODY_DATA_ATTRIBUTES}}": f' data-catalog-id="{html.escape(catalog_id, quote=True)}"',
@@ -732,6 +749,7 @@ def render_catalog_page_route(
     mode: str,
     catalog: Mapping[str, Any],
     page_number: int,
+    asset_rewrites: Mapping[str, str] | None = None,
 ) -> Path:
     catalog_id = str(catalog.get("id", "")).strip()
     title_text = str(catalog.get("title", "קטלוג")).strip()
@@ -759,7 +777,11 @@ def render_catalog_page_route(
     )
     synthetic_page = PageDocument("", "viewer", title, description, route_path)
     replacements = common_page_replacements(seo, config, base_tag='<base href="/" />', route_preload=image_preload(image))
-    replacements.update(default_site_shell_replacements(synthetic_page, site_footer))
+    replacements.update(default_site_shell_replacements(
+        synthetic_page,
+        site_footer,
+        asset_rewrites=asset_rewrites,
+    ))
     replacements.update(
         {
             "{{BODY_DATA_ATTRIBUTES}}": (
@@ -840,6 +862,7 @@ def render_seo_routes(
             site_footer=site_footer,
             mode=mode,
             catalog=catalog,
+            asset_rewrites=asset_rewrites,
         )
         written.append(path)
         sitemap_entries.append(entry)
@@ -853,6 +876,7 @@ def render_seo_routes(
                     mode=mode,
                     catalog=catalog,
                     page_number=page_number,
+                    asset_rewrites=asset_rewrites,
                 )
             )
     return written, sitemap_entries

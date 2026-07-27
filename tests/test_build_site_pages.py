@@ -37,3 +37,50 @@ def test_rendered_pages_use_canonical_lf_on_every_platform(tmp_path: Path) -> No
         content = path.read_bytes()
         assert b"\r\n" not in content
         assert b"\r" not in content
+
+
+def test_route_bundle_tokens_honor_deploy_asset_rewrites(tmp_path: Path) -> None:
+    rewrites = {
+        "styles-catalog.css": "static/styles-catalog.111111.css",
+        "app-catalog.js": "static/app-catalog.222222.js",
+        "styles-favorites.css": "static/styles-favorites.333333.css",
+        "app-favorites.js": "static/app-favorites.444444.js",
+        "styles-viewer.css": "static/styles-viewer.555555.css",
+        "app-viewer.js": "static/app-viewer.666666.js",
+    }
+    MODULE.render_site_pages(
+        ROOT,
+        tmp_path,
+        build_assets=False,
+        build_taxonomy=False,
+        include_seo_routes=True,
+        include_technical_shells=True,
+        include_indexing_files=False,
+        asset_rewrites=rewrites,
+    )
+
+    catalogs = MODULE.read_catalogs(ROOT)
+    assert catalogs
+    catalog_id = str(catalogs[0]["id"])
+    rendered_routes = {
+        "home": tmp_path / "index.html",
+        "favorites": tmp_path / "favorites.html",
+        "catalog": tmp_path / MODULE.catalog_path(catalog_id) / "index.html",
+        "viewer": tmp_path / MODULE.catalog_page_path(catalog_id, 1) / "index.html",
+    }
+    expected = {
+        "home": (rewrites["styles-catalog.css"], rewrites["app-catalog.js"]),
+        "favorites": (rewrites["styles-favorites.css"], rewrites["app-favorites.js"]),
+        "catalog": (rewrites["styles-catalog.css"], rewrites["app-catalog.js"]),
+        "viewer": (rewrites["styles-viewer.css"], rewrites["app-viewer.js"]),
+    }
+
+    for route_name, path in rendered_routes.items():
+        html = path.read_text(encoding="utf-8")
+        stylesheet, script = expected[route_name]
+        assert stylesheet in html, route_name
+        assert script in html, route_name
+        assert "{{ROUTE_STYLESHEET}}" not in html
+        assert "{{ROUTE_SCRIPT}}" not in html
+        for raw_asset in {asset for pair in MODULE.ROUTE_ASSETS.values() for asset in pair}:
+            assert f'="{raw_asset}"' not in html, (route_name, raw_asset)

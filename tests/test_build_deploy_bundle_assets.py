@@ -204,25 +204,33 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
     runtime_name = f"catalog-search.{MODULE.content_hash(runtime)}.js"
     runtime = runtime.rename(static / runtime_name)
 
-    app = static / "app.js"
-    app.write_text("window.current = true;\n", encoding="utf-8")
-    app_name = f"app.{MODULE.content_hash(app)}.js"
-    app = app.rename(static / app_name)
+    route_apps: dict[str, Path] = {}
+    for stem in ("app-catalog", "app-favorites", "app-viewer"):
+        app = static / f"{stem}.js"
+        app.write_text(f"window.{stem.replace('-', '_')} = true;\n", encoding="utf-8")
+        app_name = f"{stem}.{MODULE.content_hash(app)}.js"
+        route_apps[stem] = app.rename(static / app_name)
 
-    for html_name in ("index.html", "nested/index.html"):
+    documents = {
+        "index.html": route_apps["app-catalog"],
+        "favorites.html": route_apps["app-favorites"],
+        "viewer.html": route_apps["app-viewer"],
+        "nested/index.html": route_apps["app-catalog"],
+    }
+    for html_name, app in documents.items():
         html = out / html_name
         html.parent.mkdir(parents=True, exist_ok=True)
         html.write_text(
-            f'<script src="static/{runtime_name}"></script><script src="static/{app_name}"></script>',
+            f'<script src="static/{runtime_name}"></script><script src="static/{app.name}"></script>',
             encoding="utf-8",
         )
-    return {"app": app, "runtime": runtime, "worker": worker, "index": index}
+    return {**route_apps, "runtime": runtime, "worker": worker, "index": index}
 
 
 def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None:
     out = tmp_path / "bundle"
     assets = write_search_runtime_bundle(out)
-    (out / "static/app.111111111111.js").write_text("window.old = true;\n", encoding="utf-8")
+    (out / "static/app-catalog.111111111111.js").write_text("window.old = true;\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="stale or unreferenced"):
         MODULE.validate_fingerprinted_bundle(out)
@@ -243,7 +251,7 @@ def test_bundle_validation_hashes_each_shared_asset_once(
 
     monkeypatch.setattr(MODULE, "content_hash", counting_content_hash)
 
-    assert MODULE.validate_fingerprinted_bundle(out) == 4
+    assert MODULE.validate_fingerprinted_bundle(out) == 6
     assert hash_calls == {path: 1 for path in assets.values()}
 
 

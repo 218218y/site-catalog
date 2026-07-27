@@ -3,11 +3,14 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const favoritesHtml = fs.readFileSync(path.join(root, 'favorites.html'), 'utf8');
+const viewerHtml = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
+const app = readAllBundles();
+const css = readAllCssBundles();
 const bundleBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
 
 assert.match(html, /<a[^>]*class="[^"]*header-favorites-button[^"]*hidden[^"]*"[^>]*id="headerFavoritesButton"[^>]*href="favorites\.html"/);
@@ -22,13 +25,15 @@ assert.match(html, /id="prevPageBtn"[\s\S]*?<\/button>\s*<\/div>\s*<button class
 assert.match(html, /id="favoriteOpenCatalogButton"[\s\S]*?id="lightboxPageRail"/);
 assert.doesNotMatch(html, /id="thumbsHotspot"|id="lightboxThumbs"/);
 assert.match(html, /id="lightboxPageRailTitle">עמודים</);
-assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app\.js"><\/script>/);
+assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app-catalog\.js"><\/script>/);
+assert.match(favoritesHtml, /<script src="app-favorites\.js"><\/script>/);
+assert.match(viewerHtml, /<script src="app-viewer\.js"><\/script>/);
 
 assert.match(app, /favoritesStore\.toggle\(\{ \.\.\.identity, savedAt: Date\.now\(\) \}\)/);
 assert.match(app, /window\.addEventListener\("storage", handleFavoritesStorageChange\)/);
 assert.match(app, /openFavoriteViewer\(catalogId, page\)/);
 assert.match(app, /source: LIGHTBOX_SOURCE_FAVORITES/);
-assert.match(app, /setFavoriteViewerIndex\(state\.favoritesViewerIndex \+ delta, options\)/);
+assert.match(app, /setFavoriteViewerIndex\(favoritesState\.favoritesViewerIndex \+ delta, options\)/);
 assert.match(app, /openCurrentFavoriteInCatalog/);
 assert.match(app, /openFavoritesPanel\(\{ allowEmpty: true, captureReturnFocus: false \}\)/);
 assert.match(app, /window\.confirm\("למחוק את כל העמודים מהמועדפים\?"\)/);
