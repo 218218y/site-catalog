@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -127,3 +128,53 @@ def test_canceling_a_finished_job_is_idempotent() -> None:
     finally:
         with SERVER.jobs_lock:
             SERVER.jobs.clear()
+
+
+def test_job_output_is_streamed_before_worker_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    worker = root / "buffered_worker.py"
+    started_marker = root / "worker-started.txt"
+    worker.write_text(
+        """
+from __future__ import annotations
+import sys
+import time
+from pathlib import Path
+
+Path(sys.argv[1]).write_text("started\\n", encoding="utf-8")
+print("[stream-first]")
+time.sleep(2.0)
+print("[stream-last]")
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(SERVER, "PROJECT_ROOT", root)
+    job = SERVER.Job(
+        id="streaming",
+        action_key="streaming",
+        label="Streaming",
+        started_at=time.time(),
+    )
+
+    thread = threading.Thread(
+        target=SERVER.run_job,
+        args=(job, [str(worker), str(started_marker)]),
+        daemon=True,
+    )
+    thread.start()
+
+    wait_for(started_marker.exists, timeout=5.0)
+    wait_for(lambda: "[stream-first]" in job.log, timeout=0.75)
+    assert job.status == "running"
+    assert "[stream-last]" not in job.log
+
+    wait_for(lambda: job.status != "running", timeout=5.0)
+    thread.join(timeout=1.0)
+    assert job.status == "success"
+    assert "[stream-last]" in job.log

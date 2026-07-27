@@ -69,7 +69,7 @@
     "category": "חדרי ילדים",
     "subcategory": "היי ריזר",
     "pdf": "assets/pdfs/hi-riser-comfort-2026.pdf",
-    "ocr": true
+    "ocr": false
   },
   {
     "id": "hi-riser-perfect-2026",

@@ -1510,6 +1510,12 @@ def run_job(job: Job, action_command: Sequence[str]) -> None:
     command = [python_executable(), *action_command]
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
+    # Jobs are piped into the browser rather than attached to a terminal.
+    # Python otherwise block-buffers stdout/stderr and the control panel only
+    # receives progress after a large buffer fills or the process exits.  Keep
+    # the direct worker and any Python subprocesses it starts unbuffered so the
+    # existing 500 ms UI poll can display each completed line promptly.
+    env["PYTHONUNBUFFERED"] = "1"
     append_job_log(job, f"$ {' '.join(action_command)}")
     try:
         with jobs_lock:
