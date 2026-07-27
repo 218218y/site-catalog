@@ -10,13 +10,16 @@
     description: "תיאור הקטלוג",
     category: "קטגוריית הקטלוג"
   };
-  const YIELD_EVERY_TERMS = 768;
+  const YIELD_EVERY_TERM_CANDIDATES = 768;
   const MAX_TERM_CACHE = 240;
 
   let indexData = null;
   let vocabulary = [];
   let looseVocabulary = [];
+  let directGramIndex = new Map();
+  let looseGramIndex = new Map();
   let termMatchCache = new Map();
+  let runtimeDiagnostics = createRuntimeDiagnostics();
   const latestRequestByChannel = new Map();
 
   function normalize(value) {
@@ -68,8 +71,77 @@
     return error;
   }
 
-  function yieldToWorkerQueue() {
-    return new Promise((resolve) => setTimeout(resolve, 0));
+  function createRuntimeDiagnostics() {
+    return {
+      indexedLookups: 0,
+      fullVocabularyScans: 0,
+      candidateTermsChecked: 0,
+      cooperativeYields: 0,
+      excerptsBuilt: 0
+    };
+  }
+
+  function createWorkerQueueYield() {
+    if (typeof setImmediate === "function") {
+      return () => new Promise((resolve) => setImmediate(resolve));
+    }
+    if (typeof MessageChannel === "function") {
+      const channel = new MessageChannel();
+      const callbacks = [];
+      channel.port1.onmessage = () => callbacks.shift()?.();
+      return () => new Promise((resolve) => {
+        callbacks.push(resolve);
+        channel.port2.postMessage(0);
+      });
+    }
+    return () => new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  const cooperativeYield = createWorkerQueueYield();
+
+  async function yieldToWorkerQueue() {
+    runtimeDiagnostics.cooperativeYields += 1;
+    await cooperativeYield();
+  }
+
+  function termGrams(value, size) {
+    const chars = Array.from(String(value || ""));
+    if (chars.length < size) return [];
+    const grams = new Set();
+    for (let index = 0; index <= chars.length - size; index += 1) {
+      grams.add(chars.slice(index, index + size).join(""));
+    }
+    return Array.from(grams);
+  }
+
+  function buildGramIndex(terms) {
+    const gramIndex = new Map();
+    terms.forEach((term, termIndex) => {
+      for (const size of [2, 3]) {
+        for (const gram of termGrams(term, size)) {
+          const key = `${size}:${gram}`;
+          const postings = gramIndex.get(key);
+          if (postings) postings.push(termIndex);
+          else gramIndex.set(key, [termIndex]);
+        }
+      }
+    });
+    return gramIndex;
+  }
+
+  function candidateTermIndexes(token, gramIndex) {
+    const tokenLength = Array.from(String(token || "")).length;
+    if (tokenLength < 2) return null;
+    const size = tokenLength >= 3 ? 3 : 2;
+    const grams = termGrams(token, size);
+    let candidates = null;
+    for (const gram of grams) {
+      const postings = gramIndex.get(`${size}:${gram}`);
+      if (!postings) return [];
+      candidates = candidates === null ? postings : intersectSorted(candidates, postings);
+      if (!candidates.length) return [];
+    }
+    return candidates || [];
   }
 
   function cacheTermMatches(key, value) {
@@ -86,23 +158,39 @@
     const cached = termMatchCache.get(cacheKey);
     if (cached) return cached;
 
+    const directCandidates = candidateTermIndexes(token, directGramIndex);
+    const looseCandidates = looseToken !== token
+      ? candidateTermIndexes(looseToken, looseGramIndex)
+      : [];
+    const candidateIndexes = new Set();
+
+    if (directCandidates === null) {
+      runtimeDiagnostics.fullVocabularyScans += 1;
+      for (let index = 0; index < vocabulary.length; index += 1) candidateIndexes.add(index);
+    } else {
+      runtimeDiagnostics.indexedLookups += 1;
+      for (const index of directCandidates) candidateIndexes.add(index);
+      for (const index of looseCandidates || []) candidateIndexes.add(index);
+    }
+
     const documentIds = new Set();
-    for (let index = 0; index < vocabulary.length; index += 1) {
-      const term = vocabulary[index];
-      const directMatch = term.includes(token);
+    let checked = 0;
+    for (const index of candidateIndexes) {
+      const directMatch = vocabulary[index].includes(token);
       const looseMatch = !directMatch
-        && token.length >= 3
         && looseToken !== token
         && looseVocabulary[index].includes(looseToken);
       if (directMatch || looseMatch) {
-        const postings = indexData.terms[term] || [];
+        const postings = indexData.terms[vocabulary[index]] || [];
         for (const documentId of postings) documentIds.add(documentId);
       }
-      if (index > 0 && index % YIELD_EVERY_TERMS === 0) {
+      checked += 1;
+      if (checked % YIELD_EVERY_TERM_CANDIDATES === 0) {
         await yieldToWorkerQueue();
         if (!requestIsCurrent(channel, requestId)) throw cancellationError();
       }
     }
+    runtimeDiagnostics.candidateTermsChecked += checked;
     const result = Array.from(documentIds).sort((a, b) => a - b);
     cacheTermMatches(cacheKey, result);
     return result;
@@ -139,16 +227,12 @@
     );
   }
 
-  function matchingFields(document, catalog, parsedQuery) {
+  function matchingFields(document, catalog, parsedQuery, allTokens) {
     const fields = [
       ["page", document.normalized],
       ["title", catalog.normalized.title],
       ["description", catalog.normalized.description],
       ["category", catalog.normalized.category]
-    ];
-    const allTokens = [
-      ...parsedQuery.looseTokens,
-      ...parsedQuery.exactTerms.flatMap((term) => term.tokens)
     ];
     const matches = [];
     for (const [name, normalizedText] of fields) {
@@ -160,11 +244,7 @@
     return matches;
   }
 
-  function scoreDocument(document, catalog, parsedQuery, matchedFields) {
-    const allTokens = [
-      ...parsedQuery.looseTokens,
-      ...parsedQuery.exactTerms.flatMap((term) => term.tokens)
-    ];
+  function scoreDocument(document, catalog, parsedQuery, matchedFields, allTokens) {
     let score = 0;
     const weights = { title: 90, page: 55, description: 28, category: 22 };
     for (const field of matchedFields) score += weights[field] || 0;
@@ -282,6 +362,7 @@
   }
 
   function resultExcerpt(document, catalog, matchedFields, parsedQuery) {
+    runtimeDiagnostics.excerptsBuilt += 1;
     const primaryField = matchedFields.includes("page")
       ? "page"
       : matchedFields.includes("title")
@@ -339,27 +420,36 @@
         catalog.normalized.category,
         document.normalized
       ];
-      const combined = normalizedFields.join(" ");
-      if (!allTokens.every((token) => textMatchesToken(combined, token))) continue;
       if (!exactTermsMatchFields(normalizedFields, parsedQuery.exactTerms)) continue;
-      const matchedFields = matchingFields(document, catalog, parsedQuery);
-      const excerpt = resultExcerpt(document, catalog, matchedFields, parsedQuery);
+      const matchedFields = matchingFields(document, catalog, parsedQuery, allTokens);
       results.push({
         catalogId: catalog.id,
         catalogTitle: catalog.title,
         page: document.page,
-        score: scoreDocument(document, catalog, parsedQuery, matchedFields),
-        excerpt: excerpt.text,
-        highlights: excerpt.highlights,
-        matchField: excerpt.field,
-        matchReason: excerpt.reason,
-        matchedFields
+        score: scoreDocument(document, catalog, parsedQuery, matchedFields, allTokens),
+        matchedFields,
+        document,
+        catalog
       });
     }
 
     return results
       .sort((a, b) => b.score - a.score || a.catalogTitle.localeCompare(b.catalogTitle, "he") || a.page - b.page)
-      .slice(0, limit);
+      .slice(0, limit)
+      .map((result) => {
+        const excerpt = resultExcerpt(result.document, result.catalog, result.matchedFields, parsedQuery);
+        return {
+          catalogId: result.catalogId,
+          catalogTitle: result.catalogTitle,
+          page: result.page,
+          score: result.score,
+          excerpt: excerpt.text,
+          highlights: excerpt.highlights,
+          matchField: excerpt.field,
+          matchReason: excerpt.reason,
+          matchedFields: result.matchedFields
+        };
+      });
   }
 
   function initializeIndex(payload) {
@@ -369,7 +459,10 @@
     indexData = payload;
     vocabulary = Object.keys(payload.terms);
     looseVocabulary = vocabulary.map((term) => normalizeLoose(term));
+    directGramIndex = buildGramIndex(vocabulary);
+    looseGramIndex = buildGramIndex(looseVocabulary);
     termMatchCache = new Map();
+    runtimeDiagnostics = createRuntimeDiagnostics();
     return {
       stats: payload.stats || { catalogs: 0, pages: 0, tokens: 0, categoryPages: {} },
       catalogs: payload.catalogs.map((catalog) => ({
@@ -393,6 +486,15 @@
     initializeIndex,
     searchIndex,
     excerptForField,
+    testing: Object.freeze({
+      diagnostics() {
+        return { ...runtimeDiagnostics };
+      },
+      reset(options = {}) {
+        runtimeDiagnostics = createRuntimeDiagnostics();
+        if (options.clearCache) termMatchCache = new Map();
+      }
+    }),
     setLatestRequest(channel, requestId) {
       latestRequestByChannel.set(String(channel), Number(requestId));
     }

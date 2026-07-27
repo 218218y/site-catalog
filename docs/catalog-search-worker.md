@@ -19,7 +19,9 @@ The artifact is covered by `schemas/catalogs.search-index.schema.json`, the comp
 
 `catalog-search.js` is a small client facade. It lazily starts `catalog-search-worker.js`, maps worker results back to catalog image URLs, and owns request lifecycle by channel. Global search and in-viewer search use separate channels.
 
-The Worker performs candidate selection from postings, category/catalog filtering, phrase verification, scoring, excerpt selection and highlight range generation. It periodically yields to its message queue while expanding partial-token matches, allowing a newer query to cancel expensive work before completion.
+The Worker performs candidate selection from postings, category/catalog filtering, phrase verification, scoring, excerpt selection and highlight range generation. At initialization it compiles compact bigram and trigram maps over the normalized vocabulary. Two-character and longer partial queries therefore inspect only terms that share all required grams instead of scanning the full vocabulary. One-character internal workloads retain a cooperative full-scan fallback for cancellation testing, although the public UI requires at least two characters.
+
+Candidate documents are scored first. Unicode excerpt mapping and highlight generation run only for the bounded result set after sorting, rather than for every broad-query candidate. Cooperative yields use an immediate/message-channel task where available and fall back to a timer only on runtimes without a lower-overhead task primitive.
 
 ## Stale-result protection
 
@@ -42,7 +44,7 @@ Each result includes:
 
 ## Performance verification
 
-`tests/catalog_search_worker.test.js` runs against the checked-in production-size index rather than a miniature fixture. It records median and p95 query latency and exercises a fourfold workload representing a weak device.
+`tests/catalog_search_worker.test.js` runs against the checked-in production-size index rather than a miniature fixture. It records median and p95 query latency and exercises a fourfold workload representing a weak device. The contract also compares selective bigram and loose-normalization searches with a brute-force vocabulary oracle, verifies that normal queries never take the full-scan path, and enforces a minimum 80% reduction in vocabulary candidate checks. This prevents a timing threshold from hiding an algorithmic regression or a Windows timer-granularity problem.
 
 `tests/e2e/site-catalog.spec.js` also uses Chromium CPU throttling at 4×. A heartbeat detects Main Thread stalls while rapid successive queries verify that only the latest query is rendered.
 

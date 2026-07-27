@@ -15,6 +15,30 @@ assert.equal(metadata.stats.catalogs, index.catalogs.length);
 assert.ok(metadata.stats.pages >= 800, "performance test must use the real production-size page corpus");
 assert.ok(metadata.stats.tokens > 1000, "normalized inverted index should contain a real vocabulary");
 
+
+function resultKey(catalogId, page) {
+  return `${catalogId}\u0000${page}`;
+}
+
+function expectedResultKeysForToken(token) {
+  const normalizedToken = engine.normalize(token);
+  const looseToken = normalizedToken.length >= 3 ? engine.normalizeLoose(normalizedToken) : normalizedToken;
+  const documentIds = new Set();
+  for (const [term, postings] of Object.entries(index.terms)) {
+    const directMatch = term.includes(normalizedToken);
+    const looseMatch = !directMatch
+      && looseToken !== normalizedToken
+      && engine.normalizeLoose(term).includes(looseToken);
+    if (!directMatch && !looseMatch) continue;
+    for (const documentId of postings) documentIds.add(documentId);
+  }
+  return new Set(Array.from(documentIds, (documentId) => {
+    const document = index.documents[documentId];
+    const catalog = index.catalogs[document.catalog];
+    return resultKey(catalog.id, document.page);
+  }));
+}
+
 function begin(channel) {
   const requestId = Math.floor(performance.now() * 1000) + Math.floor(Math.random() * 1000);
   engine.setLatestRequest(channel, requestId);
@@ -79,6 +103,55 @@ function begin(channel) {
   assert.ok(metadataResults.every((result) => result.matchField === "title"));
   assert.ok(metadataResults.every((result) => result.excerpt.length > 0));
 
+  let partialCase = null;
+  const checkedPartialFragments = new Set();
+  for (const term of Object.keys(index.terms)) {
+    const chars = Array.from(term);
+    if (chars.length < 4) continue;
+    const fragment = chars.slice(1, 3).join("");
+    if (checkedPartialFragments.has(fragment)) continue;
+    checkedPartialFragments.add(fragment);
+    const expected = expectedResultKeysForToken(fragment);
+    if (expected.size >= 2 && expected.size <= 120) {
+      partialCase = { term, fragment, expected };
+      break;
+    }
+  }
+  assert.ok(partialCase, "real corpus should contain a selective two-character substring case");
+  const partialRequest = begin("partial-bigram");
+  const partialResults = await engine.searchIndex(
+    partialCase.fragment,
+    { limit: 120 },
+    { channel: "partial-bigram", requestId: partialRequest }
+  );
+  assert.deepEqual(
+    new Set(partialResults.map((result) => resultKey(result.catalogId, result.page))),
+    partialCase.expected,
+    "two-character substring lookup must preserve the complete brute-force result set"
+  );
+
+  let looseCase = null;
+  for (const term of Object.keys(index.terms)) {
+    if (term.length < 3 || engine.normalizeLoose(term) === term) continue;
+    const expected = expectedResultKeysForToken(term);
+    if (expected.size >= 2 && expected.size <= 120) {
+      looseCase = { term, expected };
+      break;
+    }
+  }
+  assert.ok(looseCase, "real corpus should contain a selective loose-normalization case");
+  const looseRequest = begin("loose-gram");
+  const looseResults = await engine.searchIndex(
+    looseCase.term,
+    { limit: 120 },
+    { channel: "loose-gram", requestId: looseRequest }
+  );
+  assert.deepEqual(
+    new Set(looseResults.map((result) => resultKey(result.catalogId, result.page))),
+    looseCase.expected,
+    "loose-normalized gram lookup must preserve the complete brute-force result set"
+  );
+
   const categoryRequest = begin("category");
   const categoryResults = await engine.searchIndex(
     selectiveToken,
@@ -99,7 +172,10 @@ function begin(channel) {
     { limit: 72 },
     { channel: "cancellation", requestId: staleRequest }
   );
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.ok(
+    engine.testing.diagnostics().cooperativeYields > 0,
+    "broad stale query should yield before cancellation"
+  );
   const currentRequest = staleRequest + 1;
   engine.setLatestRequest("cancellation", currentRequest);
   const currentPromise = engine.searchIndex(
@@ -115,6 +191,7 @@ function begin(channel) {
     .sort((left, right) => right[1].length - left[1].length)
     .slice(0, 10)
     .map(([token]) => token);
+  engine.testing.reset({ clearCache: true });
   const timings = [];
   for (const token of representativeTokens) {
     const perfRequest = begin("performance");
@@ -125,6 +202,25 @@ function begin(channel) {
   timings.sort((a, b) => a - b);
   const median = timings[Math.floor(timings.length / 2)] || 0;
   const p95 = timings[Math.min(timings.length - 1, Math.ceil(timings.length * 0.95) - 1)] || 0;
+  const performanceDiagnostics = engine.testing.diagnostics();
+  assert.equal(
+    performanceDiagnostics.fullVocabularyScans,
+    0,
+    "normal two-character-or-longer searches must use the gram index instead of scanning the vocabulary"
+  );
+  assert.equal(
+    performanceDiagnostics.cooperativeYields,
+    0,
+    "indexed representative searches should not need timer-based cooperative yields"
+  );
+  assert.ok(
+    performanceDiagnostics.candidateTermsChecked < index.stats.tokens * representativeTokens.length * 0.2,
+    "gram lookup should eliminate at least 80% of vocabulary candidate checks"
+  );
+  assert.ok(
+    performanceDiagnostics.excerptsBuilt <= representativeTokens.length * 72,
+    "excerpt normalization must run only after ranking has applied the result limit"
+  );
   assert.ok(median < 140, `real-index median search latency ${median.toFixed(1)}ms exceeds 140ms`);
   assert.ok(p95 < 320, `real-index p95 search latency ${p95.toFixed(1)}ms exceeds 320ms`);
 
