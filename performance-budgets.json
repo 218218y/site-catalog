@@ -10,13 +10,13 @@
     "favorites": {
       "source": "app-favorites.js",
       "bundlePattern": "static/app-favorites.*.js",
-      "rawBytes": 310000,
+      "rawBytes": 320000,
       "gzipBytes": 68000
     },
     "viewer": {
       "source": "app-viewer.js",
       "bundlePattern": "static/app-viewer.*.js",
-      "rawBytes": 510000,
+      "rawBytes": 520000,
       "gzipBytes": 110000
     }
   },
@@ -67,5 +67,12 @@
     "bundlePattern": "static/catalog-search-worker.*.js",
     "rawBytes": 40000,
     "gzipBytes": 12000
+  },
+  "coreWebVitals": {
+    "mobile4x": {
+      "LCP": 2500,
+      "INP": 200,
+      "CLS": 0.1
+    }
   }
 }

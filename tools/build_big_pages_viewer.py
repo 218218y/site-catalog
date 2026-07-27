@@ -154,11 +154,18 @@ def build_big_pages_viewer(root: Path | None = None, *, check: bool = False) -> 
     readme_path = root / README_RELATIVE_PATH
     viewer_text, readme_text = render_updated_files(root)
 
-    stale: list[Path] = []
-    if viewer_path.read_text(encoding="utf-8") != viewer_text:
-        stale.append(viewer_path)
-    if readme_text is not None and readme_path.read_text(encoding="utf-8") != readme_text:
-        stale.append(readme_path)
+    rendered_bytes: dict[Path, bytes] = {viewer_path: viewer_text.encode("utf-8")}
+    if readme_text is not None:
+        rendered_bytes[readme_path] = readme_text.encode("utf-8")
+
+    # Compare the exact bytes emitted by the canonical compiler. ``Path.read_text``
+    # normalizes CRLF to LF on every platform, which previously allowed a file to
+    # pass this check while failing the compiler's byte-for-byte determinism gate.
+    stale = [
+        path
+        for path, expected in rendered_bytes.items()
+        if not path.is_file() or path.read_bytes() != expected
+    ]
 
     if check:
         if stale:
@@ -169,10 +176,8 @@ def build_big_pages_viewer(root: Path | None = None, *, check: bool = False) -> 
             )
         return False
 
-    if viewer_path in stale:
-        viewer_path.write_text(viewer_text, encoding="utf-8")
-    if readme_text is not None and readme_path in stale:
-        readme_path.write_text(readme_text, encoding="utf-8")
+    for path in stale:
+        path.write_bytes(rendered_bytes[path])
     return bool(stale)
 
 

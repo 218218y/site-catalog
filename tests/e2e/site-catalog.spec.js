@@ -2,6 +2,8 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const net = require("node:net");
+const { spawn } = require("node:child_process");
 const { test: base, expect } = require("@playwright/test");
 
 function monitorRuntimeErrors(page) {
@@ -36,6 +38,9 @@ const FAVORITE_CATALOG_TRANSITION_ID = favoriteCatalogTransitionCatalog.id;
 const FAVORITE_CATALOG_TRANSITION_PAGES = Math.max(1, Number(favoriteCatalogTransitionCatalog.pages) || 1);
 const FAVORITE_CATALOG_TRANSITION_PAGE = Math.min(4, FAVORITE_CATALOG_TRANSITION_PAGES);
 const CATALOG_COUNT = catalogData.length;
+const LARGE_CATALOG = [...catalogData].sort((left, right) => Number(right.pages || 0) - Number(left.pages || 0))[0];
+const LARGE_CATALOG_PAGES = Math.max(1, Number(LARGE_CATALOG?.pages) || 1);
+const PERFORMANCE_BUDGETS = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../performance-budgets.json"), "utf8"));
 const FAVORITES_WORKSPACE_CATALOGS = catalogData.slice(0, 2).map((catalog) => ({
   id: catalog.id,
   page: Math.min(2, Math.max(1, Number(catalog.pages) || 1))
@@ -71,7 +76,9 @@ async function preparePage(page, options = {}) {
   const captureShare = options.captureShare === true;
   const telemetryEvents = Array.isArray(options.telemetryEvents) ? options.telemetryEvents : null;
   const forceNoHoverMedia = options.forceNoHoverMedia === true;
-  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, legacyViewerLayout, captureClipboard, captureShare, enableTelemetry, forceNoHoverMedia }) => {
+  const blockLocalStorage = options.blockLocalStorage === true;
+  const enableVitalsDiagnostics = options.enableVitalsDiagnostics === true;
+  await page.addInitScript(({ onboardingKey, favoritesKey, viewerLayoutKey, onboardingSeen, resetFavorites, resetViewerLayout, legacyViewerLayout, captureClipboard, captureShare, enableTelemetry, forceNoHoverMedia, blockLocalStorage, enableVitalsDiagnostics }) => {
     if (forceNoHoverMedia) {
       const nativeMatchMedia = window.matchMedia.bind(window);
       window.matchMedia = (query) => {
@@ -89,6 +96,7 @@ async function preparePage(page, options = {}) {
       };
     }
     if (enableTelemetry) window.__BARGIG_ENABLE_TELEMETRY__ = true;
+    if (enableVitalsDiagnostics) window.__BARGIG_ENABLE_VITALS_DIAGNOSTICS__ = true;
     if (sessionStorage.getItem("bargig.e2e-onboarding-prepared") !== "1") {
       if (onboardingSeen) localStorage.setItem(onboardingKey, "1");
       else localStorage.removeItem(onboardingKey);
@@ -125,6 +133,24 @@ async function preparePage(page, options = {}) {
         }
       });
     }
+    if (blockLocalStorage) {
+      const nativeGetItem = Storage.prototype.getItem;
+      const nativeSetItem = Storage.prototype.setItem;
+      const nativeRemoveItem = Storage.prototype.removeItem;
+      const blocked = () => new DOMException("Local storage is blocked for this test", "SecurityError");
+      Storage.prototype.getItem = function getItem(key) {
+        if (this === window.localStorage) throw blocked();
+        return nativeGetItem.call(this, key);
+      };
+      Storage.prototype.setItem = function setItem(key, value) {
+        if (this === window.localStorage) throw blocked();
+        return nativeSetItem.call(this, key, value);
+      };
+      Storage.prototype.removeItem = function removeItem(key) {
+        if (this === window.localStorage) throw blocked();
+        return nativeRemoveItem.call(this, key);
+      };
+    }
   }, {
     onboardingKey: ONBOARDING_KEY,
     favoritesKey: FAVORITES_KEY,
@@ -135,8 +161,10 @@ async function preparePage(page, options = {}) {
     legacyViewerLayout,
     captureClipboard,
     captureShare,
-    enableTelemetry: Boolean(telemetryEvents),
-    forceNoHoverMedia
+    enableTelemetry: Boolean(telemetryEvents) || enableVitalsDiagnostics,
+    forceNoHoverMedia,
+    blockLocalStorage,
+    enableVitalsDiagnostics
   });
 
   await page.route("**/*", async (route) => {
@@ -291,6 +319,38 @@ async function expectPageSwapObserved(frame) {
     observed: PAGE_SWAP_OBSERVED_ATTRIBUTE,
     count: PAGE_SWAP_COUNT_ATTRIBUTE
   });
+}
+
+async function focusByTab(page, selector, maxTabs = 40) {
+  for (let index = 0; index < maxTabs; index += 1) {
+    if (await page.locator(selector).evaluate((element) => element === document.activeElement)) return;
+    await page.keyboard.press("Tab");
+  }
+  throw new Error(`Keyboard focus did not reach ${selector}`);
+}
+
+function reserveLocalPort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      server.close((error) => error ? reject(error) : resolve(port));
+    });
+  });
+}
+
+async function waitForControlServer(url, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return;
+    } catch (_error) {}
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Control panel did not start at ${url}`);
 }
 
 test.describe("critical catalog journeys", () => {
@@ -1041,6 +1101,88 @@ test.describe("critical catalog journeys", () => {
     await expect(tour).toHaveAttribute("aria-hidden", "true");
   });
 
+  test("reports memory-only favorites honestly when local storage is blocked", async ({ page }) => {
+    await preparePage(page, { blockLocalStorage: true });
+    await openDirectViewer(page, 2);
+    if (await page.locator("#viewerOnboarding").isVisible()) {
+      await page.locator("#viewerOnboardingSkip").click();
+      await expect(page.locator("#viewerOnboarding")).toBeHidden();
+    }
+
+    await page.locator("#viewerFavoriteButton").click();
+    await expect(page.locator("#viewerFavoriteButton")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#siteActionToast")).toContainText("נשמר זמנית בלבד");
+    await expect(page.locator("#siteActionToast")).toHaveAttribute("data-tone", "warning");
+
+    await page.reload();
+    await waitForApp(page);
+    await expectCurrentViewerImageReady(page);
+    await expect(page.locator("#viewerFavoriteButton")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("completes a search and viewer journey using the keyboard only", async ({ page }) => {
+    await preparePage(page);
+    await page.goto("/index.html");
+    await waitForApp(page);
+
+    await focusByTab(page, "#globalSearchOpen");
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#globalSearchInput")).toBeFocused();
+    await page.keyboard.type("פתיחת");
+    await expect(page.locator("#globalSearchResults [data-search-catalog]").first()).toBeVisible();
+    await page.keyboard.press("Enter");
+
+    await expect(page).toHaveURL(/\/catalog\/[^/]+\/page\/\d+\/$/);
+    await expectCurrentViewerImageReady(page);
+    const startingPage = Number(await page.locator("#viewerPageIndicatorCurrent").textContent());
+    const totalPages = Number(await page.locator("#viewerPageIndicatorTotal").textContent());
+    const key = startingPage < totalPages ? "ArrowLeft" : "ArrowRight";
+    const expectedPage = startingPage < totalPages ? startingPage + 1 : Math.max(1, startingPage - 1);
+    await page.keyboard.press(key);
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(expectedPage));
+  });
+
+  test("opens the largest real catalog and reaches its final page", async ({ page }) => {
+    expect(LARGE_CATALOG_PAGES).toBeGreaterThanOrEqual(100);
+    await preparePage(page);
+    await page.goto(`/catalog/${LARGE_CATALOG.id}/`);
+    await waitForApp(page);
+
+    const cards = page.locator("#pageGrid .page-card");
+    await expect(cards).toHaveCount(LARGE_CATALOG_PAGES);
+    const finalCard = page.locator(`[data-open-page="${LARGE_CATALOG_PAGES}"]`);
+    await finalCard.scrollIntoViewIfNeeded();
+    await finalCard.click();
+    await expect(page).toHaveURL(new RegExp(`/catalog/${LARGE_CATALOG.id}/page/${LARGE_CATALOG_PAGES}/$`));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(LARGE_CATALOG_PAGES));
+    await expectCurrentViewerImageReady(page);
+  });
+
+  test("keeps LCP, INP, and CLS within the mobile 4x CPU budgets", async ({ page, context }) => {
+    const budgets = PERFORMANCE_BUDGETS.coreWebVitals.mobile4x;
+    await preparePage(page, { enableVitalsDiagnostics: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+    try {
+      await page.goto("/index.html");
+      await waitForApp(page);
+      await page.locator("#globalSearchOpen").click();
+      await page.locator("#globalSearchInput").pressSequentially("פתיחת", { delay: 18 });
+      await expect(page.locator("#globalSearchResults [data-search-catalog]").first()).toBeVisible();
+      await page.keyboard.press("Escape");
+
+      await expect.poll(() => page.evaluate(() => window.__BARGIG_WEB_VITALS__?.LCP || 0)).toBeGreaterThan(0);
+      await expect.poll(() => page.evaluate(() => window.__BARGIG_WEB_VITALS__?.INP || 0)).toBeGreaterThan(0);
+      const vitals = await page.evaluate(() => ({ ...window.__BARGIG_WEB_VITALS__ }));
+      expect(vitals.LCP).toBeLessThanOrEqual(budgets.LCP);
+      expect(vitals.INP).toBeLessThanOrEqual(budgets.INP);
+      expect(vitals.CLS).toBeLessThanOrEqual(budgets.CLS);
+    } finally {
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    }
+  });
+
   test("emits privacy-safe operational telemetry for a real journey", async ({ page }) => {
     const events = [];
     await preparePage(page, { telemetryEvents: events, captureClipboard: true });
@@ -1090,6 +1232,60 @@ test.describe("critical catalog journeys", () => {
       expect(event).not.toHaveProperty("stack");
     }
   });
+});
+
+test("stops an active control-panel job and restores its transaction after reload", async ({ page }) => {
+  const root = path.resolve(__dirname, "../..");
+  const marker = path.join(root, ".artifacts", "e2e-control-job", "state.txt");
+  fs.mkdirSync(path.dirname(marker), { recursive: true });
+  fs.writeFileSync(marker, "stable\n", "utf8");
+  const port = await reserveLocalPort();
+  const venvPython = process.platform === "win32"
+    ? path.join(root, ".venv", "Scripts", "python.exe")
+    : path.join(root, ".venv", "bin", "python");
+  const python = fs.existsSync(venvPython) ? venvPython : (process.env.PYTHON || "python");
+  const output = [];
+  const server = spawn(python, [
+    "tools/catalog_control_server.py",
+    "--host", "127.0.0.1",
+    "--port", String(port),
+    "--no-open"
+  ], {
+    cwd: root,
+    env: { ...process.env, BARGIG_CONTROL_E2E: "1", PYTHONUNBUFFERED: "1" },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  server.stdout.on("data", (chunk) => output.push(String(chunk)));
+  server.stderr.on("data", (chunk) => output.push(String(chunk)));
+  const controlUrl = `http://127.0.0.1:${port}/catalog-control-panel.html`;
+
+  try {
+    await waitForControlServer(controlUrl);
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.goto(controlUrl);
+    const actionButton = page.locator('[data-action="_e2e_interruptible"]');
+    await expect(actionButton).toBeVisible();
+    await actionButton.click();
+    await expect(page.locator("#jobLog")).toContainText("[e2e-ready]", { timeout: 15_000 });
+    expect(fs.readFileSync(marker, "utf8")).toBe("mutating\n");
+
+    // A refresh must reconnect to the running job instead of losing control.
+    await page.reload();
+    await expect(page.locator("#cancelJob")).toBeVisible();
+    await page.locator("#cancelJob").click();
+    await expect(page.locator("#jobStatus")).toContainText("נעצר והמצב הקודם שוחזר", { timeout: 20_000 });
+    expect(fs.readFileSync(marker, "utf8")).toBe("stable\n");
+    expect(fs.readdirSync(root).filter((name) => name.startsWith(".control-e2e-interrupt-"))).toEqual([]);
+  } catch (error) {
+    throw new Error(`${error.message}\nControl server output:\n${output.join("")}`);
+  } finally {
+    if (server.exitCode === null) server.kill();
+    await new Promise((resolve) => {
+      if (server.exitCode !== null) return resolve();
+      server.once("exit", resolve);
+      setTimeout(resolve, 3000);
+    });
+  }
 });
 
 test("shares favorites to a clean browser context without relying on local storage", async ({ browser }) => {

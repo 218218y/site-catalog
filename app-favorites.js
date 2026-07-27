@@ -359,15 +359,34 @@ function attachNavigationEvents() {
 /** @typedef {{imageLoadCache: Map<string, Promise<unknown>>}} CatalogAssetState */
 /** @typedef {{actionToastTimer:number}} UiRuntimeState */
 /**
+ * Result returned by persistence-aware favorites mutations. ``persisted=false``
+ * means the in-memory list changed but browser storage rejected the write.
+ *
+ * @typedef {Object} FavoriteMutationResult
+ * @property {string} operation
+ * @property {boolean} changed
+ * @property {boolean} persisted
+ * @property {string} reason
+ * @property {Array<Record<string, unknown>>} items
+ * @property {boolean} [active]
+ */
+/**
  * @typedef {Object} FavoritesStore
  * @property {string} storageKey
  * @property {()=>Array<Record<string, unknown>>} read
  * @property {()=>Array<Record<string, unknown>>} reload
+ * @property {()=>({persisted:boolean, reason:string})} status
+ * @property {()=>FavoriteMutationResult|null} lastMutation
  * @property {(item:Record<string, unknown>)=>boolean} toggle
+ * @property {(item:Record<string, unknown>)=>FavoriteMutationResult} toggleDetailed
  * @property {(item:Record<string, unknown>)=>boolean} remove
- * @property {()=>void} clear
- * @property {(items:Array<Record<string, unknown>>)=>unknown} replace
- * @property {(item:Record<string, unknown>, note:string)=>unknown} setNote
+ * @property {(item:Record<string, unknown>)=>FavoriteMutationResult} removeDetailed
+ * @property {()=>boolean} clear
+ * @property {()=>FavoriteMutationResult} clearDetailed
+ * @property {(items:Array<Record<string, unknown>>)=>Array<Record<string, unknown>>} replace
+ * @property {(items:Array<Record<string, unknown>>)=>FavoriteMutationResult} replaceDetailed
+ * @property {(item:Record<string, unknown>, note:string)=>boolean} setNote
+ * @property {(item:Record<string, unknown>, note:string)=>FavoriteMutationResult} setNoteDetailed
  */
 /**
  * Stable public surface registered by an optional frontend feature. All members
@@ -763,7 +782,8 @@ const telemetryRuntime = {
     cls: 0,
     clsSessionValue: 0,
     clsSessionStart: 0,
-    clsLastEntry: 0
+    clsLastEntry: 0,
+    interactions: new Map()
   },
   initialized: false
 };
@@ -997,6 +1017,39 @@ function telemetryNavigationType() {
   return telemetryCleanText(navigation?.type || "navigate", 30);
 }
 
+function telemetryWebVitalsSnapshot() {
+  const runtime = telemetryRuntime.webVitals;
+  return {
+    LCP: Math.max(0, Number(runtime.lcp) || 0),
+    INP: Math.max(0, Number(runtime.inp) || 0),
+    CLS: Math.max(0, Number(runtime.cls) || 0)
+  };
+}
+
+function telemetryPublishWebVitalsDiagnostics() {
+  if (window.__BARGIG_ENABLE_VITALS_DIAGNOSTICS__ !== true) return;
+  window.__BARGIG_WEB_VITALS__ = telemetryWebVitalsSnapshot();
+}
+
+function telemetryRecordInteractionTiming(entry) {
+  const interactionId = Number(entry?.interactionId) || 0;
+  if (!interactionId) return;
+  const runtime = telemetryRuntime.webVitals;
+  const duration = Math.max(0, Number(entry?.duration) || 0);
+  runtime.interactions.set(interactionId, Math.max(duration, runtime.interactions.get(interactionId) || 0));
+  if (runtime.interactions.size > 300) {
+    const oldest = runtime.interactions.keys().next().value;
+    runtime.interactions.delete(oldest);
+  }
+  const candidates = Array.from(runtime.interactions.values()).sort((left, right) => right - left);
+  // INP uses a high-percentile interaction rather than a permanently growing
+  // maximum. For fewer than 50 interactions this correctly resolves to the
+  // slowest interaction; each additional 50 interactions excludes one outlier.
+  const candidateIndex = Math.min(candidates.length - 1, Math.floor(candidates.length / 50));
+  runtime.inp = candidates[candidateIndex] || 0;
+  telemetryPublishWebVitalsDiagnostics();
+}
+
 function telemetryReportWebVitals() {
   const runtime = telemetryRuntime.webVitals;
   for (const name of ["LCP", "INP", "CLS"]) {
@@ -1026,6 +1079,7 @@ function telemetryObserveWebVitals() {
         const entries = list.getEntries();
         const latest = entries[entries.length - 1];
         if (latest) runtime.lcp = Math.max(0, Number(latest.startTime) || 0);
+        telemetryPublishWebVitalsDiagnostics();
       }).observe({ type: "largest-contentful-paint", buffered: true });
     } catch (_error) {}
   }
@@ -1049,6 +1103,7 @@ function telemetryObserveWebVitals() {
           }
           runtime.clsLastEntry = start;
           runtime.cls = Math.max(runtime.cls, runtime.clsSessionValue);
+          telemetryPublishWebVitalsDiagnostics();
         }
       }).observe({ type: "layout-shift", buffered: true });
     } catch (_error) {}
@@ -1058,11 +1113,8 @@ function telemetryObserveWebVitals() {
     runtime.supported.add("INP");
     try {
       new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          if (!Number(entry.interactionId)) continue;
-          runtime.inp = Math.max(runtime.inp, Number(entry.duration) || 0);
-        }
-      }).observe({ type: "event", buffered: true, durationThreshold: 40 });
+        for (const entry of list.getEntries()) telemetryRecordInteractionTiming(entry);
+      }).observe({ type: "event", buffered: true, durationThreshold: 16 });
     } catch (_error) {}
   }
 }
@@ -2225,6 +2277,33 @@ function getFavoriteEntries() {
   });
 }
 
+/**
+ * Display truthful persistence feedback. Favorites continue to work in memory
+ * when browser storage is unavailable, but the UI must never describe that
+ * fallback as a durable save.
+ *
+ * @param {FavoriteMutationResult|null|undefined} result
+ * @param {{persisted:string, temporary:string, tone?:string, duration?:number}} messages
+ * @returns {boolean}
+ */
+function showFavoritePersistenceFeedback(result, messages) {
+  const persisted = result?.persisted !== false;
+  showActionToast(persisted ? messages.persisted : messages.temporary, {
+    tone: persisted ? (messages.tone || "saved") : "warning",
+    duration: persisted ? (messages.duration || 1300) : 4600
+  });
+  return persisted;
+}
+
+/** @param {FavoriteMutationResult|null|undefined} result */
+function warnIfFavoriteChangeIsTemporary(result) {
+  if (!result?.changed || result.persisted !== false) return;
+  showActionToast("השינוי נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן", {
+    tone: "warning",
+    duration: 4600
+  });
+}
+
 
 function getValidFavoriteItems() {
   return getFavoriteEntries().map(({ catalogId, catalog, page, savedAt, note }) => {
@@ -2471,7 +2550,7 @@ function applyFavoritesTransfer(mode) {
   const nextItems = mode === "merge"
     ? comparison.mergedItems
     : incoming;
-  favoritesStore.replace(nextItems);
+  const mutation = favoritesStore.replaceDetailed(nextItems);
   closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: pending.source === "link" });
   syncFavoritesUi({ renderPanel: true });
   syncFavoriteViewerAfterStoreChange();
@@ -2480,7 +2559,12 @@ function applyFavoritesTransfer(mode) {
   const resultText = mode === "merge"
     ? `${comparison.newItems.length} חדשים · ${comparison.alreadyExistingItems.length} כבר היו שמורים`
     : `${incoming.length} פריטים`;
-  showActionToast(`הרשימה ${verb}: ${resultText}${rejectedText}`, { tone: "saved", duration: 2800 });
+  showFavoritePersistenceFeedback(mutation, {
+    persisted: `הרשימה ${verb}: ${resultText}${rejectedText}`,
+    temporary: `הרשימה ${verb} זמנית בלבד: ${resultText}${rejectedText} — האחסון חסום`,
+    tone: "saved",
+    duration: 2800
+  });
   requestAnimationFrame(() => favoritesElements.favoritesGrid?.querySelector(".favorite-card")?.focus?.());
 }
 
@@ -2705,39 +2789,57 @@ function toggleCurrentPageFavorite() {
   const identity = favoriteIdentity();
   if (!identity || !favoritesStore) return;
   const previousFavoriteIndex = favoritesState.favoritesViewerIndex;
-  const added = favoritesStore.toggle({ ...identity, savedAt: Date.now() });
+  const mutation = favoritesStore.toggleDetailed({ ...identity, savedAt: Date.now() });
+  if (!mutation.changed) return;
+  const added = mutation.active === true;
   telemetryTrackFavorite(added ? "add" : "remove", identity.catalogId, identity.page, getFavoriteEntries().length);
   syncFavoritesUi({ renderPanel: true });
   if (isFavoritesLightboxMode() && !added) {
     syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
   }
   if (getFeatureInterface("viewer")?.isViewerOpen?.()) {
-    const feedback = added ? "נשמר" : "הוסר";
-    flashActionButton(favoritesElements.viewerFavoriteButton, feedback);
-    showActionToast(feedback, { tone: added ? "saved" : "removed" });
+    flashActionButton(favoritesElements.viewerFavoriteButton, mutation.persisted === false ? "זמני" : (added ? "נשמר" : "הוסר"));
+    showFavoritePersistenceFeedback(mutation, added ? {
+      persisted: "נשמר במועדפים",
+      temporary: "נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן",
+      tone: "saved"
+    } : {
+      persisted: "הוסר מהמועדפים",
+      temporary: "הוסר מהרשימה הזמנית בלבד — השינוי לא יישמר לאחר רענון",
+      tone: "removed"
+    });
   }
 }
 
 function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
-  const removed = favoritesStore.remove({ catalogId, page });
-  if (removed !== false) {
+  const mutation = favoritesStore.removeDetailed({ catalogId, page });
+  if (mutation.changed) {
     favoritesState.favoritesSelectedKeys.delete(favoriteItemKey({ catalogId, page }));
     telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
   }
   syncFavoritesUi({ renderPanel: true });
-  if (removed !== false) showActionToast("הוסר", { tone: "removed" });
+  if (mutation.changed) showFavoritePersistenceFeedback(mutation, {
+    persisted: "הוסר מהמועדפים",
+    temporary: "הוסר מהרשימה הזמנית בלבד — השינוי לא יישמר לאחר רענון",
+    tone: "removed"
+  });
 }
 
 function clearAllFavorites() {
   if (!favoritesStore || !getFavoriteEntries().length) return;
   if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
-  favoritesStore.clear();
+  const mutation = favoritesStore.clearDetailed();
+  if (!mutation.changed) return;
   favoritesState.favoritesSelectedKeys.clear();
   favoritesState.favoritesFilterCatalogId = "";
   telemetryTrackFavorite("clear", "", 0, 0);
   syncFavoritesUi({ renderPanel: true });
-  showActionToast("כל המועדפים הוסרו", { tone: "removed" });
+  showFavoritePersistenceFeedback(mutation, {
+    persisted: "כל המועדפים הוסרו",
+    temporary: "המועדפים הוסרו זמנית בלבד — הרשימה תחזור לאחר רענון",
+    tone: "removed"
+  });
 }
 
 function handleFavoritesGridClick(event) {
@@ -3501,7 +3603,9 @@ function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
     visibleIndex += 1;
     return replacement;
   });
-  return favoritesStore.replace(nextItems);
+  const mutation = favoritesStore.replaceDetailed(nextItems);
+  warnIfFavoriteChangeIsTemporary(mutation);
+  return mutation.changed;
 }
 
 function moveFavoriteWithinVisibleOrder(key, direction) {
@@ -3620,10 +3724,22 @@ function saveFavoriteNote() {
   if (!favoritesState.favoriteNoteEditingKey || !favoritesStore || !favoritesElements.favoriteNoteInput) return;
   const entry = favoriteWorkspaceFindEntryByKey(favoritesState.favoriteNoteEditingKey);
   if (!entry) return closeFavoriteNoteEditor({ restoreFocus: false });
-  favoritesStore.setNote({ catalogId: entry.catalog.id, page: entry.page }, favoritesElements.favoriteNoteInput.value);
+  const hasNote = Boolean(favoritesElements.favoriteNoteInput.value.trim());
+  const mutation = favoritesStore.setNoteDetailed(
+    { catalogId: entry.catalog.id, page: entry.page },
+    favoritesElements.favoriteNoteInput.value
+  );
   closeFavoriteNoteEditor({ restoreFocus: false });
   syncFavoritesUi({ renderPanel: true });
-  showActionToast(favoritesElements.favoriteNoteInput.value.trim() ? "ההערה נשמרה" : "ההערה הוסרה", { tone: "saved" });
+  if (mutation.changed) showFavoritePersistenceFeedback(mutation, hasNote ? {
+    persisted: "ההערה נשמרה",
+    temporary: "ההערה נשמרה זמנית בלבד — היא תיעלם לאחר רענון",
+    tone: "saved"
+  } : {
+    persisted: "ההערה הוסרה",
+    temporary: "ההערה הוסרה זמנית בלבד — השינוי לא יישמר לאחר רענון",
+    tone: "removed"
+  });
   requestAnimationFrame(() => {
     favoriteWorkspaceFindCardByKey(favoriteWorkspaceEntryKey(entry))?.querySelector("[data-edit-favorite-note]")?.focus?.();
   });

@@ -303,6 +303,9 @@
     }
     .job-line { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid #edf1f7; color: var(--muted); }
     .job-line strong { color: var(--text); }
+    .job-controls { display: flex; justify-content: flex-end; align-items: center; min-height: 40px; margin-bottom: 10px; }
+    .job-cancel-button { background: #fff3f3; color: #8d2525; border: 1px solid #e8baba; box-shadow: none; }
+    .job-cancel-button:hover:not(:disabled) { background: #ffe7e7; }
     .status-running { color: #1d4ed8; }
     .status-success { color: var(--ok); }
     .status-failed { color: var(--danger); }
@@ -447,6 +450,9 @@
         <span class="toast" id="jobStatus">אין הרצה פעילה.</span>
       </div>
       <div class="card-body">
+        <div class="job-controls">
+          <button class="job-cancel-button" id="cancelJob" type="button" hidden>עצירת הפעולה</button>
+        </div>
         <pre id="jobLog">בחר פעולה כדי להתחיל.</pre>
         <div id="jobHistory" style="margin-top: 14px;"></div>
       </div>
@@ -494,6 +500,7 @@
       taxonomyAddCategory: document.getElementById('addTaxonomyCategory'),
       taxonomyAddSubcategory: document.getElementById('addTaxonomySubcategory'),
       jobStatus: document.getElementById('jobStatus'),
+      cancelJob: document.getElementById('cancelJob'),
       jobLog: document.getElementById('jobLog'),
       jobHistory: document.getElementById('jobHistory'),
       refresh: document.getElementById('refreshState'),
@@ -559,7 +566,15 @@
       renderTaxonomyEditor();
       renderFooterEditor();
       renderActions();
-      renderJobHistory(data.jobs || []);
+      const jobs = data.jobs || [];
+      renderJobHistory(jobs);
+      const activeJob = jobs.find(job => ['running', 'canceling'].includes(job.status));
+      if (activeJob && state.activeJobId !== activeJob.id) {
+        state.activeJobId = activeJob.id;
+        pollJob();
+      } else if (!activeJob && !state.activeJobId) {
+        syncJobCancelButton(null);
+      }
     }
 
     function renderStats(counts) {
@@ -1440,6 +1455,32 @@
       els.saveStatus.className = `toast ${kind || ''}`;
     }
 
+    function syncJobCancelButton(job) {
+      const active = Boolean(job && ['running', 'canceling'].includes(job.status));
+      els.cancelJob.hidden = !active;
+      els.cancelJob.disabled = !active || job.status === 'canceling';
+      els.cancelJob.textContent = job?.status === 'canceling' ? 'עוצר ומחזיר מצב קודם…' : 'עצירת הפעולה';
+    }
+
+    async function cancelActiveJob() {
+      if (!state.activeJobId || !confirm('לעצור את הפעולה הפעילה? אם התחילה עסקה, המערכת תחזיר את המצב הקודם לפני שתאפשר פעולה חדשה.')) return;
+      els.cancelJob.disabled = true;
+      els.cancelJob.textContent = 'עוצר ומחזיר מצב קודם…';
+      try {
+        const payload = await api(`/api/jobs/${state.activeJobId}/cancel`, {
+          method: 'POST',
+          body: JSON.stringify({})
+        });
+        syncJobCancelButton(payload.job);
+        pollJob();
+      } catch (error) {
+        els.jobStatus.textContent = error.message;
+        els.jobStatus.className = 'toast err';
+        els.cancelJob.disabled = false;
+        els.cancelJob.textContent = 'עצירת הפעולה';
+      }
+    }
+
     async function runAction(actionKey) {
       const action = state.actions.find(item => item.key === actionKey);
       if (!action) return;
@@ -1471,6 +1512,7 @@
           body: JSON.stringify({ action: actionKey, pruneMissingPdfs })
         });
         state.activeJobId = payload.job.id;
+        syncJobCancelButton(payload.job);
         pollJob();
       } catch (error) {
         els.jobLog.textContent = error.message;
@@ -1488,9 +1530,12 @@
         els.jobLog.scrollTop = els.jobLog.scrollHeight;
         els.jobStatus.textContent = `${job.label} · ${statusText(job.status)}`;
         els.jobStatus.className = `toast status-${job.status}`;
-        if (job.status === 'running') {
-          state.polling = setTimeout(pollJob, 900);
+        syncJobCancelButton(job);
+        if (['running', 'canceling'].includes(job.status)) {
+          state.polling = setTimeout(pollJob, 500);
         } else {
+          state.activeJobId = null;
+          syncJobCancelButton(null);
           await loadState();
         }
       } catch (error) {
@@ -1501,6 +1546,8 @@
 
     function statusText(status) {
       if (status === 'running') return 'רץ';
+      if (status === 'canceling') return 'נעצר ומחזיר מצב קודם';
+      if (status === 'canceled') return 'נעצר והמצב הקודם שוחזר';
       if (status === 'success') return 'הסתיים בהצלחה';
       if (status === 'failed') return 'נכשל';
       return status;
@@ -1547,6 +1594,8 @@
       if (button.dataset.move) moveCatalog(index, button.dataset.move);
       if (button.dataset.delete) openDeleteCatalogDialog(index);
     });
+    els.cancelJob.addEventListener('click', cancelActiveJob);
+
     els.actions.addEventListener('click', event => {
       const button = event.target.closest('[data-action]');
       if (button) runAction(button.dataset.action);

@@ -255,7 +255,9 @@ function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
     visibleIndex += 1;
     return replacement;
   });
-  return favoritesStore.replace(nextItems);
+  const mutation = favoritesStore.replaceDetailed(nextItems);
+  warnIfFavoriteChangeIsTemporary(mutation);
+  return mutation.changed;
 }
 
 function moveFavoriteWithinVisibleOrder(key, direction) {
@@ -374,10 +376,22 @@ function saveFavoriteNote() {
   if (!favoritesState.favoriteNoteEditingKey || !favoritesStore || !favoritesElements.favoriteNoteInput) return;
   const entry = favoriteWorkspaceFindEntryByKey(favoritesState.favoriteNoteEditingKey);
   if (!entry) return closeFavoriteNoteEditor({ restoreFocus: false });
-  favoritesStore.setNote({ catalogId: entry.catalog.id, page: entry.page }, favoritesElements.favoriteNoteInput.value);
+  const hasNote = Boolean(favoritesElements.favoriteNoteInput.value.trim());
+  const mutation = favoritesStore.setNoteDetailed(
+    { catalogId: entry.catalog.id, page: entry.page },
+    favoritesElements.favoriteNoteInput.value
+  );
   closeFavoriteNoteEditor({ restoreFocus: false });
   syncFavoritesUi({ renderPanel: true });
-  showActionToast(favoritesElements.favoriteNoteInput.value.trim() ? "ההערה נשמרה" : "ההערה הוסרה", { tone: "saved" });
+  if (mutation.changed) showFavoritePersistenceFeedback(mutation, hasNote ? {
+    persisted: "ההערה נשמרה",
+    temporary: "ההערה נשמרה זמנית בלבד — היא תיעלם לאחר רענון",
+    tone: "saved"
+  } : {
+    persisted: "ההערה הוסרה",
+    temporary: "ההערה הוסרה זמנית בלבד — השינוי לא יישמר לאחר רענון",
+    tone: "removed"
+  });
   requestAnimationFrame(() => {
     favoriteWorkspaceFindCardByKey(favoriteWorkspaceEntryKey(entry))?.querySelector("[data-edit-favorite-note]")?.focus?.();
   });

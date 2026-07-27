@@ -14,6 +14,7 @@ import filecmp
 import json
 import os
 import re
+import signal
 import subprocess
 import shutil
 import sys
@@ -160,6 +161,13 @@ ACTIONS: dict[str, Action] = {
     ),
 }
 
+if os.environ.get("BARGIG_CONTROL_E2E") == "1":
+    ACTIONS["_e2e_interruptible"] = Action(
+        "בדיקת עצירה ושחזור",
+        "פעולת בדיקה איטית שמוודאת עצירה ושחזור עסקה דרך הדפדפן.",
+        ["tests/fixtures/control_panel_interruptible_job.py"],
+    )
+
 
 @dataclass
 class Job:
@@ -170,6 +178,9 @@ class Job:
     status: str = "running"
     returncode: int | None = None
     finished_at: float | None = None
+    cancel_requested: bool = False
+    cancel_requested_at: float | None = None
+    process: subprocess.Popen[str] | None = field(default=None, repr=False, compare=False)
     log: list[str] = field(default_factory=list)
 
 
@@ -1143,7 +1154,7 @@ def state_payload() -> dict[str, Any]:
     missing_configured = configured_missing_pdfs(config)
     mutation = read_lock_metadata(PROJECT_ROOT) or {}
     with jobs_lock:
-        active_jobs = [job for job in jobs.values() if job.status == "running"]
+        active_jobs = [job for job in jobs.values() if job.status in {"running", "canceling"}]
         job_summaries = [serialize_job(job, include_log=False) for job in sorted(jobs.values(), key=lambda item: item.started_at, reverse=True)[:10]]
     active_job = max(active_jobs, key=lambda item: item.started_at) if active_jobs else None
     mutation_active = bool(mutation.get("token") or active_job)
@@ -1376,7 +1387,7 @@ def start_job(action_key: str, *, prune_missing_pdfs: bool = False) -> Job:
 
     with job_start_lock:
         with jobs_lock:
-            running = [item for item in jobs.values() if item.status == "running"]
+            running = [item for item in jobs.values() if item.status in {"running", "canceling"}]
         if running:
             current = max(running, key=lambda item: item.started_at)
             raise MutationBusyError(
@@ -1406,12 +1417,115 @@ def start_job(action_key: str, *, prune_missing_pdfs: bool = False) -> Job:
         return job
 
 
+def _signal_job_process(process: subprocess.Popen[str]) -> str:
+    """Request cooperative cancellation for a worker process group."""
+    if process.poll() is not None:
+        return "already-exited"
+    if os.name == "nt":
+        ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+        if ctrl_break is not None:
+            try:
+                process.send_signal(ctrl_break)
+                return "ctrl-break"
+            except (OSError, ValueError):
+                pass
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGINT)
+            return "sigint-group"
+        except (OSError, ProcessLookupError):
+            pass
+    process.terminate()
+    return "terminate"
+
+
+def _escalate_job_cancellation(job: Job, process: subprocess.Popen[str]) -> None:
+    try:
+        process.wait(timeout=8)
+        return
+    except subprocess.TimeoutExpired:
+        append_job_log(job, "[cancel] graceful stop timed out; terminating process group")
+
+    try:
+        if os.name != "nt":
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+        process.wait(timeout=4)
+        return
+    except (OSError, ProcessLookupError, subprocess.TimeoutExpired):
+        pass
+
+    append_job_log(job, "[cancel] termination timed out; forcing process exit")
+    try:
+        if os.name != "nt":
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+    except (OSError, ProcessLookupError):
+        pass
+
+
+def cancel_job(job_id: str) -> Job:
+    with jobs_lock:
+        job = jobs.get(job_id)
+        if not job:
+            raise ValueError("Job not found")
+        if job.status not in {"running", "canceling"}:
+            return job
+        if job.cancel_requested:
+            return job
+        job.cancel_requested = True
+        job.cancel_requested_at = time.time()
+        job.status = "canceling"
+        job.log.append("[cancel] stop requested from the control panel")
+        process = job.process
+
+    if process is not None and process.poll() is None:
+        try:
+            method = _signal_job_process(process)
+            append_job_log(job, f"[cancel] signal sent: {method}")
+        except Exception as exc:
+            append_job_log(job, f"[cancel] failed to signal worker: {exc}")
+        threading.Thread(
+            target=_escalate_job_cancellation,
+            args=(job, process),
+            daemon=True,
+        ).start()
+    return job
+
+
+def _recover_after_canceled_job(job: Job) -> str:
+    try:
+        with ProjectMutationLock(PROJECT_ROOT, f"שחזור לאחר עצירת {job.label}") as lock:
+            recovered = tuple(lock.recovered_transactions)
+        if recovered:
+            return f"[cancel] recovered {len(recovered)} interrupted transaction(s)"
+        return "[cancel] no interrupted transaction required recovery"
+    except Exception as exc:
+        raise RuntimeError(f"failed to recover the project after cancellation: {exc}") from exc
+
+
 def run_job(job: Job, action_command: Sequence[str]) -> None:
     command = [python_executable(), *action_command]
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
     append_job_log(job, f"$ {' '.join(action_command)}")
     try:
+        with jobs_lock:
+            if job.cancel_requested:
+                job.returncode = 130
+                job.finished_at = time.time()
+                job.status = "canceled"
+                job.log.append("[cancel] canceled before worker startup")
+                return
+
+        popen_options: dict[str, Any] = {}
+        if os.name == "nt":
+            popen_options["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        else:
+            popen_options["start_new_session"] = True
+
         process = subprocess.Popen(
             command,
             cwd=PROJECT_ROOT,
@@ -1421,18 +1535,47 @@ def run_job(job: Job, action_command: Sequence[str]) -> None:
             encoding="utf-8",
             errors="replace",
             env=env,
+            **popen_options,
         )
+        with jobs_lock:
+            job.process = process
+            cancel_raced = job.cancel_requested
+
+        if cancel_raced and process.poll() is None:
+            method = _signal_job_process(process)
+            append_job_log(job, f"[cancel] signal sent after startup race: {method}")
+            threading.Thread(target=_escalate_job_cancellation, args=(job, process), daemon=True).start()
+
         assert process.stdout is not None
         for line in process.stdout:
             append_job_log(job, line.rstrip("\n"))
         returncode = process.wait()
+
+        recovery_message = ""
+        recovery_error = ""
+        if job.cancel_requested:
+            try:
+                recovery_message = _recover_after_canceled_job(job)
+            except Exception as exc:
+                recovery_error = str(exc)
+
         with jobs_lock:
+            job.process = None
             job.returncode = returncode
             job.finished_at = time.time()
-            job.status = "success" if returncode == 0 else "failed"
-            job.log.append(f"[done] return code: {returncode}")
+            if job.cancel_requested and not recovery_error:
+                job.status = "canceled"
+                job.log.append(recovery_message)
+                job.log.append(f"[done] canceled; return code: {returncode}")
+            elif recovery_error:
+                job.status = "failed"
+                job.log.append(f"ERROR: {recovery_error}")
+            else:
+                job.status = "success" if returncode == 0 else "failed"
+                job.log.append(f"[done] return code: {returncode}")
     except Exception as exc:
         with jobs_lock:
+            job.process = None
             job.returncode = -1
             job.finished_at = time.time()
             job.status = "failed"
@@ -1455,6 +1598,8 @@ def serialize_job(job: Job, include_log: bool = True) -> dict[str, Any]:
         "returncode": job.returncode,
         "startedAt": job.started_at,
         "finishedAt": job.finished_at,
+        "cancelRequested": job.cancel_requested,
+        "cancelRequestedAt": job.cancel_requested_at,
     }
     if include_log:
         data["log"] = job.log
@@ -1515,6 +1660,13 @@ class ControlHandler(BaseHTTPRequestHandler):
                 filename, content = read_multipart_pdf_upload(self)
                 upload = save_uploaded_pdf(filename, content)
                 self.send_json({"ok": True, "pdf": upload, "pdfFiles": pdf_files_payload(), "state": state_payload()})
+                return
+
+            cancel_match = re.fullmatch(r"/api/jobs/([a-z0-9]+)/cancel", path)
+            if cancel_match:
+                read_json_body(self)
+                job = cancel_job(cancel_match.group(1))
+                self.send_json({"ok": True, "job": serialize_job(job)})
                 return
 
             payload = read_json_body(self)

@@ -4,6 +4,8 @@ import importlib.util
 import json
 import re
 import sys
+
+import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,3 +70,32 @@ def test_standalone_viewer_readme_stats_match_metadata() -> None:
     assert f"- מספר קטלוגים: {len(generated)}" in readme
     assert f"- סך תמונות/עמודים בכל גודל: {total}" in readme
     assert f"- מספר קבוצות של עד 50 תמונות: {chunks}" in readme
+
+
+def test_standalone_viewer_check_is_byte_exact_for_line_endings(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    viewer = root / BUILD.VIEWER_RELATIVE_PATH
+    readme = root / BUILD.README_RELATIVE_PATH
+    catalogs_path = root / BUILD.CATALOGS_RELATIVE_PATH
+    viewer.parent.mkdir(parents=True)
+    catalogs = [{"id": "sample", "title": "Sample", "dir": "assets/pages/sample", "pages": 1}]
+    catalogs_path.write_text(json.dumps(catalogs), encoding="utf-8")
+    viewer.write_text(
+        f"<script>\n{BUILD.SNAPSHOT_START}\nold\n{BUILD.SNAPSHOT_END}\n</script>\n",
+        encoding="utf-8",
+    )
+    readme.write_text(
+        f"Header\n{BUILD.README_STATS_START}\nold\n{BUILD.README_STATS_END}\n",
+        encoding="utf-8",
+    )
+
+    BUILD.build_big_pages_viewer(root)
+    canonical = readme.read_bytes()
+    assert b"\r\n" not in canonical
+
+    readme.write_bytes(canonical.replace(b"\n", b"\r\n"))
+    with pytest.raises(RuntimeError, match="README.txt"):
+        BUILD.build_big_pages_viewer(root, check=True)
+
+    assert BUILD.build_big_pages_viewer(root) is True
+    assert readme.read_bytes() == canonical

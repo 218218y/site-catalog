@@ -290,6 +290,7 @@
 .site-action-toast[data-tone="removed"]::before { content: "−"; }
 .site-action-toast[data-tone="link"]::before { content: "↗"; }
 .site-action-toast[data-tone="info"]::before { content: "i"; }
+.site-action-toast[data-tone="warning"]::before { content: "!"; background: #ffe0a8; color: #5b3b00; }
 
 .reader-icon-button-feedback {
   animation: action-feedback-pop 360ms var(--motion-easing) both;

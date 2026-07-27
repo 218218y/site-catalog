@@ -48,7 +48,8 @@ const telemetryRuntime = {
     cls: 0,
     clsSessionValue: 0,
     clsSessionStart: 0,
-    clsLastEntry: 0
+    clsLastEntry: 0,
+    interactions: new Map()
   },
   initialized: false
 };
@@ -282,6 +283,39 @@ function telemetryNavigationType() {
   return telemetryCleanText(navigation?.type || "navigate", 30);
 }
 
+function telemetryWebVitalsSnapshot() {
+  const runtime = telemetryRuntime.webVitals;
+  return {
+    LCP: Math.max(0, Number(runtime.lcp) || 0),
+    INP: Math.max(0, Number(runtime.inp) || 0),
+    CLS: Math.max(0, Number(runtime.cls) || 0)
+  };
+}
+
+function telemetryPublishWebVitalsDiagnostics() {
+  if (window.__BARGIG_ENABLE_VITALS_DIAGNOSTICS__ !== true) return;
+  window.__BARGIG_WEB_VITALS__ = telemetryWebVitalsSnapshot();
+}
+
+function telemetryRecordInteractionTiming(entry) {
+  const interactionId = Number(entry?.interactionId) || 0;
+  if (!interactionId) return;
+  const runtime = telemetryRuntime.webVitals;
+  const duration = Math.max(0, Number(entry?.duration) || 0);
+  runtime.interactions.set(interactionId, Math.max(duration, runtime.interactions.get(interactionId) || 0));
+  if (runtime.interactions.size > 300) {
+    const oldest = runtime.interactions.keys().next().value;
+    runtime.interactions.delete(oldest);
+  }
+  const candidates = Array.from(runtime.interactions.values()).sort((left, right) => right - left);
+  // INP uses a high-percentile interaction rather than a permanently growing
+  // maximum. For fewer than 50 interactions this correctly resolves to the
+  // slowest interaction; each additional 50 interactions excludes one outlier.
+  const candidateIndex = Math.min(candidates.length - 1, Math.floor(candidates.length / 50));
+  runtime.inp = candidates[candidateIndex] || 0;
+  telemetryPublishWebVitalsDiagnostics();
+}
+
 function telemetryReportWebVitals() {
   const runtime = telemetryRuntime.webVitals;
   for (const name of ["LCP", "INP", "CLS"]) {
@@ -311,6 +345,7 @@ function telemetryObserveWebVitals() {
         const entries = list.getEntries();
         const latest = entries[entries.length - 1];
         if (latest) runtime.lcp = Math.max(0, Number(latest.startTime) || 0);
+        telemetryPublishWebVitalsDiagnostics();
       }).observe({ type: "largest-contentful-paint", buffered: true });
     } catch (_error) {}
   }
@@ -334,6 +369,7 @@ function telemetryObserveWebVitals() {
           }
           runtime.clsLastEntry = start;
           runtime.cls = Math.max(runtime.cls, runtime.clsSessionValue);
+          telemetryPublishWebVitalsDiagnostics();
         }
       }).observe({ type: "layout-shift", buffered: true });
     } catch (_error) {}
@@ -343,11 +379,8 @@ function telemetryObserveWebVitals() {
     runtime.supported.add("INP");
     try {
       new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          if (!Number(entry.interactionId)) continue;
-          runtime.inp = Math.max(runtime.inp, Number(entry.duration) || 0);
-        }
-      }).observe({ type: "event", buffered: true, durationThreshold: 40 });
+        for (const entry of list.getEntries()) telemetryRecordInteractionTiming(entry);
+      }).observe({ type: "event", buffered: true, durationThreshold: 16 });
     } catch (_error) {}
   }
 }

@@ -29,7 +29,11 @@ assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="
 assert.match(favoritesHtml, /<script src="app-favorites\.js"><\/script>/);
 assert.match(viewerHtml, /<script src="app-viewer\.js"><\/script>/);
 
-assert.match(app, /favoritesStore\.toggle\(\{ \.\.\.identity, savedAt: Date\.now\(\) \}\)/);
+assert.match(app, /favoritesStore\.toggleDetailed\(\{ \.\.\.identity, savedAt: Date\.now\(\) \}\)/);
+assert.match(app, /favoritesStore\.replaceDetailed\(/);
+assert.match(app, /favoritesStore\.setNoteDetailed\(/);
+assert.match(app, /showFavoritePersistenceFeedback/);
+assert.match(app, /persisted/);
 assert.match(app, /window\.addEventListener\("storage", handleFavoritesStorageChange\)/);
 assert.match(app, /openFavoriteViewer\(catalogId, page\)/);
 assert.match(app, /source: LIGHTBOX_SOURCE_FAVORITES/);

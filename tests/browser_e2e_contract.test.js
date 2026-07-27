@@ -24,6 +24,7 @@ const playwrightConfig = configModule.exports;
 const spec = fs.readFileSync(path.join(root, "tests", "e2e", "site-catalog.spec.js"), "utf8");
 const visualSpec = fs.readFileSync(path.join(root, "tests", "e2e", "visual-components.spec.js"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
+const prepublishGate = fs.readFileSync(path.join(root, "docs", "prepublish-quality-gate.md"), "utf8");
 
 assert.match(packageJson.devDependencies?.["@playwright/test"] || "", /^\^?1\./);
 assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
@@ -51,6 +52,12 @@ assert.match(config, /toHaveScreenshot/);
 assert.match(spec, /opens a catalog and moves forward and backward/);
 assert.match(spec, /opens the catalog preview and launches the selected page/);
 assert.match(spec, /searches the OCR index/);
+assert.match(spec, /keeps worker search responsive under 4x CPU slowdown and renders only the latest query/);
+assert.match(spec, /reports memory-only favorites honestly when local storage is blocked/);
+assert.match(spec, /completes a search and viewer journey using the keyboard only/);
+assert.match(spec, /opens the largest real catalog and reaches its final page/);
+assert.match(spec, /keeps LCP, INP, and CLS within the mobile 4x CPU budgets/);
+assert.match(spec, /stops an active control-panel job and restores its transaction after reload/);
 assert.match(spec, /persists a favorite through reload/);
 assert.match(spec, /shares favorites to a clean browser context/);
 assert.match(spec, /first-run viewer tour once/);
@@ -71,6 +78,11 @@ assert.match(spec, /content security policy/);
 assert.match(spec, /CATALOG_PAGES/);
 assert.match(spec, /CATALOG_COUNT/);
 assert.match(spec, /toHaveScreenshot/);
+assert.match(spec, /Emulation\.setCPUThrottlingRate/);
+assert.match(spec, /__BARGIG_ENABLE_VITALS_DIAGNOSTICS__/);
+assert.match(spec, /enableTelemetry: Boolean\(telemetryEvents\) \|\| enableVitalsDiagnostics/);
+assert.match(spec, /viewerOnboardingSkip/);
+assert.match(spec, /blockLocalStorage/);
 assert.match(visualSpec, /home catalog row preserves hierarchy and spacing/);
 assert.match(visualSpec, /inquiry dialog retains the light visual system/);
 assert.match(visualSpec, /favorites cards retain selection notes and ordering controls/);
@@ -80,6 +92,9 @@ assert.match(visualSpec, /PLAYWRIGHT_VISUAL_BASELINE/);
 assert.match(visualSpec, /expectVisualComponent/);
 assert.match(visualSpec, /toHaveScreenshot/);
 assert.match(verifier, /Playwright browser journeys/);
+assert.match(prepublishGate, /סקירה חזותית ידנית על מכשירים אמיתיים/);
+assert.match(prepublishGate, /LCP[\s\S]*INP[\s\S]*CLS/);
+assert.match(prepublishGate, /אחסון חסום/);
 
 for (const relative of [
   "tools/e2e_server.js",

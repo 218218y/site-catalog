@@ -95,15 +95,34 @@
 /** @typedef {{imageLoadCache: Map<string, Promise<unknown>>}} CatalogAssetState */
 /** @typedef {{actionToastTimer:number}} UiRuntimeState */
 /**
+ * Result returned by persistence-aware favorites mutations. ``persisted=false``
+ * means the in-memory list changed but browser storage rejected the write.
+ *
+ * @typedef {Object} FavoriteMutationResult
+ * @property {string} operation
+ * @property {boolean} changed
+ * @property {boolean} persisted
+ * @property {string} reason
+ * @property {Array<Record<string, unknown>>} items
+ * @property {boolean} [active]
+ */
+/**
  * @typedef {Object} FavoritesStore
  * @property {string} storageKey
  * @property {()=>Array<Record<string, unknown>>} read
  * @property {()=>Array<Record<string, unknown>>} reload
+ * @property {()=>({persisted:boolean, reason:string})} status
+ * @property {()=>FavoriteMutationResult|null} lastMutation
  * @property {(item:Record<string, unknown>)=>boolean} toggle
+ * @property {(item:Record<string, unknown>)=>FavoriteMutationResult} toggleDetailed
  * @property {(item:Record<string, unknown>)=>boolean} remove
- * @property {()=>void} clear
- * @property {(items:Array<Record<string, unknown>>)=>unknown} replace
- * @property {(item:Record<string, unknown>, note:string)=>unknown} setNote
+ * @property {(item:Record<string, unknown>)=>FavoriteMutationResult} removeDetailed
+ * @property {()=>boolean} clear
+ * @property {()=>FavoriteMutationResult} clearDetailed
+ * @property {(items:Array<Record<string, unknown>>)=>Array<Record<string, unknown>>} replace
+ * @property {(items:Array<Record<string, unknown>>)=>FavoriteMutationResult} replaceDetailed
+ * @property {(item:Record<string, unknown>, note:string)=>boolean} setNote
+ * @property {(item:Record<string, unknown>, note:string)=>FavoriteMutationResult} setNoteDetailed
  */
 /**
  * Stable public surface registered by an optional frontend feature. All members

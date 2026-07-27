@@ -25,6 +25,33 @@ function getFavoriteEntries() {
   });
 }
 
+/**
+ * Display truthful persistence feedback. Favorites continue to work in memory
+ * when browser storage is unavailable, but the UI must never describe that
+ * fallback as a durable save.
+ *
+ * @param {FavoriteMutationResult|null|undefined} result
+ * @param {{persisted:string, temporary:string, tone?:string, duration?:number}} messages
+ * @returns {boolean}
+ */
+function showFavoritePersistenceFeedback(result, messages) {
+  const persisted = result?.persisted !== false;
+  showActionToast(persisted ? messages.persisted : messages.temporary, {
+    tone: persisted ? (messages.tone || "saved") : "warning",
+    duration: persisted ? (messages.duration || 1300) : 4600
+  });
+  return persisted;
+}
+
+/** @param {FavoriteMutationResult|null|undefined} result */
+function warnIfFavoriteChangeIsTemporary(result) {
+  if (!result?.changed || result.persisted !== false) return;
+  showActionToast("השינוי נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן", {
+    tone: "warning",
+    duration: 4600
+  });
+}
+
 
 function getValidFavoriteItems() {
   return getFavoriteEntries().map(({ catalogId, catalog, page, savedAt, note }) => {
@@ -271,7 +298,7 @@ function applyFavoritesTransfer(mode) {
   const nextItems = mode === "merge"
     ? comparison.mergedItems
     : incoming;
-  favoritesStore.replace(nextItems);
+  const mutation = favoritesStore.replaceDetailed(nextItems);
   closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: pending.source === "link" });
   syncFavoritesUi({ renderPanel: true });
   syncFavoriteViewerAfterStoreChange();
@@ -280,7 +307,12 @@ function applyFavoritesTransfer(mode) {
   const resultText = mode === "merge"
     ? `${comparison.newItems.length} חדשים · ${comparison.alreadyExistingItems.length} כבר היו שמורים`
     : `${incoming.length} פריטים`;
-  showActionToast(`הרשימה ${verb}: ${resultText}${rejectedText}`, { tone: "saved", duration: 2800 });
+  showFavoritePersistenceFeedback(mutation, {
+    persisted: `הרשימה ${verb}: ${resultText}${rejectedText}`,
+    temporary: `הרשימה ${verb} זמנית בלבד: ${resultText}${rejectedText} — האחסון חסום`,
+    tone: "saved",
+    duration: 2800
+  });
   requestAnimationFrame(() => favoritesElements.favoritesGrid?.querySelector(".favorite-card")?.focus?.());
 }
 
@@ -505,39 +537,57 @@ function toggleCurrentPageFavorite() {
   const identity = favoriteIdentity();
   if (!identity || !favoritesStore) return;
   const previousFavoriteIndex = favoritesState.favoritesViewerIndex;
-  const added = favoritesStore.toggle({ ...identity, savedAt: Date.now() });
+  const mutation = favoritesStore.toggleDetailed({ ...identity, savedAt: Date.now() });
+  if (!mutation.changed) return;
+  const added = mutation.active === true;
   telemetryTrackFavorite(added ? "add" : "remove", identity.catalogId, identity.page, getFavoriteEntries().length);
   syncFavoritesUi({ renderPanel: true });
   if (isFavoritesLightboxMode() && !added) {
     syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
   }
   if (getFeatureInterface("viewer")?.isViewerOpen?.()) {
-    const feedback = added ? "נשמר" : "הוסר";
-    flashActionButton(favoritesElements.viewerFavoriteButton, feedback);
-    showActionToast(feedback, { tone: added ? "saved" : "removed" });
+    flashActionButton(favoritesElements.viewerFavoriteButton, mutation.persisted === false ? "זמני" : (added ? "נשמר" : "הוסר"));
+    showFavoritePersistenceFeedback(mutation, added ? {
+      persisted: "נשמר במועדפים",
+      temporary: "נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן",
+      tone: "saved"
+    } : {
+      persisted: "הוסר מהמועדפים",
+      temporary: "הוסר מהרשימה הזמנית בלבד — השינוי לא יישמר לאחר רענון",
+      tone: "removed"
+    });
   }
 }
 
 function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
-  const removed = favoritesStore.remove({ catalogId, page });
-  if (removed !== false) {
+  const mutation = favoritesStore.removeDetailed({ catalogId, page });
+  if (mutation.changed) {
     favoritesState.favoritesSelectedKeys.delete(favoriteItemKey({ catalogId, page }));
     telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
   }
   syncFavoritesUi({ renderPanel: true });
-  if (removed !== false) showActionToast("הוסר", { tone: "removed" });
+  if (mutation.changed) showFavoritePersistenceFeedback(mutation, {
+    persisted: "הוסר מהמועדפים",
+    temporary: "הוסר מהרשימה הזמנית בלבד — השינוי לא יישמר לאחר רענון",
+    tone: "removed"
+  });
 }
 
 function clearAllFavorites() {
   if (!favoritesStore || !getFavoriteEntries().length) return;
   if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
-  favoritesStore.clear();
+  const mutation = favoritesStore.clearDetailed();
+  if (!mutation.changed) return;
   favoritesState.favoritesSelectedKeys.clear();
   favoritesState.favoritesFilterCatalogId = "";
   telemetryTrackFavorite("clear", "", 0, 0);
   syncFavoritesUi({ renderPanel: true });
-  showActionToast("כל המועדפים הוסרו", { tone: "removed" });
+  showFavoritePersistenceFeedback(mutation, {
+    persisted: "כל המועדפים הוסרו",
+    temporary: "המועדפים הוסרו זמנית בלבד — הרשימה תחזור לאחר רענון",
+    tone: "removed"
+  });
 }
 
 function handleFavoritesGridClick(event) {

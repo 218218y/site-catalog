@@ -29,8 +29,9 @@ assert.match(app, /applyLightboxFrameGeometry\(image\.naturalWidth, image\.natur
 assert.match(app, /loadCatalogImageWithRecovery\(image, \{/);
 assert.match(app, /function initImagePlaceholderObserver\(/);
 assert.match(app, /new MutationObserver/);
-assert.match(app, /showActionToast\("נשמר",|const feedback = added \? "נשמר" : "הוסר"/);
-assert.match(app, /showActionToast\("הוסר", \{ tone: "removed" \}\)/);
+assert.match(app, /showFavoritePersistenceFeedback/);
+assert.match(app, /נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן/);
+assert.match(app, /הוסר מהמועדפים/);
 assert.match(app, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
 assert.match(app, /aria-valuetext/);
 assert.match(app, /viewerPageIndicatorCurrent\.textContent/);
@@ -71,6 +72,8 @@ assert.match(app, /showViewerPageIndicatorTemporarily\(\)/);
 assert.match(app, /hideViewerPageIndicator\(\)/);
 assert.match(css, /\.catalog-progress\s*\{[\s\S]*?height:\s*5px/);
 assert.match(css, /\.site-action-toast\[data-tone="removed"\]::before/);
+assert.match(css, /\.site-action-toast\[data-tone="warning"\]::before/);
+assert.match(css, /\.site-action-toast\[data-tone="warning"\]/);
 assert.match(css, /\.empty-state\s*\{/);
 assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation-duration:\s*\.01ms !important/);
 

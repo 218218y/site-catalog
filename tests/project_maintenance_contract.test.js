@@ -45,6 +45,8 @@ const bundleSite = readLauncher(windowsLaunchers.bundleSite);
 const cleanArtifactsBat = readLauncher(windowsLaunchers.cleanArtifacts);
 const uploadSite = readLauncher(windowsLaunchers.uploadSite);
 const ciWorkflow = fs.readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+const controlPanel = fs.readFileSync(path.join(root, "catalog-control-panel.html"), "utf8");
+const controlServer = fs.readFileSync(path.join(root, "tools", "catalog_control_server.py"), "utf8");
 
 assert.equal(packageJson.private, true);
 assert.equal(packageJson.scripts["setup:python"], "python tools/setup_python_env.py");
@@ -142,6 +144,14 @@ assert.equal(fs.existsSync(path.join(root, "tools", "run_with_project_python.py"
 assert.match(verifier, /sys\.dont_write_bytecode = True/);
 assert.match(verifier, /PYTHONDONTWRITEBYTECODE/);
 assert.match(architecture, /אין לפצל מודול רק בגלל מספר השורות/);
+assert.match(controlPanel, /id="cancelJob"/);
+assert.match(controlPanel, /function cancelActiveJob/);
+assert.match(controlPanel, /\/api\/jobs\/\$\{state\.activeJobId\}\/cancel/);
+assert.match(controlServer, /def cancel_job\(/);
+assert.match(controlServer, /cancel_requested/);
+assert.match(controlServer, /_recover_after_canceled_job/);
+assert.match(controlServer, /BARGIG_CONTROL_E2E/);
+assert.equal(fs.existsSync(path.join(root, "tests", "fixtures", "control_panel_interruptible_job.py")), true);
 
 assert.equal(fs.existsSync(path.join(root, "wp_logo_data.js")), false);
 assert.equal(fs.existsSync(path.join(root, "brand-logo.js")), false);

@@ -72,8 +72,37 @@ function run() {
     setItem() { throw new Error('blocked'); }
   };
   const fallbackStore = createStore({ storage: throwingStorage });
-  fallbackStore.add({ catalogId: 'fallback', page: 1, savedAt: 1 });
+  const temporaryAdd = fallbackStore.addDetailed({ catalogId: 'fallback', page: 1, savedAt: 1 });
+  assert.equal(temporaryAdd.changed, true);
+  assert.equal(temporaryAdd.active, true);
+  assert.equal(temporaryAdd.persisted, false);
+  assert.equal(temporaryAdd.reason, 'blocked');
   assert.equal(fallbackStore.has({ catalogId: 'fallback', page: 1 }), true);
+  assert.deepEqual(fallbackStore.status(), { persisted: false, reason: 'blocked' });
+
+  const quotaStorage = {
+    getItem() { return null; },
+    setItem() {
+      const error = new Error('Quota exceeded');
+      error.name = 'QuotaExceededError';
+      throw error;
+    }
+  };
+  const quotaStore = createStore({ storage: quotaStorage });
+  const quotaResult = quotaStore.toggleDetailed({ catalogId: 'quota', page: 2, savedAt: 2 });
+  assert.equal(quotaResult.active, true);
+  assert.equal(quotaResult.persisted, false);
+  assert.equal(quotaResult.reason, 'quota-exceeded');
+  assert.equal(quotaStore.lastMutation().operation, 'toggle');
+
+  const silentStorage = {
+    getItem() { return null; },
+    setItem() {}
+  };
+  const silentStore = createStore({ storage: silentStorage });
+  const silentResult = silentStore.addDetailed({ catalogId: 'silent', page: 3, savedAt: 3 });
+  assert.equal(silentResult.persisted, false);
+  assert.equal(silentResult.reason, 'verification-failed');
 
   console.log('favorites_store.test.js: PASS');
 }
