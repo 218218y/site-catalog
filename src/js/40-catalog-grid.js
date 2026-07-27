@@ -402,30 +402,32 @@ function markCatalogCategoryFocusById(id, options = {}) {
   return markCatalogCategoryFocus(getCatalogCategorySectionById(id), { ...options, targetId: id });
 }
 
+function activateCatalogCategoryTarget(targetId, { toggle = false } = {}) {
+  const id = String(targetId || "").trim();
+  if (!id) return false;
+  if (!isAppPage("home")) {
+    navigateTo(`${homeDocumentUrl()}${buildCatalogFocusRouteHash(id)}`);
+    return true;
+  }
+  if (toggle && catalogState.categoryFocusTargetId === id && hasCatalogCategoryFocus(id)) {
+    clearCatalogCategoryFocus({ clearHash: true });
+    return true;
+  }
+
+  const section = getCatalogCategorySectionById(id) || getCatalogCategorySectionsByTargetId(id)[0];
+  if (!section) return false;
+  markCatalogCategoryFocus(section, { targetId: id });
+  section.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  if (location.hash !== buildCatalogFocusRouteHash(id)) location.hash = buildCatalogFocusRouteHash(id);
+  return true;
+}
+
 function handleCatalogFocusLinkClick(link, event) {
   const targetId = link?.dataset?.categoryTarget || resolveCatalogCategoryTargetIdFromHash(link?.hash);
   if (!targetId) return;
 
   event.preventDefault();
-
-  if (!isAppPage("home")) {
-    navigateTo(`${homeDocumentUrl()}${buildCatalogFocusRouteHash(targetId)}`);
-    return;
-  }
-
-  if (catalogState.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
-    clearCatalogCategoryFocus({ clearHash: true });
-    return;
-  }
-
-  const section = getCatalogCategorySectionById(targetId) || getCatalogCategorySectionsByTargetId(targetId)[0];
-  markCatalogCategoryFocus(section, { targetId });
-  section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-
-  const hash = buildCatalogFocusRouteHash(targetId);
-  if (hash) {
-    location.hash = hash;
-  }
+  activateCatalogCategoryTarget(targetId, { toggle: true });
 }
 
 function syncCatalogCategoryFocusFromHash(options = {}) {
@@ -1080,6 +1082,7 @@ registerFeatureInterface("catalog-grid", {
   resolveCategoryTargetIdFromHash: (hash = location.hash) => resolveCatalogCategoryTargetIdFromHash(hash),
   hasCategoryTarget: (targetId) => getCatalogCategorySectionsByTargetId(targetId).length > 0,
   activeCategoryTargetId: () => String(catalogState.categoryFocusTargetId || ""),
+  activateCategoryTarget: activateCatalogCategoryTarget,
   layoutColumnCount: catalogLayoutColumnCount,
   hideDetail: () => {
     catalogElements.catalogDetail?.classList.add("hidden");

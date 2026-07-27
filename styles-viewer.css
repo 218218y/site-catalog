@@ -1825,6 +1825,24 @@ main {
   font-weight: 900;
   line-height: 1.35;
 }
+.search-navigation-result-card {
+  border-color: rgba(117, 88, 68, 0.24);
+  background: linear-gradient(145deg, rgba(250,245,240,0.98), rgba(235,222,211,0.94));
+}
+.search-navigation-result-button {
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 112px;
+  padding: 16px;
+}
+.search-navigation-result-kind {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--brand-dark);
+  font-size: .72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+.search-navigation-result-button .search-result-title { min-height: 0; }
 .search-result-thumb {
   width: 100%;
   height: 100%;

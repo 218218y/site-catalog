@@ -4331,30 +4331,32 @@ function markCatalogCategoryFocusById(id, options = {}) {
   return markCatalogCategoryFocus(getCatalogCategorySectionById(id), { ...options, targetId: id });
 }
 
+function activateCatalogCategoryTarget(targetId, { toggle = false } = {}) {
+  const id = String(targetId || "").trim();
+  if (!id) return false;
+  if (!isAppPage("home")) {
+    navigateTo(`${homeDocumentUrl()}${buildCatalogFocusRouteHash(id)}`);
+    return true;
+  }
+  if (toggle && catalogState.categoryFocusTargetId === id && hasCatalogCategoryFocus(id)) {
+    clearCatalogCategoryFocus({ clearHash: true });
+    return true;
+  }
+
+  const section = getCatalogCategorySectionById(id) || getCatalogCategorySectionsByTargetId(id)[0];
+  if (!section) return false;
+  markCatalogCategoryFocus(section, { targetId: id });
+  section.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  if (location.hash !== buildCatalogFocusRouteHash(id)) location.hash = buildCatalogFocusRouteHash(id);
+  return true;
+}
+
 function handleCatalogFocusLinkClick(link, event) {
   const targetId = link?.dataset?.categoryTarget || resolveCatalogCategoryTargetIdFromHash(link?.hash);
   if (!targetId) return;
 
   event.preventDefault();
-
-  if (!isAppPage("home")) {
-    navigateTo(`${homeDocumentUrl()}${buildCatalogFocusRouteHash(targetId)}`);
-    return;
-  }
-
-  if (catalogState.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
-    clearCatalogCategoryFocus({ clearHash: true });
-    return;
-  }
-
-  const section = getCatalogCategorySectionById(targetId) || getCatalogCategorySectionsByTargetId(targetId)[0];
-  markCatalogCategoryFocus(section, { targetId });
-  section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-
-  const hash = buildCatalogFocusRouteHash(targetId);
-  if (hash) {
-    location.hash = hash;
-  }
+  activateCatalogCategoryTarget(targetId, { toggle: true });
 }
 
 function syncCatalogCategoryFocusFromHash(options = {}) {
@@ -5009,6 +5011,7 @@ registerFeatureInterface("catalog-grid", {
   resolveCategoryTargetIdFromHash: (hash = location.hash) => resolveCatalogCategoryTargetIdFromHash(hash),
   hasCategoryTarget: (targetId) => getCatalogCategorySectionsByTargetId(targetId).length > 0,
   activeCategoryTargetId: () => String(catalogState.categoryFocusTargetId || ""),
+  activateCategoryTarget: activateCatalogCategoryTarget,
   layoutColumnCount: catalogLayoutColumnCount,
   hideDetail: () => {
     catalogElements.catalogDetail?.classList.add("hidden");
@@ -5213,8 +5216,8 @@ function globalSearchScopeLabel(category = getGlobalSearchCategory()) {
 function globalSearchPlaceholder() {
   const category = getGlobalSearchCategory();
   return category
-    ? `חיפוש דגם בקטגוריית ${category}...`
-    : "הקלד דגם, מספר, שם מוצר או מילה מהקטלוג...";
+    ? `חיפוש קטלוג, קטגוריה או דגם בתוך ${category}...`
+    : "חיפוש קטגוריה, תת קטגוריה, קטלוג, דגם או טקסט...";
 }
 
 function closeGlobalSearchScopeMenu() {
@@ -6036,7 +6039,7 @@ function globalSearchKey(query) {
   return [String(query || "").trim(), getGlobalSearchCategory()].join("\u0000");
 }
 
-async function getGlobalSearchResults(query, limit = 72, control = {}) {
+async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
   if (rawQuery.length < 2) return [];
@@ -6048,6 +6051,25 @@ async function getGlobalSearchResults(query, limit = 72, control = {}) {
   if (category) options.category = category;
   const results = await catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
+}
+
+async function getGlobalSearchResults(query, limit = 72, control = {}) {
+  const rawQuery = String(query || "").trim();
+  const navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
+    getCatalogCategoryGroups(),
+    rawQuery,
+    { category: getGlobalSearchCategory(), limit: 36 }
+  );
+  try {
+    return catalogSearch.mergeNavigationResults(
+      navigationResults,
+      await getGlobalOcrSearchResults(rawQuery, limit, control)
+    );
+  } catch (error) {
+    if (!navigationResults.length || catalogSearch.isCancelledError(error)) throw error;
+    searchState.searchIndexLoadState = "error";
+    return navigationResults;
+  }
 }
 
 async function trackCompletedGlobalSearch(completion, query = searchElements.globalSearchInput?.value || "", options = {}) {
@@ -6073,8 +6095,20 @@ function flushGlobalSearchTelemetryBeforeNavigation() {
 function openGlobalSearchResult(result) {
   if (!result) return false;
   hideSearchFloatingPreview();
-  navigateTo(viewerDocumentUrl(result.catalogId, Number(result.page)));
   closeGlobalSearchPanel({ focusButton: false });
+
+  if (result.targetId) {
+    return Boolean(getFeatureInterface("catalog-grid")?.activateCategoryTarget?.(result.targetId));
+  }
+
+  if (result.resultType === "catalog") {
+    if (!result.catalogId) return false;
+    navigateTo(catalogDocumentUrl(result.catalogId));
+    return true;
+  }
+
+  if (!result.catalogId) return false;
+  navigateTo(viewerDocumentUrl(result.catalogId, Number(result.page)));
   return true;
 }
 
@@ -6087,6 +6121,10 @@ async function submitGlobalSearch() {
 }
 
 function globalSearchResultMarkup(result) {
+  if (result?.resultType !== "ocr") {
+    return catalogSearch.navigationResultMarkup(result);
+  }
+
   const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
   const page = clampPage(result.page, catalog);
   const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
@@ -6108,11 +6146,19 @@ function globalSearchResultMarkup(result) {
 
 function bindGlobalSearchResultEvents(root) {
   bindSearchFloatingPreviewEvents(root);
-  root.querySelectorAll("[data-search-catalog]").forEach((button) => {
+  root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]").forEach((button) => {
     button.addEventListener("click", async () => {
       await trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
       flushGlobalSearchTelemetryBeforeNavigation();
-      openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
+      openGlobalSearchResult(button.dataset.searchNavigationType ? {
+        resultType: button.dataset.searchNavigationType,
+        targetId: button.dataset.searchNavigationTarget,
+        catalogId: button.dataset.searchNavigationCatalog
+      } : {
+        resultType: "ocr",
+        catalogId: button.dataset.searchCatalog,
+        page: button.dataset.searchPage
+      });
     });
   });
 }
@@ -6209,8 +6255,8 @@ async function renderSearchResults(query) {
       searchElements.globalSearchResults.innerHTML = searchEmptyStateMarkup(
         rawQuery,
         category
-          ? "נסה מספר דגם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים."
-          : "נסה מספר דגם קצר יותר או חלק מהמילה."
+          ? "נסה שם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים."
+          : "נסה שם קצר יותר, מספר דגם או חלק מהמילה."
       );
       searchElements.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
         searchElements.globalSearchInput.value = "";

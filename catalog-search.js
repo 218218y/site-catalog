@@ -7,6 +7,7 @@
     ["ך", "כ"], ["ם", "מ"], ["ן", "נ"], ["ף", "פ"], ["ץ", "צ"]
   ]);
   const ASSET_URL_SCHEMA_VERSION = 2;
+  const NAVIGATION_RESULT_TYPE_ORDER = Object.freeze({ category: 0, subcategory: 1, catalog: 2 });
 
   let worker = null;
   let readyPromise = null;
@@ -37,6 +38,170 @@
 
   function normalizeLoose(value) {
     return normalize(value).replace(/[כ]/g, "ב");
+  }
+
+  function normalizeNavigation(value) {
+    return normalize(String(value ?? "").replace(/[־–—_]/g, " "));
+  }
+
+  function navigationCategorySlug(value) {
+    return String(value || "catalog")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0590-\u05ff]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "catalog";
+  }
+
+  function navigationCategoryTargetId(category, categoryIndex) {
+    return `catalog-category-${navigationCategorySlug(category)}-${categoryIndex + 1}`;
+  }
+
+  function navigationSubcategoryTargetId(category, categoryIndex, subcategory, subcategoryIndex) {
+    return `${navigationCategoryTargetId(category, categoryIndex)}-sub-${navigationCategorySlug(subcategory)}-${subcategoryIndex + 1}`;
+  }
+
+  function navigationMatchScore(query, candidate) {
+    const normalizedQuery = normalizeNavigation(query);
+    const normalizedCandidate = normalizeNavigation(candidate);
+    if (!normalizedQuery || !normalizedCandidate) return 0;
+
+    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+    const candidateTokens = normalizedCandidate.split(" ").filter(Boolean);
+    if (normalizedCandidate === normalizedQuery) return 1000;
+    if (normalizedCandidate.startsWith(`${normalizedQuery} `)) return 930;
+    if (candidateTokens.includes(normalizedQuery)) return 900;
+    if (candidateTokens.some((token) => token.startsWith(normalizedQuery))) return 860;
+    if (normalizedCandidate.includes(normalizedQuery)) return 820;
+
+    const tokenMatches = queryTokens.every((queryToken) =>
+      candidateTokens.some((candidateToken) =>
+        candidateToken === queryToken
+        || candidateToken.startsWith(queryToken)
+        || candidateToken.includes(queryToken)
+      )
+    );
+    if (!tokenMatches) return 0;
+
+    const exactTokenCount = queryTokens.filter((queryToken) => candidateTokens.includes(queryToken)).length;
+    const prefixTokenCount = queryTokens.filter((queryToken) =>
+      candidateTokens.some((candidateToken) => candidateToken.startsWith(queryToken))
+    ).length;
+    return 650 + (exactTokenCount * 30) + (prefixTokenCount * 15);
+  }
+
+  function searchNavigation(groups, query, options = {}) {
+    const requestedCategory = String(options.category || "").trim();
+    const limit = Math.max(1, Math.min(120, Number(options.limit) || 36));
+    const results = [];
+    const seenCategories = new Set();
+    const seenSubcategories = new Set();
+    const seenCatalogs = new Set();
+    let sourceOrder = 0;
+
+    (Array.isArray(groups) ? groups : []).forEach((group, categoryIndex) => {
+      const category = String(group?.category || "").trim();
+      const items = Array.isArray(group?.items) ? group.items : [];
+      if (!category || !items.length || (requestedCategory && category !== requestedCategory)) return;
+
+      const categoryScore = navigationMatchScore(query, category);
+      if (categoryScore > 0 && !seenCategories.has(category)) {
+        seenCategories.add(category);
+        results.push({
+          resultType: "category",
+          label: category,
+          category,
+          targetId: navigationCategoryTargetId(category, categoryIndex),
+          score: categoryScore,
+          sourceOrder: sourceOrder++
+        });
+      }
+
+      (Array.isArray(group?.subcategories) ? group.subcategories : []).forEach((subcategoryGroup, subcategoryIndex) => {
+        const subcategory = String(subcategoryGroup?.subcategory || "").trim();
+        const subcategoryItems = Array.isArray(subcategoryGroup?.items) ? subcategoryGroup.items : [];
+        const dedupeKey = `${category}\u0000${subcategory}`;
+        const subcategoryScore = navigationMatchScore(query, subcategory);
+        if (!subcategory || !subcategoryItems.length || subcategoryScore <= 0 || seenSubcategories.has(dedupeKey)) return;
+
+        seenSubcategories.add(dedupeKey);
+        results.push({
+          resultType: "subcategory",
+          label: subcategory,
+          category,
+          subcategory,
+          targetId: navigationSubcategoryTargetId(category, categoryIndex, subcategory, subcategoryIndex),
+          score: subcategoryScore,
+          sourceOrder: sourceOrder++
+        });
+      });
+
+      items.forEach((catalog) => {
+        const catalogId = String(catalog?.id || "").trim();
+        const title = String(catalog?.title || "").trim();
+        const catalogScore = navigationMatchScore(query, title);
+        if (!catalogId || !title || catalogScore <= 0 || seenCatalogs.has(catalogId)) return;
+
+        seenCatalogs.add(catalogId);
+        results.push({
+          resultType: "catalog",
+          label: title,
+          category,
+          subcategory: String(catalog?.subcategory || "").trim(),
+          catalogId,
+          score: catalogScore,
+          sourceOrder: sourceOrder++
+        });
+      });
+    });
+
+    return results
+      .sort((first, second) =>
+        second.score - first.score
+        || (NAVIGATION_RESULT_TYPE_ORDER[first.resultType] ?? 99) - (NAVIGATION_RESULT_TYPE_ORDER[second.resultType] ?? 99)
+        || first.sourceOrder - second.sourceOrder
+        || String(first.label || "").localeCompare(String(second.label || ""), "he")
+      )
+      .slice(0, limit);
+  }
+
+  function mergeNavigationResults(navigationResults, ocrResults) {
+    const navigation = Array.isArray(navigationResults) ? navigationResults : [];
+    const matchedCatalogIds = new Set(navigation.filter((result) => result.resultType === "catalog").map((result) => result.catalogId));
+    const matchedCategories = new Set(navigation.filter((result) => result.resultType === "category").map((result) => result.category));
+    const filteredOcr = (Array.isArray(ocrResults) ? ocrResults : []).filter((result) => {
+      if (result?.matchField === "title" && matchedCatalogIds.has(result.catalogId)) return false;
+      if (result?.matchField !== "category") return true;
+      return !matchedCategories.has(String(findCatalog(result.catalogId)?.category || "").trim());
+    });
+    return [...navigation, ...filteredOcr.map((result) => ({ ...result, resultType: "ocr" }))];
+  }
+
+  function escapeNavigationMarkup(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function navigationResultMarkup(result) {
+    const type = String(result?.resultType || "catalog");
+    const typeLabel = type === "category" ? "קטגוריה" : (type === "subcategory" ? "תת קטגוריה" : "קטלוג");
+    const action = type === "category"
+      ? "פתיחת הקטגוריה במסך הראשי"
+      : (type === "subcategory" ? "הצגת תת הקטגוריה במסך הראשי" : "פתיחת דף הקטלוג");
+    const context = type === "subcategory"
+      ? (result?.category ? ` · בתוך ${result.category}` : "")
+      : (type === "catalog" ? ` · ${[result?.category, result?.subcategory].filter(Boolean).join(" · ")}` : "");
+    return `
+      <article class="search-result-card search-navigation-result-card">
+        <button type="button" class="search-result-button search-navigation-result-button" data-search-navigation-type="${escapeNavigationMarkup(type)}" data-search-navigation-target="${escapeNavigationMarkup(result?.targetId || "")}" data-search-navigation-catalog="${escapeNavigationMarkup(result?.catalogId || "")}">
+          <span class="search-result-title" title="${escapeNavigationMarkup(result?.label || "")}"><small class="search-navigation-result-kind">${escapeNavigationMarkup(typeLabel)}</small>${escapeNavigationMarkup(result?.label || "")}</span>
+          <span class="search-result-copy"><span class="search-result-meta">${escapeNavigationMarkup(action + context)}</span></span>
+        </button>
+      </article>
+    `;
   }
 
   function tokenize(query) {
@@ -297,6 +462,9 @@
     pageSrc,
     thumbSrc,
     makeExcerpt,
-    catalogMatchesCategory
+    catalogMatchesCategory,
+    searchNavigation,
+    mergeNavigationResults,
+    navigationResultMarkup
   };
 })();
