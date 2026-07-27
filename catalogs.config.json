@@ -105,7 +105,7 @@
     "category": "חדרי שינה",
     "subcategory": "מרופדים",
     "pdf": "assets/pdfs/bedrooms-upholstered-fredi.pdf",
-    "ocr": true
+    "ocr": false
   },
   {
     "id": "bedrooms-tbi-2026",
