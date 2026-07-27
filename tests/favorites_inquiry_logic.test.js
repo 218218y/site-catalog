@@ -47,7 +47,7 @@ const context = {
     return `https://example.test/favorites.html?selection=${items.map((item) => `${item.catalogId}:${item.page}`).join(",")}`;
   },
   getFeatureInterface(name) {
-    return name === "viewer" ? { openInquiry(options) { calls.push(options); } } : null;
+    return name === "inquiry" ? { openInquiry(options) { calls.push(options); } } : null;
   },
   registerFeatureInterface() {},
   escapeHtml(value) { return String(value); },

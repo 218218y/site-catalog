@@ -116,7 +116,7 @@ function openFavoriteWorkspaceInquiry() {
   const actionEntries = selectedEntries.length ? selectedEntries : entries;
   const reference = favoriteWorkspaceInquiryReference(actionEntries, { selected: selectedEntries.length > 0 });
   if (!reference) return;
-  getFeatureInterface("viewer")?.openInquiry?.({
+  getFeatureInterface("inquiry")?.openInquiry?.({
     reference,
     returnFocus: favoritesElements.favoritesInquiryButton
   });

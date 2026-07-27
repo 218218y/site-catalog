@@ -65,9 +65,6 @@
  * @property {number} zoomIndicatorHideTimer
  * @property {number} pageIndicatorHideTimer
  * @property {boolean} viewerMobileMoreOpen
- * @property {boolean} viewerInquiryOpen
- * @property {Element|null} viewerInquiryReturnFocus
- * @property {Record<string, unknown>|null} viewerInquiryContext
  * @property {number} singleImageLoadToken
  * @property {number} singleImageAnimationTimer
  * @property {number} singleImageResolutionLoadToken
@@ -121,6 +118,7 @@
  * @property {(event?:KeyboardEvent)=>boolean} [closeViewerTopLayer]
  * @property {()=>boolean} [requiresDocumentLock]
  * @property {()=>boolean} [isViewerOpen]
+ * @property {()=>boolean} [isOpen]
  * @property {()=>boolean} [usesInDocumentFullscreenNavigation]
  * @property {()=>void} [attachEvents]
  * @property {()=>void} [initialize]
@@ -134,6 +132,7 @@
  * @property {(options?:Record<string, unknown>)=>void} [refresh]
  * @property {()=>void} [renderPageRail]
  * @property {(options?:Record<string, unknown>)=>void} [openInquiry]
+ * @property {()=>void} [prepareInquiry]
  * @property {(page:number, options?:Record<string, unknown>)=>void} [setPage]
  * @property {(isOpen:boolean)=>void} [syncMobileSearchUi]
  * @property {()=>void} [showTopUi]

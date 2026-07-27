@@ -55,14 +55,16 @@ assert.doesNotMatch(catalogBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspac
 
 assert.match(favoritesBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
 assert.match(favoritesBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
+assert.match(favoritesBundle, /BEGIN SOURCE: src\/js\/32-shared-inquiry\.js/);
 assert.doesNotMatch(favoritesBundle, /BEGIN SOURCE: src\/js\/16-viewer-state\.js/);
 assert.doesNotMatch(favoritesBundle, /BEGIN SOURCE: src\/js\/60-viewer\.js/);
 
 assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/16-viewer-state\.js/);
 assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/31-viewer-share\.js/);
+assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/32-shared-inquiry\.js/);
 assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/60-viewer\.js/);
-assert.doesNotMatch(viewerBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
-assert.doesNotMatch(viewerBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
+assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
+assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
 assert.match(viewerBundle, /getFeatureInterface\("search"\)/);
 
 assert.match(contractChecker, /Viewer implementation reaches into search internals/);

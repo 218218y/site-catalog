@@ -10,6 +10,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const navigation = read("src/js/00-navigation.js");
 const state = read("src/js/10-app-state.js");
 const favorites = read("src/js/30-favorites-share.js");
+const inquiry = read("src/js/32-shared-inquiry.js");
 const catalog = read("src/js/40-catalog-grid.js");
 const search = read("src/js/50-search-ui.js");
 const viewerSession = read("src/js/52-viewer-session.js");
@@ -32,6 +33,7 @@ assert.match(state, /const boundEventFeatures = new Set\(\)/);
 assert.match(state, /function bindFeatureEventsOnce\([\s\S]*?binder\(\);[\s\S]*?boundEventFeatures\.add\(name\)/);
 assert.match(navigation, /function attachNavigationEvents\(/);
 assert.match(favorites, /function attachFavoritesShareEvents\(/);
+assert.match(inquiry, /function attachSharedInquiryEvents\(/);
 assert.match(catalog, /function attachCatalogGridEvents\(/);
 assert.match(search, /function attachSearchUiEvents\(/);
 assert.match(viewer, /function attachViewerEvents\(/);
@@ -43,6 +45,7 @@ assert.doesNotMatch(bootstrap, /searchElements\.globalSearchInput\?\.addEventLis
 assert.doesNotMatch(bootstrap, /viewerElements\.viewerOnboardingNext\?\.addEventListener/);
 assert.doesNotMatch(bootstrap, /viewerElements\.prevPageBtn\?\.addEventListener/);
 assert.match(bootstrap, /function attachEvents\(\) \{[\s\S]*?getFeatureInterface\("catalog-grid"\)[\s\S]*?catalogGrid\.attachEvents[\s\S]*?attachSearchUiEvents[\s\S]*?getFeatureInterface\("viewer"\)[\s\S]*?viewer\.attachEvents/);
+assert.match(bootstrap, /getFeatureInterface\("inquiry"\)[\s\S]*?bindFeatureEventsOnce\("inquiry", inquiry\.attachEvents\)/);
 assert.match(viewer, /attachEvents: \(\) => \{[\s\S]*?attachViewerActionEvents\(\)[\s\S]*?attachViewerOnboardingEvents\(\)[\s\S]*?attachViewerEvents\(\)/);
 assert.ok(bootstrap.split(/\r?\n/).length < 330, "composition root should stay compact");
 

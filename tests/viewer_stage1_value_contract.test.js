@@ -41,7 +41,7 @@ assert.match(template, /data-viewer-mobile-action="fit-width"/);
 assert.match(template, /id="viewerMobileFavoritesLink"/);
 
 assert.match(app, /function viewerPageInquiryReference\(\)[\s\S]*?viewerDocumentUrl\(navigationState\.catalog\.id, page\)/);
-assert.match(app, /function viewerInquiryReference\(\)[\s\S]*?viewerState\.viewerInquiryContext\?\.reference \|\| viewerPageInquiryReference\(\)/);
+assert.match(app, /function viewerInquiryReference\(\)[\s\S]*?inquiryState\.reference \|\| viewerPageInquiryReference\(\)/);
 assert.match(app, /`קטלוג: \$\{title\}`/);
 assert.match(app, /`עמוד: \$\{page\}`/);
 assert.match(app, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryCatalog\.textContent = reference\.referenceTitle \|\| reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);

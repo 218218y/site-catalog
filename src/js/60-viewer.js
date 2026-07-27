@@ -407,10 +407,6 @@ function handleViewerResize() {
 
 function handleViewerGlobalKeydown(event) {
   if (!isViewerSessionOpen()) return false;
-  if (viewerState.viewerInquiryOpen) {
-    handleViewerInquiryKeydown(event);
-    return true;
-  }
   if (viewerState.viewerOnboardingOpen) {
     handleViewerOnboardingKeydown(event);
     return true;
@@ -454,7 +450,7 @@ function prepareViewerRoute(nextPage) {
 
 registerFeatureInterface("viewer", {
   escapePriority: 100,
-  requiresDocumentLock: () => isViewerSessionOpen() || viewerState.viewerInquiryOpen,
+  requiresDocumentLock: () => isViewerSessionOpen(),
   isViewerOpen: () => isViewerSessionOpen(),
   usesInDocumentFullscreenNavigation: viewerUsesInDocumentFullscreenNavigation,
   attachEvents: () => {
@@ -469,7 +465,13 @@ registerFeatureInterface("viewer", {
   close: (options = {}) => closeLightbox(options),
   refresh: (options = {}) => updateLightbox(options),
   renderPageRail: renderLightboxPageRail,
-  openInquiry: (options = {}) => openViewerInquiry(options),
+  prepareInquiry: () => {
+    if (viewerState.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
+    closeViewerMobileMoreMenu();
+    if (getFeatureInterface("search")?.isLightboxMobileOpen?.()) {
+      getFeatureInterface("search")?.setLightboxMobileOpen?.(false, { hideResults: true });
+    }
+  },
   setPage: (page, options = {}) => setLightboxPage(page, options),
   syncMobileSearchUi: (isOpen) => viewerElements.lightbox?.classList.toggle("mobile-search-open", Boolean(isOpen)),
   showTopUi: () => showTopUiTemporarily(0),
@@ -481,10 +483,6 @@ registerFeatureInterface("viewer", {
   },
   closeTopLayer: (event) => {
     if (!isViewerSessionOpen()) return false;
-    if (viewerState.viewerInquiryOpen) {
-      closeViewerInquiry();
-      return true;
-    }
     if (viewerState.viewerMobileMoreOpen) {
       closeViewerMobileMoreMenu({ returnFocus: true });
       return true;

@@ -7,11 +7,14 @@
  *   - src/css/06-shell-components.css
  *   - src/css/10-catalog.css
  *   - src/css/20-viewer.css
+ *   - src/css/24-shared-inquiry.css
  *   - src/css/25-viewer-actions.css
  *   - src/css/30-media-components.css
+ *   - src/css/40-catalog-refinements.css
  *   - src/css/50-footer-legal.css
  *   - src/css/80-responsive-shell.css
  *   - src/css/85-favorites-routing.css
+ *   - src/css/87-favorites-workspace.css
  *   - src/css/90-visual-polish.css
  *   - src/css/95-accessibility-consistency.css
  *   - src/css/97-seo-foundation.css
@@ -3843,19 +3846,13 @@ a.reader-home:focus-visible {
 }
 /* ===== END SOURCE: src/css/20-viewer.css ===== */
 
-/* ===== BEGIN SOURCE: src/css/25-viewer-actions.css ===== */
+/* ===== BEGIN SOURCE: src/css/24-shared-inquiry.css ===== */
 /**
- * Source stylesheet: 25-viewer-actions.css
- * Viewer inquiry workflow and compact mobile utility menu.
+ * Source stylesheet: 24-shared-inquiry.css
+ * Inquiry trigger and dialog shared by Viewer and favorites routes.
  *
  * Concatenated in the declared order by tools/build_frontend_assets.py.
  */
-
-.viewer-mobile-more-wrap,
-.viewer-mobile-more-toggle,
-.viewer-mobile-more-menu {
-  display: none;
-}
 
 .inquiry-trigger-button {
   min-height: 46px;
@@ -4002,9 +3999,6 @@ a.reader-home:focus-visible {
   overflow: hidden;
   border-radius: 14px;
   background: #fff;
-  /* The shared watermark has a desktop-sized minimum. This compact preview
-     instead scales the mark from its own rendered width, so the 112px desktop
-     frame and the 88px mobile frame keep the same visual proportion. */
   --catalog-watermark-width: 32%;
   --catalog-watermark-top: 5%;
   --catalog-watermark-filter: drop-shadow(0 3px 8px rgba(0,0,0,.16));
@@ -4093,6 +4087,55 @@ a.reader-home:focus-visible {
   font-size: .91rem;
   font-weight: 900;
   line-height: 1.25;
+}
+
+@media (max-width: 760px) {
+  .viewer-inquiry-button {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    min-height: 43px;
+    padding-inline: 14px !important;
+  }
+  .viewer-inquiry-button span { font-size: .84rem; }
+}
+
+@media (max-width: 520px) {
+  .viewer-inquiry-dialog { padding: 22px 16px 16px; border-radius: 23px; }
+  .viewer-inquiry-heading { padding-inline-end: 42px; }
+  .viewer-inquiry-reference { grid-template-columns: 88px minmax(0, 1fr); gap: 12px; }
+  .viewer-inquiry-preview-frame { width: 88px; }
+  .viewer-inquiry-actions { grid-template-columns: 1fr; }
+  .viewer-inquiry-action { min-height: 54px; }
+}
+
+@media (max-width: 380px) {
+  .viewer-inquiry-button span { display: none; }
+  .viewer-inquiry-button {
+    width: 44px;
+    min-width: 44px;
+    padding: 0 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer-inquiry-overlay,
+  .viewer-inquiry-dialog,
+  .viewer-inquiry-action { transition: none; }
+}
+/* ===== END SOURCE: src/css/24-shared-inquiry.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/25-viewer-actions.css ===== */
+/**
+ * Source stylesheet: 25-viewer-actions.css
+ * Compact Viewer mobile utility menu.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
+
+.viewer-mobile-more-wrap,
+.viewer-mobile-more-toggle,
+.viewer-mobile-more-menu {
+  display: none;
 }
 
 @media (max-width: 760px) {
@@ -4185,38 +4228,10 @@ a.reader-home:focus-visible {
     opacity: 1;
     pointer-events: auto;
   }
-  .viewer-inquiry-button {
-    right: max(12px, env(safe-area-inset-right));
-    bottom: max(12px, env(safe-area-inset-bottom));
-    min-height: 43px;
-    padding-inline: 14px !important;
-  }
-  .viewer-inquiry-button span { font-size: .84rem; }
-}
-
-@media (max-width: 520px) {
-  .viewer-inquiry-dialog { padding: 22px 16px 16px; border-radius: 23px; }
-  .viewer-inquiry-heading { padding-inline-end: 42px; }
-  .viewer-inquiry-reference { grid-template-columns: 88px minmax(0, 1fr); gap: 12px; }
-  .viewer-inquiry-preview-frame { width: 88px; }
-  .viewer-inquiry-actions { grid-template-columns: 1fr; }
-  .viewer-inquiry-action { min-height: 54px; }
-}
-
-@media (max-width: 380px) {
-  .viewer-inquiry-button span { display: none; }
-  .viewer-inquiry-button {
-    width: 44px;
-    min-width: 44px;
-    padding: 0 !important;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .viewer-inquiry-overlay,
-  .viewer-inquiry-dialog,
-  .viewer-mobile-more-menu,
-  .viewer-inquiry-action { transition: none; }
+  .viewer-mobile-more-menu { transition: none; }
 }
 /* ===== END SOURCE: src/css/25-viewer-actions.css ===== */
 
@@ -4393,6 +4408,152 @@ a.reader-home:focus-visible {
   backface-visibility: hidden;
 }
 /* ===== END SOURCE: src/css/30-media-components.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/40-catalog-refinements.css ===== */
+/**
+ * Source stylesheet: 40-catalog-refinements.css
+ * Catalog interaction refinements and unified viewer-search integration.
+ *
+ * Concatenated in the declared order by tools/build_frontend_assets.py.
+ */
+
+/* Catalog interaction fixes */
+.search-panel:not(.global-search-popover) {
+  margin-top: 26px;
+}
+
+.catalog-cover-card-picker,
+.catalog-cover-button {
+  color: inherit;
+  font: inherit;
+}
+
+.catalog-cover-card-picker {
+  display: block;
+  cursor: pointer;
+}
+
+.catalog-cover-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.catalog-cover-card-picker::before,
+.catalog-cover-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.46));
+  opacity: 0;
+  transition: opacity .18s ease;
+  pointer-events: none;
+}
+
+.catalog-cover-card-picker:hover::before,
+.catalog-cover-card-picker:focus-visible::before,
+.catalog-cover-card-picker:focus-within::before,
+.catalog-cover-button:hover::before,
+.catalog-cover-button:focus-visible::before {
+  opacity: 1;
+}
+
+.catalog-cover-card-entry-hint,
+.catalog-cover-cta {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 8;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.catalog-cover-card-entry-hint {
+  right: auto;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  transform: translate(-50%, 8px);
+}
+
+.catalog-cover-card-entry-hint,
+.catalog-cover-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(47, 37, 29, 0.78);
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+  font-size: .88rem;
+  font-weight: 900;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.catalog-cover-card-entry-hint {
+  padding: 0 14px;
+  background: rgba(47, 37, 29, 0.18);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
+.catalog-cover-card-picker:hover .catalog-cover-card-entry-hint,
+.catalog-cover-card-picker:focus-visible .catalog-cover-card-entry-hint,
+.catalog-cover-card-picker:focus-within .catalog-cover-card-entry-hint {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.catalog-cover-button:hover .catalog-cover-cta,
+.catalog-cover-button:focus-visible .catalog-cover-cta {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.catalog-cover-button {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-align: inherit;
+}
+
+/* Search inside the unified viewer uses the reader search layout. */
+.lightbox-search {
+  min-width: 0;
+  width: 100%;
+  justify-self: center;
+}
+.lightbox-search-clear {
+  min-height: 40px;
+}
+.lightbox-search-results {
+  position: relative;
+  z-index: 10;
+}
+.lightbox-search-result,
+.lightbox-search-empty {
+  text-align: right;
+}
+/* ===== END SOURCE: src/css/40-catalog-refinements.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/50-footer-legal.css ===== */
 /**
@@ -6051,6 +6212,477 @@ body[data-page="viewer"] {
   }
 }
 /* ===== END SOURCE: src/css/85-favorites-routing.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/87-favorites-workspace.css ===== */
+/*
+ * Source stylesheet: 87-favorites-workspace.css
+ * Favorites workspace controls, notes, ordering, focused selection, sharing, and bulk inquiry.
+ */
+
+.favorites-header-workspace {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.favorites-filter-group {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.favorites-filter-group select {
+  min-width: min(260px, 32vw);
+  min-height: 38px;
+  padding: 0 12px 0 36px;
+  border: 1px solid rgba(110, 86, 70, .2);
+  border-radius: 12px;
+  color: var(--ink);
+  background: #fff;
+  box-shadow: var(--shadow-control);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.favorites-filter-group select:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.favorites-visible-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.favorites-inquiry-button {
+  position: fixed;
+  z-index: 74;
+  right: auto;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  flex: 0 0 auto;
+  box-shadow: 0 14px 34px rgba(87, 59, 42, .32), inset 0 1px 0 rgba(255, 255, 255, .24);
+}
+
+.favorites-inquiry-button:hover,
+.favorites-inquiry-button:focus-visible {
+  box-shadow: 0 18px 42px rgba(87, 59, 42, .38), inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+
+@media (max-width: 640px) {
+  .favorites-inquiry-button {
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    max-width: calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right));
+  }
+}
+
+.favorites-selection-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px clamp(16px, 2.4vw, 24px);
+  border-bottom: 1px solid rgba(110, 86, 70, .13);
+  background: rgba(246, 238, 231, .88);
+}
+
+.favorites-selection-bar > span {
+  margin-inline-end: auto;
+  color: var(--ink);
+  font-size: .82rem;
+  font-weight: 780;
+}
+
+.favorites-selection-bar > span strong {
+  color: var(--brand-dark);
+  font-size: .96rem;
+}
+
+.favorites-selection-clear {
+  min-height: 36px;
+  padding-inline: 12px;
+  border: 1px solid rgba(110, 86, 70, .14);
+  border-radius: 10px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, .72);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.favorites-selection-clear:hover,
+.favorites-selection-clear:focus-visible {
+  color: var(--ink);
+  border-color: rgba(117, 88, 68, .28);
+  background: #fff;
+}
+
+.favorite-card {
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--motion-fast) var(--motion-easing), border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, opacity var(--motion-fast) ease;
+}
+
+.favorite-card.is-selected {
+  border-color: rgba(143, 109, 85, .58);
+  box-shadow: 0 18px 42px rgba(78, 55, 39, .18), 0 0 0 3px rgba(143, 109, 85, .11);
+}
+
+.favorite-card.is-dragging { opacity: .46; }
+.favorite-card.is-drag-target {
+  border-color: var(--brand);
+  box-shadow: 0 20px 48px rgba(78, 55, 39, .2), 0 0 0 4px rgba(143, 109, 85, .16);
+}
+
+.favorite-select-control {
+  position: absolute;
+  z-index: 4;
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  cursor: pointer;
+}
+
+.favorite-select-control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.favorite-select-control span {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .82);
+  border-radius: 999px;
+  color: transparent;
+  background: rgba(48, 38, 31, .64);
+  box-shadow: 0 10px 24px rgba(41, 30, 23, .22);
+  backdrop-filter: blur(10px);
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) ease;
+}
+
+.favorite-select-control svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.favorite-select-control input:checked + span {
+  color: #fff;
+  background: var(--brand-dark);
+}
+
+.favorite-select-control input:focus-visible + span {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
+.favorite-select-control:hover span { transform: translateY(-1px); }
+
+.favorite-card-meta { padding-bottom: 11px; }
+
+.favorite-note-summary {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  margin: 0 14px;
+  padding: 11px 12px;
+  border: 1px solid rgba(110, 86, 70, .13);
+  border-radius: 13px;
+  background: rgba(248, 243, 238, .78);
+}
+
+.favorite-note-label {
+  color: var(--brand-dark);
+  font-size: .7rem;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+
+.favorite-note-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: .82rem;
+  line-height: 1.5;
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.favorite-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: auto;
+  padding: 11px 12px 12px;
+}
+
+.favorite-card-action,
+.favorite-order-button,
+.favorite-drag-handle {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(110, 86, 70, .16);
+  border-radius: 11px;
+  color: var(--brand-dark);
+  background: rgba(255, 255, 255, .88);
+  box-shadow: var(--shadow-control);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.favorite-card-action:hover,
+.favorite-card-action:focus-visible,
+.favorite-order-button:hover:not(:disabled),
+.favorite-order-button:focus-visible:not(:disabled),
+.favorite-drag-handle:hover,
+.favorite-drag-handle:focus-visible {
+  border-color: rgba(117, 88, 68, .34);
+  background: #fff;
+}
+
+.favorite-card-action svg,
+.favorite-order-button svg,
+.favorite-drag-handle svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.favorite-order-controls {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 38px);
+  gap: 4px;
+}
+
+.favorite-order-button,
+.favorite-drag-handle {
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+}
+
+.favorite-order-button:disabled {
+  opacity: .34;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.favorite-drag-handle { cursor: grab; }
+.favorite-drag-handle:active { cursor: grabbing; }
+.favorite-drag-handle svg { stroke-width: 3.2; }
+
+.favorites-filtered-empty {
+  margin: clamp(18px, 3vw, 30px);
+  padding: 42px 24px;
+}
+
+.favorite-note-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.favorite-note-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(28, 20, 15, .72);
+  backdrop-filter: blur(14px);
+}
+
+.favorite-note-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(540px, 100%);
+  padding: clamp(22px, 4vw, 32px);
+  border: 1px solid rgba(255, 255, 255, .78);
+  border-radius: 27px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(217, 186, 163, .28), transparent 38%),
+    linear-gradient(165deg, rgba(255, 253, 250, .99), rgba(243, 233, 224, .99));
+  box-shadow: var(--shadow-dialog);
+}
+
+.favorite-note-close {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(110, 86, 70, .18);
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: rgba(255, 255, 255, .9);
+  box-shadow: var(--shadow-control);
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.favorite-note-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--brand-dark);
+  font-size: .74rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
+.favorite-note-dialog h2 {
+  margin: 0;
+  color: var(--ink);
+}
+
+.favorite-note-dialog > p {
+  margin: 7px 0 20px;
+  color: var(--muted);
+  font-weight: 760;
+}
+
+.favorite-note-dialog label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-size: .86rem;
+  font-weight: 850;
+}
+
+.favorite-note-dialog textarea {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  padding: 13px 14px;
+  border: 1px solid rgba(110, 86, 70, .22);
+  border-radius: 15px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, .88);
+  box-shadow: inset 0 1px 3px rgba(70, 50, 36, .06);
+  font: inherit;
+  line-height: 1.55;
+}
+
+.favorite-note-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.favorite-note-footer > span {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 760;
+}
+
+.favorite-note-footer > div {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 980px) {
+  .favorites-header-workspace {
+    width: 100%;
+  }
+
+  .favorites-filter-group {
+    flex: 1 1 320px;
+  }
+
+  .favorites-filter-group select {
+    min-width: 0;
+    flex: 1 1 210px;
+  }
+}
+
+@media (max-width: 640px) {
+  .favorites-header-workspace {
+    gap: 7px;
+  }
+
+  .favorites-filter-group {
+    flex: 1 1 100%;
+  }
+
+  .favorites-filter-group select {
+    min-height: 40px;
+  }
+
+  .favorites-header-action {
+    flex: 1 1 145px;
+  }
+
+  .favorites-header-action span {
+    display: inline;
+  }
+
+  .favorites-selection-bar {
+    align-items: stretch;
+    flex-wrap: wrap;
+    padding: 9px 11px;
+  }
+
+  .favorites-selection-bar > span {
+    flex: 1 1 100%;
+  }
+
+  .favorites-selection-clear {
+    margin-inline-start: auto;
+  }
+
+  .favorite-note-dialog { padding: 23px 17px 17px; border-radius: 23px; }
+  .favorite-note-footer { align-items: stretch; flex-direction: column; }
+  .favorite-note-footer > div { display: grid; grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 430px) {
+  .favorites-header-action {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .favorite-card,
+  .favorite-select-control span { transition: none !important; }
+}
+/* ===== END SOURCE: src/css/87-favorites-workspace.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/90-visual-polish.css ===== */
 /**

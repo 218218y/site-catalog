@@ -14,6 +14,9 @@
  *   - src/js/20-shared-ui.js
  *   - src/js/30-favorites-share.js
  *   - src/js/31-viewer-share.js
+ *   - src/js/32-shared-inquiry.js
+ *   - src/js/35-favorites-workspace.js
+ *   - src/js/40-catalog-grid.js
  *   - src/js/50-search-ui.js
  *   - src/js/52-viewer-session.js
  *   - src/js/53-viewer-image.js
@@ -32,7 +35,7 @@
 "use strict";
 
 /** @type {FeatureCapabilities} */
-const featureCapabilities = Object.freeze({"viewer":true,"favoritesWorkspace":false,"catalogGrid":false,"search":true});
+const featureCapabilities = Object.freeze({"viewer":true,"favoritesWorkspace":true,"catalogGrid":true,"search":true});
 
 /* ===== BEGIN SOURCE: src/js/00-navigation.js ===== */
 /**
@@ -337,9 +340,6 @@ function attachNavigationEvents() {
  * @property {number} zoomIndicatorHideTimer
  * @property {number} pageIndicatorHideTimer
  * @property {boolean} viewerMobileMoreOpen
- * @property {boolean} viewerInquiryOpen
- * @property {Element|null} viewerInquiryReturnFocus
- * @property {Record<string, unknown>|null} viewerInquiryContext
  * @property {number} singleImageLoadToken
  * @property {number} singleImageAnimationTimer
  * @property {number} singleImageResolutionLoadToken
@@ -393,6 +393,7 @@ function attachNavigationEvents() {
  * @property {(event?:KeyboardEvent)=>boolean} [closeViewerTopLayer]
  * @property {()=>boolean} [requiresDocumentLock]
  * @property {()=>boolean} [isViewerOpen]
+ * @property {()=>boolean} [isOpen]
  * @property {()=>boolean} [usesInDocumentFullscreenNavigation]
  * @property {()=>void} [attachEvents]
  * @property {()=>void} [initialize]
@@ -406,6 +407,7 @@ function attachNavigationEvents() {
  * @property {(options?:Record<string, unknown>)=>void} [refresh]
  * @property {()=>void} [renderPageRail]
  * @property {(options?:Record<string, unknown>)=>void} [openInquiry]
+ * @property {()=>void} [prepareInquiry]
  * @property {(page:number, options?:Record<string, unknown>)=>void} [setPage]
  * @property {(isOpen:boolean)=>void} [syncMobileSearchUi]
  * @property {()=>void} [showTopUi]
@@ -1417,9 +1419,6 @@ const viewerState = {
   zoomIndicatorHideTimer: 0,
   pageIndicatorHideTimer: 0,
   viewerMobileMoreOpen: false,
-  viewerInquiryOpen: false,
-  viewerInquiryReturnFocus: null,
-  viewerInquiryContext: null,
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
   singleImageResolutionLoadToken: 0,
@@ -1486,22 +1485,6 @@ const viewerElements = Object.freeze({
   fitHeightBtn: $("fitHeightBtn"),
   fitWidthBtn: $("fitWidthBtn"),
   viewerAutoZoomBtn: $("viewerAutoZoomBtn"),
-  viewerInquiryButton: $("viewerInquiryButton"),
-  viewerInquiryOverlay: $("viewerInquiryOverlay"),
-  viewerInquiryBackdrop: $("viewerInquiryBackdrop"),
-  viewerInquiryClose: $("viewerInquiryClose"),
-  viewerInquiryEyebrow: $("viewerInquiryEyebrow"),
-  viewerInquiryTitle: $("viewerInquiryTitle"),
-  viewerInquiryDescription: $("viewerInquiryDescription"),
-  viewerInquiryReference: $("viewerInquiryReference"),
-  viewerInquiryCatalog: $("viewerInquiryCatalog"),
-  viewerInquiryPage: $("viewerInquiryPage"),
-  viewerInquiryPreview: $("viewerInquiryPreview"),
-  viewerInquiryActions: $("viewerInquiryActions"),
-  viewerInquiryGmail: $("viewerInquiryGmail"),
-  viewerInquiryEmail: $("viewerInquiryEmail"),
-  viewerInquiryShare: $("viewerInquiryShare"),
-  viewerInquiryCopy: $("viewerInquiryCopy"),
   viewerZoomIndicator: $("viewerZoomIndicator"),
   viewerMobileMoreToggle: $("viewerMobileMoreToggle"),
   viewerMobileMoreMenu: $("viewerMobileMoreMenu"),
@@ -3126,6 +3109,1971 @@ function attachViewerShareEvents() {
   viewerElements.lightboxCopyLink?.addEventListener("click", shareCurrentLightboxLink);
 }
 /* ===== END SOURCE: src/js/31-viewer-share.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/32-shared-inquiry.js ===== */
+/**
+ * Source module: 32-shared-inquiry.js
+ * Inquiry dialog shared by the Viewer and the favorites workspace.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into route-specific browser bundles.
+ */
+
+const inquiryState = {
+  open: false,
+  returnFocus: null,
+  reference: null
+};
+
+const inquiryElements = Object.freeze({
+  viewerInquiryButton: $("viewerInquiryButton"),
+  viewerInquiryOverlay: $("viewerInquiryOverlay"),
+  viewerInquiryBackdrop: $("viewerInquiryBackdrop"),
+  viewerInquiryClose: $("viewerInquiryClose"),
+  viewerInquiryEyebrow: $("viewerInquiryEyebrow"),
+  viewerInquiryTitle: $("viewerInquiryTitle"),
+  viewerInquiryDescription: $("viewerInquiryDescription"),
+  viewerInquiryReference: $("viewerInquiryReference"),
+  viewerInquiryCatalog: $("viewerInquiryCatalog"),
+  viewerInquiryPage: $("viewerInquiryPage"),
+  viewerInquiryPreview: $("viewerInquiryPreview"),
+  viewerInquiryActions: $("viewerInquiryActions"),
+  viewerInquiryGmail: $("viewerInquiryGmail"),
+  viewerInquiryEmail: $("viewerInquiryEmail"),
+  viewerInquiryShare: $("viewerInquiryShare"),
+  viewerInquiryCopy: $("viewerInquiryCopy")
+});
+
+function viewerInquiryFooterEmail() {
+  return Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"))
+    .find((link) => String(link.getAttribute("href") || "").startsWith("mailto:")) || null;
+}
+
+function viewerInquiryEmailAddress() {
+  const emailHref = String(viewerInquiryFooterEmail()?.getAttribute?.("href") || "").trim();
+  return emailHref.replace(/^mailto:/i, "").split("?")[0].trim();
+}
+
+function viewerPageInquiryReference() {
+  if (!navigationState.catalog) return null;
+  const page = clampPage(navigationState.page, navigationState.catalog);
+  const url = absoluteDocumentUrl(viewerDocumentUrl(navigationState.catalog.id, page));
+  const title = String(navigationState.catalog.title || "קטלוג").trim() || "קטלוג";
+  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(navigationState.catalog.pages) || 1)}`;
+  const subject = `בירור על דגם – ${title}, עמוד ${page}`;
+  const shareText = [
+    "שלום,",
+    "רציתי לברר לגבי הדגם הבא:",
+    `קטלוג: ${title}`,
+    `עמוד: ${page}`
+  ].join("\n");
+  const text = `${shareText}\nקישור ישיר: ${url}`;
+  return {
+    kind: "viewer",
+    source: "viewer-inquiry",
+    catalog: navigationState.catalog,
+    page,
+    title: "בירור על הדגם",
+    eyebrow: "פרטי העמוד מצורפים אוטומטית",
+    description: "אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. שם הקטלוג, מספר העמוד והקישור המדויק מוכנים מראש.",
+    referenceTitle: title,
+    pageLabel,
+    subject,
+    shareText,
+    text,
+    url,
+    previewCatalog: navigationState.catalog,
+    previewPage: page,
+    telemetry: {
+      source: "viewer-inquiry",
+      catalogId: navigationState.catalog.id,
+      pageNumber: page
+    }
+  };
+}
+
+function viewerInquiryReference() {
+  return inquiryState.reference || viewerPageInquiryReference();
+}
+
+function viewerInquiryGmailUrl(emailAddress, reference) {
+  const query = new URLSearchParams({
+    view: "cm",
+    fs: "1",
+    to: emailAddress,
+    su: reference.subject,
+    body: reference.text
+  });
+  return `https://mail.google.com/mail/?${query.toString()}`;
+}
+
+function viewerInquiryMailtoUrl(emailAddress, reference) {
+  const subject = encodeURIComponent(String(reference?.subject || ""));
+  const body = encodeURIComponent(
+    String(reference?.text || "").replace(/\r?\n/g, "\r\n")
+  );
+  return `mailto:${emailAddress}?subject=${subject}&body=${body}`;
+}
+
+function viewerInquiryTelemetryFields(reference, action, detail = "") {
+  const telemetry = reference?.telemetry || {};
+  return {
+    action,
+    detail,
+    source: telemetry.source || reference?.source || "viewer-inquiry",
+    catalogId: telemetry.catalogId || reference?.catalog?.id || "",
+    pageNumber: telemetry.pageNumber || reference?.page || 0,
+    value: telemetry.value || reference?.count || 0
+  };
+}
+
+function syncViewerInquiryContactLink(link, href, reference, action) {
+  if (!link) return;
+  const available = Boolean(href);
+  link.classList.toggle("hidden", !available);
+  link.setAttribute("aria-hidden", available ? "false" : "true");
+  if (!available) {
+    link.removeAttribute("href");
+    delete link.dataset.contactSource;
+    delete link.dataset.contactAction;
+    delete link.dataset.contactCatalogId;
+    delete link.dataset.contactPage;
+    return;
+  }
+  const telemetry = viewerInquiryTelemetryFields(reference, action);
+  link.href = href;
+  link.dataset.contactSource = telemetry.source;
+  link.dataset.contactAction = action;
+  if (telemetry.catalogId) link.dataset.contactCatalogId = telemetry.catalogId;
+  else delete link.dataset.contactCatalogId;
+  if (telemetry.pageNumber) link.dataset.contactPage = String(telemetry.pageNumber);
+  else delete link.dataset.contactPage;
+}
+
+function syncViewerInquiryUi(reference = viewerInquiryReference()) {
+  if (!reference) return;
+
+  if (inquiryElements.viewerInquiryEyebrow) inquiryElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית";
+  if (inquiryElements.viewerInquiryTitle) inquiryElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם";
+  if (inquiryElements.viewerInquiryDescription) inquiryElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.";
+  if (inquiryElements.viewerInquiryCatalog) inquiryElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title;
+  if (inquiryElements.viewerInquiryPage) inquiryElements.viewerInquiryPage.textContent = reference.pageLabel || "";
+  inquiryElements.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites");
+
+  if (inquiryElements.viewerInquiryButton && reference.kind === "viewer") {
+    const label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
+    inquiryElements.viewerInquiryButton.setAttribute("aria-label", label);
+  }
+
+  const previewCatalog = reference.previewCatalog || reference.catalog;
+  const previewPage = Number(reference.previewPage || reference.page) || 1;
+  if (inquiryElements.viewerInquiryPreview && previewCatalog) {
+    const preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
+    if (inquiryElements.viewerInquiryPreview.getAttribute("src") !== preview) {
+      inquiryElements.viewerInquiryPreview.src = preview;
+    }
+    inquiryElements.viewerInquiryPreview.alt = reference.kind === "favorites"
+      ? `תצוגה מקדימה של ${reference.referenceTitle}`
+      : `${reference.referenceTitle}, עמוד ${previewPage}`;
+  }
+
+  const emailAddress = viewerInquiryEmailAddress();
+  const emailAvailable = Boolean(emailAddress);
+  syncViewerInquiryContactLink(
+    inquiryElements.viewerInquiryEmail,
+    emailAvailable ? viewerInquiryMailtoUrl(emailAddress, reference) : "",
+    reference,
+    "email"
+  );
+  syncViewerInquiryContactLink(
+    inquiryElements.viewerInquiryGmail,
+    emailAvailable ? viewerInquiryGmailUrl(emailAddress, reference) : "",
+    reference,
+    "gmail"
+  );
+}
+
+function setViewerInquiryTriggerState(open, activeTrigger = null) {
+  [inquiryElements.viewerInquiryButton, favoritesElements.favoritesInquiryButton].forEach((button) => {
+    if (!button) return;
+    button.setAttribute("aria-expanded", open && button === activeTrigger ? "true" : "false");
+  });
+}
+
+function getViewerInquiryFocusableElements() {
+  if (!inquiryElements.viewerInquiryOverlay) return [];
+  return Array.from(inquiryElements.viewerInquiryOverlay.querySelectorAll(
+    'button:not([disabled]), a[href]:not(.hidden), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.closest?.(".hidden"));
+}
+
+function openViewerInquiry(options = {}) {
+  const reference = options.reference || viewerPageInquiryReference();
+  if (!reference || !inquiryElements.viewerInquiryOverlay) return;
+  getFeatureInterface("viewer")?.prepareInquiry?.();
+
+  const returnFocus = options.returnFocus || document.activeElement || inquiryElements.viewerInquiryButton;
+  inquiryState.reference = reference;
+  inquiryState.open = true;
+  inquiryState.returnFocus = returnFocus;
+  syncViewerInquiryUi(reference);
+  inquiryElements.viewerInquiryOverlay.classList.remove("hidden");
+  inquiryElements.viewerInquiryOverlay.setAttribute("aria-hidden", "false");
+  setViewerInquiryTriggerState(true, returnFocus);
+  syncDocumentLock();
+  window.requestAnimationFrame(() => {
+    if (!inquiryState.open) return;
+    inquiryElements.viewerInquiryOverlay?.classList.add("visible");
+    (inquiryElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0])?.focus?.({ preventScroll: true });
+  });
+}
+
+function closeViewerInquiry(options = {}) {
+  if (!inquiryState.open && inquiryElements.viewerInquiryOverlay?.classList.contains("hidden")) return;
+  const { restoreFocus = true } = options;
+  const returnFocus = inquiryState.returnFocus;
+  inquiryState.open = false;
+  inquiryState.returnFocus = null;
+  inquiryState.reference = null;
+  inquiryElements.viewerInquiryOverlay?.classList.remove("visible");
+  inquiryElements.viewerInquiryOverlay?.setAttribute("aria-hidden", "true");
+  setViewerInquiryTriggerState(false);
+  syncDocumentLock();
+  window.setTimeout(() => {
+    if (!inquiryState.open) inquiryElements.viewerInquiryOverlay?.classList.add("hidden");
+  }, 180);
+  if (restoreFocus) (returnFocus || inquiryElements.viewerInquiryButton)?.focus?.({ preventScroll: true });
+}
+
+function handleViewerInquiryKeydown(event) {
+  if (!inquiryState.open) return false;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeViewerInquiry();
+    return true;
+  }
+  if (event.key !== "Tab") return true;
+
+  const focusable = getViewerInquiryFocusableElements();
+  if (!focusable.length) {
+    event.preventDefault();
+    return true;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+  return true;
+}
+
+async function copyViewerInquiryReference() {
+  const reference = viewerInquiryReference();
+  if (!reference) return;
+  try {
+    await copyTextToClipboard(reference.text);
+    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "copy"), { immediate: true });
+    showActionToast(reference.kind === "favorites" ? "פרטי הדגמים הועתקו" : "פרטי הדגם הועתקו", { tone: "link" });
+    closeViewerInquiry();
+  } catch (_error) {
+    window.prompt("אפשר להעתיק את פרטי הבירור מכאן:", reference.text);
+  }
+}
+
+async function shareViewerInquiryReference() {
+  const reference = viewerInquiryReference();
+  if (!reference) return;
+
+  const shareData = {
+    title: reference.subject,
+    text: reference.shareText,
+    url: reference.url
+  };
+  let canUseNativeShare = typeof navigator.share === "function";
+  if (canUseNativeShare && typeof navigator.canShare === "function") {
+    try {
+      canUseNativeShare = navigator.canShare(shareData);
+    } catch (_error) {
+      canUseNativeShare = false;
+    }
+  }
+
+  if (canUseNativeShare) {
+    try {
+      await navigator.share(shareData);
+      telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: true });
+      closeViewerInquiry({ restoreFocus: false });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+
+  try {
+    await copyTextToClipboard(reference.text);
+    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share", "copy-fallback"), { immediate: true });
+    showActionToast(
+      reference.kind === "favorites"
+        ? "אפשרויות שיתוף אינן זמינות — פרטי הדגמים הועתקו"
+        : "אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו",
+      { tone: "link" }
+    );
+    closeViewerInquiry();
+  } catch (_error) {
+    window.prompt("אפשר להעתיק ולשתף את פרטי הבירור מכאן:", reference.text);
+  }
+}
+
+function attachSharedInquiryEvents() {
+  inquiryElements.viewerInquiryButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openViewerInquiry({ returnFocus: inquiryElements.viewerInquiryButton });
+  });
+  inquiryElements.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
+  inquiryElements.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
+  inquiryElements.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference());
+  inquiryElements.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference());
+  inquiryElements.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown);
+  [inquiryElements.viewerInquiryGmail, inquiryElements.viewerInquiryEmail].forEach((link) => {
+    link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: false }), 0));
+  });
+}
+
+registerFeatureInterface("inquiry", {
+  escapePriority: 600,
+  requiresDocumentLock: () => inquiryState.open,
+  isOpen: () => inquiryState.open,
+  attachEvents: attachSharedInquiryEvents,
+  openInquiry: (options = {}) => openViewerInquiry(options),
+  close: (options = {}) => closeViewerInquiry(options),
+  closeTopLayer: () => {
+    if (!inquiryState.open) return false;
+    closeViewerInquiry();
+    return true;
+  }
+});
+/* ===== END SOURCE: src/js/32-shared-inquiry.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/35-favorites-workspace.js ===== */
+/**
+ * Source module: 35-favorites-workspace.js
+ * Favorites workspace: notes, catalog filtering, ordering, focused selection, sharing, and bulk inquiry.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
+
+function favoriteWorkspaceEntryKey(entry) {
+  return favoriteItemKey({ catalogId: entry?.catalog?.id || entry?.catalogId, page: entry?.page });
+}
+
+function favoriteWorkspaceCardKey(card) {
+  if (!card) return "";
+  return favoriteItemKey({
+    catalogId: card.dataset.favoriteCatalog,
+    page: card.dataset.favoritePage
+  });
+}
+
+function favoriteWorkspaceFindCardByKey(key) {
+  if (!key || !favoritesElements.favoritesGrid) return null;
+  return Array.from(favoritesElements.favoritesGrid.querySelectorAll("[data-favorite-catalog][data-favorite-page]"))
+    .find((card) => favoriteWorkspaceCardKey(card) === key) || null;
+}
+
+function favoriteWorkspaceSelectedEntries(entries = getFavoriteEntries()) {
+  return entries.filter((entry) => favoritesState.favoritesSelectedKeys.has(favoriteWorkspaceEntryKey(entry)));
+}
+
+function favoriteWorkspaceVisibleEntries(entries = getFavoriteEntries()) {
+  const filter = String(favoritesState.favoritesFilterCatalogId || "");
+  return filter ? entries.filter((entry) => String(entry.catalog?.id || entry.catalogId) === filter) : entries;
+}
+
+function favoriteWorkspaceShareLinkEntries(entries = getFavoriteEntries()) {
+  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
+  return selectedEntries.length ? selectedEntries : entries;
+}
+
+function pruneFavoritesWorkspaceState(entries = getFavoriteEntries()) {
+  const validKeys = new Set(entries.map(favoriteWorkspaceEntryKey).filter(Boolean));
+  for (const key of favoritesState.favoritesSelectedKeys) {
+    if (!validKeys.has(key)) favoritesState.favoritesSelectedKeys.delete(key);
+  }
+  if (favoritesState.favoriteNoteEditingKey && !validKeys.has(favoritesState.favoriteNoteEditingKey)) {
+    closeFavoriteNoteEditor({ restoreFocus: false });
+  }
+  if (favoritesState.favoritesFilterCatalogId && !entries.some((entry) => String(entry.catalog?.id || entry.catalogId) === favoritesState.favoritesFilterCatalogId)) {
+    favoritesState.favoritesFilterCatalogId = "";
+  }
+}
+
+function favoriteWorkspaceFilterOptions(entries) {
+  const catalogCounts = new Map();
+  entries.forEach((entry) => {
+    const id = String(entry.catalog?.id || entry.catalogId || "");
+    if (!id) return;
+    const current = catalogCounts.get(id) || { catalog: entry.catalog, count: 0 };
+    current.count += 1;
+    catalogCounts.set(id, current);
+  });
+  return [...catalogCounts.entries()].map(([id, value]) => ({ id, ...value }));
+}
+
+function syncFavoriteWorkspaceFilter(entries) {
+  if (!favoritesElements.favoritesCatalogFilter) return;
+  const options = favoriteWorkspaceFilterOptions(entries);
+  const current = String(favoritesState.favoritesFilterCatalogId || "");
+  favoritesElements.favoritesCatalogFilter.innerHTML = [
+    '<option value="">כל הקטלוגים</option>',
+    ...options.map(({ id, catalog, count }) => (
+      `<option value="${escapeHtml(id)}">${escapeHtml(catalog?.title || id)} (${count})</option>`
+    ))
+  ].join("");
+  favoritesElements.favoritesCatalogFilter.value = options.some((option) => option.id === current) ? current : "";
+  favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
+}
+
+function favoriteWorkspaceInquiryReference(entries, options = {}) {
+  if (!entries.length) return null;
+  const selected = Boolean(options.selected);
+  const firstEntry = entries[0];
+  const count = entries.length;
+  const scopeLabel = selected ? "הדגמים שנבחרו" : "כל המועדפים";
+  const title = selected ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים";
+  const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
+  const shareText = favoriteWorkspaceMessage(entries, { purpose: "inquiry" });
+  const text = `${shareText}
+
+קישור לרשימת הדגמים: ${selectionUrl}`;
+  return {
+    kind: "favorites",
+    source: "favorites-inquiry",
+    entries,
+    count,
+    selected,
+    title,
+    eyebrow: "הדגמים וההערות מצורפים אוטומטית",
+    description: "אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. כל הדגמים, ההערות והקישורים הישירים כבר מוכנים.",
+    referenceTitle: `${count} ${count === 1 ? "דגם" : "דגמים"} מהמועדפים`,
+    pageLabel: `${scopeLabel} · כולל הערות וקישורים`,
+    subject: `${title} – ${count} ${count === 1 ? "דגם" : "דגמים"}`,
+    shareText,
+    text,
+    url: selectionUrl,
+    previewCatalog: firstEntry.catalog,
+    previewPage: firstEntry.page,
+    telemetry: { source: "favorites-inquiry", value: count }
+  };
+}
+
+function openFavoriteWorkspaceInquiry() {
+  const entries = getFavoriteEntries();
+  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
+  const actionEntries = selectedEntries.length ? selectedEntries : entries;
+  const reference = favoriteWorkspaceInquiryReference(actionEntries, { selected: selectedEntries.length > 0 });
+  if (!reference) return;
+  getFeatureInterface("inquiry")?.openInquiry?.({
+    reference,
+    returnFocus: favoritesElements.favoritesInquiryButton
+  });
+}
+
+function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
+  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
+  const selectedCount = selectedEntries.length;
+  const inquiryEntries = selectedCount ? selectedEntries : entries;
+  const shareEntries = selectedCount ? selectedEntries : entries;
+  const hasEntries = entries.length > 0;
+
+  favoritesElements.favoritesHeaderWorkspace?.classList.toggle("hidden", !hasEntries);
+  if (favoritesElements.favoritesCatalogFilter) favoritesElements.favoritesCatalogFilter.disabled = !hasEntries;
+  if (favoritesElements.favoritesVisibleCount) {
+    favoritesElements.favoritesVisibleCount.textContent = visibleEntries.length === entries.length
+      ? `${entries.length} פריטים`
+      : `${visibleEntries.length} מתוך ${entries.length}`;
+  }
+
+  if (favoritesElements.favoritesShareButton) {
+    favoritesElements.favoritesShareButton.disabled = shareEntries.length === 0;
+    favoritesElements.favoritesShareButton.setAttribute("aria-label", shareEntries.length
+      ? (selectedCount
+        ? `העתקת קישור עבור ${selectedCount} פריטים שסומנו`
+        : `העתקת קישור לכל ${entries.length} המועדפים`)
+      : "העתקת קישור למועדפים — אין עדיין פריטים");
+  }
+  if (favoritesElements.favoritesShareLabel) {
+    favoritesElements.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה";
+  }
+
+  if (favoritesElements.favoritesInquiryButton) {
+    favoritesElements.favoritesInquiryButton.classList.toggle("hidden", !hasEntries);
+    favoritesElements.favoritesInquiryButton.disabled = inquiryEntries.length === 0;
+    favoritesElements.favoritesInquiryButton.setAttribute("aria-label", selectedCount
+      ? `בירור על ${selectedCount} הדגמים שנבחרו`
+      : `בירור על כל ${entries.length} הדגמים במועדפים`);
+  }
+  if (favoritesElements.favoritesInquiryLabel) {
+    favoritesElements.favoritesInquiryLabel.textContent = selectedCount ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים";
+  }
+
+  favoritesElements.favoritesSelectionBar?.classList.toggle("hidden", selectedCount === 0);
+  if (favoritesElements.favoritesSelectionCount) favoritesElements.favoritesSelectionCount.textContent = String(selectedCount);
+}
+
+function favoriteWorkspaceNoteMarkup(entry) {
+  const note = String(entry.note || "").trim();
+  if (!note) return "";
+  return `
+    <div class="favorite-note-summary">
+      <span class="favorite-note-label">הערה</span>
+      <span class="favorite-note-text">${escapeHtml(note)}</span>
+    </div>
+  `;
+}
+
+function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
+  const { catalog, page } = entry;
+  const key = favoriteWorkspaceEntryKey(entry);
+  const identityCatalog = escapeHtml(catalog.id);
+  const title = escapeHtml(catalog.title || "קטלוג");
+  const image = thumbSrc(catalog, page);
+  const selected = favoritesState.favoritesSelectedKeys.has(key);
+  const note = String(entry.note || "").trim();
+  const noteActionLabel = note ? "עריכת ההערה" : "הוספת הערה";
+  const upDisabled = visibleIndex === 0 ? " disabled" : "";
+  const downDisabled = visibleIndex === visibleCount - 1 ? " disabled" : "";
+
+  return `
+    <article class="favorite-card${selected ? " is-selected" : ""}" data-favorite-catalog="${identityCatalog}" data-favorite-page="${page}" draggable="false">
+      <label class="favorite-select-control">
+        <input type="checkbox" data-select-favorite="1" ${selected ? "checked" : ""} aria-label="סימון ${title}, עמוד ${page}" />
+        <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6.5 12.4 3.3 3.3 7.7-8"/></svg></span>
+      </label>
+      <button class="favorite-remove-button" type="button" data-remove-favorite="1" aria-label="הסרת ${title}, עמוד ${page} מהמועדפים" title="הסרה מהמועדפים">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></svg>
+      </button>
+      <button class="favorite-preview-button" type="button" data-open-favorite="1" aria-label="פתיחת ${title}, עמוד ${page}">
+        <span class="favorite-image-frame catalog-image-frame"${pageAspectStyle(catalog, page)}>
+          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(image)} />
+        </span>
+        <span class="favorite-card-meta">
+          <strong>${title}</strong>
+          <span>עמוד ${page}</span>
+        </span>
+      </button>
+      ${favoriteWorkspaceNoteMarkup(entry)}
+      <div class="favorite-card-actions">
+        <button class="favorite-card-action favorite-note-button" type="button" data-edit-favorite-note="1" aria-label="${noteActionLabel} עבור ${title}, עמוד ${page}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14v12H9l-4 3v-15Z"/><path d="M8 8h8M8 11.5h5"/></svg>
+          <span>${noteActionLabel}</span>
+        </button>
+        <div class="favorite-order-controls" aria-label="שינוי סדר הפריט">
+          <button class="favorite-order-button" type="button" data-move-favorite="-1" aria-label="העברת ${title}, עמוד ${page} למעלה"${upDisabled}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 14 5-5 5 5"/></svg>
+          </button>
+          <button class="favorite-drag-handle" type="button" draggable="true" data-drag-favorite="1" aria-label="גרירת ${title}, עמוד ${page} לשינוי סדר" title="גרירה לשינוי סדר">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg>
+          </button>
+          <button class="favorite-order-button" type="button" data-move-favorite="1" aria-label="העברת ${title}, עמוד ${page} למטה"${downDisabled}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+          </button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderFavoritesWorkspace(entries = getFavoriteEntries()) {
+  if (!favoritesElements.favoritesGrid) return;
+  pruneFavoritesWorkspaceState(entries);
+  const count = entries.length;
+  favoritesElements.favoritesClearButton?.classList.toggle("hidden", count === 0);
+  favoritesElements.favoritesEmpty?.classList.toggle("hidden", count !== 0);
+  syncFavoriteWorkspaceFilter(entries);
+  const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
+  syncFavoriteWorkspaceHeaderActions(entries, visibleEntries);
+  favoritesElements.favoritesFilteredEmpty?.classList.toggle("hidden", count === 0 || visibleEntries.length > 0);
+  favoritesElements.favoritesGrid.classList.toggle("hidden", count === 0 || visibleEntries.length === 0);
+  favoritesElements.favoritesGrid.innerHTML = visibleEntries.map((entry, index) => favoriteWorkspaceCardMarkup(entry, index, visibleEntries.length)).join("");
+}
+
+function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
+  if (!favoritesStore || !orderedVisibleKeys.length) return false;
+  const allItems = favoritesStore.read();
+  const visibleSet = new Set(orderedVisibleKeys);
+  const itemByKey = new Map(allItems.map((item) => [favoriteItemKey(item), item]));
+  if (orderedVisibleKeys.some((key) => !itemByKey.has(key))) return false;
+  let visibleIndex = 0;
+  const nextItems = allItems.map((item) => {
+    const key = favoriteItemKey(item);
+    if (!visibleSet.has(key)) return item;
+    const replacement = itemByKey.get(orderedVisibleKeys[visibleIndex]);
+    visibleIndex += 1;
+    return replacement;
+  });
+  return favoritesStore.replace(nextItems);
+}
+
+function moveFavoriteWithinVisibleOrder(key, direction) {
+  const entries = getFavoriteEntries();
+  const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
+  const keys = visibleEntries.map(favoriteWorkspaceEntryKey);
+  const index = keys.indexOf(key);
+  const targetIndex = index + Number(direction || 0);
+  if (index < 0 || targetIndex < 0 || targetIndex >= keys.length) return false;
+  [keys[index], keys[targetIndex]] = [keys[targetIndex], keys[index]];
+  favoriteWorkspaceReorderVisible(keys);
+  syncFavoritesUi({ renderPanel: true });
+  requestAnimationFrame(() => {
+    const movedCard = favoriteWorkspaceFindCardByKey(key);
+    movedCard?.querySelector(`[data-move-favorite="${direction}"]`)?.focus?.();
+  });
+  return true;
+}
+
+function reorderFavoriteByDrop(sourceKey, targetKey) {
+  if (!sourceKey || !targetKey || sourceKey === targetKey) return false;
+  const visibleKeys = favoriteWorkspaceVisibleEntries().map(favoriteWorkspaceEntryKey);
+  const from = visibleKeys.indexOf(sourceKey);
+  const to = visibleKeys.indexOf(targetKey);
+  if (from < 0 || to < 0) return false;
+  visibleKeys.splice(to, 0, visibleKeys.splice(from, 1)[0]);
+  favoriteWorkspaceReorderVisible(visibleKeys);
+  syncFavoritesUi({ renderPanel: true });
+  return true;
+}
+
+function setFavoriteWorkspaceSelection(key, selected) {
+  if (!key) return;
+  if (selected) favoritesState.favoritesSelectedKeys.add(key);
+  else favoritesState.favoritesSelectedKeys.delete(key);
+  renderFavoritesWorkspace(getFavoriteEntries());
+}
+
+function clearFavoritesSelection() {
+  favoritesState.favoritesSelectedKeys.clear();
+  renderFavoritesWorkspace(getFavoriteEntries());
+}
+
+function favoriteWorkspaceItemUrl(entry) {
+  return absoluteDocumentUrl(viewerDocumentUrl(entry.catalog.id, entry.page));
+}
+
+function favoriteWorkspaceMessage(entries, options = {}) {
+  const purpose = options.purpose === "inquiry" ? "inquiry" : "share";
+  const lines = purpose === "inquiry"
+    ? ["שלום,", "רציתי לברר לגבי הדגמים הבאים מתוך קטלוגי רהיטי ברגיג:", ""]
+    : ["שלום,", "רציתי לשתף כמה דגמים מתוך קטלוגי רהיטי ברגיג:", ""];
+  entries.forEach((entry, index) => {
+    lines.push(`${index + 1}. ${entry.catalog.title} — עמוד ${entry.page}`);
+    if (String(entry.note || "").trim()) lines.push(`הערה: ${String(entry.note).trim()}`);
+    lines.push(favoriteWorkspaceItemUrl(entry), "");
+  });
+  return lines.join("\n").trim();
+}
+
+function favoriteWorkspaceSelectionUrl(entries) {
+  return buildFavoritesShareUrl(entries.map((entry) => ({ catalogId: entry.catalog.id, page: entry.page })));
+}
+
+async function copyFavoriteWorkspaceLink(entries, button = null) {
+  if (!entries.length) return;
+  const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
+  try {
+    await copyTextToClipboard(selectionUrl);
+    if (button) flashActionButton(button, "הקישור הועתק");
+    showActionToast("קישור המועדפים הועתק", { tone: "link" });
+  } catch (_error) {
+    window.prompt("אפשר להעתיק את קישור המועדפים מכאן:", selectionUrl);
+  }
+}
+
+function favoriteWorkspaceFindEntryByKey(key) {
+  return getFavoriteEntries().find((entry) => favoriteWorkspaceEntryKey(entry) === key) || null;
+}
+
+function syncFavoriteNoteCount() {
+  if (!favoritesElements.favoriteNoteCount || !favoritesElements.favoriteNoteInput) return;
+  favoritesElements.favoriteNoteCount.textContent = `${favoritesElements.favoriteNoteInput.value.length}/${FAVORITES_NOTE_MAX_LENGTH}`;
+}
+
+function openFavoriteNoteEditor(key, returnFocus = document.activeElement) {
+  const entry = favoriteWorkspaceFindEntryByKey(key);
+  if (!entry || !favoritesElements.favoriteNoteOverlay || !favoritesElements.favoriteNoteInput) return;
+  favoritesState.favoriteNoteEditingKey = key;
+  favoritesState.favoriteNoteReturnFocus = returnFocus;
+  if (favoritesElements.favoriteNoteTitle) favoritesElements.favoriteNoteTitle.textContent = entry.note ? "עריכת הערה" : "הוספת הערה";
+  if (favoritesElements.favoriteNoteContext) favoritesElements.favoriteNoteContext.textContent = `${entry.catalog.title} · עמוד ${entry.page}`;
+  favoritesElements.favoriteNoteInput.value = String(entry.note || "");
+  syncFavoriteNoteCount();
+  favoritesElements.favoriteNoteOverlay.classList.remove("hidden");
+  favoritesElements.favoriteNoteOverlay.setAttribute("aria-hidden", "false");
+  syncDocumentLock();
+  requestAnimationFrame(() => {
+    favoritesElements.favoriteNoteInput.focus();
+    favoritesElements.favoriteNoteInput.setSelectionRange(favoritesElements.favoriteNoteInput.value.length, favoritesElements.favoriteNoteInput.value.length);
+  });
+}
+
+function closeFavoriteNoteEditor(options = {}) {
+  const { restoreFocus = true } = options;
+  const returnFocus = favoritesState.favoriteNoteReturnFocus;
+  favoritesState.favoriteNoteEditingKey = "";
+  favoritesState.favoriteNoteReturnFocus = null;
+  favoritesElements.favoriteNoteOverlay?.classList.add("hidden");
+  favoritesElements.favoriteNoteOverlay?.setAttribute("aria-hidden", "true");
+  syncDocumentLock();
+  if (restoreFocus) returnFocus?.focus?.();
+}
+
+function saveFavoriteNote() {
+  if (!favoritesState.favoriteNoteEditingKey || !favoritesStore || !favoritesElements.favoriteNoteInput) return;
+  const entry = favoriteWorkspaceFindEntryByKey(favoritesState.favoriteNoteEditingKey);
+  if (!entry) return closeFavoriteNoteEditor({ restoreFocus: false });
+  favoritesStore.setNote({ catalogId: entry.catalog.id, page: entry.page }, favoritesElements.favoriteNoteInput.value);
+  closeFavoriteNoteEditor({ restoreFocus: false });
+  syncFavoritesUi({ renderPanel: true });
+  showActionToast(favoritesElements.favoriteNoteInput.value.trim() ? "ההערה נשמרה" : "ההערה הוסרה", { tone: "saved" });
+  requestAnimationFrame(() => {
+    favoriteWorkspaceFindCardByKey(favoriteWorkspaceEntryKey(entry))?.querySelector("[data-edit-favorite-note]")?.focus?.();
+  });
+}
+
+function favoriteWorkspaceFocusable(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('button:not([disabled]), a[href]:not(.hidden), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+    .filter((element) => !element.closest?.(".hidden"));
+}
+
+function trapFavoriteWorkspaceDialogFocus(event, container, closeCallback) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeCallback();
+    return true;
+  }
+  if (event.key !== "Tab") return false;
+  const focusable = favoriteWorkspaceFocusable(container);
+  if (!focusable.length) return false;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+  return true;
+}
+
+function handleFavoritesWorkspaceGridClick(event) {
+  const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
+  if (!card || !favoritesElements.favoritesGrid?.contains(card)) return false;
+  const key = favoriteWorkspaceCardKey(card);
+  if (event.target.closest?.("[data-edit-favorite-note]")) {
+    openFavoriteNoteEditor(key, event.target.closest("button"));
+    return true;
+  }
+  const moveButton = event.target.closest?.("[data-move-favorite]");
+  if (moveButton) {
+    moveFavoriteWithinVisibleOrder(key, Number(moveButton.dataset.moveFavorite));
+    return true;
+  }
+  return false;
+}
+
+function handleFavoritesWorkspaceGridChange(event) {
+  const checkbox = event.target.closest?.("[data-select-favorite]");
+  if (!checkbox) return;
+  const card = checkbox.closest("[data-favorite-catalog][data-favorite-page]");
+  setFavoriteWorkspaceSelection(favoriteWorkspaceCardKey(card), checkbox.checked);
+}
+
+function handleFavoritesWorkspaceDragStart(event) {
+  const handle = event.target.closest?.("[data-drag-favorite]");
+  const card = handle?.closest?.("[data-favorite-catalog][data-favorite-page]");
+  if (!handle || !card) return;
+  favoritesState.favoritesDragKey = favoriteWorkspaceCardKey(card);
+  card.classList.add("is-dragging");
+  event.dataTransfer?.setData("text/plain", "favorite-card");
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+}
+
+function handleFavoritesWorkspaceDragOver(event) {
+  if (!favoritesState.favoritesDragKey) return;
+  const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
+  if (!card || favoriteWorkspaceCardKey(card) === favoritesState.favoritesDragKey) return;
+  event.preventDefault();
+  favoritesElements.favoritesGrid?.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target"));
+  card.classList.add("is-drag-target");
+}
+
+function handleFavoritesWorkspaceDrop(event) {
+  const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
+  if (!card || !favoritesState.favoritesDragKey) return;
+  event.preventDefault();
+  reorderFavoriteByDrop(favoritesState.favoritesDragKey, favoriteWorkspaceCardKey(card));
+  favoritesState.favoritesDragKey = "";
+}
+
+function handleFavoritesWorkspaceDragEnd() {
+  favoritesState.favoritesDragKey = "";
+  favoritesElements.favoritesGrid?.querySelectorAll(".is-dragging, .is-drag-target").forEach((item) => item.classList.remove("is-dragging", "is-drag-target"));
+}
+
+function attachFavoritesWorkspaceEvents() {
+  favoritesElements.favoritesCatalogFilter?.addEventListener("change", () => {
+    favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
+    renderFavoritesWorkspace(getFavoriteEntries());
+  });
+  favoritesElements.favoritesResetFilter?.addEventListener("click", () => {
+    favoritesState.favoritesFilterCatalogId = "";
+    renderFavoritesWorkspace(getFavoriteEntries());
+    requestAnimationFrame(() => favoritesElements.favoritesCatalogFilter?.focus?.());
+  });
+  favoritesElements.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection);
+  favoritesElements.favoritesInquiryButton?.addEventListener("click", openFavoriteWorkspaceInquiry);
+  favoritesElements.favoritesGrid?.addEventListener("change", handleFavoritesWorkspaceGridChange);
+  favoritesElements.favoritesGrid?.addEventListener("dragstart", handleFavoritesWorkspaceDragStart);
+  favoritesElements.favoritesGrid?.addEventListener("dragover", handleFavoritesWorkspaceDragOver);
+  favoritesElements.favoritesGrid?.addEventListener("drop", handleFavoritesWorkspaceDrop);
+  favoritesElements.favoritesGrid?.addEventListener("dragend", handleFavoritesWorkspaceDragEnd);
+
+  favoritesElements.favoriteNoteInput?.addEventListener("input", syncFavoriteNoteCount);
+  favoritesElements.favoriteNoteSave?.addEventListener("click", saveFavoriteNote);
+  favoritesElements.favoriteNoteCancel?.addEventListener("click", () => closeFavoriteNoteEditor());
+  favoritesElements.favoriteNoteClose?.addEventListener("click", () => closeFavoriteNoteEditor());
+  favoritesElements.favoriteNoteBackdrop?.addEventListener("click", () => closeFavoriteNoteEditor());
+  favoritesElements.favoriteNoteOverlay?.addEventListener("keydown", (event) => trapFavoriteWorkspaceDialogFocus(event, favoritesElements.favoriteNoteOverlay, closeFavoriteNoteEditor));
+}
+registerFeatureInterface("favorites-workspace", {
+  attachEvents: attachFavoritesWorkspaceEvents,
+  shareLinkEntries: (entries = getFavoriteEntries()) => favoriteWorkspaceShareLinkEntries(entries),
+  copyShareLink: (entries, button = null) => copyFavoriteWorkspaceLink(entries, button),
+  render: (entries = getFavoriteEntries()) => renderFavoritesWorkspace(entries),
+  prune: (entries = getFavoriteEntries()) => pruneFavoritesWorkspaceState(entries),
+  handleGridClick: (event) => handleFavoritesWorkspaceGridClick(event),
+  closeNoteEditor: (options = {}) => closeFavoriteNoteEditor(options)
+});
+/* ===== END SOURCE: src/js/35-favorites-workspace.js ===== */
+
+/* ===== BEGIN SOURCE: src/js/40-catalog-grid.js ===== */
+/**
+ * Source module: 40-catalog-grid.js
+ * Catalog navigation, category layout, catalog cards, preview grids, and catalog detail rendering.
+ *
+ * These source modules intentionally share one lexical scope and are concatenated
+ * by tools/build_frontend_assets.py into the single browser file app.js.
+ */
+
+function initRevealObserver() {
+  const nodes = document.querySelectorAll(".reveal");
+  if (!("IntersectionObserver" in window)) {
+    nodes.forEach((node) => node.classList.add("in-view"));
+    return;
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting || entry.intersectionRatio > 0) {
+        entry.target.classList.add("in-view");
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0, rootMargin: "0px 0px -1px 0px" });
+
+  nodes.forEach((node) => observer.observe(node));
+}
+
+function renderEmptyState() {
+  const html = `
+    <article class="empty-state ui-state" data-state="empty" role="status">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M5 4.5h11.2A2.8 2.8 0 0 1 19 7.3v12.2H7.8A2.8 2.8 0 0 1 5 16.7V4.5Z"/><path d="M7.8 19.5A2.8 2.8 0 0 1 5 16.7c0-1.55 1.25-2.8 2.8-2.8H19"/></svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>עדיין אין קטלוגים להצגה</strong>
+        <p>ברגע שיועלו קטלוגים, הם יופיעו כאן לבחירה ולצפייה.</p>
+      </div>
+    </article>
+  `;
+
+  if (catalogElements.catalogGrid) {
+    catalogElements.catalogGrid.innerHTML = html;
+    catalogElements.catalogGrid.setAttribute("aria-busy", "false");
+    if (catalogElements.catalogLoadStatus) catalogElements.catalogLoadStatus.textContent = "אין קטלוגים זמינים כעת.";
+  }
+  if (catalogElements.pageGrid) {
+    catalogElements.pageGrid.innerHTML = html;
+    catalogElements.pageGrid.setAttribute("aria-busy", "false");
+  }
+  if (shellElements.catalogCount) shellElements.catalogCount.textContent = "0";
+  if (shellElements.pageCount) shellElements.pageCount.textContent = "0";
+  renderCategoryNav([]);
+  showCatalogDetail();
+  catalogElements.catalogTitle.textContent = "עדיין אין קטלוגים להצגה";
+  catalogElements.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.";
+  if (catalogElements.catalogMenuToggleText) catalogElements.catalogMenuToggleText.textContent = "אין קטלוגים";
+  if (catalogElements.catalogMenu) catalogElements.catalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
+  catalogElements.catalogCoverPreview?.removeAttribute("src");
+  if (catalogElements.openCatalogEntryFromDetail) catalogElements.openCatalogEntryFromDetail.disabled = true;
+}
+
+
+const CATEGORY_NAV_MIN_BUTTON_SCALE = 0.68;
+const CATEGORY_NAV_MIN_FONT_SIZE = 11;
+const CATEGORY_NAV_MIN_BUTTON_HEIGHT = 30;
+const CATEGORY_NAV_MIN_BUTTON_PADDING_X = 5;
+const CATEGORY_NAV_MIN_GAP = 3;
+
+function readPixelValue(value, fallback = 0) {
+  const numeric = Number.parseFloat(String(value || ""));
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function categoryNavLinkLabel(link) {
+  return String(link?.dataset?.categoryLabel || link?.textContent || "").trim();
+}
+
+function setCategoryNavLinkTooltip(link, text) {
+  if (!link) return;
+  setTooltipText(link, text || "", { updateDefault: true });
+  link.removeAttribute("title");
+}
+
+function syncCategoryNavOverflowTooltips(links, enabled = true) {
+  links.forEach((link) => {
+    if (!enabled) {
+      setCategoryNavLinkTooltip(link, "");
+      return;
+    }
+
+    const isTextClipped = link.scrollWidth > link.clientWidth + 1;
+    setCategoryNavLinkTooltip(link, isTextClipped ? categoryNavLinkLabel(link) : "");
+  });
+}
+
+function clearCategoryNavFit(header, links = []) {
+  if (!header) return;
+  header.classList.remove("is-top-nav-compressed", "is-top-nav-tight", "is-top-nav-ellipsized");
+  header.style.removeProperty("--top-nav-gap");
+  header.style.removeProperty("--top-nav-button-min-height");
+  header.style.removeProperty("--top-nav-button-padding-x");
+  header.style.removeProperty("--top-nav-button-font-size");
+  syncCategoryNavOverflowTooltips(links, false);
+}
+
+function readCategoryNavBaseMetrics(nav, firstLink) {
+  const navStyle = window.getComputedStyle(nav);
+  const linkStyle = window.getComputedStyle(firstLink);
+  const paddingStart = readPixelValue(linkStyle.paddingInlineStart, 16);
+  const paddingEnd = readPixelValue(linkStyle.paddingInlineEnd, paddingStart);
+
+  return {
+    gap: readPixelValue(navStyle.columnGap, 8),
+    minHeight: readPixelValue(linkStyle.minHeight, 42),
+    paddingX: Math.max(paddingStart, paddingEnd),
+    fontSize: readPixelValue(linkStyle.fontSize, 16)
+  };
+}
+
+function categoryNavRequiredWidth(nav, links) {
+  if (!links.length) return 0;
+  const gap = readPixelValue(window.getComputedStyle(nav).columnGap, 0);
+  const linkWidth = links.reduce((sum, link) => sum + Math.ceil(link.scrollWidth), 0);
+  return linkWidth + (gap * Math.max(0, links.length - 1));
+}
+
+function applyCategoryNavScale(header, metrics, scale) {
+  const safeScale = Math.max(CATEGORY_NAV_MIN_BUTTON_SCALE, Math.min(1, scale));
+  header.classList.add("is-top-nav-compressed");
+  header.style.setProperty("--top-nav-gap", `${Math.max(CATEGORY_NAV_MIN_GAP, metrics.gap * safeScale).toFixed(2)}px`);
+  header.style.setProperty("--top-nav-button-min-height", `${Math.max(CATEGORY_NAV_MIN_BUTTON_HEIGHT, metrics.minHeight * safeScale).toFixed(2)}px`);
+  header.style.setProperty("--top-nav-button-padding-x", `${Math.max(CATEGORY_NAV_MIN_BUTTON_PADDING_X, metrics.paddingX * safeScale).toFixed(2)}px`);
+  header.style.setProperty("--top-nav-button-font-size", `${Math.max(CATEGORY_NAV_MIN_FONT_SIZE, metrics.fontSize * safeScale).toFixed(2)}px`);
+  return safeScale;
+}
+
+function fitCategoryNavToSingleRow() {
+  catalogState.categoryNavFitRaf = 0;
+  const nav = shellElements.categoryNav;
+  const header = nav?.closest?.(".site-header");
+  if (!nav || !header) return;
+
+  const links = Array.from(nav.querySelectorAll(".category-nav-link"));
+  clearCategoryNavFit(header, links);
+  if (!links.length) return;
+
+  const firstLink = links[0];
+  const metrics = readCategoryNavBaseMetrics(nav, firstLink);
+  const requiredWidth = categoryNavRequiredWidth(nav, links);
+  const availableWidth = nav.clientWidth;
+
+  if (!availableWidth || requiredWidth <= availableWidth + 1) return;
+
+  const normalScale = applyCategoryNavScale(header, metrics, availableWidth / requiredWidth);
+  const stillOverflows = requiredWidth * normalScale > nav.clientWidth + 1 || nav.scrollWidth > nav.clientWidth + 1;
+  if (!stillOverflows) {
+    syncCategoryNavOverflowTooltips(links);
+    return;
+  }
+
+  header.classList.add("is-top-nav-tight");
+  const tightAvailableWidth = nav.clientWidth;
+  applyCategoryNavScale(header, metrics, tightAvailableWidth / requiredWidth);
+
+  if (requiredWidth * CATEGORY_NAV_MIN_BUTTON_SCALE > tightAvailableWidth + 1 || nav.scrollWidth > nav.clientWidth + 1) {
+    header.classList.add("is-top-nav-ellipsized");
+  }
+
+  syncCategoryNavOverflowTooltips(links);
+}
+
+function scheduleCategoryNavFit() {
+  if (!shellElements.categoryNav) return;
+  window.cancelAnimationFrame(catalogState.categoryNavFitRaf);
+  catalogState.categoryNavFitRaf = window.requestAnimationFrame(fitCategoryNavToSingleRow);
+}
+
+function initCategoryNavFit() {
+  if (!shellElements.categoryNav) return;
+  document.querySelectorAll('img[data-brand-logo="1"]').forEach((image) => {
+    image.addEventListener("load", scheduleCategoryNavFit);
+  });
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(scheduleCategoryNavFit).catch(() => {});
+  }
+  scheduleCategoryNavFit();
+}
+
+
+function renderCategoryNav(groups = getCatalogCategoryGroups()) {
+  const links = groups.map((group, index) => {
+    const targetId = categorySectionId(group.category, index);
+    const sharePath = catalogCategorySharePath(group.category, index);
+    return {
+      href: categoryDocumentUrl(sharePath),
+      targetId,
+      sharePath,
+      label: group.category
+    };
+  });
+
+  if (shellElements.categoryNav) {
+    shellElements.categoryNav.innerHTML = links.map((link) => `
+      <a class="top-nav-link category-nav-link" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">${escapeHtml(link.label)}</a>
+    `).join("");
+  }
+
+  if (shellElements.mobileCategoryMenu) {
+    shellElements.mobileCategoryMenu.innerHTML = links.length
+      ? links.map((link) => `
+          <a class="mobile-category-menu-link category-nav-link" role="menuitem" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">
+            <span>${escapeHtml(link.label)}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6" /></svg>
+          </a>
+        `).join("")
+      : '<div class="mobile-category-menu-empty">אין קטגוריות להצגה</div>';
+  }
+
+  syncActiveCategoryNavLink();
+  scheduleCategoryNavFit();
+}
+
+function isMobileCategoryMenuOpen() {
+  return Boolean(shellElements.mobileCategoryMenu && !shellElements.mobileCategoryMenu.classList.contains("hidden"));
+}
+
+function setMobileCategoryMenuOpen(open, options = {}) {
+  const shouldOpen = Boolean(open);
+  if (!shellElements.mobileCategoryMenu || !shellElements.mobileCategoryMenuToggle) return;
+
+  shellElements.mobileCategoryMenu.classList.toggle("hidden", !shouldOpen);
+  shellElements.mobileCategoryMenu.classList.toggle("is-open", shouldOpen);
+  shellElements.mobileCategoryMenuToggle.classList.toggle("is-active", shouldOpen);
+  shellElements.mobileCategoryMenuToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  shellElements.mobileCategoryMenuToggle.setAttribute("aria-label", shouldOpen ? "סגירת תפריט קטגוריות" : "פתיחת תפריט קטגוריות");
+
+  if (shouldOpen && options.focusFirst) {
+    window.requestAnimationFrame(() => shellElements.mobileCategoryMenu?.querySelector(".mobile-category-menu-link")?.focus());
+  } else if (!shouldOpen && options.focusButton) {
+    window.requestAnimationFrame(() => shellElements.mobileCategoryMenuToggle?.focus({ preventScroll: true }));
+  }
+}
+
+function closeMobileCategoryMenu(options = {}) {
+  setMobileCategoryMenuOpen(false, options);
+}
+
+function decodeHashTargetId(hash = location.hash) {
+  const rawHash = String(hash || "");
+  if (!rawHash.startsWith("#")) return "";
+
+  const rawId = rawHash.slice(1);
+  try {
+    return decodeURIComponent(rawId);
+  } catch {
+    return rawId;
+  }
+}
+
+function isCatalogFocusSection(section) {
+  return Boolean(section?.classList?.contains("catalog-category-section") || section?.classList?.contains("catalog-subcategory-section"));
+}
+
+function getCatalogCategorySectionById(id) {
+  const section = id ? document.getElementById(id) : null;
+  return isCatalogFocusSection(section) ? section : null;
+}
+
+function getCatalogCategorySectionFromHash(hash = location.hash) {
+  return getCatalogCategorySectionById(decodeHashTargetId(hash));
+}
+
+function getCatalogCategoryFocusTargetId(section) {
+  return section?.dataset?.categoryFocusTarget || section?.id || "";
+}
+
+function getCatalogFocusSections() {
+  if (!catalogElements.catalogGrid) return [];
+  return Array.from(catalogElements.catalogGrid.querySelectorAll(".catalog-category-section, .catalog-subcategory-section"));
+}
+
+function getCatalogCategorySectionsByTargetId(targetId) {
+  const normalizedTargetId = String(targetId || "");
+  if (!normalizedTargetId) return [];
+
+  return getCatalogFocusSections()
+    .filter((section) => {
+      const focusTargetId = getCatalogCategoryFocusTargetId(section);
+      const parentCategoryTargetId = section?.dataset?.parentCategoryTarget || "";
+      return focusTargetId === normalizedTargetId
+        || parentCategoryTargetId === normalizedTargetId
+        || section.id === normalizedTargetId;
+    });
+}
+
+function catalogCategorySharePathFromHash(hash = location.hash) {
+  const rawHash = String(hash || "");
+  if (!rawHash.startsWith("#")) return "";
+
+  const rawRoute = rawHash.slice(1).replace(/^\/+/, "");
+  const parts = rawRoute.split("/");
+  if (parts[0] !== "cat" || !parts[1]) return "";
+
+  return normalizeShareRoutePath(parts.slice(1).map(decodeHashRouteSegment).join("/"));
+}
+
+function getCatalogCategorySectionBySharePath(path) {
+  const normalizedPath = normalizeShareRoutePath(path);
+  if (!normalizedPath) return null;
+
+  return getCatalogFocusSections().find((section) => normalizeShareRoutePath(section?.dataset?.categorySharePath) === normalizedPath) || null;
+}
+
+function resolveCatalogCategoryTargetIdFromHash(hash = location.hash) {
+  const sharePath = catalogCategorySharePathFromHash(hash);
+  if (sharePath) {
+    const section = getCatalogCategorySectionBySharePath(sharePath);
+    return getCatalogCategoryFocusTargetId(section);
+  }
+
+  return decodeHashTargetId(hash);
+}
+
+function buildCatalogFocusRouteHash(targetId) {
+  const section = getCatalogCategorySectionsByTargetId(targetId)[0] || getCatalogCategorySectionById(targetId);
+  const sharePath = normalizeShareRoutePath(section?.dataset?.categorySharePath);
+  return buildCategoryShareRouteHash(sharePath) || (targetId ? `#${encodeHashRouteSegment(targetId)}` : "");
+}
+
+function hasCatalogCategoryFocus(targetId) {
+  return getCatalogCategorySectionsByTargetId(targetId)
+    .some((section) => section.classList.contains("is-category-focus"));
+}
+
+function syncActiveCategoryNavLink(activeId = catalogState.categoryFocusTargetId) {
+  const normalizedActiveId = String(activeId || "");
+
+  [shellElements.categoryNav, shellElements.mobileCategoryMenu].forEach((container) => {
+    container?.querySelectorAll(".category-nav-link").forEach((link) => {
+      const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
+      link.classList.toggle("active", isActive);
+      if (isActive) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
+  });
+
+  catalogElements.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link").forEach((link) => {
+    const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
+    link.classList.toggle("active", isActive);
+    if (isActive) link.setAttribute("aria-current", "location");
+    else link.removeAttribute("aria-current");
+  });
+}
+
+function clearCatalogCategoryFocus(options = {}) {
+  const { clearHash = false } = options;
+
+  window.clearTimeout(catalogState.categoryFocusTimer);
+  catalogState.categoryFocusTimer = 0;
+  catalogState.categoryFocusTargetId = "";
+  getCatalogFocusSections().forEach((section) => {
+    section.classList.remove("is-category-focus");
+  });
+  syncActiveCategoryNavLink("");
+
+  const hashTargetId = resolveCatalogCategoryTargetIdFromHash();
+  if (clearHash && hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length && window.history?.replaceState) {
+    history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+  }
+
+  return true;
+}
+
+function markCatalogCategoryFocus(section, options = {}) {
+  if (!section) return false;
+
+  const { animate = true, targetId: requestedTargetId = "" } = options;
+  const targetId = String(requestedTargetId || getCatalogCategoryFocusTargetId(section) || "");
+  const targetSections = getCatalogCategorySectionsByTargetId(targetId);
+  if (!targetId || !targetSections.length) return false;
+
+  window.clearTimeout(catalogState.categoryFocusTimer);
+  catalogState.categoryFocusTimer = 0;
+
+  getCatalogFocusSections().forEach((activeSection) => {
+    if (!targetSections.includes(activeSection)) activeSection.classList.remove("is-category-focus");
+  });
+
+  targetSections.forEach((targetSection) => targetSection.classList.remove("is-category-focus"));
+  if (animate) {
+    // Restart the pulse cleanly across every visible segment of the selected category or subcategory.
+    void targetSections[0].offsetWidth;
+  }
+  targetSections.forEach((targetSection) => targetSection.classList.add("is-category-focus"));
+
+  catalogState.categoryFocusTargetId = targetId;
+  syncActiveCategoryNavLink(targetId);
+  return true;
+}
+
+function markCatalogCategoryFocusById(id, options = {}) {
+  return markCatalogCategoryFocus(getCatalogCategorySectionById(id), { ...options, targetId: id });
+}
+
+function handleCatalogFocusLinkClick(link, event) {
+  const targetId = link?.dataset?.categoryTarget || resolveCatalogCategoryTargetIdFromHash(link?.hash);
+  if (!targetId) return;
+
+  event.preventDefault();
+
+  if (!isAppPage("home")) {
+    navigateTo(`${homeDocumentUrl()}${buildCatalogFocusRouteHash(targetId)}`);
+    return;
+  }
+
+  if (catalogState.categoryFocusTargetId === targetId && hasCatalogCategoryFocus(targetId)) {
+    clearCatalogCategoryFocus({ clearHash: true });
+    return;
+  }
+
+  const section = getCatalogCategorySectionById(targetId) || getCatalogCategorySectionsByTargetId(targetId)[0];
+  markCatalogCategoryFocus(section, { targetId });
+  section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+
+  const hash = buildCatalogFocusRouteHash(targetId);
+  if (hash) {
+    location.hash = hash;
+  }
+}
+
+function syncCatalogCategoryFocusFromHash(options = {}) {
+  const targetId = resolveCatalogCategoryTargetIdFromHash();
+  const section = getCatalogCategorySectionById(targetId);
+  if (!section) {
+    clearCatalogCategoryFocus();
+    return false;
+  }
+
+  const { scroll = false } = options;
+  if (scroll) section.scrollIntoView({ behavior: "smooth", block: "start" });
+  return markCatalogCategoryFocus(section, { ...options, targetId });
+}
+
+
+function catalogLayoutColumnCount() {
+  if (typeof window === "undefined" || !window.matchMedia) return 3;
+  if (window.matchMedia("(max-width: 760px)").matches) return 1;
+  if (window.matchMedia("(max-width: 1180px)").matches) return 2;
+  return 3;
+}
+
+function clampCategorySpan(value, columns) {
+  return Math.min(columns, Math.max(1, Number(value || 1)));
+}
+
+function catalogSubcategorySourceBlocks(source) {
+  const sourceBlocks = [];
+
+  if (Array.isArray(source?.directItems) && source.directItems.length) {
+    sourceBlocks.push({
+      blockKey: "__direct__",
+      blockIndex: -1,
+      label: "קטלוגים כלליים",
+      isDirect: true,
+      items: source.directItems
+    });
+  }
+
+  (Array.isArray(source?.subcategories) ? source.subcategories : []).forEach((group, index) => {
+    const subcategory = String(group?.subcategory || "").trim();
+    const items = Array.isArray(group?.items) ? group.items : [];
+    if (!subcategory || !items.length) return;
+
+    sourceBlocks.push({
+      blockKey: subcategory,
+      blockIndex: index,
+      label: subcategory,
+      isDirect: false,
+      items
+    });
+  });
+
+  return sourceBlocks;
+}
+
+function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
+  const safeColumns = clampCategorySpan(columns, 3);
+  const segments = [];
+  let occupied = 0;
+
+  const appendCardBlockSegments = (group, groupIndex, block, options = {}) => {
+    const items = Array.isArray(block?.items) ? block.items : [];
+    if (!items.length) return;
+
+    const segmentType = options.segmentType || "category";
+    const layoutBlockKey = options.layoutBlockKey || `${segmentType}:${groupIndex}:${block?.blockKey || "main"}`;
+    let itemOffset = 0;
+    let segmentIndex = 0;
+
+    while (itemOffset < items.length) {
+      if (occupied >= safeColumns) occupied = 0;
+      const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
+      const span = Math.min(availableInRow, items.length - itemOffset, safeColumns);
+
+      const segment = {
+        category: group.category,
+        groupIndex,
+        segmentIndex,
+        itemOffset,
+        span,
+        items: items.slice(itemOffset, itemOffset + span),
+        hasSubcategories: Boolean(options.hasSubcategories),
+        segmentType,
+        layoutBlockKey,
+        inlineDivider: false
+      };
+
+      if (segmentType === "subcategory") {
+        Object.assign(segment, {
+          blockKey: block.blockKey,
+          blockIndex: block.blockIndex,
+          blockOrder: options.blockOrder,
+          label: block.label,
+          isDirect: Boolean(block.isDirect)
+        });
+      }
+
+      segments.push(segment);
+      itemOffset += span;
+      segmentIndex += 1;
+      occupied += span;
+      if (occupied >= safeColumns) occupied = 0;
+    }
+  };
+
+  groups.forEach((group, groupIndex) => {
+    const items = Array.isArray(group?.items) ? group.items : [];
+    if (!items.length) return;
+
+    if (group?.hasSubcategories) {
+      if (occupied > 0) occupied = 0;
+
+      segments.push({
+        category: group.category,
+        groupIndex,
+        segmentIndex: 0,
+        itemOffset: 0,
+        span: safeColumns,
+        items: [],
+        directItems: Array.isArray(group.directItems) ? group.directItems : [],
+        subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
+        hasSubcategories: true,
+        segmentType: "categoryHeader",
+        layoutBlockKey: `category-header:${groupIndex}`,
+        inlineDivider: false
+      });
+      occupied = 0;
+
+      catalogSubcategorySourceBlocks(group).forEach((block, blockOrder) => {
+        appendCardBlockSegments(group, groupIndex, block, {
+          segmentType: "subcategory",
+          hasSubcategories: true,
+          blockOrder,
+          layoutBlockKey: `subcategory:${groupIndex}:${block.blockKey}:${blockOrder}`
+        });
+      });
+      return;
+    }
+
+    appendCardBlockSegments(group, groupIndex, { blockKey: "__category__", items }, {
+      segmentType: "category",
+      hasSubcategories: false,
+      layoutBlockKey: `category:${groupIndex}`
+    });
+  });
+
+  occupied = 0;
+  segments.forEach((segment, index) => {
+    const span = clampCategorySpan(segment.span, safeColumns);
+    if (occupied + span > safeColumns) occupied = 0;
+
+    const rowEnd = occupied + span;
+    const nextSegment = segments[index + 1];
+    const nextSpan = nextSegment ? clampCategorySpan(nextSegment.span, safeColumns) : 0;
+    const sameLayoutBlock = Boolean(nextSegment && nextSegment.layoutBlockKey === segment.layoutBlockKey);
+    segment.inlineDivider = Boolean(
+      nextSegment
+      && !sameLayoutBlock
+      && segment.segmentType !== "categoryHeader"
+      && nextSegment.segmentType !== "categoryHeader"
+      && rowEnd < safeColumns
+      && nextSpan <= safeColumns - rowEnd
+    );
+
+    occupied = rowEnd >= safeColumns ? 0 : rowEnd;
+  });
+
+  return segments;
+}
+
+function scheduleCatalogLayoutRefresh() {
+  if (!catalogs.length) return;
+  window.clearTimeout(catalogState.catalogLayoutResizeTimer);
+  catalogState.catalogLayoutResizeTimer = window.setTimeout(() => {
+    const nextColumns = catalogLayoutColumnCount();
+    if (nextColumns !== catalogState.catalogLayoutColumns) renderCatalogCards();
+  }, 120);
+}
+
+function renderCatalogCard(catalog, headingLevel = 3) {
+  const cover = coverThumbSrc(catalog);
+  const safeCatalogId = escapeHtml(catalog.id);
+  const safeTitle = escapeHtml(catalog.title);
+  const safeHeadingLevel = headingLevel === 4 ? 4 : 3;
+  const catalogHref = escapeHtml(catalogDocumentUrl(catalog.id));
+  return `
+    <article class="catalog-card">
+      <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageCrossOriginAttribute(cover)} />
+        <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
+      </a>
+      <div class="catalog-body">
+        <h${safeHeadingLevel}><a href="${catalogHref}" data-open-catalog-preview="${safeCatalogId}">${safeTitle}</a></h${safeHeadingLevel}>
+        <p>${escapeHtml(catalog.description || "")}</p>
+        <div class="catalog-actions" role="group" aria-label="פעולות עבור ${safeTitle}">
+          <a class="button primary catalog-open-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}">פתיחת הקטלוג</a>
+          <button class="button soft catalog-preview-button" type="button" data-open-catalog-preview="${safeCatalogId}">תצוגה מקדימה</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderCatalogSubcategoryNav(segment) {
+  if (!segment?.hasSubcategories || !Array.isArray(segment.subcategories) || !segment.subcategories.length) return "";
+
+  const buttons = segment.subcategories.map((group, index) => {
+    const targetId = subcategorySectionId(segment.category, segment.groupIndex, group.subcategory, index);
+    const sharePath = catalogSubcategorySharePath(segment.category, segment.groupIndex, group.subcategory, index);
+    return `<a class="catalog-subcategory-nav-link" href="${escapeHtml(categoryDocumentUrl(categoryShareSlug(segment.category, segment.groupIndex), subcategoryShareSlug(group.subcategory, index)))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}">${escapeHtml(group.subcategory)}</a>`;
+  }).join("");
+
+  return `
+    <nav class="catalog-subcategory-nav" aria-label="ניווט תתי קטגוריות עבור ${escapeHtml(segment.category)}">
+      ${buttons}
+    </nav>
+  `;
+}
+
+function catalogSubcategoryLayoutSegments(segment, columns = catalogLayoutColumnCount()) {
+  const safeColumns = clampCategorySpan(columns, 3);
+  const sourceBlocks = [];
+
+  if (Array.isArray(segment.directItems) && segment.directItems.length) {
+    sourceBlocks.push({
+      blockKey: "__direct__",
+      blockIndex: -1,
+      label: "קטלוגים כלליים",
+      isDirect: true,
+      items: segment.directItems
+    });
+  }
+
+  (Array.isArray(segment.subcategories) ? segment.subcategories : []).forEach((group, index) => {
+    const subcategory = String(group?.subcategory || "").trim();
+    const items = Array.isArray(group?.items) ? group.items : [];
+    if (!subcategory || !items.length) return;
+
+    sourceBlocks.push({
+      blockKey: subcategory,
+      blockIndex: index,
+      label: subcategory,
+      isDirect: false,
+      items
+    });
+  });
+
+  const layoutSegments = [];
+  let occupied = 0;
+
+  sourceBlocks.forEach((block, blockOrder) => {
+    let itemOffset = 0;
+    let segmentIndex = 0;
+
+    while (itemOffset < block.items.length) {
+      if (occupied >= safeColumns) occupied = 0;
+      const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
+      const span = Math.min(availableInRow, block.items.length - itemOffset, safeColumns);
+
+      layoutSegments.push({
+        ...block,
+        blockOrder,
+        segmentIndex,
+        itemOffset,
+        span,
+        items: block.items.slice(itemOffset, itemOffset + span),
+        inlineDivider: false
+      });
+
+      itemOffset += span;
+      segmentIndex += 1;
+      occupied += span;
+      if (occupied >= safeColumns) occupied = 0;
+    }
+  });
+
+  occupied = 0;
+  layoutSegments.forEach((block, index) => {
+    const span = clampCategorySpan(block.span, safeColumns);
+    if (occupied + span > safeColumns) occupied = 0;
+
+    const rowEnd = occupied + span;
+    const nextBlock = layoutSegments[index + 1];
+    const nextSpan = nextBlock ? clampCategorySpan(nextBlock.span, safeColumns) : 0;
+    block.inlineDivider = Boolean(
+      nextBlock
+      && nextBlock.blockOrder !== block.blockOrder
+      && rowEnd < safeColumns
+      && nextSpan <= safeColumns - rowEnd
+    );
+
+    occupied = rowEnd >= safeColumns ? 0 : rowEnd;
+  });
+
+  return layoutSegments;
+}
+
+function catalogSubcategoryBlockBaseId(segment, block, baseSectionId) {
+  if (block?.isDirect) return `${baseSectionId}-general`;
+  return subcategorySectionId(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
+}
+
+function renderCatalogSubcategoryBlock(segment, block, options = {}) {
+  const { baseSectionId = "" } = options;
+  const items = Array.isArray(block?.items) ? block.items : [];
+  if (!items.length) return "";
+
+  const blockBaseId = catalogSubcategoryBlockBaseId(segment, block, baseSectionId);
+  const sharePath = block?.isDirect
+    ? catalogCategorySharePath(segment.category, segment.groupIndex)
+    : catalogSubcategorySharePath(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
+  const sectionId = block.segmentIndex === 0 ? blockBaseId : `${blockBaseId}-part-${block.segmentIndex + 1}`;
+  const titleId = `${sectionId}-title`;
+  const title = String(block?.label || "").trim() || "קטלוגים";
+  const sectionStyle = `--subcategory-span: ${clampCategorySpan(block.span, 3)};`;
+
+  return `
+    <section class="catalog-subcategory-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(blockBaseId)}" data-parent-category-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-subcategory-span="${escapeHtml(String(block.span))}" data-inline-divider="${block.inlineDivider ? "1" : "0"}" data-subcategory-continuation="${block.itemOffset > 0 ? "1" : "0"}">
+      <div class="catalog-category-head catalog-subcategory-head">
+        <h3 id="${escapeHtml(titleId)}">${escapeHtml(title)}</h3>
+      </div>
+      <div class="catalog-grid catalog-category-grid catalog-subcategory-grid">
+        ${items.map((catalog) => renderCatalogCard(catalog, 4)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderCatalogCategoryHeaderSegment(segment, columns) {
+  const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
+  const titleId = `${baseSectionId}-title`;
+  const safeColumns = clampCategorySpan(columns, 3);
+  const sectionStyle = `--category-span: ${safeColumns}; --subcategory-layout-columns: ${safeColumns};`;
+  const sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
+
+  return `
+    <section class="catalog-category-section catalog-category-section-with-subcategories catalog-category-section-header-only" id="${escapeHtml(baseSectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-span="${escapeHtml(String(safeColumns))}" data-inline-divider="0" data-category-continuation="0">
+      <div class="catalog-category-head catalog-category-head-with-subcategories">
+        <h2 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h2>
+        ${renderCatalogSubcategoryNav(segment)}
+      </div>
+    </section>
+  `;
+}
+
+function renderCatalogCategorySegment(segment, columns) {
+  const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
+  const safeColumns = clampCategorySpan(columns, 3);
+
+  if (segment.segmentType === "categoryHeader") {
+    return renderCatalogCategoryHeaderSegment(segment, safeColumns);
+  }
+
+  if (segment.segmentType === "subcategory") {
+    return renderCatalogSubcategoryBlock(segment, segment, { baseSectionId });
+  }
+
+  const sectionId = segment.itemOffset === 0 ? baseSectionId : `${baseSectionId}-part-${segment.segmentIndex + 1}`;
+  const titleId = `${sectionId}-title`;
+  const sectionStyle = `--category-span: ${segment.span}; --subcategory-layout-columns: ${safeColumns};`;
+  const sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
+
+  return `
+    <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
+      <div class="catalog-category-head">
+        <h2 id="${escapeHtml(titleId)}">${escapeHtml(segment.category)}</h2>
+      </div>
+      <div class="catalog-grid catalog-category-grid">
+        ${segment.items.map((catalog) => renderCatalogCard(catalog, 3)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function openCatalogEntry(catalogId, page = 1) {
+  if (!catalogId) return;
+  const viewer = getFeatureInterface("viewer");
+  if (viewer?.openCatalog) {
+    viewer.openCatalog(catalogId, page);
+    return;
+  }
+  navigateTo(viewerDocumentUrl(catalogId, page));
+}
+
+function bindCatalogCardEvents() {
+  if (!catalogElements.catalogGrid) return;
+
+  catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((control) => {
+    control.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openCatalogEntry(control.dataset.openCatalogEntry);
+    });
+  });
+
+  catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((control) => {
+    control.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openCatalog(control.dataset.openCatalogPreview, { scroll: true });
+    });
+  });
+}
+
+function renderCatalogCards() {
+  if (!catalogs.length) {
+    renderEmptyState();
+    return;
+  }
+
+  const groups = getCatalogCategoryGroups();
+  const totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
+  if (shellElements.catalogCount) shellElements.catalogCount.textContent = String(catalogs.length);
+  if (shellElements.pageCount) shellElements.pageCount.textContent = String(totalPages);
+  renderCategoryNav(groups);
+
+  const columns = catalogLayoutColumnCount();
+  catalogState.catalogLayoutColumns = columns;
+  const categorySegments = catalogCategorySegments(groups, columns);
+
+  catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
+  catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
+  catalogElements.catalogGrid.setAttribute("aria-busy", "false");
+  if (catalogElements.catalogLoadStatus) {
+    const count = catalogs.length;
+    catalogElements.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
+  }
+
+  bindCatalogCardEvents();
+  syncCatalogCategoryFocusFromHash({ animate: false });
+}
+
+
+function fillCatalogSelect() {
+  updateDetailCatalogMenuLabel();
+}
+
+
+function renderPageGrid() {
+  if (!navigationState.catalog) return;
+  // Keep generated page cards visually stable during scroll.
+  // Older versions attached scroll-time observers here for reveal animation
+  // and thumb activation; that caused work exactly when a card entered view.
+
+  const catalog = navigationState.catalog;
+  const cards = [];
+  for (let page = 1; page <= catalog.pages; page += 1) {
+    cards.push(`
+      <article class="page-card">
+        <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
+          <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <span class="page-number-badge">${page}</span>
+          </div>
+          <div class="page-card-body">
+            <span class="page-card-title">עמוד ${page}</span>
+            <span class="page-card-hint">לחץ להגדלה</span>
+          </div>
+        </a>
+      </article>
+    `);
+  }
+  catalogElements.pageGrid.setAttribute("aria-busy", "true");
+  catalogElements.pageGrid.innerHTML = cards.join("");
+  catalogElements.pageGrid.setAttribute("aria-busy", "false");
+
+  catalogElements.pageGrid.querySelectorAll("[data-open-page]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      const page = Number(link.dataset.openPage);
+      const viewer = getFeatureInterface("viewer");
+      if (viewer?.openCatalog && navigationState.catalog) {
+        viewer.openCatalog(navigationState.catalog.id, page);
+      } else if (navigationState.catalog) {
+        navigateTo(viewerDocumentUrl(navigationState.catalog.id, page));
+      }
+    });
+  });
+}
+
+function showCatalogDetail() {
+  if (!catalogElements.catalogDetail) return;
+  catalogElements.catalogDetail.classList.remove("hidden");
+  catalogElements.catalogDetail.classList.add("in-view");
+}
+
+function scrollCatalogDetailIntoView(options = {}) {
+  if (!catalogElements.catalogDetail) return;
+  const { behavior = "smooth" } = options;
+  requestAnimationFrame(() => {
+    catalogElements.catalogDetail.scrollIntoView({ behavior, block: "start" });
+    scheduleCatalogScrollTopButtonUpdate();
+  });
+}
+
+function positionCatalogScrollTopButton() {
+  if (!catalogElements.scrollToTopBtn || !catalogElements.pageGrid) return;
+
+  const gridRect = catalogElements.pageGrid.getBoundingClientRect();
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const buttonWidth = Math.max(catalogElements.scrollToTopBtn.offsetWidth || 46, 46);
+  const safeInset = 12;
+  const gapFromGrid = 12;
+  const maxLeft = Math.max(safeInset, viewportWidth - buttonWidth - safeInset);
+  const preferredLeft = gridRect.left - buttonWidth - gapFromGrid;
+  const left = clampValue(preferredLeft, safeInset, maxLeft);
+
+  catalogElements.scrollToTopBtn.style.setProperty("--catalog-scroll-top-left", `${Math.round(left)}px`);
+}
+
+function setCatalogScrollTopButtonVisible(visible) {
+  if (!catalogElements.scrollToTopBtn) return;
+  catalogElements.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
+  catalogElements.scrollToTopBtn.setAttribute("aria-hidden", visible ? "false" : "true");
+  catalogElements.scrollToTopBtn.tabIndex = visible ? 0 : -1;
+}
+
+function updateCatalogScrollTopButton() {
+  catalogState.catalogScrollTopButtonRaf = 0;
+  if (!catalogElements.scrollToTopBtn || !catalogElements.catalogDetail || !catalogElements.pageGrid || catalogElements.catalogDetail.classList.contains("hidden") || !navigationState.catalog || getFeatureInterface("viewer")?.isViewerOpen?.()) {
+    setCatalogScrollTopButtonVisible(false);
+    return;
+  }
+
+  positionCatalogScrollTopButton();
+
+  const detailRect = catalogElements.catalogDetail.getBoundingClientRect();
+  const gridRect = catalogElements.pageGrid.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 90;
+  const startedScrollingInsideGrid = gridRect.top < Math.min(headerHeight + 28, viewportHeight * 0.28);
+  const stillNearGrid = gridRect.bottom > Math.min(180, viewportHeight * 0.35);
+  const detailVisible = detailRect.bottom > 80 && detailRect.top < viewportHeight;
+  setCatalogScrollTopButtonVisible(startedScrollingInsideGrid && stillNearGrid && detailVisible);
+}
+
+function scheduleCatalogScrollTopButtonUpdate() {
+  if (catalogState.catalogScrollTopButtonRaf) return;
+  catalogState.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton);
+}
+
+function renderCatalogDetail() {
+  if (!navigationState.catalog) return;
+  const catalog = navigationState.catalog;
+  showCatalogDetail();
+  catalogElements.catalogTitle.textContent = catalog.title;
+  catalogElements.catalogDescription.textContent = catalog.description || "";
+  updateDetailCatalogMenuLabel(catalog);
+  if (catalogElements.catalogCoverPreview) {
+    applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, 1);
+    setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog));
+    catalogElements.catalogCoverPreview.loading = "lazy";
+    catalogElements.catalogCoverPreview.decoding = "async";
+    catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`;
+  }
+  if (catalogElements.openCatalogEntryFromDetail) catalogElements.openCatalogEntryFromDetail.disabled = catalog.pages < 1;
+  if (catalogElements.catalogMenu && !catalogElements.catalogMenu.classList.contains("hidden")) renderDetailCatalogMenu();
+  renderPageGrid();
+  scheduleCatalogScrollTopButtonUpdate();
+}
+
+function openCatalog(id, options = {}) {
+  const { scroll = false, openPage = null, scrollBehavior = "smooth" } = options;
+  const catalog = catalogs.find((item) => item.id === id) || null;
+  if (!catalog) return;
+
+  if (!isAppPage("catalog")) {
+    navigateTo(openPage != null
+      ? viewerDocumentUrl(catalog.id, openPage)
+      : catalogDocumentUrl(catalog.id));
+    return;
+  }
+
+  navigationState.catalog = catalog;
+  navigationState.page = 1;
+  renderCatalogDetail();
+  if (window.history?.replaceState) {
+    history.replaceState(history.state, "", catalogDocumentUrl(catalog.id));
+  }
+
+  if (scroll) scrollCatalogDetailIntoView({ behavior: scrollBehavior });
+  if (openPage != null) navigateTo(viewerDocumentUrl(catalog.id, openPage));
+}
+
+function attachCatalogGridEvents() {
+  shellElements.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeGlobalSearchPanel({ focusButton: false });
+    setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
+  });
+
+  shellElements.mobileCategoryMenu?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".category-nav-link");
+    if (!link || !shellElements.mobileCategoryMenu.contains(link)) return;
+    closeMobileCategoryMenu();
+    handleCatalogFocusLinkClick(link, event);
+  });
+
+  catalogElements.catalogMenuToggle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeLightboxCatalogMenu();
+    closeLightboxSearchScopeMenu();
+    renderDetailCatalogMenu();
+    const isOpen = !catalogElements.catalogMenu?.classList.contains("hidden");
+    catalogElements.catalogMenu?.classList.toggle("hidden", isOpen);
+    catalogElements.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  });
+  catalogElements.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
+
+  catalogElements.openCatalogEntryFromDetail?.addEventListener("click", () => {
+    if (!navigationState.catalog) return;
+    navigateTo(viewerDocumentUrl(navigationState.catalog.id, 1));
+  });
+  catalogElements.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
+
+  shellElements.categoryNav?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".category-nav-link");
+    if (!link || !shellElements.categoryNav.contains(link)) return;
+    closeMobileCategoryMenu();
+    handleCatalogFocusLinkClick(link, event);
+  });
+
+  catalogElements.catalogGrid?.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".catalog-subcategory-nav-link");
+    if (!link || !catalogElements.catalogGrid.contains(link)) return;
+    handleCatalogFocusLinkClick(link, event);
+  });
+}
+
+registerFeatureInterface("catalog-grid", {
+  attachEvents: attachCatalogGridEvents,
+  initialize: () => {
+    initRevealObserver();
+    initCategoryNavFit();
+  },
+  renderInitialContent: () => {
+    renderCatalogCards();
+    fillCatalogSelect();
+  },
+  renderEmptyState,
+  openCatalog,
+  closeMobileMenu: (options = {}) => closeMobileCategoryMenu(options),
+  scheduleLayoutRefresh: scheduleCatalogLayoutRefresh,
+  scheduleCategoryNavFit,
+  scheduleScrollTopButtonUpdate: scheduleCatalogScrollTopButtonUpdate,
+  setScrollTopButtonVisible: setCatalogScrollTopButtonVisible,
+  syncCategoryFocusFromHash: (options = {}) => syncCatalogCategoryFocusFromHash(options),
+  resolveCategoryTargetIdFromHash: (hash = location.hash) => resolveCatalogCategoryTargetIdFromHash(hash),
+  hasCategoryTarget: (targetId) => getCatalogCategorySectionsByTargetId(targetId).length > 0,
+  activeCategoryTargetId: () => String(catalogState.categoryFocusTargetId || ""),
+  layoutColumnCount: catalogLayoutColumnCount,
+  hideDetail: () => {
+    catalogElements.catalogDetail?.classList.add("hidden");
+    catalogElements.catalogDetail?.classList.remove("in-view");
+    setCatalogScrollTopButtonVisible(false);
+  }
+});
+
+registerFeatureInterface("catalog-navigation", {
+  escapePriority: 400,
+  closeTopLayer: () => {
+    if (!isMobileCategoryMenuOpen()) return false;
+    closeMobileCategoryMenu({ focusButton: true });
+    return true;
+  }
+});
+
+registerFeatureInterface("catalog-detail", {
+  escapePriority: 200,
+  closeTopLayer: () => {
+    if (!catalogElements.catalogMenu || catalogElements.catalogMenu.classList.contains("hidden")) return false;
+    closeDetailCatalogMenu();
+    return true;
+  }
+});
+/* ===== END SOURCE: src/js/40-catalog-grid.js ===== */
 
 /* ===== BEGIN SOURCE: src/js/50-search-ui.js ===== */
 /**
@@ -6985,10 +8933,6 @@ function handleViewerResize() {
 
 function handleViewerGlobalKeydown(event) {
   if (!isViewerSessionOpen()) return false;
-  if (viewerState.viewerInquiryOpen) {
-    handleViewerInquiryKeydown(event);
-    return true;
-  }
   if (viewerState.viewerOnboardingOpen) {
     handleViewerOnboardingKeydown(event);
     return true;
@@ -7032,7 +8976,7 @@ function prepareViewerRoute(nextPage) {
 
 registerFeatureInterface("viewer", {
   escapePriority: 100,
-  requiresDocumentLock: () => isViewerSessionOpen() || viewerState.viewerInquiryOpen,
+  requiresDocumentLock: () => isViewerSessionOpen(),
   isViewerOpen: () => isViewerSessionOpen(),
   usesInDocumentFullscreenNavigation: viewerUsesInDocumentFullscreenNavigation,
   attachEvents: () => {
@@ -7047,7 +8991,13 @@ registerFeatureInterface("viewer", {
   close: (options = {}) => closeLightbox(options),
   refresh: (options = {}) => updateLightbox(options),
   renderPageRail: renderLightboxPageRail,
-  openInquiry: (options = {}) => openViewerInquiry(options),
+  prepareInquiry: () => {
+    if (viewerState.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
+    closeViewerMobileMoreMenu();
+    if (getFeatureInterface("search")?.isLightboxMobileOpen?.()) {
+      getFeatureInterface("search")?.setLightboxMobileOpen?.(false, { hideResults: true });
+    }
+  },
   setPage: (page, options = {}) => setLightboxPage(page, options),
   syncMobileSearchUi: (isOpen) => viewerElements.lightbox?.classList.toggle("mobile-search-open", Boolean(isOpen)),
   showTopUi: () => showTopUiTemporarily(0),
@@ -7059,10 +9009,6 @@ registerFeatureInterface("viewer", {
   },
   closeTopLayer: (event) => {
     if (!isViewerSessionOpen()) return false;
-    if (viewerState.viewerInquiryOpen) {
-      closeViewerInquiry();
-      return true;
-    }
     if (viewerState.viewerMobileMoreOpen) {
       closeViewerMobileMoreMenu({ returnFocus: true });
       return true;
@@ -7091,311 +9037,16 @@ registerFeatureInterface("viewer", {
 /* ===== BEGIN SOURCE: src/js/62-viewer-actions.js ===== */
 /**
  * Source module: 62-viewer-actions.js
- * Viewer inquiry workflow and compact mobile utility menu.
+ * Compact Viewer mobile utility menu.
  *
  * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * by tools/build_frontend_assets.py into route-specific browser bundles.
  */
 
 const MOBILE_VIEWER_TOOLBAR_MEDIA = "(max-width: 760px)";
 
 function isMobileViewerToolbarMode() {
   return Boolean(window.matchMedia?.(MOBILE_VIEWER_TOOLBAR_MEDIA).matches);
-}
-
-function viewerInquiryFooterEmail() {
-  return Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"))
-    .find((link) => String(link.getAttribute("href") || "").startsWith("mailto:")) || null;
-}
-
-function viewerInquiryEmailAddress() {
-  const emailHref = String(viewerInquiryFooterEmail()?.getAttribute?.("href") || "").trim();
-  return emailHref.replace(/^mailto:/i, "").split("?")[0].trim();
-}
-
-function viewerPageInquiryReference() {
-  if (!navigationState.catalog) return null;
-  const page = clampPage(navigationState.page, navigationState.catalog);
-  const url = absoluteDocumentUrl(viewerDocumentUrl(navigationState.catalog.id, page));
-  const title = String(navigationState.catalog.title || "קטלוג").trim() || "קטלוג";
-  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(navigationState.catalog.pages) || 1)}`;
-  const subject = `בירור על דגם – ${title}, עמוד ${page}`;
-  const shareText = [
-    "שלום,",
-    "רציתי לברר לגבי הדגם הבא:",
-    `קטלוג: ${title}`,
-    `עמוד: ${page}`
-  ].join("\n");
-  const text = `${shareText}\nקישור ישיר: ${url}`;
-  return {
-    kind: "viewer",
-    source: "viewer-inquiry",
-    catalog: navigationState.catalog,
-    page,
-    title: "בירור על הדגם",
-    eyebrow: "פרטי העמוד מצורפים אוטומטית",
-    description: "אפשר לפתוח הודעה מוכנה ב-Gmail, להשתמש בתוכנת דואר, לשתף דרך המכשיר או להעתיק. שם הקטלוג, מספר העמוד והקישור המדויק מוכנים מראש.",
-    referenceTitle: title,
-    pageLabel,
-    subject,
-    shareText,
-    text,
-    url,
-    previewCatalog: navigationState.catalog,
-    previewPage: page,
-    telemetry: {
-      source: "viewer-inquiry",
-      catalogId: navigationState.catalog.id,
-      pageNumber: page
-    }
-  };
-}
-
-function viewerInquiryReference() {
-  return viewerState.viewerInquiryContext?.reference || viewerPageInquiryReference();
-}
-
-function viewerInquiryGmailUrl(emailAddress, reference) {
-  const query = new URLSearchParams({
-    view: "cm",
-    fs: "1",
-    to: emailAddress,
-    su: reference.subject,
-    body: reference.text
-  });
-  return `https://mail.google.com/mail/?${query.toString()}`;
-}
-
-function viewerInquiryMailtoUrl(emailAddress, reference) {
-  const subject = encodeURIComponent(String(reference?.subject || ""));
-  const body = encodeURIComponent(
-    String(reference?.text || "").replace(/\r?\n/g, "\r\n")
-  );
-  return `mailto:${emailAddress}?subject=${subject}&body=${body}`;
-}
-
-function viewerInquiryTelemetryFields(reference, action, detail = "") {
-  const telemetry = reference?.telemetry || {};
-  return {
-    action,
-    detail,
-    source: telemetry.source || reference?.source || "viewer-inquiry",
-    catalogId: telemetry.catalogId || reference?.catalog?.id || "",
-    pageNumber: telemetry.pageNumber || reference?.page || 0,
-    value: telemetry.value || reference?.count || 0
-  };
-}
-
-function syncViewerInquiryContactLink(link, href, reference, action) {
-  if (!link) return;
-  const available = Boolean(href);
-  link.classList.toggle("hidden", !available);
-  link.setAttribute("aria-hidden", available ? "false" : "true");
-  if (!available) {
-    link.removeAttribute("href");
-    delete link.dataset.contactSource;
-    delete link.dataset.contactAction;
-    delete link.dataset.contactCatalogId;
-    delete link.dataset.contactPage;
-    return;
-  }
-  const telemetry = viewerInquiryTelemetryFields(reference, action);
-  link.href = href;
-  link.dataset.contactSource = telemetry.source;
-  link.dataset.contactAction = action;
-  if (telemetry.catalogId) link.dataset.contactCatalogId = telemetry.catalogId;
-  else delete link.dataset.contactCatalogId;
-  if (telemetry.pageNumber) link.dataset.contactPage = String(telemetry.pageNumber);
-  else delete link.dataset.contactPage;
-}
-
-function syncViewerInquiryUi(reference = viewerInquiryReference()) {
-  if (!reference) return;
-
-  if (viewerElements.viewerInquiryEyebrow) viewerElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית";
-  if (viewerElements.viewerInquiryTitle) viewerElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם";
-  if (viewerElements.viewerInquiryDescription) viewerElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.";
-  if (viewerElements.viewerInquiryCatalog) viewerElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title;
-  if (viewerElements.viewerInquiryPage) viewerElements.viewerInquiryPage.textContent = reference.pageLabel || "";
-  viewerElements.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites");
-
-  if (viewerElements.viewerInquiryButton && reference.kind === "viewer") {
-    const label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
-    viewerElements.viewerInquiryButton.setAttribute("aria-label", label);
-  }
-
-  const previewCatalog = reference.previewCatalog || reference.catalog;
-  const previewPage = Number(reference.previewPage || reference.page) || 1;
-  if (viewerElements.viewerInquiryPreview && previewCatalog) {
-    const preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
-    if (viewerElements.viewerInquiryPreview.getAttribute("src") !== preview) {
-      viewerElements.viewerInquiryPreview.src = preview;
-    }
-    viewerElements.viewerInquiryPreview.alt = reference.kind === "favorites"
-      ? `תצוגה מקדימה של ${reference.referenceTitle}`
-      : `${reference.referenceTitle}, עמוד ${previewPage}`;
-  }
-
-  const emailAddress = viewerInquiryEmailAddress();
-  const emailAvailable = Boolean(emailAddress);
-  syncViewerInquiryContactLink(
-    viewerElements.viewerInquiryEmail,
-    emailAvailable ? viewerInquiryMailtoUrl(emailAddress, reference) : "",
-    reference,
-    "email"
-  );
-  syncViewerInquiryContactLink(
-    viewerElements.viewerInquiryGmail,
-    emailAvailable ? viewerInquiryGmailUrl(emailAddress, reference) : "",
-    reference,
-    "gmail"
-  );
-}
-
-function setViewerInquiryTriggerState(open, activeTrigger = null) {
-  [viewerElements.viewerInquiryButton, favoritesElements.favoritesInquiryButton].forEach((button) => {
-    if (!button) return;
-    button.setAttribute("aria-expanded", open && button === activeTrigger ? "true" : "false");
-  });
-}
-
-function getViewerInquiryFocusableElements() {
-  if (!viewerElements.viewerInquiryOverlay) return [];
-  return Array.from(viewerElements.viewerInquiryOverlay.querySelectorAll(
-    'button:not([disabled]), a[href]:not(.hidden), [tabindex]:not([tabindex="-1"])'
-  )).filter((element) => !element.closest?.(".hidden"));
-}
-
-function openViewerInquiry(options = {}) {
-  const reference = options.reference || viewerPageInquiryReference();
-  if (!reference || !viewerElements.viewerInquiryOverlay) return;
-  if (viewerState.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
-  if (isViewerSessionOpen()) {
-    closeViewerMobileMoreMenu();
-    if (getFeatureInterface("search")?.isLightboxMobileOpen?.()) {
-      getFeatureInterface("search")?.setLightboxMobileOpen?.(false, { hideResults: true });
-    }
-  }
-
-  const returnFocus = options.returnFocus || document.activeElement || viewerElements.viewerInquiryButton;
-  viewerState.viewerInquiryContext = { reference, trigger: returnFocus };
-  viewerState.viewerInquiryOpen = true;
-  viewerState.viewerInquiryReturnFocus = returnFocus;
-  syncViewerInquiryUi(reference);
-  viewerElements.viewerInquiryOverlay.classList.remove("hidden");
-  viewerElements.viewerInquiryOverlay.setAttribute("aria-hidden", "false");
-  setViewerInquiryTriggerState(true, returnFocus);
-  syncDocumentLock();
-  window.requestAnimationFrame(() => {
-    if (!viewerState.viewerInquiryOpen) return;
-    viewerElements.viewerInquiryOverlay?.classList.add("visible");
-    (viewerElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0])?.focus?.({ preventScroll: true });
-  });
-}
-
-function closeViewerInquiry(options = {}) {
-  if (!viewerState.viewerInquiryOpen && viewerElements.viewerInquiryOverlay?.classList.contains("hidden")) return;
-  const { restoreFocus = true } = options;
-  const returnFocus = viewerState.viewerInquiryReturnFocus;
-  viewerState.viewerInquiryOpen = false;
-  viewerState.viewerInquiryReturnFocus = null;
-  viewerState.viewerInquiryContext = null;
-  viewerElements.viewerInquiryOverlay?.classList.remove("visible");
-  viewerElements.viewerInquiryOverlay?.setAttribute("aria-hidden", "true");
-  setViewerInquiryTriggerState(false);
-  syncDocumentLock();
-  window.setTimeout(() => {
-    if (!viewerState.viewerInquiryOpen) viewerElements.viewerInquiryOverlay?.classList.add("hidden");
-  }, 180);
-  if (restoreFocus) (returnFocus || viewerElements.viewerInquiryButton)?.focus?.({ preventScroll: true });
-}
-
-function handleViewerInquiryKeydown(event) {
-  if (!viewerState.viewerInquiryOpen) return false;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    closeViewerInquiry();
-    return true;
-  }
-  if (event.key !== "Tab") return true;
-
-  const focusable = getViewerInquiryFocusableElements();
-  if (!focusable.length) {
-    event.preventDefault();
-    return true;
-  }
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-  return true;
-}
-
-async function copyViewerInquiryReference() {
-  const reference = viewerInquiryReference();
-  if (!reference) return;
-  try {
-    await copyTextToClipboard(reference.text);
-    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "copy"), { immediate: true });
-    showActionToast(reference.kind === "favorites" ? "פרטי הדגמים הועתקו" : "פרטי הדגם הועתקו", { tone: "link" });
-    closeViewerInquiry();
-  } catch (_error) {
-    window.prompt("אפשר להעתיק את פרטי הבירור מכאן:", reference.text);
-  }
-}
-
-async function shareViewerInquiryReference() {
-  const reference = viewerInquiryReference();
-  if (!reference) return;
-
-  // Keep URL and text as separate Web Share fields. On Windows/Chrome this
-  // preserves the wider set of registered share targets (including Gmail).
-  // Targets may choose which fields they consume, so the dedicated Gmail and
-  // copy actions remain the reliable paths for the complete prepared message.
-  const shareData = {
-    title: reference.subject,
-    text: reference.shareText,
-    url: reference.url
-  };
-  let canUseNativeShare = typeof navigator.share === "function";
-  if (canUseNativeShare && typeof navigator.canShare === "function") {
-    try {
-      canUseNativeShare = navigator.canShare(shareData);
-    } catch (_error) {
-      canUseNativeShare = false;
-    }
-  }
-
-  if (canUseNativeShare) {
-    try {
-      await navigator.share(shareData);
-      telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: true });
-      closeViewerInquiry({ restoreFocus: false });
-      return;
-    } catch (error) {
-      if (error?.name === "AbortError") return;
-    }
-  }
-
-  try {
-    await copyTextToClipboard(reference.text);
-    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share", "copy-fallback"), { immediate: true });
-    showActionToast(
-      reference.kind === "favorites"
-        ? "אפשרויות שיתוף אינן זמינות — פרטי הדגמים הועתקו"
-        : "אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו",
-      { tone: "link" }
-    );
-    closeViewerInquiry();
-  } catch (_error) {
-    window.prompt("אפשר להעתיק ולשתף את פרטי הבירור מכאן:", reference.text);
-  }
 }
 
 function syncViewerMobileMoreMenuState() {
@@ -7487,20 +9138,6 @@ function handleViewerMobileMoreAction(event) {
 }
 
 function attachViewerActionEvents() {
-  viewerElements.viewerInquiryButton?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openViewerInquiry({ returnFocus: viewerElements.viewerInquiryButton });
-  });
-  viewerElements.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
-  viewerElements.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
-  viewerElements.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference());
-  viewerElements.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference());
-  viewerElements.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown);
-  [viewerElements.viewerInquiryGmail, viewerElements.viewerInquiryEmail].forEach((link) => {
-    link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: false }), 0));
-  });
-
   viewerElements.viewerMobileMoreToggle?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -7610,9 +9247,9 @@ function getViewerOnboardingSteps() {
       title: "שמירה, שיתוף ובירור",
       description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
       note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
-      target: () => viewerElements.viewerInquiryButton,
+      target: () => inquiryElements.viewerInquiryButton,
       floatingTargets: () => [
-        { source: viewerElements.viewerInquiryButton, id: "inquiry" },
+        { source: inquiryElements.viewerInquiryButton, id: "inquiry" },
         { source: favoritesElements.viewerFavoriteButton, id: "favorite" }
       ],
       preferredPlacement: "left",
@@ -8774,6 +10411,8 @@ function attachEvents() {
   if (featureCapabilities.search) bindFeatureEventsOnce("search-ui", attachSearchUiEvents);
   bindFeatureEventsOnce("shell", attachShellEvents);
   bindFeatureEventsOnce("favorites-share", attachFavoritesShareEvents);
+  const inquiry = getFeatureInterface("inquiry");
+  if (inquiry?.attachEvents) bindFeatureEventsOnce("inquiry", inquiry.attachEvents);
   const viewer = getFeatureInterface("viewer");
   if (featureCapabilities.viewer && viewer?.attachEvents) {
     bindFeatureEventsOnce("viewer", viewer.attachEvents);

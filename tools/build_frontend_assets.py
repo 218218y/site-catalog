@@ -52,6 +52,7 @@ CATALOG_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
 )
 
 FAVORITES_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
+    "src/js/32-shared-inquiry.js",
     "src/js/35-favorites-workspace.js",
     "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
@@ -71,6 +72,11 @@ VIEWER_JS_MODULES: tuple[str, ...] = (
     "src/js/20-shared-ui.js",
     "src/js/30-favorites-share.js",
     "src/js/31-viewer-share.js",
+    "src/js/32-shared-inquiry.js",
+    # Replacing the document exits browser fullscreen. The Viewer bundle keeps
+    # the route features needed for fullscreen-safe in-document hand-offs.
+    "src/js/35-favorites-workspace.js",
+    "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
     "src/js/52-viewer-session.js",
     "src/js/53-viewer-image.js",
@@ -112,6 +118,7 @@ FAVORITES_CSS_MODULES: tuple[str, ...] = (
     "src/css/00-foundation.css",
     "src/css/06-shell-components.css",
     "src/css/10-catalog.css",
+    "src/css/24-shared-inquiry.css",
     "src/css/30-media-components.css",
     "src/css/40-catalog-refinements.css",
     "src/css/50-footer-legal.css",
@@ -129,11 +136,14 @@ VIEWER_CSS_MODULES: tuple[str, ...] = (
     "src/css/06-shell-components.css",
     "src/css/10-catalog.css",
     "src/css/20-viewer.css",
+    "src/css/24-shared-inquiry.css",
     "src/css/25-viewer-actions.css",
     "src/css/30-media-components.css",
+    "src/css/40-catalog-refinements.css",
     "src/css/50-footer-legal.css",
     "src/css/80-responsive-shell.css",
     "src/css/85-favorites-routing.css",
+    "src/css/87-favorites-workspace.css",
     "src/css/90-visual-polish.css",
     "src/css/95-accessibility-consistency.css",
     "src/css/97-seo-foundation.css",
@@ -168,7 +178,7 @@ BUNDLE_SPECS: tuple[FrontendBundleSpec, ...] = (
         "app-viewer.js",
         "js",
         VIEWER_JS_MODULES,
-        {"viewer": True, "favoritesWorkspace": False, "catalogGrid": False, "search": True},
+        {"viewer": True, "favoritesWorkspace": True, "catalogGrid": True, "search": True},
     ),
 )
 

@@ -71,7 +71,10 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
     assert "src/js/52-viewer-session.js" not in favorites_modules
     assert "src/js/35-favorites-workspace.js" not in catalog_modules
     assert "src/js/35-favorites-workspace.js" in favorites_modules
-    assert "src/js/40-catalog-grid.js" not in viewer_modules
+    assert "src/js/32-shared-inquiry.js" in favorites_modules
+    assert "src/js/32-shared-inquiry.js" in viewer_modules
+    assert "src/js/35-favorites-workspace.js" in viewer_modules
+    assert "src/js/40-catalog-grid.js" in viewer_modules
     assert "src/js/31-viewer-share.js" in viewer_modules
 
     for relative in all_source_modules():

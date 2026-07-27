@@ -13,6 +13,7 @@ const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const app = readAllBundles();
 const css = readAllCssBundles();
+const favoritesWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'js', '35-favorites-workspace.js'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
 for (const html of [template, favorites]) {
@@ -47,7 +48,7 @@ assert.match(app, /function buildFavoritesShareToken\([\s\S]*?canonicalizeFavori
 assert.doesNotMatch(app, /FAVORITES_SHARE_LEGACY_VERSION|parseLegacyFavoritesShareToken/);
 assert.match(app, /function shareFavoritesList\([\s\S]*?getFeatureInterface\("favorites-workspace"\)[\s\S]*?workspace\.copyShareLink\([\s\S]*?workspace\.shareLinkEntries\(\)/);
 assert.match(app, /function copyFavoriteWorkspaceLink\([\s\S]*?copyTextToClipboard\(selectionUrl\)[\s\S]*?קישור המועדפים הועתק/);
-assert.doesNotMatch(app, /function shareFavoriteWorkspaceEntries|navigator\.share\(shareData\)[\s\S]*?favoriteWorkspaceSelectionUrl/);
+assert.doesNotMatch(favoritesWorkspaceSource, /function shareFavoriteWorkspaceEntries|navigator\.share\(shareData\)/);
 assert.doesNotMatch(app, /FAVORITES_MAX_SAFE_SHARE_URL_LENGTH|exportFavoritesList|parseFavoritesImportDocument|requestFavoritesImport|handleFavoritesImportFile/);
 assert.match(app, /function moveFavoriteWithinVisibleOrder\(/);
 assert.match(app, /data-drag-favorite/);

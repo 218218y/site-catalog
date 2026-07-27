@@ -85,9 +85,9 @@ function getViewerOnboardingSteps() {
       title: "שמירה, שיתוף ובירור",
       description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
       note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
-      target: () => viewerElements.viewerInquiryButton,
+      target: () => inquiryElements.viewerInquiryButton,
       floatingTargets: () => [
-        { source: viewerElements.viewerInquiryButton, id: "inquiry" },
+        { source: inquiryElements.viewerInquiryButton, id: "inquiry" },
         { source: favoritesElements.viewerFavoriteButton, id: "favorite" }
       ],
       preferredPlacement: "left",

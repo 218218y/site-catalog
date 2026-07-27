@@ -83,6 +83,8 @@ function attachEvents() {
   if (featureCapabilities.search) bindFeatureEventsOnce("search-ui", attachSearchUiEvents);
   bindFeatureEventsOnce("shell", attachShellEvents);
   bindFeatureEventsOnce("favorites-share", attachFavoritesShareEvents);
+  const inquiry = getFeatureInterface("inquiry");
+  if (inquiry?.attachEvents) bindFeatureEventsOnce("inquiry", inquiry.attachEvents);
   const viewer = getFeatureInterface("viewer");
   if (featureCapabilities.viewer && viewer?.attachEvents) {
     bindFeatureEventsOnce("viewer", viewer.attachEvents);

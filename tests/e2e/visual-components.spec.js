@@ -7,7 +7,11 @@ const { test, expect } = require("@playwright/test");
 const COMPARE_CANONICAL_SCREENSHOTS = process.platform === "linux" && process.env.PLAYWRIGHT_VISUAL_BASELINE === "1";
 
 const ROOT = path.join(__dirname, "..", "..");
-const STYLES = fs.readFileSync(path.join(ROOT, "styles.css"), "utf8");
+const ROUTE_STYLES = Object.freeze({
+  catalog: fs.readFileSync(path.join(ROOT, "styles-catalog.css"), "utf8"),
+  favorites: fs.readFileSync(path.join(ROOT, "styles-favorites.css"), "utf8"),
+  viewer: fs.readFileSync(path.join(ROOT, "styles-viewer.css"), "utf8")
+});
 const PLACEHOLDER_IMAGE = `data:image/svg+xml;base64,${Buffer.from(`
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="820" viewBox="0 0 1200 820">
   <defs>
@@ -43,12 +47,15 @@ const ICONS = {
 function fixtureDocument(body, options = {}) {
   const bodyAttributes = options.bodyAttributes || 'data-page="home"';
   const extraCss = options.extraCss || "";
+  const route = options.route || "catalog";
+  const styles = ROUTE_STYLES[route];
+  if (!styles) throw new Error(`Unknown visual fixture route: ${route}`);
   return `<!doctype html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>${STYLES}</style>
+  <style>${styles}</style>
   <style>
     html, body { min-height: 100%; }
     body { margin: 0; }
@@ -177,6 +184,7 @@ test.describe("visual component regression", () => {
         </div>
       </section>
     </div>`, {
+      route: "viewer",
       bodyAttributes: 'data-page="viewer"',
       viewport: { width: 1100, height: 820 },
       extraCss: ".viewer-inquiry-overlay { position: fixed; }"
@@ -207,6 +215,7 @@ test.describe("visual component regression", () => {
         </div>
       </section>
     </div>`, {
+      route: "favorites",
       bodyAttributes: 'data-page="favorites"',
       viewport: { width: 1280, height: 900 },
       extraCss: ".visual-favorites-dialog { position: static; width: 100%; max-width: none; max-height: none; transform: none; }"

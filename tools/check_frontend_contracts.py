@@ -14,6 +14,7 @@ STATE_OWNERS: Mapping[str, str] = {
     "searchState": "src/js/13-search-state.js",
     "favoritesState": "src/js/14-favorites-state.js",
     "viewerState": "src/js/16-viewer-state.js",
+    "inquiryState": "src/js/32-shared-inquiry.js",
 }
 ELEMENT_OWNERS: Mapping[str, str] = {
     "shellElements": "src/js/11-navigation-state.js",
@@ -21,6 +22,7 @@ ELEMENT_OWNERS: Mapping[str, str] = {
     "searchElements": "src/js/13-search-state.js",
     "favoritesElements": "src/js/14-favorites-state.js",
     "viewerElements": "src/js/16-viewer-state.js",
+    "inquiryElements": "src/js/32-shared-inquiry.js",
 }
 PROPERTY_RE_TEMPLATE = r"\b{owner}\.([A-Za-z_$][A-Za-z0-9_$]*)"
 OBJECT_RE_TEMPLATE = r"const\s+{owner}\s*=\s*(?:Object\.freeze\()?\{{(?P<body>.*?)\n\}}\)?;"
@@ -90,7 +92,11 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             ),
         },
         "app-favorites.js": {
-            "required": ("src/js/35-favorites-workspace.js", "src/js/40-catalog-grid.js"),
+            "required": (
+                "src/js/32-shared-inquiry.js",
+                "src/js/35-favorites-workspace.js",
+                "src/js/40-catalog-grid.js",
+            ),
             "forbidden": (
                 "src/js/16-viewer-state.js",
                 "src/js/31-viewer-share.js",
@@ -102,10 +108,13 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             "required": (
                 "src/js/16-viewer-state.js",
                 "src/js/31-viewer-share.js",
+                "src/js/32-shared-inquiry.js",
+                "src/js/35-favorites-workspace.js",
+                "src/js/40-catalog-grid.js",
                 "src/js/53-viewer-image.js",
                 "src/js/60-viewer.js",
             ),
-            "forbidden": ("src/js/35-favorites-workspace.js", "src/js/40-catalog-grid.js"),
+            "forbidden": (),
         },
     }
     for output, expectation in route_expectations.items():

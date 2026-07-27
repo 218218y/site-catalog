@@ -60,7 +60,7 @@ assert.match(app, /function openFavoriteNoteEditor\(/);
 assert.match(app, /class="favorite-remove-button"[^>]*data-remove-favorite="1"[^>]*title="הסרה מהמועדפים"/);
 assert.doesNotMatch(app, /favorite-remove-inline/);
 assert.match(app, /function favoriteWorkspaceInquiryReference\([\s\S]*?purpose: "inquiry"[\s\S]*?קישור לרשימת הדגמים/);
-assert.match(app, /function openFavoriteWorkspaceInquiry\([\s\S]*?selectedEntries\.length \? selectedEntries : entries[\s\S]*?getFeatureInterface\("viewer"\)\?\.openInquiry\?\.\(\{[\s\S]*?reference,[\s\S]*?returnFocus: favoritesElements\.favoritesInquiryButton/);
+assert.match(app, /function openFavoriteWorkspaceInquiry\([\s\S]*?selectedEntries\.length \? selectedEntries : entries[\s\S]*?getFeatureInterface\("inquiry"\)\?\.openInquiry\?\.\(\{[\s\S]*?reference,[\s\S]*?returnFocus: favoritesElements\.favoritesInquiryButton/);
 assert.match(app, /favoritesInquiryButton\.classList\.toggle\("hidden", !hasEntries\)/);
 assert.match(app, /favoritesInquiryLabel\.textContent = selectedCount \? "בירור על הדגמים שנבחרו" : "בירור על הדגמים"/);
 assert.match(app, /function copyFavoriteWorkspaceLink\([\s\S]*?favoriteWorkspaceSelectionUrl\(entries\)[\s\S]*?copyTextToClipboard\(selectionUrl\)/);

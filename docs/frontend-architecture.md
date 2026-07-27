@@ -19,10 +19,10 @@
 |---|---|---|---|---|
 | בית וקטלוג | `app-catalog.js` | `styles-catalog.css` | ניווט, כרטיסי קטלוג, חיפוש, שמירת מועדפים | state וקוד Viewer, סביבת העבודה של המועדפים |
 | מועדפים | `app-favorites.js` | `styles-favorites.css` | קטלוג, חיפוש, סביבת עבודה ושיתוף מועדפים | state וקוד Viewer |
-| Viewer | `app-viewer.js` | `styles-viewer.css` | חיפוש בתוך Viewer, שמירת מועדפים, Viewer ומחוות | Grid של דף הבית, סביבת העבודה של המועדפים |
+| Viewer | `app-viewer.js` | `styles-viewer.css` | חיפוש בתוך Viewer, שמירת מועדפים, Viewer ומחוות; וגם יעדי המעבר בית/קטלוג/מועדפים | — |
 | משפטי/SEO | `styles.css` | ללא JavaScript יישומי | מעטפת סטטית | כל Features האינטראקטיביים |
 
-היעדר Feature נבדק לפי רשימת מודולי המקור בתוך התוצר, ולא באמצעות flag בלבד. לדוגמה, `app-catalog.js` נכשל בבנייה אם `16-viewer-state.js` או `60-viewer.js` מופיעים בו.
+היעדר Feature נבדק לפי רשימת מודולי המקור בתוך התוצר, ולא באמצעות flag בלבד. לדוגמה, `app-catalog.js` נכשל בבנייה אם `16-viewer-state.js` או `60-viewer.js` מופיעים בו. חבילת Viewer היא חריג מכוון: היא כוללת את `catalog-grid` ואת `favorites-workspace`, מפני שהחלפת מסמך מוציאה את הדפדפן ממצב מסך מלא ולכן המעבר מה־Viewer למסלולים האלה חייב להישאר בתוך המסמך הנוכחי.
 
 ## בעלות על state ו־DOM
 
@@ -32,6 +32,7 @@
 | קטלוג | `catalogState` | `catalogElements` | Grid, קטגוריות, תצוגת פרטי קטלוג ו־layout |
 | חיפוש | `searchState` | `searchElements` | פאנלים, scope, preload ומצב תוצאות |
 | מועדפים | `favoritesState` | `favoritesElements` | Workspace, בחירה, סינון, הערות ו־drag |
+| בירור משותף | `inquiryState` | `inquiryElements` | lifecycle, focus, תוכן ופעולות של חלון הבירור |
 | Viewer | `viewerState` | `viewerElements` | lifecycle, fullscreen, zoom, pan, gestures ו־UI |
 | שירותים משותפים | `catalogAssetState`, `uiRuntime` | ללא DOM owner ייעודי | cache תמונות ומשוב גלובלי קטן |
 
@@ -48,6 +49,7 @@
 
 - `catalog-grid`: אתחול Grid, פתיחת קטלוג, רענון layout וסנכרון hash.
 - `favorites-workspace`: רינדור, סינון, שיתוף וטיפול בעורך הערה.
+- `inquiry`: חלון הבירור המשותף ל־Viewer ולסביבת המועדפים, כולל focus trap, שיתוף, העתקה ונעילת המסמך.
 - `search`: סגירת שכבות חיפוש, חיפוש Viewer ומצב Mobile search.
 - `viewer`: פתיחה, סגירה, מעבר עמוד, lifecycle, inquiry וממשק UI מצומצם.
 
@@ -75,6 +77,7 @@
 | `20-shared-ui.js` | שירותי UI משותפים שאינם בבעלות Feature יחיד |
 | `30-favorites-share.js` | store ושיתוף בסיסי של מועדפים |
 | `31-viewer-share.js` | שיתוף וצילום שתלויים ב־Viewer |
+| `32-shared-inquiry.js` | חלון הבירור המשותף ל־Viewer ולמועדפים |
 | `35-favorites-workspace.js` | סביבת העבודה של דף המועדפים |
 | `40-catalog-grid.js` | Grid, קטגוריות ותצוגת פרטי קטלוג |
 | `50-search-ui.js` | לקוח Worker וממשקי החיפוש |
@@ -84,7 +87,7 @@
 | `56-viewer-shell.js` | toolbar, page rail ומעטפת Viewer |
 | `58-viewer-navigation.js` | גלגלת, touchpad ומעבר עמוד |
 | `60-viewer.js` | lifecycle והרכבת ממשק Viewer |
-| `62-viewer-actions.js` | inquiry ותפריטי פעולות |
+| `62-viewer-actions.js` | תפריט הפעולות הקומפקטי של ה־Viewer |
 | `65-viewer-onboarding.js` | הדרכת כניסה |
 | `70-viewer-input.js` | pointer, pinch, pan, wheel ו־double tap |
 | `90-bootstrap.js` | composition root בלבד |
@@ -95,8 +98,8 @@ CSS נשמר בשכבות אחריות קיימות, אך builder מרכיב man
 
 - `styles.css`: foundation, shell, media, footer, accessibility ו־SEO.
 - `styles-catalog.css`: מוסיף Grid ותיקוני קטלוג.
-- `styles-favorites.css`: מוסיף Workspace ו־favorites routing.
-- `styles-viewer.css`: מוסיף Viewer, onboarding ופעולות Viewer.
+- `styles-favorites.css`: מוסיף Workspace, חלון בירור משותף ו־favorites routing.
+- `styles-viewer.css`: מוסיף Viewer, onboarding, חלון בירור משותף ויכולות עיצוב למסלולי המעבר במסך מלא.
 
 סדר ה־cascade הוא חלק מהחוזה ונבדק על ידי builder. קובצי המקור אינם מועלים לפריסה; רק התוצרים החתומים ב־hash נשלחים.
 
