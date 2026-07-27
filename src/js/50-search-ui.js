@@ -25,13 +25,11 @@ function isSearchIndexReady() {
 function refreshSearchUiAfterIndexLoad() {
   initSearchStatus();
   initLightboxSearchStatus();
-
-  if (isGlobalSearchPanelOpen()) {
-    renderSearchResults(searchElements.globalSearchInput?.value || "");
-  }
-  if (getFeatureInterface("viewer")?.isViewerOpen?.() && searchElements.lightboxSearchInput) {
-    renderLightboxSearchResults(searchElements.lightboxSearchInput.value);
-  }
+  // Search renderers already await the shared index-load promise. Starting a
+  // second render here creates two requests on the same worker channel: the
+  // newer render can be cancelled by the older waiter when it resumes. Status
+  // refresh is sufficient; the renderer that owns the current input continues
+  // as soon as this promise resolves.
 }
 
 function ensureSearchIndexLoaded(options = {}) {
@@ -435,10 +433,11 @@ function lightboxSearchKey(query) {
   return [String(query || "").trim(), scope, scope === "all" ? "" : (navigationState.catalog?.id || "")].join("\u0000");
 }
 
-async function getLightboxSearchResults(query, limit = 24) {
+async function getLightboxSearchResults(query, limit = 24, control = {}) {
   const rawQuery = String(query || "").trim();
   if (rawQuery.length < 2) return [];
   await ensureSearchIndexLoaded({ trigger: "viewer-search" });
+  if (control.isCurrent && !control.isCurrent()) return [];
   if (!catalogSearch?.hasIndex?.()) return [];
 
   const options = { limit, channel: "viewer" };
@@ -828,6 +827,7 @@ async function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
   const renderSequence = ++lightboxSearchRenderSequence;
+  const renderKey = lightboxSearchKey(rawQuery);
 
   normalizeSearchResultsDirection(searchElements.lightboxSearchResults);
   hideSearchFloatingPreview();
@@ -856,8 +856,13 @@ async function renderLightboxSearchResults(query) {
 
   try {
     const scope = getLightboxSearchScope();
-    const results = await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
-    if (renderSequence !== lightboxSearchRenderSequence || lightboxSearchKey(rawQuery) !== lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")) {
+    const results = await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24, {
+      isCurrent: () => (
+        renderSequence === lightboxSearchRenderSequence
+        && renderKey === lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")
+      )
+    });
+    if (renderSequence !== lightboxSearchRenderSequence || renderKey !== lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")) {
       return [];
     }
 
@@ -992,11 +997,12 @@ function globalSearchKey(query) {
   return [String(query || "").trim(), getGlobalSearchCategory()].join("\u0000");
 }
 
-async function getGlobalSearchResults(query, limit = 72) {
+async function getGlobalSearchResults(query, limit = 72, control = {}) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
   if (rawQuery.length < 2) return [];
   await ensureSearchIndexLoaded({ trigger: "global-search" });
+  if (control.isCurrent && !control.isCurrent()) return [];
   if (!catalogSearch?.hasIndex?.({ category })) return [];
 
   const options = { limit, channel: "global" };
@@ -1128,6 +1134,7 @@ async function renderSearchResults(query) {
   if (!searchElements.globalSearchResults) return [];
   cancelGlobalSearchResultAppend();
   const renderSequence = ++globalSearchRenderSequence;
+  const renderKey = globalSearchKey(rawQuery);
 
   normalizeSearchResultsDirection(searchElements.globalSearchResults);
   hideSearchFloatingPreview();
@@ -1148,8 +1155,10 @@ async function renderSearchResults(query) {
   searchElements.globalSearchResults.setAttribute("aria-busy", "true");
 
   try {
-    const results = await getGlobalSearchResults(rawQuery, 72);
-    if (renderSequence !== globalSearchRenderSequence || globalSearchKey(rawQuery) !== globalSearchKey(searchElements.globalSearchInput?.value || "")) {
+    const results = await getGlobalSearchResults(rawQuery, 72, {
+      isCurrent: () => isCurrentGlobalSearchRender(renderSequence, rawQuery)
+    });
+    if (renderSequence !== globalSearchRenderSequence || renderKey !== globalSearchKey(searchElements.globalSearchInput?.value || "")) {
       return [];
     }
 

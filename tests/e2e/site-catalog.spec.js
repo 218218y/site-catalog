@@ -68,6 +68,7 @@ function catalogImageSvg(pageNumber, thumbnail) {
 
 async function preparePage(page, options = {}) {
   const failPages = new Set((options.failPages || []).map(Number));
+  const searchIndexDelayMs = Math.max(0, Number(options.searchIndexDelayMs) || 0);
   const onboardingSeen = options.onboardingSeen !== false;
   const resetFavorites = options.resetFavorites !== false;
   const resetViewerLayout = options.resetViewerLayout !== false;
@@ -178,6 +179,11 @@ async function preparePage(page, options = {}) {
         contentType: "application/json; charset=utf-8",
         body: JSON.stringify({ ok: true, accepted: payload?.events?.length || 0 })
       });
+      return;
+    }
+    if (searchIndexDelayMs && url.pathname.includes("catalogs.search-index")) {
+      await new Promise((resolve) => setTimeout(resolve, searchIndexDelayMs));
+      await route.continue();
       return;
     }
     if (!url.pathname.includes("/assets/pages/")) {
@@ -1203,7 +1209,14 @@ test.describe("critical catalog journeys", () => {
 
   test("emits privacy-safe operational telemetry for a real journey", async ({ page }) => {
     const events = [];
-    await preparePage(page, { telemetryEvents: events, captureClipboard: true });
+    await preparePage(page, {
+      telemetryEvents: events,
+      captureClipboard: true,
+      // Keep the query waiting while the index becomes ready. This reproduces
+      // the cross-platform timing window that previously let two renderers
+      // cancel each other and leave the result container empty.
+      searchIndexDelayMs: 180
+    });
     await page.goto("/index.html");
     await waitForApp(page);
 
