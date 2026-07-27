@@ -222,10 +222,25 @@ async function currentViewerSurface(page) {
 }
 
 async function expectCurrentViewerImageReady(page) {
-  await expect.poll(async () => {
-    const surface = await currentViewerSurface(page);
-    return surface.getAttribute("class");
-  }).toMatch(/image-ready/);
+  await expect.poll(() => page.evaluate(() => {
+    const frame = document.querySelector("#lightboxImageFrame");
+    const lightbox = document.querySelector("#lightbox");
+    const image = document.querySelector("#lightboxImage");
+    const pageNumber = Number.parseInt(
+      document.querySelector("#viewerPageIndicatorCurrent")?.textContent || "",
+      10
+    );
+    if (!frame || !image || !Number.isFinite(pageNumber)) return false;
+
+    const source = String(image.getAttribute("src") || "");
+    const sourcePage = source.match(/page-(\d+)\.[a-z0-9]+(?:[?#]|$)/i);
+    return frame.classList.contains("image-ready")
+      && frame.getAttribute("aria-busy") !== "true"
+      && !lightbox?.classList.contains("is-page-loading")
+      && image.complete
+      && image.naturalWidth > 0
+      && Number(sourcePage?.[1]) === pageNumber;
+  })).toBe(true);
 }
 
 async function revealViewerTopToolbar(page) {
@@ -428,39 +443,42 @@ test.describe("critical catalog journeys", () => {
     await preparePage(page);
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-    await page.goto("/index.html");
-    await waitForApp(page);
+    try {
+      await page.goto("/index.html");
+      await waitForApp(page);
 
-    await page.evaluate(() => {
-      window.__searchHeartbeat = { last: performance.now(), maxGap: 0, samples: 0 };
-      window.__searchHeartbeatTimer = window.setInterval(() => {
-        const now = performance.now();
-        const heartbeat = window.__searchHeartbeat;
-        heartbeat.maxGap = Math.max(heartbeat.maxGap, now - heartbeat.last);
-        heartbeat.last = now;
-        heartbeat.samples += 1;
-      }, 16);
-    });
+      await page.evaluate(() => {
+        window.__searchHeartbeat = { last: performance.now(), maxGap: 0, samples: 0 };
+        window.__searchHeartbeatTimer = window.setInterval(() => {
+          const now = performance.now();
+          const heartbeat = window.__searchHeartbeat;
+          heartbeat.maxGap = Math.max(heartbeat.maxGap, now - heartbeat.last);
+          heartbeat.last = now;
+          heartbeat.samples += 1;
+        }, 16);
+      });
 
-    await page.locator("#globalSearchOpen").click();
-    const input = page.locator("#globalSearchInput");
-    await input.fill("שולחן");
-    await input.fill("פתיחת");
+      await page.locator("#globalSearchOpen").click();
+      const input = page.locator("#globalSearchInput");
+      await input.fill("שולחן");
+      await input.fill("פתיחת");
 
-    const firstResult = page.locator("#globalSearchResults [data-search-catalog]").first();
-    await expect(firstResult).toBeVisible();
-    await expect(input).toHaveValue("פתיחת");
-    await expect(firstResult.locator(".search-result-meta")).toContainText("עמוד");
-    await expect(firstResult.locator(".search-result-excerpt")).toBeVisible();
-    await expect(firstResult.locator("mark.search-match-highlight").first()).toContainText("פתיחת");
+      const firstResult = page.locator("#globalSearchResults [data-search-catalog]").first();
+      await expect(firstResult).toBeVisible();
+      await expect(input).toHaveValue("פתיחת");
+      await expect(firstResult.locator(".search-result-meta")).toContainText("עמוד");
+      await expect(firstResult.locator(".search-result-excerpt")).toBeVisible();
+      await expect(firstResult.locator("mark.search-match-highlight").first()).toContainText("פתיחת");
 
-    const heartbeat = await page.evaluate(() => {
-      clearInterval(window.__searchHeartbeatTimer);
-      return window.__searchHeartbeat;
-    });
-    expect(heartbeat.samples).toBeGreaterThan(2);
-    expect(heartbeat.maxGap).toBeLessThan(260);
-    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+      const heartbeat = await page.evaluate(() => {
+        clearInterval(window.__searchHeartbeatTimer);
+        return window.__searchHeartbeat;
+      });
+      expect(heartbeat.samples).toBeGreaterThan(2);
+      expect(heartbeat.maxGap).toBeLessThan(260);
+    } finally {
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    }
   });
 
   test("offers direct Gmail, system sharing, email, and copying for an exact catalog page", async ({ page }) => {

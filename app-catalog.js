@@ -4114,12 +4114,15 @@ registerFeatureInterface("catalog-detail", {
 
 let globalSearchRenderTimer = 0;
 let lightboxSearchRenderTimer = 0;
+let globalSearchAppendTimer = 0;
 let globalSearchRenderSequence = 0;
 let lightboxSearchRenderSequence = 0;
 let lastGlobalSearchResults = [];
 let lastLightboxSearchResults = [];
 let lastGlobalSearchKey = "";
 let lastLightboxSearchKey = "";
+const GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 6;
+const GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 6;
 
 function isSearchIndexReady() {
   return Boolean(catalogSearch?.isReady?.());
@@ -4186,7 +4189,9 @@ function scheduleSearchIndexPreload() {
 function cancelScheduledSearch(channel) {
   if (channel === "global") {
     window.clearTimeout(globalSearchRenderTimer);
+    window.clearTimeout(globalSearchAppendTimer);
     globalSearchRenderTimer = 0;
+    globalSearchAppendTimer = 0;
     globalSearchRenderSequence += 1;
   } else {
     window.clearTimeout(lightboxSearchRenderTimer);
@@ -4196,6 +4201,11 @@ function cancelScheduledSearch(channel) {
   catalogSearch?.cancel?.(channel);
 }
 
+function cancelGlobalSearchResultAppend() {
+  window.clearTimeout(globalSearchAppendTimer);
+  globalSearchAppendTimer = 0;
+}
+
 function scheduleSearchRender(channel, query, options = {}) {
   const delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS;
   const callback = channel === "global"
@@ -4203,6 +4213,7 @@ function scheduleSearchRender(channel, query, options = {}) {
     : () => renderLightboxSearchResults(query);
   catalogSearch?.cancel?.(channel);
   if (channel === "global") {
+    cancelGlobalSearchResultAppend();
     globalSearchRenderSequence += 1;
     window.clearTimeout(globalSearchRenderTimer);
     globalSearchRenderTimer = window.setTimeout(callback, delay);
@@ -5136,9 +5147,92 @@ async function submitGlobalSearch() {
   return openGlobalSearchResult(results[0]);
 }
 
+function globalSearchResultMarkup(result) {
+  const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
+  const page = clampPage(result.page, catalog);
+  const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
+  const rawPreview = result.image || (catalog ? (mediumSrc(catalog, page) || pageSrc(catalog, page)) : rawThumb);
+  const rawImage = rawThumb || rawPreview;
+  const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+  return `
+    <article class="search-result-card">
+      <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+        <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
+        <span class="search-result-thumb-frame catalog-image-frame">
+          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+        </span>
+        <span class="search-result-copy">${searchResultDetailsMarkup(result)}</span>
+      </button>
+    </article>
+  `;
+}
+
+function bindGlobalSearchResultEvents(root) {
+  bindSearchFloatingPreviewEvents(root);
+  root.querySelectorAll("[data-search-catalog]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
+      flushGlobalSearchTelemetryBeforeNavigation();
+      openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
+    });
+  });
+}
+
+function appendGlobalSearchResultBatch(results, start, count) {
+  const template = document.createElement("template");
+  template.innerHTML = results
+    .slice(start, start + count)
+    .map(globalSearchResultMarkup)
+    .join("");
+  bindGlobalSearchResultEvents(template.content);
+  searchElements.globalSearchResults.append(template.content);
+  return Math.min(results.length, start + count);
+}
+
+function isCurrentGlobalSearchRender(renderSequence, rawQuery) {
+  return renderSequence === globalSearchRenderSequence
+    && globalSearchKey(rawQuery) === globalSearchKey(searchElements.globalSearchInput?.value || "")
+    && isGlobalSearchPanelOpen();
+}
+
+function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery) {
+  cancelGlobalSearchResultAppend();
+  searchElements.globalSearchResults.replaceChildren();
+  searchElements.globalSearchResults.classList.remove("hidden");
+
+  let nextIndex = appendGlobalSearchResultBatch(
+    results,
+    0,
+    GLOBAL_SEARCH_INITIAL_RENDER_COUNT
+  );
+
+  const appendNextBatch = () => {
+    globalSearchAppendTimer = 0;
+    if (!isCurrentGlobalSearchRender(renderSequence, rawQuery)) return;
+
+    nextIndex = appendGlobalSearchResultBatch(
+      results,
+      nextIndex,
+      GLOBAL_SEARCH_RENDER_CHUNK_SIZE
+    );
+    if (nextIndex < results.length) {
+      globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0);
+      return;
+    }
+    searchElements.globalSearchResults.removeAttribute("aria-busy");
+  };
+
+  if (nextIndex < results.length) {
+    globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0);
+  } else {
+    searchElements.globalSearchResults.removeAttribute("aria-busy");
+  }
+}
+
 async function renderSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!searchElements.globalSearchResults) return [];
+  cancelGlobalSearchResultAppend();
   const renderSequence = ++globalSearchRenderSequence;
 
   normalizeSearchResultsDirection(searchElements.globalSearchResults);
@@ -5167,8 +5261,8 @@ async function renderSearchResults(query) {
 
     lastGlobalSearchKey = globalSearchKey(rawQuery);
     lastGlobalSearchResults = results;
-    searchElements.globalSearchResults.removeAttribute("aria-busy");
     if (!results.length) {
+      searchElements.globalSearchResults.removeAttribute("aria-busy");
       searchElements.globalSearchResults.classList.remove("hidden");
       searchElements.globalSearchResults.innerHTML = searchEmptyStateMarkup(
         rawQuery,
@@ -5184,35 +5278,7 @@ async function renderSearchResults(query) {
       return [];
     }
 
-    searchElements.globalSearchResults.classList.remove("hidden");
-    searchElements.globalSearchResults.innerHTML = results.map((result) => {
-      const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
-      const page = clampPage(result.page, catalog);
-      const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
-      const rawPreview = result.image || (catalog ? (mediumSrc(catalog, page) || pageSrc(catalog, page)) : rawThumb);
-      const rawImage = rawThumb || rawPreview;
-      const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
-      return `
-        <article class="search-result-card">
-          <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
-            <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
-            <span class="search-result-thumb-frame catalog-image-frame">
-              <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
-            </span>
-            <span class="search-result-copy">${searchResultDetailsMarkup(result)}</span>
-          </button>
-        </article>
-      `;
-    }).join("");
-
-    bindSearchFloatingPreviewEvents(searchElements.globalSearchResults);
-    searchElements.globalSearchResults.querySelectorAll("[data-search-catalog]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        await trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
-        flushGlobalSearchTelemetryBeforeNavigation();
-        openGlobalSearchResult({ catalogId: button.dataset.searchCatalog, page: button.dataset.searchPage });
-      });
-    });
+    renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery);
     return results;
   } catch (error) {
     if (catalogSearch?.isCancelledError?.(error) || renderSequence !== globalSearchRenderSequence) return [];
