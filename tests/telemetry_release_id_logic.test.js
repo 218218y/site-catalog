@@ -27,9 +27,19 @@ assert.equal(
   resolver({}, "https://example.test/static/app.cb9e905e5526.js")(),
   "app-cb9e905e5526"
 );
+for (const route of ["catalog", "favorites", "viewer"]) {
+  assert.equal(
+    resolver({}, `https://example.test/static/app-${route}.f7ae08108c2c.js`)(),
+    "app-f7ae08108c2c"
+  );
+}
 assert.equal(
   resolver({}, "https://example.test/app.js?cache=1")(),
   "app-unversioned"
+);
+assert.equal(
+  resolver({ __BARGIG_RELEASE_ID__: " deploy-0123456789abcdef " }, "https://example.test/app-catalog.js")(),
+  "deploy-0123456789abcdef"
 );
 assert.equal(
   resolver({ __BARGIG_RELEASE_ID__: " release  custom\nvalue " }, "https://example.test/app.js")(),

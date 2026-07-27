@@ -359,6 +359,51 @@ def test_search_runtime_validation_rejects_missing_dynamic_asset(tmp_path: Path)
         MODULE.validate_fingerprinted_bundle(out)
 
 
+def test_deployment_release_id_is_shared_deterministic_and_option_sensitive() -> None:
+    inputs = {"src/js/15-telemetry.js": "a" * 64}
+    private_options = MODULE.build_options_payload(
+        external_assets_url="https://cdn.example.com",
+        seo_mode="private",
+    )
+    public_options = MODULE.build_options_payload(
+        external_assets_url="https://cdn.example.com",
+        seo_mode="public",
+    )
+
+    first = MODULE.deployment_release_id(inputs, private_options)
+    second = MODULE.deployment_release_id(dict(inputs), dict(private_options))
+    changed = MODULE.deployment_release_id(inputs, public_options)
+
+    assert first == second
+    assert first.startswith("deploy-")
+    assert len(first) == len("deploy-") + 16
+    assert changed != first
+
+
+def test_route_bundles_receive_one_shared_replaceable_release_stamp(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    for relative in MODULE.DEPLOY_APP_FILES:
+        write_asset(out, relative, f"window.route = {relative!r};\n".encode())
+
+    first = "deploy-0123456789abcdef"
+    second = "deploy-fedcba9876543210"
+    assert MODULE.stamp_deployment_release_id(out, first) == len(MODULE.DEPLOY_APP_FILES)
+    for relative in MODULE.DEPLOY_APP_FILES:
+        content = (out / relative).read_text(encoding="utf-8")
+        assert content.startswith(f'window.__BARGIG_RELEASE_ID__ = "{first}";\n')
+        assert content.count("window.__BARGIG_RELEASE_ID__") == 1
+
+    assert MODULE.stamp_deployment_release_id(out, second) == len(MODULE.DEPLOY_APP_FILES)
+    for relative in MODULE.DEPLOY_APP_FILES:
+        content = (out / relative).read_text(encoding="utf-8")
+        assert content.startswith(f'window.__BARGIG_RELEASE_ID__ = "{second}";\n')
+        assert first not in content
+        assert content.count("window.__BARGIG_RELEASE_ID__") == 1
+
+    with pytest.raises(ValueError, match="Invalid deployment release id"):
+        MODULE.stamp_deployment_release_id(out, "release-custom")
+
+
 def test_artifact_state_detects_source_changes_without_rebuilding(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -385,6 +430,8 @@ def test_artifact_state_detects_source_changes_without_rebuilding(
     current, reason = MODULE.artifact_is_current(root, out, options=options)
     assert current is True
     assert reason == "current"
+    state = MODULE.load_artifact_state(out)
+    assert state and state["releaseId"] == MODULE.deployment_release_id(inputs, options)
     assert MODULE.artifact_state_path(out).parent == out.parent
     assert not (out / MODULE.artifact_state_path(out).name).exists()
 

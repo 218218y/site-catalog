@@ -1,11 +1,11 @@
 # Monitoring and security
 
-This project uses two complementary, privacy-oriented Cloudflare layers:
-Cloudflare Web Analytics for aggregate visits/Core Web Vitals, and a small
-first-party telemetry pipeline only for site-specific actions and operational
-errors. The custom pipeline deliberately does not duplicate page views or load
-timings already available in Web Analytics. Neither layer adds an advertising
-SDK or a persistent visitor profile.
+This project uses two privacy-oriented Cloudflare layers: optional Cloudflare
+Web Analytics for its independent browser dashboard, and a small first-party
+telemetry pipeline for site-specific actions, operational errors, and coarse
+LCP/INP/CLS reporting. The custom pipeline deliberately does not duplicate page
+views or navigation/load timings. Neither layer adds an advertising SDK or a
+persistent visitor profile.
 
 ## Architecture
 
@@ -30,8 +30,14 @@ bundle.
 | `search` | Completed-search quality | query, scope, result count, submit/result-open |
 | `favorite` | Feature usage | add/remove/clear, catalog/page, count |
 | `contact` | Contact intent | phone/email/Gmail/copy, source, catalog/page when available |
-| `js_error` | Runtime stability | coarse error name/message fingerprint, file, line |
-| `image_error` | Missing/broken catalog images | catalog/page, image role |
+| `js_error` | Runtime stability | coarse error name/message fingerprint, file, line, deployment ID |
+| `resource_error` | Non-image resource loading | provider scope, tag, role, coarse filename, deployment ID |
+| `search_index_load_failed` | Search bootstrap failures | reason, trigger, source scope, deployment ID |
+| `image_attempt_failed` | One failed catalog-image attempt | catalog/page, role, attempt number |
+| `image_recovered` | Catalog image recovered after retry/fallback | catalog/page, successful role, failed-attempt count |
+| `image_terminal_failure` | Catalog image exhausted its managed recovery path | catalog/page, final role, failed-attempt count |
+| `image_error` | Historical pre-classification image failures | catalog/page, image role |
+| `web_vital` | Coarse real-user LCP/INP/CLS quality | metric name, rating, numeric value |
 
 Each request receives a random, short-lived batch key used only as the Analytics Engine sampling index; it is not reused across requests and cannot identify a visitor.
 
@@ -90,14 +96,15 @@ or:
 npm run telemetry:report -- 30
 ```
 
-The report shows event totals, opened catalogs, completed searches/no-result searches,
-contact and favorite actions, and runtime/image errors. Typing prefixes are not reported; a
-search event is emitted only after Enter/submit or after opening a result. Page traffic and Core
-Web Vitals remain in Cloudflare Web Analytics. The SQL API is called once per
-report section with a single supported `SELECT`; the Python tool merges the
-normalized rows locally instead of using `UNION ALL` or a CTE. One report run
-therefore performs six small SQL API read requests, one per section. Each query
-uses Analytics Engine's `_sample_interval`, so sampled event counts remain correct.
+The report shows event totals, deployment activity based on catalog opens, opened catalogs,
+completed searches/no-result searches, contact and favorite actions, provider-level resource
+failures, and runtime/image diagnostics. Typing prefixes are not reported; a search event is
+emitted only after Enter/submit or after opening a result. The first-party report derives its
+LCP/INP/CLS table from `web_vital` events; Cloudflare Web Analytics remains an independent optional
+dashboard. The SQL API is called once per report section with a single supported
+`SELECT`; the Python tool merges the normalized rows locally instead of using `UNION ALL` or a
+CTE. The current report performs 17 bounded SQL reads. Each query uses Analytics Engine's
+`_sample_interval`, so sampled event counts remain correct.
 Error rows are grouped only by physical Analytics Engine columns (`blob1`, `blob9`);
 the readable fallback label is derived locally because Analytics Engine does not
 allow expressions inside `GROUP BY`.
@@ -128,6 +135,34 @@ path. Images may load from the site, data/blob URLs needed by the viewer, and
 the catalog CDN. Inline event-handler attributes remain blocked. Inline styles
 remain allowed because the viewer legitimately updates layout and CSS custom
 properties at runtime.
+
+### Cloudflare Web Analytics beacon failures
+
+Cloudflare's optional Web Analytics script is loaded from
+`static.cloudflareinsights.com/beacon.min.js`; the version-looking trailing path such as
+`v4513226...` belongs to that beacon. The current CSP already permits both the script host and its
+analytics connection. A `resource_error` for this file therefore must not be treated as proof that
+the site shell or NetFree integration broke. Tracking blockers and filtered browsing environments
+may block it after CSP has already allowed the request.
+
+The browser telemetry now classifies this resource as `cloudflare-observability`, and the report
+shows it in a separate card rather than counting it as an actionable shell failure. Do not add
+hosts, `unsafe-eval`, or broader inline permissions to silence this optional beacon. If Cloudflare
+Web Analytics is no longer useful because first-party telemetry supplies the required operational
+signals, disable automatic beacon injection in the Cloudflare dashboard; that is an operational
+choice, not a CSP code fix.
+
+### Deployment identity and report integrity
+
+Every build stamps one deterministic `deploy-<16 hex>` identifier into all three route bundles
+before they are fingerprinted. Catalog, favorites, and viewer events from one deployment therefore
+share one deployment ID instead of being split by route-bundle hashes. The ingestion Function
+accepts only known deployment-ID shapes and known viewport buckets; arbitrary values are discarded
+rather than creating misleading report buckets.
+
+The report separates verified JavaScript errors from historical blank-release rows, counts release
+activity only from `catalog_open`, includes provider/tag/role columns in CSV, and states how many
+diagnostic events are omitted by grouping limits.
 
 ### NetFree review-card compatibility
 
@@ -172,10 +207,13 @@ After deployment:
 1. Open the main site and one catalog.
 2. Check `/api/telemetry` reports `storage: true`.
 3. After several minutes, run the local telemetry report.
-4. If CSP blocks a legitimate first-party, Cloudflare, or NetFree review-card
-   resource, investigate the exact browser console violation and extend only the
-   existing narrow compatibility directives. Never add a changing console hash,
-   `unsafe-eval`, arbitrary external hosts, or weaken `frame-ancestors`.
+4. In the report, verify that the newest `deploy-...` row receives new catalog opens and that
+   image retries appear as attempts/recoveries rather than unmanaged terminal failures.
+5. If CSP blocks a legitimate first-party or NetFree review-card resource, investigate the exact
+   browser console violation and extend only the existing narrow compatibility directives. A
+   blocked `beacon.min.js/v...` resource is Cloudflare observability, not a reason to weaken CSP.
+   Never add a changing console hash, `unsafe-eval`, arbitrary external hosts, or weaken
+   `frame-ancestors`.
 
 ## Report files and long-term archive
 
@@ -199,9 +237,9 @@ and does not contain a persistent visitor identifier.
 
 The monitoring scope planned for the public rollout is complete:
 
-- aggregate visits and Core Web Vitals are covered by Cloudflare Web Analytics;
+- Cloudflare Web Analytics may provide an independent visits/RUM dashboard when its beacon is not blocked;
 - catalog opens, completed searches/no-result searches, favorites, contact intent,
-  JavaScript errors and image failures are covered by first-party telemetry;
+  LCP/INP/CLS, JavaScript errors, resource failures, and image lifecycle events are covered by first-party telemetry;
 - duplicate page-view and page-load events are not sent to Analytics Engine;
 - reports can be archived as HTML/CSV;
 - the ingestion endpoint validates a strict schema and remains non-blocking if

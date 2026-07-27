@@ -127,7 +127,7 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
   const primaryTier = String(options.primaryTier || "");
   push(
     options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary,
-    options.forceRefresh ? "manual" : "primary",
+    options.forceRefresh ? String(options.forceRefreshRole || "manual") : "primary",
     primaryTier
   );
   const unversionedPrimary = unversionedCatalogImageUrl(primary);
@@ -152,7 +152,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
   const telemetryDetail = telemetryCleanText(options.telemetryDetail, 40);
   let index = 0;
   let stopped = false;
-  let failedAttempts = 0;
+  let failedAttempts = Math.max(0, Number(options.initialFailedAttempts) || 0);
   let lastCandidate = null;
 
   img.dataset.telemetryManaged = "true";
@@ -218,6 +218,42 @@ function loadCatalogImageWithRecovery(img, options = {}) {
 
   attempt();
   return () => { stopped = true; };
+}
+
+function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail") {
+  const catalogId = escapeHtml(catalog?.id || "");
+  const safePage = Math.max(0, Number.parseInt(page, 10) || 0);
+  const safeDetail = escapeHtml(detail || "thumbnail");
+  return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}"`;
+}
+
+function recoverCatalogImageAfterInitialFailure(img) {
+  if (!img || img.dataset.catalogImageRecovery !== "lightweight") return false;
+  if (img.dataset.catalogImageRecoveryStarted === "true") return true;
+
+  const failedSrc = String(img.currentSrc || img.getAttribute("src") || "");
+  if (!failedSrc) return false;
+
+  const detail = telemetryCleanText(img.dataset.telemetryDetail || telemetryCatalogImageContext(img).detail, 40);
+  img.dataset.catalogImageRecoveryStarted = "true";
+  telemetryTrackImageAttemptFailure(failedSrc, {
+    img,
+    detail: `${detail}-primary`,
+    action: "primary",
+    attempt: 1
+  });
+
+  const directRetrySrc = unversionedCatalogImageUrl(failedSrc) || normalizeCatalogImageUrl(failedSrc);
+  loadCatalogImageWithRecovery(img, {
+    primarySrc: directRetrySrc,
+    forceRefresh: true,
+    forceRefreshRole: "direct-retry",
+    initialFailedAttempts: 1,
+    telemetryDetail: detail,
+    isCurrent: () => img.isConnected !== false,
+    onExhausted: () => syncImagePlaceholderState(img)
+  });
+  return true;
 }
 
 function prepareCatalogImage(url, options = {}) {

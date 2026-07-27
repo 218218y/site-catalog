@@ -38,6 +38,7 @@ async function loadFunctionModule() {
           query: "  ארון   פתיחה  ",
           value: 0,
           releaseId: "app-61dd783bd3fa",
+          viewport: "XS",
           stack: "must never be stored",
           userAgent: "must never be stored"
         },
@@ -66,6 +67,12 @@ async function loadFunctionModule() {
           source: "page-004.webp",
           releaseId: "app-61dd783bd3fa"
         },
+        {
+          name: "catalog_open",
+          catalogId: "invalid-dimensions",
+          viewport: "desktop-ultra",
+          releaseId: "arbitrary-attacker-bucket"
+        },
         { name: "unknown_event", detail: "ignored" }
       ]
     })
@@ -73,11 +80,12 @@ async function loadFunctionModule() {
 
   const response = await module.onRequestPost({ request, env });
   assert.equal(response.status, 202);
-  assert.deepEqual(await response.json(), { ok: true, accepted: 5 });
-  assert.equal(writes.length, 5);
+  assert.deepEqual(await response.json(), { ok: true, accepted: 6 });
+  assert.equal(writes.length, 6);
   assert.match(writes[0].indexes[0], /^[0-9a-f-]{36}$/i);
   assert.equal(writes[0].indexes[0], writes[1].indexes[0]);
   assert.equal(writes[0].blobs[11], "bargig-furniture.com");
+  assert.equal(writes[0].blobs[9], "xs");
   assert.equal(writes[0].blobs[12], "app-61dd783bd3fa");
   assert.equal(writes[0].blobs[0], "search");
   assert.equal(writes[0].blobs[4], "ארון פתיחה");
@@ -87,6 +95,8 @@ async function loadFunctionModule() {
   assert.equal(writes[2].doubles[0], 1840);
   assert.equal(writes[3].blobs[0], "resource_error");
   assert.equal(writes[4].blobs[0], "image_terminal_failure");
+  assert.equal(writes[5].blobs[9], "");
+  assert.equal(writes[5].blobs[12], "");
   assert.equal(JSON.stringify(writes).includes("must never be stored"), false);
 
   const crossOrigin = new Request("https://bargig-furniture.com/api/telemetry", {

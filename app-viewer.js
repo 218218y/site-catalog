@@ -805,9 +805,11 @@ function telemetryResolveReleaseId() {
 
   const scriptSrc = String(document.currentScript?.src || "");
   const filename = scriptSrc.split("?")[0].split("#")[0].split("/").pop() || "";
-  const fingerprint = filename.match(/^app\.([a-f0-9]{8,64})\.js$/i)?.[1];
+  const fingerprint = filename.match(/^app(?:-(?:catalog|favorites|viewer))?\.([a-f0-9]{8,64})\.js$/i)?.[1];
   if (fingerprint) return `app-${fingerprint.slice(0, 16).toLowerCase()}`;
-  return filename === "app.js" ? "app-unversioned" : "unknown-release";
+  return /^app(?:-(?:catalog|favorites|viewer))?\.js$/i.test(filename)
+    ? "app-unversioned"
+    : "unknown-release";
 }
 
 const TELEMETRY_RELEASE_ID = telemetryResolveReleaseId();
@@ -1164,9 +1166,32 @@ function telemetryResourceSourceName(value) {
   try {
     const parsed = new URL(clean, window.location.href);
     if (["data:", "blob:"].includes(parsed.protocol)) return parsed.protocol.slice(0, -1);
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === "static.cloudflareinsights.com" && /\/beacon\.min\.js(?:\/|$)/i.test(parsed.pathname)) {
+      return "beacon.min.js";
+    }
     return telemetryCleanText(parsed.pathname.split("/").pop() || "root", 80);
   } catch {
     return telemetryCleanText(clean.split("/").pop() || "unknown", 80);
+  }
+}
+
+function telemetryResourceScope(value) {
+  const clean = telemetryStableResourceUrl(value);
+  if (!clean) return "inline";
+  if (/^(?:chrome|moz|safari)-extension:/i.test(clean)) return "extension";
+  try {
+    const parsed = new URL(clean, window.location.href);
+    const hostname = parsed.hostname.toLowerCase();
+    if (parsed.origin === window.location.origin) return "site";
+    if (hostname === "cdn.bargig-furniture.com") return "catalog-cdn";
+    if (hostname === "static.cloudflareinsights.com" || hostname === "cloudflareinsights.com") {
+      return "cloudflare-observability";
+    }
+    if (hostname === "netfree.link" || hostname.endsWith(".netfree.link")) return "netfree-filter";
+    return "external";
+  } catch {
+    return "unknown";
   }
 }
 
@@ -1299,7 +1324,7 @@ function telemetryTrackResourceError(target) {
 
   const tag = telemetryCleanText(String(target?.tagName || "resource").toLowerCase(), 30);
   const source = telemetryResourceSourceName(src);
-  const scope = telemetryErrorSourceScope(src);
+  const scope = telemetryResourceScope(src);
   const key = ["resource_error", tag, role, source, scope].join("|");
   if (!telemetryDiagnosticOnce(key)) return false;
   return telemetryTrack("resource_error", {
@@ -1352,6 +1377,7 @@ function telemetryInit() {
     const classification = telemetryClassifyWindowError(event);
     if (classification === "image") {
       if (event.target.dataset.telemetryManaged !== "true") {
+        if (recoverCatalogImageAfterInitialFailure(event.target)) return;
         telemetryTrackImageTerminalFailure(event.target.currentSrc || event.target.src, {
           img: event.target,
           detail: telemetryCatalogImageContext(event.target).detail,
@@ -1690,7 +1716,7 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
   const primaryTier = String(options.primaryTier || "");
   push(
     options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary,
-    options.forceRefresh ? "manual" : "primary",
+    options.forceRefresh ? String(options.forceRefreshRole || "manual") : "primary",
     primaryTier
   );
   const unversionedPrimary = unversionedCatalogImageUrl(primary);
@@ -1715,7 +1741,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
   const telemetryDetail = telemetryCleanText(options.telemetryDetail, 40);
   let index = 0;
   let stopped = false;
-  let failedAttempts = 0;
+  let failedAttempts = Math.max(0, Number(options.initialFailedAttempts) || 0);
   let lastCandidate = null;
 
   img.dataset.telemetryManaged = "true";
@@ -1781,6 +1807,42 @@ function loadCatalogImageWithRecovery(img, options = {}) {
 
   attempt();
   return () => { stopped = true; };
+}
+
+function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail") {
+  const catalogId = escapeHtml(catalog?.id || "");
+  const safePage = Math.max(0, Number.parseInt(page, 10) || 0);
+  const safeDetail = escapeHtml(detail || "thumbnail");
+  return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}"`;
+}
+
+function recoverCatalogImageAfterInitialFailure(img) {
+  if (!img || img.dataset.catalogImageRecovery !== "lightweight") return false;
+  if (img.dataset.catalogImageRecoveryStarted === "true") return true;
+
+  const failedSrc = String(img.currentSrc || img.getAttribute("src") || "");
+  if (!failedSrc) return false;
+
+  const detail = telemetryCleanText(img.dataset.telemetryDetail || telemetryCatalogImageContext(img).detail, 40);
+  img.dataset.catalogImageRecoveryStarted = "true";
+  telemetryTrackImageAttemptFailure(failedSrc, {
+    img,
+    detail: `${detail}-primary`,
+    action: "primary",
+    attempt: 1
+  });
+
+  const directRetrySrc = unversionedCatalogImageUrl(failedSrc) || normalizeCatalogImageUrl(failedSrc);
+  loadCatalogImageWithRecovery(img, {
+    primarySrc: directRetrySrc,
+    forceRefresh: true,
+    forceRefreshRole: "direct-retry",
+    initialFailedAttempts: 1,
+    telemetryDetail: detail,
+    isCurrent: () => img.isConnected !== false,
+    onExhausted: () => syncImagePlaceholderState(img)
+  });
+  return true;
 }
 
 function prepareCatalogImage(url, options = {}) {
@@ -3763,7 +3825,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
       </button>
       <button class="favorite-preview-button" type="button" data-open-favorite="1" aria-label="פתיחת ${title}, עמוד ${page}">
         <span class="favorite-image-frame catalog-image-frame"${pageAspectStyle(catalog, page)}>
-          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(image)} />
+          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(image)} />
         </span>
         <span class="favorite-card-meta">
           <strong>${title}</strong>
@@ -4700,7 +4762,7 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   return `
     <article class="catalog-card">
       <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageCrossOriginAttribute(cover)} />
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageRecoveryAttributes(catalog, 1, "cover")}${catalogImageCrossOriginAttribute(cover)} />
         <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
       </a>
       <div class="catalog-body">
@@ -4963,7 +5025,7 @@ function renderPageGrid() {
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
           <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
-            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">
@@ -6098,7 +6160,7 @@ async function renderLightboxSearchResults(query) {
         <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
           <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
           <span class="reader-search-thumb-frame catalog-image-frame">
-            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
           </span>
           <span class="reader-search-result-copy">${searchResultDetailsMarkup(result)}</span>
         </button>
@@ -6253,7 +6315,7 @@ function globalSearchResultMarkup(result) {
       <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
         <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
         <span class="search-result-thumb-frame catalog-image-frame">
-          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(rawImage)} />
+          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
         </span>
         <span class="search-result-copy">${searchResultDetailsMarkup(result)}</span>
       </button>
@@ -8134,7 +8196,7 @@ function renderLightboxPageRail() {
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${active ? " active" : ""}" type="button" data-favorite-index="${index}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר למועדף ${index + 1}: ${title}, עמוד ${page}"${active ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
-            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
+            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(thumb)} />
           </span>
           <span class="lightbox-page-thumb-number">${index + 1}</span>
         </button>
@@ -8150,7 +8212,7 @@ function renderLightboxPageRail() {
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === navigationState.page ? " active" : ""}" type="button" data-page="${page}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר לעמוד ${page}"${page === navigationState.page ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
-            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageCrossOriginAttribute(thumb)} />
+            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(thumb)} />
           </span>
           <span class="lightbox-page-thumb-number">${page}</span>
         </button>

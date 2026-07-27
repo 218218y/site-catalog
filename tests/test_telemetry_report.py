@@ -28,6 +28,7 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
         "rum_raw",
         "js_error",
         "js_error_legacy",
+        "resource_summary",
         "resource_error",
         "search_index_error",
         "image_attempt",
@@ -42,7 +43,7 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
         assert query.count("SELECT ") == 1
         assert "INTERVAL '90' DAY" in query
         assert "FROM bargig_catalog_telemetry" in query
-        assert "SUM(_sample_interval)" in query
+        assert "_sample_interval" in query
         assert query.endswith("FORMAT JSON")
         assert "UNION" not in query
         assert "WITH recent" not in query
@@ -71,6 +72,12 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
     assert "blob7 AS failure_reason" in search_index_query
     release_query = next(item.sql for item in queries if item.section == "release")
     assert "blob13 AS label" in release_query
+    assert "blob1 = 'catalog_open'" in release_query
+    event_query = next(item.sql for item in queries if item.section == "event")
+    assert "sumIf(_sample_interval, blob1 != 'js_error' OR blob13 != '') AS count" in event_query
+    resource_summary_query = next(item.sql for item in queries if item.section == "resource_summary")
+    assert "blob6 AS source_scope" in resource_summary_query
+    assert "blob11 AS source" in resource_summary_query
     rum_query = next(item.sql for item in queries if item.section == "rum_raw")
     assert "double1 AS metric_value" in rum_query
     assert "blob7 IN ('LCP', 'INP', 'CLS')" in rum_query
@@ -100,12 +107,36 @@ def test_diagnostic_rows_keep_error_context() -> None:
     assert resource_row["label"] == "e-resource"
 
 
+def test_resource_diagnostics_canonicalize_cloudflare_beacon_version_paths() -> None:
+    row = MODULE.normalize_report_row(
+        "resource_summary",
+        {
+            "source_scope": "external",
+            "resource_tag": "script",
+            "resource_role": "script",
+            "source": "v4513226cdae34746b4dedf0b4dfa099e1781791509496",
+            "count": 392,
+        },
+    )
+    assert row["source"] == "beacon.min.js"
+    assert row["source_scope"] == "cloudflare-observability"
+    assert row["label"] == "cloudflare-observability"
+
+
 def test_fetch_report_rows_normalizes_diagnostic_sections(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_query_api(_account_id: str, _token: str, query: str) -> dict[str, object]:
         if "blob8 AS message" in query and "blob13 != ''" in query:
             return {"data": [{"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4}]}
         if "blob8 AS message" in query:
             return {"data": []}
+        if "blob6 AS source_scope" in query and "blob9 AS fingerprint" not in query:
+            return {"data": [{
+                "source_scope": "external",
+                "resource_tag": "script",
+                "resource_role": "script",
+                "source": "v4513226cdae34746b4dedf0b4dfa099e1781791509496",
+                "count": 2,
+            }]}
         if "blob7 AS resource_tag" in query:
             return {"data": [{"fingerprint": "eresource", "source": "optional.js", "count": 2}]}
         if "blob7 AS failure_reason" in query:
@@ -117,13 +148,23 @@ def test_fetch_report_rows_normalizes_diagnostic_sections(monkeypatch: pytest.Mo
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
 
-    assert rows[:4] == [
+    assert rows[:5] == [
         {"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4, "section": "js_error", "label": "ef21e4fae", "metric": 0},
+        {
+            "source_scope": "cloudflare-observability",
+            "resource_tag": "script",
+            "resource_role": "script",
+            "source": "beacon.min.js",
+            "count": 2,
+            "section": "resource_summary",
+            "label": "cloudflare-observability",
+            "metric": 0,
+        },
         {"fingerprint": "eresource", "source": "optional.js", "count": 2, "section": "resource_error", "label": "eresource", "metric": 0},
         {"fingerprint": "esearch", "failure_reason": "network-error", "count": 1, "section": "search_index_error", "label": "esearch", "metric": 0},
         {"fingerprint": "", "source": "page-001.webp", "count": 1, "section": "image_terminal", "label": "page-001.webp", "metric": 0},
     ]
-    assert {row["label"] for row in rows[4:] if row["section"] == "trend"} == {
+    assert {row["label"] for row in rows[5:] if row["section"] == "trend"} == {
         "catalog_open", "search", "favorite", "contact", "js_error", "resource_error",
         "search_index_load_failed", "image_attempt_failed", "image_recovered",
         "image_terminal_failure", "image_error",
@@ -146,7 +187,7 @@ def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.M
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
     rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
 
-    assert len(calls) == 16
+    assert len(calls) == 17
     assert all("UNION" not in query for query in calls)
     assert rows[:2] == [
         {"label": "opening-test", "count": 4, "section": "catalog", "metric": 0},
@@ -253,6 +294,16 @@ def sample_report_rows() -> list[dict[str, object]]:
         {"section": "event", "label": "search", "count": 7, "metric": 0},
         {"section": "event", "label": "resource_error", "count": 2, "metric": 0},
         {"section": "event", "label": "image_terminal_failure", "count": 1, "metric": 0},
+        {
+            "section": "resource_summary",
+            "label": "cloudflare-observability",
+            "source_scope": "cloudflare-observability",
+            "resource_tag": "script",
+            "resource_role": "script",
+            "source": "beacon.min.js",
+            "count": 2,
+            "metric": 0,
+        },
         {"section": "release", "label": "app-61dd783bd3fa", "count": 20, "metric": 0},
         {"section": "catalog", "label": "opening-test", "count": 9, "metric": 0},
         {"section": "search", "label": "ארון הזזה", "count": 4, "metric": 2},
@@ -319,11 +370,16 @@ def test_create_report_files_writes_rtl_html_and_excel_friendly_csv(tmp_path: Pa
     assert "מדדי חוויית משתמש אמיתיים" in html_text
     assert "מגמות מול התקופה הקודמת" in html_text
     assert "2,100 ms" in html_text
+    assert "גרסאות פריסה לפי פתיחות קטלוג" in html_text
+    assert "Beacon חיצוני שנחסם" in html_text
+    assert "cloudflare-observability" in html_text
+    assert "כשלי מעטפת דורשי בדיקה" in html_text
 
     csv_bytes = paths["csv"].read_bytes()
     assert csv_bytes.startswith(b"\xef\xbb\xbf")
     csv_text = csv_bytes.decode("utf-8-sig")
     assert "סוג נתון,פריט / טביעה,כמות" in csv_text
+    assert "תג משאב,תפקיד משאב,סיבת כשל,יוזם טעינה" in csv_text
     assert "ארונות פתיחה לדוגמה" in csv_text
 
     json_payload = json.loads(paths["json"].read_text(encoding="utf-8"))

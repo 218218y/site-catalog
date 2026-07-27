@@ -21,6 +21,8 @@ const ALLOWED_EVENTS = new Set([
   "web_vital"
 ]);
 const ALLOWED_HOSTS = new Set(["bargig-furniture.com", "www.bargig-furniture.com"]);
+const ALLOWED_VIEWPORTS = new Set(["xs", "sm", "md", "lg", "xl"]);
+const RELEASE_ID_RE = /^(?:deploy-[a-f0-9]{16}|app-[a-f0-9]{8,16}|app-unversioned|unknown-release)$/i;
 const MAX_BODY_BYTES = 32 * 1024;
 const MAX_EVENTS = 20;
 
@@ -36,6 +38,16 @@ function cleanNumber(value, min = 0, max = 86_400_000) {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
   return Math.min(max, Math.max(min, number));
+}
+
+function cleanViewport(value) {
+  const viewport = cleanText(value, 12).toLowerCase();
+  return ALLOWED_VIEWPORTS.has(viewport) ? viewport : "";
+}
+
+function cleanReleaseId(value) {
+  const releaseId = cleanText(value, 64).toLowerCase();
+  return RELEASE_ID_RE.test(releaseId) ? releaseId : "";
 }
 
 function responseHeaders(extra = {}) {
@@ -81,13 +93,13 @@ function normalizeEvent(raw) {
     action: cleanText(raw.action, 50),
     detail: cleanText(raw.detail, 120),
     error: cleanText(raw.error, 80),
-    viewport: cleanText(raw.viewport, 12),
+    viewport: cleanViewport(raw.viewport),
     source: cleanText(raw.source, 80),
     value: cleanNumber(raw.value, -1_000_000, 1_000_000),
     durationMs: cleanNumber(raw.durationMs),
     pageNumber: cleanNumber(raw.pageNumber, 0, 100_000),
     secondaryValue: cleanNumber(raw.secondaryValue, -1_000_000, 1_000_000),
-    releaseId: cleanText(raw.releaseId, 64)
+    releaseId: cleanReleaseId(raw.releaseId)
   };
 }
 

@@ -60,9 +60,11 @@ function telemetryResolveReleaseId() {
 
   const scriptSrc = String(document.currentScript?.src || "");
   const filename = scriptSrc.split("?")[0].split("#")[0].split("/").pop() || "";
-  const fingerprint = filename.match(/^app\.([a-f0-9]{8,64})\.js$/i)?.[1];
+  const fingerprint = filename.match(/^app(?:-(?:catalog|favorites|viewer))?\.([a-f0-9]{8,64})\.js$/i)?.[1];
   if (fingerprint) return `app-${fingerprint.slice(0, 16).toLowerCase()}`;
-  return filename === "app.js" ? "app-unversioned" : "unknown-release";
+  return /^app(?:-(?:catalog|favorites|viewer))?\.js$/i.test(filename)
+    ? "app-unversioned"
+    : "unknown-release";
 }
 
 const TELEMETRY_RELEASE_ID = telemetryResolveReleaseId();
@@ -419,9 +421,32 @@ function telemetryResourceSourceName(value) {
   try {
     const parsed = new URL(clean, window.location.href);
     if (["data:", "blob:"].includes(parsed.protocol)) return parsed.protocol.slice(0, -1);
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === "static.cloudflareinsights.com" && /\/beacon\.min\.js(?:\/|$)/i.test(parsed.pathname)) {
+      return "beacon.min.js";
+    }
     return telemetryCleanText(parsed.pathname.split("/").pop() || "root", 80);
   } catch {
     return telemetryCleanText(clean.split("/").pop() || "unknown", 80);
+  }
+}
+
+function telemetryResourceScope(value) {
+  const clean = telemetryStableResourceUrl(value);
+  if (!clean) return "inline";
+  if (/^(?:chrome|moz|safari)-extension:/i.test(clean)) return "extension";
+  try {
+    const parsed = new URL(clean, window.location.href);
+    const hostname = parsed.hostname.toLowerCase();
+    if (parsed.origin === window.location.origin) return "site";
+    if (hostname === "cdn.bargig-furniture.com") return "catalog-cdn";
+    if (hostname === "static.cloudflareinsights.com" || hostname === "cloudflareinsights.com") {
+      return "cloudflare-observability";
+    }
+    if (hostname === "netfree.link" || hostname.endsWith(".netfree.link")) return "netfree-filter";
+    return "external";
+  } catch {
+    return "unknown";
   }
 }
 
@@ -554,7 +579,7 @@ function telemetryTrackResourceError(target) {
 
   const tag = telemetryCleanText(String(target?.tagName || "resource").toLowerCase(), 30);
   const source = telemetryResourceSourceName(src);
-  const scope = telemetryErrorSourceScope(src);
+  const scope = telemetryResourceScope(src);
   const key = ["resource_error", tag, role, source, scope].join("|");
   if (!telemetryDiagnosticOnce(key)) return false;
   return telemetryTrack("resource_error", {
@@ -607,6 +632,7 @@ function telemetryInit() {
     const classification = telemetryClassifyWindowError(event);
     if (classification === "image") {
       if (event.target.dataset.telemetryManaged !== "true") {
+        if (recoverCatalogImageAfterInitialFailure(event.target)) return;
         telemetryTrackImageTerminalFailure(event.target.currentSrc || event.target.src, {
           img: event.target,
           detail: telemetryCatalogImageContext(event.target).detail,

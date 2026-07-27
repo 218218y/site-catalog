@@ -126,6 +126,10 @@ DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 FINGERPRINTED_ASSET_DIR = "static"
 FINGERPRINTED_EXTENSIONS = {".css", ".js"}
 DYNAMIC_FINGERPRINTED_EXTENSIONS = {".js", ".json"}
+DEPLOY_APP_FILES = tuple(
+    name for name in FRONTEND_GENERATED_FILES
+    if name.startswith("app-") and name.endswith(".js")
+)
 ALL_FINGERPRINTED_EXTENSIONS = FINGERPRINTED_EXTENSIONS | DYNAMIC_FINGERPRINTED_EXTENSIONS
 # Root documents retained for unit-test fixtures; deploy fingerprinting discovers nested HTML dynamically.
 FINGERPRINT_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
@@ -305,6 +309,36 @@ def source_signature(inputs: dict[str, str], options: dict[str, object]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def deployment_release_id(inputs: dict[str, str], options: dict[str, object]) -> str:
+    """Return one deterministic deployment id shared by every route bundle."""
+
+    return f"deploy-{source_signature(inputs, options)[:16]}"
+
+
+def stamp_deployment_release_id(out_dir: Path, release_id: str) -> int:
+    """Prepend the shared release id before route bundles are fingerprinted."""
+
+    normalized = str(release_id or "").strip().lower()
+    if not re.fullmatch(r"deploy-[a-f0-9]{16}", normalized):
+        raise ValueError(f"Invalid deployment release id: {release_id!r}")
+
+    statement = f"window.__BARGIG_RELEASE_ID__ = {json.dumps(normalized)};\n"
+    existing_stamp_re = re.compile(
+        r'^window\.__BARGIG_RELEASE_ID__ = "deploy-[a-f0-9]{16}";\n',
+        re.IGNORECASE,
+    )
+    stamped = 0
+    for relative in DEPLOY_APP_FILES:
+        path = out_dir / relative
+        if not path.is_file():
+            raise FileNotFoundError(f"Cannot stamp missing route bundle: {relative}")
+        content = path.read_text(encoding="utf-8", errors="strict")
+        content = existing_stamp_re.sub("", content, count=1)
+        path.write_text(statement + content, encoding="utf-8", newline="\n")
+        stamped += 1
+    return stamped
+
+
 def artifact_inventory(out_dir: Path) -> dict[str, dict[str, object]]:
     if not out_dir.is_dir():
         return {}
@@ -342,6 +376,7 @@ def write_artifact_state(
     state = {
         "schema": ARTIFACT_STATE_SCHEMA,
         "sourceSignature": source_signature(inputs, options),
+        "releaseId": deployment_release_id(inputs, options),
         "options": options,
         "inputs": inputs,
         "outputFiles": artifact_inventory(out_dir),
@@ -1366,6 +1401,12 @@ def _main_unlocked() -> int:
                 stats = add_stats(stats, copy_optional_file(root, staging_dir, relative))
 
         stats = add_stats(stats, write_asset_config(root, staging_dir, args.external_assets_url))
+        release_id = deployment_release_id(inputs, options)
+        stamped_bundles = stamp_deployment_release_id(staging_dir, release_id)
+        if stamped_bundles != len(DEPLOY_APP_FILES):
+            raise RuntimeError(
+                f"Expected to stamp {len(DEPLOY_APP_FILES)} route bundles, stamped {stamped_bundles}"
+            )
         fingerprinted_search_assets = fingerprint_search_runtime_assets(staging_dir)
         fingerprinted_assets = fingerprint_source_assets(
             root,
@@ -1402,6 +1443,7 @@ def _main_unlocked() -> int:
         print(f"[seo] Build mode: {args.seo_mode}")
         print("[seo] Clean category, catalog and page-sharing routes were generated.")
         print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
+        print(f"[release] Shared deployment telemetry id: {release_id}")
         print("[assets] assets/pages was intentionally not copied into the Cloudflare Pages upload folder.")
         if fingerprinted_assets:
             print(
