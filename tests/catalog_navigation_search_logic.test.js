@@ -32,6 +32,7 @@ const frediOpening = { id: "opening-fredi", title: "ארונות פתיחה פר
 const frediKids = { id: "kids-fredi", title: "חדרי ילדים פרדי", category: "חדרי ילדים", subcategory: "חדרי ילדים קומפלט" };
 const frediBedrooms = { id: "bedrooms-fredi", title: "חדרי שינה מרופדים פרדי", category: "חדרי שינה", subcategory: "מרופדים" };
 const tbiBedrooms = { id: "bedrooms-tbi", title: "חדרי שינה ת.ב.י", category: "חדרי שינה", subcategory: "חדרי שינה" };
+const decimalModel = { id: "decimal-model", title: "דגם 2026.1", category: "חדרי שינה", subcategory: "חדרי שינה" };
 
 const groups = [
   {
@@ -46,7 +47,7 @@ const groups = [
   },
   {
     category: "חדרי שינה",
-    items: [frediBedrooms, tbiBedrooms, frediBedrooms],
+    items: [frediBedrooms, tbiBedrooms, decimalModel, frediBedrooms],
     subcategories: [
       { subcategory: "מרופדים", items: [frediBedrooms] },
       { subcategory: "חדרי שינה", items: [tbiBedrooms] }
@@ -72,6 +73,22 @@ assert.deepEqual(
   "catalog title search should return one result per catalog in screen order"
 );
 assert.ok(frediResults.every((result) => result.resultType === "catalog"));
+
+assert.deepEqual(
+  Array.from(catalogSearch.searchNavigation(groups, "תבי"), (result) => result.catalogId),
+  ["bedrooms-tbi"],
+  "catalog initials should match even when the stored title uses dots"
+);
+assert.deepEqual(
+  Array.from(catalogSearch.searchNavigation(groups, "ת.ב.י"), (result) => result.catalogId),
+  ["bedrooms-tbi"],
+  "dotted and undotted catalog initials should resolve identically"
+);
+assert.equal(
+  catalogSearch.searchNavigation(groups, "20261").length,
+  0,
+  "decimal separators must not be compacted as catalog initials"
+);
 
 const scopedResults = catalogSearch.searchNavigation(groups, "פרדי", { category: "חדרי שינה" });
 assert.deepEqual(Array.from(scopedResults, (result) => result.catalogId), ["bedrooms-fredi"]);
@@ -124,5 +141,39 @@ const markup = catalogSearch.navigationResultMarkup(frediResults[0]);
 assert.match(markup, /data-search-navigation-type="catalog"/);
 assert.match(markup, /פתיחת דף הקטלוג/);
 assert.match(markup, /ארונות פתיחה פרדי/);
+assert.match(markup, /class="search-result-thumb"/);
+assert.match(markup, /data-search-preview-src=/);
+assert.match(markup, /data-search-catalog="opening-fredi"/);
+assert.match(markup, /data-catalog-image-recovery="lightweight"/);
+
+const actualCatalogs = JSON.parse(fs.readFileSync(path.join(root, "catalogs.generated.json"), "utf8"));
+const actualGroupsByCategory = new Map();
+actualCatalogs.forEach((catalog) => {
+  const category = String(catalog.category || "").trim();
+  if (!actualGroupsByCategory.has(category)) {
+    actualGroupsByCategory.set(category, { category, items: [], subcategories: [] });
+  }
+  actualGroupsByCategory.get(category).items.push(catalog);
+});
+windowObject.BARGIG_CATALOGS = actualCatalogs;
+const expectedActualTbiIds = actualCatalogs
+  .filter((catalog) => /ת\.ב\.י/.test(String(catalog.title || "")))
+  .map((catalog) => catalog.id);
+assert.deepEqual(
+  Array.from(catalogSearch.searchNavigation(Array.from(actualGroupsByCategory.values()), "תבי"), (result) => result.catalogId),
+  expectedActualTbiIds,
+  "undotted initials search should track every current dotted TBI catalog from generated catalog data"
+);
+
+const catalogWithMediumCover = actualCatalogs.find((catalog) => catalog?.imageVariants?.medium);
+assert.ok(catalogWithMediumCover, "generated catalog data should include a medium image tier");
+const actualCatalogMarkup = catalogSearch.navigationResultMarkup({
+  resultType: "catalog",
+  label: catalogWithMediumCover.title,
+  catalogId: catalogWithMediumCover.id,
+  category: catalogWithMediumCover.category,
+  subcategory: catalogWithMediumCover.subcategory
+});
+assert.match(actualCatalogMarkup, /\/medium\/page-001\./, "floating catalog preview should prefer the medium cover tier");
 
 console.log("catalog_navigation_search_logic.test.js: PASS");

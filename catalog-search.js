@@ -41,7 +41,11 @@
   }
 
   function normalizeNavigation(value) {
-    return normalize(String(value ?? "").replace(/[־–—_]/g, " "));
+    const compactInlineInitialisms = String(value ?? "").replace(
+      /(^|[^\p{L}\p{N}])((?:\p{L}[.\u2024\u2027·•])+\p{L}[.\u2024\u2027·•]?)(?=$|[^\p{L}\p{N}])/gu,
+      (_match, prefix, initialism) => `${prefix}${initialism.replace(/[.\u2024\u2027·•]/g, "")}`
+    );
+    return normalize(compactInlineInitialisms.replace(/[־–—_]/g, " "));
   }
 
   function navigationCategorySlug(value) {
@@ -194,6 +198,24 @@
     const context = type === "subcategory"
       ? (result?.category ? ` · בתוך ${result.category}` : "")
       : (type === "catalog" ? ` · ${[result?.category, result?.subcategory].filter(Boolean).join(" · ")}` : "");
+    const catalog = type === "catalog" ? findCatalog(result?.catalogId) : null;
+    if (catalog) {
+      const page = 1;
+      const title = String(result?.label || catalog.title || "קטלוג").trim() || "קטלוג";
+      const thumb = thumbSrc(catalog, page);
+      const preview = mediumSrc(catalog, page) || pageSrc(catalog, page) || thumb;
+      return `
+        <article class="search-result-card search-navigation-result-card search-navigation-catalog-result-card">
+          <button type="button" class="search-result-button search-navigation-result-button search-navigation-catalog-result-button" data-search-navigation-type="catalog" data-search-navigation-target="" data-search-navigation-catalog="${escapeNavigationMarkup(catalog.id)}" data-search-catalog="${escapeNavigationMarkup(catalog.id)}" data-search-page="${page}" data-search-preview-src="${escapeNavigationMarkup(preview)}" data-search-preview-title="${escapeNavigationMarkup(title)}">
+            <span class="search-result-title" title="${escapeNavigationMarkup(title)}"><small class="search-navigation-result-kind">${typeLabel}</small>${escapeNavigationMarkup(title)}</span>
+            <span class="search-result-thumb-frame catalog-image-frame">
+              <img class="search-result-thumb" src="${escapeNavigationMarkup(thumb)}" alt="שער ${escapeNavigationMarkup(title)}"${navigationImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" data-catalog-image-recovery="lightweight" data-catalog-id="${escapeNavigationMarkup(catalog.id)}" data-page="${page}" data-telemetry-detail="search-catalog-cover" />
+            </span>
+            <span class="search-result-copy"><span class="search-result-meta">${escapeNavigationMarkup(action + context)}</span></span>
+          </button>
+        </article>
+      `;
+    }
     return `
       <article class="search-result-card search-navigation-result-card">
         <button type="button" class="search-result-button search-navigation-result-button" data-search-navigation-type="${escapeNavigationMarkup(type)}" data-search-navigation-target="${escapeNavigationMarkup(result?.targetId || "")}" data-search-navigation-catalog="${escapeNavigationMarkup(result?.catalogId || "")}">
@@ -278,6 +300,23 @@
 
   function thumbSrc(catalog, page) {
     return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog, "thumb");
+  }
+
+  function mediumSrc(catalog, page) {
+    if (String(window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE || "").trim().toLowerCase() === "full-only") return "";
+    const variant = catalog?.imageVariants?.medium;
+    if (!variant || typeof variant !== "object") return "";
+    const directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
+    return withAssetVersion(`${catalogDir(catalog)}/${directory}/page-${pad(page)}.${imageExt(catalog)}`, catalog, "medium");
+  }
+
+  function navigationImageDimensionAttributes(catalog, page) {
+    const size = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes[page - 1] : null;
+    const width = Number(size?.[0]);
+    const height = Number(size?.[1]);
+    return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0
+      ? ` width="${width}" height="${height}"`
+      : "";
   }
 
   function findCatalog(catalogId) {

@@ -675,6 +675,11 @@
   min-height: 112px;
   padding: 16px;
 }
+.search-navigation-catalog-result-button {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  padding: 10px;
+}
 .search-navigation-result-kind {
   display: block;
   margin-bottom: 7px;

@@ -20,6 +20,12 @@ assert.match(searchRuntime, /function mergeNavigationResults/);
 assert.match(searchRuntime, /result\?\.matchField === "title"/);
 assert.match(searchRuntime, /result\?\.matchField !== "category"/);
 assert.match(searchRuntime, /function navigationResultMarkup/);
+assert.match(searchRuntime, /compactInlineInitialisms/);
+assert.match(searchRuntime, /\[\.\\u2024\\u2027·•\]/);
+assert.match(searchRuntime, /function mediumSrc\(catalog, page\)/);
+assert.match(searchRuntime, /search-navigation-catalog-result-card/);
+assert.match(searchRuntime, /data-search-preview-src=/);
+assert.match(searchRuntime, /data-catalog-image-recovery="lightweight"/);
 assert.doesNotMatch(searchRuntime, /פרדי|קואליטה|חדרי שינה ת\.ב\.י/);
 
 assert.match(searchUi, /catalogSearch\.searchNavigation\([\s\S]*getCatalogCategoryGroups\(\)[\s\S]*rawQuery/);
@@ -33,6 +39,7 @@ assert.match(searchUi, /catalogSearch\.navigationResultMarkup\(result\)/);
 assert.match(catalogGrid, /function activateCatalogCategoryTarget/);
 assert.match(catalogGrid, /activateCategoryTarget: activateCatalogCategoryTarget/);
 assert.match(styles, /\.search-navigation-result-card/);
+assert.match(styles, /\.search-navigation-catalog-result-button/);
 assert.equal((frontendBuilder.match(/45-navigation-search\.js/g) || []).length, 0);
 assert.equal(fs.existsSync(path.join(root, "src/js/45-navigation-search.js")), false);
 
