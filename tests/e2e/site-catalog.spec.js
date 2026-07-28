@@ -453,16 +453,52 @@ test.describe("critical catalog journeys", () => {
       await page.goto("/index.html");
       await waitForApp(page);
 
-      await page.evaluate(() => {
-        window.__searchHeartbeat = { last: performance.now(), maxGap: 0, samples: 0 };
-        window.__searchHeartbeatTimer = window.setInterval(() => {
+      await page.evaluate((expectedQuery) => {
+        const results = document.querySelector("#globalSearchResults");
+        if (!results) throw new Error("Global search results container is unavailable");
+
+        window.__searchHeartbeat = {
+          last: performance.now(),
+          maxGap: 0,
+          samples: 0,
+          completed: false,
+          completionScheduled: false,
+          stopped: false,
+          delayedSamples: []
+        };
+        const recordHeartbeat = () => {
           const now = performance.now();
           const heartbeat = window.__searchHeartbeat;
-          heartbeat.maxGap = Math.max(heartbeat.maxGap, now - heartbeat.last);
+          const gap = now - heartbeat.last;
+          heartbeat.maxGap = Math.max(heartbeat.maxGap, gap);
+          if (gap >= 50) heartbeat.delayedSamples.push({ at: now, gap });
           heartbeat.last = now;
           heartbeat.samples += 1;
+        };
+        window.__stopSearchHeartbeat = (completed = false) => {
+          const heartbeat = window.__searchHeartbeat;
+          if (!heartbeat || heartbeat.stopped) return;
+          heartbeat.stopped = true;
+          heartbeat.completed = completed;
+          recordHeartbeat();
+          clearInterval(window.__searchHeartbeatTimer);
+          window.__searchHeartbeatObserver?.disconnect();
+        };
+        window.__searchHeartbeatTimer = window.setInterval(() => {
+          recordHeartbeat();
         }, 16);
-      });
+        window.__searchHeartbeatObserver = new MutationObserver(() => {
+          const heartbeat = window.__searchHeartbeat;
+          if (heartbeat.stopped || heartbeat.completionScheduled) return;
+          const input = document.querySelector("#globalSearchInput");
+          const highlight = results.querySelector("mark.search-match-highlight");
+          if (input?.value !== expectedQuery || !highlight?.textContent?.includes(expectedQuery)) return;
+
+          heartbeat.completionScheduled = true;
+          requestAnimationFrame(() => window.__stopSearchHeartbeat(true));
+        });
+        window.__searchHeartbeatObserver.observe(results, { childList: true, subtree: true, characterData: true });
+      }, "פתיחת");
 
       await page.locator("#globalSearchOpen").click();
       const input = page.locator("#globalSearchInput");
@@ -477,11 +513,12 @@ test.describe("critical catalog journeys", () => {
       await expect(firstResult.locator("mark.search-match-highlight").first()).toContainText("פתיחת");
 
       const heartbeat = await page.evaluate(() => {
-        clearInterval(window.__searchHeartbeatTimer);
+        window.__stopSearchHeartbeat?.(false);
         return window.__searchHeartbeat;
       });
+      expect(heartbeat.completed, `Search heartbeat did not observe the latest result: ${JSON.stringify(heartbeat)}`).toBe(true);
       expect(heartbeat.samples).toBeGreaterThan(2);
-      expect(heartbeat.maxGap).toBeLessThan(260);
+      expect(heartbeat.maxGap, `Search heartbeat exceeded the main-thread budget: ${JSON.stringify(heartbeat)}`).toBeLessThan(260);
     } finally {
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
     }
