@@ -8,6 +8,7 @@ const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 const root = path.join(__dirname, '..');
 const app = readAllBundles();
 const css = readAllCssBundles();
+const catalogCssSource = fs.readFileSync(path.join(root, 'src/css/10-catalog.css'), 'utf8');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const favorites = fs.readFileSync(path.join(root, 'favorites.html'), 'utf8');
@@ -48,6 +49,14 @@ assert.match(css, /@keyframes image-placeholder-sheen/);
 assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?contain:\s*layout paint style/);
 assert.doesNotMatch(css, /width var\(--image-swap-duration\)|height var\(--image-swap-duration\)/);
 assert.match(css, /\.viewer-page-indicator\s*\{/);
+
+const pageGridRule = catalogCssSource.match(/\.page-grid\s*\{([\s\S]*?)\}/);
+assert.ok(pageGridRule, 'catalog page grid rule should exist');
+assert.match(
+  pageGridRule[1],
+  /align-items:\s*start/,
+  'mixed-aspect catalog pages must keep each card at its natural height instead of stretching to the tallest page in the row'
+);
 
 const pageThumbRule = css.match(/\.page-thumb\s*\{([\s\S]*?)\}/);
 assert.ok(pageThumbRule, 'catalog preview thumbnail rule should exist');

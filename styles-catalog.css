@@ -1701,6 +1701,11 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .page-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Catalog pages can legitimately mix portrait/square covers with landscape
+     spreads. Keep every card at its own intrinsic content height instead of
+     stretching the whole row to the tallest page and exposing a false white
+     tail below shorter thumbnails. */
+  align-items: start;
   gap: 18px;
   margin-top: 0;
 }
