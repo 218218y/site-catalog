@@ -100,6 +100,29 @@ def test_shared_header_favorites_styles_ship_on_every_application_route() -> Non
     assert "BEGIN SOURCE: src/css/85-favorites-routing.css" not in catalog_bundle
 
 
+def test_shared_floating_ui_styles_ship_on_every_application_route() -> None:
+    specs = {spec.output_name: spec for spec in MODULE.BUNDLE_SPECS}
+    shared_module = "src/css/08-shared-floating-ui.css"
+    application_styles = (
+        "styles-catalog.css",
+        "styles-favorites.css",
+        "styles-viewer.css",
+    )
+
+    assert shared_module not in specs["styles.css"].modules
+    for output_name in application_styles:
+        assert shared_module in specs[output_name].modules
+        bundle = (ROOT / output_name).read_text(encoding="utf-8")
+        assert f"BEGIN SOURCE: {shared_module}" in bundle
+        assert ".site-tooltip {" in bundle
+        assert ".reader-catalog-menu {" in bundle
+        assert ".reader-catalog-menu-item {" in bundle
+
+    viewer_source = (ROOT / "src/css/20-viewer.css").read_text(encoding="utf-8")
+    assert ".site-tooltip {" not in viewer_source
+    assert "\n.reader-catalog-menu {" not in viewer_source
+
+
 def test_generated_bundles_preserve_each_declared_module_order() -> None:
     for spec in MODULE.BUNDLE_SPECS:
         output = (ROOT / spec.output_name).read_text(encoding="utf-8")

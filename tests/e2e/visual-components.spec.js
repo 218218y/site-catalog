@@ -7,6 +7,7 @@ const { test, expect } = require("@playwright/test");
 const COMPARE_CANONICAL_SCREENSHOTS = process.platform === "linux" && process.env.PLAYWRIGHT_VISUAL_BASELINE === "1";
 
 const ROOT = path.join(__dirname, "..", "..");
+const TOOLTIP_MANAGER_PATH = path.join(ROOT, "tooltip-manager.js");
 const ROUTE_STYLES = Object.freeze({
   catalog: fs.readFileSync(path.join(ROOT, "styles-catalog.css"), "utf8"),
   favorites: fs.readFileSync(path.join(ROOT, "styles-favorites.css"), "utf8"),
@@ -140,6 +141,101 @@ function favoriteCard(title, page, note, selected = false) {
 }
 
 test.describe("visual component regression", () => {
+  test("catalog preview switch menu retains the shared reader menu surface", async ({ page }) => {
+    await renderFixture(page, `<section class="catalog-detail visual-fixture">
+      <div class="detail-catalog-picker">
+        <span class="detail-catalog-picker-label">מעבר לקטלוג אחר</span>
+        <button class="button soft detail-catalog-menu-toggle" type="button" aria-expanded="true">בחירת קטלוג</button>
+        <div class="reader-catalog-menu detail-catalog-menu" role="menu">
+          <section class="reader-catalog-menu-section">
+            <h3 class="reader-catalog-menu-category">ארונות</h3>
+            <div class="reader-catalog-menu-items">
+              <button class="reader-catalog-menu-item active" type="button"><strong>קטלוג פתיחה 2026</strong></button>
+              <button class="reader-catalog-menu-item" type="button"><strong>קטלוג הזזה 2026</strong></button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>`, {
+      route: "catalog",
+      bodyAttributes: 'data-page="catalog"',
+      viewport: { width: 1100, height: 720 }
+    });
+
+    const metrics = await page.locator(".detail-catalog-menu").evaluate((menu) => {
+      const items = menu.querySelector(".reader-catalog-menu-items");
+      const item = menu.querySelector(".reader-catalog-menu-item");
+      const menuStyle = getComputedStyle(menu);
+      const itemsStyle = getComputedStyle(items);
+      const itemStyle = getComputedStyle(item);
+      return {
+        position: menuStyle.position,
+        overflowY: menuStyle.overflowY,
+        borderRadius: menuStyle.borderRadius,
+        menuBackground: menuStyle.backgroundImage,
+        itemsDisplay: itemsStyle.display,
+        columns: itemsStyle.gridTemplateColumns,
+        itemDisplay: itemStyle.display,
+        itemRadius: itemStyle.borderRadius,
+        itemBackground: itemStyle.backgroundImage
+      };
+    });
+
+    expect(metrics.position).toBe("absolute");
+    expect(metrics.overflowY).toBe("auto");
+    expect(metrics.borderRadius).toBe("22px");
+    expect(metrics.menuBackground).toContain("linear-gradient");
+    expect(metrics.itemsDisplay).toBe("grid");
+    expect(metrics.columns).not.toBe("none");
+    expect(metrics.itemDisplay).toBe("grid");
+    expect(metrics.itemRadius).toBe("16px");
+    expect(metrics.itemBackground).toContain("linear-gradient");
+  });
+
+  test("catalog footer mail title becomes a styled floating tooltip", async ({ page }) => {
+    await renderFixture(page, `<footer class="site-footer visual-fixture">
+      <div class="site-footer-contact-list">
+        <div class="site-footer-email-row">
+          <span class="site-footer-contact-label">מייל</span>
+          <div class="site-footer-email-actions">
+            <a class="site-footer-email-link" href="mailto:bargig218@gmail.com" title="פתיחה בתוכנת דואר">
+              <bdi dir="ltr">bargig218@gmail.com</bdi>
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>`, {
+      route: "catalog",
+      bodyAttributes: 'data-page="catalog" data-app-ready="true"',
+      viewport: { width: 900, height: 420 }
+    });
+    await page.addScriptTag({ path: TOOLTIP_MANAGER_PATH });
+
+    const mailLink = page.locator(".site-footer-email-link");
+    await expect(mailLink).toHaveAttribute("data-tooltip", "פתיחה בתוכנת דואר");
+    await expect(mailLink).not.toHaveAttribute("title", /.+/);
+    await mailLink.hover();
+
+    const tooltip = page.locator(".site-tooltip");
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText("פתיחה בתוכנת דואר");
+    const style = await tooltip.evaluate((node) => {
+      const computed = getComputedStyle(node);
+      return {
+        position: computed.position,
+        opacity: computed.opacity,
+        zIndex: computed.zIndex,
+        background: computed.backgroundImage,
+        pointerEvents: computed.pointerEvents
+      };
+    });
+    expect(style.position).toBe("fixed");
+    expect(style.opacity).toBe("1");
+    expect(style.zIndex).toBe("9999");
+    expect(style.background).toContain("linear-gradient");
+    expect(style.pointerEvents).toBe("none");
+  });
+
   test("header favorites shortcut keeps the same badge geometry on every route bundle", async ({ page }) => {
     const routeMetrics = {};
     for (const route of ["catalog", "favorites", "viewer"]) {

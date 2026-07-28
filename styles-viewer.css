@@ -5,6 +5,7 @@
  *   - src/css/00-foundation.css
  *   - src/css/05-viewer-onboarding.css
  *   - src/css/06-shell-components.css
+ *   - src/css/08-shared-floating-ui.css
  *   - src/css/10-catalog.css
  *   - src/css/20-viewer.css
  *   - src/css/24-shared-inquiry.css
@@ -1155,6 +1156,167 @@ main {
   letter-spacing: -0.04em;
 }
 /* ===== END SOURCE: src/css/06-shell-components.css ===== */
+
+/* ===== BEGIN SOURCE: src/css/08-shared-floating-ui.css ===== */
+/**
+ * Source stylesheet: 08-shared-floating-ui.css
+ * Shared floating surfaces used by every interactive route.
+ *
+ * Owns the application tooltip presentation and the reusable catalog-switch
+ * menu structure. Route-specific modules may refine these surfaces, but the
+ * base behavior must not live inside the Viewer-only stylesheet.
+ */
+
+.site-tooltip {
+  position: fixed;
+  inset: auto auto auto auto;
+  z-index: 9999;
+  max-width: min(320px, calc(100vw - 20px));
+  padding: 9px 12px;
+  border-radius: 13px;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(45, 34, 27, 0.97), rgba(26, 21, 18, 0.96));
+  border: 1px solid rgba(255,255,255,0.16);
+  box-shadow: 0 18px 42px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.12);
+  backdrop-filter: blur(14px);
+  font-size: .84rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px) scale(.985);
+  transition: opacity .14s ease, transform .14s ease;
+}
+.site-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.site-tooltip.hidden {
+  display: none;
+}
+.site-tooltip::after {
+  content: "";
+  position: absolute;
+  left: var(--site-tooltip-arrow-x, 50%);
+  width: 10px;
+  height: 10px;
+  background: rgba(26, 21, 18, 0.96);
+  border: 1px solid rgba(255,255,255,0.13);
+  transform: translateX(-50%) rotate(45deg);
+}
+.site-tooltip-above::after {
+  bottom: -6px;
+  border-top: 0;
+  border-left: 0;
+}
+.site-tooltip-below::after {
+  top: -6px;
+  border-right: 0;
+  border-bottom: 0;
+  background: rgba(45, 34, 27, 0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-tooltip { transition: none; }
+}
+
+.reader-catalog-menu {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% + 9px);
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100vw - 32px), 780px);
+  max-height: min(480px, calc(100vh - 82px));
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.13));
+  border-radius: 22px;
+  background: var(--viewer-chrome-surface, linear-gradient(180deg, rgba(28,24,21,0.98), rgba(9,8,7,0.96)));
+  box-shadow: var(--viewer-chrome-shadow, 0 24px 68px rgba(0,0,0,0.48));
+  backdrop-filter: blur(18px);
+}
+.reader-catalog-menu::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: auto;
+  left: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  background: var(--viewer-chrome-surface-solid, rgba(28,24,21,0.98));
+  border-top: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.12));
+  border-left: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.12));
+}
+.reader-catalog-menu-section + .reader-catalog-menu-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(217, 186, 163, 0.26);
+}
+.reader-catalog-menu-category {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 4px 9px;
+  color: var(--viewer-chrome-muted, rgba(255,255,255,0.76));
+  font-size: .82rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+.reader-catalog-menu-category::before,
+.reader-catalog-menu-category::after {
+  content: "";
+  height: 1px;
+  flex: 1 1 auto;
+  background: linear-gradient(90deg, transparent, rgba(217, 186, 163, 0.28), transparent);
+}
+.reader-catalog-menu-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.reader-catalog-menu-item {
+  min-width: 0;
+  display: grid;
+  padding: 10px 12px;
+  border: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.1));
+  border-radius: 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--viewer-chrome-text, #fff);
+  background: var(--viewer-control-soft-bg, linear-gradient(180deg, rgba(255,255,255,0.105), rgba(255,255,255,0.055)));
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  box-shadow: var(--viewer-control-inner-shadow, none);
+  transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.reader-catalog-menu-item:hover,
+.reader-catalog-menu-item.active {
+  background: var(--viewer-control-hover-bg, linear-gradient(180deg, rgba(217, 186, 163, 0.26), rgba(217, 186, 163, 0.12)));
+  border-color: var(--viewer-chrome-border-strong, rgba(217, 186, 163, 0.42));
+  box-shadow: var(--viewer-control-hover-shadow, 0 12px 28px rgba(0,0,0,0.2));
+}
+.reader-catalog-menu-item:hover {
+  transform: translateY(-1px);
+}
+.reader-catalog-menu-item strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .94rem;
+}
+.reader-catalog-menu-empty {
+  padding: 14px;
+  color: var(--viewer-chrome-muted, rgba(255,255,255,0.65));
+  text-align: center;
+}
+/* ===== END SOURCE: src/css/08-shared-floating-ui.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/10-catalog.css ===== */
 /**
@@ -3144,58 +3306,7 @@ a.reader-home:focus-visible {
   border-color: var(--viewer-chrome-border-strong, rgba(255,255,255,0.34)) !important;
 }
 
-.site-tooltip {
-  position: fixed;
-  inset: auto auto auto auto;
-  z-index: 9999;
-  max-width: min(320px, calc(100vw - 20px));
-  padding: 9px 12px;
-  border-radius: 13px;
-  color: #fff;
-  background: linear-gradient(180deg, rgba(45, 34, 27, 0.97), rgba(26, 21, 18, 0.96));
-  border: 1px solid rgba(255,255,255,0.16);
-  box-shadow: 0 18px 42px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.12);
-  backdrop-filter: blur(14px);
-  font-size: .84rem;
-  font-weight: 800;
-  line-height: 1.45;
-  text-align: center;
-  white-space: normal;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(4px) scale(.985);
-  transition: opacity .14s ease, transform .14s ease;
-}
-.site-tooltip.visible {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-.site-tooltip.hidden {
-  display: none;
-}
-.site-tooltip::after {
-  content: "";
-  position: absolute;
-  left: var(--site-tooltip-arrow-x, 50%);
-  width: 10px;
-  height: 10px;
-  background: rgba(26, 21, 18, 0.96);
-  border: 1px solid rgba(255,255,255,0.13);
-  transform: translateX(-50%) rotate(45deg);
-}
-.site-tooltip-above::after {
-  bottom: -6px;
-  border-top: 0;
-  border-left: 0;
-}
-.site-tooltip-below::after {
-  top: -6px;
-  border-right: 0;
-  border-bottom: 0;
-  background: rgba(45, 34, 27, 0.97);
-}
 @media (prefers-reduced-motion: reduce) {
-  .site-tooltip { transition: none; }
   .page-thumb,
   .lightbox-image-frame.page-swap-enter {
     animation: none !important;
@@ -3448,104 +3559,6 @@ a.reader-home:focus-visible {
 .reader-search-scope-menu button.active::after {
   opacity: 1;
 }
-.reader-catalog-menu {
-  position: absolute;
-  z-index: 120;
-  top: calc(100% + 9px);
-  right: auto;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(calc(100vw - 32px), 780px);
-  max-height: min(480px, calc(100vh - 82px));
-  overflow: auto;
-  margin: 0;
-  padding: 10px;
-  border: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.13));
-  border-radius: 22px;
-  background: var(--viewer-chrome-surface, linear-gradient(180deg, rgba(28,24,21,0.98), rgba(9,8,7,0.96)));
-  box-shadow: var(--viewer-chrome-shadow, 0 24px 68px rgba(0,0,0,0.48));
-  backdrop-filter: blur(18px);
-}
-.reader-catalog-menu::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  right: auto;
-  left: calc(50% - 5px);
-  width: 10px;
-  height: 10px;
-  transform: rotate(45deg);
-  background: var(--viewer-chrome-surface-solid, rgba(28,24,21,0.98));
-  border-top: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.12));
-  border-left: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.12));
-}
-.reader-catalog-menu-section + .reader-catalog-menu-section {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(217, 186, 163, 0.26);
-}
-.reader-catalog-menu-category {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 4px 9px;
-  color: var(--viewer-chrome-muted, rgba(255,255,255,0.76));
-  font-size: .82rem;
-  font-weight: 900;
-  letter-spacing: .04em;
-}
-.reader-catalog-menu-category::before,
-.reader-catalog-menu-category::after {
-  content: "";
-  height: 1px;
-  flex: 1 1 auto;
-  background: linear-gradient(90deg, transparent, rgba(217, 186, 163, 0.28), transparent);
-}
-.reader-catalog-menu-items {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.reader-catalog-menu-item {
-  min-width: 0;
-  display: grid;
-  padding: 10px 12px;
-  border: 1px solid var(--viewer-chrome-border, rgba(255,255,255,0.1));
-  border-radius: 16px;
-  appearance: none;
-  -webkit-appearance: none;
-  color: var(--viewer-chrome-text, #fff);
-  background: var(--viewer-control-soft-bg, linear-gradient(180deg, rgba(255,255,255,0.105), rgba(255,255,255,0.055)));
-  font: inherit;
-  text-align: right;
-  cursor: pointer;
-  box-shadow: var(--viewer-control-inner-shadow, none);
-  transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
-}
-.reader-catalog-menu-item:hover,
-.reader-catalog-menu-item.active {
-  background: var(--viewer-control-hover-bg, linear-gradient(180deg, rgba(217, 186, 163, 0.26), rgba(217, 186, 163, 0.12)));
-  border-color: var(--viewer-chrome-border-strong, rgba(217, 186, 163, 0.42));
-  box-shadow: var(--viewer-control-hover-shadow, 0 12px 28px rgba(0,0,0,0.2));
-}
-.reader-catalog-menu-item:hover {
-  transform: translateY(-1px);
-}
-.reader-catalog-menu-item strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: .94rem;
-}
-.reader-catalog-menu-empty {
-  color: var(--viewer-chrome-muted, rgba(255,255,255,0.65));
-}
-.reader-catalog-menu-empty {
-  padding: 14px;
-  text-align: center;
-}
-
 
 .lightbox-search {
   min-width: 0;

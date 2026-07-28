@@ -104,6 +104,7 @@ CORE_CSS_MODULES: tuple[str, ...] = (
 CATALOG_CSS_MODULES: tuple[str, ...] = (
     "src/css/00-foundation.css",
     "src/css/06-shell-components.css",
+    "src/css/08-shared-floating-ui.css",
     "src/css/10-catalog.css",
     "src/css/30-media-components.css",
     "src/css/40-catalog-refinements.css",
@@ -117,6 +118,7 @@ CATALOG_CSS_MODULES: tuple[str, ...] = (
 FAVORITES_CSS_MODULES: tuple[str, ...] = (
     "src/css/00-foundation.css",
     "src/css/06-shell-components.css",
+    "src/css/08-shared-floating-ui.css",
     "src/css/10-catalog.css",
     "src/css/24-shared-inquiry.css",
     "src/css/30-media-components.css",
@@ -134,6 +136,7 @@ VIEWER_CSS_MODULES: tuple[str, ...] = (
     "src/css/00-foundation.css",
     "src/css/05-viewer-onboarding.css",
     "src/css/06-shell-components.css",
+    "src/css/08-shared-floating-ui.css",
     "src/css/10-catalog.css",
     "src/css/20-viewer.css",
     "src/css/24-shared-inquiry.css",
