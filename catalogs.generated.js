@@ -1858,7 +1858,7 @@ window.BARGIG_CATALOGS = [
   },
   {
     "id": "kachtan-2026",
-    "title": "היי רייזר קחטן 2026",
+    "title": "היי ריזר קחטן 2026",
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "pages": 39,
