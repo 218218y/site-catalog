@@ -4788,10 +4788,11 @@ function positionSearchFloatingPreview(target) {
   const targetRect = target.getBoundingClientRect();
   const gap = 16;
   const safeMargin = 12;
-  const fallbackWidth = Math.min(430, Math.max(260, window.innerWidth * 0.34));
-  const previewWidth = Math.max(240, preview.offsetWidth || fallbackWidth);
-  const fallbackHeight = Math.min(620, Math.max(280, window.innerHeight * 0.64));
-  const previewHeight = Math.max(240, preview.offsetHeight || fallbackHeight);
+  const fallbackWidth = Math.min(430, Math.max(180, window.innerWidth * 0.34));
+  const fallbackHeight = Math.min(620, Math.max(180, window.innerHeight * 0.64));
+  const previewRect = preview.getBoundingClientRect();
+  const previewWidth = previewRect.width || fallbackWidth;
+  const previewHeight = previewRect.height || fallbackHeight;
 
   let left;
   if (targetRect.left - gap - previewWidth >= safeMargin) {
@@ -4817,11 +4818,11 @@ function showSearchFloatingPreview(target) {
   if (!src) return;
 
   const label = searchPreviewPageLabel(target);
-  const previewCatalog = findCatalogById(target.dataset.searchCatalog || target.dataset.lightboxSearchCatalog);
-  const previewPage = clampPage(target.dataset.searchPage || target.dataset.lightboxSearchPage, previewCatalog);
-  applyCatalogImageDimensions(searchElements.searchFloatingPreviewImage, previewCatalog, previewPage);
-  searchElements.searchFloatingPreviewImage.onload = () => positionSearchFloatingPreview(target);
-  setCatalogImageSource(searchElements.searchFloatingPreviewImage, src);
+  const previewImage = searchElements.searchFloatingPreviewImage;
+  previewImage.removeAttribute("width");
+  previewImage.removeAttribute("height");
+  previewImage.onload = () => positionSearchFloatingPreview(target);
+  setCatalogImageSource(previewImage, src);
   searchElements.searchFloatingPreviewImage.alt = label;
   if (searchElements.searchFloatingPreviewPage) searchElements.searchFloatingPreviewPage.textContent = label;
 

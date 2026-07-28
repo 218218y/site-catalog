@@ -394,11 +394,16 @@
   scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
+/* Grid rows use the tallest result in each row. Make the card a flex owner so
+   its single button grows with that visible frame and every empty-looking area
+   remains part of the same native button hit target. */
 .search-panel.global-search-popover .search-result-card {
   height: auto;
   min-height: 0;
+  display: flex;
 }
 .search-panel.global-search-popover .search-result-button {
+  flex: 1 1 auto;
   height: auto;
   min-height: 0;
   grid-template-rows: auto auto;
@@ -697,15 +702,19 @@
   border-radius: 14px;
   background: linear-gradient(135deg, #ede2d9, #d8c1b0);
 }
+/* The preview must shrink-wrap the image instead of forcing every page into
+   one fixed-width box. Intrinsic image sizing plus viewport caps preserves the
+   real aspect ratio without letterbox space or additional resize listeners. */
 .search-floating-preview {
   position: fixed;
   z-index: 120;
   top: 50%;
   left: 50%;
-  width: min(430px, 34vw);
-  min-width: min(260px, calc(100vw - 28px));
+  width: fit-content;
+  min-width: 0;
   max-width: calc(100vw - 28px);
   padding: 9px;
+  box-sizing: border-box;
   border-radius: 22px;
   color: #fff;
   background: rgba(11,9,8,0.88);
@@ -723,8 +732,10 @@
 }
 .search-floating-preview img {
   display: block;
-  width: 100%;
-  max-height: min(72vh, 620px);
+  width: auto;
+  height: auto;
+  max-width: min(430px, calc(100vw - 46px));
+  max-height: min(72vh, 620px, calc(100vh - 46px));
   border-radius: 15px;
   object-fit: contain;
   background: #fff;

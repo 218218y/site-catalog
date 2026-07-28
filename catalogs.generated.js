@@ -1388,28 +1388,28 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/hi-riser-qualita-2026",
     "cover": "assets/pages/hi-riser-qualita-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "333f9db6d2d4",
+    "assetVersion": "1b81d3dbed35",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
         "maxSide": 420,
-        "version": "b8aab6f181c6"
+        "version": "e7343a5d0c64"
       },
       "medium": {
         "directory": "medium",
         "maxSide": 1600,
-        "version": "bdcc27bfbe70"
+        "version": "f6cca2e695ad"
       },
       "full": {
         "directory": "",
         "maxSide": 2800,
-        "version": "67d86bfef5ef"
+        "version": "a69e696077f3"
       }
     },
     "pageSizes": [
       [
-        2252,
-        2252
+        2800,
+        1400
       ],
       [
         2800,
