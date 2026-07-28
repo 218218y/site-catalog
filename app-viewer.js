@@ -8137,9 +8137,10 @@ function positionLightboxFloatingPreview(button) {
   if (!preview || !button) return;
 
   const buttonRect = button.getBoundingClientRect();
+  const previewRect = preview.getBoundingClientRect();
 
   if (isLightboxPageRailTrigger(button)) {
-    const previewHeight = Math.max(240, preview.offsetHeight || Math.min(620, window.innerHeight * 0.74));
+    const previewHeight = previewRect.height || Math.min(620, window.innerHeight * 0.74);
     const railRect = button.closest?.(".lightbox-page-rail")?.getBoundingClientRect?.();
     const centerY = Math.min(
       window.innerHeight - (previewHeight / 2) - 14,
@@ -8154,7 +8155,7 @@ function positionLightboxFloatingPreview(button) {
     return;
   }
 
-  const previewWidth = Math.max(240, preview.offsetWidth || Math.min(420, window.innerWidth * 0.34));
+  const previewWidth = previewRect.width || Math.min(420, window.innerWidth * 0.34);
   const centerX = Math.min(
     window.innerWidth - (previewWidth / 2) - 14,
     Math.max((previewWidth / 2) + 14, buttonRect.left + (buttonRect.width / 2))
@@ -8174,9 +8175,12 @@ function showLightboxFloatingPreview(button) {
   if (!previewCatalog) return;
   const page = clampPage(button.dataset.previewPage || button.dataset.page, previewCatalog);
   const src = button.dataset.previewSrc || pageSrc(previewCatalog, page);
-  applyCatalogImageDimensions(viewerElements.lightboxFloatingPreviewImage, previewCatalog, page);
-  setCatalogImageSource(viewerElements.lightboxFloatingPreviewImage, src);
-  viewerElements.lightboxFloatingPreviewImage.alt = `${previewCatalog.title} - עמוד ${page}`;
+  const previewImage = viewerElements.lightboxFloatingPreviewImage;
+  previewImage.removeAttribute("width");
+  previewImage.removeAttribute("height");
+  previewImage.onload = () => positionLightboxFloatingPreview(button);
+  setCatalogImageSource(previewImage, src);
+  previewImage.alt = `${previewCatalog.title} - עמוד ${page}`;
   if (viewerElements.lightboxFloatingPreviewPage) {
     viewerElements.lightboxFloatingPreviewPage.textContent = isFavoritesLightboxMode()
       ? `${previewCatalog.title} · עמוד ${page}`

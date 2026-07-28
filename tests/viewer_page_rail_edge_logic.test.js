@@ -13,6 +13,33 @@ assert.match(
   /--viewer-page-rail-edge-zone:\s*40px;/,
   'the page-rail activation strip should remain exactly 40px wide'
 );
+assert.match(
+  viewerCss,
+  /\.lightbox-floating-preview\s*\{[^}]*width:\s*fit-content;[^}]*min-width:\s*0;/,
+  'the viewer preview shell must shrink-wrap the intrinsic image instead of reserving a fixed-width box'
+);
+assert.match(
+  viewerCss,
+  /\.lightbox-floating-preview img\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;[^}]*max-width:\s*min\(420px, calc\(100vw - 46px\)\);/,
+  'the viewer preview image must keep its natural aspect ratio under viewport caps'
+);
+assert.match(
+  viewerCss,
+  /\.lightbox-floating-preview\.from-page-rail\s*\{[^}]*width:\s*fit-content;/,
+  'the page-rail preview variant must not restore the old fixed width'
+);
+assert.match(source, /const previewRect = preview\.getBoundingClientRect\(\);/);
+assert.match(
+  source,
+  /previewImage\.removeAttribute\("width"\);[\s\S]*?previewImage\.removeAttribute\("height"\);[\s\S]*?previewImage\.onload = \(\) => positionLightboxFloatingPreview\(button\);/,
+  'the floating preview must discard metadata dimensions and reposition after the real image loads'
+);
+assert.doesNotMatch(source, /Math\.max\(240, preview\.(?:offsetWidth|offsetHeight)/);
+assert.doesNotMatch(
+  source,
+  /applyCatalogImageDimensions\(viewerElements\.lightboxFloatingPreviewImage/,
+  'the viewer preview must not force generated page dimensions onto the intrinsic image box'
+);
 
 function sourceBetween(startMarker, endMarker, input = source) {
   const start = input.indexOf(startMarker);

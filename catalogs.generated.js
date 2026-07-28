@@ -1388,22 +1388,22 @@ window.BARGIG_CATALOGS = [
     "dir": "assets/pages/hi-riser-qualita-2026",
     "cover": "assets/pages/hi-riser-qualita-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "1b81d3dbed35",
+    "assetVersion": "b11dd5d5702b",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
         "maxSide": 420,
-        "version": "e7343a5d0c64"
+        "version": "5b6f14e7dc2a"
       },
       "medium": {
         "directory": "medium",
         "maxSide": 1600,
-        "version": "f6cca2e695ad"
+        "version": "628ee290e0a7"
       },
       "full": {
         "directory": "",
         "maxSide": 2800,
-        "version": "a69e696077f3"
+        "version": "fbb47bfdf567"
       }
     },
     "pageSizes": [
@@ -1480,8 +1480,8 @@ window.BARGIG_CATALOGS = [
         1400
       ],
       [
-        2252,
-        2252
+        2800,
+        1400
       ]
     ],
     "subcategory": "היי ריזר"
