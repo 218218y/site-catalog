@@ -297,9 +297,9 @@ def test_css_asset_urls_are_rebased_before_fingerprinting(tmp_path: Path) -> Non
     out = tmp_path / "bundle"
     out.mkdir()
     write_asset(out, "brand-logo.svg", b"<svg></svg>")
-    (out / "styles.css").write_text(
-        ':root { --logo: url("brand-logo.svg"); }\n',
-        encoding="utf-8",
+    (out / "styles.css").write_bytes(
+        b':root { --logo: url("brand-logo.svg"); }\r\n'
+        b'.brand { background-image: var(--logo); }\r\n'
     )
     for html_name in MODULE.FINGERPRINT_HTML_FILES:
         (out / html_name).write_text(
@@ -310,11 +310,14 @@ def test_css_asset_urls_are_rebased_before_fingerprinting(tmp_path: Path) -> Non
     rewrite_map = MODULE.fingerprint_bundle_assets(out)
 
     css_relative = Path(rewrite_map["styles.css"])
-    css = (out / css_relative).read_text(encoding="utf-8")
+    css_path = out / css_relative
+    css_bytes = css_path.read_bytes()
+    css = css_bytes.decode("utf-8")
     assert 'url("../brand-logo.svg")' in css
+    assert b"\r" not in css_bytes
     assert (out / "brand-logo.svg").is_file()
     assert not (out / "static" / "brand-logo.svg").exists()
-    assert MODULE.content_hash(out / css_relative) == css_relative.name.split(".")[-2]
+    assert MODULE.content_hash(css_path) == css_relative.name.split(".")[-2]
 
 
 def test_css_rebase_rejects_missing_local_dependencies(tmp_path: Path) -> None:

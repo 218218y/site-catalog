@@ -636,7 +636,11 @@ def rebase_css_asset_urls(source: Path, target_dir: Path, bundle_root: Path) -> 
 
     rewritten = CSS_URL_RE.sub(replace_url, text)
     if changed:
-        source.write_text(rewritten, encoding="utf-8")
+        # ``normalize_fingerprinted_text`` deliberately converts deploy assets
+        # to LF before hashing.  Keep that invariant when URL rebasing writes
+        # the stylesheet again; the platform default would expand every LF to
+        # CRLF on Windows and add one meaningless byte per CSS line.
+        source.write_text(rewritten, encoding="utf-8", newline="\n")
 
 
 def fingerprint_search_runtime_assets(out_dir: Path) -> dict[str, str]:
