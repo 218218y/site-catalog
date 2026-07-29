@@ -12,7 +12,6 @@ const viewerBundle = readBundle('viewer');
 const catalogCss = readCssBundle('catalog');
 const favoritesCss = readCssBundle('favorites');
 const viewerCss = readCssBundle('viewer');
-const legacyLoader = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 const deployBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
 const frontendBuilder = fs.readFileSync(path.join(root, 'tools', 'build_frontend_assets.py'), 'utf8');
@@ -20,18 +19,17 @@ const esbuildRunner = fs.readFileSync(path.join(root, 'tools', 'build_frontend_e
 const contractChecker = fs.readFileSync(path.join(root, 'tools', 'check_frontend_contracts.py'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+const telemetrySource = fs.readFileSync(path.join(root, 'src', 'js', '15-telemetry.js'), 'utf8');
 
 const sourceMarker = (relativePath) => ` *   - ${relativePath}`;
 
 for (const bundle of [catalogBundle, favoritesBundle, viewerBundle]) {
   assert.match(bundle, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
   assert.match(bundle, /Bundler: esbuild 0\.28\.1 \(direct pinned devDependency\)/);
-  assert.match(bundle, /\(\(\) => \{\s*["']use strict["'];/);
-  assert.match(bundle, /\}\)\(\);\s*$/);
+  assert.match(bundle, /Output format: native browser ES module/);
   assert.equal((bundle.match(/let initResult = true;/g) || []).length, 1);
   assert.equal((bundle.match(/initResult = init\(\);/g) || []).length, 1);
-  assert.doesNotMatch(bundle, /^\s*import\s/m);
-  assert.doesNotMatch(bundle, /^\s*export\s/m);
+  assert.doesNotMatch(bundle, /\(\(\) => \{/);
   assert.doesNotMatch(bundle, /__BARGIG_TEST_EXPORTS__/);
 }
 for (const css of [catalogCss, favoritesCss, viewerCss]) {
@@ -56,18 +54,17 @@ assert.match(frontendBuilder, /DEPLOY_GENERATED_FILES/);
 assert.match(frontendBuilder, /def atomic_write_text/);
 assert.match(frontendBuilder, /def build_frontend_assets/);
 assert.match(frontendBuilder, /def validate_module_manifest/);
-assert.match(frontendBuilder, /def render_legacy_loader/);
+assert.match(frontendBuilder, /def remove_obsolete_generated_files/);
+assert.match(frontendBuilder, /results = tuple\(build_one/);
+assert.match(frontendBuilder, /_partition_metafile_inputs/);
 assert.match(esbuildRunner, /import \{ build, version as esbuildVersion \} from "esbuild"/);
 assert.match(esbuildRunner, /EXPECTED_ESBUILD_VERSION = "0\.28\.1"/);
 assert.match(esbuildRunner, /entryPoints: \[entry\]/);
 assert.match(esbuildRunner, /bundle: true/);
-assert.match(esbuildRunner, /format: "iife"/);
+assert.match(esbuildRunner, /format: "esm"/);
 assert.match(esbuildRunner, /treeShaking: true/);
 assert.match(esbuildRunner, /metafile: true/);
-assert.match(legacyLoader, /GENERATED COMPATIBILITY LOADER/);
-assert.match(legacyLoader, /app-catalog\.js/);
-assert.match(legacyLoader, /app-favorites\.js/);
-assert.match(legacyLoader, /app-viewer\.js/);
+assert.equal(fs.existsSync(path.join(root, 'app.js')), false, 'obsolete compatibility loader must be removed');
 
 assert.match(pageBuilder, /from build_frontend_assets import ROUTE_ASSETS, build_frontend_assets/);
 assert.match(pageBuilder, /ROUTE_STYLESHEET/);
@@ -118,6 +115,9 @@ assert.match(contractChecker, /APPROVED_IMPORT_CYCLES/);
 assert.match(contractChecker, /unapproved ES-module dependency cycle/);
 assert.match(contractChecker, /Viewer implementation reaches into search internals/);
 assert.match(contractChecker, /Search implementation reaches into Viewer internals/);
-assert.match(contractChecker, /app\.js is still a monolithic bundle/);
+assert.match(contractChecker, /obsolete compatibility loader remains/);
+assert.match(contractChecker, /native ES module depends on document\.currentScript/);
+assert.doesNotMatch(telemetrySource, /document\.currentScript/);
+assert.match(telemetrySource, /script\[type=module\]\[data-bargig-route-module\]/);
 
 console.log('frontend_modules_contract.test.js: PASS');

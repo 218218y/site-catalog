@@ -4,14 +4,13 @@ const assert = require("node:assert/strict");
 const { importFrontendTestModule } = require("./frontend_test_module");
 
 global.window = {};
-global.document = { currentScript: null };
+global.document = { querySelector: () => null };
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
 const { telemetryResolveReleaseId } = importFrontendTestModule("src/js/15-telemetry.js", "telemetry");
 
 function resolve(windowValue, scriptSrc) {
   global.window = windowValue;
-  global.document = { currentScript: scriptSrc ? { src: scriptSrc } : null };
-  return telemetryResolveReleaseId();
+  return telemetryResolveReleaseId(scriptSrc);
 }
 
 assert.equal(resolve({}, "https://example.test/static/app.cb9e905e5526.js"), "app-cb9e905e5526");

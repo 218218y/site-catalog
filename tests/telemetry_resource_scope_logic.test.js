@@ -9,7 +9,7 @@ global.window = {
     origin: "https://bargig-furniture.com"
   }
 };
-global.document = { currentScript: null };
+global.document = { querySelector: () => null };
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
 global.CATALOG_IMAGE_RETRY_PARAM = "retry";
 

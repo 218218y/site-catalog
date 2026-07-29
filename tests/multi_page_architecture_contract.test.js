@@ -18,7 +18,7 @@ for (const [filename, { mode, script, stylesheet }] of Object.entries(pages)) {
   assert.match(html, new RegExp(`<body data-page="${mode}"`));
   assert.doesNotMatch(html, /data-clean-routes/);
   assert.match(html, new RegExp(`<link rel="stylesheet" href="${stylesheet.replace(".", "\\.")}"`));
-  assert.match(html, new RegExp(`<script src="${script.replace(".", "\\.")}"><\/script>`));
+  assert.match(html, new RegExp(`<script type="module" data-bargig-route-module src="${script.replace(".", "\\.")}"><\/script>`));
   assert.doesNotMatch(html, /<script src="app\.js"><\/script>/);
   assert.doesNotMatch(html, /page-transition\.js|sitePageTransition|site-page-transition|site-transition-(?:pending|leaving|entering)/);
   assert.match(html, /href="index\.html" aria-label="רהיטי ברגיג - דף הבית"/);

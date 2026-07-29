@@ -6,8 +6,8 @@
 
 - עורכים JavaScript תחת `src/js`, נקודות כניסה תחת `src/entries`, ו־CSS תחת `src/css`.
 - `app-catalog.js`, `app-favorites.js`, `app-viewer.js` וקובצי `styles-*.css` הם תוצרים אוטומטיים.
-- `app.js` הוא loader תאימות קטן בלבד. אסור להחזיר אליו קוד יישום מונוליטי.
-- כל קובץ runtime הוא ES Module אמיתי. כל Route מתחיל ב־entrypoint קטן תחת `src/entries`, ו־esbuild אורז את גרף ה־imports ל־IIFE פרטי ב־strict mode לצורך תאימות ל־HTML הקיים.
+- אין `app.js` או loader תאימות. כל מסלול טוען ES Module ייעודי באמצעות `type="module"`.
+- כל קובץ runtime הוא ES Module אמיתי. כל Route מתחיל ב־entrypoint קטן תחת `src/entries`, ו־esbuild אורז את גרף ה־imports ל־ES Module יחיד וייעודי למסלול. התוצר נטען ישירות באמצעות `type="module"`, ללא מעטפת IIFE וללא loader תאימות.
 - Feature אינו קורא state או DOM שבבעלות Feature אחר. תקשורת חוצת־Features נעשית דרך `registerFeatureInterface()` ו־`getFeatureInterface()`.
 - כל שם Feature וכל API שלו מוגדרים במפת `FeatureRegistry`; אין registry פתוח של strings ואין חוזה־על שבו כל הפעולות אופציונליות.
 - state, הפניות DOM ורישום אירועים נמצאים בבעלות תחומית מפורשת.
@@ -80,8 +80,8 @@
 
 - `esbuild` הוא `devDependency` ישיר ומקובע בדיוק ל־`0.28.1`; גם `package-lock.json` מקבע את חבילת הליבה ואת הבינארי הפלטפורמי. `tools/build_frontend_esbuild.mjs` מסרב לעבוד עם גרסה אחרת.
 - נקודות הכניסה הן `src/entries/catalog.js`, `src/entries/favorites.js` ו־`src/entries/viewer.js`. הן מכילות imports סטטיים בלבד ואינן מחזיקות state או לוגיקה עסקית.
-- `tools/build_frontend_assets.py` מחזיק manifest נבדק לכל Route. לאחר bundling הוא משווה את כל `metafile.inputs` לגרף המאושר; תלות טרנזיטיבית חדשה, חסרה או לא צפויה מכשילה את הבנייה.
-- שמות התוצרים נשמרים: `app-catalog.js`, `app-favorites.js`, `app-viewer.js`. הפורמט נשאר IIFE כדי שה־HTML, ה־CSP וה־loader ההיסטורי לא יצטרכו שינוי.
+- `tools/build_frontend_assets.py` מחזיק manifest נבדק לכל Route. לאחר bundling הוא מפריד בין קובצי מקור פיזיים לבין קלטי compiler וירטואליים כגון `<define:...>`. הגרף הפיזי מושווה במדויק ל־manifest המאושר, וקלט וירטואלי שאינו ברשימת ה־defines המוכרת מכשיל את הבנייה.
+- שמות התוצרים נשמרים: `app-catalog.js`, `app-favorites.js`, `app-viewer.js`. הפורמט הוא `esm`, וה־HTML טוען אותם באמצעות `<script type="module">`; אין IIFE ואין loader היסטורי.
 - route capability flags מוזרקים בזמן build דרך `01-route-capabilities.js`, אבל הם אינם תחליף ל־tree shaking: Feature שאינו במסלול חייב להיעדר פיזית מהגרף.
 - אין `dynamic import` בשלב זה. `catalog` ו־`favorites` כבר מפוצלים לפי מסלול, ולכן טעינה דינמית הייתה מוסיפה latency ומסלול כשל בלי חיסכון משמעותי. ב־Viewer היא אף מסוכנת יותר: Search, Catalog Grid ו־Favorites Workspace חייבים להיות זמינים באותו document כדי שמעבר בזמן fullscreen לא יגרום ליציאה ממסך מלא. החלטה זו נבחנת מחדש רק אם מדידה תראה חיסכון ממשי שמצדיק את המורכבות.
 - גרף ה־imports נבדק באמצעות strongly connected components. מחזור בין תחומים או בין Features אסור. המחזור היחיד המאושר הוא בתוך תת־המודולים הקוהרנטיים של Viewer, שבהם אין הפעלת lifecycle ברמת top-level; TypeScript, esbuild ובדיקות הדפדפן משמשים יחד כשער נגד TDZ או סדר אתחול שגוי.
@@ -92,7 +92,7 @@
 | מודול | אחריות |
 |---|---|
 | `00-navigation.js` | כתובות, history, ניווט פנימי ומטא־דאטה |
-| `01-route-capabilities.js` | יכולות Route מוזרקות בזמן build |
+| `01-route-capabilities.js` | יכולות Route מוזרקות בזמן build ומאומתות כקלט compiler וירטואלי |
 | `02-dom-contracts.js` | lookup טיפוסי וחוזי DOM משותפים |
 | `03-runtime-context.js` | נתוני bootstrap לקריאה בלבד: קטלוגים, חיפוש ו־routes |
 | `05-app-contracts.js` | טיפוסי JSDoc וחוזי Feature משותפים |

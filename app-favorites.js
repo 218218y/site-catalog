@@ -1,15 +1,20 @@
 /*
  * GENERATED FILE — DO NOT EDIT DIRECTLY.
  * Browser bundle: app-favorites.js
- * Source modules:
+ * ES module entrypoint: src/entries/favorites.js
+ * Bundled ES module graph:
+ *   - src/entries/favorites.js
  *   - src/js/00-navigation.js
- *   - src/js/05-app-contracts.js
+ *   - src/js/01-route-capabilities.js
+ *   - src/js/02-dom-contracts.js
+ *   - src/js/03-runtime-context.js
  *   - src/js/10-app-state.js
  *   - src/js/11-navigation-state.js
  *   - src/js/12-catalog-state.js
  *   - src/js/13-search-state.js
  *   - src/js/14-favorites-state.js
  *   - src/js/15-telemetry.js
+ *   - src/js/17-catalog-asset-urls.js
  *   - src/js/18-navigation-feature.js
  *   - src/js/19-shared-pure.js
  *   - src/js/20-shared-ui.js
@@ -22,476 +27,395 @@
  *   - src/js/50-search-ui.js
  *   - src/js/80-app-shell.js
  *   - src/js/90-bootstrap.js
+ * Compiler virtual inputs: <define:__BARGIG_FEATURE_CAPABILITIES__>
+ * Output format: native browser ES module
+ * Bundler: esbuild 0.28.1 (direct pinned devDependency)
  * Build command: python tools/build_frontend_assets.py
  */
+// <define:__BARGIG_FEATURE_CAPABILITIES__>
+var define_BARGIG_FEATURE_CAPABILITIES_default = { viewer: !1, favoritesWorkspace: !0, catalogGrid: !0, search: !0 };
 
-(() => {
-"use strict";
+// src/js/01-route-capabilities.js
+var resolvedFeatureCapabilities = typeof define_BARGIG_FEATURE_CAPABILITIES_default == "object" ? define_BARGIG_FEATURE_CAPABILITIES_default : { viewer: !1, favoritesWorkspace: !1, catalogGrid: !1, search: !1 }, featureCapabilities = Object.freeze(resolvedFeatureCapabilities);
 
-const featureCapabilities = Object.freeze({"viewer":false,"favoritesWorkspace":true,"catalogGrid":true,"search":true});
+// src/js/10-app-state.js
+var CATALOG_IMAGE_TIER_THUMB = "thumb", CATALOG_IMAGE_TIER_MEDIUM = "medium", CATALOG_IMAGE_TIER_FULL = "full", CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE = "responsive", CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY = "full-only";
+var CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
+var uiRuntime = {
+  actionToastTimer: 0
+}, featureInterfaces = /* @__PURE__ */ new Map();
+function registerFeatureInterface(name, api) {
+  let normalizedName = String(name || "").trim();
+  if (!normalizedName || normalizedName !== name)
+    throw new TypeError("Feature interface requires an exact stable name");
+  if (!api || typeof api != "object")
+    throw new TypeError(`Feature interface must be an object: ${normalizedName}`);
+  let featureName = (
+    /** @type {K} */
+    name
+  );
+  if (featureInterfaces.has(featureName))
+    throw new Error(`Feature interface was registered twice: ${normalizedName}`);
+  let registered = Object.freeze({ ...api, name: featureName });
+  featureInterfaces.set(
+    featureName,
+    /** @type {RegisteredFeatureInterface} */
+    registered
+  );
+}
+function getFeatureInterface(name) {
+  return (
+    /** @type {(FeatureRegistry[K] & {readonly name:K})|null} */
+    featureInterfaces.get(name) || null
+  );
+}
+function requireFeatureInterface(name) {
+  let api = getFeatureInterface(name);
+  if (!api) throw new Error(`Required feature interface is unavailable: ${name}`);
+  return api;
+}
+var ESCAPE_FEATURE_NAMES = (
+  /** @type {const} */
+  [
+    "inquiry",
+    "favorites",
+    "catalog-navigation",
+    "search",
+    "catalog-detail",
+    "viewer"
+  ]
+);
+function featureInterfacesByEscapePriority() {
+  let interfaces = [];
+  return ESCAPE_FEATURE_NAMES.forEach((name) => {
+    let api = getFeatureInterface(name);
+    api && interfaces.push(api);
+  }), interfaces.sort((first, second) => second.escapePriority - first.escapePriority);
+}
+var boundEventFeatures = /* @__PURE__ */ new Set();
+function bindFeatureEventsOnce(featureName, binder) {
+  let name = String(featureName || "").trim();
+  if (!name) throw new TypeError("Feature event binding requires a stable name");
+  if (boundEventFeatures.has(name)) return !1;
+  if (typeof binder != "function") throw new TypeError(`Feature event binder is not callable: ${name}`);
+  return binder(), boundEventFeatures.add(name), !0;
+}
 
-/* ===== BEGIN SOURCE: src/js/00-navigation.js ===== */
-
-const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
-const catalogSearch = window.BargigCatalogSearch || null;
-const siteRoutes = window.BargigRoutes || null;
-let currentAppPage = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home";
-const IN_DOCUMENT_ROUTE_STATE_KEY = "__bargigInDocumentRoute";
-let hasInDocumentRouteSession = false;
-
-const $ = (id) => document.getElementById(id);
-const $button = (id) =>  (document.getElementById(id));
-const $anchor = (id) =>  (document.getElementById(id));
-const $input = (id) =>  (document.getElementById(id));
-const $select = (id) =>  (document.getElementById(id));
-const $textarea = (id) =>  (document.getElementById(id));
-const $image = (id) =>  (document.getElementById(id));
-
+// src/js/02-dom-contracts.js
+var $ = (id) => document.getElementById(id), $image = (id) => (
+  /** @type {HTMLImageElement|null} */
+  document.getElementById(id)
+);
 function requiredElement(id) {
-  const element = document.getElementById(id);
+  let element = document.getElementById(id);
   if (!element) throw new Error(`Required application element is missing: #${id}`);
   return element;
 }
-const $requiredButton = (id) =>  (requiredElement(id));
-const $requiredAnchor = (id) =>  (requiredElement(id));
-const $requiredInput = (id) =>  (requiredElement(id));
-const $requiredSelect = (id) =>  (requiredElement(id));
-const $requiredTextarea = (id) =>  (requiredElement(id));
-const $requiredImage = (id) =>  (requiredElement(id));
+var $requiredButton = (id) => (
+  /** @type {HTMLButtonElement} */
+  requiredElement(id)
+), $requiredAnchor = (id) => (
+  /** @type {HTMLAnchorElement} */
+  requiredElement(id)
+), $requiredInput = (id) => (
+  /** @type {HTMLInputElement} */
+  requiredElement(id)
+), $requiredSelect = (id) => (
+  /** @type {HTMLSelectElement} */
+  requiredElement(id)
+), $requiredTextarea = (id) => (
+  /** @type {HTMLTextAreaElement} */
+  requiredElement(id)
+), $requiredImage = (id) => (
+  /** @type {HTMLImageElement} */
+  requiredElement(id)
+);
+function eventTargetElement(target) {
+  return target instanceof Element ? target : null;
+}
 
+// src/js/03-runtime-context.js
+var catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [], catalogSearch = window.BargigCatalogSearch || null, siteRoutes = window.BargigRoutes || null;
+
+// src/js/11-navigation-state.js
+var LIGHTBOX_SOURCE_CATALOG = "catalog", LIGHTBOX_SOURCE_FAVORITES = "favorites", navigationState = {
+  catalog: null,
+  page: 1,
+  lightboxSource: LIGHTBOX_SOURCE_CATALOG
+}, shellElements = Object.freeze({
+  splash: $("splashScreen"),
+  catalogsSection: requiredElement("catalogs")
+});
+
+// src/js/17-catalog-asset-urls.js
+function catalogAssetBaseUrl() {
+  let rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
+  return rawBase ? rawBase.endsWith("/") ? rawBase : `${rawBase}/` : "";
+}
+function isAbsoluteAssetUrl(path) {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith("//") || path.startsWith("data:");
+}
+function resolveCatalogAssetUrl(path) {
+  let cleanPath = String(path || "").trim();
+  if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
+  let baseUrl = catalogAssetBaseUrl();
+  if (!baseUrl) return cleanPath;
+  try {
+    return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
+  } catch {
+    return `${baseUrl}${cleanPath.replace(/^\/+/, "")}`;
+  }
+}
+function padCatalogPage(value) {
+  return String(value).padStart(3, "0");
+}
+function imageExt(catalog) {
+  return catalog?.imageExt || "jpg";
+}
+function catalogDir(catalog) {
+  return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
+}
+function catalogAssetVersionForTier(catalog, tier) {
+  let normalizedTier = String(tier || CATALOG_IMAGE_TIER_FULL), baseVersion = String(catalog?.imageVariants?.[normalizedTier]?.version || "").trim() || String(catalog?.assetVersion || "").trim();
+  return baseVersion ? `${baseVersion}-${normalizedTier}-u${2}` : "";
+}
+function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
+  let version = catalogAssetVersionForTier(catalog, tier);
+  return version ? `${url}${url.includes("?") ? "&" : "?"}${"v"}=${encodeURIComponent(version)}` : url;
+}
+function pageSrc(catalog, page) {
+  return withAssetVersion(
+    `${catalogDir(catalog)}/page-${padCatalogPage(page)}.${imageExt(catalog)}`,
+    catalog,
+    CATALOG_IMAGE_TIER_FULL
+  );
+}
+function thumbSrc(catalog, page) {
+  return withAssetVersion(
+    `${catalogDir(catalog)}/thumbs/page-${padCatalogPage(page)}.${imageExt(catalog)}`,
+    catalog,
+    CATALOG_IMAGE_TIER_THUMB
+  );
+}
+function coverThumbSrc(catalog) {
+  return thumbSrc(catalog, 1);
+}
+
+// src/js/00-navigation.js
+var currentAppPage = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home", IN_DOCUMENT_ROUTE_STATE_KEY = "__bargigInDocumentRoute", hasInDocumentRouteSession = !1;
 function isAppPage(page) {
   return currentAppPage === page;
 }
-
 function setCurrentAppPage(page) {
-  currentAppPage = siteRoutes?.normalizePage?.(page) || String(page || "home");
-  if (document.body) document.body.dataset.page = currentAppPage;
+  currentAppPage = siteRoutes?.normalizePage?.(page) || String(page || "home"), document.body && (document.body.dataset.page = currentAppPage);
 }
-
 function historyStateWithRouteData(values = {}) {
-  const currentState = history.state && typeof history.state === "object" ? history.state : {};
-  return { ...currentState, [IN_DOCUMENT_ROUTE_STATE_KEY]: true, ...values };
+  return { ...history.state && typeof history.state == "object" ? history.state : {}, [IN_DOCUMENT_ROUTE_STATE_KEY]: !0, ...values };
 }
-
 function saveCurrentRouteScrollPosition() {
-  if (!window.history?.replaceState) return;
-  history.replaceState(historyStateWithRouteData({
+  window.history?.replaceState && history.replaceState(historyStateWithRouteData({
     scrollX: window.scrollX || 0,
     scrollY: window.scrollY || 0
   }), "", window.location.href);
 }
-
 function isInternalAppDocumentUrl(url) {
-  return Boolean(
-    url &&
-    siteRoutes?.isSameAppDocumentLocation?.(window.location, url, currentAppPage)
-  );
+  return !!(url && siteRoutes?.isSameAppDocumentLocation?.(window.location, url, currentAppPage));
 }
-
 function canNavigateWithinCurrentDocument(url) {
-  return Boolean(
-    featureCapabilities.viewer &&
-    getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.() &&
-    isInternalAppDocumentUrl(url)
-  );
+  return !!(featureCapabilities.viewer && getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.() && isInternalAppDocumentUrl(url));
 }
-
 function navigateWithinCurrentDocument(url, options = {}) {
-  hasInDocumentRouteSession = true;
-  saveCurrentRouteScrollPosition();
-
-  const nextState = historyStateWithRouteData({ scrollX: 0, scrollY: 0 });
-  const sameUrl = url.href === window.location.href;
-  if (options.replace || sameUrl) history.replaceState(nextState, "", url.href);
-  else history.pushState(nextState, "", url.href);
-
-  initDocumentRoute({ scrollPosition: { x: 0, y: 0 } });
+  hasInDocumentRouteSession = !0, saveCurrentRouteScrollPosition();
+  let nextState = historyStateWithRouteData({ scrollX: 0, scrollY: 0 }), sameUrl = url.href === window.location.href;
+  options.replace || sameUrl ? history.replaceState(nextState, "", url.href) : history.pushState(nextState, "", url.href), requireFeatureInterface("app-shell").renderRoute({ scrollPosition: { x: 0, y: 0 } });
 }
-
 function navigateTo(relativeUrl, options = {}) {
-  const target = String(relativeUrl || "").trim();
+  let target = String(relativeUrl || "").trim();
   if (!target) return;
-
   let targetUrl = null;
   try {
     targetUrl = new URL(target, document.baseURI || window.location.href);
-  } catch (_error) {
+  } catch {
     targetUrl = null;
   }
-
   if (targetUrl && canNavigateWithinCurrentDocument(targetUrl)) {
     navigateWithinCurrentDocument(targetUrl, options);
     return;
   }
-
-  if (options.replace) window.location.replace(targetUrl?.href || target);
-  else window.location.assign(targetUrl?.href || target);
+  options.replace ? window.location.replace(targetUrl?.href || target) : window.location.assign(targetUrl?.href || target);
 }
-
 function navigateBack() {
   window.history.back();
 }
-
 function handleInternalAppLinkClick(event) {
-  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  if (!featureCapabilities.viewer || !getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.()) return;
-
-  const link = eventTargetElement(event.target)?.closest("a[href]");
-  if (!(link instanceof HTMLAnchorElement) || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
-
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !featureCapabilities.viewer || !getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.()) return;
+  let link = eventTargetElement(event.target)?.closest("a[href]");
+  if (!(link instanceof HTMLAnchorElement) || link.hasAttribute("download") || link.target && link.target !== "_self") return;
   let targetUrl = null;
   try {
     targetUrl = new URL(link.href, window.location.href);
-  } catch (_error) {
+  } catch {
     return;
   }
-
-  const sameDocumentHashNavigation = targetUrl.pathname === window.location.pathname
-    && targetUrl.search === window.location.search
-    && targetUrl.hash
-    && targetUrl.hash !== window.location.hash;
-  if (sameDocumentHashNavigation || !canNavigateWithinCurrentDocument(targetUrl)) return;
-
-  event.preventDefault();
-  navigateWithinCurrentDocument(targetUrl);
+  targetUrl.pathname === window.location.pathname && targetUrl.search === window.location.search && targetUrl.hash && targetUrl.hash !== window.location.hash || !canNavigateWithinCurrentDocument(targetUrl) || (event.preventDefault(), navigateWithinCurrentDocument(targetUrl));
 }
-
 function markAppReady() {
   document.body?.setAttribute("data-app-ready", "true");
 }
-
 function canReturnToSameSite() {
-  if (!document.referrer) return false;
+  if (!document.referrer) return !1;
   try {
     return new URL(document.referrer).origin === window.location.origin;
-  } catch (_error) {
-    return false;
+  } catch {
+    return !1;
   }
 }
-
 function homeDocumentUrl() {
   return siteRoutes?.homeUrl?.() || "index.html";
 }
-
 function catalogDocumentUrl(catalogId) {
   return siteRoutes?.catalogUrl?.(catalogId) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/`;
 }
-
 function favoritesDocumentUrl() {
   return siteRoutes?.favoritesUrl?.() || "favorites.html";
 }
-
 function viewerDocumentUrl(catalogId, page = 1, options = {}) {
   return siteRoutes?.viewerUrl?.(catalogId, page, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${Math.max(1, Number.parseInt(String(page), 10) || 1)}/`;
 }
-
 function categoryDocumentUrl(categorySlugValue, subcategorySlugValue = "") {
   return siteRoutes?.categoryUrl?.(categorySlugValue, subcategorySlugValue) || homeDocumentUrl();
 }
-
 function absoluteDocumentUrl(relativeUrl) {
   return new URL(relativeUrl, document.baseURI || window.location.href).href;
 }
-
 function setMetadataContent(selector, value, attribute = "content") {
-  const element = document.querySelector(selector);
-  if (element && value) element.setAttribute(attribute, value);
+  let element = document.querySelector(selector);
+  element && value && element.setAttribute(attribute, value);
 }
-
 function currentDocumentMetadata(catalog = navigationState?.catalog || null) {
-  const brand = "רהיטי ברגיג";
-  if (isAppPage("catalog") && catalog) {
-    return {
-      title: `${catalog.title} | קטלוג ריהוט | ${brand}`,
-      description: `${catalog.description || "קטלוג ריהוט"}. צפייה נוחה ב־${catalog.pages} עמודי הקטלוג.`,
-      url: absoluteDocumentUrl(catalogDocumentUrl(catalog.id)),
-      image: coverThumbSrc(catalog),
-      imageAlt: `שער ${catalog.title}`
-    };
-  }
-  if (isAppPage("viewer") && catalog) {
-    return {
-      title: `${catalog.title} — עמוד ${navigationState.page} | ${brand}`,
-      description: `צפייה בעמוד ${navigationState.page} מתוך ${catalog.pages} בקטלוג ${catalog.title}.`,
-      url: absoluteDocumentUrl(viewerDocumentUrl(catalog.id, navigationState.page)),
-      image: pageSrc(catalog, navigationState.page),
-      imageAlt: `${catalog.title} — עמוד ${navigationState.page}`
-    };
-  }
-  if (isAppPage("favorites")) {
-    return {
-      title: `המועדפים שלי | ${brand}`,
-      description: "עמודי הקטלוג ששמרת במועדפים, עם הערות, סינון ושיתוף מרוכז.",
-      url: absoluteDocumentUrl(favoritesDocumentUrl())
-    };
-  }
-  return {
+  let brand = "רהיטי ברגיג";
+  return isAppPage("catalog") && catalog ? {
+    title: `${catalog.title} | קטלוג ריהוט | ${brand}`,
+    description: `${catalog.description || "קטלוג ריהוט"}. צפייה נוחה ב־${catalog.pages} עמודי הקטלוג.`,
+    url: absoluteDocumentUrl(catalogDocumentUrl(catalog.id)),
+    image: coverThumbSrc(catalog),
+    imageAlt: `שער ${catalog.title}`
+  } : isAppPage("viewer") && catalog ? {
+    title: `${catalog.title} — עמוד ${navigationState.page} | ${brand}`,
+    description: `צפייה בעמוד ${navigationState.page} מתוך ${catalog.pages} בקטלוג ${catalog.title}.`,
+    url: absoluteDocumentUrl(viewerDocumentUrl(catalog.id, navigationState.page)),
+    image: pageSrc(catalog, navigationState.page),
+    imageAlt: `${catalog.title} — עמוד ${navigationState.page}`
+  } : isAppPage("favorites") ? {
+    title: `המועדפים שלי | ${brand}`,
+    description: "עמודי הקטלוג ששמרת במועדפים, עם הערות, סינון ושיתוף מרוכז.",
+    url: absoluteDocumentUrl(favoritesDocumentUrl())
+  } : {
     title: `קטלוגים | ${brand}`,
     description: "גלריית הקטלוגים של רהיטי ברגיג — בחירת קטלוג, חיפוש מהיר ופתיחה נוחה.",
     url: absoluteDocumentUrl(homeDocumentUrl())
   };
 }
-
 function updateDocumentMetadata(catalog = navigationState?.catalog || null) {
-  const metadata = currentDocumentMetadata(catalog);
-  document.title = metadata.title;
-  setMetadataContent('meta[name="description"]', metadata.description);
-  setMetadataContent('link[rel="canonical"]', metadata.url, "href");
-  setMetadataContent('meta[property="og:title"]', metadata.title);
-  setMetadataContent('meta[property="og:description"]', metadata.description);
-  setMetadataContent('meta[property="og:url"]', metadata.url);
-  setMetadataContent('meta[name="twitter:title"]', metadata.title);
-  setMetadataContent('meta[name="twitter:description"]', metadata.description);
-  if (metadata.image) {
-    setMetadataContent('meta[property="og:image"]', metadata.image);
-    setMetadataContent('meta[property="og:image:secure_url"]', metadata.image);
-    setMetadataContent('meta[property="og:image:alt"]', metadata.imageAlt || metadata.title);
-    setMetadataContent('meta[name="twitter:image"]', metadata.image);
-    setMetadataContent('meta[name="twitter:image:alt"]', metadata.imageAlt || metadata.title);
-  }
+  let metadata = currentDocumentMetadata(catalog);
+  document.title = metadata.title, setMetadataContent('meta[name="description"]', metadata.description), setMetadataContent('link[rel="canonical"]', metadata.url, "href"), setMetadataContent('meta[property="og:title"]', metadata.title), setMetadataContent('meta[property="og:description"]', metadata.description), setMetadataContent('meta[property="og:url"]', metadata.url), setMetadataContent('meta[name="twitter:title"]', metadata.title), setMetadataContent('meta[name="twitter:description"]', metadata.description), metadata.image && (setMetadataContent('meta[property="og:image"]', metadata.image), setMetadataContent('meta[property="og:image:secure_url"]', metadata.image), setMetadataContent('meta[property="og:image:alt"]', metadata.imageAlt || metadata.title), setMetadataContent('meta[name="twitter:image"]', metadata.image), setMetadataContent('meta[name="twitter:image:alt"]', metadata.imageAlt || metadata.title));
 }
-
 function attachNavigationEvents() {
-  document.addEventListener("click", handleInternalAppLinkClick);
-
-  window.addEventListener("popstate", (event) => {
-    const routeState = event.state && typeof event.state === "object" ? event.state : null;
-    if (!hasInDocumentRouteSession && !routeState?.[IN_DOCUMENT_ROUTE_STATE_KEY]) return;
-
-    hasInDocumentRouteSession = true;
-    initDocumentRoute({
+  document.addEventListener("click", handleInternalAppLinkClick), window.addEventListener("popstate", (event) => {
+    let routeState = event.state && typeof event.state == "object" ? event.state : null;
+    !hasInDocumentRouteSession && !routeState?.[IN_DOCUMENT_ROUTE_STATE_KEY] || (hasInDocumentRouteSession = !0, requireFeatureInterface("app-shell").renderRoute({
       scrollPosition: {
         x: routeState?.scrollX || 0,
         y: routeState?.scrollY || 0
       }
-    });
-  });
-
-  window.addEventListener("hashchange", () => {
-    if (!isAppPage("home")) return;
-    getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash?.();
+    }));
+  }), window.addEventListener("hashchange", () => {
+    isAppPage("home") && getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash?.();
   });
 }
-/* ===== END SOURCE: src/js/00-navigation.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/05-app-contracts.js ===== */
-
-/* ===== END SOURCE: src/js/05-app-contracts.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/10-app-state.js ===== */
-
-const CATALOG_IMAGE_TIER_THUMB = "thumb";
-const CATALOG_IMAGE_TIER_MEDIUM = "medium";
-const CATALOG_IMAGE_TIER_FULL = "full";
-const CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE = "responsive";
-const CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY = "full-only";
-const DEFAULT_CATALOG_MEDIUM_MAX_SIDE = 1600;
-const CATALOG_IMAGE_PRELOAD_CACHE_LIMIT = 24;
-const CATALOG_EAGER_COVER_COUNT = 2;
-const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
-const CATALOG_ASSET_VERSION_PARAM = "v";
-const CATALOG_ASSET_URL_SCHEMA_VERSION = 2;
-
-const catalogAssetState = {
-  imageLoadCache: new Map(),
-};
-
-const uiRuntime = {
-  actionToastTimer: 0,
-};
-
-const featureInterfaces = new Map();
-
-function registerFeatureInterface(name, api) {
-  const normalizedName = String(name || "").trim();
-  if (!normalizedName || normalizedName !== name) {
-    throw new TypeError("Feature interface requires an exact stable name");
-  }
-  if (!api || typeof api !== "object") {
-    throw new TypeError(`Feature interface must be an object: ${normalizedName}`);
-  }
-  const featureName =  (name);
-  if (featureInterfaces.has(featureName)) {
-    throw new Error(`Feature interface was registered twice: ${normalizedName}`);
-  }
-  const registered = Object.freeze({ ...api, name: featureName });
-  featureInterfaces.set(featureName,  (registered));
+// src/js/18-navigation-feature.js
+function syncDocumentRouteShell(nextPage) {
+  let showCatalogs = nextPage === "home";
+  shellElements.catalogsSection.classList.toggle("hidden", !showCatalogs), showCatalogs ? (shellElements.catalogsSection.removeAttribute("aria-hidden"), shellElements.catalogsSection.classList.add("in-view")) : shellElements.catalogsSection.setAttribute("aria-hidden", "true");
 }
-
-function getFeatureInterface(name) {
-  return  (
-    featureInterfaces.get(name) || null
-  );
-}
-
-function requireFeatureInterface(name) {
-  const api = getFeatureInterface(name);
-  if (!api) throw new Error(`Required feature interface is unavailable: ${name}`);
-  return api;
-}
-
-const ESCAPE_FEATURE_NAMES =  ([
-  "inquiry",
-  "favorites",
-  "catalog-navigation",
-  "search",
-  "catalog-detail",
-  "viewer"
-]);
-
-function featureInterfacesByEscapePriority() {
-  const interfaces = [];
-  ESCAPE_FEATURE_NAMES.forEach((name) => {
-    const api = getFeatureInterface(name);
-    if (api) interfaces.push(api);
+function restoreDocumentRouteScroll(position = null) {
+  if (!position) return;
+  let x = Number.isFinite(Number(position.x)) ? Number(position.x) : 0, y = Number.isFinite(Number(position.y)) ? Number(position.y) : 0;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => window.scrollTo(x, y));
   });
-  return interfaces.sort((first, second) => second.escapePriority - first.escapePriority);
+}
+registerFeatureInterface("navigation", {
+  catalog: () => navigationState.catalog,
+  page: () => navigationState.page,
+  source: () => navigationState.lightboxSource,
+  setLocation: (catalog, page = 1, source = navigationState.lightboxSource) => {
+    navigationState.catalog = catalog, navigationState.page = Math.max(1, Number.parseInt(String(page), 10) || 1), navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
+  },
+  setPage: (page) => {
+    navigationState.page = Math.max(1, Number.parseInt(String(page), 10) || 1);
+  },
+  setSource: (source) => {
+    navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
+  },
+  clearLocation: () => {
+    navigationState.catalog = null, navigationState.page = 1, navigationState.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
+  },
+  setAppPage: setCurrentAppPage,
+  appPage: () => currentAppPage,
+  syncRouteShell: syncDocumentRouteShell,
+  restoreScroll: restoreDocumentRouteScroll,
+  attachEvents: attachNavigationEvents
+});
+function navigationFeature() {
+  let feature = getFeatureInterface("navigation");
+  if (!feature) throw new Error("Navigation feature is not registered");
+  return feature;
+}
+function activeCatalog() {
+  return navigationFeature().catalog();
+}
+function activePage() {
+  return navigationFeature().page();
+}
+function activeViewerSource() {
+  return navigationFeature().source();
+}
+function setActiveLocation(catalog, page = 1, source = activeViewerSource()) {
+  navigationFeature().setLocation(catalog, page, source);
+}
+function clearActiveLocation() {
+  navigationFeature().clearLocation();
 }
 
-const boundEventFeatures = new Set();
-
-function bindFeatureEventsOnce(featureName, binder) {
-  const name = String(featureName || "").trim();
-  if (!name) throw new TypeError("Feature event binding requires a stable name");
-  if (boundEventFeatures.has(name)) return false;
-  if (typeof binder !== "function") throw new TypeError(`Feature event binder is not callable: ${name}`);
-
-  // Mark only after a successful bind. A thrown setup error therefore cannot leave
-  // the application believing that a half-bound feature is healthy.
-  binder();
-  boundEventFeatures.add(name);
-  return true;
-}
-/* ===== END SOURCE: src/js/10-app-state.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/11-navigation-state.js ===== */
-
-const LIGHTBOX_SOURCE_CATALOG = "catalog";
-const LIGHTBOX_SOURCE_FAVORITES = "favorites";
-const navigationState = {
-  catalog: null,
-  page: 1,
-  lightboxSource: LIGHTBOX_SOURCE_CATALOG,
-};
-
-const shellElements = Object.freeze({
-  splash: $("splashScreen"),
-  catalogsSection: requiredElement("catalogs"),
-});
-/* ===== END SOURCE: src/js/11-navigation-state.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/12-catalog-state.js ===== */
-
-const catalogState = {
-  catalogLayoutColumns: 0,
-  catalogLayoutResizeTimer: 0,
-  catalogScrollTopButtonRaf: 0,
-  categoryFocusTargetId: "",
-  categoryFocusTimer: 0,
-  categoryNavFitRaf: 0,
-};
-
-const catalogElements = Object.freeze({
-  categoryNav: requiredElement("categoryNav"),
-  mobileCategoryMenuToggle: $requiredButton("mobileCategoryMenuToggle"),
-  mobileCategoryMenu: requiredElement("mobileCategoryMenu"),
-  catalogCount: $("catalogCount"),
-  pageCount: $("pageCount"),
-  catalogGrid: requiredElement("catalogGrid"),
-  catalogLoadStatus: requiredElement("catalogLoadStatus"),
-  catalogDetail: requiredElement("catalogDetail"),
-  catalogTitle: requiredElement("catalogDetailTitle"),
-  catalogDescription: requiredElement("catalogDescription"),
-  catalogMenuToggle: $requiredButton("catalogMenuToggle"),
-  catalogMenuToggleText: requiredElement("catalogMenuToggleText"),
-  catalogMenu: requiredElement("catalogMenu"),
-  catalogCoverPreview: $image("catalogCoverPreview"),
-  pageGrid: requiredElement("pageGrid"),
-  openCatalogEntryFromDetail: $requiredButton("openCatalogEntryFromDetail"),
-  scrollToTopBtn: $requiredButton("scrollToTopBtn"),
-});
-/* ===== END SOURCE: src/js/12-catalog-state.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/13-search-state.js ===== */
-
-const SEARCH_INPUT_DEBOUNCE_MS = 90;
-const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
-const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
-const SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260;
-const searchState = {
-  globalSearchCategory: "",
-  globalSearchOpen: false,
-  lightboxSearchScope: "catalog",
-  lightboxMobileSearchOpen: false,
-  searchIndexLoadState: catalogSearch?.isReady?.() ? "ready" : "idle",
-  searchIndexLoadPromise: null,
-  searchIndexPreloadTimer: 0,
-  searchPreviewSuppressUntil: 0,
-  searchPreviewSuppressTimer: 0,
-  searchPreviewPointerClientX: null,
-  searchPreviewPointerClientY: null,
-};
-
-const searchElements = Object.freeze({
-  catalogSearch: requiredElement("catalogSearch"),
-  globalSearchOpen: $requiredButton("globalSearchOpen"),
-  globalSearchClose: $requiredButton("globalSearchClose"),
-  globalSearchInput: $requiredInput("globalSearchInput"),
-  globalSearchResults: requiredElement("globalSearchResults"),
-  globalSearchClear: $requiredButton("globalSearchClear"),
-  globalSearchScopeToggle: $requiredButton("globalSearchScopeToggle"),
-  globalSearchScopeMenu: requiredElement("globalSearchScopeMenu"),
-  searchFloatingPreview: requiredElement("searchFloatingPreview"),
-  searchFloatingPreviewImage: $requiredImage("searchFloatingPreviewImage"),
-  searchFloatingPreviewPage: requiredElement("searchFloatingPreviewPage"),
-  lightboxSearchInput: $requiredInput("lightboxSearchInput"),
-  lightboxSearchPanel: requiredElement("lightboxSearchPanel"),
-  lightboxMobileSearchToggle: $requiredButton("lightboxMobileSearchToggle"),
-  lightboxMobileSearchClose: $requiredButton("lightboxMobileSearchClose"),
-  lightboxSearchResults: requiredElement("lightboxSearchResults"),
-  lightboxSearchStatus: requiredElement("lightboxSearchStatus"),
-  lightboxSearchClear: $requiredButton("lightboxSearchClear"),
-  lightboxSearchScopeToggle: $requiredButton("lightboxSearchScopeToggle"),
-  lightboxSearchScopeMenu: requiredElement("lightboxSearchScopeMenu"),
-  lightboxCatalogMenuToggle: $requiredButton("lightboxCatalogMenuToggle"),
-  lightboxCatalogMenu: requiredElement("lightboxCatalogMenu"),
-});
-/* ===== END SOURCE: src/js/13-search-state.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/14-favorites-state.js ===== */
-
-const FAVORITES_SHARE_PARAM = "selection";
-const FAVORITES_SHARE_VERSION = 2;
-const FAVORITES_NOTE_MAX_LENGTH = 280;
-
+// src/js/14-favorites-state.js
+var FAVORITES_SHARE_PARAM = "selection", FAVORITES_SHARE_VERSION = 2, FAVORITES_NOTE_MAX_LENGTH = 280;
 function getFavoritesStorage() {
   try {
     return window.localStorage;
-  } catch (_error) {
+  } catch {
     return null;
   }
 }
-
-const favoritesStore =  (
+var favoritesStore = (
+  /** @type {FavoritesStore|null} */
   window.BargigFavorites?.createStore?.({ storage: getFavoritesStorage() }) || null
-);
-const favoritesState = {
+), favoritesState = {
   favoritesViewerIndex: 0,
   favoritesViewerOpeningHash: "",
   favoritesViewerPreviousCatalog: null,
   favoritesViewerPreviousPage: 1,
-  favoritesOpen: false,
+  favoritesOpen: !1,
   favoritesReturnFocus: null,
   favoritesTransferPending: null,
   favoritesTransferReturnFocus: null,
   favoritesFilterCatalogId: "",
-  favoritesSelectedKeys: new Set(),
+  favoritesSelectedKeys: /* @__PURE__ */ new Set(),
   favoritesDragKey: "",
   favoriteNoteEditingKey: "",
-  favoriteNoteReturnFocus: null,
-};
-
-const favoritesElements = Object.freeze({
+  favoriteNoteReturnFocus: null
+}, favoritesElements = Object.freeze({
   headerFavoritesButton: $requiredAnchor("headerFavoritesButton"),
   headerFavoritesCount: requiredElement("headerFavoritesCount"),
   headerCopyLink: $requiredButton("headerCopyLink"),
@@ -535,24 +459,14 @@ const favoritesElements = Object.freeze({
   favoritesTransferCancel: $requiredButton("favoritesTransferCancel"),
   favoriteOpenCatalogButton: $requiredButton("favoriteOpenCatalogButton"),
   viewerFavoriteButton: $requiredButton("viewerFavoriteButton"),
-  viewerMobileFavoritesLink: $requiredAnchor("viewerMobileFavoritesLink"),
+  viewerMobileFavoritesLink: $requiredAnchor("viewerMobileFavoritesLink")
 });
-/* ===== END SOURCE: src/js/14-favorites-state.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/15-telemetry.js ===== */
-
-
-const TELEMETRY_ENDPOINT = "/api/telemetry";
-const TELEMETRY_SCHEMA_VERSION = 2;
-const TELEMETRY_BATCH_LIMIT = 20;
-const TELEMETRY_QUEUE_LIMIT = 60;
-const TELEMETRY_FLUSH_DELAY_MS = 900;
-const TELEMETRY_SEARCH_DEDUP_MS = 1200;
-const TELEMETRY_ALLOWED_HOSTS = new Set([
+// src/js/15-telemetry.js
+var TELEMETRY_ENDPOINT = "/api/telemetry", TELEMETRY_SCHEMA_VERSION = 2, TELEMETRY_BATCH_LIMIT = 20, TELEMETRY_QUEUE_LIMIT = 60, TELEMETRY_FLUSH_DELAY_MS = 900, TELEMETRY_SEARCH_DEDUP_MS = 1200, TELEMETRY_ALLOWED_HOSTS = /* @__PURE__ */ new Set([
   "bargig-furniture.com",
   "www.bargig-furniture.com"
-]);
-const TELEMETRY_EVENT_NAMES = new Set([
+]), TELEMETRY_EVENT_NAMES = /* @__PURE__ */ new Set([
   "catalog_open",
   "search",
   "favorite",
@@ -564,111 +478,81 @@ const TELEMETRY_EVENT_NAMES = new Set([
   "image_recovered",
   "image_terminal_failure",
   "web_vital"
-]);
-
-const telemetryRuntime = {
-  enabled:  (null),
-  queue:  ([]),
+]), telemetryRuntime = {
+  enabled: (
+    /** @type {boolean|null} */
+    null
+  ),
+  queue: (
+    /** @type {Array<Record<string, string|number>>} */
+    []
+  ),
   flushTimer: 0,
-  flushing: false,
+  flushing: !1,
   catalogKey: "",
   catalogAt: 0,
-  searchKeys: new Map(),
-  diagnosticEvents: new Set(),
+  searchKeys: /* @__PURE__ */ new Map(),
+  diagnosticEvents: /* @__PURE__ */ new Set(),
   webVitals: {
-    supported: new Set(),
-    reported: new Set(),
+    supported: /* @__PURE__ */ new Set(),
+    reported: /* @__PURE__ */ new Set(),
     lcp: 0,
     inp: 0,
     cls: 0,
     clsSessionValue: 0,
     clsSessionStart: 0,
     clsLastEntry: 0,
-    interactions: new Map()
+    interactions: /* @__PURE__ */ new Map()
   },
-  initialized: false
+  initialized: !1
 };
-
-function telemetryResolveReleaseId() {
-  const explicit = String(window.__BARGIG_RELEASE_ID__ || "").trim();
+function telemetryRouteModuleUrl() {
+  let routeModule = document.querySelector?.("script[type=module][data-bargig-route-module]") || null;
+  return routeModule ? "src" in routeModule ? String(routeModule.src || "") : String(routeModule.getAttribute?.("src") || "") : "";
+}
+function telemetryResolveReleaseId(scriptSrc = telemetryRouteModuleUrl()) {
+  let explicit = String(window.__BARGIG_RELEASE_ID__ || "").trim();
   if (explicit) return telemetryCleanText(explicit, 64);
-
-  const currentScript = document.currentScript;
-  const scriptSrc = currentScript && "src" in currentScript
-    ? String(currentScript.src || "")
-    : String(currentScript?.getAttribute?.("src") || "");
-  const filename = scriptSrc.split("?")[0].split("#")[0].split("/").pop() || "";
-  const fingerprint = filename.match(/^app(?:-(?:catalog|favorites|viewer))?\.([a-f0-9]{8,64})\.js$/i)?.[1];
-  if (fingerprint) return `app-${fingerprint.slice(0, 16).toLowerCase()}`;
-  return /^app(?:-(?:catalog|favorites|viewer))?\.js$/i.test(filename)
-    ? "app-unversioned"
-    : "unknown-release";
+  let filename = String(scriptSrc || "").split("?")[0].split("#")[0].split("/").pop() || "", fingerprint = filename.match(/^app(?:-(?:catalog|favorites|viewer))?\.([a-f0-9]{8,64})\.js$/i)?.[1];
+  return fingerprint ? `app-${fingerprint.slice(0, 16).toLowerCase()}` : /^app(?:-(?:catalog|favorites|viewer))?\.js$/i.test(filename) ? "app-unversioned" : "unknown-release";
 }
-
-const TELEMETRY_RELEASE_ID = telemetryResolveReleaseId();
-
+var TELEMETRY_RELEASE_ID = telemetryResolveReleaseId();
 function telemetryCleanText(value, limit = 120) {
-  return String(value ?? "")
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, limit);
+  return String(value ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }
-
 function telemetryCleanPathname(value = window.location.pathname) {
-  const pathname = telemetryCleanText(value, 180) || "/";
+  let pathname = telemetryCleanText(value, 180) || "/";
   return pathname.startsWith("/") ? pathname : `/${pathname}`;
 }
-
 function telemetryViewportBucket() {
-  const width = Math.max(0, Number(window.innerWidth) || 0);
-  if (width < 480) return "xs";
-  if (width < 760) return "sm";
-  if (width < 1100) return "md";
-  if (width < 1600) return "lg";
-  return "xl";
+  let width = Math.max(0, Number(window.innerWidth) || 0);
+  return width < 480 ? "xs" : width < 760 ? "sm" : width < 1100 ? "md" : width < 1600 ? "lg" : "xl";
 }
-
 function telemetryPrivacySignalEnabled() {
-  if (navigator.globalPrivacyControl === true) return true;
-  const dnt = String(navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack || "").toLowerCase();
+  if (navigator.globalPrivacyControl === !0) return !0;
+  let dnt = String(navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack || "").toLowerCase();
   return dnt === "1" || dnt === "yes";
 }
-
 function telemetryIsEnabled() {
   if (telemetryRuntime.enabled !== null) return telemetryRuntime.enabled;
-  if (window.__BARGIG_DISABLE_TELEMETRY__ === true || telemetryPrivacySignalEnabled()) {
-    telemetryRuntime.enabled = false;
-    return false;
-  }
-
-  const forced = window.__BARGIG_ENABLE_TELEMETRY__ === true;
-  const productionHost = TELEMETRY_ALLOWED_HOSTS.has(window.location.hostname.toLowerCase());
-  telemetryRuntime.enabled = Boolean(forced || productionHost);
-  return telemetryRuntime.enabled;
+  if (window.__BARGIG_DISABLE_TELEMETRY__ === !0 || telemetryPrivacySignalEnabled())
+    return telemetryRuntime.enabled = !1, !1;
+  let forced = window.__BARGIG_ENABLE_TELEMETRY__ === !0, productionHost = TELEMETRY_ALLOWED_HOSTS.has(window.location.hostname.toLowerCase());
+  return telemetryRuntime.enabled = !!(forced || productionHost), telemetryRuntime.enabled;
 }
-
-function telemetryNumber(value, min = 0, max = 86_400_000) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return 0;
-  return Math.min(max, Math.max(min, number));
+function telemetryNumber(value, min = 0, max = 864e5) {
+  let number = Number(value);
+  return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : 0;
 }
-
 function telemetryErrorFingerprint(parts) {
-  const source = parts.map((part) => telemetryCleanText(part, 160)).join("|");
-  let hash = 2166136261;
-  for (let index = 0; index < source.length; index += 1) {
-    hash ^= source.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
+  let source = parts.map((part) => telemetryCleanText(part, 160)).join("|"), hash = 2166136261;
+  for (let index = 0; index < source.length; index += 1)
+    hash ^= source.charCodeAt(index), hash = Math.imul(hash, 16777619);
   return `e${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
-
 function telemetryNormalizeEvent(name, fields = {}) {
-  const eventName = telemetryCleanText(name, 40);
-  if (!TELEMETRY_EVENT_NAMES.has(eventName)) return null;
-
-  return {
+  let eventName = telemetryCleanText(name, 40);
+  return TELEMETRY_EVENT_NAMES.has(eventName) ? {
     name: eventName,
     page: telemetryCleanText(fields.page || currentAppPage || document.body?.dataset?.page || "", 30),
     path: telemetryCleanPathname(fields.path),
@@ -680,111 +564,61 @@ function telemetryNormalizeEvent(name, fields = {}) {
     error: telemetryCleanText(fields.error, 80),
     viewport: telemetryViewportBucket(),
     source: telemetryCleanText(fields.source, 50),
-    value: telemetryNumber(fields.value, -1_000_000, 1_000_000),
+    value: telemetryNumber(fields.value, -1e6, 1e6),
     durationMs: telemetryNumber(fields.durationMs),
-    pageNumber: telemetryNumber(fields.pageNumber, 0, 100_000),
-    secondaryValue: telemetryNumber(fields.secondaryValue, -1_000_000, 1_000_000),
+    pageNumber: telemetryNumber(fields.pageNumber, 0, 1e5),
+    secondaryValue: telemetryNumber(fields.secondaryValue, -1e6, 1e6),
     releaseId: telemetryCleanText(fields.releaseId || TELEMETRY_RELEASE_ID, 64)
-  };
+  } : null;
 }
-
 function telemetryScheduleFlush(delay = TELEMETRY_FLUSH_DELAY_MS) {
-  window.clearTimeout(telemetryRuntime.flushTimer);
-  telemetryRuntime.flushTimer = window.setTimeout(() => {
-    telemetryRuntime.flushTimer = 0;
-    telemetryFlush().catch(() => {});
+  window.clearTimeout(telemetryRuntime.flushTimer), telemetryRuntime.flushTimer = window.setTimeout(() => {
+    telemetryRuntime.flushTimer = 0, telemetryFlush().catch(() => {
+    });
   }, Math.max(0, delay));
 }
-
 function telemetryTrack(name, fields = {}, options = {}) {
-  if (!telemetryIsEnabled()) return false;
-  const event = telemetryNormalizeEvent(name, fields);
-  if (!event) return false;
-
-  if (telemetryRuntime.queue.length >= TELEMETRY_QUEUE_LIMIT) {
-    telemetryRuntime.queue.splice(0, telemetryRuntime.queue.length - TELEMETRY_QUEUE_LIMIT + 1);
-  }
-  telemetryRuntime.queue.push(event);
-  telemetryScheduleFlush(options.immediate ? 0 : TELEMETRY_FLUSH_DELAY_MS);
-  return true;
+  if (!telemetryIsEnabled()) return !1;
+  let event = telemetryNormalizeEvent(name, fields);
+  return event ? (telemetryRuntime.queue.length >= TELEMETRY_QUEUE_LIMIT && telemetryRuntime.queue.splice(0, telemetryRuntime.queue.length - TELEMETRY_QUEUE_LIMIT + 1), telemetryRuntime.queue.push(event), telemetryScheduleFlush(options.immediate ? 0 : TELEMETRY_FLUSH_DELAY_MS), !0) : !1;
 }
-
 async function telemetryFlush(options = {}) {
-  if (!telemetryIsEnabled() || telemetryRuntime.flushing || !telemetryRuntime.queue.length) return false;
-
-  window.clearTimeout(telemetryRuntime.flushTimer);
-  telemetryRuntime.flushTimer = 0;
-  const events = telemetryRuntime.queue.splice(0, TELEMETRY_BATCH_LIMIT);
-  const body = JSON.stringify({ version: TELEMETRY_SCHEMA_VERSION, events });
-  telemetryRuntime.flushing = true;
-
+  if (!telemetryIsEnabled() || telemetryRuntime.flushing || !telemetryRuntime.queue.length) return !1;
+  window.clearTimeout(telemetryRuntime.flushTimer), telemetryRuntime.flushTimer = 0;
+  let events = telemetryRuntime.queue.splice(0, TELEMETRY_BATCH_LIMIT), body = JSON.stringify({ version: TELEMETRY_SCHEMA_VERSION, events });
+  telemetryRuntime.flushing = !0;
   try {
-    if (options.beacon && typeof navigator.sendBeacon === "function") {
-      const queued = navigator.sendBeacon(TELEMETRY_ENDPOINT, new Blob([body], { type: "application/json" }));
-      if (!queued) telemetryRuntime.queue.unshift(...events);
-      return queued;
+    if (options.beacon && typeof navigator.sendBeacon == "function") {
+      let queued = navigator.sendBeacon(TELEMETRY_ENDPOINT, new Blob([body], { type: "application/json" }));
+      return queued || telemetryRuntime.queue.unshift(...events), queued;
     }
-
-    const response = await fetch(TELEMETRY_ENDPOINT, {
+    let response = await fetch(TELEMETRY_ENDPOINT, {
       method: "POST",
       body,
       headers: { "Content-Type": "application/json" },
       credentials: "omit",
       cache: "no-store",
-      keepalive: true,
+      keepalive: !0,
       redirect: "error"
     });
-    if (!response.ok && response.status !== 202 && response.status !== 204) {
+    if (!response.ok && response.status !== 202 && response.status !== 204)
       throw new Error(`telemetry-http-${response.status}`);
-    }
-    return true;
-  } catch (_error) {
-    // Telemetry must never interfere with the catalog. Events are deliberately
-    // not persisted or retried across page loads, which also protects privacy.
-    return false;
+    return !0;
+  } catch {
+    return !1;
   } finally {
-    telemetryRuntime.flushing = false;
-    if (telemetryRuntime.queue.length) telemetryScheduleFlush(250);
+    telemetryRuntime.flushing = !1, telemetryRuntime.queue.length && telemetryScheduleFlush(250);
   }
 }
-
-function telemetryTrackCatalogOpen(catalog, page, source = LIGHTBOX_SOURCE_CATALOG) {
-  if (!catalog) return;
-  const now = Date.now();
-  const key = `${catalog.id}|${source}`;
-  if (key === telemetryRuntime.catalogKey && now - telemetryRuntime.catalogAt < 1200) return;
-  telemetryRuntime.catalogKey = key;
-  telemetryRuntime.catalogAt = now;
-  telemetryTrack("catalog_open", {
-    page: "viewer",
-    catalogId: catalog.id,
-    pageNumber: page,
-    source
-  });
-}
-
 function telemetryTrackSearch(query, resultCount, options = {}) {
-  if (!telemetryIsEnabled()) return false;
-  const cleanQuery = telemetryCleanText(query, 80);
-  if (cleanQuery.length < 2) return false;
-
-  const surface = telemetryCleanText(options.surface || "global", 30);
-  const scope = telemetryCleanText(options.scope || "all", 50);
-  const catalogId = telemetryCleanText(options.catalogId, 100);
-  const completion = telemetryCleanText(options.completion || "submit", 30);
-  const count = Math.max(0, Number(resultCount) || 0);
-  const key = `${surface}|${cleanQuery}|${count}|${scope}|${catalogId}|${completion}`;
-  const now = Date.now();
-  const previous = telemetryRuntime.searchKeys.get(key) || 0;
-  if (now - previous < TELEMETRY_SEARCH_DEDUP_MS) return false;
-  telemetryRuntime.searchKeys.set(key, now);
-
-  if (telemetryRuntime.searchKeys.size > 80) {
-    for (const [storedKey, timestamp] of telemetryRuntime.searchKeys) {
-      if (now - timestamp > 60_000) telemetryRuntime.searchKeys.delete(storedKey);
-    }
-  }
-
+  if (!telemetryIsEnabled()) return !1;
+  let cleanQuery = telemetryCleanText(query, 80);
+  if (cleanQuery.length < 2) return !1;
+  let surface = telemetryCleanText(options.surface || "global", 30), scope = telemetryCleanText(options.scope || "all", 50), catalogId = telemetryCleanText(options.catalogId, 100), completion = telemetryCleanText(options.completion || "submit", 30), count = Math.max(0, Number(resultCount) || 0), key = `${surface}|${cleanQuery}|${count}|${scope}|${catalogId}|${completion}`, now = Date.now(), previous = telemetryRuntime.searchKeys.get(key) || 0;
+  if (now - previous < TELEMETRY_SEARCH_DEDUP_MS) return !1;
+  if (telemetryRuntime.searchKeys.set(key, now), telemetryRuntime.searchKeys.size > 80)
+    for (let [storedKey, timestamp] of telemetryRuntime.searchKeys)
+      now - timestamp > 6e4 && telemetryRuntime.searchKeys.delete(storedKey);
   return telemetryTrack("search", {
     query: cleanQuery,
     scope,
@@ -792,9 +626,8 @@ function telemetryTrackSearch(query, resultCount, options = {}) {
     source: surface,
     action: completion,
     value: count
-  }, { immediate: options.immediate === true });
+  }, { immediate: options.immediate === !0 });
 }
-
 function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 0) {
   telemetryTrack("favorite", {
     action,
@@ -803,213 +636,141 @@ function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 
     value: count
   });
 }
-
-const TELEMETRY_WEB_VITAL_THRESHOLDS = Object.freeze({
-  LCP: [2500, 4000],
+var TELEMETRY_WEB_VITAL_THRESHOLDS = Object.freeze({
+  LCP: [2500, 4e3],
   INP: [200, 500],
   CLS: [0.1, 0.25]
 });
-
 function telemetryWebVitalRating(name, value) {
-  const thresholds = TELEMETRY_WEB_VITAL_THRESHOLDS[name];
-  if (!thresholds) return "unknown";
-  if (value <= thresholds[0]) return "good";
-  if (value <= thresholds[1]) return "needs-improvement";
-  return "poor";
+  let thresholds = TELEMETRY_WEB_VITAL_THRESHOLDS[name];
+  return thresholds ? value <= thresholds[0] ? "good" : value <= thresholds[1] ? "needs-improvement" : "poor" : "unknown";
 }
-
 function telemetryNavigationType() {
-  const navigation = performance.getEntriesByType?.("navigation")?.[0];
+  let navigation = performance.getEntriesByType?.("navigation")?.[0];
   return telemetryCleanText(navigation?.type || "navigate", 30);
 }
-
 function telemetryWebVitalsSnapshot() {
-  const runtime = telemetryRuntime.webVitals;
+  let runtime = telemetryRuntime.webVitals;
   return {
     LCP: Math.max(0, Number(runtime.lcp) || 0),
     INP: Math.max(0, Number(runtime.inp) || 0),
     CLS: Math.max(0, Number(runtime.cls) || 0)
   };
 }
-
 function telemetryPublishWebVitalsDiagnostics() {
-  if (window.__BARGIG_ENABLE_VITALS_DIAGNOSTICS__ !== true) return;
-  window.__BARGIG_WEB_VITALS__ = telemetryWebVitalsSnapshot();
+  window.__BARGIG_ENABLE_VITALS_DIAGNOSTICS__ === !0 && (window.__BARGIG_WEB_VITALS__ = telemetryWebVitalsSnapshot());
 }
-
 function telemetryRecordInteractionTiming(entry) {
-  const interactionId = Number(entry?.interactionId) || 0;
+  let interactionId = Number(entry?.interactionId) || 0;
   if (!interactionId) return;
-  const runtime = telemetryRuntime.webVitals;
-  const duration = Math.max(0, Number(entry?.duration) || 0);
-  runtime.interactions.set(interactionId, Math.max(duration, runtime.interactions.get(interactionId) || 0));
-  if (runtime.interactions.size > 300) {
-    const oldest = runtime.interactions.keys().next().value;
-    if (oldest !== undefined) runtime.interactions.delete(oldest);
+  let runtime = telemetryRuntime.webVitals, duration = Math.max(0, Number(entry?.duration) || 0);
+  if (runtime.interactions.set(interactionId, Math.max(duration, runtime.interactions.get(interactionId) || 0)), runtime.interactions.size > 300) {
+    let oldest = runtime.interactions.keys().next().value;
+    oldest !== void 0 && runtime.interactions.delete(oldest);
   }
-  const candidates = Array.from(runtime.interactions.values()).sort((left, right) => right - left);
-  // INP uses a high-percentile interaction rather than a permanently growing
-  // maximum. For fewer than 50 interactions this correctly resolves to the
-  // slowest interaction; each additional 50 interactions excludes one outlier.
-  const candidateIndex = Math.min(candidates.length - 1, Math.floor(candidates.length / 50));
-  runtime.inp = candidates[candidateIndex] || 0;
-  telemetryPublishWebVitalsDiagnostics();
+  let candidates = Array.from(runtime.interactions.values()).sort((left, right) => right - left), candidateIndex = Math.min(candidates.length - 1, Math.floor(candidates.length / 50));
+  runtime.inp = candidates[candidateIndex] || 0, telemetryPublishWebVitalsDiagnostics();
 }
-
 function telemetryReportWebVitals() {
-  const runtime = telemetryRuntime.webVitals;
-  for (const name of  (["LCP", "INP", "CLS"])) {
+  let runtime = telemetryRuntime.webVitals;
+  for (
+    let name of
+    /** @type {TelemetryWebVitalName[]} */
+    ["LCP", "INP", "CLS"]
+  ) {
     if (!runtime.supported.has(name) || runtime.reported.has(name)) continue;
-    const snapshot = telemetryWebVitalsSnapshot();
-    const value = Number(snapshot[name]);
-    if (!Number.isFinite(value) || value < 0) continue;
-    if ((name === "LCP" || name === "INP") && value === 0) continue;
-    runtime.reported.add(name);
-    telemetryTrack("web_vital", {
+    let snapshot = telemetryWebVitalsSnapshot(), value = Number(snapshot[name]);
+    !Number.isFinite(value) || value < 0 || (name === "LCP" || name === "INP") && value === 0 || (runtime.reported.add(name), telemetryTrack("web_vital", {
       action: name,
       detail: telemetryWebVitalRating(name, value),
       source: telemetryNavigationType(),
       value
-    }, { immediate: true });
+    }, { immediate: !0 }));
   }
 }
-
 function telemetryObserveWebVitals() {
-  if (typeof PerformanceObserver !== "function") return;
-  const supported = new Set(PerformanceObserver.supportedEntryTypes || []);
-  const runtime = telemetryRuntime.webVitals;
-
+  if (typeof PerformanceObserver != "function") return;
+  let supported = new Set(PerformanceObserver.supportedEntryTypes || []), runtime = telemetryRuntime.webVitals;
   if (supported.has("largest-contentful-paint")) {
     runtime.supported.add("LCP");
     try {
       new PerformanceObserver((list) => {
-        const entries = list.getEntries();
-        const latest = entries[entries.length - 1];
-        if (latest) runtime.lcp = Math.max(0, Number(latest.startTime) || 0);
-        telemetryPublishWebVitalsDiagnostics();
-      }).observe({ type: "largest-contentful-paint", buffered: true });
-    } catch (_error) {}
+        let entries = list.getEntries(), latest = entries[entries.length - 1];
+        latest && (runtime.lcp = Math.max(0, Number(latest.startTime) || 0)), telemetryPublishWebVitalsDiagnostics();
+      }).observe({ type: "largest-contentful-paint", buffered: !0 });
+    } catch {
+    }
   }
-
   if (supported.has("layout-shift")) {
     runtime.supported.add("CLS");
     try {
       new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
+        for (let entry of list.getEntries()) {
           if (entry.hadRecentInput) continue;
-          const start = Number(entry.startTime) || 0;
-          const value = Number(entry.value) || 0;
-          const sameSession = runtime.clsLastEntry
-            && start - runtime.clsLastEntry < 1000
-            && start - runtime.clsSessionStart < 5000;
-          if (sameSession) {
-            runtime.clsSessionValue += value;
-          } else {
-            runtime.clsSessionValue = value;
-            runtime.clsSessionStart = start;
-          }
-          runtime.clsLastEntry = start;
-          runtime.cls = Math.max(runtime.cls, runtime.clsSessionValue);
-          telemetryPublishWebVitalsDiagnostics();
+          let start = Number(entry.startTime) || 0, value = Number(entry.value) || 0;
+          runtime.clsLastEntry && start - runtime.clsLastEntry < 1e3 && start - runtime.clsSessionStart < 5e3 ? runtime.clsSessionValue += value : (runtime.clsSessionValue = value, runtime.clsSessionStart = start), runtime.clsLastEntry = start, runtime.cls = Math.max(runtime.cls, runtime.clsSessionValue), telemetryPublishWebVitalsDiagnostics();
         }
-      }).observe({ type: "layout-shift", buffered: true });
-    } catch (_error) {}
+      }).observe({ type: "layout-shift", buffered: !0 });
+    } catch {
+    }
   }
-
   if (supported.has("event")) {
     runtime.supported.add("INP");
     try {
       new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) telemetryRecordInteractionTiming(entry);
-      }).observe({ type: "event", buffered: true, durationThreshold: 16 });
-    } catch (_error) {}
+        for (let entry of list.getEntries()) telemetryRecordInteractionTiming(entry);
+      }).observe({ type: "event", buffered: !0, durationThreshold: 16 });
+    } catch {
+    }
   }
 }
-
 function telemetryCatalogImageContext(img, src = "") {
-  const value = String(src || img?.currentSrc || img?.getAttribute?.("src") || "");
-  const match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i);
-  const catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || activeCatalog()?.id || "", 100);
-  const pageNumber = Number.parseInt(String(match?.[2] || img?.dataset?.page || activePage() || 0), 10) || 0;
-  let detail = "image";
-  if (/\/thumbs\//i.test(value)) detail = "thumbnail";
-  else if (img?.id === "lightboxImage") detail = "viewer";
-  else if (img?.classList?.contains("catalog-cover")) detail = "cover";
-  return { catalogId, pageNumber, detail, value };
+  let value = String(src || img?.currentSrc || img?.getAttribute?.("src") || ""), match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i), catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || activeCatalog()?.id || "", 100), pageNumber = Number.parseInt(String(match?.[2] || img?.dataset?.page || activePage() || 0), 10) || 0, detail = "image";
+  return /\/thumbs\//i.test(value) ? detail = "thumbnail" : img?.id === "lightboxImage" ? detail = "viewer" : img?.classList?.contains("catalog-cover") && (detail = "cover"), { catalogId, pageNumber, detail, value };
 }
-
 function telemetryStableResourceUrl(value) {
-  const raw = String(value || "").trim();
+  let raw = String(value || "").trim();
   if (!raw) return "";
   try {
-    const parsed = new URL(raw, window.location.href);
-    parsed.hash = "";
-    parsed.searchParams.delete(CATALOG_IMAGE_RETRY_PARAM);
-    return parsed.href;
+    let parsed = new URL(raw, window.location.href);
+    return parsed.hash = "", parsed.searchParams.delete(CATALOG_IMAGE_RETRY_PARAM), parsed.href;
   } catch {
-    return raw
-      .replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
-      .replace(/[?&]$/, "")
-      .split("#")[0];
+    return raw.replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1").replace(/[?&]$/, "").split("#")[0];
   }
 }
-
 function telemetryResourceSourceName(value) {
-  const clean = telemetryStableResourceUrl(value);
+  let clean = telemetryStableResourceUrl(value);
   if (!clean) return "inline";
   try {
-    const parsed = new URL(clean, window.location.href);
-    if (["data:", "blob:"].includes(parsed.protocol)) return parsed.protocol.slice(0, -1);
-    const hostname = parsed.hostname.toLowerCase();
-    if (hostname === "static.cloudflareinsights.com" && /\/beacon\.min\.js(?:\/|$)/i.test(parsed.pathname)) {
-      return "beacon.min.js";
-    }
-    return telemetryCleanText(parsed.pathname.split("/").pop() || "root", 80);
+    let parsed = new URL(clean, window.location.href);
+    return ["data:", "blob:"].includes(parsed.protocol) ? parsed.protocol.slice(0, -1) : parsed.hostname.toLowerCase() === "static.cloudflareinsights.com" && /\/beacon\.min\.js(?:\/|$)/i.test(parsed.pathname) ? "beacon.min.js" : telemetryCleanText(parsed.pathname.split("/").pop() || "root", 80);
   } catch {
     return telemetryCleanText(clean.split("/").pop() || "unknown", 80);
   }
 }
-
 function telemetryResourceScope(value) {
-  const clean = telemetryStableResourceUrl(value);
+  let clean = telemetryStableResourceUrl(value);
   if (!clean) return "inline";
   if (/^(?:chrome|moz|safari)-extension:/i.test(clean)) return "extension";
   try {
-    const parsed = new URL(clean, window.location.href);
-    const hostname = parsed.hostname.toLowerCase();
-    if (parsed.origin === window.location.origin) return "site";
-    if (hostname === "cdn.bargig-furniture.com") return "catalog-cdn";
-    if (hostname === "static.cloudflareinsights.com" || hostname === "cloudflareinsights.com") {
-      return "cloudflare-observability";
-    }
-    if (hostname === "netfree.link" || hostname.endsWith(".netfree.link")) return "netfree-filter";
-    return "external";
+    let parsed = new URL(clean, window.location.href), hostname = parsed.hostname.toLowerCase();
+    return parsed.origin === window.location.origin ? "site" : hostname === "cdn.bargig-furniture.com" ? "catalog-cdn" : hostname === "static.cloudflareinsights.com" || hostname === "cloudflareinsights.com" ? "cloudflare-observability" : hostname === "netfree.link" || hostname.endsWith(".netfree.link") ? "netfree-filter" : "external";
   } catch {
     return "unknown";
   }
 }
-
 function telemetryDiagnosticOnce(key) {
-  const cleanKey = telemetryCleanText(key, 320);
-  if (!cleanKey || telemetryRuntime.diagnosticEvents.has(cleanKey)) return false;
-  telemetryRuntime.diagnosticEvents.add(cleanKey);
-  if (telemetryRuntime.diagnosticEvents.size > 240) {
-    const oldest = telemetryRuntime.diagnosticEvents.values().next().value;
-    if (oldest !== undefined) telemetryRuntime.diagnosticEvents.delete(oldest);
+  let cleanKey = telemetryCleanText(key, 320);
+  if (!cleanKey || telemetryRuntime.diagnosticEvents.has(cleanKey)) return !1;
+  if (telemetryRuntime.diagnosticEvents.add(cleanKey), telemetryRuntime.diagnosticEvents.size > 240) {
+    let oldest = telemetryRuntime.diagnosticEvents.values().next().value;
+    oldest !== void 0 && telemetryRuntime.diagnosticEvents.delete(oldest);
   }
-  return true;
+  return !0;
 }
-
 function telemetryTrackImageEvent(name, src, options = {}) {
-  const context = telemetryCatalogImageContext(options.img, src);
-  const detail = telemetryCleanText(options.detail || context.detail, 50);
-  const action = telemetryCleanText(options.action || "", 50);
-  const stableUrl = telemetryStableResourceUrl(context.value);
-  const source = telemetryResourceSourceName(stableUrl);
-  const eventKey = [name, stableUrl, context.catalogId, context.pageNumber, detail, action].join("|");
-  if (!telemetryDiagnosticOnce(eventKey)) return false;
-
-  return telemetryTrack(name, {
+  let context = telemetryCatalogImageContext(options.img, src), detail = telemetryCleanText(options.detail || context.detail, 50), action = telemetryCleanText(options.action || "", 50), stableUrl = telemetryStableResourceUrl(context.value), source = telemetryResourceSourceName(stableUrl), eventKey = [name, stableUrl, context.catalogId, context.pageNumber, detail, action].join("|");
+  return telemetryDiagnosticOnce(eventKey) ? telemetryTrack(name, {
     catalogId: context.catalogId,
     pageNumber: context.pageNumber,
     detail,
@@ -1017,52 +778,36 @@ function telemetryTrackImageEvent(name, src, options = {}) {
     source,
     value: telemetryNumber(options.failedAttempts ?? options.attempt ?? options.value, 0, 100),
     error: telemetryErrorFingerprint([name, context.catalogId, context.pageNumber, detail, action, source])
-  }, { immediate: true });
+  }, { immediate: !0 }) : !1;
 }
-
 function telemetryTrackImageAttemptFailure(src, options = {}) {
   return telemetryTrackImageEvent("image_attempt_failed", src, options);
 }
-
 function telemetryTrackImageRecovery(src, options = {}) {
   return telemetryTrackImageEvent("image_recovered", src, options);
 }
-
 function telemetryTrackImageTerminalFailure(src, options = {}) {
   return telemetryTrackImageEvent("image_terminal_failure", src, options);
 }
-
 function telemetryErrorSourceScope(filename) {
-  const value = String(filename || "").toLowerCase();
+  let value = String(filename || "").toLowerCase();
   if (!value) return "inline";
   if (/^(?:chrome|moz|safari)-extension:/.test(value)) return "extension";
   try {
-    const parsed = new URL(value, window.location.href);
-    return parsed.origin === window.location.origin ? "site" : "external";
+    return new URL(value, window.location.href).origin === window.location.origin ? "site" : "external";
   } catch {
     return "unknown";
   }
 }
-
 function telemetryIsRuntimeErrorEvent(event) {
-  if (!event) return false;
-  if (typeof ErrorEvent === "function" && event instanceof ErrorEvent) return true;
-  return Object.prototype.toString.call(event) === "[object ErrorEvent]";
+  return event ? typeof ErrorEvent == "function" && event instanceof ErrorEvent ? !0 : Object.prototype.toString.call(event) === "[object ErrorEvent]" : !1;
 }
-
 function telemetryClassifyWindowError(event) {
-  if (typeof HTMLImageElement === "function" && event?.target instanceof HTMLImageElement) return "image";
-  if (telemetryIsRuntimeErrorEvent(event)) return "runtime";
-  if (typeof Element === "function" && event?.target instanceof Element) return "resource";
-  return "ignored";
+  return typeof HTMLImageElement == "function" && event?.target instanceof HTMLImageElement ? "image" : telemetryIsRuntimeErrorEvent(event) ? "runtime" : typeof Element == "function" && event?.target instanceof Element ? "resource" : "ignored";
 }
-
 function telemetryTrackRuntimeError(event) {
-  if (!telemetryIsRuntimeErrorEvent(event)) return false;
-  const filename = String(event.filename || "");
-  const sourceName = telemetryResourceSourceName(filename);
-  const errorName = telemetryCleanText(event.error?.name || "Error", 40);
-  const message = telemetryCleanText(event.message || event.error?.message || "JavaScript error", 120);
+  if (!telemetryIsRuntimeErrorEvent(event)) return !1;
+  let filename = String(event.filename || ""), sourceName = telemetryResourceSourceName(filename), errorName = telemetryCleanText(event.error?.name || "Error", 40), message = telemetryCleanText(event.message || event.error?.message || "JavaScript error", 120);
   return telemetryTrack("js_error", {
     catalogId: activeCatalog()?.id || "",
     action: errorName,
@@ -1072,77 +817,53 @@ function telemetryTrackRuntimeError(event) {
     pageNumber: Number(event.lineno) || 0,
     secondaryValue: Number(event.colno) || 0,
     error: telemetryErrorFingerprint([errorName, message, sourceName, event.lineno, event.colno])
-  }, { immediate: true });
+  }, { immediate: !0 });
 }
-
 function telemetryResourceElementUrl(target) {
   if (!target) return "";
-  const resource =  (target);
+  let resource = (
+    /** @type {TelemetryResourceElement} */
+    target
+  );
   return String(resource.currentSrc || resource.src || resource.href || resource.data || "");
 }
-
 function telemetryResourceRole(target) {
   if (!target) return "resource";
-  const explicit = target instanceof HTMLElement
-    ? telemetryCleanText(target.dataset.telemetryResourceRole, 50)
-    : "";
+  let explicit = target instanceof HTMLElement ? telemetryCleanText(target.dataset.telemetryResourceRole, 50) : "";
   if (explicit) return explicit;
   if (target instanceof HTMLElement && target.dataset.searchIndexSrc) return "search-index";
-
-  const tag = String(target.tagName || "").toLowerCase();
+  let tag = String(target.tagName || "").toLowerCase();
   if (target instanceof HTMLLinkElement) {
-    const rel = telemetryCleanText(target.rel || target.getAttribute("rel") || "link", 24);
-    const asType = telemetryCleanText(target.as || target.getAttribute("as") || "", 24);
+    let rel = telemetryCleanText(target.rel || target.getAttribute("rel") || "link", 24), asType = telemetryCleanText(target.as || target.getAttribute("as") || "", 24);
     return asType ? `${rel}:${asType}` : rel;
   }
   return tag || "resource";
 }
-
 function telemetryTrackSearchIndexFailure(reason, options = {}) {
-  const src = String(options.src || telemetryResourceElementUrl(options.target) || SEARCH_INDEX_SCRIPT_SRC || "");
-  const source = telemetryResourceSourceName(src);
-  const action = telemetryCleanText(reason || "load-error", 50);
-  const targetTrigger = options.target instanceof HTMLElement
-    ? options.target.dataset.telemetrySearchTrigger
-    : "";
-  const detail = telemetryCleanText(options.trigger || targetTrigger || "unknown", 50);
-  const scope = telemetryErrorSourceScope(src);
-  const key = ["search_index_load_failed", source, action, scope, detail].join("|");
-  if (!telemetryDiagnosticOnce(key)) return false;
-  return telemetryTrack("search_index_load_failed", {
+  let src = String(options.src || telemetryResourceElementUrl(options.target) || SEARCH_INDEX_SCRIPT_SRC || ""), source = telemetryResourceSourceName(src), action = telemetryCleanText(reason || "load-error", 50), targetTrigger = options.target instanceof HTMLElement ? options.target.dataset.telemetrySearchTrigger : "", detail = telemetryCleanText(options.trigger || targetTrigger || "unknown", 50), scope = telemetryErrorSourceScope(src), key = ["search_index_load_failed", source, action, scope, detail].join("|");
+  return telemetryDiagnosticOnce(key) ? telemetryTrack("search_index_load_failed", {
     action,
     detail,
     scope,
     source,
     error: telemetryErrorFingerprint(["search-index", action, source, scope])
-  }, { immediate: true });
+  }, { immediate: !0 }) : !1;
 }
-
 function telemetryTrackResourceError(target) {
-  const src = telemetryResourceElementUrl(target);
-  const role = telemetryResourceRole(target);
-  if (role === "search-index") {
+  let src = telemetryResourceElementUrl(target), role = telemetryResourceRole(target);
+  if (role === "search-index")
     return telemetryTrackSearchIndexFailure("network-error", { target, src });
-  }
-
-  const tag = telemetryCleanText(String(target?.tagName || "resource").toLowerCase(), 30);
-  const source = telemetryResourceSourceName(src);
-  const scope = telemetryResourceScope(src);
-  const key = ["resource_error", tag, role, source, scope].join("|");
-  if (!telemetryDiagnosticOnce(key)) return false;
-  return telemetryTrack("resource_error", {
+  let tag = telemetryCleanText(String(target?.tagName || "resource").toLowerCase(), 30), source = telemetryResourceSourceName(src), scope = telemetryResourceScope(src), key = ["resource_error", tag, role, source, scope].join("|");
+  return telemetryDiagnosticOnce(key) ? telemetryTrack("resource_error", {
     action: tag,
     detail: role,
     scope,
     source,
     error: telemetryErrorFingerprint(["resource", tag, role, source, scope])
-  }, { immediate: true });
+  }, { immediate: !0 }) : !1;
 }
-
 function telemetryTrackUnhandledRejection(event) {
-  const reason = event?.reason;
-  const errorName = telemetryCleanText(reason?.name || "UnhandledRejection", 40);
-  const message = telemetryCleanText(reason?.message || reason || "Unhandled promise rejection", 120);
+  let reason = event?.reason, errorName = telemetryCleanText(reason?.name || "UnhandledRejection", 40), message = telemetryCleanText(reason?.message || reason || "Unhandled promise rejection", 120);
   telemetryTrack("js_error", {
     catalogId: activeCatalog()?.id || "",
     action: errorName,
@@ -1150,39 +871,27 @@ function telemetryTrackUnhandledRejection(event) {
     scope: "promise",
     error: telemetryErrorFingerprint([errorName, message, "promise"]),
     source: "promise"
-  }, { immediate: true });
+  }, { immediate: !0 });
 }
-
 function telemetryHandleDocumentClick(event) {
-  const link = eventTargetElement(event.target)?.closest("a[href]");
+  let link = eventTargetElement(event.target)?.closest("a[href]");
   if (!(link instanceof HTMLAnchorElement)) return;
-  const href = String(link.getAttribute("href") || "").trim();
-  let action = telemetryCleanText(link.dataset.contactAction, 50);
-  if (!action && href.startsWith("tel:")) action = "phone";
-  else if (!action && href.startsWith("mailto:")) action = "email";
-  else if (!action && (link.classList.contains("site-footer-gmail-link") || /mail\.google\.com/i.test(href))) action = "gmail";
-  if (action) {
-    telemetryTrack("contact", {
-      action,
-      source: link.dataset.contactSource || "footer",
-      catalogId: link.dataset.contactCatalogId || "",
-      pageNumber: link.dataset.contactPage || 0
-    }, { immediate: true });
-  }
+  let href = String(link.getAttribute("href") || "").trim(), action = telemetryCleanText(link.dataset.contactAction, 50);
+  !action && href.startsWith("tel:") ? action = "phone" : !action && href.startsWith("mailto:") ? action = "email" : !action && (link.classList.contains("site-footer-gmail-link") || /mail\.google\.com/i.test(href)) && (action = "gmail"), action && telemetryTrack("contact", {
+    action,
+    source: link.dataset.contactSource || "footer",
+    catalogId: link.dataset.contactCatalogId || "",
+    pageNumber: link.dataset.contactPage || 0
+  }, { immediate: !0 });
 }
-
-function telemetryInit() {
-  if (telemetryRuntime.initialized) return;
-  telemetryRuntime.initialized = true;
-  if (!telemetryIsEnabled()) return;
-
-  window.addEventListener("error", (event) => {
-    const classification = telemetryClassifyWindowError(event);
+function telemetryInit(options = {}) {
+  telemetryRuntime.initialized || (telemetryRuntime.initialized = !0, telemetryIsEnabled() && (window.addEventListener("error", (event) => {
+    let classification = telemetryClassifyWindowError(event);
     if (classification === "image") {
-      const image = event.target instanceof HTMLImageElement ? event.target : null;
+      let image = event.target instanceof HTMLImageElement ? event.target : null;
       if (!image) return;
       if (image.dataset.telemetryManaged !== "true") {
-        if (recoverCatalogImageAfterInitialFailure(image)) return;
+        if (options.recoverCatalogImageAfterInitialFailure?.(image)) return;
         telemetryTrackImageTerminalFailure(image.currentSrc || image.src, {
           img: image,
           detail: telemetryCatalogImageContext(image).detail,
@@ -1196,828 +905,343 @@ function telemetryInit() {
       telemetryTrackRuntimeError(event);
       return;
     }
-    if (classification === "resource") telemetryTrackResourceError(eventTargetElement(event.target));
-  }, true);
-  window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection);
-  document.addEventListener("click", telemetryHandleDocumentClick, true);
-  telemetryObserveWebVitals();
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "hidden") return;
-    telemetryReportWebVitals();
-    telemetryFlush({ beacon: true }).catch(() => {});
-  });
-  window.addEventListener("pagehide", () => {
-    telemetryReportWebVitals();
-    telemetryFlush({ beacon: true }).catch(() => {});
-  });
-}
-/* ===== END SOURCE: src/js/15-telemetry.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/18-navigation-feature.js ===== */
-
-function syncDocumentRouteShell(nextPage) {
-  const showCatalogs = nextPage === "home";
-  shellElements.catalogsSection.classList.toggle("hidden", !showCatalogs);
-  if (showCatalogs) {
-    shellElements.catalogsSection.removeAttribute("aria-hidden");
-    shellElements.catalogsSection.classList.add("in-view");
-  } else {
-    shellElements.catalogsSection.setAttribute("aria-hidden", "true");
-  }
+    classification === "resource" && telemetryTrackResourceError(eventTargetElement(event.target));
+  }, !0), window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection), document.addEventListener("click", telemetryHandleDocumentClick, !0), telemetryObserveWebVitals(), document.addEventListener("visibilitychange", () => {
+    document.visibilityState === "hidden" && (telemetryReportWebVitals(), telemetryFlush({ beacon: !0 }).catch(() => {
+    }));
+  }), window.addEventListener("pagehide", () => {
+    telemetryReportWebVitals(), telemetryFlush({ beacon: !0 }).catch(() => {
+    });
+  })));
 }
 
-function restoreDocumentRouteScroll(position = null) {
-  if (!position) return;
-  const x = Number.isFinite(Number(position.x)) ? Number(position.x) : 0;
-  const y = Number.isFinite(Number(position.y)) ? Number(position.y) : 0;
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => window.scrollTo(x, y));
-  });
-}
-
-registerFeatureInterface("navigation", {
-  catalog: () => navigationState.catalog,
-  page: () => navigationState.page,
-  source: () => navigationState.lightboxSource,
-  setLocation: (catalog, page = 1, source = navigationState.lightboxSource) => {
-    navigationState.catalog = catalog;
-    navigationState.page = Math.max(1, Number.parseInt(String(page), 10) || 1);
-    navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
-  },
-  setPage: (page) => {
-    navigationState.page = Math.max(1, Number.parseInt(String(page), 10) || 1);
-  },
-  setSource: (source) => {
-    navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
-  },
-  clearLocation: () => {
-    navigationState.catalog = null;
-    navigationState.page = 1;
-    navigationState.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
-  },
-  setAppPage: setCurrentAppPage,
-  appPage: () => currentAppPage,
-  syncRouteShell: syncDocumentRouteShell,
-  restoreScroll: restoreDocumentRouteScroll,
-  attachEvents: attachNavigationEvents
-});
-
-function navigationFeature() {
-  const feature = getFeatureInterface("navigation");
-  if (!feature) throw new Error("Navigation feature is not registered");
-  return feature;
-}
-
-function activeCatalog() {
-  return navigationFeature().catalog();
-}
-
-function activePage() {
-  return navigationFeature().page();
-}
-
-function activeViewerSource() {
-  return navigationFeature().source();
-}
-
-function setActiveLocation(catalog, page = 1, source = activeViewerSource()) {
-  navigationFeature().setLocation(catalog, page, source);
-}
-
-function setActivePage(page) {
-  navigationFeature().setPage(page);
-}
-
-function setActiveViewerSource(source) {
-  navigationFeature().setSource(source);
-}
-
-function clearActiveLocation() {
-  navigationFeature().clearLocation();
-}
-/* ===== END SOURCE: src/js/18-navigation-feature.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/19-shared-pure.js ===== */
-
-function buildViewerInquiryMailtoUrl(emailAddress, reference) {
-  const subject = encodeURIComponent(String(reference?.subject || ""));
-  const body = encodeURIComponent(String(reference?.text || "").replace(/\r?\n/g, "\r\n"));
-  return `mailto:${String(emailAddress || "")}?subject=${subject}&body=${body}`;
-}
-/* ===== END SOURCE: src/js/19-shared-pure.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/20-shared-ui.js ===== */
-
-const uiElements = Object.freeze({
+// src/js/20-shared-ui.js
+var uiElements = Object.freeze({
   siteActionToast: requiredElement("siteActionToast")
 });
-
-
 function isHtmlElement(value) {
   return value instanceof HTMLElement;
 }
-
-function eventTargetElement(target) {
-  return target instanceof Element ? target : null;
-}
-
 function focusHtmlElement(value, options) {
-  if (!(value instanceof HTMLElement)) return false;
-  value.focus(options);
-  return true;
+  return value instanceof HTMLElement ? (value.focus(options), !0) : !1;
 }
-
-function catalogAssetBaseUrl() {
-  const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
-  if (!rawBase) return "";
-  return rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
-}
-
-function isAbsoluteAssetUrl(path) {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith("//") || path.startsWith("data:");
-}
-
-function resolveCatalogAssetUrl(path) {
-  const cleanPath = String(path || "").trim();
-  if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
-
-  const baseUrl = catalogAssetBaseUrl();
-  if (!baseUrl) return cleanPath;
-
-  try {
-    return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
-  } catch {
-    return `${baseUrl}${cleanPath.replace(/^\/+/, "")}`;
-  }
-}
-
 function catalogImageCrossOriginAttribute(_url = "") {
   return "";
 }
-
 function applyCatalogImageCrossOrigin(img) {
-  if (img) img.removeAttribute("crossorigin");
+  img && img.removeAttribute("crossorigin");
 }
-
 function setCatalogImageSource(img, url) {
-  if (!img) return;
-  applyCatalogImageCrossOrigin(img);
-  img.src = url;
+  img && (applyCatalogImageCrossOrigin(img), img.src = url);
 }
-
 function networkInformation() {
   return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
 }
-
 function isSaveDataEnabled() {
-  return Boolean(networkInformation()?.saveData);
+  return !!networkInformation()?.saveData;
 }
-
 function catalogImageDeliveryMode() {
-  const configured = String(window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE || "").trim().toLowerCase();
-  return configured === CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY
-    ? CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY
-    : CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
+  return String(window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE || "").trim().toLowerCase() === CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY ? CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY : CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
 }
-
 function catalogMediumImagesEnabled() {
   return catalogImageDeliveryMode() === CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
 }
-
-function networkEffectiveType() {
-  return String(networkInformation()?.effectiveType || "").trim().toLowerCase();
-}
-
-function catalogNeighborPreloadRadius() {
-  if (isSaveDataEnabled()) return 1;
-  const effectiveType = networkEffectiveType();
-  if (effectiveType === "slow-2g" || effectiveType === "2g") return 1;
-  if (effectiveType === "3g") return 1;
-  if (!catalogMediumImagesEnabled()) return 1;
-  return 2;
-}
-
 function normalizeCatalogImageUrl(url) {
-  const value = String(url || "").trim();
+  let value = String(url || "").trim();
   if (!value) return "";
   try {
-    const parsed = new URL(value, window.location.href);
-    parsed.searchParams.delete(CATALOG_IMAGE_RETRY_PARAM);
-    return parsed.href;
+    let parsed = new URL(value, window.location.href);
+    return parsed.searchParams.delete(CATALOG_IMAGE_RETRY_PARAM), parsed.href;
   } catch {
-    return value.replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
-      .replace(/[?&]$/, "");
+    return value.replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1").replace(/[?&]$/, "");
   }
 }
-
 function unversionedCatalogImageUrl(url) {
-  const value = normalizeCatalogImageUrl(url);
+  let value = normalizeCatalogImageUrl(url);
   if (!value) return "";
   try {
-    const parsed = new URL(value, window.location.href);
-    parsed.searchParams.delete(CATALOG_ASSET_VERSION_PARAM);
-    return parsed.href;
+    let parsed = new URL(value, window.location.href);
+    return parsed.searchParams.delete("v"), parsed.href;
   } catch {
-    return value.replace(new RegExp(`([?&])${CATALOG_ASSET_VERSION_PARAM}=[^&#]*&?`, "g"), "$1")
-      .replace(/[?&]$/, "");
+    return value.replace(new RegExp(`([?&])${"v"}=[^&#]*&?`, "g"), "$1").replace(/[?&]$/, "");
   }
 }
-
 function cacheBustedCatalogImageUrl(url) {
-  const value = normalizeCatalogImageUrl(url);
+  let value = normalizeCatalogImageUrl(url);
   if (!value) return "";
   try {
-    const parsed = new URL(value, window.location.href);
-    parsed.searchParams.set(CATALOG_IMAGE_RETRY_PARAM, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-    return parsed.href;
+    let parsed = new URL(value, window.location.href);
+    return parsed.searchParams.set(CATALOG_IMAGE_RETRY_PARAM, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`), parsed.href;
   } catch {
-    const separator = value.includes("?") ? "&" : "?";
+    let separator = value.includes("?") ? "&" : "?";
     return `${value}${separator}${CATALOG_IMAGE_RETRY_PARAM}=${Date.now()}`;
   }
 }
-
 function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = {}) {
-  const primary = normalizeCatalogImageUrl(primarySrc);
-  const fallback = normalizeCatalogImageUrl(fallbackSrc);
-  const candidates = [];
-  const push = (src, role, tier = "") => {
-    if (!src || candidates.some((candidate) => candidate.src === src)) return;
-    candidates.push({ src, role, tier, fallback: role.startsWith("fallback") });
-  };
-
-  const primaryTier = String(options.primaryTier || "");
+  let primary = normalizeCatalogImageUrl(primarySrc), fallback = normalizeCatalogImageUrl(fallbackSrc), candidates = [], push = (src, role, tier = "") => {
+    !src || candidates.some((candidate) => candidate.src === src) || candidates.push({ src, role, tier, fallback: role.startsWith("fallback") });
+  }, primaryTier = String(options.primaryTier || "");
   push(
     options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary,
     options.forceRefresh ? String(options.forceRefreshRole || "manual") : "primary",
     primaryTier
   );
-  const unversionedPrimary = unversionedCatalogImageUrl(primary);
-  if (unversionedPrimary && unversionedPrimary !== primary) {
-    push(cacheBustedCatalogImageUrl(unversionedPrimary), "direct-retry", primaryTier);
-  }
-  if (fallback && fallback !== primary) push(fallback, "fallback", String(options.fallbackTier || ""));
-  (Array.isArray(options.fallbackCandidates) ? options.fallbackCandidates : []).forEach((candidate, index) => {
-    if (!candidate || typeof candidate !== "object") return;
-    push(
+  let unversionedPrimary = unversionedCatalogImageUrl(primary);
+  return unversionedPrimary && unversionedPrimary !== primary && push(cacheBustedCatalogImageUrl(unversionedPrimary), "direct-retry", primaryTier), fallback && fallback !== primary && push(fallback, "fallback", String(options.fallbackTier || "")), (Array.isArray(options.fallbackCandidates) ? options.fallbackCandidates : []).forEach((candidate, index) => {
+    !candidate || typeof candidate != "object" || push(
       normalizeCatalogImageUrl(candidate.src),
       String(candidate.role || `fallback-${index + 1}`),
       String(candidate.tier || "")
     );
-  });
-  return candidates;
+  }), candidates;
 }
-
 function loadCatalogImageWithRecovery(img, options = {}) {
-  const candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options);
-  const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
-  const telemetryDetail = telemetryCleanText(options.telemetryDetail, 40);
-  let index = 0;
-  let stopped = false;
-  let failedAttempts = Math.max(0, Number(options.initialFailedAttempts) || 0);
-  let lastCandidate = null;
-
+  let candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options), isCurrent = typeof options.isCurrent == "function" ? options.isCurrent : () => !0, telemetryDetail = telemetryCleanText(options.telemetryDetail, 40), index = 0, stopped = !1, failedAttempts = Math.max(0, Number(options.initialFailedAttempts) || 0), lastCandidate = null;
   img.dataset.telemetryManaged = "true";
-
-  const attempt = () => {
+  let attempt = () => {
     if (stopped || !isCurrent() || index >= candidates.length) {
-      if (!stopped && isCurrent()) {
-        if (telemetryDetail && lastCandidate) {
-          telemetryTrackImageTerminalFailure(lastCandidate.src, {
-            img,
-            detail: telemetryDetail,
-            action: lastCandidate.role,
-            failedAttempts
-          });
-        }
-        options.onExhausted?.({ failedAttempts, lastCandidate });
-      }
+      !stopped && isCurrent() && (telemetryDetail && lastCandidate && telemetryTrackImageTerminalFailure(lastCandidate.src, {
+        img,
+        detail: telemetryDetail,
+        action: lastCandidate.role,
+        failedAttempts
+      }), options.onExhausted?.({ failedAttempts, lastCandidate }));
       return;
     }
-
-    const candidate = candidates[index++];
-    lastCandidate = candidate;
-    img.dataset.imageLoadPending = "true";
-    prepareImagePlaceholder(img);
-    let settled = false;
-    const settle = (loaded) => {
-      if (settled) return;
-      settled = true;
-      delete img.dataset.imageLoadPending;
-      if (stopped || !isCurrent() || img.getAttribute("src") !== candidate.src) return;
-      if (loaded && img.naturalWidth > 0) {
-        syncImagePlaceholderState(img);
-        if (telemetryDetail && failedAttempts > 0) {
-          telemetryTrackImageRecovery(candidate.src, {
+    let candidate = candidates[index++];
+    lastCandidate = candidate, img.dataset.imageLoadPending = "true", prepareImagePlaceholder(img);
+    let settled = !1, settle = (loaded) => {
+      if (!settled && (settled = !0, delete img.dataset.imageLoadPending, !(stopped || !isCurrent() || img.getAttribute("src") !== candidate.src))) {
+        if (loaded && img.naturalWidth > 0) {
+          syncImagePlaceholderState(img), telemetryDetail && failedAttempts > 0 && telemetryTrackImageRecovery(candidate.src, {
             img,
             detail: telemetryDetail,
             action: candidate.role,
             failedAttempts
-          });
+          }), options.onSuccess?.(candidate, { failedAttempts, attempts: index });
+          return;
         }
-        options.onSuccess?.(candidate, { failedAttempts, attempts: index });
-        return;
-      }
-      failedAttempts += 1;
-      if (telemetryDetail) {
-        telemetryTrackImageAttemptFailure(candidate.src, {
+        failedAttempts += 1, telemetryDetail && telemetryTrackImageAttemptFailure(candidate.src, {
           img,
           detail: `${telemetryDetail}-${candidate.role}`,
           action: candidate.role,
           attempt: failedAttempts
-        });
+        }), options.onFailure?.(candidate, { failedAttempts, attempts: index }), attempt();
       }
-      options.onFailure?.(candidate, { failedAttempts, attempts: index });
-      attempt();
     };
-
-    img.addEventListener("load", () => settle(true), { once: true });
-    img.addEventListener("error", () => settle(false), { once: true });
-    options.onAttempt?.(candidate, { failedAttempts, attempts: index });
-    setCatalogImageSource(img, candidate.src);
-    if (img.complete) queueMicrotask(() => settle(Boolean(img.naturalWidth)));
+    img.addEventListener("load", () => settle(!0), { once: !0 }), img.addEventListener("error", () => settle(!1), { once: !0 }), options.onAttempt?.(candidate, { failedAttempts, attempts: index }), setCatalogImageSource(img, candidate.src), img.complete && queueMicrotask(() => settle(!!img.naturalWidth));
   };
-
-  attempt();
-  return () => { stopped = true; };
+  return attempt(), () => {
+    stopped = !0;
+  };
 }
-
 function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail") {
-  const catalogId = escapeHtml(catalog?.id || "");
-  const safePage = Math.max(0, Number.parseInt(String(page), 10) || 0);
-  const safeDetail = escapeHtml(detail || "thumbnail");
+  let catalogId = escapeHtml(catalog?.id || ""), safePage = Math.max(0, Number.parseInt(String(page), 10) || 0), safeDetail = escapeHtml(detail || "thumbnail");
   return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}"`;
 }
-
 function recoverCatalogImageAfterInitialFailure(img) {
-  if (!img || img.dataset.catalogImageRecovery !== "lightweight") return false;
-  if (img.dataset.catalogImageRecoveryStarted === "true") return true;
-
-  const failedSrc = String(img.currentSrc || img.getAttribute("src") || "");
-  if (!failedSrc) return false;
-
-  const detail = telemetryCleanText(img.dataset.telemetryDetail || telemetryCatalogImageContext(img).detail, 40);
-  img.dataset.catalogImageRecoveryStarted = "true";
-  telemetryTrackImageAttemptFailure(failedSrc, {
+  if (!img || img.dataset.catalogImageRecovery !== "lightweight") return !1;
+  if (img.dataset.catalogImageRecoveryStarted === "true") return !0;
+  let failedSrc = String(img.currentSrc || img.getAttribute("src") || "");
+  if (!failedSrc) return !1;
+  let detail = telemetryCleanText(img.dataset.telemetryDetail || telemetryCatalogImageContext(img).detail, 40);
+  img.dataset.catalogImageRecoveryStarted = "true", telemetryTrackImageAttemptFailure(failedSrc, {
     img,
     detail: `${detail}-primary`,
     action: "primary",
     attempt: 1
   });
-
-  const directRetrySrc = unversionedCatalogImageUrl(failedSrc) || normalizeCatalogImageUrl(failedSrc);
-  loadCatalogImageWithRecovery(img, {
+  let directRetrySrc = unversionedCatalogImageUrl(failedSrc) || normalizeCatalogImageUrl(failedSrc);
+  return loadCatalogImageWithRecovery(img, {
     primarySrc: directRetrySrc,
-    forceRefresh: true,
+    forceRefresh: !0,
     forceRefreshRole: "direct-retry",
     initialFailedAttempts: 1,
     telemetryDetail: detail,
-    isCurrent: () => img.isConnected !== false,
+    isCurrent: () => img.isConnected !== !1,
     onExhausted: () => syncImagePlaceholderState(img)
-  });
-  return true;
+  }), !0;
 }
-
-function prepareCatalogImage(url, options = {}) {
-  const src = String(url || "");
-  if (!src) return Promise.reject(new Error("missing-image-src"));
-
-  const cached = catalogAssetState.imageLoadCache.get(src);
-  if (cached) return cached;
-
-  const image = new Image();
-  applyCatalogImageCrossOrigin(image);
-  image.decoding = "async";
-  image.fetchPriority = options.priority || "auto";
-
-  const promise = new Promise((resolve, reject) => {
-    image.addEventListener("load", async () => {
-      // Preloads should be decode-ready, not merely network-complete. Otherwise a
-      // neighboring page can still pause on its first paint even though its bytes
-      // already arrived. Decode failures are non-fatal when the image itself loaded.
-      if (typeof image.decode === "function") {
-        try {
-          await image.decode();
-        } catch (_error) {
-          // The load event and natural dimensions remain the source of truth.
-        }
-      }
-
-      // Keep only lightweight readiness metadata in the promise cache. Returning
-      // the Image object itself retained its decoded bitmap indefinitely, which
-      // made a browsing session accumulate tens or hundreds of megabytes.
-      resolve({
-        width: Number(image.naturalWidth) || 0,
-        height: Number(image.naturalHeight) || 0
-      });
-    }, { once: true });
-
-    image.addEventListener("error", () => {
-      catalogAssetState.imageLoadCache.delete(src);
-      telemetryTrackImageAttemptFailure(src, {
-        detail: options.detail || "preload",
-        action: "preload",
-        attempt: 1
-      });
-      reject(new Error("image-load-failed"));
-    }, { once: true });
-
-    image.src = src;
-  });
-
-  if (catalogAssetState.imageLoadCache.size >= CATALOG_IMAGE_PRELOAD_CACHE_LIMIT) {
-    const oldestSrc = catalogAssetState.imageLoadCache.keys().next().value;
-    if (oldestSrc) catalogAssetState.imageLoadCache.delete(oldestSrc);
-  }
-  catalogAssetState.imageLoadCache.set(src, promise);
-  return promise;
-}
-
 function clampValue(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
-
-function pad(num) {
-  return String(num).padStart(3, "0");
+function pad(value) {
+  return String(value).padStart(3, "0");
 }
-
 function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
-
 function catalogCategoryName(catalog) {
-  const category = String(catalog?.category || "").trim();
-  return category || "קטלוגים";
+  return String(catalog?.category || "").trim() || "קטלוגים";
 }
-
 function catalogSubcategoryName(catalog) {
-  const legacyCatalog =  (catalog);
-  const value = catalog?.subcategory ?? catalog?.subCategory ?? legacyCatalog?.sub_category ?? legacyCatalog?.subcategories ?? legacyCatalog?.["תת קטגוריה"] ?? legacyCatalog?.["תת_קטגוריה"] ?? "";
-  const rawSubcategory = Array.isArray(value) ? value.find((item) => String(item || "").trim()) : value;
-  const subcategory = String(rawSubcategory || "").trim();
-  return subcategory;
+  let legacyCatalog = (
+    /** @type {(CatalogRecord & Record<string, unknown>)|null|undefined} */
+    catalog
+  ), value = catalog?.subcategory ?? catalog?.subCategory ?? legacyCatalog?.sub_category ?? legacyCatalog?.subcategories ?? legacyCatalog?.["תת קטגוריה"] ?? legacyCatalog?.תת_קטגוריה ?? "", rawSubcategory = Array.isArray(value) ? value.find((item) => String(item || "").trim()) : value;
+  return String(rawSubcategory || "").trim();
 }
-
 function categorySlug(value) {
-  return String(value || "catalog")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u0590-\u05ff]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "catalog";
+  return String(value || "catalog").trim().toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g, "-").replace(/^-+|-+$/g, "") || "catalog";
 }
-
 function categorySectionId(category, index) {
   return `catalog-category-${categorySlug(category)}-${index + 1}`;
 }
-
 function subcategorySectionId(category, categoryIndex, subcategory, subcategoryIndex) {
   return `${categorySectionId(category, categoryIndex)}-sub-${categorySlug(subcategory)}-${subcategoryIndex + 1}`;
 }
-
-const catalogTaxonomy = window.BARGIG_CATALOG_TAXONOMY || { categories: [], subcategories: [] };
-const CATALOG_CATEGORY_SHARE_SLUGS = new Map(
-  (Array.isArray(catalogTaxonomy.categories) ? catalogTaxonomy.categories : [])
-    .map((item) =>  ([String(item?.name || "").trim(), String(item?.slug || "").trim()]))
-    .filter(([name, slug]) => name && slug)
+var catalogTaxonomy = window.BARGIG_CATALOG_TAXONOMY || { categories: [], subcategories: [] }, CATALOG_CATEGORY_SHARE_SLUGS = new Map(
+  (Array.isArray(catalogTaxonomy.categories) ? catalogTaxonomy.categories : []).map((item) => (
+    /** @type {[string, string]} */
+    [String(item?.name || "").trim(), String(item?.slug || "").trim()]
+  )).filter(([name, slug]) => name && slug)
+), CATALOG_SUBCATEGORY_SHARE_SLUGS = new Map(
+  (Array.isArray(catalogTaxonomy.subcategories) ? catalogTaxonomy.subcategories : []).map((item) => (
+    /** @type {[string, string]} */
+    [String(item?.name || "").trim(), String(item?.slug || "").trim()]
+  )).filter(([name, slug]) => name && slug)
 );
-const CATALOG_SUBCATEGORY_SHARE_SLUGS = new Map(
-  (Array.isArray(catalogTaxonomy.subcategories) ? catalogTaxonomy.subcategories : [])
-    .map((item) =>  ([String(item?.name || "").trim(), String(item?.slug || "").trim()]))
-    .filter(([name, slug]) => name && slug)
-);
-
 function normalizeShareRouteToken(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/['"`]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return String(value || "").trim().toLowerCase().replace(/['"`]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
-
 function normalizeShareRoutePath(value) {
-  return String(value || "")
-    .split("/")
-    .map(normalizeShareRouteToken)
-    .filter(Boolean)
-    .join("/");
+  return String(value || "").split("/").map(normalizeShareRouteToken).filter(Boolean).join("/");
 }
-
 function categoryShareSlug(category, index) {
-  const mapped = CATALOG_CATEGORY_SHARE_SLUGS.get(String(category || "").trim());
+  let mapped = CATALOG_CATEGORY_SHARE_SLUGS.get(String(category || "").trim());
   return normalizeShareRouteToken(mapped) || normalizeShareRouteToken(category) || `category-${index + 1}`;
 }
-
 function subcategoryShareSlug(subcategory, index) {
-  const mapped = CATALOG_SUBCATEGORY_SHARE_SLUGS.get(String(subcategory || "").trim());
+  let mapped = CATALOG_SUBCATEGORY_SHARE_SLUGS.get(String(subcategory || "").trim());
   return normalizeShareRouteToken(mapped) || normalizeShareRouteToken(subcategory) || `sub-${index + 1}`;
 }
-
 function catalogCategorySharePath(category, index) {
   return categoryShareSlug(category, index);
 }
-
 function catalogSubcategorySharePath(category, categoryIndex, subcategory, subcategoryIndex) {
   return `${categoryShareSlug(category, categoryIndex)}/${subcategoryShareSlug(subcategory, subcategoryIndex)}`;
 }
-
 function getCatalogCategoryGroups() {
-  const groups = [];
-  const groupByCategory = new Map();
-
-  catalogs.forEach((catalog) => {
-    const category = catalogCategoryName(catalog);
+  let groups = [], groupByCategory = /* @__PURE__ */ new Map();
+  return catalogs.forEach((catalog) => {
+    let category = catalogCategoryName(catalog);
     if (!groupByCategory.has(category)) {
-      const group = {
+      let group2 = {
         category,
         items: [],
         directItems: [],
         subcategories: [],
-        subcategoryMap: new Map()
+        subcategoryMap: /* @__PURE__ */ new Map()
       };
-      groupByCategory.set(category, group);
-      groups.push(group);
+      groupByCategory.set(category, group2), groups.push(group2);
     }
-
-    const group = groupByCategory.get(category);
+    let group = groupByCategory.get(category);
     if (!group) return;
-    const subcategory = catalogSubcategoryName(catalog);
-    group.items.push(catalog);
-
-    if (!subcategory) {
+    let subcategory = catalogSubcategoryName(catalog);
+    if (group.items.push(catalog), !subcategory) {
       group.directItems.push(catalog);
       return;
     }
-
     if (!group.subcategoryMap?.has(subcategory)) {
-      const subcategoryGroup = { subcategory, items: [] };
-      group.subcategoryMap?.set(subcategory, subcategoryGroup);
-      group.subcategories.push(subcategoryGroup);
+      let subcategoryGroup = { subcategory, items: [] };
+      group.subcategoryMap?.set(subcategory, subcategoryGroup), group.subcategories.push(subcategoryGroup);
     }
     group.subcategoryMap?.get(subcategory)?.items.push(catalog);
-  });
-
-  groups.forEach((group) => {
-    group.hasSubcategories = group.subcategories.length > 0;
-    delete group.subcategoryMap;
-  });
-
-  return groups;
+  }), groups.forEach((group) => {
+    group.hasSubcategories = group.subcategories.length > 0, delete group.subcategoryMap;
+  }), groups;
 }
-
-function imageExt(catalog) {
-  return catalog?.imageExt || "jpg";
-}
-
-function catalogDir(catalog) {
-  return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
-}
-
-function catalogAssetVersionForTier(catalog, tier) {
-  const normalizedTier = String(tier || CATALOG_IMAGE_TIER_FULL);
-  const variantVersion = String(catalog?.imageVariants?.[normalizedTier]?.version || "").trim();
-  const baseVersion = variantVersion || String(catalog?.assetVersion || "").trim();
-  if (!baseVersion) return "";
-  return `${baseVersion}-${normalizedTier}-u${CATALOG_ASSET_URL_SCHEMA_VERSION}`;
-}
-
-function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
-  const version = catalogAssetVersionForTier(catalog, tier);
-  if (!version) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}${CATALOG_ASSET_VERSION_PARAM}=${encodeURIComponent(version)}`;
-}
-
-function pageSrc(catalog, page) {
-  return withAssetVersion(
-    `${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`,
-    catalog,
-    CATALOG_IMAGE_TIER_FULL
-  );
-}
-
-function thumbSrc(catalog, page) {
-  return withAssetVersion(
-    `${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`,
-    catalog,
-    CATALOG_IMAGE_TIER_THUMB
-  );
-}
-
 function catalogImageVariant(catalog, tier) {
   if (tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled()) return null;
-  const variants = catalog?.imageVariants;
-  if (variants && typeof variants === "object" && variants[tier] && typeof variants[tier] === "object") {
+  let variants = catalog?.imageVariants;
+  if (variants && typeof variants == "object" && variants[tier] && typeof variants[tier] == "object")
     return variants[tier];
-  }
   if (tier === CATALOG_IMAGE_TIER_THUMB) return { directory: "thumbs", maxSide: 420 };
   if (tier === CATALOG_IMAGE_TIER_FULL) {
-    const size = pageSize(catalog, 1);
+    let size = pageSize(catalog, 1);
     return { directory: "", maxSide: size ? Math.max(size.width, size.height) : 2800 };
   }
   return null;
 }
-
-function catalogSupportsImageTier(catalog, tier) {
-  return Boolean(catalogImageVariant(catalog, tier));
-}
-
-function catalogImageTierMaxSide(catalog, tier) {
-  const value = Number(catalogImageVariant(catalog, tier)?.maxSide);
-  if (Number.isFinite(value) && value > 0) return value;
-  return tier === CATALOG_IMAGE_TIER_MEDIUM ? DEFAULT_CATALOG_MEDIUM_MAX_SIDE : 0;
-}
-
 function mediumSrc(catalog, page) {
-  const variant = catalogImageVariant(catalog, CATALOG_IMAGE_TIER_MEDIUM);
+  let variant = catalogImageVariant(catalog, CATALOG_IMAGE_TIER_MEDIUM);
   if (!variant) return "";
-  const directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
+  let directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
   return withAssetVersion(
     `${catalogDir(catalog)}/${directory}/page-${pad(page)}.${imageExt(catalog)}`,
     catalog,
     CATALOG_IMAGE_TIER_MEDIUM
   );
 }
-
-function catalogPageImageSrc(catalog, page, tier) {
-  if (tier === CATALOG_IMAGE_TIER_THUMB) return thumbSrc(catalog, page);
-  if (tier === CATALOG_IMAGE_TIER_MEDIUM) return mediumSrc(catalog, page);
-  return pageSrc(catalog, page);
-}
-
-function catalogCoverSrc(catalog) {
-  return catalog?.cover ? withAssetVersion(resolveCatalogAssetUrl(catalog.cover), catalog) : pageSrc(catalog, 1);
-}
-
-function coverThumbSrc(catalog) {
-  return thumbSrc(catalog, 1);
-}
-
 function pageSize(catalog, page) {
-  const sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [];
-  const pageNumber = Number.parseInt(String(page), 10);
-  const size = sizes[pageNumber - 1];
+  let sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [], pageNumber = Number.parseInt(String(page), 10), size = sizes[pageNumber - 1];
   if (!Array.isArray(size) || size.length < 2) return null;
-  const width = Number(size[0]);
-  const height = Number(size[1]);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
-  return { width, height };
+  let width = Number(size[0]), height = Number(size[1]);
+  return !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 ? null : { width, height };
 }
-
-function catalogPagesShareAspectRatio(firstCatalog, firstPage, secondCatalog, secondPage) {
-  const firstSize = pageSize(firstCatalog, firstPage);
-  const secondSize = pageSize(secondCatalog, secondPage);
-  if (!firstSize || !secondSize) return false;
-
-  const firstRatio = firstSize.width / firstSize.height;
-  const secondRatio = secondSize.width / secondSize.height;
-  return Math.abs(firstRatio - secondRatio) <= 0.001;
-}
-
 function catalogImageDimensionAttributes(catalog, page) {
-  const size = pageSize(catalog, page);
+  let size = pageSize(catalog, page);
   return size ? ` width="${size.width}" height="${size.height}"` : "";
 }
-
 function applyCatalogImageDimensions(image, catalog, page) {
   if (!image) return;
-  const size = pageSize(catalog, page);
+  let size = pageSize(catalog, page);
   if (!size) {
-    image.removeAttribute("width");
-    image.removeAttribute("height");
+    image.removeAttribute("width"), image.removeAttribute("height");
     return;
   }
-  image.width = size.width;
-  image.height = size.height;
+  image.width = size.width, image.height = size.height;
 }
-
 function catalogCoverLoadingAttributes(catalog) {
-  const index = catalogs.findIndex((item) => item?.id === catalog?.id);
-  const eager = index >= 0 && index < CATALOG_EAGER_COVER_COUNT;
-  return eager
-    ? ' loading="eager" decoding="async" fetchpriority="high"'
-    : ' loading="lazy" decoding="async" fetchpriority="low"';
+  let index = catalogs.findIndex((item) => item?.id === catalog?.id);
+  return index >= 0 && index < 2 ? ' loading="eager" decoding="async" fetchpriority="high"' : ' loading="lazy" decoding="async" fetchpriority="low"';
 }
-
 function pageAspectStyle(catalog, page) {
-  const size = pageSize(catalog, page);
+  let size = pageSize(catalog, page);
   return size ? ` style="aspect-ratio: ${size.width} / ${size.height}"` : "";
 }
-
 function pageAspectVariableStyle(catalog, page, variableName = "--page-aspect-ratio") {
-  const size = pageSize(catalog, page);
+  let size = pageSize(catalog, page);
   return size ? ` style="${variableName}: ${size.width} / ${size.height}"` : "";
 }
-
-function applyLoadedPageAspect(img) {
-  if (!img || !img.naturalWidth || !img.naturalHeight) return;
-
-  const frame = img.closest?.(".reader-page-frame");
-  if (!(frame instanceof HTMLElement)) return;
-
-  const width = Number(img.naturalWidth);
-  const height = Number(img.naturalHeight);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
-
-  frame.style.aspectRatio = `${width} / ${height}`;
-
-  const page = Number.parseInt(frame.dataset.page || "", 10);
-  const catalog = activeCatalog();
-  if (!catalog || !Number.isFinite(page) || page < 1) return;
-
-  if (!Array.isArray(catalog.pageSizes)) catalog.pageSizes = [];
-  catalog.pageSizes[page - 1] = [width, height];
-
-}
-
-function watchLoadedPageAspect(img) {
-  if (!img) return;
-
-  if (img.complete && img.naturalWidth && img.naturalHeight) {
-    applyLoadedPageAspect(img);
-    return;
-  }
-
-  img.addEventListener("load", () => applyLoadedPageAspect(img), { once: true });
-}
-
 function clampPage(page, catalog = activeCatalog()) {
-  const parsed = Number.parseInt(String(page), 10);
+  let parsed = Number.parseInt(String(page), 10);
   if (!Number.isFinite(parsed)) return 1;
-  const maxPage = Math.max(1, Number(catalog?.pages || 1));
+  let maxPage = Math.max(1, Number(catalog?.pages || 1));
   return Math.min(Math.max(parsed, 1), maxPage);
 }
-
-function safeFilePart(value) {
-  return String(value || "catalog")
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 72) || "catalog";
-}
-
 function getTooltipText(button) {
   return window.BargigTooltips?.getText?.(button || null) || button?.getAttribute?.("title") || "";
 }
-
 function setTooltipText(button, text, options = {}) {
-  if (!button) return;
-  if (window.BargigTooltips?.setText) {
-    window.BargigTooltips.setText(button, text, options);
-    return;
+  if (button) {
+    if (window.BargigTooltips?.setText) {
+      window.BargigTooltips.setText(button, text, options);
+      return;
+    }
+    text ? button.setAttribute("title", text) : button.removeAttribute("title");
   }
-
-  if (text) button.setAttribute("title", text);
-  else button.removeAttribute("title");
 }
-
 function flashActionButton(button, message) {
   if (!(button instanceof HTMLElement) || !message) return;
-  const originalTooltip = getTooltipText(button);
-  setTooltipText(button, message);
-  button.classList.remove("reader-icon-button-feedback");
-  void button.offsetWidth;
-  button.classList.add("reader-icon-button-done", "reader-icon-button-feedback");
-  window.setTimeout(() => {
-    setTooltipText(button, originalTooltip);
-    button.classList.remove("reader-icon-button-done", "reader-icon-button-feedback");
+  let originalTooltip = getTooltipText(button);
+  setTooltipText(button, message), button.classList.remove("reader-icon-button-feedback"), button.offsetWidth, button.classList.add("reader-icon-button-done", "reader-icon-button-feedback"), window.setTimeout(() => {
+    setTooltipText(button, originalTooltip), button.classList.remove("reader-icon-button-done", "reader-icon-button-feedback");
   }, 1200);
 }
-
 function actionToastTone(message) {
-  if (message === "נשמר" || message === "התמונה נשמרה") return "saved";
-  if (message === "הוסר" || message.includes("הוסרו")) return "removed";
-  if (message.includes("קישור")) return "link";
-  return "info";
+  return message === "נשמר" || message === "התמונה נשמרה" ? "saved" : message === "הוסר" || message.includes("הוסרו") ? "removed" : message.includes("קישור") ? "link" : "info";
 }
-
 function showActionToast(message, options = {}) {
   if (!uiElements.siteActionToast || !message) return;
-  const normalizedOptions = typeof options === "number" ? { duration: options } : options;
-  const duration = Math.max(1000, Number(normalizedOptions.duration) || 1000);
-
-  window.clearTimeout(uiRuntime.actionToastTimer);
-  uiElements.siteActionToast.textContent = message;
-  uiElements.siteActionToast.dataset.tone = normalizedOptions.tone || actionToastTone(message);
-  uiElements.siteActionToast.classList.remove("hidden", "visible");
-  void uiElements.siteActionToast.offsetWidth;
-  window.requestAnimationFrame(() => uiElements.siteActionToast.classList.add("visible"));
-  uiRuntime.actionToastTimer = window.setTimeout(() => {
-    uiElements.siteActionToast.classList.remove("visible");
-    window.setTimeout(() => {
-      if (!uiElements.siteActionToast.classList.contains("visible")) {
-        uiElements.siteActionToast.classList.add("hidden");
-      }
+  let normalizedOptions = typeof options == "number" ? { duration: options } : options, duration = Math.max(1e3, Number(normalizedOptions.duration) || 1e3);
+  window.clearTimeout(uiRuntime.actionToastTimer), uiElements.siteActionToast.textContent = message, uiElements.siteActionToast.dataset.tone = normalizedOptions.tone || actionToastTone(message), uiElements.siteActionToast.classList.remove("hidden", "visible"), uiElements.siteActionToast.offsetWidth, window.requestAnimationFrame(() => uiElements.siteActionToast.classList.add("visible")), uiRuntime.actionToastTimer = window.setTimeout(() => {
+    uiElements.siteActionToast.classList.remove("visible"), window.setTimeout(() => {
+      uiElements.siteActionToast.classList.contains("visible") || uiElements.siteActionToast.classList.add("hidden");
     }, 180);
   }, duration);
 }
-
-const IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
+var IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
   ".catalog-image-frame",
   ".lightbox-image-frame",
   ".search-result-thumb-frame",
@@ -2027,225 +1251,105 @@ const IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
   ".reader-page-frame",
   ".reader-page-thumb-frame"
 ].join(", ");
-
 function imagePlaceholderFrame(img) {
   if (img?.dataset?.placeholderIgnore === "true") return null;
-  const frame = img?.closest?.(IMAGE_PLACEHOLDER_FRAME_SELECTOR) || null;
+  let frame = img?.closest?.(IMAGE_PLACEHOLDER_FRAME_SELECTOR) || null;
   return frame instanceof HTMLElement ? frame : null;
 }
-
 function syncImagePlaceholderState(img) {
-  const frame = imagePlaceholderFrame(img);
+  let frame = imagePlaceholderFrame(img);
   if (!frame) return;
-
   frame.classList.add("image-placeholder-frame");
-  const pending = img.dataset.imageLoadPending === "true";
-  const isReady = !pending && Boolean(img.complete && img.naturalWidth > 0);
-  const isError = !pending && Boolean(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
-  frame.classList.toggle("image-ready", isReady);
-  frame.classList.toggle("image-error", isError);
-  frame.classList.toggle("image-loading", pending || (!isReady && !isError));
+  let pending = img.dataset.imageLoadPending === "true", isReady = !pending && !!(img.complete && img.naturalWidth > 0), isError = !pending && !!(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
+  frame.classList.toggle("image-ready", isReady), frame.classList.toggle("image-error", isError), frame.classList.toggle("image-loading", pending || !isReady && !isError);
 }
-
 function prepareImagePlaceholder(img) {
-  const frame = imagePlaceholderFrame(img);
-  if (!frame) return;
-  frame.classList.add("image-placeholder-frame");
-  if (img.dataset.imageLoadPending === "true") {
-    frame.classList.remove("image-ready", "image-error");
-    frame.classList.add("image-loading");
-    return;
+  let frame = imagePlaceholderFrame(img);
+  if (frame) {
+    if (frame.classList.add("image-placeholder-frame"), img.dataset.imageLoadPending === "true") {
+      frame.classList.remove("image-ready", "image-error"), frame.classList.add("image-loading");
+      return;
+    }
+    if (img.complete) {
+      syncImagePlaceholderState(img);
+      return;
+    }
+    frame.classList.remove("image-ready", "image-error"), frame.classList.add("image-loading");
   }
-  if (img.complete) {
-    syncImagePlaceholderState(img);
-    return;
-  }
-  frame.classList.remove("image-ready", "image-error");
-  frame.classList.add("image-loading");
 }
-
 function initImagePlaceholderObserver() {
-  document.querySelectorAll(`${IMAGE_PLACEHOLDER_FRAME_SELECTOR} img`).forEach((image) => {
-    if (image instanceof HTMLImageElement) prepareImagePlaceholder(image);
-  });
-
-  document.addEventListener("load", (event) => {
-    if (event.target instanceof HTMLImageElement) syncImagePlaceholderState(event.target);
-  }, true);
-  document.addEventListener("error", (event) => {
-    if (event.target instanceof HTMLImageElement) syncImagePlaceholderState(event.target);
-  }, true);
-
-  if (!("MutationObserver" in window) || !document.body) return;
-  const observer = new MutationObserver((mutations) => {
+  if (document.querySelectorAll(`${IMAGE_PLACEHOLDER_FRAME_SELECTOR} img`).forEach((image) => {
+    image instanceof HTMLImageElement && prepareImagePlaceholder(image);
+  }), document.addEventListener("load", (event) => {
+    event.target instanceof HTMLImageElement && syncImagePlaceholderState(event.target);
+  }, !0), document.addEventListener("error", (event) => {
+    event.target instanceof HTMLImageElement && syncImagePlaceholderState(event.target);
+  }, !0), !("MutationObserver" in window) || !document.body) return;
+  new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       if (mutation.type === "attributes" && mutation.target instanceof HTMLImageElement) {
         prepareImagePlaceholder(mutation.target);
         return;
       }
       mutation.addedNodes.forEach((node) => {
-        if (!(node instanceof Element)) return;
-        if (node instanceof HTMLImageElement) prepareImagePlaceholder(node);
-        node.querySelectorAll?.("img").forEach((image) => {
-          if (image instanceof HTMLImageElement) prepareImagePlaceholder(image);
-        });
+        node instanceof Element && (node instanceof HTMLImageElement && prepareImagePlaceholder(node), node.querySelectorAll?.("img").forEach((image) => {
+          image instanceof HTMLImageElement && prepareImagePlaceholder(image);
+        }));
       });
     });
-  });
-  observer.observe(document.body, {
-    subtree: true,
-    childList: true,
-    attributes: true,
+  }).observe(document.body, {
+    subtree: !0,
+    childList: !0,
+    attributes: !0,
     attributeFilter: ["src", "data-src"]
   });
 }
-
-function loadDeferredImage(img) {
-  const src = img?.dataset?.src;
-  if (!src) return;
-
-  const markLoaded = () => {
-    applyLoadedPageAspect(img);
-    img.classList.add("loaded");
-    img.removeAttribute("data-src");
-  };
-
-  if (img.getAttribute("src") === src) {
-    if (img.complete && img.naturalWidth) markLoaded();
-    return;
-  }
-
-  img.addEventListener("load", markLoaded, { once: true });
-  setCatalogImageSource(img, src);
-}
-
-
-
-
-function saveBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 900);
-}
-
-async function downloadCatalogPageSnapshot(catalog, page, button) {
-  if (!catalog) return;
-  const currentPage = clampPage(page, catalog);
-  const src = pageSrc(catalog, currentPage);
-
-  try {
-    if (!window.CatalogSnapshot?.buildSnapshotBlob) {
-      throw new Error("snapshot-exporter-missing");
-    }
-
-    const blob = await window.CatalogSnapshot.buildSnapshotBlob(src);
-    const extension = window.CatalogSnapshot.extension || "jpg";
-    saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.${extension}`);
-    flashActionButton(button, "נשמר");
-    showActionToast("התמונה נשמרה", { tone: "saved" });
-  } catch (error) {
-    console.error("[CatalogSnapshot] Failed to export catalog page", {
-      catalogId: catalog.id,
-      page: currentPage,
-      src,
-      error
-    });
-    window.alert("לא הצלחתי ליצור את תמונת העמוד. יש לוודא שמדיניות CORS של מאגר התמונות מאפשרת קריאה מהאתר.");
-  }
-}
-
 function hasHoverPointer() {
-  if (typeof window.matchMedia !== "function") return true;
-  const primaryFineHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-  const anyFineHover = window.matchMedia("(any-hover: hover) and (any-pointer: fine)").matches;
+  if (typeof window.matchMedia != "function") return !0;
+  let primaryFineHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches, anyFineHover = window.matchMedia("(any-hover: hover) and (any-pointer: fine)").matches;
   return primaryFineHover || anyFineHover;
 }
-
 function isTouchLikePointer(event) {
-  return Boolean(
-    event
-    && "pointerType" in event
-    && (event.pointerType === "touch" || event.pointerType === "pen")
-  );
+  return !!(event && "pointerType" in event && (event.pointerType === "touch" || event.pointerType === "pen"));
 }
-
-function getCurrentCatalogFocusUrlTargetId() {
-  const catalogGrid = getFeatureInterface("catalog-grid");
-  const hashTargetId = catalogGrid?.resolveCategoryTargetIdFromHash?.() || "";
-  if (hashTargetId && catalogGrid?.hasCategoryTarget?.(hashTargetId)) {
-    return hashTargetId;
-  }
-
-  const activeTargetId = catalogGrid?.activeCategoryTargetId?.() || "";
-  if (activeTargetId && catalogGrid?.hasCategoryTarget?.(activeTargetId)) {
-    return activeTargetId;
-  }
-
-  return "";
-}
-
 function encodeHashRouteSegment(value) {
   return encodeURIComponent(String(value ?? ""));
 }
-
 function decodeHashRouteSegment(value) {
-  const segment = String(value || "");
+  let segment = String(value || "");
   try {
     return decodeURIComponent(segment);
   } catch {
     return segment;
   }
 }
-
 function encodeShareRoutePath(path) {
-  const normalizedPath = normalizeShareRoutePath(path);
-  if (!normalizedPath) return "";
-  return normalizedPath.split("/").map(encodeHashRouteSegment).join("/");
+  let normalizedPath = normalizeShareRoutePath(path);
+  return normalizedPath ? normalizedPath.split("/").map(encodeHashRouteSegment).join("/") : "";
 }
-
 function buildCategoryShareRouteHash(path) {
-  const encodedPath = encodeShareRoutePath(path);
+  let encodedPath = encodeShareRoutePath(path);
   return encodedPath ? `#cat/${encodedPath}` : "";
 }
-
 function findCatalogById(id) {
-  const catalogId = String(id || "");
+  let catalogId = String(id || "");
   return catalogs.find((item) => String(item.id || "") === catalogId) || null;
 }
-
 function syncDocumentLock() {
-  const documentLocked = Boolean(
-    getFeatureInterface("favorites")?.requiresDocumentLock() ||
-    getFeatureInterface("inquiry")?.requiresDocumentLock() ||
-    getFeatureInterface("viewer")?.requiresDocumentLock()
-  );
-  const viewerOpen = Boolean(getFeatureInterface("viewer")?.isViewerOpen());
-  document.body.classList.toggle("no-scroll", documentLocked);
-  document.documentElement.classList.toggle("viewer-open", viewerOpen);
+  let documentLocked = !!(getFeatureInterface("favorites")?.requiresDocumentLock() || getFeatureInterface("inquiry")?.requiresDocumentLock() || getFeatureInterface("viewer")?.requiresDocumentLock()), viewerOpen = !!getFeatureInterface("viewer")?.isViewerOpen();
+  document.body.classList.toggle("no-scroll", documentLocked), document.documentElement.classList.toggle("viewer-open", viewerOpen);
 }
-
 function handleTopLayerEscape(event) {
-  if (event.key !== "Escape" || event.defaultPrevented) return false;
-
-  for (const api of featureInterfacesByEscapePriority()) {
-    if (api.closeTopLayer(event) !== true) continue;
-    event.preventDefault();
-    return true;
-  }
-  return false;
+  if (event.key !== "Escape" || event.defaultPrevented) return !1;
+  for (let api of featureInterfacesByEscapePriority())
+    if (api.closeTopLayer(event) === !0)
+      return event.preventDefault(), !0;
+  return !1;
 }
-/* ===== END SOURCE: src/js/20-shared-ui.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/29-favorites-portability.js ===== */
-
-
+// src/js/29-favorites-portability.js
 function createFavoritesPortabilityDomain(dependencies) {
-  const {
+  let {
     normalizeItems,
     findCatalogById: findCatalog,
     catalogs: readCatalogs,
@@ -2253,21 +1357,14 @@ function createFavoritesPortabilityDomain(dependencies) {
     decodeBase64,
     shareVersion
   } = dependencies;
-
   function favoriteItemKey(item) {
-    const catalogId = String(item?.catalogId || item?.catalog?.id || "").trim();
-    const page = Number.parseInt(String(item?.page ?? ""), 10);
-    return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\u0000${page}` : "";
+    let catalogId = String(item?.catalogId || item?.catalog?.id || "").trim(), page = Number.parseInt(String(item?.page ?? ""), 10);
+    return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\0${page}` : "";
   }
-
   function normalizeFavoriteTransferItems(values) {
-    const normalized = normalizeItems(values);
-    const accepted = [];
-    let rejected = Math.max(0, Array.isArray(values) ? values.length - normalized.length : 0);
-
-    normalized.forEach((item) => {
-      const catalog = findCatalog(item.catalogId);
-      const pageCount = Number.parseInt(String(catalog?.pages || 0), 10);
+    let normalized = normalizeItems(values), accepted = [], rejected = Math.max(0, Array.isArray(values) ? values.length - normalized.length : 0);
+    return normalized.forEach((item) => {
+      let catalog = findCatalog(item.catalogId), pageCount = Number.parseInt(String(catalog?.pages || 0), 10);
       if (!catalog || !Number.isFinite(pageCount) || item.page > pageCount) {
         rejected += 1;
         return;
@@ -2277,29 +1374,17 @@ function createFavoritesPortabilityDomain(dependencies) {
         page: item.page,
         savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : 0
       });
-    });
-
-    return { items: accepted, rejected };
+    }), { items: accepted, rejected };
   }
-
   function analyzeFavoriteItemMerge(incoming, existing) {
-    const incomingItems = normalizeFavoriteTransferItems(incoming).items;
-    const existingItems = normalizeItems(existing);
-    const existingByKey = new Map(existingItems.map((item) => [favoriteItemKey(item), item]));
-    const incomingKeys = new Set(incomingItems.map(favoriteItemKey).filter(Boolean));
-    const newItems = incomingItems.filter((item) => !existingByKey.has(favoriteItemKey(item)));
-    const alreadyExistingItems = incomingItems.filter((item) => existingByKey.has(favoriteItemKey(item)));
-    const mergedIncomingItems = incomingItems.map((item) => {
-      const existingItem = existingByKey.get(favoriteItemKey(item));
-      if (!existingItem) return item;
-      return {
+    let incomingItems = normalizeFavoriteTransferItems(incoming).items, existingItems = normalizeItems(existing), existingByKey = new Map(existingItems.map((item) => [favoriteItemKey(item), item])), incomingKeys = new Set(incomingItems.map(favoriteItemKey).filter(Boolean)), newItems = incomingItems.filter((item) => !existingByKey.has(favoriteItemKey(item))), alreadyExistingItems = incomingItems.filter((item) => existingByKey.has(favoriteItemKey(item))), mergedIncomingItems = incomingItems.map((item) => {
+      let existingItem = existingByKey.get(favoriteItemKey(item));
+      return existingItem ? {
         ...item,
         savedAt: Number(existingItem.savedAt) > 0 ? Number(existingItem.savedAt) : Number(item.savedAt) || 0,
-        ...(String(existingItem.note || "").trim() ? { note: String(existingItem.note).trim() } : {})
-      };
-    });
-    const preservedExistingItems = existingItems.filter((item) => !incomingKeys.has(favoriteItemKey(item)));
-
+        ...String(existingItem.note || "").trim() ? { note: String(existingItem.note).trim() } : {}
+      } : item;
+    }), preservedExistingItems = existingItems.filter((item) => !incomingKeys.has(favoriteItemKey(item)));
     return {
       incomingItems,
       existingItems,
@@ -2308,125 +1393,75 @@ function createFavoritesPortabilityDomain(dependencies) {
       mergedItems: [...mergedIncomingItems, ...preservedExistingItems]
     };
   }
-
   function encodeBase64UrlUtf8(value) {
-    const bytes = new TextEncoder().encode(String(value || ""));
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    let bytes = new TextEncoder().encode(String(value || "")), binary = "", chunkSize = 32768;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize)
       binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-    }
-    return encodeBase64(binary)
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/g, "");
+    return encodeBase64(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   }
-
   function decodeBase64UrlUtf8(value) {
-    const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
-    const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
-    const binary = decodeBase64(`${normalized}${padding}`);
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    let normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/"), padding = "=".repeat((4 - normalized.length % 4) % 4), binary = decodeBase64(`${normalized}${padding}`), bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     return new TextDecoder().decode(bytes);
   }
-
   function canonicalizeFavoriteShareItems(items) {
-    const normalized = normalizeFavoriteTransferItems(items).items.map(({ catalogId, page }) => ({ catalogId, page, savedAt: 0 }));
-    const catalogOrder = new Map(readCatalogs().map((catalog, index) => [String(catalog.id || ""), index]));
+    let normalized = normalizeFavoriteTransferItems(items).items.map(({ catalogId, page }) => ({ catalogId, page, savedAt: 0 })), catalogOrder = new Map(readCatalogs().map((catalog, index) => [String(catalog.id || ""), index]));
     return normalized.sort((first, second) => {
-      const firstIndex = catalogOrder.get(first.catalogId) ?? Number.MAX_SAFE_INTEGER;
-      const secondIndex = catalogOrder.get(second.catalogId) ?? Number.MAX_SAFE_INTEGER;
-      if (firstIndex !== secondIndex) return firstIndex - secondIndex;
-      const catalogCompare = first.catalogId.localeCompare(second.catalogId, "he");
-      return catalogCompare || first.page - second.page;
+      let firstIndex = catalogOrder.get(first.catalogId) ?? Number.MAX_SAFE_INTEGER, secondIndex = catalogOrder.get(second.catalogId) ?? Number.MAX_SAFE_INTEGER;
+      return firstIndex !== secondIndex ? firstIndex - secondIndex : first.catalogId.localeCompare(second.catalogId, "he") || first.page - second.page;
     });
   }
-
   function encodeFavoritePageRanges(pages) {
-    const sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page > 0))]
-      .sort((first, second) => first - second);
-    const ranges = [];
-    for (let index = 0; index < sorted.length;) {
-      const start = sorted[index];
-      let end = start;
-      while (index + 1 < sorted.length && sorted[index + 1] === end + 1) {
-        index += 1;
-        end = sorted[index];
-      }
-      const encodedStart = start.toString(36);
-      ranges.push(end === start ? encodedStart : `${encodedStart}-${end.toString(36)}`);
-      index += 1;
+    let sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page > 0))].sort((first, second) => first - second), ranges = [];
+    for (let index = 0; index < sorted.length; ) {
+      let start = sorted[index], end = start;
+      for (; index + 1 < sorted.length && sorted[index + 1] === end + 1; )
+        index += 1, end = sorted[index];
+      let encodedStart = start.toString(36);
+      ranges.push(end === start ? encodedStart : `${encodedStart}-${end.toString(36)}`), index += 1;
     }
     return ranges.join(",");
   }
-
   function decodeFavoritePageRanges(value) {
-    const pages = [];
-    String(value || "").split(",").forEach((part) => {
+    let pages = [];
+    return String(value || "").split(",").forEach((part) => {
       if (!part) return;
-      const [rawStart, rawEnd = rawStart] = part.split("-", 2);
-      const start = Number.parseInt(rawStart, 36);
-      const end = Number.parseInt(rawEnd, 36);
-      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end - start > 1000) return;
-      for (let page = start; page <= end; page += 1) pages.push(page);
-    });
-    return pages;
+      let [rawStart, rawEnd = rawStart] = part.split("-", 2), start = Number.parseInt(rawStart, 36), end = Number.parseInt(rawEnd, 36);
+      if (!(!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end - start > 1e3))
+        for (let page = start; page <= end; page += 1) pages.push(page);
+    }), pages;
   }
-
   function buildFavoritesShareToken(items) {
-    const grouped = new Map();
+    let grouped = /* @__PURE__ */ new Map();
     canonicalizeFavoriteShareItems(items).forEach(({ catalogId, page }) => {
-      const pages = grouped.get(catalogId) || [];
-      pages.push(page);
-      grouped.set(catalogId, pages);
+      let pages = grouped.get(catalogId) || [];
+      pages.push(page), grouped.set(catalogId, pages);
     });
-    const payload = [...grouped.entries()]
-      .map(([catalogId, pages]) => `${encodeURIComponent(catalogId)}~${encodeFavoritePageRanges(pages)}`)
-      .join("|");
+    let payload = [...grouped.entries()].map(([catalogId, pages]) => `${encodeURIComponent(catalogId)}~${encodeFavoritePageRanges(pages)}`).join("|");
     return `v${shareVersion}.${encodeBase64UrlUtf8(payload)}`;
   }
-
   function parseFavoritesShareToken(token) {
-    const rawToken = String(token || "").trim();
-    const prefix = `v${shareVersion}.`;
-    if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
-
+    let rawToken = String(token || "").trim(), prefix = `v${shareVersion}.`;
+    if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: !1 };
     try {
-      const payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length));
-      const rawItems = [];
-      if (payload) {
-        payload.split("|").forEach((group) => {
-          const separatorIndex = group.indexOf("~");
-          if (separatorIndex < 1) return;
-          const catalogId = decodeURIComponent(group.slice(0, separatorIndex));
-          decodeFavoritePageRanges(group.slice(separatorIndex + 1)).forEach((page) => {
-            rawItems.push({ catalogId, page, savedAt: 0 });
-          });
+      let payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length)), rawItems = [];
+      return payload && payload.split("|").forEach((group) => {
+        let separatorIndex = group.indexOf("~");
+        if (separatorIndex < 1) return;
+        let catalogId = decodeURIComponent(group.slice(0, separatorIndex));
+        decodeFavoritePageRanges(group.slice(separatorIndex + 1)).forEach((page) => {
+          rawItems.push({ catalogId, page, savedAt: 0 });
         });
-      }
-      const normalized = normalizeFavoriteTransferItems(rawItems);
-      return { ...normalized, valid: true };
-    } catch (_error) {
-      return { items: [], rejected: 0, valid: false };
+      }), { ...normalizeFavoriteTransferItems(rawItems), valid: !0 };
+    } catch {
+      return { items: [], rejected: 0, valid: !1 };
     }
   }
-
   function favoritesTransferSummary(pending, existing) {
     if (!pending) return "";
-    const comparison = analyzeFavoriteItemMerge(pending.items, existing);
-    const incomingCount = comparison.incomingItems.length;
-    const currentCount = comparison.existingItems.length;
-    const newCount = comparison.newItems.length;
-    const alreadyExistingCount = comparison.alreadyExistingItems.length;
-    const rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "";
-    const existingLabel = alreadyExistingCount === 1 ? "קיים" : "קיימים";
-    const newLabel = newCount === 1 ? "חדש" : "חדשים";
-    const overlapText = alreadyExistingCount > 0
-      ? `\nמתוכם ${alreadyExistingCount} ${existingLabel} ו-${newCount} ${newLabel}`
-      : "";
+    let comparison = analyzeFavoriteItemMerge(pending.items, existing), incomingCount = comparison.incomingItems.length, currentCount = comparison.existingItems.length, newCount = comparison.newItems.length, alreadyExistingCount = comparison.alreadyExistingItems.length, rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "", existingLabel = alreadyExistingCount === 1 ? "קיים" : "קיימים", newLabel = newCount === 1 ? "חדש" : "חדשים", overlapText = alreadyExistingCount > 0 ? `
+מתוכם ${alreadyExistingCount} ${existingLabel} ו-${newCount} ${newLabel}` : "";
     return `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}${overlapText}`;
   }
-
   return Object.freeze({
     favoriteItemKey,
     analyzeFavoriteItemMerge,
@@ -2435,60 +1470,44 @@ function createFavoritesPortabilityDomain(dependencies) {
     favoritesTransferSummary
   });
 }
-/* ===== END SOURCE: src/js/29-favorites-portability.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/30-favorites-share.js ===== */
-
+// src/js/30-favorites-share.js
 function favoriteIdentity(catalog = activeCatalog(), page = activePage()) {
-  if (!catalog) return null;
-  return {
+  return catalog ? {
     catalogId: String(catalog.id || ""),
     page: clampPage(page, catalog)
-  };
+  } : null;
 }
-
 function getFavoriteEntries() {
-  if (!favoritesStore) return [];
-  return favoritesStore.read().flatMap((item) => {
-    const catalog = findCatalogById(item.catalogId);
-    const page = Number.parseInt(String(item.page), 10);
-    const maxPage = Number.parseInt(String(catalog?.pages || 0), 10);
-    if (!catalog || !Number.isFinite(page) || page < 1 || !Number.isFinite(maxPage) || page > maxPage) return [];
-    return [{ ...item, catalog, page }];
-  });
+  return favoritesStore ? favoritesStore.read().flatMap((item) => {
+    let catalog = findCatalogById(item.catalogId), page = Number.parseInt(String(item.page), 10), maxPage = Number.parseInt(String(catalog?.pages || 0), 10);
+    return !catalog || !Number.isFinite(page) || page < 1 || !Number.isFinite(maxPage) || page > maxPage ? [] : [{ ...item, catalog, page }];
+  }) : [];
 }
-
 function showFavoritePersistenceFeedback(result, messages) {
-  const persisted = result?.persisted !== false;
-  showActionToast(persisted ? messages.persisted : messages.temporary, {
-    tone: persisted ? (messages.tone || "saved") : "warning",
-    duration: persisted ? (messages.duration || 1300) : 4600
-  });
-  return persisted;
+  let persisted = result?.persisted !== !1;
+  return showActionToast(persisted ? messages.persisted : messages.temporary, {
+    tone: persisted ? messages.tone || "saved" : "warning",
+    duration: persisted ? messages.duration || 1300 : 4600
+  }), persisted;
 }
-
 function warnIfFavoriteChangeIsTemporary(result) {
-  if (!result?.changed || result.persisted !== false) return;
-  showActionToast("השינוי נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן", {
+  !result?.changed || result.persisted !== !1 || showActionToast("השינוי נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן", {
     tone: "warning",
     duration: 4600
   });
 }
-
-
 function getValidFavoriteItems() {
   return getFavoriteEntries().map(({ catalogId, catalog, page, savedAt, note }) => {
-    const item = {
+    let item = {
       catalogId: String(catalogId || catalog?.id || ""),
       page,
       savedAt: Number(savedAt) > 0 ? Number(savedAt) : 0
     };
-    if (String(note || "").trim()) item.note = String(note).trim();
-    return item;
+    return String(note || "").trim() && (item.note = String(note).trim()), item;
   });
 }
-
-const favoritesPortabilityDomain = createFavoritesPortabilityDomain({
+var favoritesPortabilityDomain = createFavoritesPortabilityDomain({
   normalizeItems: (values) => window.BargigFavorites?.normalizeItems?.(values) || [],
   findCatalogById,
   catalogs: () => catalogs,
@@ -2496,464 +1515,253 @@ const favoritesPortabilityDomain = createFavoritesPortabilityDomain({
   decodeBase64: (value) => window.atob(value),
   shareVersion: FAVORITES_SHARE_VERSION
 });
-
 function buildFavoritesShareUrl(items) {
-  const url = new URL(favoritesDocumentUrl(), window.location.href);
-  url.hash = "";
-  url.searchParams.set(FAVORITES_SHARE_PARAM, favoritesPortabilityDomain.buildFavoritesShareToken(items));
-  return url.toString();
+  let url = new URL(favoritesDocumentUrl(), window.location.href);
+  return url.hash = "", url.searchParams.set(FAVORITES_SHARE_PARAM, favoritesPortabilityDomain.buildFavoritesShareToken(items)), url.toString();
 }
-
 function cleanFavoritesSelectionFromUrl() {
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has(FAVORITES_SHARE_PARAM)) return;
-  url.searchParams.delete(FAVORITES_SHARE_PARAM);
-  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  let url = new URL(window.location.href);
+  url.searchParams.has(FAVORITES_SHARE_PARAM) && (url.searchParams.delete(FAVORITES_SHARE_PARAM), window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`));
 }
-
 function syncFavoritesTransferDialogUi() {
-  const pending = favoritesState.favoritesTransferPending;
+  let pending = favoritesState.favoritesTransferPending;
   if (!pending || !favoritesElements.favoritesTransferOverlay) return;
-  const existingItems = getValidFavoriteItems();
-  if (favoritesElements.favoritesTransferTitle) favoritesElements.favoritesTransferTitle.textContent = "רשימת מועדפים התקבלה";
-  if (favoritesElements.favoritesTransferDescription) {
-    favoritesElements.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת.";
-  }
-  if (favoritesElements.favoritesTransferSummary) {
-    favoritesElements.favoritesTransferSummary.textContent = favoritesPortabilityDomain.favoritesTransferSummary(
-      pending,
-      existingItems
-    );
-  }
+  let existingItems = getValidFavoriteItems();
+  favoritesElements.favoritesTransferTitle && (favoritesElements.favoritesTransferTitle.textContent = "רשימת מועדפים התקבלה"), favoritesElements.favoritesTransferDescription && (favoritesElements.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת."), favoritesElements.favoritesTransferSummary && (favoritesElements.favoritesTransferSummary.textContent = favoritesPortabilityDomain.favoritesTransferSummary(
+    pending,
+    existingItems
+  ));
 }
-
 function openFavoritesTransferDialog(transfer, returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null) {
-  if (!transfer?.items?.length || !favoritesElements.favoritesTransferOverlay) return false;
-  favoritesState.favoritesTransferPending = transfer;
-  favoritesState.favoritesTransferReturnFocus = returnFocus;
-  syncFavoritesTransferDialogUi();
-  favoritesElements.favoritesTransferOverlay.classList.remove("hidden");
-  favoritesElements.favoritesTransferOverlay.setAttribute("aria-hidden", "false");
-  syncDocumentLock();
-  requestAnimationFrame(() => favoritesElements.favoritesTransferMerge?.focus());
-  return true;
+  return !transfer?.items?.length || !favoritesElements.favoritesTransferOverlay ? !1 : (favoritesState.favoritesTransferPending = transfer, favoritesState.favoritesTransferReturnFocus = returnFocus, syncFavoritesTransferDialogUi(), favoritesElements.favoritesTransferOverlay.classList.remove("hidden"), favoritesElements.favoritesTransferOverlay.setAttribute("aria-hidden", "false"), syncDocumentLock(), requestAnimationFrame(() => favoritesElements.favoritesTransferMerge?.focus()), !0);
 }
-
 function closeFavoritesTransferDialog(options = {}) {
-  const { restoreFocus = true, cleanUrl = false } = options;
-  const returnFocus = favoritesState.favoritesTransferReturnFocus;
-  favoritesState.favoritesTransferPending = null;
-  favoritesState.favoritesTransferReturnFocus = null;
-  favoritesElements.favoritesTransferOverlay?.classList.add("hidden");
-  favoritesElements.favoritesTransferOverlay?.setAttribute("aria-hidden", "true");
-  if (cleanUrl) cleanFavoritesSelectionFromUrl();
-  syncDocumentLock();
-  if (restoreFocus) focusHtmlElement(returnFocus);
+  let { restoreFocus = !0, cleanUrl = !1 } = options, returnFocus = favoritesState.favoritesTransferReturnFocus;
+  favoritesState.favoritesTransferPending = null, favoritesState.favoritesTransferReturnFocus = null, favoritesElements.favoritesTransferOverlay?.classList.add("hidden"), favoritesElements.favoritesTransferOverlay?.setAttribute("aria-hidden", "true"), cleanUrl && cleanFavoritesSelectionFromUrl(), syncDocumentLock(), restoreFocus && focusHtmlElement(returnFocus);
 }
-
 function applyFavoritesTransfer(mode) {
-  const pending = favoritesState.favoritesTransferPending;
+  let pending = favoritesState.favoritesTransferPending;
   if (!pending?.items?.length || !favoritesStore) return;
-  const timestamp = Date.now();
-  const incoming = pending.items.map((item, index) => ({
+  let timestamp = Date.now(), incoming = pending.items.map((item, index) => ({
     ...item,
     savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : timestamp - index
-  }));
-  const comparison = favoritesPortabilityDomain.analyzeFavoriteItemMerge(incoming, getValidFavoriteItems());
-  const nextItems = mode === "merge"
-    ? comparison.mergedItems
-    : incoming;
-  const mutation = favoritesStore.replaceDetailed(nextItems);
-  closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: pending.source === "link" });
-  syncFavoritesUi({ renderPanel: true });
-  syncFavoriteViewerAfterStoreChange();
-  const verb = mode === "merge" ? "מוזגה" : "נטענה";
-  const rejectedText = pending.rejected ? ` · ${pending.rejected} לא היו זמינים` : "";
-  const resultText = mode === "merge"
-    ? `${comparison.newItems.length} חדשים · ${comparison.alreadyExistingItems.length} כבר היו שמורים`
-    : `${incoming.length} פריטים`;
+  })), comparison = favoritesPortabilityDomain.analyzeFavoriteItemMerge(incoming, getValidFavoriteItems()), nextItems = mode === "merge" ? comparison.mergedItems : incoming, mutation = favoritesStore.replaceDetailed(nextItems);
+  closeFavoritesTransferDialog({ restoreFocus: !1, cleanUrl: pending.source === "link" }), syncFavoritesUi({ renderPanel: !0 }), syncFavoriteViewerAfterStoreChange();
+  let verb = mode === "merge" ? "מוזגה" : "נטענה", rejectedText = pending.rejected ? ` · ${pending.rejected} לא היו זמינים` : "", resultText = mode === "merge" ? `${comparison.newItems.length} חדשים · ${comparison.alreadyExistingItems.length} כבר היו שמורים` : `${incoming.length} פריטים`;
   showFavoritePersistenceFeedback(mutation, {
     persisted: `הרשימה ${verb}: ${resultText}${rejectedText}`,
     temporary: `הרשימה ${verb} זמנית בלבד: ${resultText}${rejectedText} — האחסון חסום`,
     tone: "saved",
     duration: 2800
-  });
-  requestAnimationFrame(() => focusHtmlElement(favoritesElements.favoritesGrid.querySelector(".favorite-card")));
+  }), requestAnimationFrame(() => focusHtmlElement(favoritesElements.favoritesGrid.querySelector(".favorite-card")));
 }
-
 function prepareIncomingFavoritesTransfer(transfer, options = {}) {
-  const { returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null } = options;
-  if (!transfer?.valid || !transfer.items.length || !favoritesStore) return false;
-  const currentItems = getValidFavoriteItems();
-  if (!currentItems.length) {
-    favoritesState.favoritesTransferPending = transfer;
-    applyFavoritesTransfer("replace");
-    return true;
-  }
-  return openFavoritesTransferDialog(transfer, returnFocus);
+  let { returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null } = options;
+  return !transfer?.valid || !transfer.items.length || !favoritesStore ? !1 : getValidFavoriteItems().length ? openFavoritesTransferDialog(transfer, returnFocus) : (favoritesState.favoritesTransferPending = transfer, applyFavoritesTransfer("replace"), !0);
 }
-
 function processFavoritesSelectionFromUrl() {
   if (!isAppPage("favorites")) return;
-  const url = new URL(window.location.href);
-  const token = url.searchParams.get(FAVORITES_SHARE_PARAM);
+  let token = new URL(window.location.href).searchParams.get(FAVORITES_SHARE_PARAM);
   if (!token) return;
-  const parsed = favoritesPortabilityDomain.parseFavoritesShareToken(token);
+  let parsed = favoritesPortabilityDomain.parseFavoritesShareToken(token);
   if (!parsed.valid || !parsed.items.length) {
-    cleanFavoritesSelectionFromUrl();
-    showActionToast("הקישור אינו מכיל רשימת בחירה תקינה");
+    cleanFavoritesSelectionFromUrl(), showActionToast("הקישור אינו מכיל רשימת בחירה תקינה");
     return;
   }
   prepareIncomingFavoritesTransfer({ ...parsed, source: "link" }, { returnFocus: favoritesElements.favoritesShareButton });
 }
-
 function syncFavoritesShareButton(count = getFavoriteEntries().length) {
   if (!favoritesElements.favoritesShareButton) return;
-  const hasItems = count > 0;
-  favoritesElements.favoritesShareButton.disabled = !hasItems;
-  favoritesElements.favoritesShareButton.setAttribute("aria-label", hasItems
-    ? `העתקת קישור לרשימת המועדפים, ${count} עמודים שמורים`
-    : "העתקת קישור לרשימת המועדפים — אין עדיין עמודים שמורים");
+  let hasItems = count > 0;
+  favoritesElements.favoritesShareButton.disabled = !hasItems, favoritesElements.favoritesShareButton.setAttribute("aria-label", hasItems ? `העתקת קישור לרשימת המועדפים, ${count} עמודים שמורים` : "העתקת קישור לרשימת המועדפים — אין עדיין עמודים שמורים");
 }
-
 async function shareFavoritesList() {
-  const workspace = getFeatureInterface("favorites-workspace");
-  if (!workspace?.copyShareLink || !workspace?.shareLinkEntries) return;
-  await workspace.copyShareLink(
+  let workspace = getFeatureInterface("favorites-workspace");
+  !workspace?.copyShareLink || !workspace?.shareLinkEntries || await workspace.copyShareLink(
     workspace.shareLinkEntries(),
     favoritesElements.favoritesShareButton
   );
 }
-
 function handleFavoritesTransferKeydown(event) {
   if (!favoritesState.favoritesTransferPending || !favoritesElements.favoritesTransferOverlay) return;
   if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" });
+    event.preventDefault(), event.stopPropagation(), closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" });
     return;
   }
   if (event.key !== "Tab") return;
-  const focusable = Array.from(favoritesElements.favoritesTransferOverlay.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')).filter((element) => element instanceof HTMLElement);
+  let focusable = Array.from(favoritesElements.favoritesTransferOverlay.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')).filter((element) => element instanceof HTMLElement);
   if (!focusable.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    focusHtmlElement(last);
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    focusHtmlElement(first);
-  }
+  let first = focusable[0], last = focusable[focusable.length - 1];
+  event.shiftKey && document.activeElement === first ? (event.preventDefault(), focusHtmlElement(last)) : !event.shiftKey && document.activeElement === last && (event.preventDefault(), focusHtmlElement(first));
 }
-
 function isFavoritesLightboxMode() {
   return activeViewerSource() === LIGHTBOX_SOURCE_FAVORITES;
 }
-
 function findFavoriteEntryIndex(entries, catalogId, page) {
-  const normalizedCatalogId = String(catalogId || "");
-  const normalizedPage = Number.parseInt(String(page), 10);
-  return entries.findIndex((entry) => (
-    String(entry.catalog?.id || entry.catalogId || "") === normalizedCatalogId &&
-    entry.page === normalizedPage
-  ));
+  let normalizedCatalogId = String(catalogId || ""), normalizedPage = Number.parseInt(String(page), 10);
+  return entries.findIndex((entry) => String(entry.catalog?.id || entry.catalogId || "") === normalizedCatalogId && entry.page === normalizedPage);
 }
-
 function setFavoriteViewerEntry(entries, index) {
-  if (!entries.length) return false;
-  const nextIndex = clampValue(Number.parseInt(String(index), 10) || 0, 0, entries.length - 1);
-  const entry = entries[nextIndex];
-  favoritesState.favoritesViewerIndex = nextIndex;
-  setActiveLocation(entry.catalog, entry.page, activeViewerSource());
-  return true;
+  if (!entries.length) return !1;
+  let nextIndex = clampValue(Number.parseInt(String(index), 10) || 0, 0, entries.length - 1), entry = entries[nextIndex];
+  return favoritesState.favoritesViewerIndex = nextIndex, setActiveLocation(entry.catalog, entry.page, activeViewerSource()), !0;
 }
-
 function syncFavoriteViewerAfterStoreChange(options = {}) {
-  const viewer = getFeatureInterface("viewer");
+  let viewer = getFeatureInterface("viewer");
   if (!viewer?.isViewerOpen?.() || !isFavoritesLightboxMode()) return;
-
-  const { preferredIndex = favoritesState.favoritesViewerIndex } = options;
-  const entries = getFavoriteEntries();
+  let { preferredIndex = favoritesState.favoritesViewerIndex } = options, entries = getFavoriteEntries();
   if (!entries.length) {
-    viewer.close?.({ restoreFavorites: true });
+    viewer.close?.({ restoreFavorites: !0 });
     return;
   }
-
-  const currentIndex = findFavoriteEntryIndex(entries, activeCatalog()?.id, activePage());
-  setFavoriteViewerEntry(entries, currentIndex >= 0 ? currentIndex : preferredIndex);
-  viewer.renderPageRail?.();
-  viewer.refresh?.({ thumbScrollIntoView: true });
+  let currentIndex = findFavoriteEntryIndex(entries, activeCatalog()?.id, activePage());
+  setFavoriteViewerEntry(entries, currentIndex >= 0 ? currentIndex : preferredIndex), viewer.renderPageRail?.(), viewer.refresh?.({ thumbScrollIntoView: !0 });
 }
-
 function syncFavoritesViewerModeUi(favoritesMode) {
-  const button = favoritesElements.favoriteOpenCatalogButton;
-  button.classList.toggle("hidden", !favoritesMode);
-  button.setAttribute("aria-hidden", favoritesMode ? "false" : "true");
-  button.setAttribute("tabindex", favoritesMode ? "0" : "-1");
+  let button = favoritesElements.favoriteOpenCatalogButton;
+  button.classList.toggle("hidden", !favoritesMode), button.setAttribute("aria-hidden", favoritesMode ? "false" : "true"), button.setAttribute("tabindex", favoritesMode ? "0" : "-1");
 }
-
 function syncFavoritesInquiryTriggerState(open, activeTrigger = null) {
-  const button = favoritesElements.favoritesInquiryButton;
+  let button = favoritesElements.favoritesInquiryButton;
   button.setAttribute("aria-expanded", open && button === activeTrigger ? "true" : "false");
 }
-
 function openCurrentFavoriteInCatalogFromViewer() {
-  const catalog = activeCatalog();
-  const viewer = getFeatureInterface("viewer");
-  if (!catalog || !viewer?.isViewerOpen() || !isFavoritesLightboxMode()) return;
-  viewer.openCatalog(catalog.id, activePage(), { source: LIGHTBOX_SOURCE_CATALOG });
+  let catalog = activeCatalog(), viewer = getFeatureInterface("viewer");
+  !catalog || !viewer?.isViewerOpen() || !isFavoritesLightboxMode() || viewer.openCatalog(catalog.id, activePage(), { source: LIGHTBOX_SOURCE_CATALOG });
 }
-
 function syncViewerFavoriteButtonUi() {
-  const button = favoritesElements.viewerFavoriteButton;
+  let button = favoritesElements.viewerFavoriteButton;
   if (!button) return;
-  const identity = favoriteIdentity();
-  const isFavorite = Boolean(identity && favoritesStore?.has(identity));
-  const label = isFavorite ? "הסרת העמוד מהמועדפים" : "הוספת העמוד למועדפים";
-  button.dataset.favoriteActive = isFavorite ? "true" : "false";
-  button.setAttribute("aria-pressed", isFavorite ? "true" : "false");
-  button.setAttribute("aria-label", label);
-  setTooltipText(button, label, { updateDefault: true });
-  const hiddenLabel = button.querySelector(".visually-hidden");
-  if (hiddenLabel) hiddenLabel.textContent = label;
+  let identity = favoriteIdentity(), isFavorite = !!(identity && favoritesStore?.has(identity)), label = isFavorite ? "הסרת העמוד מהמועדפים" : "הוספת העמוד למועדפים";
+  button.dataset.favoriteActive = isFavorite ? "true" : "false", button.setAttribute("aria-pressed", isFavorite ? "true" : "false"), button.setAttribute("aria-label", label), setTooltipText(button, label, { updateDefault: !0 });
+  let hiddenLabel = button.querySelector(".visually-hidden");
+  hiddenLabel && (hiddenLabel.textContent = label);
 }
-
 function renderFavoritesPanel(entries = getFavoriteEntries()) {
   getFeatureInterface("favorites-workspace")?.render?.(entries);
 }
-
 function syncFavoritesShortcut(button, countElement, count) {
-  if (countElement) countElement.textContent = String(count);
-  if (!button) return;
-  button.classList.toggle("hidden", count === 0);
-  button.setAttribute("aria-label", `פתיחת מועדפים, ${count} עמודים שמורים`);
+  countElement && (countElement.textContent = String(count)), button && (button.classList.toggle("hidden", count === 0), button.setAttribute("aria-label", `פתיחת מועדפים, ${count} עמודים שמורים`));
 }
-
 function syncFavoritesUi(options = {}) {
-  const { renderPanel = favoritesState.favoritesOpen } = options;
-  const entries = getFavoriteEntries();
+  let { renderPanel = favoritesState.favoritesOpen } = options, entries = getFavoriteEntries();
   getFeatureInterface("favorites-workspace")?.prune?.(entries);
-  const count = entries.length;
-  syncFavoritesShortcut(favoritesElements.headerFavoritesButton, favoritesElements.headerFavoritesCount, count);
-  syncFavoritesShortcut(favoritesElements.lightboxFavoritesButton, favoritesElements.lightboxFavoritesCount, count);
-  favoritesElements.lightboxFavoritesSeparator?.classList.toggle("hidden", count === 0);
-  favoritesElements.lightboxFavoritesSeparator?.setAttribute("aria-hidden", count === 0 ? "true" : "false");
-  syncViewerFavoriteButtonUi();
-  syncFavoritesShareButton(count);
-  if (renderPanel) {
-    renderFavoritesPanel(entries);
-    if (favoritesState.favoritesOpen && entries.length === 0) {
-      requestAnimationFrame(() => favoritesElements.favoritesCloseButton?.focus());
-    }
-  }
+  let count = entries.length;
+  syncFavoritesShortcut(favoritesElements.headerFavoritesButton, favoritesElements.headerFavoritesCount, count), syncFavoritesShortcut(favoritesElements.lightboxFavoritesButton, favoritesElements.lightboxFavoritesCount, count), favoritesElements.lightboxFavoritesSeparator?.classList.toggle("hidden", count === 0), favoritesElements.lightboxFavoritesSeparator?.setAttribute("aria-hidden", count === 0 ? "true" : "false"), syncViewerFavoriteButtonUi(), syncFavoritesShareButton(count), renderPanel && (renderFavoritesPanel(entries), favoritesState.favoritesOpen && entries.length === 0 && requestAnimationFrame(() => favoritesElements.favoritesCloseButton?.focus()));
 }
-
 function openFavoritesPanel(options = {}) {
-  const { allowEmpty = false, captureReturnFocus = true } = options;
-  const entries = getFavoriteEntries();
-
+  let { allowEmpty = !1, captureReturnFocus = !0 } = options, entries = getFavoriteEntries();
   if (!isAppPage("favorites")) {
-    if (allowEmpty || entries.length) navigateTo(favoritesDocumentUrl());
+    (allowEmpty || entries.length) && navigateTo(favoritesDocumentUrl());
     return;
   }
-
-  if (!favoritesElements.favoritesPanel || (!allowEmpty && !entries.length)) return;
-  if (captureReturnFocus) favoritesState.favoritesReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  favoritesState.favoritesOpen = true;
-  renderFavoritesPanel(entries);
-  favoritesElements.favoritesPanel.classList.remove("hidden");
-  favoritesElements.favoritesPanel.classList.add("favorites-standalone-page");
-  favoritesElements.favoritesPanel.setAttribute("aria-hidden", "false");
-  favoritesElements.favoritesPanel.setAttribute("aria-modal", "false");
-  syncDocumentLock();
-  updateDocumentMetadata();
+  !favoritesElements.favoritesPanel || !allowEmpty && !entries.length || (captureReturnFocus && (favoritesState.favoritesReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null), favoritesState.favoritesOpen = !0, renderFavoritesPanel(entries), favoritesElements.favoritesPanel.classList.remove("hidden"), favoritesElements.favoritesPanel.classList.add("favorites-standalone-page"), favoritesElements.favoritesPanel.setAttribute("aria-hidden", "false"), favoritesElements.favoritesPanel.setAttribute("aria-modal", "false"), syncDocumentLock(), updateDocumentMetadata());
 }
-
 function hideFavoritesPanelUi(options = {}) {
-  const { restoreFocus = false, preserveReturnFocus = false } = options;
-  const returnFocus = favoritesState.favoritesReturnFocus;
-
-  favoritesState.favoritesOpen = false;
-  favoritesElements.favoritesPanel?.classList.add("hidden");
-  favoritesElements.favoritesPanel?.classList.remove("favorites-standalone-page");
-  favoritesElements.favoritesPanel?.setAttribute("aria-hidden", "true");
-  favoritesElements.favoritesPanel?.setAttribute("aria-modal", "true");
-  syncDocumentLock();
-
-  if (restoreFocus) focusHtmlElement(returnFocus);
-  if (!preserveReturnFocus) favoritesState.favoritesReturnFocus = null;
+  let { restoreFocus = !1, preserveReturnFocus = !1 } = options, returnFocus = favoritesState.favoritesReturnFocus;
+  favoritesState.favoritesOpen = !1, favoritesElements.favoritesPanel?.classList.add("hidden"), favoritesElements.favoritesPanel?.classList.remove("favorites-standalone-page"), favoritesElements.favoritesPanel?.setAttribute("aria-hidden", "true"), favoritesElements.favoritesPanel?.setAttribute("aria-modal", "true"), syncDocumentLock(), restoreFocus && focusHtmlElement(returnFocus), preserveReturnFocus || (favoritesState.favoritesReturnFocus = null);
 }
-
 function closeFavoritesPanel(options = {}) {
-  const { restoreFocus = true, preserveReturnFocus = false } = options;
+  let { restoreFocus = !0, preserveReturnFocus = !1 } = options;
   if (isAppPage("favorites")) {
-    if ((hasInDocumentRouteSession || canReturnToSameSite()) && window.history.length > 1) navigateBack();
-    else navigateTo(homeDocumentUrl(), { replace: true });
+    (hasInDocumentRouteSession || canReturnToSameSite()) && window.history.length > 1 ? navigateBack() : navigateTo(homeDocumentUrl(), { replace: !0 });
     return;
   }
-  if (!favoritesState.favoritesOpen) return;
-  hideFavoritesPanelUi({ restoreFocus, preserveReturnFocus });
+  favoritesState.favoritesOpen && hideFavoritesPanelUi({ restoreFocus, preserveReturnFocus });
 }
-
 function openFavoriteViewer(catalogId, page) {
-  const entries = getFavoriteEntries();
-  const index = findFavoriteEntryIndex(entries, catalogId, page);
-  if (index < 0) return;
-
-  if (!isAppPage("viewer")) {
-    navigateTo(viewerDocumentUrl(catalogId, page, { source: LIGHTBOX_SOURCE_FAVORITES }));
-    return;
-  }
-
-  favoritesState.favoritesViewerOpeningHash = window.location.href;
-  favoritesState.favoritesViewerPreviousCatalog = activeCatalog();
-  favoritesState.favoritesViewerPreviousPage = activePage();
-  setFavoriteViewerEntry(entries, index);
-  getFeatureInterface("viewer")?.openCatalog?.(catalogId, page, {
-    source: LIGHTBOX_SOURCE_FAVORITES,
-    favoriteIndex: index
-  });
-}
-
-function toggleCurrentPageFavorite() {
-  const identity = favoriteIdentity();
-  if (!identity || !favoritesStore) return;
-  const previousFavoriteIndex = favoritesState.favoritesViewerIndex;
-  const mutation = favoritesStore.toggleDetailed({ ...identity, savedAt: Date.now() });
-  if (!mutation.changed) return;
-  const added = mutation.active === true;
-  telemetryTrackFavorite(added ? "add" : "remove", identity.catalogId, identity.page, getFavoriteEntries().length);
-  syncFavoritesUi({ renderPanel: true });
-  if (isFavoritesLightboxMode() && !added) {
-    syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex });
-  }
-  if (getFeatureInterface("viewer")?.isViewerOpen?.()) {
-    flashActionButton(favoritesElements.viewerFavoriteButton, mutation.persisted === false ? "זמני" : (added ? "נשמר" : "הוסר"));
-    showFavoritePersistenceFeedback(mutation, added ? {
-      persisted: "נשמר במועדפים",
-      temporary: "נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן",
-      tone: "saved"
-    } : {
-      persisted: "הוסר מהמועדפים",
-      temporary: "הוסר מהרשימה הזמנית בלבד — השינוי לא יישמר לאחר רענון",
-      tone: "removed"
+  let entries = getFavoriteEntries(), index = findFavoriteEntryIndex(entries, catalogId, page);
+  if (!(index < 0)) {
+    if (!isAppPage("viewer")) {
+      navigateTo(viewerDocumentUrl(catalogId, page, { source: LIGHTBOX_SOURCE_FAVORITES }));
+      return;
+    }
+    favoritesState.favoritesViewerOpeningHash = window.location.href, favoritesState.favoritesViewerPreviousCatalog = activeCatalog(), favoritesState.favoritesViewerPreviousPage = activePage(), setFavoriteViewerEntry(entries, index), getFeatureInterface("viewer")?.openCatalog?.(catalogId, page, {
+      source: LIGHTBOX_SOURCE_FAVORITES,
+      favoriteIndex: index
     });
   }
 }
-
+function toggleCurrentPageFavorite() {
+  let identity = favoriteIdentity();
+  if (!identity || !favoritesStore) return;
+  let previousFavoriteIndex = favoritesState.favoritesViewerIndex, mutation = favoritesStore.toggleDetailed({ ...identity, savedAt: Date.now() });
+  if (!mutation.changed) return;
+  let added = mutation.active === !0;
+  telemetryTrackFavorite(added ? "add" : "remove", identity.catalogId, identity.page, getFavoriteEntries().length), syncFavoritesUi({ renderPanel: !0 }), isFavoritesLightboxMode() && !added && syncFavoriteViewerAfterStoreChange({ preferredIndex: previousFavoriteIndex }), getFeatureInterface("viewer")?.isViewerOpen?.() && (flashActionButton(favoritesElements.viewerFavoriteButton, mutation.persisted === !1 ? "זמני" : added ? "נשמר" : "הוסר"), showFavoritePersistenceFeedback(mutation, added ? {
+    persisted: "נשמר במועדפים",
+    temporary: "נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן",
+    tone: "saved"
+  } : {
+    persisted: "הוסר מהמועדפים",
+    temporary: "הוסר מהרשימה הזמנית בלבד — השינוי לא יישמר לאחר רענון",
+    tone: "removed"
+  }));
+}
 function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
-  const mutation = favoritesStore.removeDetailed({ catalogId, page });
-  if (mutation.changed) {
-    favoritesState.favoritesSelectedKeys.delete(favoritesPortabilityDomain.favoriteItemKey({ catalogId, page }));
-    telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
-  }
-  syncFavoritesUi({ renderPanel: true });
-  if (mutation.changed) showFavoritePersistenceFeedback(mutation, {
+  let mutation = favoritesStore.removeDetailed({ catalogId, page });
+  mutation.changed && (favoritesState.favoritesSelectedKeys.delete(favoritesPortabilityDomain.favoriteItemKey({ catalogId, page })), telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length)), syncFavoritesUi({ renderPanel: !0 }), mutation.changed && showFavoritePersistenceFeedback(mutation, {
     persisted: "הוסר מהמועדפים",
     temporary: "הוסר מהרשימה הזמנית בלבד — השינוי לא יישמר לאחר רענון",
     tone: "removed"
   });
 }
-
 function clearAllFavorites() {
-  if (!favoritesStore || !getFavoriteEntries().length) return;
-  if (!window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
-  const mutation = favoritesStore.clearDetailed();
-  if (!mutation.changed) return;
-  favoritesState.favoritesSelectedKeys.clear();
-  favoritesState.favoritesFilterCatalogId = "";
-  telemetryTrackFavorite("clear", "", 0, 0);
-  syncFavoritesUi({ renderPanel: true });
-  showFavoritePersistenceFeedback(mutation, {
+  if (!favoritesStore || !getFavoriteEntries().length || !window.confirm("למחוק את כל העמודים מהמועדפים?")) return;
+  let mutation = favoritesStore.clearDetailed();
+  mutation.changed && (favoritesState.favoritesSelectedKeys.clear(), favoritesState.favoritesFilterCatalogId = "", telemetryTrackFavorite("clear", "", 0, 0), syncFavoritesUi({ renderPanel: !0 }), showFavoritePersistenceFeedback(mutation, {
     persisted: "כל המועדפים הוסרו",
     temporary: "המועדפים הוסרו זמנית בלבד — הרשימה תחזור לאחר רענון",
     tone: "removed"
-  });
+  }));
 }
-
 function handleFavoritesGridClick(event) {
   if (getFeatureInterface("favorites-workspace")?.handleGridClick(event)) return;
-  const target = eventTargetElement(event.target);
-  const card = target?.closest("[data-favorite-catalog][data-favorite-page]");
+  let target = eventTargetElement(event.target), card = target?.closest("[data-favorite-catalog][data-favorite-page]");
   if (!(card instanceof HTMLElement) || !favoritesElements.favoritesGrid?.contains(card)) return;
-  const catalogId = String(card.dataset.favoriteCatalog || "");
-  const page = Number.parseInt(String(card.dataset.favoritePage || ""), 10);
+  let catalogId = String(card.dataset.favoriteCatalog || ""), page = Number.parseInt(String(card.dataset.favoritePage || ""), 10);
   if (target?.closest("[data-remove-favorite]")) {
     removeFavorite(catalogId, page);
     return;
   }
-  if (target?.closest("[data-open-favorite]")) openFavoriteViewer(catalogId, page);
+  target?.closest("[data-open-favorite]") && openFavoriteViewer(catalogId, page);
 }
-
 function handleFavoritesStorageChange(event) {
-  if (!favoritesStore || (event.key !== null && event.key !== favoritesStore.storageKey)) return;
-  favoritesStore.reload();
-  getFeatureInterface("favorites-workspace")?.prune?.(getFavoriteEntries());
-  syncFavoritesUi({ renderPanel: true });
-  if (favoritesState.favoritesTransferPending) syncFavoritesTransferDialogUi();
-  syncFavoriteViewerAfterStoreChange();
+  !favoritesStore || event.key !== null && event.key !== favoritesStore.storageKey || (favoritesStore.reload(), getFeatureInterface("favorites-workspace")?.prune?.(getFavoriteEntries()), syncFavoritesUi({ renderPanel: !0 }), favoritesState.favoritesTransferPending && syncFavoritesTransferDialogUi(), syncFavoriteViewerAfterStoreChange());
 }
-
 function handleFavoritesPanelKeydown(event) {
   if (!favoritesState.favoritesOpen || event.key !== "Tab" || !favoritesElements.favoritesPanel) return;
-  const focusable = Array.from(favoritesElements.favoritesPanel.querySelectorAll(
+  let focusable = Array.from(favoritesElements.favoritesPanel.querySelectorAll(
     'button:not([disabled]):not(.hidden), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )).filter((element) => isHtmlElement(element) && !element.closest(".hidden"));
   if (!focusable.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    focusHtmlElement(last);
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    focusHtmlElement(first);
-  }
+  let first = focusable[0], last = focusable[focusable.length - 1];
+  event.shiftKey && document.activeElement === first ? (event.preventDefault(), focusHtmlElement(last)) : !event.shiftKey && document.activeElement === last && (event.preventDefault(), focusHtmlElement(first));
 }
-
 function currentVisibleDocumentUrl() {
   return window.location.href;
 }
-
 async function copyTextToClipboard(value) {
   if (navigator.clipboard?.writeText && window.isSecureContext) {
     await navigator.clipboard.writeText(value);
     return;
   }
-
-  const input = document.createElement("textarea");
-  input.value = value;
-  input.setAttribute("readonly", "");
-  input.style.position = "fixed";
-  input.style.top = "-1000px";
-  document.body.appendChild(input);
-  input.select();
-  document.execCommand("copy");
-  input.remove();
+  let input = document.createElement("textarea");
+  input.value = value, input.setAttribute("readonly", ""), input.style.position = "fixed", input.style.top = "-1000px", document.body.appendChild(input), input.select(), document.execCommand("copy"), input.remove();
 }
-
 function isMobileShareEnvironment() {
-  if (typeof navigator.share !== "function") return false;
-  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-  const iPadDesktopMode = navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1;
-  const userAgentDataMobile = navigator.userAgentData?.mobile === true;
-  return Boolean(mobileUserAgent || iPadDesktopMode || userAgentDataMobile);
+  if (typeof navigator.share != "function") return !1;
+  let mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || ""), iPadDesktopMode = navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1, userAgentDataMobile = navigator.userAgentData?.mobile === !0;
+  return !!(mobileUserAgent || iPadDesktopMode || userAgentDataMobile);
 }
-
 function currentShareLabel() {
-  const catalog = activeCatalog();
-  if (catalog && isAppPage("viewer")) return `${catalog.title} · עמוד ${activePage()}`;
-  if (catalog && isAppPage("catalog")) return catalog.title;
-  if (isAppPage("favorites")) return "המועדפים שלי · רהיטי ברגיג";
-  return "קטלוגי רהיטי ברגיג";
+  let catalog = activeCatalog();
+  return catalog && isAppPage("viewer") ? `${catalog.title} · עמוד ${activePage()}` : catalog && isAppPage("catalog") ? catalog.title : isAppPage("favorites") ? "המועדפים שלי · רהיטי ברגיג" : "קטלוגי רהיטי ברגיג";
 }
-
 async function shareOrCopyCurrentLink(button) {
-  const link = currentVisibleDocumentUrl();
-
-  if (isMobileShareEnvironment()) {
+  let link = currentVisibleDocumentUrl();
+  if (isMobileShareEnvironment())
     try {
       await navigator.share({
         title: document.title,
@@ -2964,61 +1772,27 @@ async function shareOrCopyCurrentLink(button) {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
     }
-  }
-
   try {
-    await copyTextToClipboard(link);
-    flashActionButton(button, "הקישור הועתק");
-    showActionToast("הקישור הועתק", { tone: "link" });
-  } catch (_error) {
-    showActionToast("לא ניתן להעתיק אוטומטית — אפשר להעתיק מהחלון שנפתח");
-    window.prompt("אפשר להעתיק את הקישור מכאן:", link);
+    await copyTextToClipboard(link), flashActionButton(button, "הקישור הועתק"), showActionToast("הקישור הועתק", { tone: "link" });
+  } catch {
+    showActionToast("לא ניתן להעתיק אוטומטית — אפשר להעתיק מהחלון שנפתח"), window.prompt("אפשר להעתיק את הקישור מכאן:", link);
   }
 }
-
 async function shareCurrentMainHeaderLink() {
   await shareOrCopyCurrentLink(favoritesElements.headerCopyLink);
 }
-
 function attachFavoritesShareEvents() {
-  favoritesElements.headerCopyLink.addEventListener("click", () => shareCurrentMainHeaderLink());
-  favoritesElements.viewerFavoriteButton.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleCurrentPageFavorite();
-  });
-  favoritesElements.viewerFavoriteButton.addEventListener("pointerdown", (event) => event.stopPropagation());
-  favoritesElements.favoriteOpenCatalogButton.addEventListener("click", openCurrentFavoriteInCatalogFromViewer);
-  favoritesElements.viewerMobileFavoritesLink.href = favoritesDocumentUrl();
-  favoritesElements.viewerMobileFavoritesLink.addEventListener("click", () => {
+  favoritesElements.headerCopyLink.addEventListener("click", () => shareCurrentMainHeaderLink()), favoritesElements.viewerFavoriteButton.addEventListener("click", (event) => {
+    event.preventDefault(), event.stopPropagation(), toggleCurrentPageFavorite();
+  }), favoritesElements.viewerFavoriteButton.addEventListener("pointerdown", (event) => event.stopPropagation()), favoritesElements.favoriteOpenCatalogButton.addEventListener("click", openCurrentFavoriteInCatalogFromViewer), favoritesElements.viewerMobileFavoritesLink.href = favoritesDocumentUrl(), favoritesElements.viewerMobileFavoritesLink.addEventListener("click", () => {
     getFeatureInterface("viewer")?.closeMobileMoreMenu();
-  });
-  favoritesElements.favoritesBackdrop?.addEventListener("click", () => closeFavoritesPanel());
-  favoritesElements.favoritesCloseButton?.addEventListener("click", () => closeFavoritesPanel());
-  favoritesElements.favoritesClearButton?.addEventListener("click", clearAllFavorites);
-  favoritesElements.favoritesShareButton?.addEventListener("click", () => shareFavoritesList());
-  favoritesElements.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
-  const workspace = getFeatureInterface("favorites-workspace");
-  if (workspace?.attachEvents) {
-    bindFeatureEventsOnce("favorites-workspace", workspace.attachEvents);
-  }
-  favoritesElements.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown);
-  favoritesElements.favoritesTransferBackdrop?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" }));
-  favoritesElements.favoritesTransferCancel?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" }));
-  favoritesElements.favoritesTransferMerge?.addEventListener("click", () => applyFavoritesTransfer("merge"));
-  favoritesElements.favoritesTransferReplace?.addEventListener("click", () => applyFavoritesTransfer("replace"));
-  favoritesElements.favoritesTransferOverlay?.addEventListener("keydown", handleFavoritesTransferKeydown);
-
-  window.addEventListener("storage", handleFavoritesStorageChange);
+  }), favoritesElements.favoritesBackdrop?.addEventListener("click", () => closeFavoritesPanel()), favoritesElements.favoritesCloseButton?.addEventListener("click", () => closeFavoritesPanel()), favoritesElements.favoritesClearButton?.addEventListener("click", clearAllFavorites), favoritesElements.favoritesShareButton?.addEventListener("click", () => shareFavoritesList()), favoritesElements.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
+  let workspace = getFeatureInterface("favorites-workspace");
+  workspace?.attachEvents && bindFeatureEventsOnce("favorites-workspace", workspace.attachEvents), favoritesElements.favoritesPanel?.addEventListener("keydown", handleFavoritesPanelKeydown), favoritesElements.favoritesTransferBackdrop?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" })), favoritesElements.favoritesTransferCancel?.addEventListener("click", () => closeFavoritesTransferDialog({ cleanUrl: favoritesState.favoritesTransferPending?.source === "link" })), favoritesElements.favoritesTransferMerge?.addEventListener("click", () => applyFavoritesTransfer("merge")), favoritesElements.favoritesTransferReplace?.addEventListener("click", () => applyFavoritesTransfer("replace")), favoritesElements.favoritesTransferOverlay?.addEventListener("keydown", handleFavoritesTransferKeydown), window.addEventListener("storage", handleFavoritesStorageChange);
 }
-
 registerFeatureInterface("favorites", {
   escapePriority: 500,
-  requiresDocumentLock: () => Boolean(
-    (favoritesState.favoritesOpen && !isAppPage("favorites")) ||
-    favoritesState.favoritesTransferPending ||
-    favoritesState.favoriteNoteEditingKey
-  ),
+  requiresDocumentLock: () => !!(favoritesState.favoritesOpen && !isAppPage("favorites") || favoritesState.favoritesTransferPending || favoritesState.favoriteNoteEditingKey),
   attachEvents: attachFavoritesShareEvents,
   entries: getFavoriteEntries,
   viewerIndex: () => favoritesState.favoritesViewerIndex,
@@ -3028,62 +1802,38 @@ registerFeatureInterface("favorites", {
   findViewerEntryIndex: findFavoriteEntryIndex,
   selectViewerEntry: setFavoriteViewerEntry,
   resetViewerSession: () => {
-    favoritesState.favoritesViewerIndex = 0;
-    favoritesState.favoritesViewerOpeningHash = "";
-    favoritesState.favoritesViewerPreviousCatalog = null;
-    favoritesState.favoritesViewerPreviousPage = 1;
-    favoritesState.favoritesReturnFocus = null;
+    favoritesState.favoritesViewerIndex = 0, favoritesState.favoritesViewerOpeningHash = "", favoritesState.favoritesViewerPreviousCatalog = null, favoritesState.favoritesViewerPreviousPage = 1, favoritesState.favoritesReturnFocus = null;
   },
   syncViewerButton: syncViewerFavoriteButtonUi,
   syncViewerMode: syncFavoritesViewerModeUi,
   syncInquiryTrigger: syncFavoritesInquiryTriggerState,
   onboardingTarget: () => favoritesElements.viewerFavoriteButton,
   prepareRoute: (nextPage) => {
-    if (nextPage !== "favorites" && favoritesState.favoritesTransferPending) {
-      closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: true });
-    }
-    if (nextPage !== "favorites" && favoritesState.favoriteNoteEditingKey) {
-      getFeatureInterface("favorites-workspace")?.closeNoteEditor({ restoreFocus: false });
-    }
-    if (nextPage !== "favorites" && (favoritesState.favoritesOpen || favoritesElements.favoritesPanel.classList.contains("favorites-standalone-page"))) {
-      hideFavoritesPanelUi();
-    }
+    nextPage !== "favorites" && favoritesState.favoritesTransferPending && closeFavoritesTransferDialog({ restoreFocus: !1, cleanUrl: !0 }), nextPage !== "favorites" && favoritesState.favoriteNoteEditingKey && getFeatureInterface("favorites-workspace")?.closeNoteEditor({ restoreFocus: !1 }), nextPage !== "favorites" && (favoritesState.favoritesOpen || favoritesElements.favoritesPanel.classList.contains("favorites-standalone-page")) && hideFavoritesPanelUi();
   },
   syncUi: () => syncFavoritesUi({ renderPanel: isAppPage("favorites") }),
   openRoute: () => {
-    openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
-    processFavoritesSelectionFromUrl();
+    openFavoritesPanel({ allowEmpty: !0, captureReturnFocus: !1 }), processFavoritesSelectionFromUrl();
   },
   isPanelOpen: () => favoritesState.favoritesOpen,
-  closeTopLayer: () => {
-    if (favoritesState.favoriteNoteEditingKey) {
-      getFeatureInterface("favorites-workspace")?.closeNoteEditor?.();
-      return true;
-    }
-    if (favoritesState.favoritesTransferPending) {
-      closeFavoritesTransferDialog({
-        cleanUrl: favoritesState.favoritesTransferPending?.source === "link"
-      });
-      return true;
-    }
-    if (favoritesState.favoritesOpen) {
-      closeFavoritesPanel();
-      return true;
-    }
-    return false;
-  }
+  closeTopLayer: () => favoritesState.favoriteNoteEditingKey ? (getFeatureInterface("favorites-workspace")?.closeNoteEditor?.(), !0) : favoritesState.favoritesTransferPending ? (closeFavoritesTransferDialog({
+    cleanUrl: favoritesState.favoritesTransferPending?.source === "link"
+  }), !0) : favoritesState.favoritesOpen ? (closeFavoritesPanel(), !0) : !1
 });
-/* ===== END SOURCE: src/js/30-favorites-share.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/32-shared-inquiry.js ===== */
+// src/js/19-shared-pure.js
+function buildViewerInquiryMailtoUrl(emailAddress, reference) {
+  let subject = encodeURIComponent(String(reference?.subject || "")), body = encodeURIComponent(String(reference?.text || "").replace(/\r?\n/g, `\r
+`));
+  return `mailto:${String(emailAddress || "")}?subject=${subject}&body=${body}`;
+}
 
-const inquiryState = {
-  open: false,
+// src/js/32-shared-inquiry.js
+var inquiryState = {
+  open: !1,
   returnFocus: null,
   reference: null
-};
-
-const inquiryElements = Object.freeze({
+}, inquiryElements = Object.freeze({
   viewerInquiryButton: $requiredButton("viewerInquiryButton"),
   viewerInquiryOverlay: requiredElement("viewerInquiryOverlay"),
   viewerInquiryBackdrop: requiredElement("viewerInquiryBackdrop"),
@@ -3101,33 +1851,24 @@ const inquiryElements = Object.freeze({
   viewerInquiryShare: $requiredButton("viewerInquiryShare"),
   viewerInquiryCopy: $requiredButton("viewerInquiryCopy")
 });
-
 function viewerInquiryFooterEmail() {
-  const link = Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"))
-    .find((candidate) => String(candidate.getAttribute("href") || "").startsWith("mailto:"));
+  let link = Array.from(document.querySelectorAll(".site-footer-contact-list a[href]")).find((candidate) => String(candidate.getAttribute("href") || "").startsWith("mailto:"));
   return link instanceof HTMLAnchorElement ? link : null;
 }
-
 function viewerInquiryEmailAddress() {
-  const emailHref = String(viewerInquiryFooterEmail()?.getAttribute?.("href") || "").trim();
-  return emailHref.replace(/^mailto:/i, "").split("?")[0].trim();
+  return String(viewerInquiryFooterEmail()?.getAttribute?.("href") || "").trim().replace(/^mailto:/i, "").split("?")[0].trim();
 }
-
 function viewerPageInquiryReference() {
-  const catalog = activeCatalog();
+  let catalog = activeCatalog();
   if (!catalog) return null;
-  const page = clampPage(activePage(), catalog);
-  const url = absoluteDocumentUrl(viewerDocumentUrl(catalog.id, page));
-  const title = String(catalog.title || "קטלוג").trim() || "קטלוג";
-  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(catalog.pages) || 1)}`;
-  const subject = `בירור על דגם – ${title}, עמוד ${page}`;
-  const shareText = [
+  let page = clampPage(activePage(), catalog), url = absoluteDocumentUrl(viewerDocumentUrl(catalog.id, page)), title = String(catalog.title || "קטלוג").trim() || "קטלוג", pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(catalog.pages) || 1)}`, subject = `בירור על דגם – ${title}, עמוד ${page}`, shareText = [
     "שלום,",
     "רציתי לברר לגבי הדגם הבא:",
     `קטלוג: ${title}`,
     `עמוד: ${page}`
-  ].join("\n");
-  const text = `${shareText}\nקישור ישיר: ${url}`;
+  ].join(`
+`), text = `${shareText}
+קישור ישיר: ${url}`;
   return {
     kind: "viewer",
     source: "viewer-inquiry",
@@ -3151,28 +1892,23 @@ function viewerPageInquiryReference() {
     }
   };
 }
-
 function viewerInquiryReference() {
   return inquiryState.reference || viewerPageInquiryReference();
 }
-
 function viewerInquiryGmailUrl(emailAddress, reference) {
-  const query = new URLSearchParams({
+  return `https://mail.google.com/mail/?${new URLSearchParams({
     view: "cm",
     fs: "1",
     to: emailAddress,
     su: reference.subject,
     body: reference.text
-  });
-  return `https://mail.google.com/mail/?${query.toString()}`;
+  }).toString()}`;
 }
-
 function viewerInquiryMailtoUrl(emailAddress, reference) {
   return buildViewerInquiryMailtoUrl(emailAddress, reference);
 }
-
 function viewerInquiryTelemetryFields(reference, action, detail = "") {
-  const telemetry = reference?.telemetry || {};
+  let telemetry = reference?.telemetry || {};
   return {
     action,
     detail,
@@ -3182,227 +1918,124 @@ function viewerInquiryTelemetryFields(reference, action, detail = "") {
     value: telemetry.value || reference?.count || 0
   };
 }
-
 function syncViewerInquiryContactLink(link, href, reference, action) {
   if (!link) return;
-  const available = Boolean(href);
-  link.classList.toggle("hidden", !available);
-  link.setAttribute("aria-hidden", available ? "false" : "true");
-  if (!available) {
-    link.removeAttribute("href");
-    delete link.dataset.contactSource;
-    delete link.dataset.contactAction;
-    delete link.dataset.contactCatalogId;
-    delete link.dataset.contactPage;
+  let available = !!href;
+  if (link.classList.toggle("hidden", !available), link.setAttribute("aria-hidden", available ? "false" : "true"), !available) {
+    link.removeAttribute("href"), delete link.dataset.contactSource, delete link.dataset.contactAction, delete link.dataset.contactCatalogId, delete link.dataset.contactPage;
     return;
   }
-  const telemetry = viewerInquiryTelemetryFields(reference, action);
-  link.href = href;
-  link.dataset.contactSource = telemetry.source;
-  link.dataset.contactAction = action;
-  if (telemetry.catalogId) link.dataset.contactCatalogId = telemetry.catalogId;
-  else delete link.dataset.contactCatalogId;
-  if (telemetry.pageNumber) link.dataset.contactPage = String(telemetry.pageNumber);
-  else delete link.dataset.contactPage;
+  let telemetry = viewerInquiryTelemetryFields(reference, action);
+  link.href = href, link.dataset.contactSource = telemetry.source, link.dataset.contactAction = action, telemetry.catalogId ? link.dataset.contactCatalogId = telemetry.catalogId : delete link.dataset.contactCatalogId, telemetry.pageNumber ? link.dataset.contactPage = String(telemetry.pageNumber) : delete link.dataset.contactPage;
 }
-
 function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   if (!reference) return;
-
-  if (inquiryElements.viewerInquiryEyebrow) inquiryElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית";
-  if (inquiryElements.viewerInquiryTitle) inquiryElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם";
-  if (inquiryElements.viewerInquiryDescription) inquiryElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.";
-  if (inquiryElements.viewerInquiryCatalog) inquiryElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title;
-  if (inquiryElements.viewerInquiryPage) inquiryElements.viewerInquiryPage.textContent = reference.pageLabel || "";
-  inquiryElements.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites");
-
-  if (inquiryElements.viewerInquiryButton && reference.kind === "viewer") {
-    const label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
+  if (inquiryElements.viewerInquiryEyebrow && (inquiryElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית"), inquiryElements.viewerInquiryTitle && (inquiryElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם"), inquiryElements.viewerInquiryDescription && (inquiryElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש."), inquiryElements.viewerInquiryCatalog && (inquiryElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title), inquiryElements.viewerInquiryPage && (inquiryElements.viewerInquiryPage.textContent = reference.pageLabel || ""), inquiryElements.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites"), inquiryElements.viewerInquiryButton && reference.kind === "viewer") {
+    let label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
     inquiryElements.viewerInquiryButton.setAttribute("aria-label", label);
   }
-
-  const previewCatalog = reference.previewCatalog || reference.catalog;
-  const previewPage = Number(reference.previewPage || reference.page) || 1;
+  let previewCatalog = reference.previewCatalog || reference.catalog, previewPage = Number(reference.previewPage || reference.page) || 1;
   if (inquiryElements.viewerInquiryPreview && previewCatalog) {
-    const preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
-    if (inquiryElements.viewerInquiryPreview.getAttribute("src") !== preview) {
-      inquiryElements.viewerInquiryPreview.src = preview;
-    }
-    inquiryElements.viewerInquiryPreview.alt = reference.kind === "favorites"
-      ? `תצוגה מקדימה של ${reference.referenceTitle}`
-      : `${reference.referenceTitle}, עמוד ${previewPage}`;
+    let preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
+    inquiryElements.viewerInquiryPreview.getAttribute("src") !== preview && (inquiryElements.viewerInquiryPreview.src = preview), inquiryElements.viewerInquiryPreview.alt = reference.kind === "favorites" ? `תצוגה מקדימה של ${reference.referenceTitle}` : `${reference.referenceTitle}, עמוד ${previewPage}`;
   }
-
-  const emailAddress = viewerInquiryEmailAddress();
-  const emailAvailable = Boolean(emailAddress);
+  let emailAddress = viewerInquiryEmailAddress(), emailAvailable = !!emailAddress;
   syncViewerInquiryContactLink(
     inquiryElements.viewerInquiryEmail,
     emailAvailable ? viewerInquiryMailtoUrl(emailAddress, reference) : "",
     reference,
     "email"
-  );
-  syncViewerInquiryContactLink(
+  ), syncViewerInquiryContactLink(
     inquiryElements.viewerInquiryGmail,
     emailAvailable ? viewerInquiryGmailUrl(emailAddress, reference) : "",
     reference,
     "gmail"
   );
 }
-
 function setViewerInquiryTriggerState(open, activeTrigger = null) {
   inquiryElements.viewerInquiryButton.setAttribute(
     "aria-expanded",
     open && inquiryElements.viewerInquiryButton === activeTrigger ? "true" : "false"
-  );
-  getFeatureInterface("favorites")?.syncInquiryTrigger(open, activeTrigger);
+  ), getFeatureInterface("favorites")?.syncInquiryTrigger(open, activeTrigger);
 }
-
 function getViewerInquiryFocusableElements() {
   return Array.from(inquiryElements.viewerInquiryOverlay.querySelectorAll(
     'button:not([disabled]), a[href]:not(.hidden), [tabindex]:not([tabindex="-1"])'
   )).filter(isHtmlElement).filter((element) => !element.closest(".hidden"));
 }
-
 function openViewerInquiry(options = {}) {
-  const reference = options.reference || viewerPageInquiryReference();
+  let reference = options.reference || viewerPageInquiryReference();
   if (!reference || !inquiryElements.viewerInquiryOverlay) return;
   getFeatureInterface("viewer")?.prepareInquiry?.();
-
-  const returnFocus = isHtmlElement(options.returnFocus)
-    ? options.returnFocus
-    : (isHtmlElement(document.activeElement) ? document.activeElement : inquiryElements.viewerInquiryButton);
-  inquiryState.reference = reference;
-  inquiryState.open = true;
-  inquiryState.returnFocus = returnFocus;
-  syncViewerInquiryUi(reference);
-  inquiryElements.viewerInquiryOverlay.classList.remove("hidden");
-  inquiryElements.viewerInquiryOverlay.setAttribute("aria-hidden", "false");
-  setViewerInquiryTriggerState(true, returnFocus);
-  syncDocumentLock();
-  window.requestAnimationFrame(() => {
-    if (!inquiryState.open) return;
-    inquiryElements.viewerInquiryOverlay?.classList.add("visible");
-    focusHtmlElement(inquiryElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0], { preventScroll: true });
+  let returnFocus = isHtmlElement(options.returnFocus) ? options.returnFocus : isHtmlElement(document.activeElement) ? document.activeElement : inquiryElements.viewerInquiryButton;
+  inquiryState.reference = reference, inquiryState.open = !0, inquiryState.returnFocus = returnFocus, syncViewerInquiryUi(reference), inquiryElements.viewerInquiryOverlay.classList.remove("hidden"), inquiryElements.viewerInquiryOverlay.setAttribute("aria-hidden", "false"), setViewerInquiryTriggerState(!0, returnFocus), syncDocumentLock(), window.requestAnimationFrame(() => {
+    inquiryState.open && (inquiryElements.viewerInquiryOverlay?.classList.add("visible"), focusHtmlElement(inquiryElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0], { preventScroll: !0 }));
   });
 }
-
 function closeViewerInquiry(options = {}) {
   if (!inquiryState.open && inquiryElements.viewerInquiryOverlay?.classList.contains("hidden")) return;
-  const { restoreFocus = true } = options;
-  const returnFocus = inquiryState.returnFocus;
-  inquiryState.open = false;
-  inquiryState.returnFocus = null;
-  inquiryState.reference = null;
-  inquiryElements.viewerInquiryOverlay?.classList.remove("visible");
-  inquiryElements.viewerInquiryOverlay?.setAttribute("aria-hidden", "true");
-  setViewerInquiryTriggerState(false);
-  syncDocumentLock();
-  window.setTimeout(() => {
-    if (!inquiryState.open) inquiryElements.viewerInquiryOverlay?.classList.add("hidden");
-  }, 180);
-  if (restoreFocus) focusHtmlElement(returnFocus || inquiryElements.viewerInquiryButton, { preventScroll: true });
+  let { restoreFocus = !0 } = options, returnFocus = inquiryState.returnFocus;
+  inquiryState.open = !1, inquiryState.returnFocus = null, inquiryState.reference = null, inquiryElements.viewerInquiryOverlay?.classList.remove("visible"), inquiryElements.viewerInquiryOverlay?.setAttribute("aria-hidden", "true"), setViewerInquiryTriggerState(!1), syncDocumentLock(), window.setTimeout(() => {
+    inquiryState.open || inquiryElements.viewerInquiryOverlay?.classList.add("hidden");
+  }, 180), restoreFocus && focusHtmlElement(returnFocus || inquiryElements.viewerInquiryButton, { preventScroll: !0 });
 }
-
 function handleViewerInquiryKeydown(event) {
-  if (!inquiryState.open) return false;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    closeViewerInquiry();
-    return true;
-  }
-  if (event.key !== "Tab") return true;
-
-  const focusable = getViewerInquiryFocusableElements();
-  if (!focusable.length) {
-    event.preventDefault();
-    return true;
-  }
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    focusHtmlElement(last);
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    focusHtmlElement(first);
-  }
-  return true;
+  if (!inquiryState.open) return !1;
+  if (event.key === "Escape")
+    return event.preventDefault(), event.stopPropagation(), closeViewerInquiry(), !0;
+  if (event.key !== "Tab") return !0;
+  let focusable = getViewerInquiryFocusableElements();
+  if (!focusable.length)
+    return event.preventDefault(), !0;
+  let first = focusable[0], last = focusable[focusable.length - 1];
+  return event.shiftKey && document.activeElement === first ? (event.preventDefault(), focusHtmlElement(last)) : !event.shiftKey && document.activeElement === last && (event.preventDefault(), focusHtmlElement(first)), !0;
 }
-
 async function copyViewerInquiryReference() {
-  const reference = viewerInquiryReference();
-  if (!reference) return;
-  try {
-    await copyTextToClipboard(reference.text);
-    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "copy"), { immediate: true });
-    showActionToast(reference.kind === "favorites" ? "פרטי הדגמים הועתקו" : "פרטי הדגם הועתקו", { tone: "link" });
-    closeViewerInquiry();
-  } catch (_error) {
-    window.prompt("אפשר להעתיק את פרטי הבירור מכאן:", reference.text);
-  }
+  let reference = viewerInquiryReference();
+  if (reference)
+    try {
+      await copyTextToClipboard(reference.text), telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "copy"), { immediate: !0 }), showActionToast(reference.kind === "favorites" ? "פרטי הדגמים הועתקו" : "פרטי הדגם הועתקו", { tone: "link" }), closeViewerInquiry();
+    } catch {
+      window.prompt("אפשר להעתיק את פרטי הבירור מכאן:", reference.text);
+    }
 }
-
 async function shareViewerInquiryReference() {
-  const reference = viewerInquiryReference();
+  let reference = viewerInquiryReference();
   if (!reference) return;
-
-  const shareData = {
+  let shareData = {
     title: reference.subject,
     text: reference.shareText,
     url: reference.url
-  };
-  let canUseNativeShare = typeof navigator.share === "function";
-  if (canUseNativeShare && typeof navigator.canShare === "function") {
+  }, canUseNativeShare = typeof navigator.share == "function";
+  if (canUseNativeShare && typeof navigator.canShare == "function")
     try {
       canUseNativeShare = navigator.canShare(shareData);
-    } catch (_error) {
-      canUseNativeShare = false;
+    } catch {
+      canUseNativeShare = !1;
     }
-  }
-
-  if (canUseNativeShare) {
+  if (canUseNativeShare)
     try {
-      await navigator.share(shareData);
-      telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: true });
-      closeViewerInquiry({ restoreFocus: false });
+      await navigator.share(shareData), telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: !0 }), closeViewerInquiry({ restoreFocus: !1 });
       return;
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
     }
-  }
-
   try {
-    await copyTextToClipboard(reference.text);
-    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share", "copy-fallback"), { immediate: true });
-    showActionToast(
-      reference.kind === "favorites"
-        ? "אפשרויות שיתוף אינן זמינות — פרטי הדגמים הועתקו"
-        : "אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו",
+    await copyTextToClipboard(reference.text), telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share", "copy-fallback"), { immediate: !0 }), showActionToast(
+      reference.kind === "favorites" ? "אפשרויות שיתוף אינן זמינות — פרטי הדגמים הועתקו" : "אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו",
       { tone: "link" }
-    );
-    closeViewerInquiry();
-  } catch (_error) {
+    ), closeViewerInquiry();
+  } catch {
     window.prompt("אפשר להעתיק ולשתף את פרטי הבירור מכאן:", reference.text);
   }
 }
-
 function attachSharedInquiryEvents() {
   inquiryElements.viewerInquiryButton?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openViewerInquiry({ returnFocus: inquiryElements.viewerInquiryButton });
-  });
-  inquiryElements.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
-  inquiryElements.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
-  inquiryElements.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference());
-  inquiryElements.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference());
-  inquiryElements.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown);
-  [inquiryElements.viewerInquiryGmail, inquiryElements.viewerInquiryEmail].forEach((link) => {
-    link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: false }), 0));
+    event.preventDefault(), event.stopPropagation(), openViewerInquiry({ returnFocus: inquiryElements.viewerInquiryButton });
+  }), inquiryElements.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry()), inquiryElements.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry()), inquiryElements.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference()), inquiryElements.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference()), inquiryElements.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown), [inquiryElements.viewerInquiryGmail, inquiryElements.viewerInquiryEmail].forEach((link) => {
+    link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: !1 }), 0));
   });
 }
-
 registerFeatureInterface("inquiry", {
   escapePriority: 600,
   requiresDocumentLock: () => inquiryState.open,
@@ -3411,99 +2044,64 @@ registerFeatureInterface("inquiry", {
   openInquiry: (options = {}) => openViewerInquiry(options),
   close: (options = {}) => closeViewerInquiry(options),
   onboardingTarget: () => inquiryElements.viewerInquiryButton,
-  closeTopLayer: () => {
-    if (!inquiryState.open) return false;
-    closeViewerInquiry();
-    return true;
-  }
+  closeTopLayer: () => inquiryState.open ? (closeViewerInquiry(), !0) : !1
 });
-/* ===== END SOURCE: src/js/32-shared-inquiry.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/35-favorites-workspace.js ===== */
-
+// src/js/35-favorites-workspace.js
 function favoriteWorkspaceEntryKey(entry) {
   return favoritesPortabilityDomain.favoriteItemKey({ catalogId: entry?.catalog?.id || entry?.catalogId, page: entry?.page });
 }
-
 function favoriteWorkspaceCardKey(card) {
-  if (!(card instanceof HTMLElement)) return "";
-  return favoritesPortabilityDomain.favoriteItemKey({
+  return card instanceof HTMLElement ? favoritesPortabilityDomain.favoriteItemKey({
     catalogId: card.dataset.favoriteCatalog,
     page: card.dataset.favoritePage
-  });
+  }) : "";
 }
-
 function favoriteWorkspaceFindCardByKey(key) {
   if (!key || !favoritesElements.favoritesGrid) return null;
-  const cards =  (
+  let cards = (
+    /** @type {NodeListOf<HTMLElement>} */
     favoritesElements.favoritesGrid.querySelectorAll("[data-favorite-catalog][data-favorite-page]")
   );
   return Array.from(cards).find((card) => favoriteWorkspaceCardKey(card) === key) || null;
 }
-
 function favoriteWorkspaceSelectedEntries(entries = getFavoriteEntries()) {
   return entries.filter((entry) => favoritesState.favoritesSelectedKeys.has(favoriteWorkspaceEntryKey(entry)));
 }
-
 function favoriteWorkspaceVisibleEntries(entries = getFavoriteEntries()) {
-  const filter = String(favoritesState.favoritesFilterCatalogId || "");
+  let filter = String(favoritesState.favoritesFilterCatalogId || "");
   return filter ? entries.filter((entry) => String(entry.catalog?.id || entry.catalogId) === filter) : entries;
 }
-
 function favoriteWorkspaceShareLinkEntries(entries = getFavoriteEntries()) {
-  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
+  let selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   return selectedEntries.length ? selectedEntries : entries;
 }
-
 function pruneFavoritesWorkspaceState(entries = getFavoriteEntries()) {
-  const validKeys = new Set(entries.map(favoriteWorkspaceEntryKey).filter(Boolean));
-  for (const key of favoritesState.favoritesSelectedKeys) {
-    if (!validKeys.has(key)) favoritesState.favoritesSelectedKeys.delete(key);
-  }
-  if (favoritesState.favoriteNoteEditingKey && !validKeys.has(favoritesState.favoriteNoteEditingKey)) {
-    closeFavoriteNoteEditor({ restoreFocus: false });
-  }
-  if (favoritesState.favoritesFilterCatalogId && !entries.some((entry) => String(entry.catalog?.id || entry.catalogId) === favoritesState.favoritesFilterCatalogId)) {
-    favoritesState.favoritesFilterCatalogId = "";
-  }
+  let validKeys = new Set(entries.map(favoriteWorkspaceEntryKey).filter(Boolean));
+  for (let key of favoritesState.favoritesSelectedKeys)
+    validKeys.has(key) || favoritesState.favoritesSelectedKeys.delete(key);
+  favoritesState.favoriteNoteEditingKey && !validKeys.has(favoritesState.favoriteNoteEditingKey) && closeFavoriteNoteEditor({ restoreFocus: !1 }), favoritesState.favoritesFilterCatalogId && !entries.some((entry) => String(entry.catalog?.id || entry.catalogId) === favoritesState.favoritesFilterCatalogId) && (favoritesState.favoritesFilterCatalogId = "");
 }
-
 function favoriteWorkspaceFilterOptions(entries) {
-  const catalogCounts = new Map();
-  entries.forEach((entry) => {
-    const id = String(entry.catalog?.id || entry.catalogId || "");
+  let catalogCounts = /* @__PURE__ */ new Map();
+  return entries.forEach((entry) => {
+    let id = String(entry.catalog?.id || entry.catalogId || "");
     if (!id) return;
-    const current = catalogCounts.get(id) || { catalog: entry.catalog, count: 0 };
-    current.count += 1;
-    catalogCounts.set(id, current);
-  });
-  return [...catalogCounts.entries()].map(([id, value]) => ({ id, ...value }));
+    let current = catalogCounts.get(id) || { catalog: entry.catalog, count: 0 };
+    current.count += 1, catalogCounts.set(id, current);
+  }), [...catalogCounts.entries()].map(([id, value]) => ({ id, ...value }));
 }
-
 function syncFavoriteWorkspaceFilter(entries) {
   if (!favoritesElements.favoritesCatalogFilter) return;
-  const options = favoriteWorkspaceFilterOptions(entries);
-  const current = String(favoritesState.favoritesFilterCatalogId || "");
+  let options = favoriteWorkspaceFilterOptions(entries), current = String(favoritesState.favoritesFilterCatalogId || "");
   favoritesElements.favoritesCatalogFilter.innerHTML = [
     '<option value="">כל הקטלוגים</option>',
-    ...options.map(({ id, catalog, count }) => (
-      `<option value="${escapeHtml(id)}">${escapeHtml(catalog?.title || id)} (${count})</option>`
-    ))
-  ].join("");
-  favoritesElements.favoritesCatalogFilter.value = options.some((option) => option.id === current) ? current : "";
-  favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
+    ...options.map(({ id, catalog, count }) => `<option value="${escapeHtml(id)}">${escapeHtml(catalog?.title || id)} (${count})</option>`)
+  ].join(""), favoritesElements.favoritesCatalogFilter.value = options.some((option) => option.id === current) ? current : "", favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
 }
-
 function favoriteWorkspaceInquiryReference(entries, options = {}) {
   if (!entries.length) return null;
-  const selected = Boolean(options.selected);
-  const firstEntry = entries[0];
-  const count = entries.length;
-  const scopeLabel = selected ? "הדגמים שנבחרו" : "כל המועדפים";
-  const title = selected ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים";
-  const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
-  const shareText = favoriteWorkspaceMessage(entries, { purpose: "inquiry" });
-  const text = `${shareText}
+  let selected = !!options.selected, firstEntry = entries[0], count = entries.length, scopeLabel = selected ? "הדגמים שנבחרו" : "כל המועדפים", title = selected ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים", selectionUrl = favoriteWorkspaceSelectionUrl(entries), shareText = favoriteWorkspaceMessage(entries, { purpose: "inquiry" }), text = `${shareText}
 
 קישור לרשימת הדגמים: ${selectionUrl}`;
   return {
@@ -3526,84 +2124,28 @@ function favoriteWorkspaceInquiryReference(entries, options = {}) {
     telemetry: { source: "favorites-inquiry", value: count }
   };
 }
-
 function openFavoriteWorkspaceInquiry() {
-  const entries = getFavoriteEntries();
-  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
-  const actionEntries = selectedEntries.length ? selectedEntries : entries;
-  const reference = favoriteWorkspaceInquiryReference(actionEntries, { selected: selectedEntries.length > 0 });
-  if (!reference) return;
-  getFeatureInterface("inquiry")?.openInquiry?.({
+  let entries = getFavoriteEntries(), selectedEntries = favoriteWorkspaceSelectedEntries(entries), actionEntries = selectedEntries.length ? selectedEntries : entries, reference = favoriteWorkspaceInquiryReference(actionEntries, { selected: selectedEntries.length > 0 });
+  reference && getFeatureInterface("inquiry")?.openInquiry?.({
     reference,
     returnFocus: favoritesElements.favoritesInquiryButton
   });
 }
-
 function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
-  const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
-  const selectedCount = selectedEntries.length;
-  const inquiryEntries = selectedCount ? selectedEntries : entries;
-  const shareEntries = selectedCount ? selectedEntries : entries;
-  const hasEntries = entries.length > 0;
-
-  favoritesElements.favoritesHeaderWorkspace?.classList.toggle("hidden", !hasEntries);
-  if (favoritesElements.favoritesCatalogFilter) favoritesElements.favoritesCatalogFilter.disabled = !hasEntries;
-  if (favoritesElements.favoritesVisibleCount) {
-    favoritesElements.favoritesVisibleCount.textContent = visibleEntries.length === entries.length
-      ? `${entries.length} פריטים`
-      : `${visibleEntries.length} מתוך ${entries.length}`;
-  }
-
-  if (favoritesElements.favoritesShareButton) {
-    favoritesElements.favoritesShareButton.disabled = shareEntries.length === 0;
-    favoritesElements.favoritesShareButton.setAttribute("aria-label", shareEntries.length
-      ? (selectedCount
-        ? `העתקת קישור עבור ${selectedCount} פריטים שסומנו`
-        : `העתקת קישור לכל ${entries.length} המועדפים`)
-      : "העתקת קישור למועדפים — אין עדיין פריטים");
-  }
-  if (favoritesElements.favoritesShareLabel) {
-    favoritesElements.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה";
-  }
-
-  if (favoritesElements.favoritesInquiryButton) {
-    favoritesElements.favoritesInquiryButton.classList.toggle("hidden", !hasEntries);
-    favoritesElements.favoritesInquiryButton.disabled = inquiryEntries.length === 0;
-    favoritesElements.favoritesInquiryButton.setAttribute("aria-label", selectedCount
-      ? `בירור על ${selectedCount} הדגמים שנבחרו`
-      : `בירור על כל ${entries.length} הדגמים במועדפים`);
-  }
-  if (favoritesElements.favoritesInquiryLabel) {
-    favoritesElements.favoritesInquiryLabel.textContent = selectedCount ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים";
-  }
-
-  favoritesElements.favoritesSelectionBar?.classList.toggle("hidden", selectedCount === 0);
-  if (favoritesElements.favoritesSelectionCount) favoritesElements.favoritesSelectionCount.textContent = String(selectedCount);
+  let selectedEntries = favoriteWorkspaceSelectedEntries(entries), selectedCount = selectedEntries.length, inquiryEntries = selectedCount ? selectedEntries : entries, shareEntries = selectedCount ? selectedEntries : entries, hasEntries = entries.length > 0;
+  favoritesElements.favoritesHeaderWorkspace?.classList.toggle("hidden", !hasEntries), favoritesElements.favoritesCatalogFilter && (favoritesElements.favoritesCatalogFilter.disabled = !hasEntries), favoritesElements.favoritesVisibleCount && (favoritesElements.favoritesVisibleCount.textContent = visibleEntries.length === entries.length ? `${entries.length} פריטים` : `${visibleEntries.length} מתוך ${entries.length}`), favoritesElements.favoritesShareButton && (favoritesElements.favoritesShareButton.disabled = shareEntries.length === 0, favoritesElements.favoritesShareButton.setAttribute("aria-label", shareEntries.length ? selectedCount ? `העתקת קישור עבור ${selectedCount} פריטים שסומנו` : `העתקת קישור לכל ${entries.length} המועדפים` : "העתקת קישור למועדפים — אין עדיין פריטים")), favoritesElements.favoritesShareLabel && (favoritesElements.favoritesShareLabel.textContent = selectedCount ? "שיתוף הבחירה" : "שיתוף הרשימה"), favoritesElements.favoritesInquiryButton && (favoritesElements.favoritesInquiryButton.classList.toggle("hidden", !hasEntries), favoritesElements.favoritesInquiryButton.disabled = inquiryEntries.length === 0, favoritesElements.favoritesInquiryButton.setAttribute("aria-label", selectedCount ? `בירור על ${selectedCount} הדגמים שנבחרו` : `בירור על כל ${entries.length} הדגמים במועדפים`)), favoritesElements.favoritesInquiryLabel && (favoritesElements.favoritesInquiryLabel.textContent = selectedCount ? "בירור על הדגמים שנבחרו" : "בירור על הדגמים"), favoritesElements.favoritesSelectionBar?.classList.toggle("hidden", selectedCount === 0), favoritesElements.favoritesSelectionCount && (favoritesElements.favoritesSelectionCount.textContent = String(selectedCount));
 }
-
 function favoriteWorkspaceNoteMarkup(entry) {
-  const note = String(entry.note || "").trim();
-  if (!note) return "";
-  return `
+  let note = String(entry.note || "").trim();
+  return note ? `
     <div class="favorite-note-summary">
       <span class="favorite-note-label">הערה</span>
       <span class="favorite-note-text">${escapeHtml(note)}</span>
     </div>
-  `;
+  ` : "";
 }
-
 function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
-  const { catalog, page } = entry;
-  const key = favoriteWorkspaceEntryKey(entry);
-  const identityCatalog = escapeHtml(catalog.id);
-  const title = escapeHtml(catalog.title || "קטלוג");
-  const image = thumbSrc(catalog, page);
-  const selected = favoritesState.favoritesSelectedKeys.has(key);
-  const note = String(entry.note || "").trim();
-  const noteActionLabel = note ? "עריכת ההערה" : "הוספת הערה";
-  const upDisabled = visibleIndex === 0 ? " disabled" : "";
-  const downDisabled = visibleIndex === visibleCount - 1 ? " disabled" : "";
-
+  let { catalog, page } = entry, key = favoriteWorkspaceEntryKey(entry), identityCatalog = escapeHtml(catalog.id), title = escapeHtml(catalog.title || "קטלוג"), image = thumbSrc(catalog, page), selected = favoritesState.favoritesSelectedKeys.has(key), noteActionLabel = String(entry.note || "").trim() ? "עריכת ההערה" : "הוספת הערה", upDisabled = visibleIndex === 0 ? " disabled" : "", downDisabled = visibleIndex === visibleCount - 1 ? " disabled" : "";
   return `
     <article class="favorite-card${selected ? " is-selected" : ""}" data-favorite-catalog="${identityCatalog}" data-favorite-page="${page}" draggable="false">
       <label class="favorite-select-control">
@@ -3643,164 +2185,91 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
     </article>
   `;
 }
-
 function renderFavoritesWorkspace(entries = getFavoriteEntries()) {
   if (!favoritesElements.favoritesGrid) return;
   pruneFavoritesWorkspaceState(entries);
-  const count = entries.length;
-  favoritesElements.favoritesClearButton?.classList.toggle("hidden", count === 0);
-  favoritesElements.favoritesEmpty?.classList.toggle("hidden", count !== 0);
-  syncFavoriteWorkspaceFilter(entries);
-  const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
-  syncFavoriteWorkspaceHeaderActions(entries, visibleEntries);
-  favoritesElements.favoritesFilteredEmpty?.classList.toggle("hidden", count === 0 || visibleEntries.length > 0);
-  favoritesElements.favoritesGrid.classList.toggle("hidden", count === 0 || visibleEntries.length === 0);
-  favoritesElements.favoritesGrid.innerHTML = visibleEntries.map((entry, index) => favoriteWorkspaceCardMarkup(entry, index, visibleEntries.length)).join("");
+  let count = entries.length;
+  favoritesElements.favoritesClearButton?.classList.toggle("hidden", count === 0), favoritesElements.favoritesEmpty?.classList.toggle("hidden", count !== 0), syncFavoriteWorkspaceFilter(entries);
+  let visibleEntries = favoriteWorkspaceVisibleEntries(entries);
+  syncFavoriteWorkspaceHeaderActions(entries, visibleEntries), favoritesElements.favoritesFilteredEmpty?.classList.toggle("hidden", count === 0 || visibleEntries.length > 0), favoritesElements.favoritesGrid.classList.toggle("hidden", count === 0 || visibleEntries.length === 0), favoritesElements.favoritesGrid.innerHTML = visibleEntries.map((entry, index) => favoriteWorkspaceCardMarkup(entry, index, visibleEntries.length)).join("");
 }
-
 function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
-  if (!favoritesStore || !orderedVisibleKeys.length) return false;
-  const allItems = favoritesStore.read();
-  const visibleSet = new Set(orderedVisibleKeys);
-  const itemByKey = new Map(allItems.map((item) => [favoritesPortabilityDomain.favoriteItemKey(item), item]));
-  if (orderedVisibleKeys.some((key) => !itemByKey.has(key))) return false;
-  let visibleIndex = 0;
-  const nextItems = allItems.map((item) => {
-    const key = favoritesPortabilityDomain.favoriteItemKey(item);
+  if (!favoritesStore || !orderedVisibleKeys.length) return !1;
+  let allItems = favoritesStore.read(), visibleSet = new Set(orderedVisibleKeys), itemByKey = new Map(allItems.map((item) => [favoritesPortabilityDomain.favoriteItemKey(item), item]));
+  if (orderedVisibleKeys.some((key) => !itemByKey.has(key))) return !1;
+  let visibleIndex = 0, nextItems = allItems.map((item) => {
+    let key = favoritesPortabilityDomain.favoriteItemKey(item);
     if (!visibleSet.has(key)) return item;
-    const replacement = itemByKey.get(orderedVisibleKeys[visibleIndex]);
-    visibleIndex += 1;
-    return replacement || item;
-  });
-  const mutation = favoritesStore.replaceDetailed(nextItems);
-  warnIfFavoriteChangeIsTemporary(mutation);
-  return mutation.changed;
+    let replacement = itemByKey.get(orderedVisibleKeys[visibleIndex]);
+    return visibleIndex += 1, replacement || item;
+  }), mutation = favoritesStore.replaceDetailed(nextItems);
+  return warnIfFavoriteChangeIsTemporary(mutation), mutation.changed;
 }
-
 function moveFavoriteWithinVisibleOrder(key, direction) {
-  const entries = getFavoriteEntries();
-  const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
-  const keys = visibleEntries.map(favoriteWorkspaceEntryKey);
-  const index = keys.indexOf(key);
-  const targetIndex = index + Number(direction || 0);
-  if (index < 0 || targetIndex < 0 || targetIndex >= keys.length) return false;
-  [keys[index], keys[targetIndex]] = [keys[targetIndex], keys[index]];
-  favoriteWorkspaceReorderVisible(keys);
-  syncFavoritesUi({ renderPanel: true });
-  requestAnimationFrame(() => {
-    const movedCard = favoriteWorkspaceFindCardByKey(key);
+  let entries = getFavoriteEntries(), keys = favoriteWorkspaceVisibleEntries(entries).map(favoriteWorkspaceEntryKey), index = keys.indexOf(key), targetIndex = index + Number(direction || 0);
+  return index < 0 || targetIndex < 0 || targetIndex >= keys.length ? !1 : ([keys[index], keys[targetIndex]] = [keys[targetIndex], keys[index]], favoriteWorkspaceReorderVisible(keys), syncFavoritesUi({ renderPanel: !0 }), requestAnimationFrame(() => {
+    let movedCard = favoriteWorkspaceFindCardByKey(key);
     focusHtmlElement(movedCard?.querySelector(`[data-move-favorite="${direction}"]`));
-  });
-  return true;
+  }), !0);
 }
-
 function reorderFavoriteByDrop(sourceKey, targetKey) {
-  if (!sourceKey || !targetKey || sourceKey === targetKey) return false;
-  const visibleKeys = favoriteWorkspaceVisibleEntries().map(favoriteWorkspaceEntryKey);
-  const from = visibleKeys.indexOf(sourceKey);
-  const to = visibleKeys.indexOf(targetKey);
-  if (from < 0 || to < 0) return false;
-  visibleKeys.splice(to, 0, visibleKeys.splice(from, 1)[0]);
-  favoriteWorkspaceReorderVisible(visibleKeys);
-  syncFavoritesUi({ renderPanel: true });
-  return true;
+  if (!sourceKey || !targetKey || sourceKey === targetKey) return !1;
+  let visibleKeys = favoriteWorkspaceVisibleEntries().map(favoriteWorkspaceEntryKey), from = visibleKeys.indexOf(sourceKey), to = visibleKeys.indexOf(targetKey);
+  return from < 0 || to < 0 ? !1 : (visibleKeys.splice(to, 0, visibleKeys.splice(from, 1)[0]), favoriteWorkspaceReorderVisible(visibleKeys), syncFavoritesUi({ renderPanel: !0 }), !0);
 }
-
 function setFavoriteWorkspaceSelection(key, selected) {
-  if (!key) return;
-  if (selected) favoritesState.favoritesSelectedKeys.add(key);
-  else favoritesState.favoritesSelectedKeys.delete(key);
-  renderFavoritesWorkspace(getFavoriteEntries());
+  key && (selected ? favoritesState.favoritesSelectedKeys.add(key) : favoritesState.favoritesSelectedKeys.delete(key), renderFavoritesWorkspace(getFavoriteEntries()));
 }
-
 function clearFavoritesSelection() {
-  favoritesState.favoritesSelectedKeys.clear();
-  renderFavoritesWorkspace(getFavoriteEntries());
+  favoritesState.favoritesSelectedKeys.clear(), renderFavoritesWorkspace(getFavoriteEntries());
 }
-
 function favoriteWorkspaceItemUrl(entry) {
   return absoluteDocumentUrl(viewerDocumentUrl(entry.catalog.id, entry.page));
 }
-
 function favoriteWorkspaceMessage(entries, options = {}) {
-  const purpose = options.purpose === "inquiry" ? "inquiry" : "share";
-  const lines = purpose === "inquiry"
-    ? ["שלום,", "רציתי לברר לגבי הדגמים הבאים מתוך קטלוגי רהיטי ברגיג:", ""]
-    : ["שלום,", "רציתי לשתף כמה דגמים מתוך קטלוגי רהיטי ברגיג:", ""];
-  entries.forEach((entry, index) => {
-    lines.push(`${index + 1}. ${entry.catalog.title} — עמוד ${entry.page}`);
-    if (String(entry.note || "").trim()) lines.push(`הערה: ${String(entry.note).trim()}`);
-    lines.push(favoriteWorkspaceItemUrl(entry), "");
-  });
-  return lines.join("\n").trim();
+  let lines = (options.purpose === "inquiry" ? "inquiry" : "share") === "inquiry" ? ["שלום,", "רציתי לברר לגבי הדגמים הבאים מתוך קטלוגי רהיטי ברגיג:", ""] : ["שלום,", "רציתי לשתף כמה דגמים מתוך קטלוגי רהיטי ברגיג:", ""];
+  return entries.forEach((entry, index) => {
+    lines.push(`${index + 1}. ${entry.catalog.title} — עמוד ${entry.page}`), String(entry.note || "").trim() && lines.push(`הערה: ${String(entry.note).trim()}`), lines.push(favoriteWorkspaceItemUrl(entry), "");
+  }), lines.join(`
+`).trim();
 }
-
 function favoriteWorkspaceSelectionUrl(entries) {
   return buildFavoritesShareUrl(entries.map((entry) => ({ catalogId: entry.catalog.id, page: entry.page })));
 }
-
 async function copyFavoriteWorkspaceLink(entries, button = null) {
   if (!entries.length) return;
-  const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
+  let selectionUrl = favoriteWorkspaceSelectionUrl(entries);
   try {
-    await copyTextToClipboard(selectionUrl);
-    if (button) flashActionButton(button, "הקישור הועתק");
-    showActionToast("קישור המועדפים הועתק", { tone: "link" });
-  } catch (_error) {
+    await copyTextToClipboard(selectionUrl), button && flashActionButton(button, "הקישור הועתק"), showActionToast("קישור המועדפים הועתק", { tone: "link" });
+  } catch {
     window.prompt("אפשר להעתיק את קישור המועדפים מכאן:", selectionUrl);
   }
 }
-
 function favoriteWorkspaceFindEntryByKey(key) {
   return getFavoriteEntries().find((entry) => favoriteWorkspaceEntryKey(entry) === key) || null;
 }
-
 function syncFavoriteNoteCount() {
-  if (!favoritesElements.favoriteNoteCount || !favoritesElements.favoriteNoteInput) return;
-  favoritesElements.favoriteNoteCount.textContent = `${favoritesElements.favoriteNoteInput.value.length}/${FAVORITES_NOTE_MAX_LENGTH}`;
+  !favoritesElements.favoriteNoteCount || !favoritesElements.favoriteNoteInput || (favoritesElements.favoriteNoteCount.textContent = `${favoritesElements.favoriteNoteInput.value.length}/${FAVORITES_NOTE_MAX_LENGTH}`);
 }
-
 function openFavoriteNoteEditor(key, returnFocus = isHtmlElement(document.activeElement) ? document.activeElement : null) {
-  const entry = favoriteWorkspaceFindEntryByKey(key);
-  if (!entry || !favoritesElements.favoriteNoteOverlay || !favoritesElements.favoriteNoteInput) return;
-  favoritesState.favoriteNoteEditingKey = key;
-  favoritesState.favoriteNoteReturnFocus = returnFocus;
-  if (favoritesElements.favoriteNoteTitle) favoritesElements.favoriteNoteTitle.textContent = entry.note ? "עריכת הערה" : "הוספת הערה";
-  if (favoritesElements.favoriteNoteContext) favoritesElements.favoriteNoteContext.textContent = `${entry.catalog.title} · עמוד ${entry.page}`;
-  favoritesElements.favoriteNoteInput.value = String(entry.note || "");
-  syncFavoriteNoteCount();
-  favoritesElements.favoriteNoteOverlay.classList.remove("hidden");
-  favoritesElements.favoriteNoteOverlay.setAttribute("aria-hidden", "false");
-  syncDocumentLock();
-  requestAnimationFrame(() => {
-    favoritesElements.favoriteNoteInput.focus();
-    favoritesElements.favoriteNoteInput.setSelectionRange(favoritesElements.favoriteNoteInput.value.length, favoritesElements.favoriteNoteInput.value.length);
-  });
+  let entry = favoriteWorkspaceFindEntryByKey(key);
+  !entry || !favoritesElements.favoriteNoteOverlay || !favoritesElements.favoriteNoteInput || (favoritesState.favoriteNoteEditingKey = key, favoritesState.favoriteNoteReturnFocus = returnFocus, favoritesElements.favoriteNoteTitle && (favoritesElements.favoriteNoteTitle.textContent = entry.note ? "עריכת הערה" : "הוספת הערה"), favoritesElements.favoriteNoteContext && (favoritesElements.favoriteNoteContext.textContent = `${entry.catalog.title} · עמוד ${entry.page}`), favoritesElements.favoriteNoteInput.value = String(entry.note || ""), syncFavoriteNoteCount(), favoritesElements.favoriteNoteOverlay.classList.remove("hidden"), favoritesElements.favoriteNoteOverlay.setAttribute("aria-hidden", "false"), syncDocumentLock(), requestAnimationFrame(() => {
+    favoritesElements.favoriteNoteInput.focus(), favoritesElements.favoriteNoteInput.setSelectionRange(favoritesElements.favoriteNoteInput.value.length, favoritesElements.favoriteNoteInput.value.length);
+  }));
 }
-
 function closeFavoriteNoteEditor(options = {}) {
-  const { restoreFocus = true } = options;
-  const returnFocus = favoritesState.favoriteNoteReturnFocus;
-  favoritesState.favoriteNoteEditingKey = "";
-  favoritesState.favoriteNoteReturnFocus = null;
-  favoritesElements.favoriteNoteOverlay?.classList.add("hidden");
-  favoritesElements.favoriteNoteOverlay?.setAttribute("aria-hidden", "true");
-  syncDocumentLock();
-  if (restoreFocus) returnFocus?.focus?.();
+  let { restoreFocus = !0 } = options, returnFocus = favoritesState.favoriteNoteReturnFocus;
+  favoritesState.favoriteNoteEditingKey = "", favoritesState.favoriteNoteReturnFocus = null, favoritesElements.favoriteNoteOverlay?.classList.add("hidden"), favoritesElements.favoriteNoteOverlay?.setAttribute("aria-hidden", "true"), syncDocumentLock(), restoreFocus && returnFocus?.focus?.();
 }
-
 function saveFavoriteNote() {
   if (!favoritesState.favoriteNoteEditingKey || !favoritesStore || !favoritesElements.favoriteNoteInput) return;
-  const entry = favoriteWorkspaceFindEntryByKey(favoritesState.favoriteNoteEditingKey);
-  if (!entry) return closeFavoriteNoteEditor({ restoreFocus: false });
-  const hasNote = Boolean(favoritesElements.favoriteNoteInput.value.trim());
-  const mutation = favoritesStore.setNoteDetailed(
+  let entry = favoriteWorkspaceFindEntryByKey(favoritesState.favoriteNoteEditingKey);
+  if (!entry) return closeFavoriteNoteEditor({ restoreFocus: !1 });
+  let hasNote = !!favoritesElements.favoriteNoteInput.value.trim(), mutation = favoritesStore.setNoteDetailed(
     { catalogId: entry.catalog.id, page: entry.page },
     favoritesElements.favoriteNoteInput.value
   );
-  closeFavoriteNoteEditor({ restoreFocus: false });
-  syncFavoritesUi({ renderPanel: true });
-  if (mutation.changed) showFavoritePersistenceFeedback(mutation, hasNote ? {
+  closeFavoriteNoteEditor({ restoreFocus: !1 }), syncFavoritesUi({ renderPanel: !0 }), mutation.changed && showFavoritePersistenceFeedback(mutation, hasNote ? {
     persisted: "ההערה נשמרה",
     temporary: "ההערה נשמרה זמנית בלבד — היא תיעלם לאחר רענון",
     tone: "saved"
@@ -3808,124 +2277,61 @@ function saveFavoriteNote() {
     persisted: "ההערה הוסרה",
     temporary: "ההערה הוסרה זמנית בלבד — השינוי לא יישמר לאחר רענון",
     tone: "removed"
-  });
-  requestAnimationFrame(() => {
+  }), requestAnimationFrame(() => {
     focusHtmlElement(favoriteWorkspaceFindCardByKey(favoriteWorkspaceEntryKey(entry))?.querySelector("[data-edit-favorite-note]"));
   });
 }
-
 function favoriteWorkspaceFocusable(container) {
-  if (!container) return [];
-  return Array.from(container.querySelectorAll('button:not([disabled]), a[href]:not(.hidden), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'))
-    .filter(isHtmlElement)
-    .filter((element) => !element.closest(".hidden"));
+  return container ? Array.from(container.querySelectorAll('button:not([disabled]), a[href]:not(.hidden), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(isHtmlElement).filter((element) => !element.closest(".hidden")) : [];
 }
-
 function trapFavoriteWorkspaceDialogFocus(event, container, closeCallback) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    closeCallback();
-    return true;
-  }
-  if (event.key !== "Tab") return false;
-  const focusable = favoriteWorkspaceFocusable(container);
-  if (!focusable.length) return false;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-  return true;
+  if (event.key === "Escape")
+    return event.preventDefault(), event.stopPropagation(), closeCallback(), !0;
+  if (event.key !== "Tab") return !1;
+  let focusable = favoriteWorkspaceFocusable(container);
+  if (!focusable.length) return !1;
+  let first = focusable[0], last = focusable[focusable.length - 1];
+  return event.shiftKey && document.activeElement === first ? (event.preventDefault(), last.focus()) : !event.shiftKey && document.activeElement === last && (event.preventDefault(), first.focus()), !0;
 }
-
 function handleFavoritesWorkspaceGridClick(event) {
-  const target = eventTargetElement(event.target);
-  const card = target?.closest("[data-favorite-catalog][data-favorite-page]");
-  if (!card || !favoritesElements.favoritesGrid?.contains(card)) return false;
-  const key = favoriteWorkspaceCardKey(card);
+  let target = eventTargetElement(event.target), card = target?.closest("[data-favorite-catalog][data-favorite-page]");
+  if (!card || !favoritesElements.favoritesGrid?.contains(card)) return !1;
+  let key = favoriteWorkspaceCardKey(card);
   if (target?.closest("[data-edit-favorite-note]")) {
-    const button = target.closest("button");
-    openFavoriteNoteEditor(key, isHtmlElement(button) ? button : null);
-    return true;
+    let button = target.closest("button");
+    return openFavoriteNoteEditor(key, isHtmlElement(button) ? button : null), !0;
   }
-  const moveButton = target?.closest("[data-move-favorite]");
-  if (moveButton instanceof HTMLElement) {
-    moveFavoriteWithinVisibleOrder(key, Number(moveButton.dataset.moveFavorite));
-    return true;
-  }
-  return false;
+  let moveButton = target?.closest("[data-move-favorite]");
+  return moveButton instanceof HTMLElement ? (moveFavoriteWithinVisibleOrder(key, Number(moveButton.dataset.moveFavorite)), !0) : !1;
 }
-
 function handleFavoritesWorkspaceGridChange(event) {
-  const target = eventTargetElement(event.target);
-  const checkbox = target?.closest("[data-select-favorite]");
+  let checkbox = eventTargetElement(event.target)?.closest("[data-select-favorite]");
   if (!(checkbox instanceof HTMLInputElement)) return;
-  const card = checkbox.closest("[data-favorite-catalog][data-favorite-page]");
+  let card = checkbox.closest("[data-favorite-catalog][data-favorite-page]");
   setFavoriteWorkspaceSelection(favoriteWorkspaceCardKey(card), checkbox.checked);
 }
-
 function handleFavoritesWorkspaceDragStart(event) {
-  const target = eventTargetElement(event.target);
-  const handle = target?.closest("[data-drag-favorite]");
-  const card = handle?.closest("[data-favorite-catalog][data-favorite-page]");
-  if (!handle || !card) return;
-  favoritesState.favoritesDragKey = favoriteWorkspaceCardKey(card);
-  card.classList.add("is-dragging");
-  event.dataTransfer?.setData("text/plain", "favorite-card");
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+  let handle = eventTargetElement(event.target)?.closest("[data-drag-favorite]"), card = handle?.closest("[data-favorite-catalog][data-favorite-page]");
+  !handle || !card || (favoritesState.favoritesDragKey = favoriteWorkspaceCardKey(card), card.classList.add("is-dragging"), event.dataTransfer?.setData("text/plain", "favorite-card"), event.dataTransfer && (event.dataTransfer.effectAllowed = "move"));
 }
-
 function handleFavoritesWorkspaceDragOver(event) {
   if (!favoritesState.favoritesDragKey) return;
-  const card = eventTargetElement(event.target)?.closest("[data-favorite-catalog][data-favorite-page]");
-  if (!card || favoriteWorkspaceCardKey(card) === favoritesState.favoritesDragKey) return;
-  event.preventDefault();
-  favoritesElements.favoritesGrid?.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target"));
-  card.classList.add("is-drag-target");
+  let card = eventTargetElement(event.target)?.closest("[data-favorite-catalog][data-favorite-page]");
+  !card || favoriteWorkspaceCardKey(card) === favoritesState.favoritesDragKey || (event.preventDefault(), favoritesElements.favoritesGrid?.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target")), card.classList.add("is-drag-target"));
 }
-
 function handleFavoritesWorkspaceDrop(event) {
-  const card = eventTargetElement(event.target)?.closest("[data-favorite-catalog][data-favorite-page]");
-  if (!card || !favoritesState.favoritesDragKey) return;
-  event.preventDefault();
-  reorderFavoriteByDrop(favoritesState.favoritesDragKey, favoriteWorkspaceCardKey(card));
-  favoritesState.favoritesDragKey = "";
+  let card = eventTargetElement(event.target)?.closest("[data-favorite-catalog][data-favorite-page]");
+  !card || !favoritesState.favoritesDragKey || (event.preventDefault(), reorderFavoriteByDrop(favoritesState.favoritesDragKey, favoriteWorkspaceCardKey(card)), favoritesState.favoritesDragKey = "");
 }
-
 function handleFavoritesWorkspaceDragEnd() {
-  favoritesState.favoritesDragKey = "";
-  favoritesElements.favoritesGrid?.querySelectorAll(".is-dragging, .is-drag-target").forEach((item) => item.classList.remove("is-dragging", "is-drag-target"));
+  favoritesState.favoritesDragKey = "", favoritesElements.favoritesGrid?.querySelectorAll(".is-dragging, .is-drag-target").forEach((item) => item.classList.remove("is-dragging", "is-drag-target"));
 }
-
 function attachFavoritesWorkspaceEvents() {
   favoritesElements.favoritesCatalogFilter?.addEventListener("change", () => {
-    favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
-    renderFavoritesWorkspace(getFavoriteEntries());
-  });
-  favoritesElements.favoritesResetFilter?.addEventListener("click", () => {
-    favoritesState.favoritesFilterCatalogId = "";
-    renderFavoritesWorkspace(getFavoriteEntries());
-    requestAnimationFrame(() => favoritesElements.favoritesCatalogFilter?.focus?.());
-  });
-  favoritesElements.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection);
-  favoritesElements.favoritesInquiryButton?.addEventListener("click", openFavoriteWorkspaceInquiry);
-  favoritesElements.favoritesGrid?.addEventListener("change", handleFavoritesWorkspaceGridChange);
-  favoritesElements.favoritesGrid?.addEventListener("dragstart", handleFavoritesWorkspaceDragStart);
-  favoritesElements.favoritesGrid?.addEventListener("dragover", handleFavoritesWorkspaceDragOver);
-  favoritesElements.favoritesGrid?.addEventListener("drop", handleFavoritesWorkspaceDrop);
-  favoritesElements.favoritesGrid?.addEventListener("dragend", handleFavoritesWorkspaceDragEnd);
-
-  favoritesElements.favoriteNoteInput?.addEventListener("input", syncFavoriteNoteCount);
-  favoritesElements.favoriteNoteSave?.addEventListener("click", saveFavoriteNote);
-  favoritesElements.favoriteNoteCancel?.addEventListener("click", () => closeFavoriteNoteEditor());
-  favoritesElements.favoriteNoteClose?.addEventListener("click", () => closeFavoriteNoteEditor());
-  favoritesElements.favoriteNoteBackdrop?.addEventListener("click", () => closeFavoriteNoteEditor());
-  favoritesElements.favoriteNoteOverlay?.addEventListener("keydown", (event) => trapFavoriteWorkspaceDialogFocus(event, favoritesElements.favoriteNoteOverlay, closeFavoriteNoteEditor));
+    favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value, renderFavoritesWorkspace(getFavoriteEntries());
+  }), favoritesElements.favoritesResetFilter?.addEventListener("click", () => {
+    favoritesState.favoritesFilterCatalogId = "", renderFavoritesWorkspace(getFavoriteEntries()), requestAnimationFrame(() => favoritesElements.favoritesCatalogFilter?.focus?.());
+  }), favoritesElements.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection), favoritesElements.favoritesInquiryButton?.addEventListener("click", openFavoriteWorkspaceInquiry), favoritesElements.favoritesGrid?.addEventListener("change", handleFavoritesWorkspaceGridChange), favoritesElements.favoritesGrid?.addEventListener("dragstart", handleFavoritesWorkspaceDragStart), favoritesElements.favoritesGrid?.addEventListener("dragover", handleFavoritesWorkspaceDragOver), favoritesElements.favoritesGrid?.addEventListener("drop", handleFavoritesWorkspaceDrop), favoritesElements.favoritesGrid?.addEventListener("dragend", handleFavoritesWorkspaceDragEnd), favoritesElements.favoriteNoteInput?.addEventListener("input", syncFavoriteNoteCount), favoritesElements.favoriteNoteSave?.addEventListener("click", saveFavoriteNote), favoritesElements.favoriteNoteCancel?.addEventListener("click", () => closeFavoriteNoteEditor()), favoritesElements.favoriteNoteClose?.addEventListener("click", () => closeFavoriteNoteEditor()), favoritesElements.favoriteNoteBackdrop?.addEventListener("click", () => closeFavoriteNoteEditor()), favoritesElements.favoriteNoteOverlay?.addEventListener("keydown", (event) => trapFavoriteWorkspaceDialogFocus(event, favoritesElements.favoriteNoteOverlay, closeFavoriteNoteEditor));
 }
 registerFeatureInterface("favorites-workspace", {
   attachEvents: attachFavoritesWorkspaceEvents,
@@ -3936,245 +2342,184 @@ registerFeatureInterface("favorites-workspace", {
   handleGridClick: (event) => handleFavoritesWorkspaceGridClick(event),
   closeNoteEditor: (options = {}) => closeFavoriteNoteEditor(options)
 });
-/* ===== END SOURCE: src/js/35-favorites-workspace.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/39-search-catalog-domain.js ===== */
+// src/js/12-catalog-state.js
+var catalogState = {
+  catalogLayoutColumns: 0,
+  catalogLayoutResizeTimer: 0,
+  catalogScrollTopButtonRaf: 0,
+  categoryFocusTargetId: "",
+  categoryFocusTimer: 0,
+  categoryNavFitRaf: 0
+}, catalogElements = Object.freeze({
+  categoryNav: requiredElement("categoryNav"),
+  mobileCategoryMenuToggle: $requiredButton("mobileCategoryMenuToggle"),
+  mobileCategoryMenu: requiredElement("mobileCategoryMenu"),
+  catalogCount: $("catalogCount"),
+  pageCount: $("pageCount"),
+  catalogGrid: requiredElement("catalogGrid"),
+  catalogLoadStatus: requiredElement("catalogLoadStatus"),
+  catalogDetail: requiredElement("catalogDetail"),
+  catalogTitle: requiredElement("catalogDetailTitle"),
+  catalogDescription: requiredElement("catalogDescription"),
+  catalogMenuToggle: $requiredButton("catalogMenuToggle"),
+  catalogMenuToggleText: requiredElement("catalogMenuToggleText"),
+  catalogMenu: requiredElement("catalogMenu"),
+  catalogCoverPreview: $image("catalogCoverPreview"),
+  pageGrid: requiredElement("pageGrid"),
+  openCatalogEntryFromDetail: $requiredButton("openCatalogEntryFromDetail"),
+  scrollToTopBtn: $requiredButton("scrollToTopBtn")
+});
 
-
-const searchCatalogDomain = (() => {
+// src/js/39-search-catalog-domain.js
+var searchCatalogDomain = (() => {
   function decodeCatalogHashTargetId(hash) {
-    const rawHash = String(hash || "");
+    let rawHash = String(hash || "");
     if (!rawHash.startsWith("#")) return "";
-    const rawId = rawHash.slice(1);
+    let rawId = rawHash.slice(1);
     try {
       return decodeURIComponent(rawId);
     } catch {
       return rawId;
     }
   }
-
   function catalogColumnCount(matches) {
-    if (matches?.mobile) return 1;
-    if (matches?.tablet) return 2;
-    return 3;
+    return matches?.mobile ? 1 : matches?.tablet ? 2 : 3;
   }
-
   function clampCatalogSpan(value, columns) {
     return Math.min(columns, Math.max(1, Number(value || 1)));
   }
-
   function catalogSubcategorySourceBlocks(source) {
-    const sourceBlocks = [];
-    if (Array.isArray(source?.directItems) && source.directItems.length) {
-      sourceBlocks.push({
-        blockKey: "__direct__",
-        blockIndex: -1,
-        label: "קטלוגים כלליים",
-        isDirect: true,
-        items: source.directItems
-      });
-    }
-    (Array.isArray(source?.subcategories) ? source.subcategories : []).forEach((group, index) => {
-      const subcategory = String(group?.subcategory || "").trim();
-      const items = Array.isArray(group?.items) ? group.items : [];
-      if (!subcategory || !items.length) return;
-      sourceBlocks.push({
+    let sourceBlocks = [];
+    return Array.isArray(source?.directItems) && source.directItems.length && sourceBlocks.push({
+      blockKey: "__direct__",
+      blockIndex: -1,
+      label: "קטלוגים כלליים",
+      isDirect: !0,
+      items: source.directItems
+    }), (Array.isArray(source?.subcategories) ? source.subcategories : []).forEach((group, index) => {
+      let subcategory = String(group?.subcategory || "").trim(), items = Array.isArray(group?.items) ? group.items : [];
+      !subcategory || !items.length || sourceBlocks.push({
         blockKey: subcategory,
         blockIndex: index,
         label: subcategory,
-        isDirect: false,
+        isDirect: !1,
         items
       });
-    });
-    return sourceBlocks;
+    }), sourceBlocks;
   }
-
   function catalogCategorySegments(groups, columns) {
-    const safeColumns = clampCatalogSpan(columns, 3);
-    const segments = [];
-    let occupied = 0;
-
-    const appendCardBlockSegments = (group, groupIndex, block, options = {}) => {
-      const items = Array.isArray(block?.items) ? block.items : [];
+    let safeColumns = clampCatalogSpan(columns, 3), segments = [], occupied = 0, appendCardBlockSegments = (group, groupIndex, block, options = {}) => {
+      let items = Array.isArray(block?.items) ? block.items : [];
       if (!items.length) return;
-      const segmentType = options.segmentType || "category";
-      const layoutBlockKey = options.layoutBlockKey || `${segmentType}:${groupIndex}:${block?.blockKey || "main"}`;
-      let itemOffset = 0;
-      let segmentIndex = 0;
-
-      while (itemOffset < items.length) {
-        if (occupied >= safeColumns) occupied = 0;
-        const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
-        const span = Math.min(availableInRow, items.length - itemOffset, safeColumns);
-        const segment = {
+      let segmentType = options.segmentType || "category", layoutBlockKey = options.layoutBlockKey || `${segmentType}:${groupIndex}:${block?.blockKey || "main"}`, itemOffset = 0, segmentIndex = 0;
+      for (; itemOffset < items.length; ) {
+        occupied >= safeColumns && (occupied = 0);
+        let availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns, span = Math.min(availableInRow, items.length - itemOffset, safeColumns), segment = {
           category: group.category,
           groupIndex,
           segmentIndex,
           itemOffset,
           span,
           items: items.slice(itemOffset, itemOffset + span),
-          hasSubcategories: Boolean(options.hasSubcategories),
+          hasSubcategories: !!options.hasSubcategories,
           segmentType,
           layoutBlockKey,
-          inlineDivider: false
+          inlineDivider: !1
         };
-        if (segmentType === "subcategory") {
-          Object.assign(segment, {
-            blockKey: block.blockKey,
-            blockIndex: block.blockIndex,
-            blockOrder: options.blockOrder,
-            label: block.label,
-            isDirect: Boolean(block.isDirect)
-          });
-        }
-        segments.push(segment);
-        itemOffset += span;
-        segmentIndex += 1;
-        occupied += span;
-        if (occupied >= safeColumns) occupied = 0;
+        segmentType === "subcategory" && Object.assign(segment, {
+          blockKey: block.blockKey,
+          blockIndex: block.blockIndex,
+          blockOrder: options.blockOrder,
+          label: block.label,
+          isDirect: !!block.isDirect
+        }), segments.push(segment), itemOffset += span, segmentIndex += 1, occupied += span, occupied >= safeColumns && (occupied = 0);
       }
     };
-
-    groups.forEach((group, groupIndex) => {
-      const items = Array.isArray(group?.items) ? group.items : [];
-      if (!items.length) return;
-      if (group?.hasSubcategories) {
-        if (occupied > 0) occupied = 0;
-        segments.push({
-          category: group.category,
-          groupIndex,
-          segmentIndex: 0,
-          itemOffset: 0,
-          span: safeColumns,
-          items: [],
-          directItems: Array.isArray(group.directItems) ? group.directItems : [],
-          subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
-          hasSubcategories: true,
-          segmentType: "categoryHeader",
-          layoutBlockKey: `category-header:${groupIndex}`,
-          inlineDivider: false
-        });
-        occupied = 0;
-        catalogSubcategorySourceBlocks(group).forEach((block, blockOrder) => {
-          appendCardBlockSegments(group, groupIndex, block, {
-            segmentType: "subcategory",
-            hasSubcategories: true,
-            blockOrder,
-            layoutBlockKey: `subcategory:${groupIndex}:${block.blockKey}:${blockOrder}`
+    return groups.forEach((group, groupIndex) => {
+      let items = Array.isArray(group?.items) ? group.items : [];
+      if (items.length) {
+        if (group?.hasSubcategories) {
+          occupied > 0 && (occupied = 0), segments.push({
+            category: group.category,
+            groupIndex,
+            segmentIndex: 0,
+            itemOffset: 0,
+            span: safeColumns,
+            items: [],
+            directItems: Array.isArray(group.directItems) ? group.directItems : [],
+            subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
+            hasSubcategories: !0,
+            segmentType: "categoryHeader",
+            layoutBlockKey: `category-header:${groupIndex}`,
+            inlineDivider: !1
+          }), occupied = 0, catalogSubcategorySourceBlocks(group).forEach((block, blockOrder) => {
+            appendCardBlockSegments(group, groupIndex, block, {
+              segmentType: "subcategory",
+              hasSubcategories: !0,
+              blockOrder,
+              layoutBlockKey: `subcategory:${groupIndex}:${block.blockKey}:${blockOrder}`
+            });
           });
+          return;
+        }
+        appendCardBlockSegments(group, groupIndex, { blockKey: "__category__", items }, {
+          segmentType: "category",
+          hasSubcategories: !1,
+          layoutBlockKey: `category:${groupIndex}`
         });
-        return;
       }
-      appendCardBlockSegments(group, groupIndex, { blockKey: "__category__", items }, {
-        segmentType: "category",
-        hasSubcategories: false,
-        layoutBlockKey: `category:${groupIndex}`
-      });
-    });
-
-    occupied = 0;
-    segments.forEach((segment, index) => {
-      const span = clampCatalogSpan(segment.span, safeColumns);
-      if (occupied + span > safeColumns) occupied = 0;
-      const rowEnd = occupied + span;
-      const nextSegment = segments[index + 1];
-      const nextSpan = nextSegment ? clampCatalogSpan(nextSegment.span, safeColumns) : 0;
-      const sameLayoutBlock = Boolean(nextSegment && nextSegment.layoutBlockKey === segment.layoutBlockKey);
-      segment.inlineDivider = Boolean(
-        nextSegment
-        && !sameLayoutBlock
-        && segment.segmentType !== "categoryHeader"
-        && nextSegment.segmentType !== "categoryHeader"
-        && rowEnd < safeColumns
-        && nextSpan <= safeColumns - rowEnd
-      );
-      occupied = rowEnd >= safeColumns ? 0 : rowEnd;
-    });
-    return segments;
+    }), occupied = 0, segments.forEach((segment, index) => {
+      let span = clampCatalogSpan(segment.span, safeColumns);
+      occupied + span > safeColumns && (occupied = 0);
+      let rowEnd = occupied + span, nextSegment = segments[index + 1], nextSpan = nextSegment ? clampCatalogSpan(nextSegment.span, safeColumns) : 0, sameLayoutBlock = !!(nextSegment && nextSegment.layoutBlockKey === segment.layoutBlockKey);
+      segment.inlineDivider = !!(nextSegment && !sameLayoutBlock && segment.segmentType !== "categoryHeader" && nextSegment.segmentType !== "categoryHeader" && rowEnd < safeColumns && nextSpan <= safeColumns - rowEnd), occupied = rowEnd >= safeColumns ? 0 : rowEnd;
+    }), segments;
   }
-
   function escapeSearchMarkup(text) {
-    return String(text ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+    return String(text ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   }
-
   function highlightedSearchText(text, ranges = []) {
-    const raw = String(text || "");
+    let raw = String(text || "");
     if (!raw) return "";
-    const normalizedRanges = Array.isArray(ranges)
-      ? ranges
-        .map((range) => ({
-          start: Math.max(0, Math.min(raw.length, Number(range?.start) || 0)),
-          end: Math.max(0, Math.min(raw.length, Number(range?.end) || 0))
-        }))
-        .filter((range) => range.end > range.start)
-        .sort((first, second) => first.start - second.start || first.end - second.end)
-      : [];
-    let cursor = 0;
-    let markup = "";
-    normalizedRanges.forEach((range) => {
-      if (range.start < cursor) return;
-      markup += escapeSearchMarkup(raw.slice(cursor, range.start));
-      markup += `<mark class="search-match-highlight">${escapeSearchMarkup(raw.slice(range.start, range.end))}</mark>`;
-      cursor = range.end;
-    });
-    return markup + escapeSearchMarkup(raw.slice(cursor));
+    let normalizedRanges = Array.isArray(ranges) ? ranges.map((range) => ({
+      start: Math.max(0, Math.min(raw.length, Number(range?.start) || 0)),
+      end: Math.max(0, Math.min(raw.length, Number(range?.end) || 0))
+    })).filter((range) => range.end > range.start).sort((first, second) => first.start - second.start || first.end - second.end) : [], cursor = 0, markup = "";
+    return normalizedRanges.forEach((range) => {
+      range.start < cursor || (markup += escapeSearchMarkup(raw.slice(cursor, range.start)), markup += `<mark class="search-match-highlight">${escapeSearchMarkup(raw.slice(range.start, range.end))}</mark>`, cursor = range.end);
+    }), markup + escapeSearchMarkup(raw.slice(cursor));
   }
-
   function searchResultDetailsMarkup(result) {
-    const page = Math.max(1, Number(result?.page) || 1);
-    const reason = String(result?.matchReason || "התאמה בטקסט הקטלוג");
-    const excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
+    let page = Math.max(1, Number(result?.page) || 1), reason = String(result?.matchReason || "התאמה בטקסט הקטלוג"), excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
     return `
       <span class="search-result-meta">עמוד ${page} · ${escapeSearchMarkup(reason)}</span>
       ${excerpt ? `<span class="search-result-excerpt">${excerpt}</span>` : ""}
     `;
   }
-
   function lightboxSearchColumnLimit(featureColumns, viewportWidth) {
-    const columns = Number(featureColumns);
+    let columns = Number(featureColumns);
     if (Number.isFinite(columns)) return Math.max(1, Math.min(columns, 3));
-    const width = Math.max(0, Number(viewportWidth) || 0);
+    let width = Math.max(0, Number(viewportWidth) || 0);
     return width >= 1180 ? 3 : width >= 760 ? 2 : 1;
   }
-
   function resolveGlobalSearchResultAction(result) {
     if (!result) return null;
     if (result.targetId) return { type: "category", targetId: String(result.targetId) };
-    const catalogId = String(result.catalogId || "").trim();
-    if (!catalogId) return null;
-    if (result.resultType === "catalog") return { type: "catalog", catalogId };
-    return { type: "viewer", catalogId, page: Math.max(1, Number(result.page) || 1) };
+    let catalogId = String(result.catalogId || "").trim();
+    return catalogId ? result.resultType === "catalog" ? { type: "catalog", catalogId } : { type: "viewer", catalogId, page: Math.max(1, Number(result.page) || 1) } : null;
   }
-
   function executeGlobalSearchResultAction(result, ports) {
-    const action = resolveGlobalSearchResultAction(result);
-    if (!action) return false;
-    if (action.type === "category") return ports.activateCategoryTarget(action.targetId) === true;
-    if (action.type === "catalog") ports.openCatalog(action.catalogId);
-    else ports.openViewer(action.catalogId, action.page);
-    return true;
+    let action = resolveGlobalSearchResultAction(result);
+    return action ? action.type === "category" ? ports.activateCategoryTarget(action.targetId) === !0 : (action.type === "catalog" ? ports.openCatalog(action.catalogId) : ports.openViewer(action.catalogId, action.page), !0) : !1;
   }
-
-  function executeLightboxSearchResultAction(result, activeCatalog, ports) {
-    if (!result) return false;
-    const targetCatalogId = String(result.catalogId || activeCatalog?.id || "").trim();
-    if (!targetCatalogId) return false;
-    const pageCount = Math.max(1, Number(activeCatalog?.pages) || 1);
-    const page = Math.min(pageCount, Math.max(1, Number(result.page) || 1));
-    if (!activeCatalog || String(activeCatalog.id) !== targetCatalogId) {
-      ports.openCatalog(targetCatalogId, Math.max(1, Number(result.page) || 1));
-      return true;
-    }
-    ports.setPage(page);
-    ports.showTopUi();
-    return true;
+  function executeLightboxSearchResultAction(result, activeCatalog2, ports) {
+    if (!result) return !1;
+    let targetCatalogId = String(result.catalogId || activeCatalog2?.id || "").trim();
+    if (!targetCatalogId) return !1;
+    let pageCount = Math.max(1, Number(activeCatalog2?.pages) || 1), page = Math.min(pageCount, Math.max(1, Number(result.page) || 1));
+    return !activeCatalog2 || String(activeCatalog2.id) !== targetCatalogId ? (ports.openCatalog(targetCatalogId, Math.max(1, Number(result.page) || 1)), !0) : (ports.setPage(page), ports.showTopUi(), !0);
   }
-
   return Object.freeze({
     decodeCatalogHashTargetId,
     catalogColumnCount,
@@ -4188,34 +2533,723 @@ const searchCatalogDomain = (() => {
     executeGlobalSearchResultAction,
     executeLightboxSearchResultAction
   });
-
 })();
-/* ===== END SOURCE: src/js/39-search-catalog-domain.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/40-catalog-grid.js ===== */
+// src/js/13-search-state.js
+var SEARCH_INPUT_DEBOUNCE_MS = 90, SEARCH_INDEX_PRELOAD_DELAY_MS = 6e3, MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)", SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260, searchState = {
+  globalSearchCategory: "",
+  globalSearchOpen: !1,
+  lightboxSearchScope: "catalog",
+  lightboxMobileSearchOpen: !1,
+  searchIndexLoadState: catalogSearch?.isReady?.() ? "ready" : "idle",
+  searchIndexLoadPromise: null,
+  searchIndexPreloadTimer: 0,
+  searchPreviewSuppressUntil: 0,
+  searchPreviewSuppressTimer: 0,
+  searchPreviewPointerClientX: null,
+  searchPreviewPointerClientY: null
+}, searchElements = Object.freeze({
+  catalogSearch: requiredElement("catalogSearch"),
+  globalSearchOpen: $requiredButton("globalSearchOpen"),
+  globalSearchClose: $requiredButton("globalSearchClose"),
+  globalSearchInput: $requiredInput("globalSearchInput"),
+  globalSearchResults: requiredElement("globalSearchResults"),
+  globalSearchClear: $requiredButton("globalSearchClear"),
+  globalSearchScopeToggle: $requiredButton("globalSearchScopeToggle"),
+  globalSearchScopeMenu: requiredElement("globalSearchScopeMenu"),
+  searchFloatingPreview: requiredElement("searchFloatingPreview"),
+  searchFloatingPreviewImage: $requiredImage("searchFloatingPreviewImage"),
+  searchFloatingPreviewPage: requiredElement("searchFloatingPreviewPage"),
+  lightboxSearchInput: $requiredInput("lightboxSearchInput"),
+  lightboxSearchPanel: requiredElement("lightboxSearchPanel"),
+  lightboxMobileSearchToggle: $requiredButton("lightboxMobileSearchToggle"),
+  lightboxMobileSearchClose: $requiredButton("lightboxMobileSearchClose"),
+  lightboxSearchResults: requiredElement("lightboxSearchResults"),
+  lightboxSearchStatus: requiredElement("lightboxSearchStatus"),
+  lightboxSearchClear: $requiredButton("lightboxSearchClear"),
+  lightboxSearchScopeToggle: $requiredButton("lightboxSearchScopeToggle"),
+  lightboxSearchScopeMenu: requiredElement("lightboxSearchScopeMenu"),
+  lightboxCatalogMenuToggle: $requiredButton("lightboxCatalogMenuToggle"),
+  lightboxCatalogMenu: requiredElement("lightboxCatalogMenu")
+});
 
+// src/js/50-search-ui.js
+var globalSearchRenderTimer = 0, lightboxSearchRenderTimer = 0, globalSearchAppendTimer = 0, globalSearchRenderSequence = 0, lightboxSearchRenderSequence = 0, lastGlobalSearchResults = [], lastLightboxSearchResults = [], lastGlobalSearchKey = "", lastLightboxSearchKey = "", GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 6, GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 6;
+function isSearchIndexReady() {
+  return !!catalogSearch?.isReady?.();
+}
+function refreshSearchUiAfterIndexLoad() {
+  initSearchStatus(), initLightboxSearchStatus();
+}
+function ensureSearchIndexLoaded(options = {}) {
+  if (!catalogSearch?.ensureReady)
+    return searchState.searchIndexLoadState = "error", Promise.reject(new Error("Catalog search runtime is unavailable"));
+  if (isSearchIndexReady())
+    return searchState.searchIndexLoadState = "ready", Promise.resolve(!0);
+  if (searchState.searchIndexLoadPromise) return searchState.searchIndexLoadPromise;
+  searchState.searchIndexLoadState = "loading", initLightboxSearchStatus();
+  let loadTrigger = telemetryCleanText(options.trigger || "interactive", 40);
+  return searchState.searchIndexLoadPromise = catalogSearch.ensureReady().then(() => (searchState.searchIndexLoadState = "ready", searchState.searchIndexLoadPromise = null, refreshSearchUiAfterIndexLoad(), !0)).catch((error) => {
+    throw searchState.searchIndexLoadState = "error", searchState.searchIndexLoadPromise = null, telemetryTrackSearchIndexFailure("network-error", { trigger: loadTrigger }), initSearchStatus(), initLightboxSearchStatus(), error;
+  }), searchState.searchIndexLoadPromise;
+}
+function scheduleSearchIndexPreload() {
+  window.clearTimeout(searchState.searchIndexPreloadTimer), !isSaveDataEnabled() && (searchState.searchIndexPreloadTimer = window.setTimeout(() => {
+    if (isSaveDataEnabled()) return;
+    let preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {
+    });
+    "requestIdleCallback" in window ? window.requestIdleCallback(preload, { timeout: 2500 }) : preload();
+  }, SEARCH_INDEX_PRELOAD_DELAY_MS));
+}
+function cancelScheduledSearch(channel) {
+  channel === "global" ? (window.clearTimeout(globalSearchRenderTimer), window.clearTimeout(globalSearchAppendTimer), globalSearchRenderTimer = 0, globalSearchAppendTimer = 0, globalSearchRenderSequence += 1) : (window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = 0, lightboxSearchRenderSequence += 1), catalogSearch?.cancel?.(channel);
+}
+function cancelGlobalSearchResultAppend() {
+  window.clearTimeout(globalSearchAppendTimer), globalSearchAppendTimer = 0;
+}
+function scheduleSearchRender(channel, query, options = {}) {
+  let delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS, callback = channel === "global" ? () => renderSearchResults(query) : () => renderLightboxSearchResults(query);
+  catalogSearch?.cancel?.(channel), channel === "global" ? (cancelGlobalSearchResultAppend(), globalSearchRenderSequence += 1, window.clearTimeout(globalSearchRenderTimer), globalSearchRenderTimer = window.setTimeout(callback, delay)) : (lightboxSearchRenderSequence += 1, window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = window.setTimeout(callback, delay));
+}
+function getGlobalSearchCategories() {
+  return getCatalogCategoryGroups().filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length).map((group) => ({ category: group.category }));
+}
+function hasGlobalSearchCategory(category) {
+  let requestedCategory = String(category || "").trim();
+  return requestedCategory ? getCatalogCategoryGroups().some((group) => group.category === requestedCategory) : !1;
+}
+function getGlobalSearchCategory() {
+  let selectedCategory = String(searchState.globalSearchCategory || "").trim();
+  return selectedCategory && hasGlobalSearchCategory(selectedCategory) ? selectedCategory : "";
+}
+function globalSearchScopeLabel(category = getGlobalSearchCategory()) {
+  return category || "בכל הקטלוגים";
+}
+function globalSearchPlaceholder() {
+  let category = getGlobalSearchCategory();
+  return category ? `חיפוש קטלוג, קטגוריה או דגם בתוך ${category}...` : "חיפוש קטגוריה, תת קטגוריה, קטלוג, דגם או טקסט...";
+}
+function closeGlobalSearchScopeMenu() {
+  searchElements.globalSearchScopeMenu?.classList.add("hidden"), searchElements.globalSearchScopeToggle?.setAttribute("aria-expanded", "false");
+}
+function isGlobalSearchPanelOpen() {
+  return !!(searchState.globalSearchOpen && searchElements.catalogSearch && !searchElements.catalogSearch.classList.contains("hidden"));
+}
+function setGlobalSearchPanelOpen(open, options = {}) {
+  let shouldOpen = !!open;
+  if (searchState.globalSearchOpen = shouldOpen, !!searchElements.catalogSearch) {
+    if (searchElements.catalogSearch.classList.toggle("hidden", !shouldOpen), searchElements.catalogSearch.classList.toggle("is-open", shouldOpen), searchElements.catalogSearch.setAttribute("aria-hidden", shouldOpen ? "false" : "true"), searchElements.globalSearchOpen?.classList.toggle("is-active", shouldOpen), searchElements.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false"), shouldOpen) {
+      renderGlobalSearchScopeMenu(), renderSearchResults(searchElements.globalSearchInput?.value || ""), options.focus !== !1 && window.requestAnimationFrame(() => searchElements.globalSearchInput?.focus({ preventScroll: !0 }));
+      return;
+    }
+    closeGlobalSearchScopeMenu(), hideSearchFloatingPreview(), cancelScheduledSearch("global"), options.hideResults !== !1 && searchElements.globalSearchResults?.classList.add("hidden"), options.focusButton && window.requestAnimationFrame(() => searchElements.globalSearchOpen?.focus({ preventScroll: !0 }));
+  }
+}
+function closeGlobalSearchPanel(options = {}) {
+  setGlobalSearchPanelOpen(!1, options);
+}
+function renderGlobalSearchScopeMenu() {
+  if (!searchElements.globalSearchScopeMenu) return;
+  let categories = getGlobalSearchCategories();
+  searchElements.globalSearchScopeMenu.innerHTML = `
+    <button type="button" role="menuitemradio" aria-checked="true" data-global-search-category="">
+      <strong>בכל הקטלוגים</strong>
+    </button>
+    ${categories.map((group) => `
+      <button type="button" role="menuitemradio" aria-checked="false" data-global-search-category="${escapeHtml(group.category)}">
+        <strong>${escapeHtml(group.category)}</strong>
+      </button>
+    `).join("")}
+  `, syncGlobalSearchScopeUi();
+}
+function syncGlobalSearchScopeUi() {
+  let category = getGlobalSearchCategory();
+  searchElements.globalSearchScopeToggle && (searchElements.globalSearchScopeToggle.innerHTML = `${escapeHtml(globalSearchScopeLabel(category))} <span aria-hidden="true">⌄</span>`, searchElements.globalSearchScopeToggle.title = category ? `חיפוש רק בקטגוריית ${category}` : "חיפוש בכל הקטלוגים"), searchElements.globalSearchInput && (searchElements.globalSearchInput.placeholder = globalSearchPlaceholder(), searchElements.globalSearchInput.setAttribute("aria-label", globalSearchPlaceholder())), Array.from(searchElements.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]") || []).filter(isHtmlElement).forEach((button) => {
+    let selected = String(button.dataset.globalSearchCategory || "") === category;
+    button.classList.toggle("active", selected), button.setAttribute("aria-checked", selected ? "true" : "false");
+  });
+}
+function setGlobalSearchCategory(category, options = {}) {
+  let requestedCategory = String(category || "").trim(), nextCategory = requestedCategory && hasGlobalSearchCategory(requestedCategory) ? requestedCategory : "";
+  if (searchState.globalSearchCategory === nextCategory) {
+    syncGlobalSearchScopeUi(), closeGlobalSearchScopeMenu();
+    return;
+  }
+  searchState.globalSearchCategory = nextCategory, syncGlobalSearchScopeUi(), closeGlobalSearchScopeMenu(), initSearchStatus(), options.render !== !1 && searchElements.globalSearchInput && renderSearchResults(searchElements.globalSearchInput.value);
+}
+function initSearchStatus() {
+  syncGlobalSearchScopeUi();
+}
+function getLightboxSearchScope() {
+  return searchState.lightboxSearchScope === "all" ? "all" : "catalog";
+}
+function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
+  return scope === "all" ? "בכל הקטלוגים" : "בקטלוג הזה";
+}
+function lightboxSearchPlaceholder() {
+  if (getLightboxSearchScope() === "all") return "חיפוש דגם בכל הקטלוגים...";
+  let title = String(activeCatalog()?.title || "").trim();
+  return title ? `חיפוש ב: ${title}` : "חיפוש ב...";
+}
+function closeLightboxSearchScopeMenu() {
+  searchElements.lightboxSearchScopeMenu?.classList.add("hidden"), searchElements.lightboxSearchScopeToggle?.setAttribute("aria-expanded", "false");
+}
+function closeLightboxCatalogMenu() {
+  searchElements.lightboxCatalogMenu?.classList.add("hidden"), searchElements.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
+}
+function isMobileReaderSearchMode() {
+  return !!window.matchMedia?.(MOBILE_READER_SEARCH_MEDIA).matches;
+}
+function syncLightboxMobileSearchUi() {
+  let compactMode = isMobileReaderSearchMode(), isOpen = compactMode && searchState.lightboxMobileSearchOpen;
+  compactMode || (searchState.lightboxMobileSearchOpen = !1), getFeatureInterface("viewer")?.syncMobileSearchUi?.(isOpen), searchElements.lightboxMobileSearchToggle?.setAttribute("aria-expanded", isOpen ? "true" : "false"), searchElements.lightboxSearchPanel?.setAttribute("aria-hidden", compactMode && !isOpen ? "true" : "false");
+}
+function setLightboxMobileSearchOpen(open, options = {}) {
+  let { focusInput = !1, returnFocus = !1, hideResults = !0, hideTopUi = !1 } = options, shouldOpen = !!(open && getFeatureInterface("viewer")?.isViewerOpen?.() && isMobileReaderSearchMode());
+  if (searchState.lightboxMobileSearchOpen = shouldOpen, syncLightboxMobileSearchUi(), shouldOpen) {
+    closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), getFeatureInterface("viewer")?.showTopUi?.(), ensureSearchIndexLoaded().catch(() => {
+    }), focusInput && window.requestAnimationFrame(() => searchElements.lightboxSearchInput?.focus());
+    return;
+  }
+  hideResults && hideLightboxSearchResults({ blurTopUiFocus: !0, hideTopUi }), returnFocus && isMobileReaderSearchMode() && searchElements.lightboxMobileSearchToggle?.focus();
+}
+function syncLightboxSearchScopeUi() {
+  let scope = getLightboxSearchScope();
+  searchElements.lightboxSearchScopeToggle && (searchElements.lightboxSearchScopeToggle.innerHTML = `${escapeHtml(lightboxSearchScopeLabel(scope))} <span aria-hidden="true">⌄</span>`), searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.placeholder = lightboxSearchPlaceholder(), searchElements.lightboxSearchInput.setAttribute("aria-label", lightboxSearchPlaceholder())), Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
+    let selected = button.dataset.lightboxSearchScope === scope;
+    button.classList.toggle("active", selected), button.setAttribute("aria-checked", selected ? "true" : "false");
+  });
+}
+function setLightboxSearchScope(scope, options = {}) {
+  let nextScope = scope === "all" ? "all" : "catalog";
+  if (searchState.lightboxSearchScope === nextScope) {
+    syncLightboxSearchScopeUi(), closeLightboxSearchScopeMenu();
+    return;
+  }
+  searchState.lightboxSearchScope = nextScope, syncLightboxSearchScopeUi(), closeLightboxSearchScopeMenu(), initLightboxSearchStatus(), options.render !== !1 && searchElements.lightboxSearchInput && renderLightboxSearchResults(searchElements.lightboxSearchInput.value);
+}
+function hideLightboxSearchResults(options = {}) {
+  let { blurTopUiFocus = !1, hideTopUi = !1 } = options;
+  if (hideSearchFloatingPreview(), searchElements.lightboxSearchResults?.classList.add("hidden"), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), blurTopUiFocus) {
+    let activeElement = document.activeElement;
+    isHtmlElement(activeElement) && getFeatureInterface("viewer")?.containsTopBarElement(activeElement) && activeElement.blur();
+  }
+  hideTopUi && getFeatureInterface("viewer")?.hideTopUiForSearch?.();
+}
+function lightboxSearchKey(query) {
+  let scope = getLightboxSearchScope();
+  return [String(query || "").trim(), scope, scope === "all" ? "" : activeCatalog()?.id || ""].join("\0");
+}
+async function getLightboxSearchResults(query, limit = 24, control = {}) {
+  let rawQuery = String(query || "").trim();
+  if (rawQuery.length < 2) return [];
+  if (await ensureSearchIndexLoaded({ trigger: "viewer-search" }), control.isCurrent && !control.isCurrent()) return [];
+  if (!catalogSearch?.hasIndex?.()) return [];
+  let options = { limit, channel: "viewer" };
+  if (getLightboxSearchScope() !== "all") {
+    let catalog = activeCatalog();
+    if (!catalog) return [];
+    options.catalogId = catalog.id;
+  }
+  let results = await catalogSearch.search(rawQuery, options);
+  return Array.isArray(results) ? results : [];
+}
+async function trackCompletedLightboxSearch(completion, query = searchElements.lightboxSearchInput?.value || "") {
+  let rawQuery = String(query || "").trim(), scope = getLightboxSearchScope(), results = lightboxSearchKey(rawQuery) === lastLightboxSearchKey ? lastLightboxSearchResults : await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+  return telemetryTrackSearch(rawQuery, results.length, {
+    surface: "viewer",
+    scope,
+    catalogId: scope === "all" ? "" : activeCatalog()?.id,
+    completion
+  }), results;
+}
+function openLightboxSearchResult(result) {
+  if (!result) return !1;
+  let catalog = activeCatalog(), targetCatalogId = String(result.catalogId || catalog?.id || "").trim(), sameCatalog = !!(catalog && String(catalog.id) === targetCatalogId), viewer = requireFeatureInterface("viewer"), handled = searchCatalogDomain.executeLightboxSearchResultAction(result, catalog, {
+    openCatalog: viewer.openCatalog,
+    setPage: viewer.setPage,
+    showTopUi: viewer.showTopUi
+  });
+  return !handled || !sameCatalog ? handled : (searchState.lightboxMobileSearchOpen ? setLightboxMobileSearchOpen(!1, { hideResults: !0 }) : hideLightboxSearchResults(), !0);
+}
+async function submitLightboxSearch() {
+  let rawQuery = String(searchElements.lightboxSearchInput?.value || "").trim(), results = await renderLightboxSearchResults(rawQuery);
+  return await trackCompletedLightboxSearch("submit", rawQuery), openLightboxSearchResult(results[0]);
+}
+function initLightboxSearchStatus() {
+  if (!searchElements.lightboxSearchStatus) return;
+  let hasCatalog = !!activeCatalog(), hasIndex = !!catalogSearch?.hasIndex?.(), indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
+  if (searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.disabled = !hasCatalog), syncLightboxSearchScopeUi(), !hasCatalog) {
+    searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
+    return;
+  }
+  if (!hasIndex) {
+    searchElements.lightboxSearchStatus.textContent = indexPending ? "אינדקס החיפוש נטען לפי הצורך." : "אינדקס החיפוש אינו זמין כרגע.";
+    return;
+  }
+  searchElements.lightboxSearchStatus.textContent = getLightboxSearchScope() === "all" ? "הקלד לפחות 2 תווים לחיפוש בכל הקטלוגים." : "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
+}
+function hideSearchFloatingPreview() {
+  searchElements.searchFloatingPreview?.classList.remove("visible");
+}
+function isGlobalSearchScopeMenuOpen() {
+  return !!(searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden"));
+}
+function isLightboxSearchScopeMenuOpen() {
+  return !!(searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"));
+}
+function rememberSearchPreviewPointer(event) {
+  let clientX = Number(event?.clientX), clientY = Number(event?.clientY);
+  !Number.isFinite(clientX) || !Number.isFinite(clientY) || (searchState.searchPreviewPointerClientX = clientX, searchState.searchPreviewPointerClientY = clientY);
+}
+function searchPreviewTargetBelongsToOpenResults(target) {
+  return !target || !target.isConnected ? !1 : searchElements.globalSearchResults?.contains(target) ? isGlobalSearchPanelOpen() && !searchElements.globalSearchResults.classList.contains("hidden") : searchElements.lightboxSearchResults?.contains(target) ? !!getFeatureInterface("viewer")?.isViewerOpen?.() && !searchElements.lightboxSearchResults.classList.contains("hidden") : !1;
+}
+function isSearchPreviewBlockedByOpenMenu(target) {
+  return target instanceof Node ? !!(searchElements.globalSearchResults?.contains(target) && isGlobalSearchScopeMenuOpen() || searchElements.lightboxSearchResults?.contains(target) && isLightboxSearchScopeMenuOpen()) : !1;
+}
+function getSearchPreviewTargetAtLastPointer() {
+  let clientX = Number(searchState.searchPreviewPointerClientX), clientY = Number(searchState.searchPreviewPointerClientY);
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) return null;
+  let target = document.elementFromPoint(clientX, clientY)?.closest?.("[data-search-preview-src]");
+  return target instanceof HTMLElement && searchPreviewTargetBelongsToOpenResults(target) ? target : null;
+}
+function isSearchPreviewSuppressed() {
+  return Date.now() < (searchState.searchPreviewSuppressUntil || 0);
+}
+function restoreSearchFloatingPreviewAfterSuppression() {
+  if (isSearchPreviewSuppressed() || !hasHoverPointer()) return;
+  let target = getSearchPreviewTargetAtLastPointer();
+  !target || isSearchPreviewBlockedByOpenMenu(target) || showSearchFloatingPreview(target);
+}
+function suppressSearchFloatingTooltip(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
+  window.BargigTooltips?.suppress?.(duration, options);
+}
+function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
+  let { restoreAfter = !0 } = options, delay = Math.max(0, Number(duration) || 0);
+  suppressSearchFloatingTooltip(delay, { restoreAfter }), searchState.searchPreviewSuppressUntil = Math.max(
+    searchState.searchPreviewSuppressUntil || 0,
+    Date.now() + delay
+  ), hideSearchFloatingPreview(), window.clearTimeout(searchState.searchPreviewSuppressTimer), searchState.searchPreviewSuppressTimer = window.setTimeout(() => {
+    searchState.searchPreviewSuppressTimer = 0, restoreAfter && restoreSearchFloatingPreviewAfterSuppression();
+  }, delay + 20);
+}
+function searchPreviewPageLabel(target) {
+  return String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
+}
+function positionSearchFloatingPreview(target) {
+  let preview = searchElements.searchFloatingPreview;
+  if (!preview || !target) return;
+  let targetRect = target.getBoundingClientRect(), gap = 16, safeMargin = 12, fallbackWidth = Math.min(430, Math.max(180, window.innerWidth * 0.34)), fallbackHeight = Math.min(620, Math.max(180, window.innerHeight * 0.64)), previewRect = preview.getBoundingClientRect(), previewWidth = previewRect.width || fallbackWidth, previewHeight = previewRect.height || fallbackHeight, left;
+  targetRect.left - gap - previewWidth >= safeMargin ? left = targetRect.left - gap - previewWidth : targetRect.right + gap + previewWidth <= window.innerWidth - safeMargin ? left = targetRect.right + gap : left = targetRect.left + targetRect.width / 2 - previewWidth / 2;
+  let top = targetRect.top + targetRect.height / 2 - previewHeight / 2;
+  preview.style.left = `${clampValue(left, safeMargin, Math.max(safeMargin, window.innerWidth - previewWidth - safeMargin))}px`, preview.style.top = `${clampValue(top, safeMargin, Math.max(safeMargin, window.innerHeight - previewHeight - safeMargin))}px`;
+}
+function showSearchFloatingPreview(target) {
+  if (!target || !searchElements.searchFloatingPreview || !searchElements.searchFloatingPreviewImage || !searchPreviewTargetBelongsToOpenResults(target) || isSearchPreviewSuppressed() || isSearchPreviewBlockedByOpenMenu(target)) return;
+  let src = String(target.dataset.searchPreviewSrc || "").trim();
+  if (!src) return;
+  let label = searchPreviewPageLabel(target), previewImage = searchElements.searchFloatingPreviewImage;
+  previewImage.removeAttribute("width"), previewImage.removeAttribute("height"), previewImage.onload = () => positionSearchFloatingPreview(target), setCatalogImageSource(previewImage, src), searchElements.searchFloatingPreviewImage.alt = label, searchElements.searchFloatingPreviewPage && (searchElements.searchFloatingPreviewPage.textContent = label), searchElements.searchFloatingPreview.classList.add("visible"), positionSearchFloatingPreview(target);
+}
+function bindSearchFloatingPreviewEvents(container) {
+  container && container.querySelectorAll("[data-search-preview-src]").forEach((candidate) => {
+    if (!(candidate instanceof HTMLElement)) return;
+    let target = candidate;
+    target.addEventListener("pointerenter", (event) => {
+      rememberSearchPreviewPointer(event), !(!hasHoverPointer() || isTouchLikePointer(event) || isSearchPreviewSuppressed()) && showSearchFloatingPreview(target);
+    }), target.addEventListener("pointermove", (event) => {
+      if (rememberSearchPreviewPointer(event), !(!hasHoverPointer() || isTouchLikePointer(event))) {
+        if (isSearchPreviewSuppressed()) {
+          hideSearchFloatingPreview();
+          return;
+        }
+        positionSearchFloatingPreview(target);
+      }
+    }), target.addEventListener("pointerleave", (event) => {
+      rememberSearchPreviewPointer(event), hideSearchFloatingPreview();
+    }), target.addEventListener("focus", () => showSearchFloatingPreview(target)), target.addEventListener("blur", hideSearchFloatingPreview);
+  });
+}
+function handleSearchPreviewScrollIntent(event) {
+  rememberSearchPreviewPointer(event), suppressSearchFloatingPreview();
+}
+function normalizedWheelDeltaY(event, scrollTarget) {
+  let rawDelta = Number(event?.deltaY) || 0;
+  return rawDelta ? event.deltaMode === 1 ? rawDelta * 16 : event.deltaMode === 2 ? rawDelta * Math.max(1, scrollTarget?.clientHeight || window.innerHeight || 1) : rawDelta : 0;
+}
+function globalSearchWheelTarget(eventTarget) {
+  return eventTarget instanceof Node && isGlobalSearchScopeMenuOpen() && searchElements.globalSearchScopeMenu?.contains(eventTarget) ? searchElements.globalSearchScopeMenu : searchElements.globalSearchResults && !searchElements.globalSearchResults.classList.contains("hidden") ? searchElements.globalSearchResults : null;
+}
+function scrollElementByWheel(element, event) {
+  if (!element) return !1;
+  let deltaY = normalizedWheelDeltaY(event, element);
+  if (!deltaY) return !1;
+  let maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight), nextScrollTop = clampValue(element.scrollTop + deltaY, 0, maxScrollTop);
+  return Math.abs(nextScrollTop - element.scrollTop) > 0.5 && (element.scrollTop = nextScrollTop), !0;
+}
+function handleGlobalSearchPanelWheel(event) {
+  if (!isGlobalSearchPanelOpen() || !(event.target instanceof Node) || !searchElements.catalogSearch?.contains(event.target)) return;
+  handleSearchPreviewScrollIntent(event);
+  let scrollTarget = globalSearchWheelTarget(event.target);
+  scrollTarget && scrollElementByWheel(scrollTarget, event), event.preventDefault(), event.stopPropagation();
+}
+function normalizeSearchResultsDirection(container) {
+  container && container.setAttribute("dir", "rtl");
+}
+function lightboxSearchLayoutColumnLimit() {
+  let columns = getFeatureInterface("catalog-grid")?.layoutColumnCount?.(), width = Math.max(0, window.innerWidth || document.documentElement?.clientWidth || 0);
+  return searchCatalogDomain.lightboxSearchColumnLimit(columns, width);
+}
+function updateLightboxSearchResultsLayout(count = 0) {
+  if (!searchElements.lightboxSearchResults) return;
+  normalizeSearchResultsDirection(searchElements.lightboxSearchResults);
+  let resultCount = Math.max(0, Number(count) || 0), columns = Math.max(1, Math.min(resultCount || 1, lightboxSearchLayoutColumnLimit()));
+  searchElements.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns)), searchElements.lightboxSearchResults.dataset.resultColumns = String(columns), searchElements.lightboxSearchResults.dataset.resultCount = String(resultCount);
+}
+function searchEmptyStateMarkup(query, message, options = {}) {
+  let reader = options.reader === !0, wrapperClass = reader ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark" : "search-empty empty-state ui-state", actionAttribute = reader ? "data-lightbox-empty-search-clear" : "data-empty-search-clear";
+  return `
+    <article class="${wrapperClass}" data-state="empty" role="status">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <circle cx="10.5" cy="10.5" r="5.8"></circle>
+          <path d="m15 15 4.2 4.2M8.2 8.2l4.6 4.6M12.8 8.2l-4.6 4.6"></path>
+        </svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>לא נמצאו תוצאות עבור “${escapeHtml(query)}”</strong>
+        <p>${escapeHtml(message)}</p>
+      </div>
+      <button class="button soft empty-state-action" type="button" ${actionAttribute}>נקה וחפש מחדש</button>
+    </article>
+  `;
+}
+function searchIndexErrorMarkup(options = {}) {
+  let reader = options.reader === !0;
+  return `
+    <article class="${reader ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark" : "search-empty empty-state ui-state"}" data-state="error" role="alert">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>החיפוש אינו זמין כרגע</strong>
+        <p>אינדקס החיפוש לא הצליח להיטען. אפשר לנסות שוב בלי לרענן את העמוד.</p>
+      </div>
+      <button class="button soft empty-state-action" type="button" ${reader ? "data-lightbox-search-index-retry" : "data-global-search-index-retry"}>נסה לטעון שוב</button>
+    </article>
+  `;
+}
+function retrySearchIndexLoad(options = {}) {
+  searchState.searchIndexLoadPromise = null, searchState.searchIndexLoadState = "idle", ensureSearchIndexLoaded({ trigger: "retry" }).then(() => {
+    options.reader ? renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "") : renderSearchResults(searchElements.globalSearchInput?.value || "");
+  }).catch(() => {
+    options.reader ? renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "") : renderSearchResults(searchElements.globalSearchInput?.value || "");
+  });
+}
+async function renderLightboxSearchResults(query) {
+  let rawQuery = String(query || "").trim();
+  if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
+  let renderSequence = ++lightboxSearchRenderSequence, renderKey = lightboxSearchKey(rawQuery);
+  if (normalizeSearchResultsDirection(searchElements.lightboxSearchResults), hideSearchFloatingPreview(), updateLightboxSearchResultsLayout(0), searchElements.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0), rawQuery.length < 2)
+    return catalogSearch?.cancel?.("viewer"), lastLightboxSearchKey = "", lastLightboxSearchResults = [], searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.innerHTML = "", initLightboxSearchStatus(), [];
+  if (!activeCatalog())
+    return searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.", [];
+  searchElements.lightboxSearchResults.setAttribute("aria-busy", "true"), searchElements.lightboxSearchStatus.textContent = "מחפש באינדקס…";
+  try {
+    let scope = getLightboxSearchScope(), results = await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24, {
+      isCurrent: () => renderSequence === lightboxSearchRenderSequence && renderKey === lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")
+    });
+    return renderSequence !== lightboxSearchRenderSequence || renderKey !== lightboxSearchKey(searchElements.lightboxSearchInput?.value || "") ? [] : (lastLightboxSearchKey = lightboxSearchKey(rawQuery), lastLightboxSearchResults = results, updateLightboxSearchResultsLayout(results.length), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), results.length ? (searchElements.lightboxSearchStatus.textContent = scope === "all" ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.` : `נמצאו ${results.length} תוצאות בקטלוג הזה.`, searchElements.lightboxSearchResults.innerHTML = results.map((result) => {
+      let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || activeCatalog();
+      if (!catalog) return "";
+      let page = clampPage(result.page, catalog), rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page), rawImage = result.thumb || thumbSrc(catalog, page) || rawPreview, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+      return `
+        <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+          <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
+          <span class="reader-search-thumb-frame catalog-image-frame">
+            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
+          </span>
+          <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
+        </button>
+      `;
+    }).join(""), bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults), Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button) => {
+      button.addEventListener("click", async () => {
+        await trackCompletedLightboxSearch("result-open"), hideSearchFloatingPreview(), openLightboxSearchResult({
+          catalogId: button.dataset.lightboxSearchCatalog,
+          page: button.dataset.lightboxSearchPage
+        });
+      });
+    }), results) : (searchElements.lightboxSearchStatus.textContent = scope === "all" ? "לא נמצאו תוצאות בכל הקטלוגים." : "לא נמצאו תוצאות בקטלוג הפתוח.", searchElements.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
+      rawQuery,
+      "נסה חלק קצר יותר של הדגם או מילה אחרת.",
+      { reader: !0 }
+    ), searchElements.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
+      event.stopPropagation(), searchElements.lightboxSearchInput.value = "", renderLightboxSearchResults(""), searchElements.lightboxSearchInput.focus();
+    }), []));
+  } catch (error) {
+    return catalogSearch?.isCancelledError?.(error) || renderSequence !== lightboxSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: !0 }), searchElements.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: !0 })), searchElements.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.", []);
+  }
+}
+function renderLightboxCatalogMenu() {
+  getFeatureInterface("catalog-grid")?.renderCatalogMenu(searchElements.lightboxCatalogMenu, {
+    onSelect: (catalogId) => {
+      closeLightboxCatalogMenu(), catalogId !== activeCatalog()?.id && getFeatureInterface("viewer")?.openCatalog(catalogId, 1);
+    }
+  });
+}
+function globalSearchKey(query) {
+  return [String(query || "").trim(), getGlobalSearchCategory()].join("\0");
+}
+async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
+  let rawQuery = String(query || "").trim(), category = getGlobalSearchCategory();
+  if (rawQuery.length < 2) return [];
+  if (await ensureSearchIndexLoaded({ trigger: "global-search" }), control.isCurrent && !control.isCurrent()) return [];
+  if (!catalogSearch?.hasIndex?.({ category })) return [];
+  let options = { limit, channel: "global" };
+  category && (options.category = category);
+  let results = await catalogSearch.search(rawQuery, options);
+  return Array.isArray(results) ? results : [];
+}
+async function getGlobalSearchResults(query, limit = 72, control = {}) {
+  let rawQuery = String(query || "").trim();
+  if (!catalogSearch) return [];
+  let navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
+    getCatalogCategoryGroups(),
+    rawQuery,
+    { category: getGlobalSearchCategory(), limit: 36 }
+  );
+  try {
+    return catalogSearch.mergeNavigationResults(
+      navigationResults,
+      await getGlobalOcrSearchResults(rawQuery, limit, control)
+    );
+  } catch (error) {
+    if (!navigationResults.length || catalogSearch.isCancelledError(error)) throw error;
+    return searchState.searchIndexLoadState = "error", navigationResults;
+  }
+}
+async function trackCompletedGlobalSearch(completion, query = searchElements.globalSearchInput?.value || "", options = {}) {
+  let rawQuery = String(query || "").trim(), category = getGlobalSearchCategory(), results = globalSearchKey(rawQuery) === lastGlobalSearchKey ? lastGlobalSearchResults : await getGlobalSearchResults(rawQuery, 72);
+  return telemetryTrackSearch(rawQuery, results.length, {
+    surface: "global",
+    scope: category || "all",
+    completion,
+    immediate: options.immediate === !0
+  }), results;
+}
+function flushGlobalSearchTelemetryBeforeNavigation() {
+  telemetryFlush().catch(() => {
+  });
+}
+function openGlobalSearchResult(result) {
+  if (!result) return !1;
+  hideSearchFloatingPreview(), closeGlobalSearchPanel({ focusButton: !1 });
+  let catalogGrid = requireFeatureInterface("catalog-grid");
+  return searchCatalogDomain.executeGlobalSearchResultAction(result, {
+    activateCategoryTarget: catalogGrid.activateCategoryTarget,
+    openCatalog: (catalogId) => navigateTo(catalogDocumentUrl(catalogId)),
+    openViewer: (catalogId, page) => navigateTo(viewerDocumentUrl(catalogId, page))
+  });
+}
+async function submitGlobalSearch() {
+  let rawQuery = String(searchElements.globalSearchInput?.value || "").trim(), results = await renderSearchResults(rawQuery);
+  return await trackCompletedGlobalSearch("submit", rawQuery, { immediate: !0 }), flushGlobalSearchTelemetryBeforeNavigation(), openGlobalSearchResult(results[0]);
+}
+function globalSearchResultMarkup(result) {
+  if (result?.resultType !== "ocr")
+    return catalogSearch ? catalogSearch.navigationResultMarkup(result) : "";
+  let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId), page = clampPage(result.page, catalog), rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : ""), rawPreview = result.image || (catalog ? mediumSrc(catalog, page) || pageSrc(catalog, page) : rawThumb), rawImage = rawThumb || rawPreview, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+  return `
+    <article class="search-result-card">
+      <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+        <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
+        <span class="search-result-thumb-frame catalog-image-frame">
+          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
+        </span>
+        <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
+      </button>
+    </article>
+  `;
+}
+function bindGlobalSearchResultEvents(root) {
+  bindSearchFloatingPreviewEvents(root), Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button) => {
+    button.addEventListener("click", async () => {
+      await trackCompletedGlobalSearch("result-open", void 0, { immediate: !0 }), flushGlobalSearchTelemetryBeforeNavigation(), openGlobalSearchResult(button.dataset.searchNavigationType ? {
+        resultType: button.dataset.searchNavigationType,
+        targetId: button.dataset.searchNavigationTarget,
+        catalogId: button.dataset.searchNavigationCatalog
+      } : {
+        resultType: "ocr",
+        catalogId: button.dataset.searchCatalog,
+        page: button.dataset.searchPage
+      });
+    });
+  });
+}
+function appendGlobalSearchResultBatch(results, start, count) {
+  let template = document.createElement("template");
+  return template.innerHTML = results.slice(start, start + count).map(globalSearchResultMarkup).join(""), bindGlobalSearchResultEvents(template.content), searchElements.globalSearchResults.append(template.content), Math.min(results.length, start + count);
+}
+function isCurrentGlobalSearchRender(renderSequence, rawQuery) {
+  return renderSequence === globalSearchRenderSequence && globalSearchKey(rawQuery) === globalSearchKey(searchElements.globalSearchInput?.value || "") && isGlobalSearchPanelOpen();
+}
+function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery) {
+  cancelGlobalSearchResultAppend(), searchElements.globalSearchResults.replaceChildren(), searchElements.globalSearchResults.classList.remove("hidden");
+  let nextIndex = appendGlobalSearchResultBatch(
+    results,
+    0,
+    GLOBAL_SEARCH_INITIAL_RENDER_COUNT
+  ), appendNextBatch = () => {
+    if (globalSearchAppendTimer = 0, !!isCurrentGlobalSearchRender(renderSequence, rawQuery)) {
+      if (nextIndex = appendGlobalSearchResultBatch(
+        results,
+        nextIndex,
+        GLOBAL_SEARCH_RENDER_CHUNK_SIZE
+      ), nextIndex < results.length) {
+        globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0);
+        return;
+      }
+      searchElements.globalSearchResults.removeAttribute("aria-busy");
+    }
+  };
+  nextIndex < results.length ? globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0) : searchElements.globalSearchResults.removeAttribute("aria-busy");
+}
+async function renderSearchResults(query) {
+  let rawQuery = String(query || "").trim();
+  if (!searchElements.globalSearchResults) return [];
+  cancelGlobalSearchResultAppend();
+  let renderSequence = ++globalSearchRenderSequence, renderKey = globalSearchKey(rawQuery);
+  if (normalizeSearchResultsDirection(searchElements.globalSearchResults), hideSearchFloatingPreview(), searchElements.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0), rawQuery.length < 2)
+    return catalogSearch?.cancel?.("global"), lastGlobalSearchKey = "", lastGlobalSearchResults = [], searchElements.globalSearchResults.classList.add("hidden"), searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.innerHTML = "", initSearchStatus(), [];
+  let category = getGlobalSearchCategory();
+  searchElements.globalSearchResults.setAttribute("aria-busy", "true");
+  try {
+    let results = await getGlobalSearchResults(rawQuery, 72, {
+      isCurrent: () => isCurrentGlobalSearchRender(renderSequence, rawQuery)
+    });
+    return renderSequence !== globalSearchRenderSequence || renderKey !== globalSearchKey(searchElements.globalSearchInput?.value || "") ? [] : (lastGlobalSearchKey = globalSearchKey(rawQuery), lastGlobalSearchResults = results, results.length ? (renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery), results) : (searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.classList.remove("hidden"), searchElements.globalSearchResults.innerHTML = searchEmptyStateMarkup(
+      rawQuery,
+      category ? "נסה שם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים." : "נסה שם קצר יותר, מספר דגם או חלק מהמילה."
+    ), searchElements.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
+      searchElements.globalSearchInput.value = "", renderSearchResults(""), searchElements.globalSearchInput.focus();
+    }), []));
+  } catch (error) {
+    return catalogSearch?.isCancelledError?.(error) || renderSequence !== globalSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.classList.remove("hidden"), searchElements.globalSearchResults.innerHTML = searchIndexErrorMarkup(), searchElements.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad()), []);
+  }
+}
+function handleLightboxSearchResultsBackgroundClick(event) {
+  let result = eventTargetElement(event.target)?.closest?.("[data-lightbox-search-page]");
+  result && searchElements.lightboxSearchResults?.contains(result) || (event.preventDefault(), event.stopPropagation(), hideLightboxSearchResults({ blurTopUiFocus: !0, hideTopUi: !0 }));
+}
+function attachSearchUiEvents() {
+  searchElements.globalSearchOpen?.addEventListener("click", (event) => {
+    event.preventDefault(), ensureSearchIndexLoaded().catch(() => {
+    }), event.stopPropagation(), getFeatureInterface("catalog-detail")?.close(), closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: !0, focusButton: !0 });
+  }), searchElements.globalSearchClose?.addEventListener("click", (event) => {
+    event.preventDefault(), event.stopPropagation(), closeGlobalSearchPanel({ focusButton: !0 });
+  }), searchElements.globalSearchInput?.addEventListener("input", () => {
+    scheduleSearchRender("global", searchElements.globalSearchInput.value);
+  }), searchElements.globalSearchInput?.addEventListener("focus", () => {
+    ensureSearchIndexLoaded().catch(() => {
+    }), scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: !0 });
+  }), searchElements.globalSearchInput?.addEventListener("click", () => scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: !0 })), searchElements.globalSearchInput?.addEventListener("keydown", (event) => {
+    event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || (event.preventDefault(), submitGlobalSearch().catch(() => {
+    }));
+  }), searchElements.globalSearchClear?.addEventListener("click", () => {
+    cancelScheduledSearch("global"), searchElements.globalSearchInput.value = "", searchElements.globalSearchInput.focus(), renderSearchResults("");
+  }), searchElements.globalSearchScopeToggle?.addEventListener("click", (event) => {
+    event.stopPropagation(), hideSearchFloatingPreview(), getFeatureInterface("catalog-detail")?.close(), closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), renderGlobalSearchScopeMenu();
+    let isOpen = !searchElements.globalSearchScopeMenu?.classList.contains("hidden");
+    searchElements.globalSearchScopeMenu?.classList.toggle("hidden", isOpen), searchElements.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  }), searchElements.globalSearchScopeMenu?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    let button = eventTargetElement(event.target)?.closest("[data-global-search-category]");
+    !isHtmlElement(button) || !searchElements.globalSearchScopeMenu.contains(button) || (setGlobalSearchCategory(button.dataset.globalSearchCategory), searchElements.globalSearchInput?.focus());
+  }), searchElements.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: !1 }), searchElements.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: !0 }), searchElements.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: !0 }), searchElements.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchInput?.addEventListener("input", () => {
+    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value);
+  }), searchElements.lightboxSearchInput?.addEventListener("focus", () => {
+    getFeatureInterface("viewer")?.showTopUi?.(), ensureSearchIndexLoaded().catch(() => {
+    }), scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: !0 });
+  }), searchElements.lightboxSearchInput?.addEventListener("click", () => {
+    getFeatureInterface("viewer")?.showTopUi?.(), scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: !0 });
+  }), searchElements.lightboxSearchInput?.addEventListener("keydown", (event) => {
+    event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || (event.preventDefault(), submitLightboxSearch().catch(() => {
+    }));
+  }), searchElements.lightboxSearchClear?.addEventListener("click", () => {
+    cancelScheduledSearch("viewer"), searchElements.lightboxSearchInput.value = "", searchElements.lightboxSearchInput.focus(), renderLightboxSearchResults(""), getFeatureInterface("viewer")?.showTopUi?.();
+  }), searchElements.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
+    event.preventDefault(), event.stopPropagation(), setLightboxMobileSearchOpen(!searchState.lightboxMobileSearchOpen, {
+      focusInput: !0,
+      returnFocus: searchState.lightboxMobileSearchOpen
+    });
+  }), searchElements.lightboxMobileSearchClose?.addEventListener("click", (event) => {
+    event.preventDefault(), event.stopPropagation(), setLightboxMobileSearchOpen(!1, { returnFocus: !0, hideResults: !0 });
+  }), searchElements.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
+    event.stopPropagation(), hideSearchFloatingPreview(), getFeatureInterface("catalog-detail")?.close(), closeLightboxCatalogMenu();
+    let isOpen = !searchElements.lightboxSearchScopeMenu?.classList.contains("hidden");
+    searchElements.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen), searchElements.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true"), getFeatureInterface("viewer")?.showTopUi?.();
+  }), Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation(), setLightboxSearchScope(button.dataset.lightboxSearchScope), getFeatureInterface("viewer")?.showTopUi?.(), searchElements.lightboxSearchInput?.focus();
+    });
+  }), searchElements.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
+    event.stopPropagation(), getFeatureInterface("catalog-detail")?.close(), closeLightboxSearchScopeMenu(), renderLightboxCatalogMenu();
+    let isOpen = !searchElements.lightboxCatalogMenu?.classList.contains("hidden");
+    searchElements.lightboxCatalogMenu?.classList.toggle("hidden", isOpen), searchElements.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true"), getFeatureInterface("viewer")?.showTopUi?.();
+  }), searchElements.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation()), searchElements.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
+}
+function prepareSearchRoute(nextPage) {
+  closeGlobalSearchPanel({ focusButton: !1 }), closeGlobalSearchScopeMenu(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), nextPage !== "viewer" && setLightboxMobileSearchOpen(!1, { hideResults: !0 });
+}
+function handleSearchDocumentPointer(target) {
+  if (!(target instanceof Node))
+    return prepareSearchRoute(currentAppPage), !1;
+  let insideGlobalSearch = searchElements.catalogSearch.contains(target) || searchElements.globalSearchOpen.contains(target), insideMobileReaderSearch = searchElements.lightboxSearchPanel.contains(target) || searchElements.lightboxMobileSearchToggle.contains(target);
+  return insideGlobalSearch ? (!searchElements.globalSearchScopeMenu.contains(target) && !searchElements.globalSearchScopeToggle.contains(target) && closeGlobalSearchScopeMenu(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), getFeatureInterface("catalog-detail")?.close(), !0) : insideMobileReaderSearch || (searchState.lightboxMobileSearchOpen && setLightboxMobileSearchOpen(!1, { hideResults: !0 }), searchElements.lightboxSearchScopeMenu.contains(target) || searchElements.lightboxSearchScopeToggle.contains(target)) || searchElements.lightboxCatalogMenu.contains(target) || searchElements.lightboxCatalogMenuToggle.contains(target) ? !0 : (closeGlobalSearchPanel({ focusButton: !1 }), closeGlobalSearchScopeMenu(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), !1);
+}
+function initializeSearchUi() {
+  syncLightboxMobileSearchUi(), renderGlobalSearchScopeMenu(), scheduleSearchIndexPreload(), initSearchStatus();
+}
+function handleSearchResize() {
+  hideSearchFloatingPreview(), updateLightboxSearchResultsLayout(Number(searchElements.lightboxSearchResults.dataset.resultCount || 0)), syncLightboxMobileSearchUi();
+}
+function handleSearchScroll() {
+  hideSearchFloatingPreview();
+}
+registerFeatureInterface("search", {
+  escapePriority: 300,
+  closeTopLayer: () => isGlobalSearchPanelOpen() ? (searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden") ? closeGlobalSearchScopeMenu() : closeGlobalSearchPanel({ focusButton: !0 }), !0) : !1,
+  closeViewerTopLayer: () => searchState.lightboxMobileSearchOpen ? (setLightboxMobileSearchOpen(!1, { returnFocus: !0, hideResults: !0 }), !0) : searchElements.lightboxCatalogMenu && !searchElements.lightboxCatalogMenu.classList.contains("hidden") || searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden") ? (closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), !0) : !1,
+  isLightboxMobileOpen: () => searchState.lightboxMobileSearchOpen,
+  setLightboxMobileOpen: (open, options = {}) => setLightboxMobileSearchOpen(open, options),
+  containsLightboxResult: (target) => !!(target?.closest?.("[data-lightbox-search-page]") && searchElements.lightboxSearchResults.contains(target.closest("[data-lightbox-search-page]"))),
+  hideViewerResults: (options = {}) => hideLightboxSearchResults(options),
+  closeGlobalPanel: (options = {}) => closeGlobalSearchPanel(options),
+  attachEvents: attachSearchUiEvents,
+  initialize: initializeSearchUi,
+  prepareRoute: prepareSearchRoute,
+  handleDocumentPointer: handleSearchDocumentPointer,
+  handleResize: handleSearchResize,
+  handleScroll: handleSearchScroll
+});
 
+// src/js/40-catalog-grid.js
 function initRevealObserver() {
-  const nodes = document.querySelectorAll(".reveal");
+  let nodes = document.querySelectorAll(".reveal");
   if (!("IntersectionObserver" in window)) {
     nodes.forEach((node) => node.classList.add("in-view"));
     return;
   }
-
-  const observer = new IntersectionObserver((entries) => {
+  let observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
-      if (entry.isIntersecting || entry.intersectionRatio > 0) {
-        entry.target.classList.add("in-view");
-        observer.unobserve(entry.target);
-      }
+      (entry.isIntersecting || entry.intersectionRatio > 0) && (entry.target.classList.add("in-view"), observer.unobserve(entry.target));
     });
   }, { threshold: 0, rootMargin: "0px 0px -1px 0px" });
-
   nodes.forEach((node) => observer.observe(node));
 }
-
 function renderEmptyState() {
-  const html = `
+  let html = `
     <article class="empty-state ui-state" data-state="empty" role="status">
       <span class="empty-state-icon ui-state-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" focusable="false"><path d="M5 4.5h11.2A2.8 2.8 0 0 1 19 7.3v12.2H7.8A2.8 2.8 0 0 1 5 16.7V4.5Z"/><path d="M7.8 19.5A2.8 2.8 0 0 1 5 16.7c0-1.55 1.25-2.8 2.8-2.8H19"/></svg>
@@ -4226,78 +3260,34 @@ function renderEmptyState() {
       </div>
     </article>
   `;
-
-  if (catalogElements.catalogGrid) {
-    catalogElements.catalogGrid.innerHTML = html;
-    catalogElements.catalogGrid.setAttribute("aria-busy", "false");
-    if (catalogElements.catalogLoadStatus) catalogElements.catalogLoadStatus.textContent = "אין קטלוגים זמינים כעת.";
-  }
-  if (catalogElements.pageGrid) {
-    catalogElements.pageGrid.innerHTML = html;
-    catalogElements.pageGrid.setAttribute("aria-busy", "false");
-  }
-  if (catalogElements.catalogCount) catalogElements.catalogCount.textContent = "0";
-  if (catalogElements.pageCount) catalogElements.pageCount.textContent = "0";
-  renderCategoryNav([]);
-  showCatalogDetail();
-  catalogElements.catalogTitle.textContent = "עדיין אין קטלוגים להצגה";
-  catalogElements.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.";
-  if (catalogElements.catalogMenuToggleText) catalogElements.catalogMenuToggleText.textContent = "אין קטלוגים";
-  if (catalogElements.catalogMenu) catalogElements.catalogMenu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
-  catalogElements.catalogCoverPreview?.removeAttribute("src");
-  if (catalogElements.openCatalogEntryFromDetail) catalogElements.openCatalogEntryFromDetail.disabled = true;
+  catalogElements.catalogGrid && (catalogElements.catalogGrid.innerHTML = html, catalogElements.catalogGrid.setAttribute("aria-busy", "false"), catalogElements.catalogLoadStatus && (catalogElements.catalogLoadStatus.textContent = "אין קטלוגים זמינים כעת.")), catalogElements.pageGrid && (catalogElements.pageGrid.innerHTML = html, catalogElements.pageGrid.setAttribute("aria-busy", "false")), catalogElements.catalogCount && (catalogElements.catalogCount.textContent = "0"), catalogElements.pageCount && (catalogElements.pageCount.textContent = "0"), renderCategoryNav([]), showCatalogDetail(), catalogElements.catalogTitle.textContent = "עדיין אין קטלוגים להצגה", catalogElements.catalogDescription.textContent = "הקטלוגים יופיעו כאן כשהם יהיו זמינים לצפייה.", catalogElements.catalogMenuToggleText && (catalogElements.catalogMenuToggleText.textContent = "אין קטלוגים"), catalogElements.catalogMenu && (catalogElements.catalogMenu.innerHTML = '<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>'), catalogElements.catalogCoverPreview?.removeAttribute("src"), catalogElements.openCatalogEntryFromDetail && (catalogElements.openCatalogEntryFromDetail.disabled = !0);
 }
-
-
-const CATEGORY_NAV_MIN_BUTTON_SCALE = 0.68;
-const CATEGORY_NAV_MIN_FONT_SIZE = 11;
-const CATEGORY_NAV_MIN_BUTTON_HEIGHT = 30;
-const CATEGORY_NAV_MIN_BUTTON_PADDING_X = 5;
-const CATEGORY_NAV_MIN_GAP = 3;
-
+var CATEGORY_NAV_MIN_BUTTON_SCALE = 0.68, CATEGORY_NAV_MIN_FONT_SIZE = 11, CATEGORY_NAV_MIN_BUTTON_HEIGHT = 30, CATEGORY_NAV_MIN_BUTTON_PADDING_X = 5, CATEGORY_NAV_MIN_GAP = 3;
 function readPixelValue(value, fallback = 0) {
-  const numeric = Number.parseFloat(String(value || ""));
+  let numeric = Number.parseFloat(String(value || ""));
   return Number.isFinite(numeric) ? numeric : fallback;
 }
-
 function categoryNavLinkLabel(link) {
   return String(link?.dataset?.categoryLabel || link?.textContent || "").trim();
 }
-
 function setCategoryNavLinkTooltip(link, text) {
-  if (!link) return;
-  setTooltipText(link, text || "", { updateDefault: true });
-  link.removeAttribute("title");
+  link && (setTooltipText(link, text || "", { updateDefault: !0 }), link.removeAttribute("title"));
 }
-
-function syncCategoryNavOverflowTooltips(links, enabled = true) {
+function syncCategoryNavOverflowTooltips(links, enabled = !0) {
   links.forEach((link) => {
     if (!enabled) {
       setCategoryNavLinkTooltip(link, "");
       return;
     }
-
-    const isTextClipped = link.scrollWidth > link.clientWidth + 1;
+    let isTextClipped = link.scrollWidth > link.clientWidth + 1;
     setCategoryNavLinkTooltip(link, isTextClipped ? categoryNavLinkLabel(link) : "");
   });
 }
-
 function clearCategoryNavFit(header, links = []) {
-  if (!header) return;
-  header.classList.remove("is-top-nav-compressed", "is-top-nav-tight", "is-top-nav-ellipsized");
-  header.style.removeProperty("--top-nav-gap");
-  header.style.removeProperty("--top-nav-button-min-height");
-  header.style.removeProperty("--top-nav-button-padding-x");
-  header.style.removeProperty("--top-nav-button-font-size");
-  syncCategoryNavOverflowTooltips(links, false);
+  header && (header.classList.remove("is-top-nav-compressed", "is-top-nav-tight", "is-top-nav-ellipsized"), header.style.removeProperty("--top-nav-gap"), header.style.removeProperty("--top-nav-button-min-height"), header.style.removeProperty("--top-nav-button-padding-x"), header.style.removeProperty("--top-nav-button-font-size"), syncCategoryNavOverflowTooltips(links, !1));
 }
-
 function readCategoryNavBaseMetrics(nav, firstLink) {
-  const navStyle = window.getComputedStyle(nav);
-  const linkStyle = window.getComputedStyle(firstLink);
-  const paddingStart = readPixelValue(linkStyle.paddingInlineStart, 16);
-  const paddingEnd = readPixelValue(linkStyle.paddingInlineEnd, paddingStart);
-
+  let navStyle = window.getComputedStyle(nav), linkStyle = window.getComputedStyle(firstLink), paddingStart = readPixelValue(linkStyle.paddingInlineStart, 16), paddingEnd = readPixelValue(linkStyle.paddingInlineEnd, paddingStart);
   return {
     gap: readPixelValue(navStyle.columnGap, 8),
     minHeight: readPixelValue(linkStyle.minHeight, 42),
@@ -4305,81 +3295,44 @@ function readCategoryNavBaseMetrics(nav, firstLink) {
     fontSize: readPixelValue(linkStyle.fontSize, 16)
   };
 }
-
 function categoryNavRequiredWidth(nav, links) {
   if (!links.length) return 0;
-  const gap = readPixelValue(window.getComputedStyle(nav).columnGap, 0);
-  const linkWidth = links.reduce((sum, link) => sum + Math.ceil(link.scrollWidth), 0);
-  return linkWidth + (gap * Math.max(0, links.length - 1));
+  let gap = readPixelValue(window.getComputedStyle(nav).columnGap, 0);
+  return links.reduce((sum, link) => sum + Math.ceil(link.scrollWidth), 0) + gap * Math.max(0, links.length - 1);
 }
-
 function applyCategoryNavScale(header, metrics, scale) {
-  const safeScale = Math.max(CATEGORY_NAV_MIN_BUTTON_SCALE, Math.min(1, scale));
-  header.classList.add("is-top-nav-compressed");
-  header.style.setProperty("--top-nav-gap", `${Math.max(CATEGORY_NAV_MIN_GAP, metrics.gap * safeScale).toFixed(2)}px`);
-  header.style.setProperty("--top-nav-button-min-height", `${Math.max(CATEGORY_NAV_MIN_BUTTON_HEIGHT, metrics.minHeight * safeScale).toFixed(2)}px`);
-  header.style.setProperty("--top-nav-button-padding-x", `${Math.max(CATEGORY_NAV_MIN_BUTTON_PADDING_X, metrics.paddingX * safeScale).toFixed(2)}px`);
-  header.style.setProperty("--top-nav-button-font-size", `${Math.max(CATEGORY_NAV_MIN_FONT_SIZE, metrics.fontSize * safeScale).toFixed(2)}px`);
-  return safeScale;
+  let safeScale = Math.max(CATEGORY_NAV_MIN_BUTTON_SCALE, Math.min(1, scale));
+  return header.classList.add("is-top-nav-compressed"), header.style.setProperty("--top-nav-gap", `${Math.max(CATEGORY_NAV_MIN_GAP, metrics.gap * safeScale).toFixed(2)}px`), header.style.setProperty("--top-nav-button-min-height", `${Math.max(CATEGORY_NAV_MIN_BUTTON_HEIGHT, metrics.minHeight * safeScale).toFixed(2)}px`), header.style.setProperty("--top-nav-button-padding-x", `${Math.max(CATEGORY_NAV_MIN_BUTTON_PADDING_X, metrics.paddingX * safeScale).toFixed(2)}px`), header.style.setProperty("--top-nav-button-font-size", `${Math.max(CATEGORY_NAV_MIN_FONT_SIZE, metrics.fontSize * safeScale).toFixed(2)}px`), safeScale;
 }
-
 function fitCategoryNavToSingleRow() {
   catalogState.categoryNavFitRaf = 0;
-  const nav = catalogElements.categoryNav;
-  const header = nav?.closest?.(".site-header");
+  let nav = catalogElements.categoryNav, header = nav?.closest?.(".site-header");
   if (!nav || !(header instanceof HTMLElement)) return;
-
-  const links = Array.from(nav.querySelectorAll(".category-nav-link")).filter(isHtmlElement);
-  clearCategoryNavFit(header, links);
-  if (!links.length) return;
-
-  const firstLink = links[0];
-  const metrics = readCategoryNavBaseMetrics(nav, firstLink);
-  const requiredWidth = categoryNavRequiredWidth(nav, links);
-  const availableWidth = nav.clientWidth;
-
+  let links = Array.from(nav.querySelectorAll(".category-nav-link")).filter(isHtmlElement);
+  if (clearCategoryNavFit(header, links), !links.length) return;
+  let firstLink = links[0], metrics = readCategoryNavBaseMetrics(nav, firstLink), requiredWidth = categoryNavRequiredWidth(nav, links), availableWidth = nav.clientWidth;
   if (!availableWidth || requiredWidth <= availableWidth + 1) return;
-
-  const normalScale = applyCategoryNavScale(header, metrics, availableWidth / requiredWidth);
-  const stillOverflows = requiredWidth * normalScale > nav.clientWidth + 1 || nav.scrollWidth > nav.clientWidth + 1;
-  if (!stillOverflows) {
+  let normalScale = applyCategoryNavScale(header, metrics, availableWidth / requiredWidth);
+  if (!(requiredWidth * normalScale > nav.clientWidth + 1 || nav.scrollWidth > nav.clientWidth + 1)) {
     syncCategoryNavOverflowTooltips(links);
     return;
   }
-
   header.classList.add("is-top-nav-tight");
-  const tightAvailableWidth = nav.clientWidth;
-  applyCategoryNavScale(header, metrics, tightAvailableWidth / requiredWidth);
-
-  if (requiredWidth * CATEGORY_NAV_MIN_BUTTON_SCALE > tightAvailableWidth + 1 || nav.scrollWidth > nav.clientWidth + 1) {
-    header.classList.add("is-top-nav-ellipsized");
-  }
-
-  syncCategoryNavOverflowTooltips(links);
+  let tightAvailableWidth = nav.clientWidth;
+  applyCategoryNavScale(header, metrics, tightAvailableWidth / requiredWidth), (requiredWidth * CATEGORY_NAV_MIN_BUTTON_SCALE > tightAvailableWidth + 1 || nav.scrollWidth > nav.clientWidth + 1) && header.classList.add("is-top-nav-ellipsized"), syncCategoryNavOverflowTooltips(links);
 }
-
 function scheduleCategoryNavFit() {
-  if (!catalogElements.categoryNav) return;
-  window.cancelAnimationFrame(catalogState.categoryNavFitRaf);
-  catalogState.categoryNavFitRaf = window.requestAnimationFrame(fitCategoryNavToSingleRow);
+  catalogElements.categoryNav && (window.cancelAnimationFrame(catalogState.categoryNavFitRaf), catalogState.categoryNavFitRaf = window.requestAnimationFrame(fitCategoryNavToSingleRow));
 }
-
 function initCategoryNavFit() {
-  if (!catalogElements.categoryNav) return;
-  document.querySelectorAll('img[data-brand-logo="1"]').forEach((image) => {
+  catalogElements.categoryNav && (document.querySelectorAll('img[data-brand-logo="1"]').forEach((image) => {
     image.addEventListener("load", scheduleCategoryNavFit);
-  });
-  if (document.fonts?.ready) {
-    document.fonts.ready.then(scheduleCategoryNavFit).catch(() => {});
-  }
-  scheduleCategoryNavFit();
+  }), document.fonts?.ready && document.fonts.ready.then(scheduleCategoryNavFit).catch(() => {
+  }), scheduleCategoryNavFit());
 }
-
-
 function renderCategoryNav(groups = getCatalogCategoryGroups()) {
-  const links = groups.map((group, index) => {
-    const targetId = categorySectionId(group.category, index);
-    const sharePath = catalogCategorySharePath(group.category, index);
+  let links = groups.map((group, index) => {
+    let targetId = categorySectionId(group.category, index), sharePath = catalogCategorySharePath(group.category, index);
     return {
       href: categoryDocumentUrl(sharePath),
       targetId,
@@ -4387,267 +3340,134 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
       label: group.category
     };
   });
-
-  if (catalogElements.categoryNav) {
-    catalogElements.categoryNav.innerHTML = links.map((link) => `
+  catalogElements.categoryNav && (catalogElements.categoryNav.innerHTML = links.map((link) => `
       <a class="top-nav-link category-nav-link" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">${escapeHtml(link.label)}</a>
-    `).join("");
-  }
-
-  if (catalogElements.mobileCategoryMenu) {
-    catalogElements.mobileCategoryMenu.innerHTML = links.length
-      ? links.map((link) => `
+    `).join("")), catalogElements.mobileCategoryMenu && (catalogElements.mobileCategoryMenu.innerHTML = links.length ? links.map((link) => `
           <a class="mobile-category-menu-link category-nav-link" role="menuitem" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">
             <span>${escapeHtml(link.label)}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6" /></svg>
           </a>
-        `).join("")
-      : '<div class="mobile-category-menu-empty">אין קטגוריות להצגה</div>';
-  }
-
-  syncActiveCategoryNavLink();
-  scheduleCategoryNavFit();
+        `).join("") : '<div class="mobile-category-menu-empty">אין קטגוריות להצגה</div>'), syncActiveCategoryNavLink(), scheduleCategoryNavFit();
 }
-
 function isMobileCategoryMenuOpen() {
-  return Boolean(catalogElements.mobileCategoryMenu && !catalogElements.mobileCategoryMenu.classList.contains("hidden"));
+  return !!(catalogElements.mobileCategoryMenu && !catalogElements.mobileCategoryMenu.classList.contains("hidden"));
 }
-
 function setMobileCategoryMenuOpen(open, options = {}) {
-  const shouldOpen = Boolean(open);
-  if (!catalogElements.mobileCategoryMenu || !catalogElements.mobileCategoryMenuToggle) return;
-
-  catalogElements.mobileCategoryMenu.classList.toggle("hidden", !shouldOpen);
-  catalogElements.mobileCategoryMenu.classList.toggle("is-open", shouldOpen);
-  catalogElements.mobileCategoryMenuToggle.classList.toggle("is-active", shouldOpen);
-  catalogElements.mobileCategoryMenuToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-  catalogElements.mobileCategoryMenuToggle.setAttribute("aria-label", shouldOpen ? "סגירת תפריט קטגוריות" : "פתיחת תפריט קטגוריות");
-
-  if (shouldOpen && options.focusFirst) {
-    window.requestAnimationFrame(() => focusHtmlElement(catalogElements.mobileCategoryMenu?.querySelector(".mobile-category-menu-link")));
-  } else if (!shouldOpen && options.focusButton) {
-    window.requestAnimationFrame(() => catalogElements.mobileCategoryMenuToggle?.focus({ preventScroll: true }));
-  }
+  let shouldOpen = !!open;
+  !catalogElements.mobileCategoryMenu || !catalogElements.mobileCategoryMenuToggle || (catalogElements.mobileCategoryMenu.classList.toggle("hidden", !shouldOpen), catalogElements.mobileCategoryMenu.classList.toggle("is-open", shouldOpen), catalogElements.mobileCategoryMenuToggle.classList.toggle("is-active", shouldOpen), catalogElements.mobileCategoryMenuToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false"), catalogElements.mobileCategoryMenuToggle.setAttribute("aria-label", shouldOpen ? "סגירת תפריט קטגוריות" : "פתיחת תפריט קטגוריות"), shouldOpen && options.focusFirst ? window.requestAnimationFrame(() => focusHtmlElement(catalogElements.mobileCategoryMenu?.querySelector(".mobile-category-menu-link"))) : !shouldOpen && options.focusButton && window.requestAnimationFrame(() => catalogElements.mobileCategoryMenuToggle?.focus({ preventScroll: !0 })));
 }
-
 function closeMobileCategoryMenu(options = {}) {
-  setMobileCategoryMenuOpen(false, options);
+  setMobileCategoryMenuOpen(!1, options);
 }
-
 function decodeHashTargetId(hash = location.hash) {
   return searchCatalogDomain.decodeCatalogHashTargetId(hash);
 }
-
 function isCatalogFocusSection(section) {
-  return Boolean(section instanceof HTMLElement && (section.classList.contains("catalog-category-section") || section.classList.contains("catalog-subcategory-section")));
+  return !!(section instanceof HTMLElement && (section.classList.contains("catalog-category-section") || section.classList.contains("catalog-subcategory-section")));
 }
-
 function getCatalogCategorySectionById(id) {
-  const sectionId = String(id || "");
-  const section = sectionId ? document.getElementById(sectionId) : null;
+  let sectionId = String(id || ""), section = sectionId ? document.getElementById(sectionId) : null;
   return isCatalogFocusSection(section) ? section : null;
 }
-
-function getCatalogCategorySectionFromHash(hash = location.hash) {
-  return getCatalogCategorySectionById(decodeHashTargetId(hash));
-}
-
 function getCatalogCategoryFocusTargetId(section) {
   return section?.dataset?.categoryFocusTarget || section?.id || "";
 }
-
 function getCatalogFocusSections() {
-  return Array.from(catalogElements.catalogGrid.querySelectorAll(".catalog-category-section, .catalog-subcategory-section"))
-    .filter(isHtmlElement);
+  return Array.from(catalogElements.catalogGrid.querySelectorAll(".catalog-category-section, .catalog-subcategory-section")).filter(isHtmlElement);
 }
-
 function getCatalogCategorySectionsByTargetId(targetId) {
-  const normalizedTargetId = String(targetId || "");
-  if (!normalizedTargetId) return [];
-
-  return getCatalogFocusSections()
-    .filter((section) => {
-      const focusTargetId = getCatalogCategoryFocusTargetId(section);
-      const parentCategoryTargetId = section?.dataset?.parentCategoryTarget || "";
-      return focusTargetId === normalizedTargetId
-        || parentCategoryTargetId === normalizedTargetId
-        || section.id === normalizedTargetId;
-    });
+  let normalizedTargetId = String(targetId || "");
+  return normalizedTargetId ? getCatalogFocusSections().filter((section) => {
+    let focusTargetId = getCatalogCategoryFocusTargetId(section), parentCategoryTargetId = section?.dataset?.parentCategoryTarget || "";
+    return focusTargetId === normalizedTargetId || parentCategoryTargetId === normalizedTargetId || section.id === normalizedTargetId;
+  }) : [];
 }
-
 function catalogCategorySharePathFromHash(hash = location.hash) {
-  const rawHash = String(hash || "");
+  let rawHash = String(hash || "");
   if (!rawHash.startsWith("#")) return "";
-
-  const rawRoute = rawHash.slice(1).replace(/^\/+/, "");
-  const parts = rawRoute.split("/");
-  if (parts[0] !== "cat" || !parts[1]) return "";
-
-  return normalizeShareRoutePath(parts.slice(1).map(decodeHashRouteSegment).join("/"));
+  let parts = rawHash.slice(1).replace(/^\/+/, "").split("/");
+  return parts[0] !== "cat" || !parts[1] ? "" : normalizeShareRoutePath(parts.slice(1).map(decodeHashRouteSegment).join("/"));
 }
-
 function getCatalogCategorySectionBySharePath(path) {
-  const normalizedPath = normalizeShareRoutePath(path);
-  if (!normalizedPath) return null;
-
-  return getCatalogFocusSections().find((section) => normalizeShareRoutePath(section?.dataset?.categorySharePath) === normalizedPath) || null;
+  let normalizedPath = normalizeShareRoutePath(path);
+  return normalizedPath && getCatalogFocusSections().find((section) => normalizeShareRoutePath(section?.dataset?.categorySharePath) === normalizedPath) || null;
 }
-
 function resolveCatalogCategoryTargetIdFromHash(hash = location.hash) {
-  const sharePath = catalogCategorySharePathFromHash(hash);
+  let sharePath = catalogCategorySharePathFromHash(hash);
   if (sharePath) {
-    const section = getCatalogCategorySectionBySharePath(sharePath);
+    let section = getCatalogCategorySectionBySharePath(sharePath);
     return getCatalogCategoryFocusTargetId(section);
   }
-
   return decodeHashTargetId(hash);
 }
-
 function buildCatalogFocusRouteHash(targetId) {
-  const section = getCatalogCategorySectionsByTargetId(targetId)[0] || getCatalogCategorySectionById(targetId);
-  const sharePath = normalizeShareRoutePath(section?.dataset?.categorySharePath);
+  let section = getCatalogCategorySectionsByTargetId(targetId)[0] || getCatalogCategorySectionById(targetId), sharePath = normalizeShareRoutePath(section?.dataset?.categorySharePath);
   return buildCategoryShareRouteHash(sharePath) || (targetId ? `#${encodeHashRouteSegment(targetId)}` : "");
 }
-
 function hasCatalogCategoryFocus(targetId) {
-  return getCatalogCategorySectionsByTargetId(targetId)
-    .some((section) => section.classList.contains("is-category-focus"));
+  return getCatalogCategorySectionsByTargetId(targetId).some((section) => section.classList.contains("is-category-focus"));
 }
-
 function syncActiveCategoryNavLink(activeId = catalogState.categoryFocusTargetId) {
-  const normalizedActiveId = String(activeId || "");
-
+  let normalizedActiveId = String(activeId || "");
   [catalogElements.categoryNav, catalogElements.mobileCategoryMenu].forEach((container) => {
     Array.from(container?.querySelectorAll(".category-nav-link") || []).filter(isHtmlElement).forEach((link) => {
-      const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
-      link.classList.toggle("active", isActive);
-      if (isActive) link.setAttribute("aria-current", "location");
-      else link.removeAttribute("aria-current");
+      let isActive = !!(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
+      link.classList.toggle("active", isActive), isActive ? link.setAttribute("aria-current", "location") : link.removeAttribute("aria-current");
     });
-  });
-
-  Array.from(catalogElements.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link") || []).filter(isHtmlElement).forEach((link) => {
-    const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
-    link.classList.toggle("active", isActive);
-    if (isActive) link.setAttribute("aria-current", "location");
-    else link.removeAttribute("aria-current");
+  }), Array.from(catalogElements.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link") || []).filter(isHtmlElement).forEach((link) => {
+    let isActive = !!(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
+    link.classList.toggle("active", isActive), isActive ? link.setAttribute("aria-current", "location") : link.removeAttribute("aria-current");
   });
 }
-
 function clearCatalogCategoryFocus(options = {}) {
-  const { clearHash = false } = options;
-
-  window.clearTimeout(catalogState.categoryFocusTimer);
-  catalogState.categoryFocusTimer = 0;
-  catalogState.categoryFocusTargetId = "";
-  getCatalogFocusSections().forEach((section) => {
+  let { clearHash = !1 } = options;
+  window.clearTimeout(catalogState.categoryFocusTimer), catalogState.categoryFocusTimer = 0, catalogState.categoryFocusTargetId = "", getCatalogFocusSections().forEach((section) => {
     section.classList.remove("is-category-focus");
-  });
-  syncActiveCategoryNavLink("");
-
-  const hashTargetId = resolveCatalogCategoryTargetIdFromHash();
-  if (clearHash && hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length) {
-    history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-  }
-
-  return true;
+  }), syncActiveCategoryNavLink("");
+  let hashTargetId = resolveCatalogCategoryTargetIdFromHash();
+  return clearHash && hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length && history.replaceState(history.state, "", `${location.pathname}${location.search}`), !0;
 }
-
 function markCatalogCategoryFocus(section, options = {}) {
-  if (!section) return false;
-
-  const { animate = true, targetId: requestedTargetId = "" } = options;
-  const targetId = String(requestedTargetId || getCatalogCategoryFocusTargetId(section) || "");
-  const targetSections = getCatalogCategorySectionsByTargetId(targetId);
-  if (!targetId || !targetSections.length) return false;
-
-  window.clearTimeout(catalogState.categoryFocusTimer);
-  catalogState.categoryFocusTimer = 0;
-
-  getCatalogFocusSections().forEach((activeSection) => {
-    if (!targetSections.includes(activeSection)) activeSection.classList.remove("is-category-focus");
-  });
-
-  targetSections.forEach((targetSection) => targetSection.classList.remove("is-category-focus"));
-  if (animate) {
-    // Restart the pulse cleanly across every visible segment of the selected category or subcategory.
-    void targetSections[0].offsetWidth;
-  }
-  targetSections.forEach((targetSection) => targetSection.classList.add("is-category-focus"));
-
-  catalogState.categoryFocusTargetId = targetId;
-  syncActiveCategoryNavLink(targetId);
-  return true;
+  if (!section) return !1;
+  let { animate = !0, targetId: requestedTargetId = "" } = options, targetId = String(requestedTargetId || getCatalogCategoryFocusTargetId(section) || ""), targetSections = getCatalogCategorySectionsByTargetId(targetId);
+  return !targetId || !targetSections.length ? !1 : (window.clearTimeout(catalogState.categoryFocusTimer), catalogState.categoryFocusTimer = 0, getCatalogFocusSections().forEach((activeSection) => {
+    targetSections.includes(activeSection) || activeSection.classList.remove("is-category-focus");
+  }), targetSections.forEach((targetSection) => targetSection.classList.remove("is-category-focus")), animate && targetSections[0].offsetWidth, targetSections.forEach((targetSection) => targetSection.classList.add("is-category-focus")), catalogState.categoryFocusTargetId = targetId, syncActiveCategoryNavLink(targetId), !0);
 }
-
-function markCatalogCategoryFocusById(id, options = {}) {
-  return markCatalogCategoryFocus(getCatalogCategorySectionById(id), { ...options, targetId: id });
+function activateCatalogCategoryTarget(targetId, { toggle = !1 } = {}) {
+  let id = String(targetId || "").trim();
+  if (!id) return !1;
+  if (!isAppPage("home"))
+    return navigateTo(`${homeDocumentUrl()}${buildCatalogFocusRouteHash(id)}`), !0;
+  if (toggle && catalogState.categoryFocusTargetId === id && hasCatalogCategoryFocus(id))
+    return clearCatalogCategoryFocus({ clearHash: !0 }), !0;
+  let section = getCatalogCategorySectionById(id) || getCatalogCategorySectionsByTargetId(id)[0];
+  return section ? (markCatalogCategoryFocus(section, { targetId: id }), section.scrollIntoView?.({ behavior: "smooth", block: "start" }), location.hash !== buildCatalogFocusRouteHash(id) && (location.hash = buildCatalogFocusRouteHash(id)), !0) : !1;
 }
-
-function activateCatalogCategoryTarget(targetId, { toggle = false } = {}) {
-  const id = String(targetId || "").trim();
-  if (!id) return false;
-  if (!isAppPage("home")) {
-    navigateTo(`${homeDocumentUrl()}${buildCatalogFocusRouteHash(id)}`);
-    return true;
-  }
-  if (toggle && catalogState.categoryFocusTargetId === id && hasCatalogCategoryFocus(id)) {
-    clearCatalogCategoryFocus({ clearHash: true });
-    return true;
-  }
-
-  const section = getCatalogCategorySectionById(id) || getCatalogCategorySectionsByTargetId(id)[0];
-  if (!section) return false;
-  markCatalogCategoryFocus(section, { targetId: id });
-  section.scrollIntoView?.({ behavior: "smooth", block: "start" });
-  if (location.hash !== buildCatalogFocusRouteHash(id)) location.hash = buildCatalogFocusRouteHash(id);
-  return true;
-}
-
 function handleCatalogFocusLinkClick(link, event) {
-  const targetId = link?.dataset?.categoryTarget || resolveCatalogCategoryTargetIdFromHash(link?.hash);
-  if (!targetId) return;
-
-  event.preventDefault();
-  activateCatalogCategoryTarget(targetId, { toggle: true });
+  let targetId = link?.dataset?.categoryTarget || resolveCatalogCategoryTargetIdFromHash(link?.hash);
+  targetId && (event.preventDefault(), activateCatalogCategoryTarget(targetId, { toggle: !0 }));
 }
-
 function syncCatalogCategoryFocusFromHash(options = {}) {
-  const targetId = resolveCatalogCategoryTargetIdFromHash();
-  const section = getCatalogCategorySectionById(targetId);
-  if (!section) {
-    clearCatalogCategoryFocus();
-    return false;
-  }
-
-  const { scroll = false } = options;
-  if (scroll) section.scrollIntoView({ behavior: "smooth", block: "start" });
-  return markCatalogCategoryFocus(section, { ...options, targetId });
+  let targetId = resolveCatalogCategoryTargetIdFromHash(), section = getCatalogCategorySectionById(targetId);
+  if (!section)
+    return clearCatalogCategoryFocus(), !1;
+  let { scroll = !1 } = options;
+  return scroll && section.scrollIntoView({ behavior: "smooth", block: "start" }), markCatalogCategoryFocus(section, { ...options, targetId });
 }
-
-
 function catalogLayoutColumnCount() {
   return searchCatalogDomain.catalogColumnCount({
-    mobile: Boolean(window.matchMedia?.("(max-width: 760px)").matches),
-    tablet: Boolean(window.matchMedia?.("(max-width: 1180px)").matches)
+    mobile: !!window.matchMedia?.("(max-width: 760px)").matches,
+    tablet: !!window.matchMedia?.("(max-width: 1180px)").matches
   });
 }
-
 function scheduleCatalogLayoutRefresh() {
-  if (!catalogs.length) return;
-  window.clearTimeout(catalogState.catalogLayoutResizeTimer);
-  catalogState.catalogLayoutResizeTimer = window.setTimeout(() => {
-    const nextColumns = catalogLayoutColumnCount();
-    if (nextColumns !== catalogState.catalogLayoutColumns) renderCatalogCards();
-  }, 120);
+  catalogs.length && (window.clearTimeout(catalogState.catalogLayoutResizeTimer), catalogState.catalogLayoutResizeTimer = window.setTimeout(() => {
+    catalogLayoutColumnCount() !== catalogState.catalogLayoutColumns && renderCatalogCards();
+  }, 120));
 }
-
 function renderCatalogCard(catalog, headingLevel = 3) {
-  const cover = coverThumbSrc(catalog);
-  const safeCatalogId = escapeHtml(catalog.id);
-  const safeTitle = escapeHtml(catalog.title);
-  const safeHeadingLevel = headingLevel === 4 ? 4 : 3;
-  const catalogHref = escapeHtml(catalogDocumentUrl(catalog.id));
+  let cover = coverThumbSrc(catalog), safeCatalogId = escapeHtml(catalog.id), safeTitle = escapeHtml(catalog.title), safeHeadingLevel = headingLevel === 4 ? 4 : 3, catalogHref = escapeHtml(catalogDocumentUrl(catalog.id));
   return `
     <article class="catalog-card">
       <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
@@ -4665,42 +3485,25 @@ function renderCatalogCard(catalog, headingLevel = 3) {
     </article>
   `;
 }
-
 function renderCatalogSubcategoryNav(segment) {
   if (!segment?.hasSubcategories || !Array.isArray(segment.subcategories) || !segment.subcategories.length) return "";
-
-  const buttons = segment.subcategories.map((group, index) => {
-    const targetId = subcategorySectionId(segment.category, segment.groupIndex, group.subcategory, index);
-    const sharePath = catalogSubcategorySharePath(segment.category, segment.groupIndex, group.subcategory, index);
+  let buttons = segment.subcategories.map((group, index) => {
+    let targetId = subcategorySectionId(segment.category, segment.groupIndex, group.subcategory, index), sharePath = catalogSubcategorySharePath(segment.category, segment.groupIndex, group.subcategory, index);
     return `<a class="catalog-subcategory-nav-link" href="${escapeHtml(categoryDocumentUrl(categoryShareSlug(segment.category, segment.groupIndex), subcategoryShareSlug(group.subcategory, index)))}" data-category-target="${escapeHtml(targetId)}" data-category-share-path="${escapeHtml(sharePath)}">${escapeHtml(group.subcategory)}</a>`;
   }).join("");
-
   return `
     <nav class="catalog-subcategory-nav" aria-label="ניווט תתי קטגוריות עבור ${escapeHtml(segment.category)}">
       ${buttons}
     </nav>
   `;
 }
-
 function catalogSubcategoryBlockBaseId(segment, block, baseSectionId) {
-  if (block?.isDirect) return `${baseSectionId}-general`;
-  return subcategorySectionId(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
+  return block?.isDirect ? `${baseSectionId}-general` : subcategorySectionId(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
 }
-
 function renderCatalogSubcategoryBlock(segment, block, options = {}) {
-  const { baseSectionId = "" } = options;
-  const items = Array.isArray(block?.items) ? block.items : [];
+  let { baseSectionId = "" } = options, items = Array.isArray(block?.items) ? block.items : [];
   if (!items.length) return "";
-
-  const blockBaseId = catalogSubcategoryBlockBaseId(segment, block, baseSectionId);
-  const sharePath = block?.isDirect
-    ? catalogCategorySharePath(segment.category, segment.groupIndex)
-    : catalogSubcategorySharePath(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
-  const sectionId = block.segmentIndex === 0 ? blockBaseId : `${blockBaseId}-part-${block.segmentIndex + 1}`;
-  const titleId = `${sectionId}-title`;
-  const title = String(block?.label || "").trim() || "קטלוגים";
-  const sectionStyle = `--subcategory-span: ${searchCatalogDomain.clampCatalogSpan(block.span, 3)};`;
-
+  let blockBaseId = catalogSubcategoryBlockBaseId(segment, block, baseSectionId), sharePath = block?.isDirect ? catalogCategorySharePath(segment.category, segment.groupIndex) : catalogSubcategorySharePath(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0), sectionId = block.segmentIndex === 0 ? blockBaseId : `${blockBaseId}-part-${block.segmentIndex + 1}`, titleId = `${sectionId}-title`, title = String(block?.label || "").trim() || "קטלוגים", sectionStyle = `--subcategory-span: ${searchCatalogDomain.clampCatalogSpan(block.span, 3)};`;
   return `
     <section class="catalog-subcategory-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(blockBaseId)}" data-parent-category-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-subcategory-span="${escapeHtml(String(block.span))}" data-inline-divider="${block.inlineDivider ? "1" : "0"}" data-subcategory-continuation="${block.itemOffset > 0 ? "1" : "0"}">
       <div class="catalog-category-head catalog-subcategory-head">
@@ -4712,14 +3515,8 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
     </section>
   `;
 }
-
 function renderCatalogCategoryHeaderSegment(segment, columns) {
-  const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
-  const titleId = `${baseSectionId}-title`;
-  const safeColumns = searchCatalogDomain.clampCatalogSpan(columns, 3);
-  const sectionStyle = `--category-span: ${safeColumns}; --subcategory-layout-columns: ${safeColumns};`;
-  const sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
-
+  let baseSectionId = categorySectionId(segment.category, segment.groupIndex), titleId = `${baseSectionId}-title`, safeColumns = searchCatalogDomain.clampCatalogSpan(columns, 3), sectionStyle = `--category-span: ${safeColumns}; --subcategory-layout-columns: ${safeColumns};`, sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
   return `
     <section class="catalog-category-section catalog-category-section-with-subcategories catalog-category-section-header-only" id="${escapeHtml(baseSectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-span="${escapeHtml(String(safeColumns))}" data-inline-divider="0" data-category-continuation="0">
       <div class="catalog-category-head catalog-category-head-with-subcategories">
@@ -4729,24 +3526,13 @@ function renderCatalogCategoryHeaderSegment(segment, columns) {
     </section>
   `;
 }
-
 function renderCatalogCategorySegment(segment, columns) {
-  const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
-  const safeColumns = searchCatalogDomain.clampCatalogSpan(columns, 3);
-
-  if (segment.segmentType === "categoryHeader") {
+  let baseSectionId = categorySectionId(segment.category, segment.groupIndex), safeColumns = searchCatalogDomain.clampCatalogSpan(columns, 3);
+  if (segment.segmentType === "categoryHeader")
     return renderCatalogCategoryHeaderSegment(segment, safeColumns);
-  }
-
-  if (segment.segmentType === "subcategory") {
+  if (segment.segmentType === "subcategory")
     return renderCatalogSubcategoryBlock(segment, segment, { baseSectionId });
-  }
-
-  const sectionId = segment.itemOffset === 0 ? baseSectionId : `${baseSectionId}-part-${segment.segmentIndex + 1}`;
-  const titleId = `${sectionId}-title`;
-  const sectionStyle = `--category-span: ${segment.span}; --subcategory-layout-columns: ${safeColumns};`;
-  const sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
-
+  let sectionId = segment.itemOffset === 0 ? baseSectionId : `${baseSectionId}-part-${segment.segmentIndex + 1}`, titleId = `${sectionId}-title`, sectionStyle = `--category-span: ${segment.span}; --subcategory-layout-columns: ${safeColumns};`, sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
   return `
     <section class="catalog-category-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-category-span="${escapeHtml(String(segment.span))}" data-inline-divider="${segment.inlineDivider ? "1" : "0"}" data-category-continuation="${segment.itemOffset > 0 ? "1" : "0"}">
       <div class="catalog-category-head">
@@ -4758,85 +3544,56 @@ function renderCatalogCategorySegment(segment, columns) {
     </section>
   `;
 }
-
 function openCatalogEntry(catalogId, page = 1) {
   if (!catalogId) return;
-  const viewer = getFeatureInterface("viewer");
+  let viewer = getFeatureInterface("viewer");
   if (viewer?.openCatalog) {
     viewer.openCatalog(catalogId, page);
     return;
   }
   navigateTo(viewerDocumentUrl(catalogId, page));
 }
-
 function bindCatalogCardEvents() {
-  if (!catalogElements.catalogGrid) return;
-
-  Array.from(catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-entry]"))
-    .filter(isHtmlElement)
-    .forEach((control) => {
-      control.addEventListener("click", (event) => {
-        if (!(event instanceof MouseEvent) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        event.preventDefault();
-        openCatalogEntry(control.dataset.openCatalogEntry);
-      });
+  catalogElements.catalogGrid && (Array.from(catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-entry]")).filter(isHtmlElement).forEach((control) => {
+    control.addEventListener("click", (event) => {
+      !(event instanceof MouseEvent) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || (event.preventDefault(), openCatalogEntry(control.dataset.openCatalogEntry));
     });
-
-  Array.from(catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-preview]"))
-    .filter(isHtmlElement)
-    .forEach((control) => {
-      control.addEventListener("click", (event) => {
-        if (!(event instanceof MouseEvent) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        event.preventDefault();
-        const catalogId = String(control.dataset.openCatalogPreview || "");
-        if (catalogId) openCatalog(catalogId, { scroll: true });
-      });
+  }), Array.from(catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-preview]")).filter(isHtmlElement).forEach((control) => {
+    control.addEventListener("click", (event) => {
+      if (!(event instanceof MouseEvent) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      let catalogId = String(control.dataset.openCatalogPreview || "");
+      catalogId && openCatalog(catalogId, { scroll: !0 });
     });
+  }));
 }
-
 function renderCatalogCards() {
   if (!catalogs.length) {
     renderEmptyState();
     return;
   }
-
-  const groups = getCatalogCategoryGroups();
-  const totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
-  if (catalogElements.catalogCount) catalogElements.catalogCount.textContent = String(catalogs.length);
-  if (catalogElements.pageCount) catalogElements.pageCount.textContent = String(totalPages);
-  renderCategoryNav(groups);
-
-  const columns = catalogLayoutColumnCount();
+  let groups = getCatalogCategoryGroups(), totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
+  catalogElements.catalogCount && (catalogElements.catalogCount.textContent = String(catalogs.length)), catalogElements.pageCount && (catalogElements.pageCount.textContent = String(totalPages)), renderCategoryNav(groups);
+  let columns = catalogLayoutColumnCount();
   catalogState.catalogLayoutColumns = columns;
-  const categorySegments =  (searchCatalogDomain.catalogCategorySegments(groups, columns));
-
-  catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
-  catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
-  catalogElements.catalogGrid.setAttribute("aria-busy", "false");
-  if (catalogElements.catalogLoadStatus) {
-    const count = catalogs.length;
+  let categorySegments = (
+    /** @type {Array<CatalogLayoutSegment>} */
+    searchCatalogDomain.catalogCategorySegments(groups, columns)
+  );
+  if (catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns)), catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join(""), catalogElements.catalogGrid.setAttribute("aria-busy", "false"), catalogElements.catalogLoadStatus) {
+    let count = catalogs.length;
     catalogElements.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
   }
-
-  bindCatalogCardEvents();
-  syncCatalogCategoryFocusFromHash({ animate: false });
+  bindCatalogCardEvents(), syncCatalogCategoryFocusFromHash({ animate: !1 });
 }
-
-
 function fillCatalogSelect() {
   updateDetailCatalogMenuLabel();
 }
-
-
 function renderPageGrid() {
-  const catalog = activeCatalog();
+  let catalog = activeCatalog();
   if (!catalog) return;
-  // Keep generated page cards visually stable during scroll.
-  // Older versions attached scroll-time observers here for reveal animation
-  // and thumb activation; that caused work exactly when a card entered view.
-
-  const cards = [];
-  for (let page = 1; page <= catalog.pages; page += 1) {
+  let cards = [];
+  for (let page = 1; page <= catalog.pages; page += 1)
     cards.push(`
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
@@ -4851,94 +3608,52 @@ function renderPageGrid() {
         </a>
       </article>
     `);
-  }
-  catalogElements.pageGrid.setAttribute("aria-busy", "true");
-  catalogElements.pageGrid.innerHTML = cards.join("");
-  catalogElements.pageGrid.setAttribute("aria-busy", "false");
-
-  Array.from(catalogElements.pageGrid.querySelectorAll("[data-open-page]"))
-    .filter(isHtmlElement)
-    .forEach((link) => {
+  catalogElements.pageGrid.setAttribute("aria-busy", "true"), catalogElements.pageGrid.innerHTML = cards.join(""), catalogElements.pageGrid.setAttribute("aria-busy", "false"), Array.from(catalogElements.pageGrid.querySelectorAll("[data-open-page]")).filter(isHtmlElement).forEach((link) => {
     link.addEventListener("click", (event) => {
       if (!(event instanceof MouseEvent) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
-      const page = Number(link.dataset.openPage);
-      const viewer = getFeatureInterface("viewer");
-      if (viewer) viewer.openCatalog(catalog.id, page);
-      else navigateTo(viewerDocumentUrl(catalog.id, page));
+      let page = Number(link.dataset.openPage), viewer = getFeatureInterface("viewer");
+      viewer ? viewer.openCatalog(catalog.id, page) : navigateTo(viewerDocumentUrl(catalog.id, page));
     });
   });
 }
-
 function showCatalogDetail() {
-  if (!catalogElements.catalogDetail) return;
-  catalogElements.catalogDetail.classList.remove("hidden");
-  catalogElements.catalogDetail.classList.add("in-view");
+  catalogElements.catalogDetail && (catalogElements.catalogDetail.classList.remove("hidden"), catalogElements.catalogDetail.classList.add("in-view"));
 }
-
 function scrollCatalogDetailIntoView(options = {}) {
   if (!catalogElements.catalogDetail) return;
-  const { behavior = "smooth" } = options;
+  let { behavior = "smooth" } = options;
   requestAnimationFrame(() => {
-    catalogElements.catalogDetail.scrollIntoView({ behavior, block: "start" });
-    scheduleCatalogScrollTopButtonUpdate();
+    catalogElements.catalogDetail.scrollIntoView({ behavior, block: "start" }), scheduleCatalogScrollTopButtonUpdate();
   });
 }
-
 function positionCatalogScrollTopButton() {
   if (!catalogElements.scrollToTopBtn || !catalogElements.pageGrid) return;
-
-  const gridRect = catalogElements.pageGrid.getBoundingClientRect();
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-  const buttonWidth = Math.max(catalogElements.scrollToTopBtn.offsetWidth || 46, 46);
-  const safeInset = 12;
-  const gapFromGrid = 12;
-  const maxLeft = Math.max(safeInset, viewportWidth - buttonWidth - safeInset);
-  const preferredLeft = gridRect.left - buttonWidth - gapFromGrid;
-  const left = clampValue(preferredLeft, safeInset, maxLeft);
-
+  let gridRect = catalogElements.pageGrid.getBoundingClientRect(), viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0, buttonWidth = Math.max(catalogElements.scrollToTopBtn.offsetWidth || 46, 46), safeInset = 12, gapFromGrid = 12, maxLeft = Math.max(safeInset, viewportWidth - buttonWidth - safeInset), preferredLeft = gridRect.left - buttonWidth - gapFromGrid, left = clampValue(preferredLeft, safeInset, maxLeft);
   catalogElements.scrollToTopBtn.style.setProperty("--catalog-scroll-top-left", `${Math.round(left)}px`);
 }
-
 function setCatalogScrollTopButtonVisible(visible) {
-  if (!catalogElements.scrollToTopBtn) return;
-  catalogElements.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
-  catalogElements.scrollToTopBtn.setAttribute("aria-hidden", visible ? "false" : "true");
-  catalogElements.scrollToTopBtn.tabIndex = visible ? 0 : -1;
+  catalogElements.scrollToTopBtn && (catalogElements.scrollToTopBtn.classList.toggle("is-visible", !!visible), catalogElements.scrollToTopBtn.setAttribute("aria-hidden", visible ? "false" : "true"), catalogElements.scrollToTopBtn.tabIndex = visible ? 0 : -1);
 }
-
 function updateCatalogScrollTopButton() {
-  catalogState.catalogScrollTopButtonRaf = 0;
-  if (!catalogElements.scrollToTopBtn || !catalogElements.catalogDetail || !catalogElements.pageGrid || catalogElements.catalogDetail.classList.contains("hidden") || !activeCatalog() || getFeatureInterface("viewer")?.isViewerOpen?.()) {
-    setCatalogScrollTopButtonVisible(false);
+  if (catalogState.catalogScrollTopButtonRaf = 0, !catalogElements.scrollToTopBtn || !catalogElements.catalogDetail || !catalogElements.pageGrid || catalogElements.catalogDetail.classList.contains("hidden") || !activeCatalog() || getFeatureInterface("viewer")?.isViewerOpen?.()) {
+    setCatalogScrollTopButtonVisible(!1);
     return;
   }
-
   positionCatalogScrollTopButton();
-
-  const detailRect = catalogElements.catalogDetail.getBoundingClientRect();
-  const gridRect = catalogElements.pageGrid.getBoundingClientRect();
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-  const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 90;
-  const startedScrollingInsideGrid = gridRect.top < Math.min(headerHeight + 28, viewportHeight * 0.28);
-  const stillNearGrid = gridRect.bottom > Math.min(180, viewportHeight * 0.35);
-  const detailVisible = detailRect.bottom > 80 && detailRect.top < viewportHeight;
+  let detailRect = catalogElements.catalogDetail.getBoundingClientRect(), gridRect = catalogElements.pageGrid.getBoundingClientRect(), viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0, headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-h")) || 90, startedScrollingInsideGrid = gridRect.top < Math.min(headerHeight + 28, viewportHeight * 0.28), stillNearGrid = gridRect.bottom > Math.min(180, viewportHeight * 0.35), detailVisible = detailRect.bottom > 80 && detailRect.top < viewportHeight;
   setCatalogScrollTopButtonVisible(startedScrollingInsideGrid && stillNearGrid && detailVisible);
 }
-
 function scheduleCatalogScrollTopButtonUpdate() {
-  if (catalogState.catalogScrollTopButtonRaf) return;
-  catalogState.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton);
+  catalogState.catalogScrollTopButtonRaf || (catalogState.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton));
 }
-
 function renderCatalogCategoryMenu(menu, options = {}) {
-  const { activeCatalogId = activeCatalog()?.id, onSelect } = options;
+  let { activeCatalogId = activeCatalog()?.id, onSelect } = options;
   if (!catalogs.length) {
-    menu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
+    menu.innerHTML = '<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>';
     return;
   }
-
-  const groups = getCatalogCategoryGroups();
+  let groups = getCatalogCategoryGroups();
   menu.innerHTML = groups.map((group) => `
     <section class="reader-catalog-menu-section">
       <div class="reader-catalog-menu-category">${escapeHtml(group.category)}</div>
@@ -4950,165 +3665,85 @@ function renderCatalogCategoryMenu(menu, options = {}) {
         `).join("")}
       </div>
     </section>
-  `).join("");
-
-  if (!onSelect) return;
-  Array.from(menu.querySelectorAll("[data-catalog-menu-id]"))
-    .filter(isHtmlElement)
-    .forEach((button) => {
-      button.addEventListener("click", () => {
-        const catalogId = String(button.dataset.catalogMenuId || "");
-        if (catalogId) onSelect(catalogId);
-      });
+  `).join(""), onSelect && Array.from(menu.querySelectorAll("[data-catalog-menu-id]")).filter(isHtmlElement).forEach((button) => {
+    button.addEventListener("click", () => {
+      let catalogId = String(button.dataset.catalogMenuId || "");
+      catalogId && onSelect(catalogId);
     });
+  });
 }
-
 function updateDetailCatalogMenuLabel(catalog = activeCatalog()) {
   catalogElements.catalogMenuToggleText.textContent = catalog?.title || "בחר קטלוג";
 }
-
 function renderDetailCatalogMenu() {
   renderCatalogCategoryMenu(catalogElements.catalogMenu, {
     onSelect: (catalogId) => {
-      closeDetailCatalogMenu();
-      if (catalogId === activeCatalog()?.id) return;
-      navigateTo(catalogDocumentUrl(catalogId));
+      closeDetailCatalogMenu(), catalogId !== activeCatalog()?.id && navigateTo(catalogDocumentUrl(catalogId));
     }
   });
 }
-
 function renderCatalogDetail() {
-  const catalog = activeCatalog();
-  if (!catalog) return;
-  showCatalogDetail();
-  catalogElements.catalogTitle.textContent = catalog.title;
-  catalogElements.catalogDescription.textContent = catalog.description || "";
-  updateDetailCatalogMenuLabel(catalog);
-  if (catalogElements.catalogCoverPreview) {
-    applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, 1);
-    setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog));
-    catalogElements.catalogCoverPreview.loading = "lazy";
-    catalogElements.catalogCoverPreview.decoding = "async";
-    catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`;
-  }
-  if (catalogElements.openCatalogEntryFromDetail) catalogElements.openCatalogEntryFromDetail.disabled = catalog.pages < 1;
-  if (catalogElements.catalogMenu && !catalogElements.catalogMenu.classList.contains("hidden")) renderDetailCatalogMenu();
-  renderPageGrid();
-  scheduleCatalogScrollTopButtonUpdate();
+  let catalog = activeCatalog();
+  catalog && (showCatalogDetail(), catalogElements.catalogTitle.textContent = catalog.title, catalogElements.catalogDescription.textContent = catalog.description || "", updateDetailCatalogMenuLabel(catalog), catalogElements.catalogCoverPreview && (applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, 1), setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog)), catalogElements.catalogCoverPreview.loading = "lazy", catalogElements.catalogCoverPreview.decoding = "async", catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`), catalogElements.openCatalogEntryFromDetail && (catalogElements.openCatalogEntryFromDetail.disabled = catalog.pages < 1), catalogElements.catalogMenu && !catalogElements.catalogMenu.classList.contains("hidden") && renderDetailCatalogMenu(), renderPageGrid(), scheduleCatalogScrollTopButtonUpdate());
 }
-
 function openCatalog(id, options = {}) {
-  const { scroll = false, openPage = null, scrollBehavior = "smooth" } = options;
-  const catalog = catalogs.find((item) => item.id === id) || null;
-  if (!catalog) return;
-
-  if (!isAppPage("catalog")) {
-    navigateTo(openPage != null
-      ? viewerDocumentUrl(catalog.id, openPage)
-      : catalogDocumentUrl(catalog.id));
-    return;
+  let { scroll = !1, openPage = null, scrollBehavior = "smooth" } = options, catalog = catalogs.find((item) => item.id === id) || null;
+  if (catalog) {
+    if (!isAppPage("catalog")) {
+      navigateTo(openPage != null ? viewerDocumentUrl(catalog.id, openPage) : catalogDocumentUrl(catalog.id));
+      return;
+    }
+    setActiveLocation(catalog, 1, activeViewerSource()), renderCatalogDetail(), history.replaceState(history.state, "", catalogDocumentUrl(catalog.id)), scroll && scrollCatalogDetailIntoView({ behavior: scrollBehavior }), openPage != null && navigateTo(viewerDocumentUrl(catalog.id, openPage));
   }
-
-  setActiveLocation(catalog, 1, activeViewerSource());
-  renderCatalogDetail();
-  history.replaceState(history.state, "", catalogDocumentUrl(catalog.id));
-
-  if (scroll) scrollCatalogDetailIntoView({ behavior: scrollBehavior });
-  if (openPage != null) navigateTo(viewerDocumentUrl(catalog.id, openPage));
 }
-
 function closeDetailCatalogMenu() {
-  catalogElements.catalogMenu.classList.add("hidden");
-  catalogElements.catalogMenuToggle.setAttribute("aria-expanded", "false");
+  catalogElements.catalogMenu.classList.add("hidden"), catalogElements.catalogMenuToggle.setAttribute("aria-expanded", "false");
 }
-
 function catalogGridContainsMenuTarget(target) {
-  if (!(target instanceof Node)) return false;
-  return [
+  return target instanceof Node ? [
     catalogElements.catalogMenu,
     catalogElements.catalogMenuToggle,
     catalogElements.mobileCategoryMenu,
     catalogElements.mobileCategoryMenuToggle
-  ].some((element) => element.contains(target));
+  ].some((element) => element.contains(target)) : !1;
 }
-
 function prepareCatalogGridRoute(nextPage) {
-  closeMobileCategoryMenu();
-  closeDetailCatalogMenu();
-  if (nextPage !== "catalog") {
-    catalogElements.catalogDetail.classList.add("hidden");
-    catalogElements.catalogDetail.classList.remove("in-view");
-    setCatalogScrollTopButtonVisible(false);
-  }
+  closeMobileCategoryMenu(), closeDetailCatalogMenu(), nextPage !== "catalog" && (catalogElements.catalogDetail.classList.add("hidden"), catalogElements.catalogDetail.classList.remove("in-view"), setCatalogScrollTopButtonVisible(!1));
 }
-
 function handleCatalogGridResize() {
-  if (window.innerWidth > 760) closeMobileCategoryMenu();
-  scheduleCatalogLayoutRefresh();
-  scheduleCategoryNavFit();
-  scheduleCatalogScrollTopButtonUpdate();
+  window.innerWidth > 760 && closeMobileCategoryMenu(), scheduleCatalogLayoutRefresh(), scheduleCategoryNavFit(), scheduleCatalogScrollTopButtonUpdate();
 }
-
 function handleCatalogGridScroll() {
   scheduleCatalogScrollTopButtonUpdate();
 }
-
 function attachCatalogGridEvents() {
   catalogElements.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    getFeatureInterface("search")?.closeGlobalPanel({ focusButton: false });
-    setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
-  });
-
-  catalogElements.mobileCategoryMenu?.addEventListener("click", (event) => {
-    const link = eventTargetElement(event.target)?.closest(".category-nav-link");
-    if (!(link instanceof HTMLAnchorElement) || !catalogElements.mobileCategoryMenu.contains(link)) return;
-    closeMobileCategoryMenu();
-    handleCatalogFocusLinkClick(link, event);
-  });
-
-  catalogElements.catalogMenuToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
-    renderDetailCatalogMenu();
-    const isOpen = !catalogElements.catalogMenu?.classList.contains("hidden");
-    catalogElements.catalogMenu?.classList.toggle("hidden", isOpen);
-    catalogElements.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-  });
-  catalogElements.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
-
-  catalogElements.openCatalogEntryFromDetail?.addEventListener("click", () => {
-    const catalog = activeCatalog();
-    if (!catalog) return;
-    navigateTo(viewerDocumentUrl(catalog.id, 1));
-  });
-  catalogElements.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
-
-  catalogElements.categoryNav?.addEventListener("click", (event) => {
-    const link = eventTargetElement(event.target)?.closest(".category-nav-link");
-    if (!(link instanceof HTMLAnchorElement) || !catalogElements.categoryNav.contains(link)) return;
-    closeMobileCategoryMenu();
-    handleCatalogFocusLinkClick(link, event);
-  });
-
-  catalogElements.catalogGrid?.addEventListener("click", (event) => {
-    const link = eventTargetElement(event.target)?.closest(".catalog-subcategory-nav-link");
-    if (!(link instanceof HTMLAnchorElement) || !catalogElements.catalogGrid.contains(link)) return;
-    handleCatalogFocusLinkClick(link, event);
+    event.preventDefault(), event.stopPropagation(), getFeatureInterface("search")?.closeGlobalPanel({ focusButton: !1 }), setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
+  }), catalogElements.mobileCategoryMenu?.addEventListener("click", (event) => {
+    let link = eventTargetElement(event.target)?.closest(".category-nav-link");
+    !(link instanceof HTMLAnchorElement) || !catalogElements.mobileCategoryMenu.contains(link) || (closeMobileCategoryMenu(), handleCatalogFocusLinkClick(link, event));
+  }), catalogElements.catalogMenuToggle?.addEventListener("click", (event) => {
+    event.stopPropagation(), closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), renderDetailCatalogMenu();
+    let isOpen = !catalogElements.catalogMenu?.classList.contains("hidden");
+    catalogElements.catalogMenu?.classList.toggle("hidden", isOpen), catalogElements.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  }), catalogElements.catalogMenu?.addEventListener("click", (event) => event.stopPropagation()), catalogElements.openCatalogEntryFromDetail?.addEventListener("click", () => {
+    let catalog = activeCatalog();
+    catalog && navigateTo(viewerDocumentUrl(catalog.id, 1));
+  }), catalogElements.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView()), catalogElements.categoryNav?.addEventListener("click", (event) => {
+    let link = eventTargetElement(event.target)?.closest(".category-nav-link");
+    !(link instanceof HTMLAnchorElement) || !catalogElements.categoryNav.contains(link) || (closeMobileCategoryMenu(), handleCatalogFocusLinkClick(link, event));
+  }), catalogElements.catalogGrid?.addEventListener("click", (event) => {
+    let link = eventTargetElement(event.target)?.closest(".catalog-subcategory-nav-link");
+    !(link instanceof HTMLAnchorElement) || !catalogElements.catalogGrid.contains(link) || handleCatalogFocusLinkClick(link, event);
   });
 }
-
 registerFeatureInterface("catalog-grid", {
   attachEvents: attachCatalogGridEvents,
   initialize: () => {
-    initRevealObserver();
-    initCategoryNavFit();
+    initRevealObserver(), initCategoryNavFit();
   },
   renderInitialContent: () => {
-    renderCatalogCards();
-    fillCatalogSelect();
+    renderCatalogCards(), fillCatalogSelect();
   },
   renderEmptyState,
   openCatalog,
@@ -5124,9 +3759,7 @@ registerFeatureInterface("catalog-grid", {
   activateCategoryTarget: activateCatalogCategoryTarget,
   layoutColumnCount: catalogLayoutColumnCount,
   hideDetail: () => {
-    catalogElements.catalogDetail.classList.add("hidden");
-    catalogElements.catalogDetail.classList.remove("in-view");
-    setCatalogScrollTopButtonVisible(false);
+    catalogElements.catalogDetail.classList.add("hidden"), catalogElements.catalogDetail.classList.remove("in-view"), setCatalogScrollTopButtonVisible(!1);
   },
   prepareRoute: prepareCatalogGridRoute,
   containsMenuTarget: catalogGridContainsMenuTarget,
@@ -5136,1571 +3769,95 @@ registerFeatureInterface("catalog-grid", {
   syncDetailMenuLabel: updateDetailCatalogMenuLabel,
   renderDetailMenu: renderDetailCatalogMenu
 });
-
 registerFeatureInterface("catalog-navigation", {
   escapePriority: 400,
-  closeTopLayer: () => {
-    if (!isMobileCategoryMenuOpen()) return false;
-    closeMobileCategoryMenu({ focusButton: true });
-    return true;
-  }
+  closeTopLayer: () => isMobileCategoryMenuOpen() ? (closeMobileCategoryMenu({ focusButton: !0 }), !0) : !1
 });
-
 registerFeatureInterface("catalog-detail", {
   escapePriority: 200,
   close: closeDetailCatalogMenu,
   containsTarget: (target) => target instanceof Node && (catalogElements.catalogMenu.contains(target) || catalogElements.catalogMenuToggle.contains(target)),
-  closeTopLayer: () => {
-    if (catalogElements.catalogMenu.classList.contains("hidden")) return false;
-    closeDetailCatalogMenu();
-    return true;
-  }
+  closeTopLayer: () => catalogElements.catalogMenu.classList.contains("hidden") ? !1 : (closeDetailCatalogMenu(), !0)
 });
-/* ===== END SOURCE: src/js/40-catalog-grid.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/50-search-ui.js ===== */
-
-
-let globalSearchRenderTimer = 0;
-let lightboxSearchRenderTimer = 0;
-let globalSearchAppendTimer = 0;
-let globalSearchRenderSequence = 0;
-let lightboxSearchRenderSequence = 0;
-let lastGlobalSearchResults = [];
-let lastLightboxSearchResults = [];
-let lastGlobalSearchKey = "";
-let lastLightboxSearchKey = "";
-const GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 6;
-const GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 6;
-
-function isSearchIndexReady() {
-  return Boolean(catalogSearch?.isReady?.());
-}
-
-function refreshSearchUiAfterIndexLoad() {
-  initSearchStatus();
-  initLightboxSearchStatus();
-  // Search renderers already await the shared index-load promise. Starting a
-  // second render here creates two requests on the same worker channel: the
-  // newer render can be cancelled by the older waiter when it resumes. Status
-  // refresh is sufficient; the renderer that owns the current input continues
-  // as soon as this promise resolves.
-}
-
-function ensureSearchIndexLoaded(options = {}) {
-  if (!catalogSearch?.ensureReady) {
-    searchState.searchIndexLoadState = "error";
-    return Promise.reject(new Error("Catalog search runtime is unavailable"));
-  }
-  if (isSearchIndexReady()) {
-    searchState.searchIndexLoadState = "ready";
-    return Promise.resolve(true);
-  }
-  if (searchState.searchIndexLoadPromise) return searchState.searchIndexLoadPromise;
-
-  searchState.searchIndexLoadState = "loading";
-  initLightboxSearchStatus();
-  const loadTrigger = telemetryCleanText(options.trigger || "interactive", 40);
-  searchState.searchIndexLoadPromise = catalogSearch.ensureReady()
-    .then(() => {
-      searchState.searchIndexLoadState = "ready";
-      searchState.searchIndexLoadPromise = null;
-      refreshSearchUiAfterIndexLoad();
-      return true;
-    })
-    .catch((error) => {
-      searchState.searchIndexLoadState = "error";
-      searchState.searchIndexLoadPromise = null;
-      telemetryTrackSearchIndexFailure("network-error", { trigger: loadTrigger });
-      initSearchStatus();
-      initLightboxSearchStatus();
-      throw error;
-    });
-  return searchState.searchIndexLoadPromise;
-}
-
-function scheduleSearchIndexPreload() {
-  window.clearTimeout(searchState.searchIndexPreloadTimer);
-  if (isSaveDataEnabled()) return;
-  searchState.searchIndexPreloadTimer = window.setTimeout(() => {
-    if (isSaveDataEnabled()) return;
-    const preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {});
-    if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(preload, { timeout: 2500 });
-    } else {
-      preload();
-    }
-  }, SEARCH_INDEX_PRELOAD_DELAY_MS);
-}
-
-function cancelScheduledSearch(channel) {
-  if (channel === "global") {
-    window.clearTimeout(globalSearchRenderTimer);
-    window.clearTimeout(globalSearchAppendTimer);
-    globalSearchRenderTimer = 0;
-    globalSearchAppendTimer = 0;
-    globalSearchRenderSequence += 1;
-  } else {
-    window.clearTimeout(lightboxSearchRenderTimer);
-    lightboxSearchRenderTimer = 0;
-    lightboxSearchRenderSequence += 1;
-  }
-  catalogSearch?.cancel?.(channel);
-}
-
-function cancelGlobalSearchResultAppend() {
-  window.clearTimeout(globalSearchAppendTimer);
-  globalSearchAppendTimer = 0;
-}
-
-function scheduleSearchRender(channel, query, options = {}) {
-  const delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS;
-  const callback = channel === "global"
-    ? () => renderSearchResults(query)
-    : () => renderLightboxSearchResults(query);
-  catalogSearch?.cancel?.(channel);
-  if (channel === "global") {
-    cancelGlobalSearchResultAppend();
-    globalSearchRenderSequence += 1;
-    window.clearTimeout(globalSearchRenderTimer);
-    globalSearchRenderTimer = window.setTimeout(callback, delay);
-  } else {
-    lightboxSearchRenderSequence += 1;
-    window.clearTimeout(lightboxSearchRenderTimer);
-    lightboxSearchRenderTimer = window.setTimeout(callback, delay);
-  }
-}
-
-function getGlobalSearchCategories() {
-  return getCatalogCategoryGroups()
-    .filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length)
-    .map((group) => ({ category: group.category }));
-}
-
-function hasGlobalSearchCategory(category) {
-  const requestedCategory = String(category || "").trim();
-  if (!requestedCategory) return false;
-  return getCatalogCategoryGroups().some((group) => group.category === requestedCategory);
-}
-
-function getGlobalSearchCategory() {
-  const selectedCategory = String(searchState.globalSearchCategory || "").trim();
-  if (!selectedCategory) return "";
-  return hasGlobalSearchCategory(selectedCategory) ? selectedCategory : "";
-}
-
-function globalSearchScopeLabel(category = getGlobalSearchCategory()) {
-  return category ? category : "בכל הקטלוגים";
-}
-
-function globalSearchPlaceholder() {
-  const category = getGlobalSearchCategory();
-  return category
-    ? `חיפוש קטלוג, קטגוריה או דגם בתוך ${category}...`
-    : "חיפוש קטגוריה, תת קטגוריה, קטלוג, דגם או טקסט...";
-}
-
-function closeGlobalSearchScopeMenu() {
-  searchElements.globalSearchScopeMenu?.classList.add("hidden");
-  searchElements.globalSearchScopeToggle?.setAttribute("aria-expanded", "false");
-}
-
-function isGlobalSearchPanelOpen() {
-  return Boolean(searchState.globalSearchOpen && searchElements.catalogSearch && !searchElements.catalogSearch.classList.contains("hidden"));
-}
-
-function setGlobalSearchPanelOpen(open, options = {}) {
-  const shouldOpen = Boolean(open);
-  searchState.globalSearchOpen = shouldOpen;
-
-  if (!searchElements.catalogSearch) return;
-
-  searchElements.catalogSearch.classList.toggle("hidden", !shouldOpen);
-  searchElements.catalogSearch.classList.toggle("is-open", shouldOpen);
-  searchElements.catalogSearch.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
-
-  searchElements.globalSearchOpen?.classList.toggle("is-active", shouldOpen);
-  searchElements.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-
-  if (shouldOpen) {
-    renderGlobalSearchScopeMenu();
-    renderSearchResults(searchElements.globalSearchInput?.value || "");
-    if (options.focus !== false) {
-      window.requestAnimationFrame(() => searchElements.globalSearchInput?.focus({ preventScroll: true }));
-    }
-    return;
-  }
-
-  closeGlobalSearchScopeMenu();
-  hideSearchFloatingPreview();
-  cancelScheduledSearch("global");
-  if (options.hideResults !== false) {
-    searchElements.globalSearchResults?.classList.add("hidden");
-  }
-  if (options.focusButton) {
-    window.requestAnimationFrame(() => searchElements.globalSearchOpen?.focus({ preventScroll: true }));
-  }
-}
-
-function openGlobalSearchPanel(options = {}) {
-  setGlobalSearchPanelOpen(true, options);
-}
-
-function closeGlobalSearchPanel(options = {}) {
-  setGlobalSearchPanelOpen(false, options);
-}
-
-function renderGlobalSearchScopeMenu() {
-  if (!searchElements.globalSearchScopeMenu) return;
-
-  const categories = getGlobalSearchCategories();
-  searchElements.globalSearchScopeMenu.innerHTML = `
-    <button type="button" role="menuitemradio" aria-checked="true" data-global-search-category="">
-      <strong>בכל הקטלוגים</strong>
-    </button>
-    ${categories.map((group) => `
-      <button type="button" role="menuitemradio" aria-checked="false" data-global-search-category="${escapeHtml(group.category)}">
-        <strong>${escapeHtml(group.category)}</strong>
-      </button>
-    `).join("")}
-  `;
-  syncGlobalSearchScopeUi();
-}
-
-function syncGlobalSearchScopeUi() {
-  const category = getGlobalSearchCategory();
-  if (searchElements.globalSearchScopeToggle) {
-    searchElements.globalSearchScopeToggle.innerHTML = `${escapeHtml(globalSearchScopeLabel(category))} <span aria-hidden="true">⌄</span>`;
-    searchElements.globalSearchScopeToggle.title = category ? `חיפוש רק בקטגוריית ${category}` : "חיפוש בכל הקטלוגים";
-  }
-  if (searchElements.globalSearchInput) {
-    searchElements.globalSearchInput.placeholder = globalSearchPlaceholder();
-    searchElements.globalSearchInput.setAttribute("aria-label", globalSearchPlaceholder());
-  }
-  Array.from(searchElements.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]") || []).filter(isHtmlElement).forEach((button) => {
-    const selected = String(button.dataset.globalSearchCategory || "") === category;
-    button.classList.toggle("active", selected);
-    button.setAttribute("aria-checked", selected ? "true" : "false");
-  });
-}
-
-function setGlobalSearchCategory(category, options = {}) {
-  const requestedCategory = String(category || "").trim();
-  const nextCategory = requestedCategory && hasGlobalSearchCategory(requestedCategory)
-    ? requestedCategory
-    : "";
-
-  if (searchState.globalSearchCategory === nextCategory) {
-    syncGlobalSearchScopeUi();
-    closeGlobalSearchScopeMenu();
-    return;
-  }
-
-  searchState.globalSearchCategory = nextCategory;
-  syncGlobalSearchScopeUi();
-  closeGlobalSearchScopeMenu();
-  initSearchStatus();
-
-  if (options.render !== false && searchElements.globalSearchInput) {
-    renderSearchResults(searchElements.globalSearchInput.value);
-  }
-}
-
-function initSearchStatus() {
-  syncGlobalSearchScopeUi();
-}
-
-function getLightboxSearchScope() {
-  return searchState.lightboxSearchScope === "all" ? "all" : "catalog";
-}
-
-function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
-  return scope === "all" ? "בכל הקטלוגים" : "בקטלוג הזה";
-}
-
-function lightboxSearchPlaceholder() {
-  if (getLightboxSearchScope() === "all") return "חיפוש דגם בכל הקטלוגים...";
-  const title = String(activeCatalog()?.title || "").trim();
-  return title ? `חיפוש ב: ${title}` : "חיפוש ב...";
-}
-
-function closeLightboxSearchScopeMenu() {
-  searchElements.lightboxSearchScopeMenu?.classList.add("hidden");
-  searchElements.lightboxSearchScopeToggle?.setAttribute("aria-expanded", "false");
-}
-
-function closeLightboxCatalogMenu() {
-  searchElements.lightboxCatalogMenu?.classList.add("hidden");
-  searchElements.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
-}
-
-function isMobileReaderSearchMode() {
-  return Boolean(window.matchMedia?.(MOBILE_READER_SEARCH_MEDIA).matches);
-}
-
-function syncLightboxMobileSearchUi() {
-  const compactMode = isMobileReaderSearchMode();
-  const isOpen = compactMode && searchState.lightboxMobileSearchOpen;
-
-  if (!compactMode) searchState.lightboxMobileSearchOpen = false;
-  getFeatureInterface("viewer")?.syncMobileSearchUi?.(isOpen);
-  searchElements.lightboxMobileSearchToggle?.setAttribute("aria-expanded", isOpen ? "true" : "false");
-  searchElements.lightboxSearchPanel?.setAttribute("aria-hidden", compactMode && !isOpen ? "true" : "false");
-}
-
-function setLightboxMobileSearchOpen(open, options = {}) {
-  const { focusInput = false, returnFocus = false, hideResults = true, hideTopUi = false } = options;
-  const shouldOpen = Boolean(
-    open &&
-    getFeatureInterface("viewer")?.isViewerOpen?.() &&
-    isMobileReaderSearchMode()
-  );
-
-  searchState.lightboxMobileSearchOpen = shouldOpen;
-  syncLightboxMobileSearchUi();
-
-  if (shouldOpen) {
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
-    getFeatureInterface("viewer")?.showTopUi?.();
-    ensureSearchIndexLoaded().catch(() => {});
-    if (focusInput) {
-      window.requestAnimationFrame(() => searchElements.lightboxSearchInput?.focus());
-    }
-    return;
-  }
-
-  if (hideResults) {
-    hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi });
-  }
-  if (returnFocus && isMobileReaderSearchMode()) {
-    searchElements.lightboxMobileSearchToggle?.focus();
-  }
-}
-
-function syncLightboxSearchScopeUi() {
-  const scope = getLightboxSearchScope();
-  if (searchElements.lightboxSearchScopeToggle) {
-    searchElements.lightboxSearchScopeToggle.innerHTML = `${escapeHtml(lightboxSearchScopeLabel(scope))} <span aria-hidden="true">⌄</span>`;
-  }
-  if (searchElements.lightboxSearchInput) {
-    searchElements.lightboxSearchInput.placeholder = lightboxSearchPlaceholder();
-    searchElements.lightboxSearchInput.setAttribute("aria-label", lightboxSearchPlaceholder());
-  }
-  Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
-    const selected = button.dataset.lightboxSearchScope === scope;
-    button.classList.toggle("active", selected);
-    button.setAttribute("aria-checked", selected ? "true" : "false");
-  });
-}
-
-function setLightboxSearchScope(scope, options = {}) {
-  const nextScope = scope === "all" ? "all" : "catalog";
-  if (searchState.lightboxSearchScope === nextScope) {
-    syncLightboxSearchScopeUi();
-    closeLightboxSearchScopeMenu();
-    return;
-  }
-
-  searchState.lightboxSearchScope = nextScope;
-  syncLightboxSearchScopeUi();
-  closeLightboxSearchScopeMenu();
-  initLightboxSearchStatus();
-
-  if (options.render !== false && searchElements.lightboxSearchInput) {
-    renderLightboxSearchResults(searchElements.lightboxSearchInput.value);
-  }
-}
-
-function hideLightboxSearchResults(options = {}) {
-  const { blurTopUiFocus = false, hideTopUi = false } = options;
-
-  hideSearchFloatingPreview();
-  searchElements.lightboxSearchResults?.classList.add("hidden");
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
-
-  if (blurTopUiFocus) {
-    const activeElement = document.activeElement;
-    if (
-      isHtmlElement(activeElement) &&
-      getFeatureInterface("viewer")?.containsTopBarElement(activeElement)
-    ) {
-      activeElement.blur();
-    }
-  }
-
-  if (hideTopUi) getFeatureInterface("viewer")?.hideTopUiForSearch?.();
-}
-
-function resetLightboxSearch() {
-  searchState.lightboxMobileSearchOpen = false;
-  syncLightboxMobileSearchUi();
-  if (searchElements.lightboxSearchInput) searchElements.lightboxSearchInput.value = "";
-  hideLightboxSearchResults({ blurTopUiFocus: true });
-  if (searchElements.lightboxSearchResults) searchElements.lightboxSearchResults.innerHTML = "";
-  searchElements.lightboxSearchClear?.classList.add("hidden");
-  syncLightboxSearchScopeUi();
-  initLightboxSearchStatus();
-}
-
-function lightboxSearchKey(query) {
-  const scope = getLightboxSearchScope();
-  return [String(query || "").trim(), scope, scope === "all" ? "" : (activeCatalog()?.id || "")].join("\u0000");
-}
-
-async function getLightboxSearchResults(query, limit = 24, control = {}) {
-  const rawQuery = String(query || "").trim();
-  if (rawQuery.length < 2) return [];
-  await ensureSearchIndexLoaded({ trigger: "viewer-search" });
-  if (control.isCurrent && !control.isCurrent()) return [];
-  if (!catalogSearch?.hasIndex?.()) return [];
-
-  const options = { limit, channel: "viewer" };
-  if (getLightboxSearchScope() !== "all") {
-    const catalog = activeCatalog();
-    if (!catalog) return [];
-    options.catalogId = catalog.id;
-  }
-  const results = await catalogSearch.search(rawQuery, options);
-  return Array.isArray(results) ? results : [];
-}
-
-async function trackCompletedLightboxSearch(completion, query = searchElements.lightboxSearchInput?.value || "") {
-  const rawQuery = String(query || "").trim();
-  const scope = getLightboxSearchScope();
-  const key = lightboxSearchKey(rawQuery);
-  const results = key === lastLightboxSearchKey
-    ? lastLightboxSearchResults
-    : await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
-  telemetryTrackSearch(rawQuery, results.length, {
-    surface: "viewer",
-    scope,
-    catalogId: scope === "all" ? "" : activeCatalog()?.id,
-    completion
-  });
-  return results;
-}
-
-function openLightboxSearchResult(result) {
-  if (!result) return false;
-  const catalog = activeCatalog();
-  const targetCatalogId = String(result.catalogId || catalog?.id || "").trim();
-  const sameCatalog = Boolean(catalog && String(catalog.id) === targetCatalogId);
-  const viewer = requireFeatureInterface("viewer");
-  const handled = searchCatalogDomain.executeLightboxSearchResultAction(result, catalog, {
-    openCatalog: viewer.openCatalog,
-    setPage: viewer.setPage,
-    showTopUi: viewer.showTopUi
-  });
-  if (!handled || !sameCatalog) return handled;
-
-  if (searchState.lightboxMobileSearchOpen) {
-    setLightboxMobileSearchOpen(false, { hideResults: true });
-  } else {
-    hideLightboxSearchResults();
-  }
-  return true;
-}
-
-async function submitLightboxSearch() {
-  const rawQuery = String(searchElements.lightboxSearchInput?.value || "").trim();
-  const results = await renderLightboxSearchResults(rawQuery);
-  await trackCompletedLightboxSearch("submit", rawQuery);
-  return openLightboxSearchResult(results[0]);
-}
-
-function initLightboxSearchStatus() {
-  if (!searchElements.lightboxSearchStatus) return;
-
-  const hasCatalog = Boolean(activeCatalog());
-  const hasIndex = Boolean(catalogSearch?.hasIndex?.());
-  const indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
-  if (searchElements.lightboxSearchInput) searchElements.lightboxSearchInput.disabled = !hasCatalog;
-  syncLightboxSearchScopeUi();
-
-  if (!hasCatalog) {
-    searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
-    return;
-  }
-
-  if (!hasIndex) {
-    searchElements.lightboxSearchStatus.textContent = indexPending
-      ? "אינדקס החיפוש נטען לפי הצורך."
-      : "אינדקס החיפוש אינו זמין כרגע.";
-    return;
-  }
-
-  searchElements.lightboxSearchStatus.textContent = getLightboxSearchScope() === "all"
-    ? "הקלד לפחות 2 תווים לחיפוש בכל הקטלוגים."
-    : "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
-}
-
-function hideSearchFloatingPreview() {
-  searchElements.searchFloatingPreview?.classList.remove("visible");
-}
-
-function isGlobalSearchScopeMenuOpen() {
-  return Boolean(searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden"));
-}
-
-function isLightboxSearchScopeMenuOpen() {
-  return Boolean(searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"));
-}
-
-function rememberSearchPreviewPointer(event) {
-  const clientX = Number(event?.clientX);
-  const clientY = Number(event?.clientY);
-  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
-
-  searchState.searchPreviewPointerClientX = clientX;
-  searchState.searchPreviewPointerClientY = clientY;
-}
-
-function searchPreviewTargetBelongsToOpenResults(target) {
-  if (!target || !target.isConnected) return false;
-
-  if (searchElements.globalSearchResults?.contains(target)) {
-    return isGlobalSearchPanelOpen() && !searchElements.globalSearchResults.classList.contains("hidden");
-  }
-
-  if (searchElements.lightboxSearchResults?.contains(target)) {
-    return Boolean(getFeatureInterface("viewer")?.isViewerOpen?.()) && !searchElements.lightboxSearchResults.classList.contains("hidden");
-  }
-
-  return false;
-}
-
-function isSearchPreviewBlockedByOpenMenu(target) {
-  if (!(target instanceof Node)) return false;
-  if (searchElements.globalSearchResults?.contains(target) && isGlobalSearchScopeMenuOpen()) return true;
-  if (searchElements.lightboxSearchResults?.contains(target) && isLightboxSearchScopeMenuOpen()) return true;
-  return false;
-}
-
-function getSearchPreviewTargetAtLastPointer() {
-  const clientX = Number(searchState.searchPreviewPointerClientX);
-  const clientY = Number(searchState.searchPreviewPointerClientY);
-  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
-  if (clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) return null;
-
-  const element = document.elementFromPoint(clientX, clientY);
-  const target = element?.closest?.("[data-search-preview-src]");
-  return target instanceof HTMLElement && searchPreviewTargetBelongsToOpenResults(target) ? target : null;
-}
-
-function isSearchPreviewSuppressed() {
-  return Date.now() < (searchState.searchPreviewSuppressUntil || 0);
-}
-
-function restoreSearchFloatingPreviewAfterSuppression() {
-  if (isSearchPreviewSuppressed() || !hasHoverPointer()) return;
-
-  const target = getSearchPreviewTargetAtLastPointer();
-  if (!target || isSearchPreviewBlockedByOpenMenu(target)) return;
-
-  showSearchFloatingPreview(target);
-}
-
-function suppressSearchFloatingTooltip(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
-  window.BargigTooltips?.suppress?.(duration, options);
-}
-
-function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
-  const { restoreAfter = true } = options;
-  const delay = Math.max(0, Number(duration) || 0);
-  suppressSearchFloatingTooltip(delay, { restoreAfter });
-  searchState.searchPreviewSuppressUntil = Math.max(
-    searchState.searchPreviewSuppressUntil || 0,
-    Date.now() + delay
-  );
-  hideSearchFloatingPreview();
-
-  window.clearTimeout(searchState.searchPreviewSuppressTimer);
-  searchState.searchPreviewSuppressTimer = window.setTimeout(() => {
-    searchState.searchPreviewSuppressTimer = 0;
-    if (restoreAfter) restoreSearchFloatingPreviewAfterSuppression();
-  }, delay + 20);
-}
-
-function searchPreviewPageLabel(target) {
-  return String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
-}
-
-function positionSearchFloatingPreview(target) {
-  const preview = searchElements.searchFloatingPreview;
-  if (!preview || !target) return;
-
-  const targetRect = target.getBoundingClientRect();
-  const gap = 16;
-  const safeMargin = 12;
-  const fallbackWidth = Math.min(430, Math.max(180, window.innerWidth * 0.34));
-  const fallbackHeight = Math.min(620, Math.max(180, window.innerHeight * 0.64));
-  const previewRect = preview.getBoundingClientRect();
-  const previewWidth = previewRect.width || fallbackWidth;
-  const previewHeight = previewRect.height || fallbackHeight;
-
-  let left;
-  if (targetRect.left - gap - previewWidth >= safeMargin) {
-    left = targetRect.left - gap - previewWidth;
-  } else if (targetRect.right + gap + previewWidth <= window.innerWidth - safeMargin) {
-    left = targetRect.right + gap;
-  } else {
-    left = targetRect.left + (targetRect.width / 2) - (previewWidth / 2);
-  }
-
-  const top = targetRect.top + (targetRect.height / 2) - (previewHeight / 2);
-  preview.style.left = `${clampValue(left, safeMargin, Math.max(safeMargin, window.innerWidth - previewWidth - safeMargin))}px`;
-  preview.style.top = `${clampValue(top, safeMargin, Math.max(safeMargin, window.innerHeight - previewHeight - safeMargin))}px`;
-}
-
-function showSearchFloatingPreview(target) {
-  if (!target || !searchElements.searchFloatingPreview || !searchElements.searchFloatingPreviewImage) return;
-  if (!searchPreviewTargetBelongsToOpenResults(target)) return;
-  if (isSearchPreviewSuppressed()) return;
-  if (isSearchPreviewBlockedByOpenMenu(target)) return;
-
-  const src = String(target.dataset.searchPreviewSrc || "").trim();
-  if (!src) return;
-
-  const label = searchPreviewPageLabel(target);
-  const previewImage = searchElements.searchFloatingPreviewImage;
-  previewImage.removeAttribute("width");
-  previewImage.removeAttribute("height");
-  previewImage.onload = () => positionSearchFloatingPreview(target);
-  setCatalogImageSource(previewImage, src);
-  searchElements.searchFloatingPreviewImage.alt = label;
-  if (searchElements.searchFloatingPreviewPage) searchElements.searchFloatingPreviewPage.textContent = label;
-
-  searchElements.searchFloatingPreview.classList.add("visible");
-  positionSearchFloatingPreview(target);
-}
-
-function bindSearchFloatingPreviewEvents(container) {
-  if (!container) return;
-
-  container.querySelectorAll("[data-search-preview-src]").forEach((candidate) => {
-    if (!(candidate instanceof HTMLElement)) return;
-    const target = candidate;
-    target.addEventListener("pointerenter", (event) => {
-      rememberSearchPreviewPointer(event);
-      if (!hasHoverPointer() || isTouchLikePointer(event) || isSearchPreviewSuppressed()) return;
-      showSearchFloatingPreview(target);
-    });
-    target.addEventListener("pointermove", (event) => {
-      rememberSearchPreviewPointer(event);
-      if (!hasHoverPointer() || isTouchLikePointer(event)) return;
-      if (isSearchPreviewSuppressed()) {
-        hideSearchFloatingPreview();
-        return;
-      }
-      positionSearchFloatingPreview(target);
-    });
-    target.addEventListener("pointerleave", (event) => {
-      rememberSearchPreviewPointer(event);
-      hideSearchFloatingPreview();
-    });
-    target.addEventListener("focus", () => showSearchFloatingPreview(target));
-    target.addEventListener("blur", hideSearchFloatingPreview);
-  });
-}
-
-function handleSearchPreviewScrollIntent(event) {
-  rememberSearchPreviewPointer(event);
-  suppressSearchFloatingPreview();
-}
-
-function normalizedWheelDeltaY(event, scrollTarget) {
-  const rawDelta = Number(event?.deltaY) || 0;
-  if (!rawDelta) return 0;
-  if (event.deltaMode === 1) return rawDelta * 16;
-  if (event.deltaMode === 2) return rawDelta * Math.max(1, scrollTarget?.clientHeight || window.innerHeight || 1);
-  return rawDelta;
-}
-
-function globalSearchWheelTarget(eventTarget) {
-  if (eventTarget instanceof Node && isGlobalSearchScopeMenuOpen() && searchElements.globalSearchScopeMenu?.contains(eventTarget)) {
-    return searchElements.globalSearchScopeMenu;
-  }
-
-  if (searchElements.globalSearchResults && !searchElements.globalSearchResults.classList.contains("hidden")) {
-    return searchElements.globalSearchResults;
-  }
-
-  return null;
-}
-
-function scrollElementByWheel(element, event) {
-  if (!element) return false;
-
-  const deltaY = normalizedWheelDeltaY(event, element);
-  if (!deltaY) return false;
-
-  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
-  const nextScrollTop = clampValue(element.scrollTop + deltaY, 0, maxScrollTop);
-  const didMove = Math.abs(nextScrollTop - element.scrollTop) > 0.5;
-
-  if (didMove) element.scrollTop = nextScrollTop;
-  return true;
-}
-
-function handleGlobalSearchPanelWheel(event) {
-  if (!isGlobalSearchPanelOpen() || !(event.target instanceof Node) || !searchElements.catalogSearch?.contains(event.target)) return;
-
-  handleSearchPreviewScrollIntent(event);
-
-  const scrollTarget = globalSearchWheelTarget(event.target);
-  if (scrollTarget) {
-    scrollElementByWheel(scrollTarget, event);
-  }
-
-  // The search panel floats above the site. Wheel gestures inside its frame should
-  // never leak to the page behind it, including when the inner results list is at
-  // its top/bottom edge or the pointer is over the panel padding/header.
-  event.preventDefault();
-  event.stopPropagation();
-}
-
-function normalizeSearchResultsDirection(container) {
-  if (!container) return;
-  container.setAttribute("dir", "rtl");
-}
-
-function lightboxSearchLayoutColumnLimit() {
-  const columns = getFeatureInterface("catalog-grid")?.layoutColumnCount?.();
-  const width = Math.max(0, window.innerWidth || document.documentElement?.clientWidth || 0);
-  return searchCatalogDomain.lightboxSearchColumnLimit(columns, width);
-}
-
-function updateLightboxSearchResultsLayout(count = 0) {
-  if (!searchElements.lightboxSearchResults) return;
-  normalizeSearchResultsDirection(searchElements.lightboxSearchResults);
-
-  const resultCount = Math.max(0, Number(count) || 0);
-  const columns = Math.max(1, Math.min(resultCount || 1, lightboxSearchLayoutColumnLimit()));
-  searchElements.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns));
-  searchElements.lightboxSearchResults.dataset.resultColumns = String(columns);
-  searchElements.lightboxSearchResults.dataset.resultCount = String(resultCount);
-}
-
-function searchEmptyStateMarkup(query, message, options = {}) {
-  const reader = options.reader === true;
-  const wrapperClass = reader
-    ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark"
-    : "search-empty empty-state ui-state";
-  const actionAttribute = reader ? "data-lightbox-empty-search-clear" : "data-empty-search-clear";
-  return `
-    <article class="${wrapperClass}" data-state="empty" role="status">
-      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <circle cx="10.5" cy="10.5" r="5.8"></circle>
-          <path d="m15 15 4.2 4.2M8.2 8.2l4.6 4.6M12.8 8.2l-4.6 4.6"></path>
-        </svg>
-      </span>
-      <div class="empty-state-copy">
-        <strong>לא נמצאו תוצאות עבור “${escapeHtml(query)}”</strong>
-        <p>${escapeHtml(message)}</p>
-      </div>
-      <button class="button soft empty-state-action" type="button" ${actionAttribute}>נקה וחפש מחדש</button>
-    </article>
-  `;
-}
-
-function searchIndexErrorMarkup(options = {}) {
-  const reader = options.reader === true;
-  const wrapperClass = reader
-    ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark"
-    : "search-empty empty-state ui-state";
-  const retryAttribute = reader ? "data-lightbox-search-index-retry" : "data-global-search-index-retry";
-  return `
-    <article class="${wrapperClass}" data-state="error" role="alert">
-      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
-      </span>
-      <div class="empty-state-copy">
-        <strong>החיפוש אינו זמין כרגע</strong>
-        <p>אינדקס החיפוש לא הצליח להיטען. אפשר לנסות שוב בלי לרענן את העמוד.</p>
-      </div>
-      <button class="button soft empty-state-action" type="button" ${retryAttribute}>נסה לטעון שוב</button>
-    </article>
-  `;
-}
-
-function retrySearchIndexLoad(options = {}) {
-  searchState.searchIndexLoadPromise = null;
-  searchState.searchIndexLoadState = "idle";
-  ensureSearchIndexLoaded({ trigger: "retry" })
-    .then(() => {
-      if (options.reader) renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "");
-      else renderSearchResults(searchElements.globalSearchInput?.value || "");
-    })
-    .catch(() => {
-      if (options.reader) renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "");
-      else renderSearchResults(searchElements.globalSearchInput?.value || "");
-    });
-}
-
-async function renderLightboxSearchResults(query) {
-  const rawQuery = String(query || "").trim();
-  if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
-  const renderSequence = ++lightboxSearchRenderSequence;
-  const renderKey = lightboxSearchKey(rawQuery);
-
-  normalizeSearchResultsDirection(searchElements.lightboxSearchResults);
-  hideSearchFloatingPreview();
-  updateLightboxSearchResultsLayout(0);
-  searchElements.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
-
-  if (rawQuery.length < 2) {
-    catalogSearch?.cancel?.("viewer");
-    lastLightboxSearchKey = "";
-    lastLightboxSearchResults = [];
-    searchElements.lightboxSearchResults.classList.add("hidden");
-    searchElements.lightboxSearchResults.removeAttribute("aria-busy");
-    searchElements.lightboxSearchResults.innerHTML = "";
-    initLightboxSearchStatus();
-    return [];
-  }
-
-  if (!activeCatalog()) {
-    searchElements.lightboxSearchResults.classList.add("hidden");
-    searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
-    return [];
-  }
-
-  searchElements.lightboxSearchResults.setAttribute("aria-busy", "true");
-  searchElements.lightboxSearchStatus.textContent = "מחפש באינדקס…";
-
-  try {
-    const scope = getLightboxSearchScope();
-    const results = await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24, {
-      isCurrent: () => (
-        renderSequence === lightboxSearchRenderSequence
-        && renderKey === lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")
-      )
-    });
-    if (renderSequence !== lightboxSearchRenderSequence || renderKey !== lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")) {
-      return [];
-    }
-
-    lastLightboxSearchKey = lightboxSearchKey(rawQuery);
-    lastLightboxSearchResults = results;
-    updateLightboxSearchResultsLayout(results.length);
-    searchElements.lightboxSearchResults.classList.remove("hidden");
-    searchElements.lightboxSearchResults.removeAttribute("aria-busy");
-
-    if (!results.length) {
-      searchElements.lightboxSearchStatus.textContent = scope === "all"
-        ? "לא נמצאו תוצאות בכל הקטלוגים."
-        : "לא נמצאו תוצאות בקטלוג הפתוח.";
-      searchElements.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
-        rawQuery,
-        "נסה חלק קצר יותר של הדגם או מילה אחרת.",
-        { reader: true }
-      );
-      searchElements.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
-        event.stopPropagation();
-        searchElements.lightboxSearchInput.value = "";
-        renderLightboxSearchResults("");
-        searchElements.lightboxSearchInput.focus();
-      });
-      return [];
-    }
-
-    searchElements.lightboxSearchStatus.textContent = scope === "all"
-      ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.`
-      : `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
-    searchElements.lightboxSearchResults.innerHTML = results.map((result) => {
-      const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || activeCatalog();
-      if (!catalog) return "";
-      const page = clampPage(result.page, catalog);
-      const rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page);
-      const rawThumb = result.thumb || thumbSrc(catalog, page);
-      const rawImage = rawThumb || rawPreview;
-      const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
-      return `
-        <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
-          <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
-          <span class="reader-search-thumb-frame catalog-image-frame">
-            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
-          </span>
-          <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
-        </button>
-      `;
-    }).join("");
-
-    bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults);
-    Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button) => {
-      button.addEventListener("click", async () => {
-        await trackCompletedLightboxSearch("result-open");
-        hideSearchFloatingPreview();
-        openLightboxSearchResult({
-          catalogId: button.dataset.lightboxSearchCatalog,
-          page: button.dataset.lightboxSearchPage
-        });
-      });
-    });
-    return results;
-  } catch (error) {
-    if (catalogSearch?.isCancelledError?.(error) || renderSequence !== lightboxSearchRenderSequence) return [];
-    searchState.searchIndexLoadState = "error";
-    searchElements.lightboxSearchResults.removeAttribute("aria-busy");
-    searchElements.lightboxSearchResults.classList.remove("hidden");
-    searchElements.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: true });
-    searchElements.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: true }));
-    searchElements.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.";
-    return [];
-  }
-}
-
-function renderLightboxCatalogMenu() {
-  getFeatureInterface("catalog-grid")?.renderCatalogMenu(searchElements.lightboxCatalogMenu, {
-    onSelect: (catalogId) => {
-      closeLightboxCatalogMenu();
-      if (catalogId === activeCatalog()?.id) return;
-      getFeatureInterface("viewer")?.openCatalog(catalogId, 1);
-    }
-  });
-}
-
-function globalSearchKey(query) {
-  return [String(query || "").trim(), getGlobalSearchCategory()].join("\u0000");
-}
-
-async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
-  const rawQuery = String(query || "").trim();
-  const category = getGlobalSearchCategory();
-  if (rawQuery.length < 2) return [];
-  await ensureSearchIndexLoaded({ trigger: "global-search" });
-  if (control.isCurrent && !control.isCurrent()) return [];
-  if (!catalogSearch?.hasIndex?.({ category })) return [];
-
-  const options = { limit, channel: "global" };
-  if (category) options.category = category;
-  const results = await catalogSearch.search(rawQuery, options);
-  return Array.isArray(results) ? results : [];
-}
-
-async function getGlobalSearchResults(query, limit = 72, control = {}) {
-  const rawQuery = String(query || "").trim();
-  if (!catalogSearch) return [];
-  const navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
-    getCatalogCategoryGroups(),
-    rawQuery,
-    { category: getGlobalSearchCategory(), limit: 36 }
-  );
-  try {
-    return catalogSearch.mergeNavigationResults(
-      navigationResults,
-      await getGlobalOcrSearchResults(rawQuery, limit, control)
-    );
-  } catch (error) {
-    if (!navigationResults.length || catalogSearch.isCancelledError(error)) throw error;
-    searchState.searchIndexLoadState = "error";
-    return navigationResults;
-  }
-}
-
-async function trackCompletedGlobalSearch(completion, query = searchElements.globalSearchInput?.value || "", options = {}) {
-  const rawQuery = String(query || "").trim();
-  const category = getGlobalSearchCategory();
-  const key = globalSearchKey(rawQuery);
-  const results = key === lastGlobalSearchKey
-    ? lastGlobalSearchResults
-    : await getGlobalSearchResults(rawQuery, 72);
-  telemetryTrackSearch(rawQuery, results.length, {
-    surface: "global",
-    scope: category || "all",
-    completion,
-    immediate: options.immediate === true
-  });
-  return results;
-}
-
-function flushGlobalSearchTelemetryBeforeNavigation() {
-  telemetryFlush().catch(() => {});
-}
-
-function openGlobalSearchResult(result) {
-  if (!result) return false;
-  hideSearchFloatingPreview();
-  closeGlobalSearchPanel({ focusButton: false });
-  const catalogGrid = requireFeatureInterface("catalog-grid");
-  return searchCatalogDomain.executeGlobalSearchResultAction(result, {
-    activateCategoryTarget: catalogGrid.activateCategoryTarget,
-    openCatalog: (catalogId) => navigateTo(catalogDocumentUrl(catalogId)),
-    openViewer: (catalogId, page) => navigateTo(viewerDocumentUrl(catalogId, page))
-  });
-}
-
-async function submitGlobalSearch() {
-  const rawQuery = String(searchElements.globalSearchInput?.value || "").trim();
-  const results = await renderSearchResults(rawQuery);
-  await trackCompletedGlobalSearch("submit", rawQuery, { immediate: true });
-  flushGlobalSearchTelemetryBeforeNavigation();
-  return openGlobalSearchResult(results[0]);
-}
-
-function globalSearchResultMarkup(result) {
-  if (result?.resultType !== "ocr") {
-    return catalogSearch ? catalogSearch.navigationResultMarkup(result) : "";
-  }
-
-  const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
-  const page = clampPage(result.page, catalog);
-  const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
-  const rawPreview = result.image || (catalog ? (mediumSrc(catalog, page) || pageSrc(catalog, page)) : rawThumb);
-  const rawImage = rawThumb || rawPreview;
-  const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
-  return `
-    <article class="search-result-card">
-      <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
-        <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
-        <span class="search-result-thumb-frame catalog-image-frame">
-          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
-        </span>
-        <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
-      </button>
-    </article>
-  `;
-}
-
-function bindGlobalSearchResultEvents(root) {
-  bindSearchFloatingPreviewEvents(root);
-  Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button) => {
-    button.addEventListener("click", async () => {
-      await trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
-      flushGlobalSearchTelemetryBeforeNavigation();
-      openGlobalSearchResult(button.dataset.searchNavigationType ? {
-        resultType: button.dataset.searchNavigationType,
-        targetId: button.dataset.searchNavigationTarget,
-        catalogId: button.dataset.searchNavigationCatalog
-      } : {
-        resultType: "ocr",
-        catalogId: button.dataset.searchCatalog,
-        page: button.dataset.searchPage
-      });
-    });
-  });
-}
-
-function appendGlobalSearchResultBatch(results, start, count) {
-  const template = document.createElement("template");
-  template.innerHTML = results
-    .slice(start, start + count)
-    .map(globalSearchResultMarkup)
-    .join("");
-  bindGlobalSearchResultEvents(template.content);
-  searchElements.globalSearchResults.append(template.content);
-  return Math.min(results.length, start + count);
-}
-
-function isCurrentGlobalSearchRender(renderSequence, rawQuery) {
-  return renderSequence === globalSearchRenderSequence
-    && globalSearchKey(rawQuery) === globalSearchKey(searchElements.globalSearchInput?.value || "")
-    && isGlobalSearchPanelOpen();
-}
-
-function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery) {
-  cancelGlobalSearchResultAppend();
-  searchElements.globalSearchResults.replaceChildren();
-  searchElements.globalSearchResults.classList.remove("hidden");
-
-  let nextIndex = appendGlobalSearchResultBatch(
-    results,
-    0,
-    GLOBAL_SEARCH_INITIAL_RENDER_COUNT
-  );
-
-  const appendNextBatch = () => {
-    globalSearchAppendTimer = 0;
-    if (!isCurrentGlobalSearchRender(renderSequence, rawQuery)) return;
-
-    nextIndex = appendGlobalSearchResultBatch(
-      results,
-      nextIndex,
-      GLOBAL_SEARCH_RENDER_CHUNK_SIZE
-    );
-    if (nextIndex < results.length) {
-      globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0);
-      return;
-    }
-    searchElements.globalSearchResults.removeAttribute("aria-busy");
-  };
-
-  if (nextIndex < results.length) {
-    globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0);
-  } else {
-    searchElements.globalSearchResults.removeAttribute("aria-busy");
-  }
-}
-
-async function renderSearchResults(query) {
-  const rawQuery = String(query || "").trim();
-  if (!searchElements.globalSearchResults) return [];
-  cancelGlobalSearchResultAppend();
-  const renderSequence = ++globalSearchRenderSequence;
-  const renderKey = globalSearchKey(rawQuery);
-
-  normalizeSearchResultsDirection(searchElements.globalSearchResults);
-  hideSearchFloatingPreview();
-  searchElements.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
-
-  if (rawQuery.length < 2) {
-    catalogSearch?.cancel?.("global");
-    lastGlobalSearchKey = "";
-    lastGlobalSearchResults = [];
-    searchElements.globalSearchResults.classList.add("hidden");
-    searchElements.globalSearchResults.removeAttribute("aria-busy");
-    searchElements.globalSearchResults.innerHTML = "";
-    initSearchStatus();
-    return [];
-  }
-
-  const category = getGlobalSearchCategory();
-  searchElements.globalSearchResults.setAttribute("aria-busy", "true");
-
-  try {
-    const results = await getGlobalSearchResults(rawQuery, 72, {
-      isCurrent: () => isCurrentGlobalSearchRender(renderSequence, rawQuery)
-    });
-    if (renderSequence !== globalSearchRenderSequence || renderKey !== globalSearchKey(searchElements.globalSearchInput?.value || "")) {
-      return [];
-    }
-
-    lastGlobalSearchKey = globalSearchKey(rawQuery);
-    lastGlobalSearchResults = results;
-    if (!results.length) {
-      searchElements.globalSearchResults.removeAttribute("aria-busy");
-      searchElements.globalSearchResults.classList.remove("hidden");
-      searchElements.globalSearchResults.innerHTML = searchEmptyStateMarkup(
-        rawQuery,
-        category
-          ? "נסה שם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים."
-          : "נסה שם קצר יותר, מספר דגם או חלק מהמילה."
-      );
-      searchElements.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
-        searchElements.globalSearchInput.value = "";
-        renderSearchResults("");
-        searchElements.globalSearchInput.focus();
-      });
-      return [];
-    }
-
-    renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery);
-    return results;
-  } catch (error) {
-    if (catalogSearch?.isCancelledError?.(error) || renderSequence !== globalSearchRenderSequence) return [];
-    searchState.searchIndexLoadState = "error";
-    searchElements.globalSearchResults.removeAttribute("aria-busy");
-    searchElements.globalSearchResults.classList.remove("hidden");
-    searchElements.globalSearchResults.innerHTML = searchIndexErrorMarkup();
-    searchElements.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad());
-    return [];
-  }
-}
-
-function handleLightboxSearchResultsBackgroundClick(event) {
-  const result = eventTargetElement(event.target)?.closest?.("[data-lightbox-search-page]");
-  if (result && searchElements.lightboxSearchResults?.contains(result)) return;
-
-  event.preventDefault();
-  event.stopPropagation();
-  hideLightboxSearchResults({ blurTopUiFocus: true, hideTopUi: true });
-}
-
-function attachSearchUiEvents() {
-  searchElements.globalSearchOpen?.addEventListener("click", (event) => {
-    event.preventDefault();
-    ensureSearchIndexLoaded().catch(() => {});
-    event.stopPropagation();
-    getFeatureInterface("catalog-detail")?.close();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
-    setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: true, focusButton: true });
-  });
-  searchElements.globalSearchClose?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    closeGlobalSearchPanel({ focusButton: true });
-  });
-
-  searchElements.globalSearchInput?.addEventListener("input", () => {
-    scheduleSearchRender("global", searchElements.globalSearchInput.value);
-  });
-  searchElements.globalSearchInput?.addEventListener("focus", () => {
-    ensureSearchIndexLoaded().catch(() => {});
-    scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: true });
-  });
-  searchElements.globalSearchInput?.addEventListener("click", () => scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: true }));
-  searchElements.globalSearchInput?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    submitGlobalSearch().catch(() => {});
-  });
-  searchElements.globalSearchClear?.addEventListener("click", () => {
-    cancelScheduledSearch("global");
-    searchElements.globalSearchInput.value = "";
-    searchElements.globalSearchInput.focus();
-    renderSearchResults("");
-  });
-
-  searchElements.globalSearchScopeToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    hideSearchFloatingPreview();
-    getFeatureInterface("catalog-detail")?.close();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
-    renderGlobalSearchScopeMenu();
-    const isOpen = !searchElements.globalSearchScopeMenu?.classList.contains("hidden");
-    searchElements.globalSearchScopeMenu?.classList.toggle("hidden", isOpen);
-    searchElements.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-  });
-  searchElements.globalSearchScopeMenu?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const button = eventTargetElement(event.target)?.closest("[data-global-search-category]");
-    if (!isHtmlElement(button) || !searchElements.globalSearchScopeMenu.contains(button)) return;
-    setGlobalSearchCategory(button.dataset.globalSearchCategory);
-    searchElements.globalSearchInput?.focus();
-  });
-  searchElements.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: false });
-  searchElements.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  searchElements.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  searchElements.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
-  searchElements.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-  searchElements.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: true });
-  searchElements.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: true });
-
-  searchElements.lightboxSearchInput?.addEventListener("input", () => {
-    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value);
-  });
-  searchElements.lightboxSearchInput?.addEventListener("focus", () => {
-    getFeatureInterface("viewer")?.showTopUi?.();
-    ensureSearchIndexLoaded().catch(() => {});
-    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: true });
-  });
-  searchElements.lightboxSearchInput?.addEventListener("click", () => {
-    getFeatureInterface("viewer")?.showTopUi?.();
-    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: true });
-  });
-  searchElements.lightboxSearchInput?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    submitLightboxSearch().catch(() => {});
-  });
-  searchElements.lightboxSearchClear?.addEventListener("click", () => {
-    cancelScheduledSearch("viewer");
-    searchElements.lightboxSearchInput.value = "";
-    searchElements.lightboxSearchInput.focus();
-    renderLightboxSearchResults("");
-    getFeatureInterface("viewer")?.showTopUi?.();
-  });
-
-  searchElements.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setLightboxMobileSearchOpen(!searchState.lightboxMobileSearchOpen, {
-      focusInput: true,
-      returnFocus: searchState.lightboxMobileSearchOpen
-    });
-  });
-  searchElements.lightboxMobileSearchClose?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
-  });
-
-  searchElements.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    hideSearchFloatingPreview();
-    getFeatureInterface("catalog-detail")?.close();
-    closeLightboxCatalogMenu();
-    const isOpen = !searchElements.lightboxSearchScopeMenu?.classList.contains("hidden");
-    searchElements.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen);
-    searchElements.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-    getFeatureInterface("viewer")?.showTopUi?.();
-  });
-  Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      setLightboxSearchScope(button.dataset.lightboxSearchScope);
-      getFeatureInterface("viewer")?.showTopUi?.();
-      searchElements.lightboxSearchInput?.focus();
-    });
-  });
-  searchElements.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    getFeatureInterface("catalog-detail")?.close();
-    closeLightboxSearchScopeMenu();
-    renderLightboxCatalogMenu();
-    const isOpen = !searchElements.lightboxCatalogMenu?.classList.contains("hidden");
-    searchElements.lightboxCatalogMenu?.classList.toggle("hidden", isOpen);
-    searchElements.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-    getFeatureInterface("viewer")?.showTopUi?.();
-  });
-  searchElements.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
-  searchElements.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
-}
-
-function prepareSearchRoute(nextPage) {
-  closeGlobalSearchPanel({ focusButton: false });
-  closeGlobalSearchScopeMenu();
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
-  if (nextPage !== "viewer") setLightboxMobileSearchOpen(false, { hideResults: true });
-}
-
-function handleSearchDocumentPointer(target) {
-  if (!(target instanceof Node)) {
-    prepareSearchRoute(currentAppPage);
-    return false;
-  }
-  const insideGlobalSearch = searchElements.catalogSearch.contains(target) || searchElements.globalSearchOpen.contains(target);
-  const insideMobileReaderSearch = searchElements.lightboxSearchPanel.contains(target) || searchElements.lightboxMobileSearchToggle.contains(target);
-  if (insideGlobalSearch) {
-    if (!searchElements.globalSearchScopeMenu.contains(target) && !searchElements.globalSearchScopeToggle.contains(target)) {
-      closeGlobalSearchScopeMenu();
-    }
-    closeLightboxSearchScopeMenu();
-    closeLightboxCatalogMenu();
-    getFeatureInterface("catalog-detail")?.close();
-    return true;
-  }
-  if (insideMobileReaderSearch) return true;
-  if (searchState.lightboxMobileSearchOpen) setLightboxMobileSearchOpen(false, { hideResults: true });
-  if (searchElements.lightboxSearchScopeMenu.contains(target) || searchElements.lightboxSearchScopeToggle.contains(target)) return true;
-  if (searchElements.lightboxCatalogMenu.contains(target) || searchElements.lightboxCatalogMenuToggle.contains(target)) return true;
-  closeGlobalSearchPanel({ focusButton: false });
-  closeGlobalSearchScopeMenu();
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
-  return false;
-}
-
-function initializeSearchUi() {
-  syncLightboxMobileSearchUi();
-  renderGlobalSearchScopeMenu();
-  scheduleSearchIndexPreload();
-  initSearchStatus();
-}
-
-function handleSearchResize() {
-  hideSearchFloatingPreview();
-  updateLightboxSearchResultsLayout(Number(searchElements.lightboxSearchResults.dataset.resultCount || 0));
-  syncLightboxMobileSearchUi();
-}
-
-function handleSearchScroll() {
-  hideSearchFloatingPreview();
-}
-
-registerFeatureInterface("search", {
-  escapePriority: 300,
-  closeTopLayer: () => {
-    if (!isGlobalSearchPanelOpen()) return false;
-    if (searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden")) {
-      closeGlobalSearchScopeMenu();
-    } else {
-      closeGlobalSearchPanel({ focusButton: true });
-    }
-    return true;
-  },
-  closeViewerTopLayer: () => {
-    if (searchState.lightboxMobileSearchOpen) {
-      setLightboxMobileSearchOpen(false, { returnFocus: true, hideResults: true });
-      return true;
-    }
-    if (
-      (searchElements.lightboxCatalogMenu && !searchElements.lightboxCatalogMenu.classList.contains("hidden")) ||
-      (searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"))
-    ) {
-      closeLightboxCatalogMenu();
-      closeLightboxSearchScopeMenu();
-      return true;
-    }
-    return false;
-  },
-  isLightboxMobileOpen: () => searchState.lightboxMobileSearchOpen,
-  setLightboxMobileOpen: (open, options = {}) => setLightboxMobileSearchOpen(open, options),
-  containsLightboxResult: (target) => Boolean(
-    target?.closest?.("[data-lightbox-search-page]") &&
-    searchElements.lightboxSearchResults.contains(target.closest("[data-lightbox-search-page]"))
-  ),
-  hideViewerResults: (options = {}) => hideLightboxSearchResults(options),
-  closeGlobalPanel: (options = {}) => closeGlobalSearchPanel(options),
-  attachEvents: attachSearchUiEvents,
-  initialize: initializeSearchUi,
-  prepareRoute: prepareSearchRoute,
-  handleDocumentPointer: handleSearchDocumentPointer,
-  handleResize: handleSearchResize,
-  handleScroll: handleSearchScroll
-});
-/* ===== END SOURCE: src/js/50-search-ui.js ===== */
-
-/* ===== BEGIN SOURCE: src/js/80-app-shell.js ===== */
-
+// src/js/80-app-shell.js
 function attachShellEvents() {
   document.addEventListener("click", (event) => {
-    const target = event.target;
-    const catalogGrid = getFeatureInterface("catalog-grid");
-    if (catalogGrid && !catalogGrid.containsMenuTarget(target)) catalogGrid.closeMobileMenu();
-
-    const search = getFeatureInterface("search");
-    if (search?.handleDocumentPointer(target)) return;
-
-    const catalogDetail = getFeatureInterface("catalog-detail");
-    if (catalogDetail?.containsTarget(target)) return;
-    catalogDetail?.close();
-  });
-
-  window.addEventListener("resize", () => {
-    getFeatureInterface("catalog-grid")?.handleResize();
-    getFeatureInterface("search")?.handleResize();
-    getFeatureInterface("viewer")?.handleResize();
-  });
-
-  window.addEventListener("scroll", () => {
-    getFeatureInterface("search")?.handleScroll();
-    getFeatureInterface("catalog-grid")?.handleScroll();
-  }, { passive: true });
-
-  window.addEventListener("keydown", (event) => {
-    if (event.defaultPrevented) return;
-    if (handleTopLayerEscape(event)) return;
-    getFeatureInterface("viewer")?.handleGlobalKeydown(event);
+    let target = event.target, catalogGrid = getFeatureInterface("catalog-grid");
+    if (catalogGrid && !catalogGrid.containsMenuTarget(target) && catalogGrid.closeMobileMenu(), getFeatureInterface("search")?.handleDocumentPointer(target)) return;
+    let catalogDetail = getFeatureInterface("catalog-detail");
+    catalogDetail?.containsTarget(target) || catalogDetail?.close();
+  }), window.addEventListener("resize", () => {
+    getFeatureInterface("catalog-grid")?.handleResize(), getFeatureInterface("search")?.handleResize(), getFeatureInterface("viewer")?.handleResize();
+  }), window.addEventListener("scroll", () => {
+    getFeatureInterface("search")?.handleScroll(), getFeatureInterface("catalog-grid")?.handleScroll();
+  }, { passive: !0 }), window.addEventListener("keydown", (event) => {
+    event.defaultPrevented || handleTopLayerEscape(event) || getFeatureInterface("viewer")?.handleGlobalKeydown(event);
   });
 }
-
 function attachFeatureEvents() {
-  const catalogGrid = getFeatureInterface("catalog-grid");
-  if (catalogGrid) bindFeatureEventsOnce("catalog-grid", catalogGrid.attachEvents);
-
-  const search = getFeatureInterface("search");
-  if (search) bindFeatureEventsOnce("search-ui", search.attachEvents);
-
-  bindFeatureEventsOnce("shell", attachShellEvents);
-
-  const favorites = getFeatureInterface("favorites");
-  if (favorites) bindFeatureEventsOnce("favorites-share", favorites.attachEvents);
-
-  const inquiry = getFeatureInterface("inquiry");
-  if (inquiry) bindFeatureEventsOnce("inquiry", inquiry.attachEvents);
-
-  const viewer = getFeatureInterface("viewer");
-  if (viewer) bindFeatureEventsOnce("viewer", viewer.attachEvents);
-
-  bindFeatureEventsOnce("navigation", navigationFeature().attachEvents);
+  let catalogGrid = getFeatureInterface("catalog-grid");
+  catalogGrid && bindFeatureEventsOnce("catalog-grid", catalogGrid.attachEvents);
+  let search = getFeatureInterface("search");
+  search && bindFeatureEventsOnce("search-ui", search.attachEvents), bindFeatureEventsOnce("shell", attachShellEvents);
+  let favorites = getFeatureInterface("favorites");
+  favorites && bindFeatureEventsOnce("favorites-share", favorites.attachEvents);
+  let inquiry = getFeatureInterface("inquiry");
+  inquiry && bindFeatureEventsOnce("inquiry", inquiry.attachEvents);
+  let viewer = getFeatureInterface("viewer");
+  viewer && bindFeatureEventsOnce("viewer", viewer.attachEvents), bindFeatureEventsOnce("navigation", navigationFeature().attachEvents);
 }
-
 function prepareDocumentRoute(nextPage) {
-  getFeatureInterface("viewer")?.prepareRoute(nextPage);
-  getFeatureInterface("favorites")?.prepareRoute(nextPage);
-  getFeatureInterface("catalog-grid")?.prepareRoute(nextPage);
-  getFeatureInterface("search")?.prepareRoute(nextPage);
-  navigationFeature().setAppPage(nextPage);
-  navigationFeature().syncRouteShell(nextPage);
-  syncDocumentLock();
+  getFeatureInterface("viewer")?.prepareRoute(nextPage), getFeatureInterface("favorites")?.prepareRoute(nextPage), getFeatureInterface("catalog-grid")?.prepareRoute(nextPage), getFeatureInterface("search")?.prepareRoute(nextPage), navigationFeature().setAppPage(nextPage), navigationFeature().syncRouteShell(nextPage), syncDocumentLock();
 }
-
 function initDocumentRoute(options = {}) {
-  const route = siteRoutes?.parseLocation(window.location) || {
+  let route = siteRoutes?.parseLocation(window.location) || {
     page: navigationFeature().appPage(),
     catalogId: "",
     currentPage: 1,
     source: LIGHTBOX_SOURCE_CATALOG
   };
-
-  prepareDocumentRoute(route.page);
-  if (route.page === "home") {
-    clearActiveLocation();
-    getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash({
-      animate: false,
-      scroll: Boolean(window.location.hash)
-    });
-    updateDocumentMetadata();
-    if (!window.location.hash) navigationFeature().restoreScroll(options.scrollPosition);
-    return true;
-  }
-
-  if (route.page === "favorites") {
-    clearActiveLocation();
-    getFeatureInterface("favorites")?.openRoute();
-    navigationFeature().restoreScroll(options.scrollPosition);
-    return true;
-  }
-
-  const catalog = findCatalogById(route.catalogId);
-  if (!catalog) {
-    navigateTo(homeDocumentUrl(), { replace: true });
-    return false;
-  }
-
-  if (route.page === "catalog") {
-    getFeatureInterface("catalog-grid")?.openCatalog(catalog.id, { scrollBehavior: "auto" });
-    navigationFeature().restoreScroll(options.scrollPosition);
-    return true;
-  }
-
+  if (prepareDocumentRoute(route.page), route.page === "home")
+    return clearActiveLocation(), getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash({
+      animate: !1,
+      scroll: !!window.location.hash
+    }), updateDocumentMetadata(), window.location.hash || navigationFeature().restoreScroll(options.scrollPosition), !0;
+  if (route.page === "favorites")
+    return clearActiveLocation(), getFeatureInterface("favorites")?.openRoute(), navigationFeature().restoreScroll(options.scrollPosition), !0;
+  let catalog = findCatalogById(route.catalogId);
+  if (!catalog)
+    return navigateTo(homeDocumentUrl(), { replace: !0 }), !1;
+  if (route.page === "catalog")
+    return getFeatureInterface("catalog-grid")?.openCatalog(catalog.id, { scrollBehavior: "auto" }), navigationFeature().restoreScroll(options.scrollPosition), !0;
   if (route.page === "viewer") {
     if (route.source === LIGHTBOX_SOURCE_FAVORITES) {
-      const entries = getFeatureInterface("favorites")?.entries() || [];
-      const favoriteIndex = entries.findIndex((entry) => entry.catalog.id === catalog.id && entry.page === route.currentPage);
-      if (favoriteIndex < 0) {
-        navigateTo(favoritesDocumentUrl(), { replace: true });
-        return false;
-      }
-      getFeatureInterface("viewer")?.openCatalog(catalog.id, route.currentPage, {
+      let favoriteIndex = (getFeatureInterface("favorites")?.entries() || []).findIndex((entry) => entry.catalog.id === catalog.id && entry.page === route.currentPage);
+      return favoriteIndex < 0 ? (navigateTo(favoritesDocumentUrl(), { replace: !0 }), !1) : (getFeatureInterface("viewer")?.openCatalog(catalog.id, route.currentPage, {
         source: LIGHTBOX_SOURCE_FAVORITES,
         favoriteIndex
-      });
-      return true;
+      }), !0);
     }
-
-    getFeatureInterface("viewer")?.openCatalog(catalog.id, route.currentPage);
-    return true;
+    return getFeatureInterface("viewer")?.openCatalog(catalog.id, route.currentPage), !0;
   }
-
-  navigateTo(homeDocumentUrl(), { replace: true });
-  return false;
+  return navigateTo(homeDocumentUrl(), { replace: !0 }), !1;
 }
-
 function initializeApplicationShell() {
-  telemetryInit();
-  getFeatureInterface("catalog-grid")?.initialize();
-  initImagePlaceholderObserver();
-  attachFeatureEvents();
-  getFeatureInterface("search")?.initialize();
-  getFeatureInterface("favorites")?.syncUi();
-
-  if (!catalogs.length) {
-    getFeatureInterface("catalog-grid")?.renderEmptyState();
-    return true;
-  }
-
-  getFeatureInterface("catalog-grid")?.renderInitialContent();
-  return initDocumentRoute();
+  return telemetryInit({ recoverCatalogImageAfterInitialFailure }), getFeatureInterface("catalog-grid")?.initialize(), initImagePlaceholderObserver(), attachFeatureEvents(), getFeatureInterface("search")?.initialize(), getFeatureInterface("favorites")?.syncUi(), catalogs.length ? (getFeatureInterface("catalog-grid")?.renderInitialContent(), initDocumentRoute()) : (getFeatureInterface("catalog-grid")?.renderEmptyState(), !0);
 }
-
 registerFeatureInterface("app-shell", {
-  initialize: initializeApplicationShell
+  initialize: initializeApplicationShell,
+  renderRoute: initDocumentRoute
 });
-/* ===== END SOURCE: src/js/80-app-shell.js ===== */
 
-/* ===== BEGIN SOURCE: src/js/90-bootstrap.js ===== */
-
+// src/js/90-bootstrap.js
 function init() {
-  return getFeatureInterface("app-shell")?.initialize() ?? true;
+  return getFeatureInterface("app-shell")?.initialize() ?? !0;
 }
-
-let initResult = true;
+var initResult = !0;
 try {
   initResult = init();
 } catch (error) {
-  console.error("Application initialization failed", error);
-  initResult = false;
+  console.error("Application initialization failed", error), initResult = !1;
 } finally {
-  if (initResult !== false) markAppReady();
+  initResult !== !1 && markAppReady();
 }
-/* ===== END SOURCE: src/js/90-bootstrap.js ===== */
-
-})();

@@ -174,7 +174,7 @@ def rewrite_html_asset_references(document: str, rewrites: Mapping[str, str] | N
     Deployment builds can fingerprint the shared CSS/JavaScript files before
     rendering the hundreds of catalog-page documents. Rendering the final URLs
     directly avoids writing every HTML file once and then reopening it solely
-    to replace ``app.js``/``styles.css`` references.
+    to replace route JavaScript/CSS asset references.
     """
 
     if not rewrites:

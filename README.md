@@ -6,7 +6,7 @@
 - לכל קטלוג ולכל עמוד שיתוף נוצר קובץ HTML בכתובת נקייה, אך כולם משתמשים באותן תבניות ובאותו JavaScript משותף; אין תחזוקת HTML ידנית לכל קטלוג.
 - `site.template.html` ו-`legal.template.html` הם מקורות ה-HTML המשותפים, ו-`tools/build_site_pages.py` מייצר מהם את ששת הדפים הציבוריים.
 - `partials/site-footer.html` שומר את מבנה ועיצוב הפוטר, ו-`partials/site-footer.content.json` שומר רק את הטקסטים והפרטים הניתנים לעריכה.
-- קוד המקור של הממשק מחולק לפי תחומים תחת `src/js` ו-`src/css`; כלי הבנייה מאחד אותו ל-`app.js` ול-`styles.css`, ולכן הדפדפן ממשיך להוריד רק שני קבצים משותפים.
+- קוד המקור של הממשק מחולק לפי תחומים תחת `src/js` ו־`src/css`; שלושה entrypoints נבנים ל־ES Modules נפרדים לפי מסלול, וכל מסלול מוריד רק את קוד ה־Features הדרוש לו.
 - `site-routes.js` מרכז את בניית הכתובות ופענוחן עבור מבנה הדפים הנוכחי.
 - האתר הסטטי עצמו עולה ל-Cloudflare Pages דרך Wrangler.
 - תמונות עמודי הקטלוגים נשמרות ומוגשות דרך Cloudflare R2 / CDN.
@@ -37,9 +37,9 @@ accessibility.html                     הצהרת נגישות
 
 ## מבנה קוד הממשק
 
-קובצי `app-catalog.js`, `app-favorites.js`, `app-viewer.js`, קובצי `styles-*.css` ו־loader התאימות `app.js` נוצרים אוטומטית. אין לערוך אותם ישירות, מפני שהבנייה הבאה תחליף אותם.
+קובצי `app-catalog.js`, `app-favorites.js`, `app-viewer.js` וקובצי `styles-*.css` נוצרים אוטומטית. קובצי ה־JavaScript נטענים בדפדפן כ־`type="module"`; אין loader תאימות ואין לערוך את התוצרים ישירות.
 
-מקורות JavaScript נמצאים תחת `src/js` ומחולקים לפי בעלות על state, DOM ו־lifecycle. הבית והקטלוג אינם מורידים את קוד או state ה־Viewer; דף המועדפים מוסיף רק את סביבת העבודה שלו; ודף ה־Viewer אינו מוריד את Grid הבית. תקשורת בין Features עוברת דרך Interfaces קפואים ומפורשים, ו־`90-bootstrap.js` נשאר composition root בלבד. מקורות CSS נשארים שכבות תחומיות, אך נבנים לשלושה stylesheets לפי מסלול כדי לא לטעון Viewer או Workspace במקום שאינם קיימים.
+מקורות JavaScript נמצאים תחת `src/js` ומחולקים לפי בעלות על state, DOM ו־lifecycle. הבית והקטלוג אינם מורידים את קוד או state ה־Viewer; דף המועדפים מוסיף את סביבת העבודה שלו; ודף ה־Viewer כולל במכוון גם Search, Catalog Grid ו־Favorites Workspace כדי לאפשר ניווט בתוך אותו document בזמן fullscreen. תקשורת בין Features עוברת דרך Interfaces קפואים ומפורשים, ו־`90-bootstrap.js` נשאר composition root בלבד. מקורות CSS נשארים שכבות תחומיות, אך נבנים לשלושה stylesheets לפי מסלול כדי לא לטעון Viewer או Workspace במקום שאינם קיימים.
 
 לבנייה ידנית של קובצי הממשק בלבד:
 
@@ -53,7 +53,7 @@ python tools\build_frontend_assets.py
 python tools\build_frontend_assets.py --check
 ```
 
-`build_site_pages.py` ובניית הבאנדל מריצים את בניית הממשק אוטומטית. השרת המקומי מגיש את הבאנדל המלא מתוך `dist/site-local`, ולכן הוא בודק את אותו מבנה כתובות כמו הפריסה; הבנייה מתבצעת רק לאחר בדיקת עדכניות ורק אם נבחר לעדכן. תיקיות `src/js` ו־`src/css` נשארות בפרויקט העבודה ואינן מועלות לאתר; בפריסה נשלחים רק קובצי ה־Route שנבנו והוחתמו ב־hash. כל חבילת JavaScript עטופה ב־scope פרטי וב־`strict mode`, ולכן פונקציות המימוש אינן דולפות ל־`window`. כלי הבנייה מאמת שמות, סדר וכפילויות במניפסט, וחוזי ה־CI מוודאים שהחבילה אינה מכילה Feature אסור או סמל runtime שאינו קיים בה.
+`build_site_pages.py` ובניית הבאנדל מריצים את בניית הממשק אוטומטית. השרת המקומי מגיש את הבאנדל המלא מתוך `dist/site-local`, ולכן הוא בודק את אותו מבנה כתובות כמו הפריסה; הבנייה מתבצעת רק לאחר בדיקת עדכניות ורק אם נבחר לעדכן. תיקיות `src/js` ו־`src/css` נשארות בפרויקט העבודה ואינן מועלות לאתר; בפריסה נשלחים רק קובצי ה־Route שנבנו והוחתמו ב־hash. כל חבילת JavaScript היא ES Module דפדפן אמיתי, ולכן היא פועלת אוטומטית ב־strict mode ופונקציות המימוש אינן דולפות ל־`window`. כלי הבנייה מאמת שמות, סדר וכפילויות במניפסט, וחוזי ה־CI מוודאים שהחבילה אינה מכילה Feature אסור או סמל runtime שאינו קיים בה.
 
 בבאנדל הפריסה כל דף HTML מפנה לשמות קבצים עם hash תוכן. לכן שינוי ב־JavaScript או ב־CSS מחייב לעדכן את ההפניות בכל דפי הקטלוג והשיתוף, גם אם תוכן הקטלוגים עצמם לא השתנה. כלי הבנייה מחשב כעת את שמות ה־hash לפני רינדור הדפים וכותב כל דף פעם אחת בלבד; הוא אינו יוצר תחילה מאות דפים ואז פותח וכותב את כולם מחדש. בסיום מודפסת שורת `[timing]` שמפרידה בין הכנת נכסים, רינדור דפים, אימות/חתימה והעתקת ה־preview, כדי לזהות פקק מקומי אמיתי בלי לנחש.
 
@@ -412,7 +412,7 @@ dist\site-upload-r2\static\*.css
 
 קבצי ה־CSS/JS בבאנדל ההעלאה מקבלים שם עם hash לפי תוכן, לדוגמה
 `static\app.abc123def456.js`. לכן אחרי עדכון אתר הדפדפן מבקש URL חדש ולא נתקע על
-`app.js` ישן מה־cache. כתובת ה־CDN של R2 נכתבת לתוך קובץ ההגדרה לפני ה־hash,
+`app-catalog.js`, `app-favorites.js` או `app-viewer.js` ישן מה־cache. כתובת ה־CDN של R2 נכתבת לתוך קובץ ההגדרה לפני ה־hash,
 ולכן גם שינוי כתובת CDN מקבל שם קובץ חדש בבאנדל.
 
 בתיקיית ההעלאה לא אמורה להיות תיקיית:
@@ -436,8 +436,10 @@ index.html                         דף האתר הראשי
 src/css/                           מקורות העיצוב לפי תחומים; נערכים ידנית
 src/js/                            מקורות JavaScript לפי תחומים; נערכים ידנית
 styles.css                         באנדל CSS שנוצר אוטומטית מכל src/css
-app.js                             באנדל JavaScript שנוצר אוטומטית מכל src/js
-tools/build_frontend_assets.py    בנייה אטומית ובדיקת עדכניות של שני קובצי הממשק
+app-catalog.js                    ES Module שנוצר למסלולי הבית והקטלוג
+app-favorites.js                  ES Module שנוצר למסלול המועדפים
+app-viewer.js                     ES Module שנוצר למסלול ה־Viewer
+tools/build_frontend_assets.py    בנייה אטומית ובדיקת עדכניות של תוצרי הממשק
 catalog-search.js                  לקוח אסינכרוני לחיפוש בתוך הקטלוגים
 catalog-search-worker.js           מנוע החיפוש שרץ מחוץ ל־Main Thread
 catalogs.search-index.json         אינדקס הפוך ומנורמל שנבנה מראש בזמן Build
@@ -517,7 +519,7 @@ npm run setup
 הפקודות המרכזיות:
 
 ```bat
-npm run build          rem בניית app.js, styles.css וכל דפי HTML
+npm run build          rem בניית מודולי המסלולים, קובצי CSS וכל דפי HTML
 npm run test:js        rem בדיקות JavaScript, תחביר ודפים שנוצרו
 npm run test:python    rem בדיקות Python מתוך .venv
 npm run test:e2e       rem מסלולי שימוש אמיתיים בדפדפן Chromium
@@ -533,7 +535,7 @@ npm run clean:artifacts rem ניקוי __pycache__, bytecode ועותקי תמו
 
 `npm run verify` מבצע לפי הסדר:
 
-1. אימות שהבאנדלים `app.js` ו־`styles.css` מעודכנים.
+1. אימות שכל באנדלי המסלולים וקובצי ה־CSS מעודכנים.
 2. אימות שכל ששת דפי האתר תואמים לתבניות, לתוכן הפוטר ול־footer המשותף.
 3. בדיקת תחביר וכל בדיקות החוזה של JavaScript.
 4. כל בדיקות Python.
@@ -555,7 +557,7 @@ npm run test:e2e:update
 npm run setup:browsers
 ```
 
-כלי הבנייה של הממשק בודק גם שאין שני מודולי JavaScript שמצהירים על אותו שם top-level. הבדיקה חשובה משום שהמודולים מתאחדים ל־scope פרטי אחד בתוך `app.js`.
+כלי הבנייה מאמת את גרף ה־imports של כל entrypoint מול manifest נבדק. קלטי compiler וירטואליים של esbuild נבדקים בנפרד מקובצי המקור, כך שתלות פיזית חדשה אינה יכולה להסתתר בגרף.
 
 הקבצים הישנים `wp_logo_data.js` ו־`brand-logo.js` כבר אינם קיימים בפרויקט. אין צורך לחפש או למחוק אותם ידנית; בדיקות התחזוקה מוודאות שהם נשארים מחוץ למבנה.
 

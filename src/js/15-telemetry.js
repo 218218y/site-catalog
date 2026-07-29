@@ -90,15 +90,20 @@ const telemetryRuntime = {
   initialized: false
 };
 
-function telemetryResolveReleaseId() {
+function telemetryRouteModuleUrl() {
+  const routeModule = document.querySelector?.("script[type=module][data-bargig-route-module]") || null;
+  if (!routeModule) return "";
+  return "src" in routeModule
+    ? String(routeModule.src || "")
+    : String(routeModule.getAttribute?.("src") || "");
+}
+
+/** @param {string} [scriptSrc] */
+function telemetryResolveReleaseId(scriptSrc = telemetryRouteModuleUrl()) {
   const explicit = String(window.__BARGIG_RELEASE_ID__ || "").trim();
   if (explicit) return telemetryCleanText(explicit, 64);
 
-  const currentScript = document.currentScript;
-  const scriptSrc = currentScript && "src" in currentScript
-    ? String(currentScript.src || "")
-    : String(currentScript?.getAttribute?.("src") || "");
-  const filename = scriptSrc.split("?")[0].split("#")[0].split("/").pop() || "";
+  const filename = String(scriptSrc || "").split("?")[0].split("#")[0].split("/").pop() || "";
   const fingerprint = filename.match(/^app(?:-(?:catalog|favorites|viewer))?\.([a-f0-9]{8,64})\.js$/i)?.[1];
   if (fingerprint) return `app-${fingerprint.slice(0, 16).toLowerCase()}`;
   return /^app(?:-(?:catalog|favorites|viewer))?\.js$/i.test(filename)

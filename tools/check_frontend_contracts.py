@@ -493,6 +493,10 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             failures.append(f"route bundle is missing: {output}")
             continue
         text = path.read_text(encoding="utf-8")
+        if "Output format: native browser ES module" not in text:
+            failures.append(f"{output} is not marked as a native browser ES module")
+        if "(() => {" in text:
+            failures.append(f"{output} still contains an IIFE compatibility wrapper")
         for source in expectation["required"]:
             if f" *   - {source}" not in text:
                 failures.append(f"{output} is missing required feature source {source}")
@@ -517,16 +521,41 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     if re.search(r"\b(?:viewerState|viewerElements)\b", search_source):
         failures.append("Search implementation reaches into Viewer internals instead of the feature interface")
 
-    legacy_loader = base / "app.js"
-    if not legacy_loader.is_file():
-        failures.append("legacy compatibility loader is missing: app.js")
-    else:
-        legacy_text = legacy_loader.read_text(encoding="utf-8")
-        if "GENERATED COMPATIBILITY LOADER" not in legacy_text:
-            failures.append("app.js is still a monolithic bundle instead of the generated route loader")
-        for route_asset in ("app-catalog.js", "app-favorites.js", "app-viewer.js"):
-            if route_asset not in legacy_text:
-                failures.append(f"app.js compatibility loader does not route to {route_asset}")
+    for path in sources:
+        if "document.currentScript" in path.read_text(encoding="utf-8"):
+            failures.append(
+                f"native ES module depends on document.currentScript: "
+                f"{path.relative_to(base).as_posix()}"
+            )
+
+    if (base / "app.js").exists():
+        failures.append("obsolete compatibility loader remains: app.js")
+
+    runner = (base / "tools/build_frontend_esbuild.mjs").read_text(encoding="utf-8")
+    if 'format: "esm"' not in runner or 'format: "iife"' in runner:
+        failures.append("frontend bundles must be emitted as native browser ES modules")
+    if "_partition_metafile_inputs" not in (base / "tools/build_frontend_assets.py").read_text(encoding="utf-8"):
+        failures.append("esbuild physical and virtual metafile inputs are not validated separately")
+
+    route_pages = {
+        "index.html": "app-catalog.js",
+        "catalog.html": "app-catalog.js",
+        "favorites.html": "app-favorites.js",
+        "viewer.html": "app-viewer.js",
+    }
+    for page_name, route_asset in route_pages.items():
+        page_path = base / page_name
+        if not page_path.is_file():
+            failures.append(f"route document is missing: {page_name}")
+            continue
+        page_text = page_path.read_text(encoding="utf-8")
+        expected_tag = f'<script type="module" data-bargig-route-module src="{route_asset}"></script>'
+        if expected_tag not in page_text:
+            failures.append(f"{page_name} does not load {route_asset} as a native module")
+
+    template_text = (base / "site.template.html").read_text(encoding="utf-8")
+    if '<script type="module" data-bargig-route-module src="{{ROUTE_SCRIPT}}"></script>' not in template_text:
+        failures.append("site.template.html does not emit native route module scripts")
 
     if failures:
         raise RuntimeError("Frontend contract check failed:\n  - " + "\n  - ".join(failures))

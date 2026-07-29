@@ -3,10 +3,9 @@
 
 JavaScript is authored as native ES modules under ``src/js``. Each route has a
 small entrypoint under ``src/entries`` and is bundled by the project's directly
-pinned esbuild dependency. The generated files keep their historical names and
-IIFE browser format, so existing HTML and fullscreen-safe in-document routing
-remain unchanged while every source dependency is explicit and statically
-validated.
+pinned esbuild dependency. The generated files keep their historical names but are emitted as native
+browser ES modules. Existing fullscreen-safe in-document routing remains
+unchanged while every source dependency is explicit and statically validated.
 
 CSS remains a reviewed ordered concatenation because cascade order is part of
 its runtime contract. All generated files are written atomically. ``--check``
@@ -120,12 +119,12 @@ BUNDLE_SPECS: tuple[FrontendBundleSpec, ...] = (
         capabilities={"viewer": True, "favoritesWorkspace": True, "catalogGrid": True, "search": True}),
 )
 
-LEGACY_LOADER_NAME = "app.js"
 ROUTE_GENERATED_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS)
 DEPLOY_GENERATED_FILES = ROUTE_GENERATED_FILES
-GENERATED_FILES = (*ROUTE_GENERATED_FILES, LEGACY_LOADER_NAME)
-GENERATED_JS_FILES = (*(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "js"), LEGACY_LOADER_NAME)
+GENERATED_FILES = ROUTE_GENERATED_FILES
+GENERATED_JS_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "js")
 GENERATED_CSS_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "css")
+OBSOLETE_GENERATED_FILES: tuple[str, ...] = ("app.js",)
 ROUTE_ASSETS: Mapping[str, tuple[str, str]] = {
     "home": ("styles-catalog.css", "app-catalog.js"),
     "catalog": ("styles-catalog.css", "app-catalog.js"),
@@ -205,17 +204,49 @@ def render_css_bundle(root: Path, spec: FrontendBundleSpec) -> str:
     return normalize_text("".join(sections))
 
 
-def _normalize_metafile_inputs(root: Path, inputs: Mapping[str, object]) -> tuple[str, ...]:
-    normalized: list[str] = []
+ESBUILD_DEFINE_INPUT_RE = re.compile(r"^<define:(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)>$")
+ALLOWED_ESBUILD_DEFINE_INPUTS = frozenset({
+    "__BARGIG_FEATURE_CAPABILITIES__",
+    "__BARGIG_TEST_EXPORTS__",
+})
+
+
+def _partition_metafile_inputs(
+    root: Path,
+    inputs: Mapping[str, object],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Separate reviewed source files from esbuild's synthetic compiler inputs.
+
+    esbuild 0.28+ records values introduced by ``define`` as virtual metafile
+    inputs such as ``<define:NAME>``. They are not source modules and therefore
+    must not be compared with the reviewed physical import graph. Unknown
+    virtual inputs remain a hard failure instead of being silently discarded.
+    """
+
+    physical: list[str] = []
+    virtual: list[str] = []
     root_resolved = root.resolve()
     for raw_path in inputs:
+        define_match = ESBUILD_DEFINE_INPUT_RE.fullmatch(raw_path)
+        if define_match:
+            name = define_match.group("name")
+            if name not in ALLOWED_ESBUILD_DEFINE_INPUTS:
+                raise RuntimeError(f"Unexpected esbuild virtual input: {raw_path}")
+            virtual.append(raw_path)
+            continue
+        if raw_path.startswith("<") and raw_path.endswith(">"):
+            raise RuntimeError(f"Unexpected esbuild virtual input: {raw_path}")
+
         candidate = Path(raw_path)
         if candidate.is_absolute():
-            relative = candidate.resolve().relative_to(root_resolved).as_posix()
+            try:
+                relative = candidate.resolve().relative_to(root_resolved).as_posix()
+            except ValueError as error:
+                raise RuntimeError(f"esbuild input escapes project root: {raw_path}") from error
         else:
             relative = candidate.as_posix().removeprefix("./")
-        normalized.append(relative)
-    return tuple(sorted(normalized))
+        physical.append(relative)
+    return tuple(sorted(physical)), tuple(sorted(virtual))
 
 
 def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
@@ -240,7 +271,7 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
         raw_bundle = normalize_text(raw_output.read_text(encoding="utf-8"))
         metafile = json.loads(metafile_path.read_text(encoding="utf-8"))
 
-    actual_inputs = _normalize_metafile_inputs(root, metafile.get("inputs", {}))
+    actual_inputs, virtual_inputs = _partition_metafile_inputs(root, metafile.get("inputs", {}))
     expected_inputs = tuple(sorted(spec.expected_inputs))
     if actual_inputs != expected_inputs:
         missing = sorted(set(expected_inputs) - set(actual_inputs))
@@ -255,6 +286,8 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
         "/*\n * GENERATED FILE — DO NOT EDIT DIRECTLY.\n"
         f" * Browser bundle: {spec.output_name}\n * ES module entrypoint: {spec.entrypoint}\n"
         f" * Bundled ES module graph:\n{source_manifest_text(spec.expected_inputs)}\n"
+        f" * Compiler virtual inputs: {', '.join(virtual_inputs) if virtual_inputs else 'none'}\n"
+        " * Output format: native browser ES module\n"
         " * Bundler: esbuild 0.28.1 (direct pinned devDependency)\n"
         " * Build command: python tools/build_frontend_assets.py\n */\n"
     )
@@ -293,36 +326,28 @@ def build_one(root: Path, spec: FrontendBundleSpec, *, check: bool) -> FrontendB
     return FrontendBuildResult(output, module_count, len(expected), changed, sha256_text(content))
 
 
-def render_legacy_loader() -> str:
-    route_map = {page: ROUTE_ASSETS[page][1] for page in ("favorites", "viewer", "home", "catalog")}
-    return normalize_text(
-        "/* GENERATED COMPATIBILITY LOADER — current pages do not reference this file. */\n"
-        "(() => {\n  \"use strict\";\n"
-        "  if (document.querySelector('script[data-bargig-route-bundle]')) return;\n"
-        f"  const routeAssets = Object.freeze({json.dumps(route_map, separators=(',', ':'))});\n"
-        "  const page = String(document.body?.dataset?.page || \"home\");\n"
-        "  const asset = routeAssets[page] || routeAssets.home;\n"
-        "  const currentSource = document.currentScript?.src || document.baseURI;\n"
-        "  const script = document.createElement(\"script\");\n"
-        "  script.src = new URL(asset, currentSource).href;\n  script.async = false;\n"
-        "  script.dataset.bargigRouteBundle = page;\n  document.head.appendChild(script);\n})();\n"
-    )
-
-
-def build_legacy_loader(root: Path, *, check: bool) -> FrontendBuildResult:
-    output = root / LEGACY_LOADER_NAME
-    content = render_legacy_loader(); expected = content.encode("utf-8")
-    stale = not output.is_file() or output.read_bytes() != expected
-    if check and stale:
-        raise RuntimeError(f"Generated frontend compatibility loader is stale: {LEGACY_LOADER_NAME}. Run: python tools/build_frontend_assets.py")
-    changed = False if check else atomic_write_text(output, content)
-    return FrontendBuildResult(output, 0, len(expected), changed, sha256_text(content))
+def remove_obsolete_generated_files(root: Path, *, check: bool) -> None:
+    stale = [name for name in OBSOLETE_GENERATED_FILES if (root / name).exists()]
+    if not stale:
+        return
+    if check:
+        names = ", ".join(stale)
+        raise RuntimeError(
+            f"Obsolete frontend compatibility asset remains: {names}. "
+            "Run: python tools/build_frontend_assets.py"
+        )
+    for name in stale:
+        (root / name).unlink()
 
 
 def build_frontend_assets(root: Path | None = None, *, check: bool = False) -> tuple[FrontendBuildResult, ...]:
     base = (root or project_root()).resolve()
+    # Build every reviewed route asset successfully before removing obsolete
+    # compatibility output. This keeps a failed build from mutating an otherwise
+    # usable working tree and makes cleanup part of the successful transaction.
     results = tuple(build_one(base, spec, check=check) for spec in BUNDLE_SPECS)
-    return (*results, build_legacy_loader(base, check=check))
+    remove_obsolete_generated_files(base, check=check)
+    return results
 
 
 def main() -> int:

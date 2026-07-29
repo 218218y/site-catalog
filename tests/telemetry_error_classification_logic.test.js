@@ -16,7 +16,7 @@ class FakeErrorEvent {
 }
 
 global.window = { location: { href: "https://example.test/", origin: "https://example.test" } };
-global.document = { currentScript: null };
+global.document = { querySelector: () => null };
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
 global.ErrorEvent = FakeErrorEvent;
 global.Element = FakeElement;

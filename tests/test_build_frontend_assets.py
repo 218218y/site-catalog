@@ -203,12 +203,10 @@ def test_generated_bundles_publish_the_reviewed_esbuild_graph() -> None:
         assert "Bundler: esbuild 0.28.1 (direct pinned devDependency)" in output
         for relative in spec.expected_inputs:
             assert f" *   - {relative}" in output
-        assert "\n(() => {" in output
-        assert output.rstrip().endswith("})();")
+        assert "Output format: native browser ES module" in output
+        assert "\n(() => {" not in output
         assert "__BARGIG_TEST_EXPORTS__" not in output
         assert "TEST-ONLY EXPORTS" not in output
-        assert "\nimport " not in output
-        assert "\nexport " not in output
 
 
 def test_route_bundles_keep_forbidden_features_physically_absent() -> None:
@@ -265,6 +263,84 @@ def test_js_spec_requires_an_entrypoint_and_reviewed_graph(tmp_path: Path) -> No
     with pytest.raises(ValueError, match="src/entries"):
         MODULE.validate_js_spec(root, wrong_entry)
 
+
+
+def test_esbuild_metafile_partitions_reviewed_sources_from_known_virtual_defines(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    source = root / "src/entries/catalog.js"
+    source.parent.mkdir(parents=True)
+    source.write_text("export {};\n", encoding="utf-8")
+
+    physical, virtual = MODULE._partition_metafile_inputs(root, {
+        "src/entries/catalog.js": {},
+        "<define:__BARGIG_FEATURE_CAPABILITIES__>": {},
+    })
+
+    assert physical == ("src/entries/catalog.js",)
+    assert virtual == ("<define:__BARGIG_FEATURE_CAPABILITIES__>",)
+
+    with pytest.raises(RuntimeError, match="Unexpected esbuild virtual input"):
+        MODULE._partition_metafile_inputs(root, {"<define:UNREVIEWED_DEFINE>": {}})
+
+
+
+def test_render_javascript_bundle_accepts_esbuild_define_virtual_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "project"
+    entry = root / "src/entries/catalog.js"
+    entry.parent.mkdir(parents=True)
+    entry.write_text("export {};\n", encoding="utf-8")
+    spec = MODULE.FrontendBundleSpec(
+        "app-catalog.js",
+        "js",
+        entrypoint="src/entries/catalog.js",
+        expected_inputs=("src/entries/catalog.js",),
+    )
+
+    def fake_esbuild(command: list[str], **_kwargs: object) -> object:
+        outfile = Path(command[command.index("--outfile") + 1])
+        metafile = Path(command[command.index("--metafile") + 1])
+        outfile.write_text("console.log('module');\n", encoding="utf-8")
+        metafile.write_text(json.dumps({"inputs": {
+            "src/entries/catalog.js": {},
+            "<define:__BARGIG_FEATURE_CAPABILITIES__>": {},
+        }}), encoding="utf-8")
+        return type("Completed", (), {"returncode": 0, "stderr": "", "stdout": ""})()
+
+    monkeypatch.setattr(MODULE.subprocess, "run", fake_esbuild)
+    output = MODULE.render_javascript_bundle(root, spec)
+
+    assert "Output format: native browser ES module" in output
+    assert "<define:__BARGIG_FEATURE_CAPABILITIES__>" in output
+    assert "console.log('module');" in output
+
+def test_obsolete_compatibility_loader_is_removed_or_rejected(tmp_path: Path) -> None:
+    obsolete = tmp_path / "app.js"
+    obsolete.write_text("legacy", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Obsolete frontend compatibility asset"):
+        MODULE.remove_obsolete_generated_files(tmp_path, check=True)
+
+    MODULE.remove_obsolete_generated_files(tmp_path, check=False)
+    assert not obsolete.exists()
+
+def test_failed_route_build_does_not_remove_obsolete_asset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    obsolete = tmp_path / "app.js"
+    obsolete.write_text("legacy", encoding="utf-8")
+
+    def fail_build(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("simulated route build failure")
+
+    monkeypatch.setattr(MODULE, "build_one", fail_build)
+    with pytest.raises(RuntimeError, match="simulated route build failure"):
+        MODULE.build_frontend_assets(tmp_path)
+
+    assert obsolete.read_text(encoding="utf-8") == "legacy"
 
 def test_check_mode_detects_a_stale_route_asset(tmp_path: Path) -> None:
     root = tmp_path / "project"

@@ -216,7 +216,7 @@ def validate_bundle(bundle_dir: Path) -> None:
     Asset validation is intentionally delegated to the exact same validator
     used while building the bundle. Keeping one source of truth prevents the
     deploy step from drifting behind new runtime-loaded assets such as the
-    fingerprinted search index referenced from app.js rather than HTML.
+    fingerprinted search index referenced from a route module rather than HTML.
     """
 
     if not bundle_dir.is_dir():
