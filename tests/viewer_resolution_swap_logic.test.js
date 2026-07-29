@@ -1,23 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-
-const source = fs.readFileSync(path.join(__dirname, "..", "src/js/53-viewer-image.js"), "utf8");
-
-function sourceBetween(startMarker, endMarker) {
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker, start + startMarker.length);
-  assert.notEqual(start, -1, `Missing ${startMarker}`);
-  assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return source.slice(start, end);
-}
-
-const retentionSource = sourceBetween(
-  "function retainSingleViewerResolutionLayerForSwap()",
-  "function activeSingleViewerImageLogicalSrc()"
-);
+const { importFrontendTestModule } = require("./frontend_test_module");
 
 function createClassList(initial = []) {
   const values = new Set(initial);
@@ -29,7 +13,7 @@ function createClassList(initial = []) {
   };
 }
 
-function createApi(overrides = {}) {
+function createFixture(overrides = {}) {
   let stopCalls = 0;
   const classList = createClassList(["is-resolution-loading", "is-resolution-upgrade-ready"]);
   const image = {
@@ -42,9 +26,7 @@ function createApi(overrides = {}) {
       imageLoadPending: "true"
     },
     src: "full-page-1.webp",
-    removeAttribute(name) {
-      if (name === "src") this.src = "";
-    }
+    removeAttribute(name) { if (name === "src") this.src = ""; }
   };
   const state = {
     singleImageResolutionImage: image,
@@ -58,17 +40,13 @@ function createApi(overrides = {}) {
     singleImageResolutionCommitPending: true,
     ...overrides
   };
-  const els = { lightboxImageFrame: { classList } };
-  const api = new Function(
-    "viewerState",
-    "viewerElements",
-    `${retentionSource}; return { retainSingleViewerResolutionLayerForSwap, releaseSingleViewerRetainedResolutionLayer };`
-  )(state, els);
+  Object.assign(globalThis, { viewerState: state, viewerElements: { lightboxImageFrame: { classList } } });
+  const api = importFrontendTestModule("src/js/53-viewer-image.js", "viewer-image");
   return { api, state, image, classList, getStopCalls: () => stopCalls };
 }
 
 {
-  const fixture = createApi();
+  const fixture = createFixture();
   assert.equal(fixture.api.retainSingleViewerResolutionLayerForSwap(), true);
   assert.equal(fixture.getStopCalls(), 1);
   assert.equal(fixture.state.singleImageResolutionLoadToken, 8);
@@ -77,11 +55,10 @@ function createApi(overrides = {}) {
   assert.equal(fixture.state.singleImageResolutionReady, false);
   assert.equal(fixture.state.singleImageResolutionTargetSrc, "");
   assert.equal(fixture.state.singleImageResolutionTargetTier, "");
-  assert.equal(fixture.image.src, "full-page-1.webp", "decoded front buffer stays painted during the swap");
+  assert.equal(fixture.image.src, "full-page-1.webp");
   assert.equal(fixture.image.dataset.resolutionRetainedForSwap, "true");
   assert.equal(fixture.classList.contains("is-resolution-loading"), false);
   assert.equal(fixture.classList.contains("is-resolution-upgrade-ready"), true);
-
   assert.equal(fixture.api.releaseSingleViewerRetainedResolutionLayer(), true);
   assert.equal(fixture.state.singleImageResolutionRetainedForSwap, false);
   assert.equal(fixture.image.src, "");
@@ -92,7 +69,7 @@ function createApi(overrides = {}) {
 }
 
 {
-  const fixture = createApi({ singleImageResolutionVisible: false });
+  const fixture = createFixture({ singleImageResolutionVisible: false });
   assert.equal(fixture.api.retainSingleViewerResolutionLayerForSwap(), false);
   assert.equal(fixture.getStopCalls(), 0);
   assert.equal(fixture.image.src, "full-page-1.webp");

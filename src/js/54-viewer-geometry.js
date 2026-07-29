@@ -519,3 +519,30 @@ function toggleZoomAtPoint(clientX, clientY) {
     setZoom(2, { showUi: false, focalClientX: clientX, focalClientY: clientY });
   }
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["viewer-geometry"] = Object.freeze({
+    normalizeViewerFitMode,
+    normalizeViewerFitModeSource,
+    viewerUsesAutomaticFitMode,
+    getAutomaticViewerFitMode,
+    getSafeViewerZoom,
+    singleViewerUsesBoundaryPan,
+    getViewerPageTurnBuffer,
+    getSinglePanBounds,
+    clampSinglePan,
+    captureSingleImageRelativePosition,
+    queueSingleImageRelativePosition,
+    queueSingleImagePageTurnOrigin,
+    applyPendingSingleImagePosition,
+    applySingleZoom,
+    consumeSingleViewerPanInput,
+    finalizeSingleViewerZoomChange,
+    zoomSingleContentPointToViewportCenter,
+    zoomClientPointToViewportCenter,
+    setZoom,
+    toggleZoomAtPoint
+  });
+}
+/* TEST-ONLY EXPORTS: END */

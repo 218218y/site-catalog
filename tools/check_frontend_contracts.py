@@ -125,6 +125,8 @@ def check_feature_registry(base: Path, sources: list[Path], failures: list[str])
         failures.append("legacy generic FeatureInterface contract remains")
     if "@template {FeatureName} K" not in registry:
         failures.append("feature registry access is not keyed by FeatureName")
+    if "function requireFeatureInterface(name)" not in registry:
+        failures.append("required feature seams can still degrade into silent optional no-ops")
 
     registered: list[str] = []
     for path in sources:
@@ -153,6 +155,76 @@ def check_bootstrap_boundary(base: Path, failures: list[str]) -> None:
     if len(executable_lines) > 18:
         failures.append("90-bootstrap.js contains orchestration or business logic instead of a minimal startup boundary")
 
+
+def check_test_strategy(base: Path, failures: list[str]) -> None:
+    """Keep behavior tests coupled to runtime APIs, never source formatting."""
+
+    tests_dir = base / "tests"
+    if not tests_dir.is_dir():
+        failures.append("frontend test directory is missing: tests")
+        return
+
+    dynamic_execution_patterns = {
+        "new Function": re.compile(r"\bnew\s+Function\s*\("),
+        "eval": re.compile(r"(?<![A-Za-z0-9_$])eval\s*\("),
+    }
+    for path in sorted(tests_dir.rglob("*.test.js")):
+        text = path.read_text(encoding="utf-8")
+        relative = path.relative_to(base).as_posix()
+        for label, pattern in dynamic_execution_patterns.items():
+            if pattern.search(text):
+                failures.append(
+                    f"{relative} executes extracted source with {label}; import the production module instead"
+                )
+        if path.name != "browser_e2e_contract.test.js" and re.search(r"\bvm\.runIn(?:New)?Context\s*\(", text):
+            failures.append(
+                f"{relative} executes source through vm; source-text tests are structural only"
+            )
+        if "data:text/javascript" in text:
+            failures.append(
+                f"{relative} imports JavaScript reconstructed from source text; import the module file directly"
+            )
+
+    required_behavior_tests = (
+        "tests/search_catalog_domain_logic.test.js",
+        "tests/search_catalog_viewer_integration.test.js",
+    )
+    for relative in required_behavior_tests:
+        path = base / relative
+        if not path.is_file():
+            failures.append(f"required Search/Catalog behavior test is missing: {relative}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "importFrontendTestModule" not in text:
+            failures.append(f"{relative} must import the production test module instead of reading source text")
+
+
+def check_test_only_exports(base: Path, sources: list[Path], failures: list[str]) -> None:
+    """Require explicit source-owned test APIs and prove they never ship."""
+
+    helper = base / "tests/frontend_test_module.js"
+    if not helper.is_file():
+        failures.append("source-owned frontend test module loader is missing")
+    else:
+        helper_text = helper.read_text(encoding="utf-8")
+        if "__BARGIG_TEST_EXPORTS__" not in helper_text or "require(resolvedPath)" not in helper_text:
+            failures.append("frontend test module loader does not import the real source module")
+
+    for path in sources:
+        text = path.read_text(encoding="utf-8")
+        begins = text.count("/* TEST-ONLY EXPORTS: BEGIN */")
+        ends = text.count("/* TEST-ONLY EXPORTS: END */")
+        if begins != ends:
+            failures.append(f"unbalanced test-only export boundary: {path.relative_to(base).as_posix()}")
+
+    for output in ("app-catalog.js", "app-favorites.js", "app-viewer.js"):
+        path = base / output
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "__BARGIG_TEST_EXPORTS__" in text or "TEST-ONLY EXPORTS" in text:
+            failures.append(f"{output} ships test-only source exports")
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -175,6 +247,8 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     check_typecheck_configuration(base, failures)
     check_feature_registry(base, sources, failures)
     check_bootstrap_boundary(base, failures)
+    check_test_strategy(base, failures)
+    check_test_only_exports(base, sources, failures)
 
     for path in sources:
         relative_path = path.relative_to(base).as_posix()
@@ -219,7 +293,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     # Route outputs must prove that omitted features are physically absent, not merely disabled.
     route_expectations = {
         "app-catalog.js": {
-            "required": ("src/js/40-catalog-grid.js", "src/js/50-search-ui.js"),
+            "required": ("src/js/39-search-catalog-domain.js", "src/js/40-catalog-grid.js", "src/js/50-search-ui.js"),
             "forbidden": (
                 "src/js/16-viewer-state.js",
                 "src/js/31-viewer-share.js",
@@ -232,6 +306,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             "required": (
                 "src/js/32-shared-inquiry.js",
                 "src/js/35-favorites-workspace.js",
+                "src/js/39-search-catalog-domain.js",
                 "src/js/40-catalog-grid.js",
             ),
             "forbidden": (
@@ -247,6 +322,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
                 "src/js/31-viewer-share.js",
                 "src/js/32-shared-inquiry.js",
                 "src/js/35-favorites-workspace.js",
+                "src/js/39-search-catalog-domain.js",
                 "src/js/40-catalog-grid.js",
                 "src/js/53-viewer-image.js",
                 "src/js/60-viewer.js",

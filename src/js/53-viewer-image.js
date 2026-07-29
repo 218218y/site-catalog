@@ -520,3 +520,16 @@ function preloadNeighbors() {
     });
 }
 
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["viewer-image"] = Object.freeze({
+    retainSingleViewerResolutionLayerForSwap,
+    releaseSingleViewerRetainedResolutionLayer,
+    shouldWarmSingleViewerFullResolution,
+    renderedViewerPagePhysicalLongSide,
+    preferredViewerImageTier,
+    viewerPageImageRequest
+  });
+}
+/* TEST-ONLY EXPORTS: END */

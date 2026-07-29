@@ -14,6 +14,7 @@ const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const app = readAllBundles();
 const css = readAllCssBundles();
 const favoritesWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'js', '35-favorites-workspace.js'), 'utf8');
+const portabilitySource = fs.readFileSync(path.join(root, 'src', 'js', '29-favorites-portability.js'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
 for (const html of [template, favorites]) {
@@ -38,13 +39,9 @@ assert.doesNotMatch(pageBuilder, /HEADER_FULLSCREEN_BUTTON|show_header_fullscree
 assert.doesNotMatch(app, /headerFullscreenToggle/);
 
 assert.match(app, /const FAVORITES_SHARE_VERSION = 2;/);
-assert.match(app, /function canonicalizeFavoriteShareItems\(/);
 assert.match(app, /function analyzeFavoriteItemMerge\([\s\S]*?newItems[\s\S]*?alreadyExistingItems[\s\S]*?mergedItems/);
-assert.match(app, /function mergeFavoriteItemLists\([\s\S]*?analyzeFavoriteItemMerge\(incoming, existing\)\.mergedItems/);
-assert.match(app, /function syncFavoritesTransferDialogUi\([\s\S]*?analyzeFavoriteItemMerge\(pending\.items, getValidFavoriteItems\(\)\)[\s\S]*?alreadyExistingCount > 0[\s\S]*?מתוכם[\s\S]*?פריטים ברשימה שהתקבלה/);
-assert.match(app, /function encodeFavoritePageRanges\(/);
-assert.match(app, /function decodeFavoritePageRanges\(/);
-assert.match(app, /function buildFavoritesShareToken\([\s\S]*?canonicalizeFavoriteShareItems\([\s\S]*?encodeFavoritePageRanges/);
+assert.match(app, /function syncFavoritesTransferDialogUi\([\s\S]*?favoritesPortabilityDomain\.favoritesTransferSummary\([\s\S]*?pending,[\s\S]*?existingItems/);
+assert.match(portabilitySource, /function favoritesTransferSummary\([\s\S]*?analyzeFavoriteItemMerge\(pending\.items, existing\)[\s\S]*?alreadyExistingCount > 0[\s\S]*?מתוכם[\s\S]*?פריטים ברשימה שהתקבלה/);
 assert.doesNotMatch(app, /FAVORITES_SHARE_LEGACY_VERSION|parseLegacyFavoritesShareToken/);
 assert.match(app, /function shareFavoritesList\([\s\S]*?getFeatureInterface\("favorites-workspace"\)[\s\S]*?workspace\.copyShareLink\([\s\S]*?workspace\.shareLinkEntries\(\)/);
 assert.match(app, /function copyFavoriteWorkspaceLink\([\s\S]*?copyTextToClipboard\(selectionUrl\)[\s\S]*?קישור המועדפים הועתק/);

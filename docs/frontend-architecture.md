@@ -90,11 +90,14 @@
 | `15-telemetry.js` | ניטור שומר פרטיות |
 | `16-viewer-state.js` | מצב ו־DOM של Viewer בלבד |
 | `18-navigation-feature.js` | facade טיפוסי לבעלות ניווט ו־Route shell |
+| `19-shared-pure.js` | מדיניות טהורה משותפת, ללא DOM או state |
 | `20-shared-ui.js` | שירותי UI משותפים שאינם בבעלות Feature יחיד |
+| `29-favorites-portability.js` | codec ומדיניות טהורה לייבוא, מיזוג ושיתוף מועדפים |
 | `30-favorites-share.js` | store ושיתוף בסיסי של מועדפים |
 | `31-viewer-share.js` | שיתוף וצילום שתלויים ב־Viewer |
 | `32-shared-inquiry.js` | חלון הבירור המשותף ל־Viewer ולמועדפים |
 | `35-favorites-workspace.js` | סביבת העבודה של דף המועדפים |
+| `39-search-catalog-domain.js` | מדיניות טהורה ל־layout ולמעברי Search/Catalog/Viewer |
 | `40-catalog-grid.js` | Grid, קטגוריות ותצוגת פרטי קטלוג |
 | `50-search-ui.js` | לקוח Worker וממשקי החיפוש |
 | `52-viewer-session.js` | state machine של Viewer ו־Fullscreen |
@@ -108,6 +111,18 @@
 | `70-viewer-input.js` | pointer, pinch, pan, wheel ו־double tap |
 | `80-app-shell.js` | composition root ותיאום lifecycle דרך Feature APIs |
 | `90-bootstrap.js` | startup מינימלי שמאציל ל־`app-shell` |
+
+## אסטרטגיית בדיקות התנהגות
+
+בדיקות התנהגות אינן קוראות גוף פונקציה מתוך קובץ מקור ואינן מפעילות אותו באמצעות `new Function`, `eval` או `vm`. קובץ המקור של הייצור הוא מקור האמת היחיד.
+
+- לוגיקה טהורה נמצאת במודולי domain כגון `19-shared-pure.js`, `29-favorites-portability.js` ו־`39-search-catalog-domain.js`. ה־owners של ה־UI מאצילים אליהם במקום לשכפל אלגוריתם בבדיקה.
+- כאשר owner ותיק עדיין תלוי ב־DOM או ב־state, הוא רשאי לפרסם API בדיקה קטן בתוך גבול `TEST-ONLY EXPORTS`. `tests/frontend_test_module.js` טוען את קובץ המקור האמיתי ומקבל את ה־API הזה; ה־builder מסיר את הגבול כולו מכל bundle ייצור.
+- source-text tests נשארים רק לחוזים שבהם מבנה הקוד הוא המוצר הנבדק: manifest, היעדר Feature ממסלול, markup/CSS נדרש, CSP או wiring של build. הם אינם מחלצים או מבצעים לוגיקה עסקית.
+- seams בין Features נבדקים דרך ports מחייבים. לדוגמה, `Search` אינו רשאי לדווח הצלחה כאשר `Catalog Grid` או `Viewer` חסרים; אינטגרציה נדרשת נפתרת באמצעות `requireFeatureInterface()` ונכשלת בקול ברור.
+- `tools/check_frontend_contracts.py` דוחה חזרה ל־dynamic source execution ומוודא ש־test-only exports אינם מגיעים ל־`app-catalog.js`, `app-favorites.js` או `app-viewer.js`.
+
+תוצאה רצויה: שינוי שם מקומי, פיצול פונקציה או שינוי אינדנטציה אינם שוברים בדיקת התנהגות; שינוי API, תוצאה או אינטגרציה כן שוברים אותה.
 
 ## שכבות CSS וטעינה לפי מסלול
 
@@ -128,7 +143,7 @@ CSS נשמר בשכבות אחריות קיימות, אך builder מרכיב man
 2. `python tools/check_frontend_contracts.py` — בעלות state/DOM וגבולות Route/Feature.
 3. `tsc -p jsconfig.json --noEmit` — strict מלא על כל `src/js/**/*.js`, globals מוכרזים, DOM מדויק ו־Feature Registry ממופה.
 4. `node tools/check_frontend_runtime_symbols.js` — כל Route bundle נבדק לסמלים בלתי־פתורים. כך קריאה ל־Viewer מתוך חבילת הבית אינה יכולה להסתתר מאחורי תנאי runtime.
-5. בדיקות חוזה JavaScript — manifests, HTML routes, event ownership והתנהגות Feature.
+5. בדיקות JavaScript — unit tests שמייבאים מודולי ייצור, בדיקות integration ל־Feature ports, ו־source-text רק לחוזים מבניים.
 6. בדיקות Python — יצירת דפים, fingerprinting, פריסה ותקציבי גודל.
 7. Playwright — מסעות דפדפן, שגיאות runtime וטעינה לפי מסלול.
 

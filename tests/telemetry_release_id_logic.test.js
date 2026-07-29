@@ -1,50 +1,32 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
+const { importFrontendTestModule } = require("./frontend_test_module");
 
-const source = fs.readFileSync(path.join(__dirname, "../src/js/15-telemetry.js"), "utf8");
-const resolveStart = source.indexOf("function telemetryResolveReleaseId()");
-const cleanStart = source.indexOf("function telemetryCleanText(value, limit = 120)");
-const cleanEnd = source.indexOf("function telemetryCleanPathname", cleanStart);
-assert.notEqual(resolveStart, -1, "Missing telemetryResolveReleaseId");
-assert.notEqual(cleanStart, -1, "Missing telemetryCleanText");
-assert.notEqual(cleanEnd, -1, "Missing telemetryCleanText boundary");
+global.window = {};
+global.document = { currentScript: null };
+Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
+const { telemetryResolveReleaseId } = importFrontendTestModule("src/js/15-telemetry.js", "telemetry");
 
-const resolveSource = source.slice(resolveStart, source.indexOf("const TELEMETRY_RELEASE_ID", resolveStart));
-const cleanSource = source.slice(cleanStart, cleanEnd);
-
-function resolver(windowValue, scriptSrc) {
-  return new Function(
-    "window",
-    "document",
-    `${cleanSource}\n${resolveSource}\nreturn telemetryResolveReleaseId;`
-  )(windowValue, { currentScript: scriptSrc ? { src: scriptSrc } : null });
+function resolve(windowValue, scriptSrc) {
+  global.window = windowValue;
+  global.document = { currentScript: scriptSrc ? { src: scriptSrc } : null };
+  return telemetryResolveReleaseId();
 }
 
-assert.equal(
-  resolver({}, "https://example.test/static/app.cb9e905e5526.js")(),
-  "app-cb9e905e5526"
-);
+assert.equal(resolve({}, "https://example.test/static/app.cb9e905e5526.js"), "app-cb9e905e5526");
 for (const route of ["catalog", "favorites", "viewer"]) {
-  assert.equal(
-    resolver({}, `https://example.test/static/app-${route}.f7ae08108c2c.js`)(),
-    "app-f7ae08108c2c"
-  );
+  assert.equal(resolve({}, `https://example.test/static/app-${route}.f7ae08108c2c.js`), "app-f7ae08108c2c");
 }
+assert.equal(resolve({}, "https://example.test/app.js?cache=1"), "app-unversioned");
 assert.equal(
-  resolver({}, "https://example.test/app.js?cache=1")(),
-  "app-unversioned"
-);
-assert.equal(
-  resolver({ __BARGIG_RELEASE_ID__: " deploy-0123456789abcdef " }, "https://example.test/app-catalog.js")(),
+  resolve({ __BARGIG_RELEASE_ID__: " deploy-0123456789abcdef " }, "https://example.test/app-catalog.js"),
   "deploy-0123456789abcdef"
 );
 assert.equal(
-  resolver({ __BARGIG_RELEASE_ID__: " release  custom\nvalue " }, "https://example.test/app.js")(),
+  resolve({ __BARGIG_RELEASE_ID__: " release  custom\nvalue " }, "https://example.test/app.js"),
   "release custom value"
 );
-assert.equal(resolver({}, "https://example.test/vendor.js")(), "unknown-release");
+assert.equal(resolve({}, "https://example.test/vendor.js"), "unknown-release");
 
 console.log("telemetry_release_id_logic.test.js: PASS");

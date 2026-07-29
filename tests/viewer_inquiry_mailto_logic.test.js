@@ -1,27 +1,14 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const { readAllBundles, readAllCssBundles } = require("./frontend_test_assets");
-const vm = require("node:vm");
+const { importFrontendTestModule } = require("./frontend_test_module");
 
-const root = path.join(__dirname, "..");
-const app = readAllBundles();
-const functionSource = app.match(
-  /function viewerInquiryMailtoUrl\(emailAddress, reference\) \{[\s\S]*?\n\}/
-)?.[0];
-
-assert.ok(functionSource, "viewerInquiryMailtoUrl should be present in the generated application bundle");
-
-const context = {};
-vm.runInNewContext(`${functionSource}\nthis.buildMailto = viewerInquiryMailtoUrl;`, context);
-
+const { buildViewerInquiryMailtoUrl } = importFrontendTestModule("src/js/19-shared-pure.js", "shared-pure");
 const reference = {
   subject: "בירור על דגם – קטלוג לדוגמה, עמוד 5",
   text: "שלום,\nרציתי לברר לגבי הדגם הבא:\nקישור ישיר: https://example.com/catalog/demo/page/5/"
 };
-const href = context.buildMailto("office@example.com", reference);
+const href = buildViewerInquiryMailtoUrl("office@example.com", reference);
 
 assert.ok(href.startsWith("mailto:office@example.com?subject="));
 assert.ok(href.includes("%20"), "spaces in a mailto URI must use percent encoding");

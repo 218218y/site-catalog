@@ -612,3 +612,22 @@ function handleLightboxPointerDownCapture(event) {
   stopViewerTouchMomentum();
   hideLightboxTopSearchFromViewerInteraction(event);
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["viewer-input"] = Object.freeze({
+    captureViewerPointer,
+    releaseViewerPointerCapture,
+    getViewerPointerEventTime,
+    stopViewerTouchMomentum,
+    getViewerPointerMoveSamples,
+    updateViewerPointerVelocity,
+    consumeViewerPointerPanSamples,
+    clampViewerTouchMomentumVelocity,
+    runViewerTouchMomentumFrame,
+    startViewerTouchMomentum,
+    getWheelZoomFactor,
+    handleZoomSurfaceWheel
+  });
+}
+/* TEST-ONLY EXPORTS: END */

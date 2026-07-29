@@ -68,187 +68,20 @@ function getValidFavoriteItems() {
   });
 }
 
-/** @param {FavoriteKeySource|null|undefined} item */
-function favoriteItemKey(item) {
-  const catalogId = String(item?.catalogId || item?.catalog?.id || "").trim();
-  const page = Number.parseInt(String(item?.page ?? ""), 10);
-  return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\u0000${page}` : "";
-}
-
-/** @param {unknown} values @returns {FavoritesTransfer} */
-function normalizeFavoriteTransferItems(values) {
-  const normalized = window.BargigFavorites?.normalizeItems?.(values) || [];
-  /** @type {FavoriteItem[]} */
-  const accepted = [];
-  let rejected = Math.max(0, Array.isArray(values) ? values.length - normalized.length : 0);
-
-  normalized.forEach((item) => {
-    const catalog = findCatalogById(item.catalogId);
-    const pageCount = Number.parseInt(String(catalog?.pages || 0), 10);
-    if (!catalog || !Number.isFinite(pageCount) || item.page > pageCount) {
-      rejected += 1;
-      return;
-    }
-    accepted.push({
-      catalogId: item.catalogId,
-      page: item.page,
-      savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : 0
-    });
-  });
-
-  return { items: accepted, rejected };
-}
-
-/** @param {unknown} incoming @param {unknown} [existing] @returns {FavoriteMergeAnalysis} */
-function analyzeFavoriteItemMerge(incoming, existing = getValidFavoriteItems()) {
-  const incomingItems = normalizeFavoriteTransferItems(incoming).items;
-  const existingItems = window.BargigFavorites?.normalizeItems?.(existing) || [];
-  const existingByKey = new Map(existingItems.map((item) => [favoriteItemKey(item), item]));
-  const incomingKeys = new Set(incomingItems.map(favoriteItemKey).filter(Boolean));
-  const newItems = incomingItems.filter((item) => !existingByKey.has(favoriteItemKey(item)));
-  const alreadyExistingItems = incomingItems.filter((item) => existingByKey.has(favoriteItemKey(item)));
-  const mergedIncomingItems = incomingItems.map((item) => {
-    const existingItem = existingByKey.get(favoriteItemKey(item));
-    if (!existingItem) return item;
-    return {
-      ...item,
-      savedAt: Number(existingItem.savedAt) > 0 ? Number(existingItem.savedAt) : Number(item.savedAt) || 0,
-      ...(String(existingItem.note || "").trim() ? { note: String(existingItem.note).trim() } : {})
-    };
-  });
-  const preservedExistingItems = existingItems.filter((item) => !incomingKeys.has(favoriteItemKey(item)));
-
-  return {
-    incomingItems,
-    existingItems,
-    newItems,
-    alreadyExistingItems,
-    mergedItems: [...mergedIncomingItems, ...preservedExistingItems]
-  };
-}
-
-/** @param {unknown} incoming @param {unknown} [existing] @returns {FavoriteItem[]} */
-function mergeFavoriteItemLists(incoming, existing = getValidFavoriteItems()) {
-  return analyzeFavoriteItemMerge(incoming, existing).mergedItems;
-}
-
-/** @param {unknown} value */
-function encodeBase64UrlUtf8(value) {
-  const bytes = new TextEncoder().encode(String(value || ""));
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-  }
-  return window.btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-/** @param {unknown} value */
-function decodeBase64UrlUtf8(value) {
-  const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
-  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
-  const binary = window.atob(`${normalized}${padding}`);
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
-/** @param {unknown} items @returns {FavoriteItem[]} */
-function canonicalizeFavoriteShareItems(items) {
-  const normalized = normalizeFavoriteTransferItems(items).items.map(({ catalogId, page }) => ({ catalogId, page }));
-  const catalogOrder = new Map(catalogs.map((catalog, index) => [String(catalog.id || ""), index]));
-  return normalized.sort((a, b) => {
-    const aIndex = catalogOrder.get(a.catalogId) ?? Number.MAX_SAFE_INTEGER;
-    const bIndex = catalogOrder.get(b.catalogId) ?? Number.MAX_SAFE_INTEGER;
-    if (aIndex !== bIndex) return aIndex - bIndex;
-    const catalogCompare = a.catalogId.localeCompare(b.catalogId, "he");
-    return catalogCompare || a.page - b.page;
-  });
-}
-
-/** @param {Array<number>} pages */
-function encodeFavoritePageRanges(pages) {
-  const sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page > 0))]
-    .sort((a, b) => a - b);
-  const ranges = [];
-  for (let index = 0; index < sorted.length;) {
-    const start = sorted[index];
-    let end = start;
-    while (index + 1 < sorted.length && sorted[index + 1] === end + 1) {
-      index += 1;
-      end = sorted[index];
-    }
-    const encodedStart = start.toString(36);
-    ranges.push(end === start ? encodedStart : `${encodedStart}-${end.toString(36)}`);
-    index += 1;
-  }
-  return ranges.join(",");
-}
-
-/** @param {unknown} value @returns {number[]} */
-function decodeFavoritePageRanges(value) {
-  /** @type {number[]} */
-  const pages = [];
-  String(value || "").split(",").forEach((part) => {
-    if (!part) return;
-    const [rawStart, rawEnd = rawStart] = part.split("-", 2);
-    const start = Number.parseInt(rawStart, 36);
-    const end = Number.parseInt(rawEnd, 36);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end - start > 1000) return;
-    for (let page = start; page <= end; page += 1) pages.push(page);
-  });
-  return pages;
-}
-
-/** @param {unknown} items */
-function buildFavoritesShareToken(items) {
-  /** @type {Map<string,number[]>} */
-  const grouped = new Map();
-  canonicalizeFavoriteShareItems(items).forEach(({ catalogId, page }) => {
-    const pages = grouped.get(catalogId) || [];
-    pages.push(page);
-    grouped.set(catalogId, pages);
-  });
-  const payload = [...grouped.entries()]
-    .map(([catalogId, pages]) => `${encodeURIComponent(catalogId)}~${encodeFavoritePageRanges(pages)}`)
-    .join("|");
-  return `v${FAVORITES_SHARE_VERSION}.${encodeBase64UrlUtf8(payload)}`;
-}
-
-/** @param {unknown} token @returns {FavoritesTransfer} */
-function parseFavoritesShareToken(token) {
-  const rawToken = String(token || "").trim();
-  const prefix = `v${FAVORITES_SHARE_VERSION}.`;
-  if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
-
-  try {
-    const payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length));
-    /** @type {FavoriteItem[]} */
-    const rawItems = [];
-    if (payload) {
-      payload.split("|").forEach((group) => {
-        const separatorIndex = group.indexOf("~");
-        if (separatorIndex < 1) return;
-        const catalogId = decodeURIComponent(group.slice(0, separatorIndex));
-        decodeFavoritePageRanges(group.slice(separatorIndex + 1)).forEach((page) => {
-          rawItems.push({ catalogId, page, savedAt: 0 });
-        });
-      });
-    }
-    const normalized = normalizeFavoriteTransferItems(rawItems);
-    return { ...normalized, valid: true };
-  } catch (_error) {
-    return { items: [], rejected: 0, valid: false };
-  }
-}
+const favoritesPortabilityDomain = createFavoritesPortabilityDomain({
+  normalizeItems: (values) => window.BargigFavorites?.normalizeItems?.(values) || [],
+  findCatalogById,
+  catalogs: () => catalogs,
+  encodeBase64: (value) => window.btoa(value),
+  decodeBase64: (value) => window.atob(value),
+  shareVersion: FAVORITES_SHARE_VERSION
+});
 
 /** @param {unknown} items */
 function buildFavoritesShareUrl(items) {
   const url = new URL(favoritesDocumentUrl(), window.location.href);
   url.hash = "";
-  url.searchParams.set(FAVORITES_SHARE_PARAM, buildFavoritesShareToken(items));
+  url.searchParams.set(FAVORITES_SHARE_PARAM, favoritesPortabilityDomain.buildFavoritesShareToken(items));
   return url.toString();
 }
 
@@ -262,23 +95,16 @@ function cleanFavoritesSelectionFromUrl() {
 function syncFavoritesTransferDialogUi() {
   const pending = favoritesState.favoritesTransferPending;
   if (!pending || !favoritesElements.favoritesTransferOverlay) return;
-  const comparison = analyzeFavoriteItemMerge(pending.items, getValidFavoriteItems());
-  const incomingCount = comparison.incomingItems.length;
-  const currentCount = comparison.existingItems.length;
-  const newCount = comparison.newItems.length;
-  const alreadyExistingCount = comparison.alreadyExistingItems.length;
+  const existingItems = getValidFavoriteItems();
   if (favoritesElements.favoritesTransferTitle) favoritesElements.favoritesTransferTitle.textContent = "רשימת מועדפים התקבלה";
   if (favoritesElements.favoritesTransferDescription) {
     favoritesElements.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת.";
   }
   if (favoritesElements.favoritesTransferSummary) {
-    const rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "";
-    const existingLabel = alreadyExistingCount === 1 ? "קיים" : "קיימים";
-    const newLabel = newCount === 1 ? "חדש" : "חדשים";
-    const overlapText = alreadyExistingCount > 0
-      ? `\nמתוכם ${alreadyExistingCount} ${existingLabel} ו-${newCount} ${newLabel}`
-      : "";
-    favoritesElements.favoritesTransferSummary.textContent = `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}${overlapText}`;
+    favoritesElements.favoritesTransferSummary.textContent = favoritesPortabilityDomain.favoritesTransferSummary(
+      pending,
+      existingItems
+    );
   }
 }
 
@@ -317,7 +143,7 @@ function applyFavoritesTransfer(mode) {
     ...item,
     savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : timestamp - index
   }));
-  const comparison = analyzeFavoriteItemMerge(incoming, getValidFavoriteItems());
+  const comparison = favoritesPortabilityDomain.analyzeFavoriteItemMerge(incoming, getValidFavoriteItems());
   const nextItems = mode === "merge"
     ? comparison.mergedItems
     : incoming;
@@ -357,7 +183,7 @@ function processFavoritesSelectionFromUrl() {
   const url = new URL(window.location.href);
   const token = url.searchParams.get(FAVORITES_SHARE_PARAM);
   if (!token) return;
-  const parsed = parseFavoritesShareToken(token);
+  const parsed = favoritesPortabilityDomain.parseFavoritesShareToken(token);
   if (!parsed.valid || !parsed.items.length) {
     cleanFavoritesSelectionFromUrl();
     showActionToast("הקישור אינו מכיל רשימת בחירה תקינה");
@@ -618,7 +444,7 @@ function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
   const mutation = favoritesStore.removeDetailed({ catalogId, page });
   if (mutation.changed) {
-    favoritesState.favoritesSelectedKeys.delete(favoriteItemKey({ catalogId, page }));
+    favoritesState.favoritesSelectedKeys.delete(favoritesPortabilityDomain.favoriteItemKey({ catalogId, page }));
     telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
   }
   syncFavoritesUi({ renderPanel: true });

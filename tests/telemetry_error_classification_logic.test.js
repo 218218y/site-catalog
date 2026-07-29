@@ -1,20 +1,10 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-
-const source = fs.readFileSync(path.join(__dirname, "../src/js/15-telemetry.js"), "utf8");
-const start = source.indexOf("function telemetryIsRuntimeErrorEvent(event)");
-const end = source.indexOf("function telemetryTrackRuntimeError(event)", start);
-assert.notEqual(start, -1, "Missing telemetryIsRuntimeErrorEvent");
-assert.notEqual(end, -1, "Missing telemetryTrackRuntimeError boundary");
-const classificationSource = source.slice(start, end);
+const { importFrontendTestModule } = require("./frontend_test_module");
 
 class FakeElement {
-  constructor(tagName) {
-    this.tagName = tagName;
-  }
+  constructor(tagName) { this.tagName = tagName; }
 }
 class FakeHTMLImageElement extends FakeElement {}
 class FakeErrorEvent {
@@ -22,20 +12,18 @@ class FakeErrorEvent {
     this.message = message;
     this.target = {};
   }
-  get [Symbol.toStringTag]() {
-    return "ErrorEvent";
-  }
+  get [Symbol.toStringTag]() { return "ErrorEvent"; }
 }
 
-const { classify, isRuntime } = new Function(
-  "ErrorEvent",
-  "Element",
-  "HTMLImageElement",
-  `${classificationSource}; return {
-    classify: telemetryClassifyWindowError,
-    isRuntime: telemetryIsRuntimeErrorEvent
-  };`
-)(FakeErrorEvent, FakeElement, FakeHTMLImageElement);
+global.window = { location: { href: "https://example.test/", origin: "https://example.test" } };
+global.document = { currentScript: null };
+Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
+global.ErrorEvent = FakeErrorEvent;
+global.Element = FakeElement;
+global.HTMLImageElement = FakeHTMLImageElement;
+
+const { telemetryClassifyWindowError: classify, telemetryIsRuntimeErrorEvent: isRuntime } =
+  importFrontendTestModule("src/js/15-telemetry.js", "telemetry");
 
 const scriptError = { type: "error", target: new FakeElement("SCRIPT") };
 const linkError = { type: "error", target: new FakeElement("LINK") };

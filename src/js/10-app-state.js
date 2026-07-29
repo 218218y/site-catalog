@@ -68,6 +68,21 @@ function getFeatureInterface(name) {
   );
 }
 
+/**
+ * Resolve a feature that is mandatory for the current interaction. Optional
+ * route capabilities continue to use getFeatureInterface(); required seams
+ * fail loudly instead of returning a successful no-op.
+ *
+ * @template {FeatureName} K
+ * @param {K} name
+ * @returns {FeatureRegistry[K] & {readonly name:K}}
+ */
+function requireFeatureInterface(name) {
+  const api = getFeatureInterface(name);
+  if (!api) throw new Error(`Required feature interface is unavailable: ${name}`);
+  return api;
+}
+
 const ESCAPE_FEATURE_NAMES = /** @type {const} */ ([
   "inquiry",
   "favorites",
@@ -107,3 +122,13 @@ function bindFeatureEventsOnce(featureName, binder) {
   boundEventFeatures.add(name);
   return true;
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["feature-registry"] = Object.freeze({
+    registerFeatureInterface,
+    getFeatureInterface,
+    requireFeatureInterface
+  });
+}
+/* TEST-ONLY EXPORTS: END */

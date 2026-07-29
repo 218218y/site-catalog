@@ -1,26 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+const { importFrontendTestModule } = require('./frontend_test_module');
 
-const root = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'src/js/70-viewer-input.js'), 'utf8');
-
-function sourceBetween(text, startMarker, endMarker) {
-  const start = text.indexOf(startMarker);
-  const end = text.indexOf(endMarker, start + startMarker.length);
-  assert.notEqual(start, -1, `Missing ${startMarker}`);
-  assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return text.slice(start, end);
-}
-
-const lifecycleSource = sourceBetween(
-  source,
-  'function captureViewerPointer(surface, pointerId)',
-  'function startPointerInteraction(event)'
-);
-const api = new Function(`${lifecycleSource}\nreturn { captureViewerPointer, releaseViewerPointerCapture };`)();
+const api = importFrontendTestModule('src/js/70-viewer-input.js', 'viewer-input');
 
 const missingPointer = new Error('missing pointer');
 missingPointer.name = 'NotFoundError';

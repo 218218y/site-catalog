@@ -1,11 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-
-const source = fs.readFileSync(path.join(__dirname, '..', 'catalog-snapshot.js'), 'utf8');
 
 function createHarness() {
   const imageRequests = [];
@@ -65,32 +61,25 @@ function createHarness() {
     }
   };
 
-  const context = vm.createContext({
-    window: windowObject,
-    document: {
-      baseURI: 'https://catalog.example.com/index.html',
-      createElement(tagName) {
-        assert.equal(tagName, 'canvas');
-        return canvas;
-      }
-    },
-    Image: FakeImage,
-    URL,
-    Promise,
-    Math,
-    String,
-    Error,
-    queueMicrotask
-  });
-
-  vm.runInContext(source, context, { filename: 'catalog-snapshot.js' });
-  return { windowObject, imageRequests };
+  global.window = windowObject;
+  global.document = {
+    baseURI: 'https://catalog.example.com/index.html',
+    createElement(tagName) {
+      assert.equal(tagName, 'canvas');
+      return canvas;
+    }
+  };
+  global.Image = FakeImage;
+  const modulePath = path.join(__dirname, '..', 'catalog-snapshot.js');
+  delete require.cache[require.resolve(modulePath)];
+  const snapshotApi = require(modulePath);
+  return { windowObject, imageRequests, snapshotApi };
 }
 
 async function run() {
   {
     const harness = createHarness();
-    const blob = await harness.windowObject.CatalogSnapshot.buildSnapshotBlob(
+    const blob = await harness.snapshotApi.buildSnapshotBlob(
       'https://cdn.example.com/assets/pages/catalog/page-001.webp?v=abc'
     );
     assert.equal(blob.type, 'image/jpeg');
@@ -103,7 +92,7 @@ async function run() {
 
   {
     const harness = createHarness();
-    await harness.windowObject.CatalogSnapshot.buildSnapshotBlob(
+    await harness.snapshotApi.buildSnapshotBlob(
       'https://catalog.example.com/assets/pages/catalog/page-001.webp'
     );
     assert.equal(harness.imageRequests[0].crossOrigin, '');

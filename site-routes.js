@@ -188,7 +188,7 @@
     };
   }
 
-  global.BargigRoutes = Object.freeze({
+  const routesApi = Object.freeze({
     PAGE_HOME,
     PAGE_CATALOG,
     PAGE_FAVORITES,
@@ -209,4 +209,6 @@
     viewerUrl,
     parseLocation
   });
+  global.BargigRoutes = routesApi;
+  if (typeof module !== "undefined" && module.exports) module.exports = routesApi;
 })(typeof window !== "undefined" ? window : globalThis);

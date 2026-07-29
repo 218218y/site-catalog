@@ -101,11 +101,7 @@ function viewerInquiryGmailUrl(emailAddress, reference) {
 
 /** @param {string} emailAddress @param {InquiryReference} reference */
 function viewerInquiryMailtoUrl(emailAddress, reference) {
-  const subject = encodeURIComponent(String(reference?.subject || ""));
-  const body = encodeURIComponent(
-    String(reference?.text || "").replace(/\r?\n/g, "\r\n")
-  );
-  return `mailto:${emailAddress}?subject=${subject}&body=${body}`;
+  return buildViewerInquiryMailtoUrl(emailAddress, reference);
 }
 
 /** @param {InquiryReference} reference @param {string} action @param {string} [detail] */

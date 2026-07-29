@@ -127,3 +127,6 @@ interface PerformanceObserverInit {
 
 declare const featureCapabilities: FeatureCapabilities;
 declare const SEARCH_INDEX_SCRIPT_SRC: string;
+
+/** Test-only source export registry stripped from production bundles. */
+declare var __BARGIG_TEST_EXPORTS__: Record<string, unknown> | undefined;

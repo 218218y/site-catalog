@@ -3,72 +3,80 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { importFrontendTestModule } = require("./frontend_test_module");
 
 const root = path.resolve(__dirname, "..");
-const sharedUi = fs.readFileSync(path.join(root, "src/js/20-shared-ui.js"), "utf8");
-const start = sharedUi.indexOf("function recoverCatalogImageAfterInitialFailure(img)");
-const end = sharedUi.indexOf("function prepareCatalogImage(url, options = {})", start);
-assert.notEqual(start, -1, "Missing recoverCatalogImageAfterInitialFailure");
-assert.notEqual(end, -1, "Missing recovery function boundary");
-const recoverySource = sharedUi.slice(start, end);
-
 const attempts = [];
-const loads = [];
-const placeholders = [];
-const recover = new Function(
-  "telemetryCleanText",
-  "telemetryCatalogImageContext",
-  "telemetryTrackImageAttemptFailure",
-  "unversionedCatalogImageUrl",
-  "normalizeCatalogImageUrl",
-  "loadCatalogImageWithRecovery",
-  "syncImagePlaceholderState",
-  `${recoverySource}; return recoverCatalogImageAfterInitialFailure;`
-)(
-  (value, limit) => String(value || "").slice(0, limit),
-  () => ({ detail: "thumbnail" }),
-  (src, options) => attempts.push({ src, options }),
-  (src) => String(src).replace(/[?&]v=[^&#]+/, "").replace(/[?&]$/, ""),
-  (src) => String(src || ""),
-  (img, options) => {
-    loads.push({ img, options });
-    options.onExhausted();
+Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
+Object.assign(globalThis, {
+  window: {
+    BARGIG_CATALOG_TAXONOMY: { categories: [], subcategories: [] },
+    location: { href: "https://example.test/viewer.html" }
   },
-  (img) => placeholders.push(img)
-);
-
-const image = {
-  dataset: {
-    catalogImageRecovery: "lightweight",
-    telemetryDetail: "thumbnail"
-  },
-  currentSrc: "https://cdn.example.test/page-001.webp?v=deploy123",
-  isConnected: true,
-  getAttribute(name) {
-    return name === "src" ? this.currentSrc : null;
-  }
+  requiredElement: () => ({}),
+  CATALOG_IMAGE_RETRY_PARAM: "bargig_retry",
+  CATALOG_ASSET_VERSION_PARAM: "v",
+  telemetryCleanText: (value, limit) => String(value || "").slice(0, limit),
+  telemetryCatalogImageContext: () => ({ detail: "thumbnail" }),
+  telemetryTrackImageAttemptFailure: (src, options) => attempts.push({ src, options }),
+  telemetryTrackImageRecovery() {},
+  telemetryTrackImageTerminalFailure() {},
+});
+class FakeHTMLElement {}
+global.HTMLElement = FakeHTMLElement;
+const frameClasses = new Set();
+const frame = new FakeHTMLElement();
+frame.classList = {
+  add: (...names) => names.forEach((name) => frameClasses.add(name)),
+  remove: (...names) => names.forEach((name) => frameClasses.delete(name)),
+  toggle(name, enabled) { if (enabled) frameClasses.add(name); else frameClasses.delete(name); }
 };
+const api = importFrontendTestModule("src/js/20-shared-ui.js", "shared-ui");
 
-assert.equal(recover(image), true);
-assert.equal(recover(image), true, "Repeated error events must not start a second recovery");
-assert.equal(attempts.length, 1);
+class FakeImage {
+  constructor() {
+    this.dataset = { catalogImageRecovery: "lightweight", telemetryDetail: "thumbnail" };
+    this.currentSrc = "https://cdn.example.test/page-001.webp?v=deploy123";
+    this.srcValue = this.currentSrc;
+    this.naturalWidth = 0;
+    this.complete = false;
+    this.isConnected = true;
+    this.listeners = new Map();
+  }
+  addEventListener(type, listener) {
+    const list = this.listeners.get(type) || [];
+    list.push(listener);
+    this.listeners.set(type, list);
+  }
+  set src(value) {
+    this.srcValue = String(value);
+    this.currentSrc = this.srcValue;
+    this.complete = true;
+    const list = this.listeners.get("error") || [];
+    this.listeners.set("error", []);
+    for (const listener of list) listener();
+  }
+  get src() { return this.srcValue; }
+  getAttribute(name) { return name === "src" ? this.srcValue : null; }
+  removeAttribute() {}
+  closest() { return frame; }
+}
+
+const image = new FakeImage();
+assert.equal(api.recoverCatalogImageAfterInitialFailure(image), true);
+assert.equal(api.recoverCatalogImageAfterInitialFailure(image), true, "Repeated error events must not start a second recovery");
+assert.equal(image.dataset.catalogImageRecoveryStarted, "true");
+assert.equal(attempts.length, 2, "the original failure and the bounded direct retry are both tracked");
 assert.equal(attempts[0].options.action, "primary");
 assert.equal(attempts[0].options.attempt, 1);
-assert.equal(loads.length, 1);
-assert.equal(loads[0].options.primarySrc, "https://cdn.example.test/page-001.webp");
-assert.equal(loads[0].options.forceRefresh, true);
-assert.equal(loads[0].options.forceRefreshRole, "direct-retry");
-assert.equal(loads[0].options.initialFailedAttempts, 1);
-assert.equal(loads[0].options.fallbackSrc, undefined, "Lightweight recovery must not fan out into fallback requests");
-assert.equal(placeholders.length, 1);
+assert.equal(attempts[1].options.action, "direct-retry");
+assert.match(image.currentSrc, /bargig_retry=/);
+assert.doesNotMatch(image.currentSrc, /[?&]v=/);
+assert.equal(frameClasses.has("image-error"), true, "exhausted lightweight recovery exposes the placeholder error state");
 
-const unmanaged = {
-  dataset: {},
-  currentSrc: "https://example.test/logo.svg",
-  getAttribute() { return this.currentSrc; }
-};
-assert.equal(recover(unmanaged), false);
-assert.equal(loads.length, 1);
+const unmanaged = { dataset: {}, currentSrc: "https://example.test/logo.svg", getAttribute() { return this.currentSrc; } };
+assert.equal(api.recoverCatalogImageAfterInitialFailure(unmanaged), false);
+assert.equal(attempts.length, 2);
 
 for (const [relative, expectedMinimum] of [
   ["src/js/35-favorites-workspace.js", 1],
@@ -78,10 +86,7 @@ for (const [relative, expectedMinimum] of [
 ]) {
   const source = fs.readFileSync(path.join(root, relative), "utf8");
   const matches = source.match(/catalogImageRecoveryAttributes\(/g) || [];
-  assert.ok(
-    matches.length >= expectedMinimum,
-    `${relative} must mark every catalog thumbnail/cover for bounded recovery`
-  );
+  assert.ok(matches.length >= expectedMinimum, `${relative} must mark every catalog thumbnail/cover for bounded recovery`);
 }
 
 console.log("catalog_thumbnail_recovery_logic.test.js: PASS");

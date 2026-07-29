@@ -485,7 +485,7 @@
     return `${start > 0 ? "…" : ""}${raw.slice(start, end)}${end < raw.length ? "…" : ""}`;
   }
 
-  window.BargigCatalogSearch = {
+  const catalogSearchApi = Object.freeze({
     search,
     cancel,
     ensureReady,
@@ -505,5 +505,7 @@
     searchNavigation,
     mergeNavigationResults,
     navigationResultMarkup
-  };
+  });
+  if (typeof window !== "undefined") window.BargigCatalogSearch = catalogSearchApi;
+  if (typeof module !== "undefined" && module.exports) module.exports = catalogSearchApi;
 })();

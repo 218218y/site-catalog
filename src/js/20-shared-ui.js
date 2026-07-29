@@ -1051,3 +1051,27 @@ function handleTopLayerEscape(event) {
   }
   return false;
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["shared-ui"] = Object.freeze({
+    catalogImageDeliveryMode,
+    catalogMediumImagesEnabled,
+    catalogNeighborPreloadRadius,
+    normalizeCatalogImageUrl,
+    unversionedCatalogImageUrl,
+    cacheBustedCatalogImageUrl,
+    catalogImageRecoveryCandidates,
+    loadCatalogImageWithRecovery,
+    recoverCatalogImageAfterInitialFailure,
+    catalogImageVariant,
+    catalogSupportsImageTier,
+    catalogImageTierMaxSide,
+    catalogPageImageSrc,
+    pageSize,
+    hasHoverPointer,
+    isTouchLikePointer,
+    handleTopLayerEscape
+  });
+}
+/* TEST-ONLY EXPORTS: END */

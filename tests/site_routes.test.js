@@ -1,23 +1,13 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'site-routes.js'), 'utf8');
-const context = {
-  globalThis: {
-    document: { body: { dataset: { page: 'home' } } },
-    location: { pathname: '/', search: '', origin: 'http://localhost:8080' }
-  },
-  URLSearchParams,
-  URL
-};
-vm.createContext(context);
-vm.runInContext(source, context);
-const routes = context.globalThis.BargigRoutes;
+global.window = undefined;
+global.document = { body: { dataset: { page: 'home' } } };
+global.location = { pathname: '/', search: '', origin: 'http://localhost:8080' };
+const routes = require(path.join(root, 'site-routes.js'));
 
 assert.ok(routes, 'route API should be exported');
 assert.equal(routes.homeUrl(), '/');

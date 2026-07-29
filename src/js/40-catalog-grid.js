@@ -286,15 +286,7 @@ function closeMobileCategoryMenu(options = {}) {
 }
 
 function decodeHashTargetId(hash = location.hash) {
-  const rawHash = String(hash || "");
-  if (!rawHash.startsWith("#")) return "";
-
-  const rawId = rawHash.slice(1);
-  try {
-    return decodeURIComponent(rawId);
-  } catch {
-    return rawId;
-  }
+  return searchCatalogDomain.decodeCatalogHashTargetId(hash);
 }
 
 /** @param {Element|null} section @returns {section is HTMLElement} */
@@ -500,166 +492,10 @@ function syncCatalogCategoryFocusFromHash(options = {}) {
 
 
 function catalogLayoutColumnCount() {
-  if (typeof window === "undefined" || !window.matchMedia) return 3;
-  if (window.matchMedia("(max-width: 760px)").matches) return 1;
-  if (window.matchMedia("(max-width: 1180px)").matches) return 2;
-  return 3;
-}
-
-/** @param {unknown} value @param {number} columns */
-function clampCategorySpan(value, columns) {
-  return Math.min(columns, Math.max(1, Number(value || 1)));
-}
-
-/** @param {CatalogCategoryGroup} source @returns {Array<CatalogSubcategoryBlock>} */
-function catalogSubcategorySourceBlocks(source) {
-  /** @type {Array<CatalogSubcategoryBlock>} */
-  const sourceBlocks = [];
-
-  if (Array.isArray(source?.directItems) && source.directItems.length) {
-    sourceBlocks.push({
-      blockKey: "__direct__",
-      blockIndex: -1,
-      label: "קטלוגים כלליים",
-      isDirect: true,
-      items: source.directItems
-    });
-  }
-
-  (Array.isArray(source?.subcategories) ? source.subcategories : []).forEach((group, index) => {
-    const subcategory = String(group?.subcategory || "").trim();
-    const items = Array.isArray(group?.items) ? group.items : [];
-    if (!subcategory || !items.length) return;
-
-    sourceBlocks.push({
-      blockKey: subcategory,
-      blockIndex: index,
-      label: subcategory,
-      isDirect: false,
-      items
-    });
+  return searchCatalogDomain.catalogColumnCount({
+    mobile: Boolean(window.matchMedia?.("(max-width: 760px)").matches),
+    tablet: Boolean(window.matchMedia?.("(max-width: 1180px)").matches)
   });
-
-  return sourceBlocks;
-}
-
-/** @param {Array<CatalogCategoryGroup>} groups @param {number} [columns] @returns {Array<CatalogLayoutSegment>} */
-function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
-  const safeColumns = clampCategorySpan(columns, 3);
-  /** @type {Array<CatalogLayoutSegment>} */
-  const segments = [];
-  let occupied = 0;
-
-  /** @param {CatalogCategoryGroup} group @param {number} groupIndex @param {CatalogSubcategoryBlock} block @param {CatalogSegmentAppendOptions} [options] */
-  const appendCardBlockSegments = (group, groupIndex, block, options = {}) => {
-    const items = Array.isArray(block?.items) ? block.items : [];
-    if (!items.length) return;
-
-    const segmentType = options.segmentType || "category";
-    const layoutBlockKey = options.layoutBlockKey || `${segmentType}:${groupIndex}:${block?.blockKey || "main"}`;
-    let itemOffset = 0;
-    let segmentIndex = 0;
-
-    while (itemOffset < items.length) {
-      if (occupied >= safeColumns) occupied = 0;
-      const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
-      const span = Math.min(availableInRow, items.length - itemOffset, safeColumns);
-
-      /** @type {CatalogLayoutSegment} */
-      const segment = {
-        category: group.category,
-        groupIndex,
-        segmentIndex,
-        itemOffset,
-        span,
-        items: items.slice(itemOffset, itemOffset + span),
-        hasSubcategories: Boolean(options.hasSubcategories),
-        segmentType,
-        layoutBlockKey,
-        inlineDivider: false
-      };
-
-      if (segmentType === "subcategory") {
-        Object.assign(segment, {
-          blockKey: block.blockKey,
-          blockIndex: block.blockIndex,
-          blockOrder: options.blockOrder,
-          label: block.label,
-          isDirect: Boolean(block.isDirect)
-        });
-      }
-
-      segments.push(segment);
-      itemOffset += span;
-      segmentIndex += 1;
-      occupied += span;
-      if (occupied >= safeColumns) occupied = 0;
-    }
-  };
-
-  groups.forEach((group, groupIndex) => {
-    const items = Array.isArray(group?.items) ? group.items : [];
-    if (!items.length) return;
-
-    if (group?.hasSubcategories) {
-      if (occupied > 0) occupied = 0;
-
-      segments.push({
-        category: group.category,
-        groupIndex,
-        segmentIndex: 0,
-        itemOffset: 0,
-        span: safeColumns,
-        items: [],
-        directItems: Array.isArray(group.directItems) ? group.directItems : [],
-        subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
-        hasSubcategories: true,
-        segmentType: "categoryHeader",
-        layoutBlockKey: `category-header:${groupIndex}`,
-        inlineDivider: false
-      });
-      occupied = 0;
-
-      catalogSubcategorySourceBlocks(group).forEach((block, blockOrder) => {
-        appendCardBlockSegments(group, groupIndex, block, {
-          segmentType: "subcategory",
-          hasSubcategories: true,
-          blockOrder,
-          layoutBlockKey: `subcategory:${groupIndex}:${block.blockKey}:${blockOrder}`
-        });
-      });
-      return;
-    }
-
-    appendCardBlockSegments(group, groupIndex, { blockKey: "__category__", items }, {
-      segmentType: "category",
-      hasSubcategories: false,
-      layoutBlockKey: `category:${groupIndex}`
-    });
-  });
-
-  occupied = 0;
-  segments.forEach((segment, index) => {
-    const span = clampCategorySpan(segment.span, safeColumns);
-    if (occupied + span > safeColumns) occupied = 0;
-
-    const rowEnd = occupied + span;
-    const nextSegment = segments[index + 1];
-    const nextSpan = nextSegment ? clampCategorySpan(nextSegment.span, safeColumns) : 0;
-    const sameLayoutBlock = Boolean(nextSegment && nextSegment.layoutBlockKey === segment.layoutBlockKey);
-    segment.inlineDivider = Boolean(
-      nextSegment
-      && !sameLayoutBlock
-      && segment.segmentType !== "categoryHeader"
-      && nextSegment.segmentType !== "categoryHeader"
-      && rowEnd < safeColumns
-      && nextSpan <= safeColumns - rowEnd
-    );
-
-    occupied = rowEnd >= safeColumns ? 0 : rowEnd;
-  });
-
-  return segments;
 }
 
 function scheduleCatalogLayoutRefresh() {
@@ -713,87 +549,6 @@ function renderCatalogSubcategoryNav(segment) {
   `;
 }
 
-/** @param {CatalogLayoutSegment} segment @param {number} [columns] @returns {Array<CatalogSubcategoryLayoutSegment>} */
-function catalogSubcategoryLayoutSegments(segment, columns = catalogLayoutColumnCount()) {
-  const safeColumns = clampCategorySpan(columns, 3);
-  /** @type {Array<CatalogSubcategoryBlock>} */
-  const sourceBlocks = [];
-
-  if (Array.isArray(segment.directItems) && segment.directItems.length) {
-    sourceBlocks.push({
-      blockKey: "__direct__",
-      blockIndex: -1,
-      label: "קטלוגים כלליים",
-      isDirect: true,
-      items: segment.directItems
-    });
-  }
-
-  (Array.isArray(segment.subcategories) ? segment.subcategories : []).forEach((group, index) => {
-    const subcategory = String(group?.subcategory || "").trim();
-    const items = Array.isArray(group?.items) ? group.items : [];
-    if (!subcategory || !items.length) return;
-
-    sourceBlocks.push({
-      blockKey: subcategory,
-      blockIndex: index,
-      label: subcategory,
-      isDirect: false,
-      items
-    });
-  });
-
-  /** @type {Array<CatalogSubcategoryLayoutSegment>} */
-  const layoutSegments = [];
-  let occupied = 0;
-
-  sourceBlocks.forEach((block, blockOrder) => {
-    let itemOffset = 0;
-    let segmentIndex = 0;
-
-    while (itemOffset < block.items.length) {
-      if (occupied >= safeColumns) occupied = 0;
-      const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
-      const span = Math.min(availableInRow, block.items.length - itemOffset, safeColumns);
-
-      layoutSegments.push({
-        ...block,
-        blockOrder,
-        segmentIndex,
-        itemOffset,
-        span,
-        items: block.items.slice(itemOffset, itemOffset + span),
-        inlineDivider: false
-      });
-
-      itemOffset += span;
-      segmentIndex += 1;
-      occupied += span;
-      if (occupied >= safeColumns) occupied = 0;
-    }
-  });
-
-  occupied = 0;
-  layoutSegments.forEach((block, index) => {
-    const span = clampCategorySpan(block.span, safeColumns);
-    if (occupied + span > safeColumns) occupied = 0;
-
-    const rowEnd = occupied + span;
-    const nextBlock = layoutSegments[index + 1];
-    const nextSpan = nextBlock ? clampCategorySpan(nextBlock.span, safeColumns) : 0;
-    block.inlineDivider = Boolean(
-      nextBlock
-      && nextBlock.blockOrder !== block.blockOrder
-      && rowEnd < safeColumns
-      && nextSpan <= safeColumns - rowEnd
-    );
-
-    occupied = rowEnd >= safeColumns ? 0 : rowEnd;
-  });
-
-  return layoutSegments;
-}
-
 /** @param {CatalogLayoutSegment} segment @param {CatalogLayoutSegment|CatalogSubcategoryLayoutSegment} block @param {string} baseSectionId */
 function catalogSubcategoryBlockBaseId(segment, block, baseSectionId) {
   if (block?.isDirect) return `${baseSectionId}-general`;
@@ -813,7 +568,7 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
   const sectionId = block.segmentIndex === 0 ? blockBaseId : `${blockBaseId}-part-${block.segmentIndex + 1}`;
   const titleId = `${sectionId}-title`;
   const title = String(block?.label || "").trim() || "קטלוגים";
-  const sectionStyle = `--subcategory-span: ${clampCategorySpan(block.span, 3)};`;
+  const sectionStyle = `--subcategory-span: ${searchCatalogDomain.clampCatalogSpan(block.span, 3)};`;
 
   return `
     <section class="catalog-subcategory-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(blockBaseId)}" data-parent-category-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-subcategory-span="${escapeHtml(String(block.span))}" data-inline-divider="${block.inlineDivider ? "1" : "0"}" data-subcategory-continuation="${block.itemOffset > 0 ? "1" : "0"}">
@@ -831,7 +586,7 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
 function renderCatalogCategoryHeaderSegment(segment, columns) {
   const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
   const titleId = `${baseSectionId}-title`;
-  const safeColumns = clampCategorySpan(columns, 3);
+  const safeColumns = searchCatalogDomain.clampCatalogSpan(columns, 3);
   const sectionStyle = `--category-span: ${safeColumns}; --subcategory-layout-columns: ${safeColumns};`;
   const sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
 
@@ -848,7 +603,7 @@ function renderCatalogCategoryHeaderSegment(segment, columns) {
 /** @param {CatalogLayoutSegment} segment @param {number} columns */
 function renderCatalogCategorySegment(segment, columns) {
   const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
-  const safeColumns = clampCategorySpan(columns, 3);
+  const safeColumns = searchCatalogDomain.clampCatalogSpan(columns, 3);
 
   if (segment.segmentType === "categoryHeader") {
     return renderCatalogCategoryHeaderSegment(segment, safeColumns);
@@ -925,7 +680,7 @@ function renderCatalogCards() {
 
   const columns = catalogLayoutColumnCount();
   catalogState.catalogLayoutColumns = columns;
-  const categorySegments = catalogCategorySegments(groups, columns);
+  const categorySegments = /** @type {Array<CatalogLayoutSegment>} */ (searchCatalogDomain.catalogCategorySegments(groups, columns));
 
   catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
   catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");

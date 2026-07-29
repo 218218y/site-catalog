@@ -802,3 +802,20 @@ function syncViewerLayoutModeUi() {
   viewerElements.lightbox?.classList.remove("viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated");
   viewerElements.lightboxImageFrame?.classList.remove("hidden");
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["viewer-shell"] = Object.freeze({
+    getViewportPointer,
+    getRightEdgeViewerNavigationRect,
+    isPointInPageRailNavigationConflictZone,
+    isPointInPageRailEdgeActivationZone,
+    normalizeWheelDeltaToPixels,
+    setViewerFitMode,
+    setViewerAutomaticFitMode,
+    syncAutomaticViewerFitMode,
+    shouldUseLightboxHoverPointer,
+    shouldUsePageRailHover
+  });
+}
+/* TEST-ONLY EXPORTS: END */

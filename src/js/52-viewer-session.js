@@ -196,3 +196,17 @@ function returnToMainSiteFromLightbox(event = null) {
   closeLightboxCatalogMenu();
   navigateTo(homeDocumentUrl());
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["viewer-session"] = Object.freeze({
+    transitionStatePhase,
+    transitionViewerPhase,
+    isViewerSessionOpen,
+    isViewerSessionVisible,
+    transitionViewerFullscreenPhase,
+    reconcileViewerFullscreenPhase,
+    viewerUsesInDocumentFullscreenNavigation
+  });
+}
+/* TEST-ONLY EXPORTS: END */

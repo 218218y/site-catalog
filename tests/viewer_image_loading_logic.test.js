@@ -1,49 +1,18 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { readBundle } = require('./frontend_test_assets');
+const { importFrontendTestModule } = require('./frontend_test_module');
 
-const app = readBundle('viewer');
+Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
+Object.assign(globalThis, {
+  window: { location: { href: 'https://example.test/viewer.html' } },
+  requiredElement: () => ({}),
+  CATALOG_IMAGE_RETRY_PARAM: 'bargig_retry',
+  CATALOG_ASSET_VERSION_PARAM: 'v'
+});
+const api = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');
 
-function sourceBetween(startMarker, endMarker) {
-  const start = app.indexOf(startMarker);
-  const end = app.indexOf(endMarker, start + startMarker.length);
-  assert.notEqual(start, -1, `Missing ${startMarker}`);
-  assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return app.slice(start, end);
-}
-
-const candidatesSource = sourceBetween(
-  'function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = {})',
-  'function loadCatalogImageWithRecovery(img, options = {})'
-);
-const normalizeSource = sourceBetween(
-  'function normalizeCatalogImageUrl(url)',
-  'function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = {})'
-);
-
-const fakeWindow = { location: { href: 'https://example.test/viewer.html' } };
-const CATALOG_IMAGE_RETRY_PARAM = 'bargig_retry';
-const normalizeCatalogImageUrl = new Function(
-  'window', 'CATALOG_IMAGE_RETRY_PARAM',
-  `${normalizeSource}; return normalizeCatalogImageUrl;`
-)(fakeWindow, CATALOG_IMAGE_RETRY_PARAM);
-const cacheBustedCatalogImageUrl = new Function(
-  'window', 'CATALOG_IMAGE_RETRY_PARAM', 'CATALOG_ASSET_VERSION_PARAM',
-  `${normalizeSource}; return cacheBustedCatalogImageUrl;`
-)(fakeWindow, CATALOG_IMAGE_RETRY_PARAM, 'v');
-const unversionedCatalogImageUrl = new Function(
-  'window', 'CATALOG_IMAGE_RETRY_PARAM', 'CATALOG_ASSET_VERSION_PARAM',
-  `${normalizeSource}; return unversionedCatalogImageUrl;`
-)(fakeWindow, CATALOG_IMAGE_RETRY_PARAM, 'v');
-const catalogImageRecoveryCandidates = new Function(
-  'normalizeCatalogImageUrl', 'cacheBustedCatalogImageUrl', 'unversionedCatalogImageUrl',
-  `${candidatesSource}; return catalogImageRecoveryCandidates;`
-)(normalizeCatalogImageUrl, cacheBustedCatalogImageUrl, unversionedCatalogImageUrl);
-
-const candidates = catalogImageRecoveryCandidates(
+const candidates = api.catalogImageRecoveryCandidates(
   'https://cdn.example.test/full.webp?v=release-full-u2',
   'https://cdn.example.test/thumb.webp'
 );
@@ -55,7 +24,7 @@ assert.match(candidates[1].src, /bargig_retry=/);
 assert.equal(candidates[2].role, 'fallback');
 assert.equal(candidates[2].fallback, true);
 
-const tiered = catalogImageRecoveryCandidates(
+const tiered = api.catalogImageRecoveryCandidates(
   'https://cdn.example.test/medium.webp?v=release-medium-u2',
   '',
   {
@@ -70,7 +39,7 @@ assert.deepEqual(tiered.map((candidate) => candidate.tier), ['medium', 'medium',
 assert.equal(tiered[2].fallback, true);
 assert.equal(tiered[3].fallback, true);
 
-const manual = catalogImageRecoveryCandidates(
+const manual = api.catalogImageRecoveryCandidates(
   'https://cdn.example.test/full.webp?bargig_retry=old',
   'https://cdn.example.test/thumb.webp',
   { forceRefresh: true }

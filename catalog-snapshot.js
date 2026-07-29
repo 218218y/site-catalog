@@ -138,8 +138,10 @@
     });
   }
 
-  window.CatalogSnapshot = {
+  var catalogSnapshotApi = Object.freeze({
     buildSnapshotBlob: buildSnapshotBlob,
     extension: EXPORT_EXTENSION
-  };
+  });
+  if (typeof window !== "undefined") window.CatalogSnapshot = catalogSnapshotApi;
+  if (typeof module !== "undefined" && module.exports) module.exports = catalogSnapshotApi;
 })();

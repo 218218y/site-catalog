@@ -45,11 +45,14 @@ COMMON_JS_MODULES: tuple[str, ...] = (
     "src/js/14-favorites-state.js",
     "src/js/15-telemetry.js",
     "src/js/18-navigation-feature.js",
+    "src/js/19-shared-pure.js",
     "src/js/20-shared-ui.js",
+    "src/js/29-favorites-portability.js",
     "src/js/30-favorites-share.js",
 )
 
 CATALOG_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
+    "src/js/39-search-catalog-domain.js",
     "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
     "src/js/80-app-shell.js",
@@ -59,6 +62,7 @@ CATALOG_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
 FAVORITES_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
     "src/js/32-shared-inquiry.js",
     "src/js/35-favorites-workspace.js",
+    "src/js/39-search-catalog-domain.js",
     "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
     "src/js/80-app-shell.js",
@@ -76,13 +80,16 @@ VIEWER_JS_MODULES: tuple[str, ...] = (
     "src/js/15-telemetry.js",
     "src/js/16-viewer-state.js",
     "src/js/18-navigation-feature.js",
+    "src/js/19-shared-pure.js",
     "src/js/20-shared-ui.js",
+    "src/js/29-favorites-portability.js",
     "src/js/30-favorites-share.js",
     "src/js/31-viewer-share.js",
     "src/js/32-shared-inquiry.js",
     # Replacing the document exits browser fullscreen. The Viewer bundle keeps
     # the route features needed for fullscreen-safe in-document hand-offs.
     "src/js/35-favorites-workspace.js",
+    "src/js/39-search-catalog-domain.js",
     "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
     "src/js/52-viewer-session.js",
@@ -219,6 +226,10 @@ INLINE_TYPE_JSDOC_PATTERN = re.compile(
     r"/\*\*\s*@(?:type|param|returns?|template|satisfies)\b.*?\*/",
     re.DOTALL,
 )
+TEST_ONLY_EXPORT_PATTERN = re.compile(
+    r"/\* TEST-ONLY EXPORTS: BEGIN \*/.*?/\* TEST-ONLY EXPORTS: END \*/",
+    re.DOTALL,
+)
 
 
 def validate_module_manifest(module_paths: Sequence[str], *, expected_extension: str) -> None:
@@ -313,7 +324,8 @@ def strip_source_jsdoc(content: str) -> str:
 
     if in_jsdoc:
         raise ValueError("Unterminated standalone JSDoc block in frontend source")
-    return normalize_text(INLINE_TYPE_JSDOC_PATTERN.sub("", "".join(output)))
+    stripped = TEST_ONLY_EXPORT_PATTERN.sub("", "".join(output))
+    return normalize_text(INLINE_TYPE_JSDOC_PATTERN.sub("", stripped))
 
 
 def source_manifest_text(module_paths: Sequence[str]) -> str:

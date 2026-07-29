@@ -213,3 +213,18 @@ function handleViewerPageWheel(event) {
   );
   return true;
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["viewer-navigation"] = Object.freeze({
+    normalizeViewerPageWheelAxisDelta,
+    normalizeViewerPageWheelDeltas,
+    getViewerPageWheelLogicalDelta,
+    getViewerPageWheelRequestedSteps,
+    getSingleViewerPageTurnIntent,
+    moveLightboxFromPageTurn,
+    consumeSingleViewerBoundaryInput,
+    handleViewerPageWheel
+  });
+}
+/* TEST-ONLY EXPORTS: END */

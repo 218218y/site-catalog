@@ -3,121 +3,92 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const vm = require("node:vm");
+const { importFrontendTestModule } = require("./frontend_test_module");
 
 const root = path.join(__dirname, "..");
-const geometrySource = fs.readFileSync(path.join(root, "src/js/54-viewer-geometry.js"), "utf8");
 const shellSource = fs.readFileSync(path.join(root, "src/js/56-viewer-shell.js"), "utf8");
-
 assert.match(shellSource, /const automatic = viewerUsesAutomaticFitMode\(\);[\s\S]*?fitAutoBtn/);
 assert.match(shellSource, /setTooltipText\(viewerElements\.fitAutoBtn, "התאמת תצוגה אוטומטי"/);
 assert.match(shellSource, /const isActive = !automatic && fitMode === VIEWER_FIT_HEIGHT/);
 assert.match(shellSource, /const isActive = !automatic && fitMode === VIEWER_FIT_WIDTH/);
 
-function sourceBetween(source, startMarker, endMarker) {
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker, start + startMarker.length);
-  assert.notEqual(start, -1, `Missing ${startMarker}`);
-  assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return source.slice(start, end);
-}
-
-const fitPolicySource = sourceBetween(
-  geometrySource,
-  "function normalizeViewerFitMode(fitMode)",
-  "function getActiveSingleImageNaturalSize()"
-);
-const fitSetterSource = sourceBetween(
-  shellSource,
-  "function setViewerFitMode(fitMode, options = {})",
-  "function syncLightboxModeUi()"
-);
-
-const context = {
+const viewerState = {
+  imageFitMode: "height",
+  imageFitModeSource: "auto",
+  zoom: 1,
+  pointers: new Map()
+};
+const viewerElements = { stageCanvas: { clientWidth: 1440, clientHeight: 900 } };
+Object.assign(globalThis, {
   VIEWER_FIT_HEIGHT: "height",
   VIEWER_FIT_WIDTH: "width",
   VIEWER_FIT_SOURCE_AUTO: "auto",
   VIEWER_FIT_SOURCE_MANUAL: "manual",
   AUTO_VIEWER_ZOOM: 1,
-  viewerState: {
-    imageFitMode: "height",
-    imageFitModeSource: "auto",
-    zoom: 1,
-    pointers: new Map()
-  },
-  viewerElements: {
-    stageCanvas: { clientWidth: 1440, clientHeight: 900 }
-  },
+  viewerState,
+  viewerElements,
   window: {
     innerWidth: 1440,
     innerHeight: 900,
     visualViewport: { width: 1440, height: 900 }
   },
-  document: {
-    documentElement: { clientWidth: 1440, clientHeight: 900 }
-  },
+  document: { documentElement: { clientWidth: 1440, clientHeight: 900 } },
   clearViewerPageWheelGesture() {},
   resetImagePosition() {},
   syncViewerFitModeUi() {},
+  syncViewerMobileMoreMenuState() {},
+  setPressedState() {},
+  setTooltipText() {},
   applyZoom() {},
   refreshSingleViewerImageResolution() {},
   showTopUiTemporarily() {}
-};
+});
+const geometry = importFrontendTestModule("src/js/54-viewer-geometry.js", "viewer-geometry");
+Object.assign(globalThis, {
+  normalizeViewerFitMode: geometry.normalizeViewerFitMode,
+  normalizeViewerFitModeSource: geometry.normalizeViewerFitModeSource,
+  getAutomaticViewerFitMode: geometry.getAutomaticViewerFitMode,
+  viewerUsesAutomaticFitMode: geometry.viewerUsesAutomaticFitMode
+});
+const shell = importFrontendTestModule("src/js/56-viewer-shell.js", "viewer-shell");
 
-vm.runInNewContext(`${fitPolicySource}\n${fitSetterSource}\nglobalThis.fitApi = {
-  getAutomaticViewerFitMode,
-  setViewerFitMode,
-  setViewerAutomaticFitMode,
-  syncAutomaticViewerFitMode,
-  viewerUsesAutomaticFitMode
-};`, context);
+assert.equal(geometry.getAutomaticViewerFitMode(), "height");
+viewerElements.stageCanvas.clientWidth = 390;
+viewerElements.stageCanvas.clientHeight = 844;
+assert.equal(geometry.getAutomaticViewerFitMode(), "width");
+viewerElements.stageCanvas.clientWidth = 0;
+viewerElements.stageCanvas.clientHeight = 0;
+window.visualViewport.width = 844;
+window.visualViewport.height = 390;
+assert.equal(geometry.getAutomaticViewerFitMode(), "height");
 
-const api = context.fitApi;
-assert.equal(api.getAutomaticViewerFitMode(), "height", "landscape viewports should default to fit-height");
+viewerElements.stageCanvas.clientWidth = 390;
+viewerElements.stageCanvas.clientHeight = 844;
+viewerState.imageFitMode = "height";
+viewerState.imageFitModeSource = "auto";
+assert.equal(shell.syncAutomaticViewerFitMode({ showUi: false }), true);
+assert.equal(viewerState.imageFitMode, "width");
+assert.equal(viewerState.imageFitModeSource, "auto");
 
-context.viewerElements.stageCanvas.clientWidth = 390;
-context.viewerElements.stageCanvas.clientHeight = 844;
-assert.equal(api.getAutomaticViewerFitMode(), "width", "portrait viewports should default to fit-width");
+shell.setViewerFitMode("width", { showUi: false });
+assert.equal(viewerState.imageFitModeSource, "manual");
+viewerElements.stageCanvas.clientWidth = 844;
+viewerElements.stageCanvas.clientHeight = 390;
+assert.equal(shell.syncAutomaticViewerFitMode({ showUi: false }), false);
+assert.equal(viewerState.imageFitMode, "width");
 
-context.viewerElements.stageCanvas.clientWidth = 0;
-context.viewerElements.stageCanvas.clientHeight = 0;
-context.window.visualViewport.width = 844;
-context.window.visualViewport.height = 390;
-assert.equal(api.getAutomaticViewerFitMode(), "height", "hidden viewer startup should fall back to the visual viewport");
+shell.setViewerAutomaticFitMode({ showUi: false });
+assert.equal(viewerState.imageFitModeSource, "auto");
+assert.equal(viewerState.imageFitMode, "height");
+viewerElements.stageCanvas.clientWidth = 390;
+viewerElements.stageCanvas.clientHeight = 844;
+assert.equal(shell.syncAutomaticViewerFitMode({ showUi: false }), true);
+assert.equal(viewerState.imageFitMode, "width");
 
-context.viewerElements.stageCanvas.clientWidth = 390;
-context.viewerElements.stageCanvas.clientHeight = 844;
-context.viewerState.imageFitMode = "height";
-context.viewerState.imageFitModeSource = "auto";
-assert.equal(api.syncAutomaticViewerFitMode({ showUi: false }), true);
-assert.equal(context.viewerState.imageFitMode, "width");
-assert.equal(context.viewerState.imageFitModeSource, "auto");
-
-// Clicking the already-selected option is still an explicit user decision and
-// must therefore freeze automatic orientation changes for this viewer session.
-api.setViewerFitMode("width", { showUi: false });
-assert.equal(context.viewerState.imageFitModeSource, "manual");
-context.viewerElements.stageCanvas.clientWidth = 844;
-context.viewerElements.stageCanvas.clientHeight = 390;
-assert.equal(api.syncAutomaticViewerFitMode({ showUi: false }), false);
-assert.equal(context.viewerState.imageFitMode, "width", "manual fit must survive later orientation changes");
-
-// Returning to the dedicated automatic option transfers ownership back to the
-// viewport policy immediately, then future orientation changes follow it again.
-api.setViewerAutomaticFitMode({ showUi: false });
-assert.equal(context.viewerState.imageFitModeSource, "auto");
-assert.equal(context.viewerState.imageFitMode, "height", "automatic mode should immediately match the current landscape viewport");
-context.viewerElements.stageCanvas.clientWidth = 390;
-context.viewerElements.stageCanvas.clientHeight = 844;
-assert.equal(api.syncAutomaticViewerFitMode({ showUi: false }), true);
-assert.equal(context.viewerState.imageFitMode, "width", "automatic mode should resume following portrait changes");
-
-// Re-selecting automatic while the effective geometry already matches must
-// still restore automatic ownership rather than leaving a hidden manual lock.
-api.setViewerFitMode("width", { showUi: false });
-assert.equal(context.viewerState.imageFitModeSource, "manual");
-api.setViewerAutomaticFitMode({ showUi: false });
-assert.equal(context.viewerState.imageFitModeSource, "auto");
-assert.equal(context.viewerState.imageFitMode, "width");
+shell.setViewerFitMode("width", { showUi: false });
+assert.equal(viewerState.imageFitModeSource, "manual");
+shell.setViewerAutomaticFitMode({ showUi: false });
+assert.equal(viewerState.imageFitModeSource, "auto");
+assert.equal(viewerState.imageFitMode, "width");
 
 console.log("viewer_fit_mode_logic.test.js: PASS");

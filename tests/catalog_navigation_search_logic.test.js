@@ -3,27 +3,12 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
-const source = fs.readFileSync(path.join(root, "catalog-search.js"), "utf8");
 const windowObject = { BARGIG_CATALOGS: [] };
-const context = vm.createContext({
-  window: windowObject,
-  URL,
-  Map,
-  Set,
-  Object,
-  Array,
-  String,
-  Number,
-  Intl,
-  console,
-  encodeURIComponent
-});
-vm.runInContext(source, context);
+global.window = windowObject;
+const catalogSearch = require(path.join(root, "catalog-search.js"));
 
-const catalogSearch = windowObject.BargigCatalogSearch;
 assert.ok(catalogSearch, "catalog search runtime should expose its public API");
 assert.equal(catalogSearch.normalize("פרד״י"), "פרדי");
 assert.equal(catalogSearch.normalize("מלכים"), "מלכימ", "Hebrew final letters should normalize consistently");

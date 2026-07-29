@@ -134,41 +134,6 @@ function scheduleSearchRender(channel, query, options = {}) {
   }
 }
 
-/** @param {unknown} text @param {Array<SearchHighlightRange>} [ranges] */
-function highlightedSearchText(text, ranges = []) {
-  const raw = String(text || "");
-  if (!raw) return "";
-  const normalizedRanges = Array.isArray(ranges)
-    ? ranges
-      .map((range) => ({
-        start: Math.max(0, Math.min(raw.length, Number(range?.start) || 0)),
-        end: Math.max(0, Math.min(raw.length, Number(range?.end) || 0))
-      }))
-      .filter((range) => range.end > range.start)
-      .sort((a, b) => a.start - b.start || a.end - b.end)
-    : [];
-  let cursor = 0;
-  let markup = "";
-  normalizedRanges.forEach((range) => {
-    if (range.start < cursor) return;
-    markup += escapeHtml(raw.slice(cursor, range.start));
-    markup += `<mark class="search-match-highlight">${escapeHtml(raw.slice(range.start, range.end))}</mark>`;
-    cursor = range.end;
-  });
-  return markup + escapeHtml(raw.slice(cursor));
-}
-
-/** @param {CatalogSearchResult} result */
-function searchResultDetailsMarkup(result) {
-  const page = Math.max(1, Number(result?.page) || 1);
-  const reason = String(result?.matchReason || "התאמה בטקסט הקטלוג");
-  const excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
-  return `
-    <span class="search-result-meta">עמוד ${page} · ${escapeHtml(reason)}</span>
-    ${excerpt ? `<span class="search-result-excerpt">${excerpt}</span>` : ""}
-  `;
-}
-
 function getGlobalSearchCategories() {
   return getCatalogCategoryGroups()
     .filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length)
@@ -495,19 +460,17 @@ async function trackCompletedLightboxSearch(completion, query = searchElements.l
 /** @param {CatalogSearchResult|null|undefined} result */
 function openLightboxSearchResult(result) {
   if (!result) return false;
-
-  const targetCatalogId = result.catalogId || activeCatalog()?.id;
-  if (!targetCatalogId) return false;
-
   const catalog = activeCatalog();
-  if (!catalog || catalog.id !== targetCatalogId) {
-    getFeatureInterface("viewer")?.openCatalog?.(targetCatalogId, Number(result.page));
-    return true;
-  }
+  const targetCatalogId = String(result.catalogId || catalog?.id || "").trim();
+  const sameCatalog = Boolean(catalog && String(catalog.id) === targetCatalogId);
+  const viewer = requireFeatureInterface("viewer");
+  const handled = searchCatalogDomain.executeLightboxSearchResultAction(result, catalog, {
+    openCatalog: viewer.openCatalog,
+    setPage: viewer.setPage,
+    showTopUi: viewer.showTopUi
+  });
+  if (!handled || !sameCatalog) return handled;
 
-  const page = clampPage(result.page, catalog);
-  getFeatureInterface("viewer")?.setPage?.(page);
-  getFeatureInterface("viewer")?.showTopUi?.();
   if (searchState.lightboxMobileSearchOpen) {
     setLightboxMobileSearchOpen(false, { hideResults: true });
   } else {
@@ -796,11 +759,8 @@ function normalizeSearchResultsDirection(container) {
 
 function lightboxSearchLayoutColumnLimit() {
   const columns = getFeatureInterface("catalog-grid")?.layoutColumnCount?.();
-  if (Number.isFinite(Number(columns))) {
-    return Math.max(1, Math.min(Number(columns), 3));
-  }
   const width = Math.max(0, window.innerWidth || document.documentElement?.clientWidth || 0);
-  return width >= 1180 ? 3 : width >= 760 ? 2 : 1;
+  return searchCatalogDomain.lightboxSearchColumnLimit(columns, width);
 }
 
 function updateLightboxSearchResultsLayout(count = 0) {
@@ -959,7 +919,7 @@ async function renderLightboxSearchResults(query) {
           <span class="reader-search-thumb-frame catalog-image-frame">
             <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
           </span>
-          <span class="reader-search-result-copy">${searchResultDetailsMarkup(result)}</span>
+          <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
         </button>
       `;
     }).join("");
@@ -1066,20 +1026,12 @@ function openGlobalSearchResult(result) {
   if (!result) return false;
   hideSearchFloatingPreview();
   closeGlobalSearchPanel({ focusButton: false });
-
-  if (result.targetId) {
-    return Boolean(getFeatureInterface("catalog-grid")?.activateCategoryTarget?.(result.targetId));
-  }
-
-  if (result.resultType === "catalog") {
-    if (!result.catalogId) return false;
-    navigateTo(catalogDocumentUrl(result.catalogId));
-    return true;
-  }
-
-  if (!result.catalogId) return false;
-  navigateTo(viewerDocumentUrl(result.catalogId, Number(result.page)));
-  return true;
+  const catalogGrid = requireFeatureInterface("catalog-grid");
+  return searchCatalogDomain.executeGlobalSearchResultAction(result, {
+    activateCategoryTarget: catalogGrid.activateCategoryTarget,
+    openCatalog: (catalogId) => navigateTo(catalogDocumentUrl(catalogId)),
+    openViewer: (catalogId, page) => navigateTo(viewerDocumentUrl(catalogId, page))
+  });
 }
 
 async function submitGlobalSearch() {
@@ -1109,7 +1061,7 @@ function globalSearchResultMarkup(result) {
         <span class="search-result-thumb-frame catalog-image-frame">
           <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
         </span>
-        <span class="search-result-copy">${searchResultDetailsMarkup(result)}</span>
+        <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
       </button>
     </article>
   `;

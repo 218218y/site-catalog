@@ -3,8 +3,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
 const { readAllBundles } = require('./frontend_test_assets');
+const { importFrontendTestModule } = require('./frontend_test_module');
 
 const root = path.join(__dirname, '..');
 const hierarchySource = fs.readFileSync(path.join(root, 'src', 'js', '20-shared-ui.js'), 'utf8');
@@ -18,34 +18,10 @@ const searchUi = fs.readFileSync(path.join(root, 'src', 'js', '50-search-ui.js')
 const viewer = fs.readFileSync(path.join(root, 'src', 'js', '60-viewer.js'), 'utf8');
 const sharedInquiry = fs.readFileSync(path.join(root, 'src', 'js', '32-shared-inquiry.js'), 'utf8');
 
-function extractFunction(text, name) {
-  const signature = `function ${name}(`;
-  const start = text.indexOf(signature);
-  assert.notEqual(start, -1, `${name} must exist`);
-  const bodyStart = text.indexOf('{', start);
-  let depth = 0;
-  let quote = '';
-  let escaped = false;
-  for (let index = bodyStart; index < text.length; index += 1) {
-    const character = text[index];
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (character === '\\') escaped = true;
-      else if (character === quote) quote = '';
-      continue;
-    }
-    if (character === '"' || character === "'" || character === '`') {
-      quote = character;
-      continue;
-    }
-    if (character === '{') depth += 1;
-    else if (character === '}') {
-      depth -= 1;
-      if (depth === 0) return text.slice(start, index + 1);
-    }
-  }
-  throw new Error(`Unable to extract ${name}`);
-}
+global.window = { BARGIG_CATALOG_TAXONOMY: { categories: [], subcategories: [] }, location: { href: 'https://example.test/' } };
+Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
+global.requiredElement = () => ({});
+const { handleTopLayerEscape } = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');
 
 function createHarness(layerResults) {
   const calls = [];
@@ -57,16 +33,13 @@ function createHarness(layerResults) {
       return closes;
     }
   })).sort((first, second) => second.escapePriority - first.escapePriority);
-  const context = {
-    featureInterfacesByEscapePriority: () => interfaces
-  };
-  const handler = vm.runInNewContext(`(${extractFunction(hierarchySource, 'handleTopLayerEscape')})`, context);
+  global.featureInterfacesByEscapePriority = () => interfaces;
   const event = {
     key: 'Escape',
     defaultPrevented: false,
     preventDefault() { this.defaultPrevented = true; }
   };
-  return { calls, handler, event };
+  return { calls, event };
 }
 
 assert.match(appShell, /if \(event\.defaultPrevented\) return;\s*if \(handleTopLayerEscape\(event\)\) return;/);
@@ -96,7 +69,7 @@ for (const [source, name, priority] of [
     ['search', 300, true],
     ['viewer', 100, true]
   ]);
-  assert.equal(harness.handler(harness.event), true);
+  assert.equal(handleTopLayerEscape(harness.event), true);
   assert.deepEqual(harness.calls, ['inquiry', 'favorites', 'catalog-navigation', 'search']);
   assert.equal(harness.event.defaultPrevented, true);
 }
@@ -107,14 +80,14 @@ for (const [source, name, priority] of [
     ['favorites', 500, true],
     ['viewer', 100, true]
   ]);
-  assert.equal(harness.handler(harness.event), true);
+  assert.equal(handleTopLayerEscape(harness.event), true);
   assert.deepEqual(harness.calls, ['inquiry'], 'the first closing feature owns the Escape event');
 }
 
 {
   const harness = createHarness([['viewer', 100, true]]);
   harness.event.defaultPrevented = true;
-  assert.equal(harness.handler(harness.event), false);
+  assert.equal(handleTopLayerEscape(harness.event), false);
   assert.deepEqual(harness.calls, [], 'a child-owned Escape must not reach feature layers');
 }
 

@@ -1,25 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-
-const root = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'src/js/70-viewer-input.js'), 'utf8');
-
-function sourceBetween(text, startMarker, endMarker) {
-  const start = text.indexOf(startMarker);
-  const end = text.indexOf(endMarker, start + startMarker.length);
-  assert.notEqual(start, -1, `Missing ${startMarker}`);
-  assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return text.slice(start, end);
-}
-
-const momentumSource = sourceBetween(
-  source,
-  'function getViewerPointerEventTime(event)',
-  'function startPointerInteraction(event)'
-);
+const { importFrontendTestModule } = require('./frontend_test_module');
 
 const state = {
   pointers: new Map(),
@@ -42,50 +24,23 @@ const windowStub = {
     frames.delete(id);
   }
 };
-const clampValue = (value, min, max) => Math.min(max, Math.max(min, value));
-let boundaryImplementation = () => ({
-  handled: true,
-  turned: false,
-  moved: true,
-  result: { remainingDeltaX: 0, remainingDeltaY: 0 }
+let boundaryImplementation = () => ({ handled: true, turned: false, moved: true, result: { remainingDeltaX: 0, remainingDeltaY: 0 } });
+Object.assign(globalThis, {
+  viewerState: state,
+  window: windowStub,
+  VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS: 80,
+  VIEWER_TOUCH_VELOCITY_BLEND: 0.45,
+  VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS: 2.6,
+  VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS: 34,
+  VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS: 0.0048,
+  VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS: 0.08,
+  VIEWER_PAGE_TURN_REMAINDER_EPSILON: 0.75,
+  clampValue: (value, min, max) => Math.min(max, Math.max(min, value)),
+  isViewerSessionOpen: () => true,
+  singleViewerUsesBoundaryPan: () => true,
+  consumeSingleViewerBoundaryInput: (...args) => boundaryImplementation(...args)
 });
-
-const api = new Function(
-  'viewerState',
-  'window',
-  'VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS',
-  'VIEWER_TOUCH_VELOCITY_BLEND',
-  'VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS',
-  'VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS',
-  'VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS',
-  'VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS',
-  'VIEWER_PAGE_TURN_REMAINDER_EPSILON',
-  'clampValue',
-  'isViewerSessionOpen',
-  'singleViewerUsesBoundaryPan',
-  'consumeSingleViewerBoundaryInput',
-  `${momentumSource}\nreturn {
-    getViewerPointerMoveSamples,
-    consumeViewerPointerPanSamples,
-    clampViewerTouchMomentumVelocity,
-    startViewerTouchMomentum,
-    stopViewerTouchMomentum
-  };`
-)(
-  state,
-  windowStub,
-  80,
-  0.45,
-  2.6,
-  34,
-  0.0048,
-  0.08,
-  0.75,
-  clampValue,
-  () => true,
-  () => true,
-  (...args) => boundaryImplementation(...args)
-);
+const api = importFrontendTestModule('src/js/70-viewer-input.js', 'viewer-input');
 
 function flushNextFrame(timestamp) {
   const entry = frames.entries().next().value;
@@ -95,29 +50,13 @@ function flushNextFrame(timestamp) {
   callback(timestamp);
 }
 
-const clamped = api.clampViewerTouchMomentumVelocity(10, 0);
-assert.equal(clamped.velocityX, 2.6, 'touch momentum has a deterministic speed cap');
-assert.equal(clamped.velocityY, 0);
-
+assert.deepEqual(api.clampViewerTouchMomentumVelocity(10, 0), { velocityX: 2.6, velocityY: 0 });
 const sampledDeltas = [];
 boundaryImplementation = (deltaX, deltaY) => {
   sampledDeltas.push([deltaX, deltaY]);
-  return {
-    handled: true,
-    turned: false,
-    moved: true,
-    result: { remainingDeltaX: 0, remainingDeltaY: 0 }
-  };
+  return { handled: true, turned: false, moved: true, result: { remainingDeltaX: 0, remainingDeltaY: 0 } };
 };
-state.pointers.set(7, {
-  x: 100,
-  y: 100,
-  startX: 100,
-  startY: 100,
-  velocityX: 0,
-  velocityY: 0,
-  lastTime: 1000
-});
+state.pointers.set(7, { x: 100, y: 100, startX: 100, startY: 100, velocityX: 0, velocityY: 0, lastTime: 1000 });
 const pan = api.consumeViewerPointerPanSamples({
   pointerId: 7,
   clientX: 70,
@@ -130,45 +69,35 @@ const pan = api.consumeViewerPointerPanSamples({
     ];
   }
 }, state.pointers.get(7));
-assert.deepEqual(sampledDeltas, [[30, 0]], 'coalesced touch samples feed one frame-aligned pan update without repeated layout writes');
+assert.deepEqual(sampledDeltas, [[30, 0]]);
 assert.equal(pan.handled, true);
 assert.equal(state.pointers.get(7).x, 70);
-assert.ok(state.pointers.get(7).velocityX > 0, 'pointer samples retain a release velocity for kinetic scrolling');
+assert.ok(state.pointers.get(7).velocityX > 0);
 state.pointers.clear();
 
 const horizontalInputs = [];
 boundaryImplementation = (deltaX, deltaY) => {
   horizontalInputs.push([deltaX, deltaY]);
-  return {
-    handled: true,
-    turned: false,
-    moved: false,
-    result: { remainingDeltaX: deltaX, remainingDeltaY: 0 }
-  };
+  return { handled: true, turned: false, moved: false, result: { remainingDeltaX: deltaX, remainingDeltaY: 0 } };
 };
 assert.equal(api.startViewerTouchMomentum(1, 0), true);
 flushNextFrame(100);
 flushNextFrame(116);
 assert.equal(horizontalInputs.length, 1);
-assert.equal(state.viewerTouchMomentumVelocityX, 0, 'horizontal inertia stops independently at the terminal safety edge');
-assert.equal(frames.size, 0, 'no further frame is queued once both axes stop');
+assert.equal(state.viewerTouchMomentumVelocityX, 0);
+assert.equal(frames.size, 0);
 
 const verticalInputs = [];
 boundaryImplementation = (deltaX, deltaY) => {
   verticalInputs.push([deltaX, deltaY]);
-  return {
-    handled: true,
-    turned: true,
-    moved: true,
-    result: { remainingDeltaX: 0, remainingDeltaY: deltaY }
-  };
+  return { handled: true, turned: true, moved: true, result: { remainingDeltaX: 0, remainingDeltaY: deltaY } };
 };
 assert.equal(api.startViewerTouchMomentum(0, 1), true);
 flushNextFrame(200);
 flushNextFrame(216);
 assert.equal(verticalInputs.length, 1);
-assert.ok(state.viewerTouchMomentumVelocityY > 0, 'vertical inertia survives a successful edge page turn');
-assert.equal(frames.size, 1, 'continuous touch scrolling proceeds on the newly opened page');
+assert.ok(state.viewerTouchMomentumVelocityY > 0);
+assert.equal(frames.size, 1);
 api.stopViewerTouchMomentum();
 assert.equal(frames.size, 0);
 assert.ok(cancelled.length >= 1);

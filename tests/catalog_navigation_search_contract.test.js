@@ -32,8 +32,10 @@ assert.match(searchUi, /catalogSearch\.searchNavigation\([\s\S]*getCatalogCatego
 assert.match(searchUi, /const navigationResults = rawQuery\.length < 2 \? \[\] : catalogSearch\.searchNavigation/);
 assert.match(searchUi, /await getGlobalOcrSearchResults\(rawQuery, limit, control\)/);
 assert.match(searchUi, /catalogSearch\.mergeNavigationResults\([\s\S]*navigationResults[\s\S]*getGlobalOcrSearchResults/);
-assert.match(searchUi, /navigateTo\(catalogDocumentUrl\(result\.catalogId\)\)/);
-assert.match(searchUi, /activateCategoryTarget/);
+assert.match(searchUi, /const catalogGrid = requireFeatureInterface\("catalog-grid"\);/);
+assert.match(searchUi, /searchCatalogDomain\.executeGlobalSearchResultAction\(result/);
+assert.match(searchUi, /openCatalog: \(catalogId\) => navigateTo\(catalogDocumentUrl\(catalogId\)\)/);
+assert.match(searchUi, /activateCategoryTarget: catalogGrid\.activateCategoryTarget/);
 assert.match(searchUi, /catalogSearch\.navigationResultMarkup\(result\)/);
 
 assert.match(catalogGrid, /function activateCatalogCategoryTarget/);

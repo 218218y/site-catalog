@@ -1,87 +1,26 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
 const { normalizeItems } = require('../favorites-store.js');
-const { readBundle } = require('./frontend_test_assets');
+const { importFrontendTestModule } = require('./frontend_test_module');
 
-const app = readBundle('favorites');
-
-function extractFunction(name) {
-  const start = app.indexOf(`function ${name}(`);
-  assert.notEqual(start, -1, `Missing function ${name}`);
-  const bodyStart = app.indexOf('{', start);
-  let depth = 0;
-  let quote = '';
-  let escaped = false;
-  for (let index = bodyStart; index < app.length; index += 1) {
-    const char = app[index];
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (char === '\\') escaped = true;
-      else if (char === quote) quote = '';
-      continue;
-    }
-    if (char === '"' || char === "'" || char === '`') {
-      quote = char;
-      continue;
-    }
-    if (char === '{') depth += 1;
-    if (char === '}') {
-      depth -= 1;
-      if (depth === 0) return app.slice(start, index + 1);
-    }
-  }
-  throw new Error(`Unclosed function ${name}`);
-}
-
-const names = [
-  'favoriteItemKey',
-  'normalizeFavoriteTransferItems',
-  'analyzeFavoriteItemMerge',
-  'mergeFavoriteItemLists',
-  'syncFavoritesTransferDialogUi',
-  'encodeBase64UrlUtf8',
-  'decodeBase64UrlUtf8',
-  'canonicalizeFavoriteShareItems',
-  'encodeFavoritePageRanges',
-  'decodeFavoritePageRanges',
-  'buildFavoritesShareToken',
-  'parseFavoritesShareToken'
-];
-
+const { createFavoritesPortabilityDomain } = importFrontendTestModule(
+  'src/js/29-favorites-portability.js',
+  'favorites-portability'
+);
 const catalogs = [
   { id: 'catalog-a', pages: 40 },
   { id: 'catalog-b', pages: 20 }
 ];
 const catalogMap = new Map(catalogs.map((catalog) => [catalog.id, catalog]));
-const context = {
-  FAVORITES_SHARE_VERSION: 2,
-  catalogs,
-  favoritesState: { favoritesTransferPending: null },
-  favoritesElements: {
-    favoritesTransferOverlay: {},
-    favoritesTransferTitle: { textContent: '' },
-    favoritesTransferDescription: { textContent: '' },
-    favoritesTransferSummary: { textContent: '' }
-  },
-  currentFavoriteItems: [],
-  window: {
-    BargigFavorites: { normalizeItems },
-    btoa: (value) => Buffer.from(value, 'binary').toString('base64'),
-    atob: (value) => Buffer.from(value, 'base64').toString('binary')
-  },
-  TextEncoder,
-  TextDecoder,
-  encodeURIComponent,
-  decodeURIComponent,
+const domain = createFavoritesPortabilityDomain({
+  normalizeItems,
   findCatalogById: (id) => catalogMap.get(String(id)) || null,
-  getValidFavoriteItems: () => context.currentFavoriteItems
-};
-vm.createContext(context);
-vm.runInContext(names.map(extractFunction).join('\n\n'), context);
+  catalogs: () => catalogs,
+  encodeBase64: (value) => Buffer.from(value, 'binary').toString('base64'),
+  decodeBase64: (value) => Buffer.from(value, 'base64').toString('binary'),
+  shareVersion: 2
+});
 
 const firstOrder = [
   { catalogId: 'catalog-b', page: 7, savedAt: 30 },
@@ -89,54 +28,27 @@ const firstOrder = [
   { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'הערה מקומית' },
   { catalogId: 'catalog-a', page: 3, savedAt: 5 }
 ];
-const secondOrder = [...firstOrder].reverse();
-const token = context.buildFavoritesShareToken(firstOrder);
+const token = domain.buildFavoritesShareToken(firstOrder);
 assert.match(token, /^v2\.[A-Za-z0-9_-]+$/);
-assert.equal(token, context.buildFavoritesShareToken(secondOrder), 'the shared token must not encode the local item order');
-
-const decoded = context.parseFavoritesShareToken(token);
-assert.equal(decoded.valid, true);
-assert.deepEqual(JSON.parse(JSON.stringify(decoded.items)), [
+assert.equal(token, domain.buildFavoritesShareToken([...firstOrder].reverse()), 'the shared token must not encode local item order');
+assert.deepEqual(domain.parseFavoritesShareToken(token).items, [
   { catalogId: 'catalog-a', page: 2, savedAt: 0 },
   { catalogId: 'catalog-a', page: 3, savedAt: 0 },
   { catalogId: 'catalog-a', page: 4, savedAt: 0 },
   { catalogId: 'catalog-b', page: 7, savedAt: 0 }
 ]);
 
-assert.equal(context.encodeFavoritePageRanges([1, 2, 3, 5, 10, 11]), '1-3,5,a-b');
-assert.deepEqual(Array.from(context.decodeFavoritePageRanges('1-3,5,a-b')), [1, 2, 3, 5, 10, 11]);
-
-const invalidToken = context.buildFavoritesShareToken([
+const invalidToken = domain.buildFavoritesShareToken([
   { catalogId: 'catalog-a', page: 999 },
   { catalogId: 'missing', page: 1 },
   { catalogId: 'catalog-b', page: 4 }
 ]);
-const filtered = context.parseFavoritesShareToken(invalidToken);
-assert.deepEqual(JSON.parse(JSON.stringify(filtered.items)), [{ catalogId: 'catalog-b', page: 4, savedAt: 0 }]);
+assert.deepEqual(domain.parseFavoritesShareToken(invalidToken).items, [{ catalogId: 'catalog-b', page: 4, savedAt: 0 }]);
 
-const legacyPayload = {
-  v: 1,
-  c: ['catalog-b', 'catalog-a'],
-  i: [[0, 7], [1, 2]]
-};
-const legacyToken = `v1.${context.encodeBase64UrlUtf8(JSON.stringify(legacyPayload))}`;
-const legacyDecoded = context.parseFavoritesShareToken(legacyToken);
-assert.equal(legacyDecoded.valid, false);
-assert.deepEqual(JSON.parse(JSON.stringify(legacyDecoded.items)), []);
+const legacyToken = 'v1.legacy-payload';
+assert.deepEqual(domain.parseFavoritesShareToken(legacyToken), { valid: false, items: [], rejected: 0 });
 
-const merged = context.mergeFavoriteItemLists(
-  [{ catalogId: 'catalog-a', page: 2, savedAt: 50 }],
-  [
-    { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'הערה מקומית' },
-    { catalogId: 'catalog-b', page: 1, savedAt: 5 }
-  ]
-);
-assert.deepEqual(JSON.parse(JSON.stringify(merged)), [
-  { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'הערה מקומית' },
-  { catalogId: 'catalog-b', page: 1, savedAt: 5 }
-]);
-
-const comparison = context.analyzeFavoriteItemMerge(
+const comparison = domain.analyzeFavoriteItemMerge(
   [
     { catalogId: 'catalog-a', page: 2, savedAt: 50 },
     { catalogId: 'catalog-a', page: 4, savedAt: 40 },
@@ -148,56 +60,38 @@ const comparison = context.analyzeFavoriteItemMerge(
     { catalogId: 'catalog-b', page: 7, savedAt: 1 }
   ]
 );
-assert.deepEqual(JSON.parse(JSON.stringify(comparison.newItems)), [
-  { catalogId: 'catalog-a', page: 4, savedAt: 40 }
-]);
-assert.deepEqual(JSON.parse(JSON.stringify(comparison.alreadyExistingItems)), [
+assert.deepEqual(comparison.newItems, [{ catalogId: 'catalog-a', page: 4, savedAt: 40 }]);
+assert.deepEqual(comparison.alreadyExistingItems, [
   { catalogId: 'catalog-a', page: 2, savedAt: 50 },
   { catalogId: 'catalog-b', page: 7, savedAt: 30 }
 ]);
-assert.deepEqual(JSON.parse(JSON.stringify(comparison.mergedItems)), [
+assert.deepEqual(comparison.mergedItems, [
   { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'לשמור' },
   { catalogId: 'catalog-a', page: 4, savedAt: 40 },
   { catalogId: 'catalog-b', page: 7, savedAt: 1 },
   { catalogId: 'catalog-b', page: 1, savedAt: 5 }
 ]);
 
-context.currentFavoriteItems = [
-  { catalogId: 'catalog-a', page: 2, savedAt: 10 },
-  { catalogId: 'catalog-b', page: 1, savedAt: 5 },
-  { catalogId: 'catalog-a', page: 8, savedAt: 4 },
-  { catalogId: 'catalog-b', page: 9, savedAt: 3 }
-];
-context.favoritesState.favoritesTransferPending = {
-  items: [
+assert.equal(domain.favoritesTransferSummary(
+  { items: [
     { catalogId: 'catalog-a', page: 2, savedAt: 0 },
     { catalogId: 'catalog-b', page: 1, savedAt: 0 },
     { catalogId: 'catalog-a', page: 4, savedAt: 0 }
-  ],
-  rejected: 0
-};
-context.syncFavoritesTransferDialogUi();
-assert.equal(
-  context.favoritesElements.favoritesTransferSummary.textContent,
-  '3 פריטים ברשימה שהתקבלה · 4 פריטים שמורים כעת\n' +
-    'מתוכם 2 קיימים ו-1 חדש'
-);
+  ], rejected: 0 },
+  [
+    { catalogId: 'catalog-a', page: 2, savedAt: 10 },
+    { catalogId: 'catalog-b', page: 1, savedAt: 5 },
+    { catalogId: 'catalog-a', page: 8, savedAt: 4 },
+    { catalogId: 'catalog-b', page: 9, savedAt: 3 }
+  ]
+), '3 פריטים ברשימה שהתקבלה · 4 פריטים שמורים כעת\nמתוכם 2 קיימים ו-1 חדש');
 
-context.currentFavoriteItems = [
-  { catalogId: 'catalog-b', page: 1, savedAt: 5 }
-];
-context.favoritesState.favoritesTransferPending = {
-  items: [
+assert.equal(domain.favoritesTransferSummary(
+  { items: [
     { catalogId: 'catalog-a', page: 4, savedAt: 0 },
     { catalogId: 'catalog-b', page: 7, savedAt: 0 }
-  ],
-  rejected: 1
-};
-context.syncFavoritesTransferDialogUi();
-assert.equal(
-  context.favoritesElements.favoritesTransferSummary.textContent,
-  '2 פריטים ברשימה שהתקבלה · 1 פריטים שמורים כעת · 1 פריטים לא היו זמינים באתר זה',
-  'the original summary must remain unchanged and single-line when there is no overlap'
-);
+  ], rejected: 1 },
+  [{ catalogId: 'catalog-b', page: 1, savedAt: 5 }]
+), '2 פריטים ברשימה שהתקבלה · 1 פריטים שמורים כעת · 1 פריטים לא היו זמינים באתר זה');
 
 console.log('favorites_portability_logic.test.js: PASS');

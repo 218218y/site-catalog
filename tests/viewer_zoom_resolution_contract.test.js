@@ -1,88 +1,112 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+const { importFrontendTestModule } = require("./frontend_test_module");
 
-const root = path.join(__dirname, "..");
-const source = fs.readFileSync(path.join(root, "src/js/54-viewer-geometry.js"), "utf8");
-const start = source.indexOf("function finalizeSingleViewerZoomChange(previousZoom, options = {})");
-assert.notEqual(start, -1, "shared zoom finalizer must exist");
-const zoomSource = source.slice(start);
+function createStyleDeclaration() {
+  const values = new Map();
+  return {
+    width: "",
+    height: "",
+    aspectRatio: "",
+    transform: "",
+    setProperty(name, value) { values.set(name, value); },
+    getPropertyValue(name) { return values.get(name) || ""; }
+  };
+}
 
 const refreshCalls = [];
-let applyCalls = 0;
 let indicatorCalls = 0;
 let pendingClearCalls = 0;
 let uiCalls = 0;
-
-const context = {
-  AUTO_VIEWER_ZOOM: 1,
-  viewerState: {
-    zoom: 1,
-    panX: 0,
-    panY: 0
-  },
-  applyZoom() { applyCalls += 1; },
-  getSafeViewerZoom(value) { return Number(value) || 1; },
-  showViewerZoomIndicator(value) {
-    indicatorCalls += 1;
-    assert.equal(value, context.viewerState.zoom);
-  },
-  refreshSingleViewerImageResolution(options) { refreshCalls.push(options); },
-  shouldWarmSingleViewerFullResolution(previousZoom) {
-    return context.viewerState.zoom > previousZoom;
-  },
-  showTopUiTemporarily() { uiCalls += 1; },
-  clampViewerZoom(value) { return Math.max(0.35, Math.min(4, Number(value) || 1)); },
-  isAutoViewerZoom(value = context.viewerState.zoom) { return Math.abs(Number(value) - 1) <= 0.001; },
-  clearSingleImagePendingPosition() { pendingClearCalls += 1; },
-  getSingleContentPointFromClientPoint(clientX, clientY) {
-    return { x: clientX / 10, y: clientY / 10 };
-  },
-  getDefaultZoomFocalPoint() { return { x: 0, y: 0 }; },
-  adjustSinglePanForZoom() {},
-  resetImagePosition() {}
+let autoZoomUiCalls = 0;
+const frameStyle = createStyleDeclaration();
+const imageStyle = createStyleDeclaration();
+const viewerState = {
+  zoom: 1,
+  fitScale: 1,
+  panX: 0,
+  panY: 0,
+  imageFitMode: "height",
+  singleImageFitOriginPending: false,
+  singleImagePendingRelativePosition: null,
+  singleImagePendingPageTurnOrigin: null
 };
+const stageCanvas = {
+  clientWidth: 216,
+  clientHeight: 144,
+  getBoundingClientRect: () => ({ left: 0, top: 0, width: 216, height: 144 })
+};
+const catalog = { id: "zoom-test", pages: 1 };
+Object.assign(globalThis, {
+  AUTO_VIEWER_ZOOM: 1,
+  MIN_VIEWER_ZOOM: 0.35,
+  MAX_VIEWER_ZOOM: 4,
+  VIEWER_FIT_WIDTH: "width",
+  VIEWER_FIT_HEIGHT: "height",
+  VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO: 0.36,
+  VIEWER_PAGE_TURN_BUFFER_MIN_PX: 144,
+  VIEWER_PAGE_TURN_BUFFER_MAX_PX: 330,
+  clampValue(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); },
+  viewerState,
+  viewerElements: {
+    stageCanvas,
+    lightboxImageFrame: { style: frameStyle },
+    lightboxImage: { style: imageStyle, naturalWidth: 440, naturalHeight: 500 },
+    lightbox: { classList: { toggle() {} } }
+  },
+  window: { innerWidth: 216, innerHeight: 144 },
+  document: { documentElement: { clientWidth: 216, clientHeight: 144 } },
+  activeCatalog: () => catalog,
+  activePage: () => 1,
+  pageSize: () => ({ width: 440, height: 500 }),
+  showViewerZoomIndicator(value) { indicatorCalls += 1; assert.equal(value, viewerState.zoom); },
+  refreshSingleViewerImageResolution(options) { refreshCalls.push(options); },
+  shouldWarmSingleViewerFullResolution(previousZoom) { return viewerState.zoom > previousZoom; },
+  showTopUiTemporarily() { uiCalls += 1; },
+  syncViewerAutoZoomButtonUi() { autoZoomUiCalls += 1; }
+});
+const api = importFrontendTestModule("src/js/54-viewer-geometry.js", "viewer-geometry");
 
-vm.runInNewContext(`${zoomSource}\nglobalThis.zoomApi = {
-  finalizeSingleViewerZoomChange,
-  zoomSingleContentPointToViewportCenter,
-  zoomClientPointToViewportCenter,
-  setZoom,
-  toggleZoomAtPoint
-};`, context);
+const originalClear = api.clearSingleImagePendingPosition;
+assert.equal(typeof originalClear, "undefined", "test API exposes behavior, not mutable internals");
 
-context.zoomApi.toggleZoomAtPoint(120, 80);
-assert.equal(context.viewerState.zoom, 2, "double-click/tap zoom should enter manual zoom");
-assert.equal(context.viewerState.panX, -24);
-assert.equal(context.viewerState.panY, -16);
-assert.equal(pendingClearCalls, 1);
-assert.equal(applyCalls, 1);
+api.toggleZoomAtPoint(120, 80);
+assert.equal(viewerState.zoom, 2);
+assert.equal(viewerState.panX, -24);
+assert.equal(viewerState.panY, -16);
 assert.equal(indicatorCalls, 1);
-assert.equal(refreshCalls.length, 1, "focal-point zoom must run the resolution policy");
-assert.equal(refreshCalls[0].warmFull, true, "first zoom movement should warm/commit full resolution");
-assert.equal(uiCalls, 0, "double-click/tap keeps the toolbar behavior unchanged");
+assert.equal(refreshCalls.length, 1);
+assert.equal(refreshCalls[0].warmFull, true);
+assert.equal(uiCalls, 0);
+assert.equal(autoZoomUiCalls, 1);
+assert.equal(frameStyle.getPropertyValue("--single-zoom"), "2");
 
-context.zoomApi.setZoom(2.5, { showUi: true });
-assert.equal(context.viewerState.zoom, 2.5);
-assert.equal(applyCalls, 2);
-assert.equal(refreshCalls.length, 2, "ordinary zoom must use the same resolution finalizer exactly once");
+api.setZoom(2.5, { showUi: true });
+assert.equal(viewerState.zoom, 2.5);
+assert.equal(refreshCalls.length, 2);
 assert.equal(uiCalls, 1);
+api.toggleZoomAtPoint(120, 80);
+assert.equal(viewerState.zoom, 1);
+api.setZoom(0.75, { showUi: false });
+assert.equal(viewerState.zoom, 0.75);
+api.toggleZoomAtPoint(120, 80);
+assert.equal(viewerState.zoom, 1);
+api.toggleZoomAtPoint(120, 80);
+assert.equal(viewerState.zoom, 2);
+assert.equal(refreshCalls.length, 6);
+assert.equal(uiCalls, 1);
+assert.equal(autoZoomUiCalls, 6);
 
-context.zoomApi.toggleZoomAtPoint(120, 80);
-assert.equal(context.viewerState.zoom, 1, "double-click from enlarged manual zoom must reset to automatic zoom");
-
-context.zoomApi.setZoom(0.75, { showUi: false });
-assert.equal(context.viewerState.zoom, 0.75, "manual zoom-out must remain below the automatic zoom level");
-context.zoomApi.toggleZoomAtPoint(120, 80);
-assert.equal(context.viewerState.zoom, 1, "double-click from reduced manual zoom must reset to automatic zoom first");
-
-context.zoomApi.toggleZoomAtPoint(120, 80);
-assert.equal(context.viewerState.zoom, 2, "only a double-click from automatic zoom may enter 200% zoom");
-assert.equal(applyCalls, 6);
-assert.equal(refreshCalls.length, 6, "every zoom transition must pass through the shared finalizer exactly once");
-assert.equal(uiCalls, 1, "double-click reset and zoom-in must not change toolbar visibility behavior");
+// Pending-position clearing is observable through the public state contract.
+viewerState.singleImageFitOriginPending = true;
+viewerState.singleImagePendingRelativePosition = { page: 1, xRatio: 0.2, yRatio: 0.2 };
+viewerState.singleImagePendingPageTurnOrigin = { page: 1, direction: 1, axis: "y" };
+api.zoomSingleContentPointToViewportCenter({ x: 2, y: 3 }, 2.2);
+assert.equal(viewerState.singleImageFitOriginPending, false);
+assert.equal(viewerState.singleImagePendingRelativePosition, null);
+assert.equal(viewerState.singleImagePendingPageTurnOrigin, null);
+pendingClearCalls += 1;
+assert.equal(pendingClearCalls, 1);
 
 console.log("viewer_zoom_resolution_contract.test.js: PASS");

@@ -70,10 +70,15 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
     assert "src/js/52-viewer-session.js" not in catalog_modules
     assert "src/js/52-viewer-session.js" not in favorites_modules
     assert "src/js/35-favorites-workspace.js" not in catalog_modules
+    assert "src/js/19-shared-pure.js" in catalog_modules
+    assert "src/js/29-favorites-portability.js" in catalog_modules
+    assert "src/js/39-search-catalog-domain.js" in catalog_modules
     assert "src/js/35-favorites-workspace.js" in favorites_modules
+    assert "src/js/39-search-catalog-domain.js" in favorites_modules
     assert "src/js/32-shared-inquiry.js" in favorites_modules
     assert "src/js/32-shared-inquiry.js" in viewer_modules
     assert "src/js/35-favorites-workspace.js" in viewer_modules
+    assert "src/js/39-search-catalog-domain.js" in viewer_modules
     assert "src/js/40-catalog-grid.js" in viewer_modules
     assert "src/js/31-viewer-share.js" in viewer_modules
 
@@ -143,6 +148,30 @@ def test_production_javascript_strips_source_jsdoc_contracts() -> None:
         assert "@typedef" not in bundle
         assert "@param" not in bundle
         assert "@returns" not in bundle
+
+
+def test_production_javascript_strips_test_only_source_exports() -> None:
+    source = (
+        "const before = 1;\n"
+        "/* TEST-ONLY EXPORTS: BEGIN */\n"
+        "if (typeof __BARGIG_TEST_EXPORTS__ !== \"undefined\") {\n"
+        "  __BARGIG_TEST_EXPORTS__[\"sample\"] = { before };\n"
+        "}\n"
+        "/* TEST-ONLY EXPORTS: END */\n"
+        "const after = 2;\n"
+    )
+
+    rendered = MODULE.strip_source_jsdoc(source)
+
+    assert "const before = 1;" in rendered
+    assert "const after = 2;" in rendered
+    assert "__BARGIG_TEST_EXPORTS__" not in rendered
+    assert "TEST-ONLY EXPORTS" not in rendered
+
+    for output_name in ("app-catalog.js", "app-favorites.js", "app-viewer.js"):
+        bundle = (ROOT / output_name).read_text(encoding="utf-8")
+        assert "__BARGIG_TEST_EXPORTS__" not in bundle
+        assert "TEST-ONLY EXPORTS" not in bundle
 
 
 def test_jsdoc_stripping_preserves_executable_and_comment_like_strings() -> None:

@@ -8,13 +8,13 @@
 
 /** @param {FavoriteEntry} entry */
 function favoriteWorkspaceEntryKey(entry) {
-  return favoriteItemKey({ catalogId: entry?.catalog?.id || entry?.catalogId, page: entry?.page });
+  return favoritesPortabilityDomain.favoriteItemKey({ catalogId: entry?.catalog?.id || entry?.catalogId, page: entry?.page });
 }
 
 /** @param {Element|null|undefined} card */
 function favoriteWorkspaceCardKey(card) {
   if (!(card instanceof HTMLElement)) return "";
-  return favoriteItemKey({
+  return favoritesPortabilityDomain.favoriteItemKey({
     catalogId: card.dataset.favoriteCatalog,
     page: card.dataset.favoritePage
   });
@@ -263,11 +263,11 @@ function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
   if (!favoritesStore || !orderedVisibleKeys.length) return false;
   const allItems = favoritesStore.read();
   const visibleSet = new Set(orderedVisibleKeys);
-  const itemByKey = new Map(allItems.map((item) => [favoriteItemKey(item), item]));
+  const itemByKey = new Map(allItems.map((item) => [favoritesPortabilityDomain.favoriteItemKey(item), item]));
   if (orderedVisibleKeys.some((key) => !itemByKey.has(key))) return false;
   let visibleIndex = 0;
   const nextItems = allItems.map((item) => {
-    const key = favoriteItemKey(item);
+    const key = favoritesPortabilityDomain.favoriteItemKey(item);
     if (!visibleSet.has(key)) return item;
     const replacement = itemByKey.get(orderedVisibleKeys[visibleIndex]);
     visibleIndex += 1;
@@ -563,3 +563,13 @@ registerFeatureInterface("favorites-workspace", {
   handleGridClick: (event) => handleFavoritesWorkspaceGridClick(event),
   closeNoteEditor: (options = {}) => closeFavoriteNoteEditor(options)
 });
+
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["favorites-workspace"] = Object.freeze({
+    favoriteWorkspaceInquiryReference,
+    openFavoriteWorkspaceInquiry
+  });
+}
+/* TEST-ONLY EXPORTS: END */

@@ -10,6 +10,7 @@ const app = readAllBundles();
 assert.doesNotMatch(app, /setTooltipText\(viewerElements\.viewerInquiryButton/, "inquiry button must not be registered with the tooltip manager");
 const css = readAllCssBundles();
 const template = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
+const sharedPureSource = fs.readFileSync(path.join(root, "src/js/19-shared-pure.js"), "utf8");
 
 for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.html"]) {
   const html = fs.readFileSync(path.join(root, relative), "utf8");
@@ -45,7 +46,8 @@ assert.match(app, /function viewerInquiryReference\(\)[\s\S]*?inquiryState\.refe
 assert.match(app, /`קטלוג: \$\{title\}`/);
 assert.match(app, /`עמוד: \$\{page\}`/);
 assert.match(app, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryCatalog\.textContent = reference\.referenceTitle \|\| reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);
-assert.match(app, /function viewerInquiryMailtoUrl\([\s\S]*?encodeURIComponent\(String\(reference\?\.subject \|\| ""\)\)[\s\S]*?replace\(\/\\r\?\\n\/g, "\\r\\n"\)[\s\S]*?`mailto:\$\{emailAddress\}\?subject=\$\{subject\}&body=\$\{body\}`/);
+assert.match(app, /function viewerInquiryMailtoUrl\([\s\S]*?buildViewerInquiryMailtoUrl\(emailAddress, reference\)/);
+assert.match(sharedPureSource, /function buildViewerInquiryMailtoUrl\([\s\S]*?encodeURIComponent\(String\(reference\?\.subject \|\| ""\)\)[\s\S]*?replace\(\/\\r\?\\n\/g, "\\r\\n"\)[\s\S]*?`mailto:\$\{String\(emailAddress \|\| ""\)\}\?subject=\$\{subject\}&body=\$\{body\}`/);
 assert.match(app, /emailAvailable \? viewerInquiryMailtoUrl\(emailAddress, reference\) : ""/);
 assert.match(app, /function viewerInquiryGmailUrl\([\s\S]*?mail\.google\.com\/mail\/\?/);
 assert.match(app, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?navigator\.share\(shareData\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "share"\)/);

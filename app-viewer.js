@@ -12,11 +12,14 @@
  *   - src/js/15-telemetry.js
  *   - src/js/16-viewer-state.js
  *   - src/js/18-navigation-feature.js
+ *   - src/js/19-shared-pure.js
  *   - src/js/20-shared-ui.js
+ *   - src/js/29-favorites-portability.js
  *   - src/js/30-favorites-share.js
  *   - src/js/31-viewer-share.js
  *   - src/js/32-shared-inquiry.js
  *   - src/js/35-favorites-workspace.js
+ *   - src/js/39-search-catalog-domain.js
  *   - src/js/40-catalog-grid.js
  *   - src/js/50-search-ui.js
  *   - src/js/52-viewer-session.js
@@ -330,6 +333,12 @@ function getFeatureInterface(name) {
   return  (
     featureInterfaces.get(name) || null
   );
+}
+
+function requireFeatureInterface(name) {
+  const api = getFeatureInterface(name);
+  if (!api) throw new Error(`Required feature interface is unavailable: ${name}`);
+  return api;
 }
 
 const ESCAPE_FEATURE_NAMES =  ([
@@ -1471,6 +1480,15 @@ function clearActiveLocation() {
 }
 /* ===== END SOURCE: src/js/18-navigation-feature.js ===== */
 
+/* ===== BEGIN SOURCE: src/js/19-shared-pure.js ===== */
+
+function buildViewerInquiryMailtoUrl(emailAddress, reference) {
+  const subject = encodeURIComponent(String(reference?.subject || ""));
+  const body = encodeURIComponent(String(reference?.text || "").replace(/\r?\n/g, "\r\n"));
+  return `mailto:${String(emailAddress || "")}?subject=${subject}&body=${body}`;
+}
+/* ===== END SOURCE: src/js/19-shared-pure.js ===== */
+
 /* ===== BEGIN SOURCE: src/js/20-shared-ui.js ===== */
 
 const uiElements = Object.freeze({
@@ -2406,6 +2424,202 @@ function handleTopLayerEscape(event) {
 }
 /* ===== END SOURCE: src/js/20-shared-ui.js ===== */
 
+/* ===== BEGIN SOURCE: src/js/29-favorites-portability.js ===== */
+
+
+function createFavoritesPortabilityDomain(dependencies) {
+  const {
+    normalizeItems,
+    findCatalogById: findCatalog,
+    catalogs: readCatalogs,
+    encodeBase64,
+    decodeBase64,
+    shareVersion
+  } = dependencies;
+
+  function favoriteItemKey(item) {
+    const catalogId = String(item?.catalogId || item?.catalog?.id || "").trim();
+    const page = Number.parseInt(String(item?.page ?? ""), 10);
+    return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\u0000${page}` : "";
+  }
+
+  function normalizeFavoriteTransferItems(values) {
+    const normalized = normalizeItems(values);
+    const accepted = [];
+    let rejected = Math.max(0, Array.isArray(values) ? values.length - normalized.length : 0);
+
+    normalized.forEach((item) => {
+      const catalog = findCatalog(item.catalogId);
+      const pageCount = Number.parseInt(String(catalog?.pages || 0), 10);
+      if (!catalog || !Number.isFinite(pageCount) || item.page > pageCount) {
+        rejected += 1;
+        return;
+      }
+      accepted.push({
+        catalogId: item.catalogId,
+        page: item.page,
+        savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : 0
+      });
+    });
+
+    return { items: accepted, rejected };
+  }
+
+  function analyzeFavoriteItemMerge(incoming, existing) {
+    const incomingItems = normalizeFavoriteTransferItems(incoming).items;
+    const existingItems = normalizeItems(existing);
+    const existingByKey = new Map(existingItems.map((item) => [favoriteItemKey(item), item]));
+    const incomingKeys = new Set(incomingItems.map(favoriteItemKey).filter(Boolean));
+    const newItems = incomingItems.filter((item) => !existingByKey.has(favoriteItemKey(item)));
+    const alreadyExistingItems = incomingItems.filter((item) => existingByKey.has(favoriteItemKey(item)));
+    const mergedIncomingItems = incomingItems.map((item) => {
+      const existingItem = existingByKey.get(favoriteItemKey(item));
+      if (!existingItem) return item;
+      return {
+        ...item,
+        savedAt: Number(existingItem.savedAt) > 0 ? Number(existingItem.savedAt) : Number(item.savedAt) || 0,
+        ...(String(existingItem.note || "").trim() ? { note: String(existingItem.note).trim() } : {})
+      };
+    });
+    const preservedExistingItems = existingItems.filter((item) => !incomingKeys.has(favoriteItemKey(item)));
+
+    return {
+      incomingItems,
+      existingItems,
+      newItems,
+      alreadyExistingItems,
+      mergedItems: [...mergedIncomingItems, ...preservedExistingItems]
+    };
+  }
+
+  function encodeBase64UrlUtf8(value) {
+    const bytes = new TextEncoder().encode(String(value || ""));
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    return encodeBase64(binary)
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
+  }
+
+  function decodeBase64UrlUtf8(value) {
+    const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+    const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+    const binary = decodeBase64(`${normalized}${padding}`);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  function canonicalizeFavoriteShareItems(items) {
+    const normalized = normalizeFavoriteTransferItems(items).items.map(({ catalogId, page }) => ({ catalogId, page, savedAt: 0 }));
+    const catalogOrder = new Map(readCatalogs().map((catalog, index) => [String(catalog.id || ""), index]));
+    return normalized.sort((first, second) => {
+      const firstIndex = catalogOrder.get(first.catalogId) ?? Number.MAX_SAFE_INTEGER;
+      const secondIndex = catalogOrder.get(second.catalogId) ?? Number.MAX_SAFE_INTEGER;
+      if (firstIndex !== secondIndex) return firstIndex - secondIndex;
+      const catalogCompare = first.catalogId.localeCompare(second.catalogId, "he");
+      return catalogCompare || first.page - second.page;
+    });
+  }
+
+  function encodeFavoritePageRanges(pages) {
+    const sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page > 0))]
+      .sort((first, second) => first - second);
+    const ranges = [];
+    for (let index = 0; index < sorted.length;) {
+      const start = sorted[index];
+      let end = start;
+      while (index + 1 < sorted.length && sorted[index + 1] === end + 1) {
+        index += 1;
+        end = sorted[index];
+      }
+      const encodedStart = start.toString(36);
+      ranges.push(end === start ? encodedStart : `${encodedStart}-${end.toString(36)}`);
+      index += 1;
+    }
+    return ranges.join(",");
+  }
+
+  function decodeFavoritePageRanges(value) {
+    const pages = [];
+    String(value || "").split(",").forEach((part) => {
+      if (!part) return;
+      const [rawStart, rawEnd = rawStart] = part.split("-", 2);
+      const start = Number.parseInt(rawStart, 36);
+      const end = Number.parseInt(rawEnd, 36);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end - start > 1000) return;
+      for (let page = start; page <= end; page += 1) pages.push(page);
+    });
+    return pages;
+  }
+
+  function buildFavoritesShareToken(items) {
+    const grouped = new Map();
+    canonicalizeFavoriteShareItems(items).forEach(({ catalogId, page }) => {
+      const pages = grouped.get(catalogId) || [];
+      pages.push(page);
+      grouped.set(catalogId, pages);
+    });
+    const payload = [...grouped.entries()]
+      .map(([catalogId, pages]) => `${encodeURIComponent(catalogId)}~${encodeFavoritePageRanges(pages)}`)
+      .join("|");
+    return `v${shareVersion}.${encodeBase64UrlUtf8(payload)}`;
+  }
+
+  function parseFavoritesShareToken(token) {
+    const rawToken = String(token || "").trim();
+    const prefix = `v${shareVersion}.`;
+    if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
+
+    try {
+      const payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length));
+      const rawItems = [];
+      if (payload) {
+        payload.split("|").forEach((group) => {
+          const separatorIndex = group.indexOf("~");
+          if (separatorIndex < 1) return;
+          const catalogId = decodeURIComponent(group.slice(0, separatorIndex));
+          decodeFavoritePageRanges(group.slice(separatorIndex + 1)).forEach((page) => {
+            rawItems.push({ catalogId, page, savedAt: 0 });
+          });
+        });
+      }
+      const normalized = normalizeFavoriteTransferItems(rawItems);
+      return { ...normalized, valid: true };
+    } catch (_error) {
+      return { items: [], rejected: 0, valid: false };
+    }
+  }
+
+  function favoritesTransferSummary(pending, existing) {
+    if (!pending) return "";
+    const comparison = analyzeFavoriteItemMerge(pending.items, existing);
+    const incomingCount = comparison.incomingItems.length;
+    const currentCount = comparison.existingItems.length;
+    const newCount = comparison.newItems.length;
+    const alreadyExistingCount = comparison.alreadyExistingItems.length;
+    const rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "";
+    const existingLabel = alreadyExistingCount === 1 ? "קיים" : "קיימים";
+    const newLabel = newCount === 1 ? "חדש" : "חדשים";
+    const overlapText = alreadyExistingCount > 0
+      ? `\nמתוכם ${alreadyExistingCount} ${existingLabel} ו-${newCount} ${newLabel}`
+      : "";
+    return `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}${overlapText}`;
+  }
+
+  return Object.freeze({
+    favoriteItemKey,
+    analyzeFavoriteItemMerge,
+    buildFavoritesShareToken,
+    parseFavoritesShareToken,
+    favoritesTransferSummary
+  });
+}
+/* ===== END SOURCE: src/js/29-favorites-portability.js ===== */
+
 /* ===== BEGIN SOURCE: src/js/30-favorites-share.js ===== */
 
 function favoriteIdentity(catalog = activeCatalog(), page = activePage()) {
@@ -2457,171 +2671,19 @@ function getValidFavoriteItems() {
   });
 }
 
-function favoriteItemKey(item) {
-  const catalogId = String(item?.catalogId || item?.catalog?.id || "").trim();
-  const page = Number.parseInt(String(item?.page ?? ""), 10);
-  return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\u0000${page}` : "";
-}
-
-function normalizeFavoriteTransferItems(values) {
-  const normalized = window.BargigFavorites?.normalizeItems?.(values) || [];
-  const accepted = [];
-  let rejected = Math.max(0, Array.isArray(values) ? values.length - normalized.length : 0);
-
-  normalized.forEach((item) => {
-    const catalog = findCatalogById(item.catalogId);
-    const pageCount = Number.parseInt(String(catalog?.pages || 0), 10);
-    if (!catalog || !Number.isFinite(pageCount) || item.page > pageCount) {
-      rejected += 1;
-      return;
-    }
-    accepted.push({
-      catalogId: item.catalogId,
-      page: item.page,
-      savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : 0
-    });
-  });
-
-  return { items: accepted, rejected };
-}
-
-function analyzeFavoriteItemMerge(incoming, existing = getValidFavoriteItems()) {
-  const incomingItems = normalizeFavoriteTransferItems(incoming).items;
-  const existingItems = window.BargigFavorites?.normalizeItems?.(existing) || [];
-  const existingByKey = new Map(existingItems.map((item) => [favoriteItemKey(item), item]));
-  const incomingKeys = new Set(incomingItems.map(favoriteItemKey).filter(Boolean));
-  const newItems = incomingItems.filter((item) => !existingByKey.has(favoriteItemKey(item)));
-  const alreadyExistingItems = incomingItems.filter((item) => existingByKey.has(favoriteItemKey(item)));
-  const mergedIncomingItems = incomingItems.map((item) => {
-    const existingItem = existingByKey.get(favoriteItemKey(item));
-    if (!existingItem) return item;
-    return {
-      ...item,
-      savedAt: Number(existingItem.savedAt) > 0 ? Number(existingItem.savedAt) : Number(item.savedAt) || 0,
-      ...(String(existingItem.note || "").trim() ? { note: String(existingItem.note).trim() } : {})
-    };
-  });
-  const preservedExistingItems = existingItems.filter((item) => !incomingKeys.has(favoriteItemKey(item)));
-
-  return {
-    incomingItems,
-    existingItems,
-    newItems,
-    alreadyExistingItems,
-    mergedItems: [...mergedIncomingItems, ...preservedExistingItems]
-  };
-}
-
-function mergeFavoriteItemLists(incoming, existing = getValidFavoriteItems()) {
-  return analyzeFavoriteItemMerge(incoming, existing).mergedItems;
-}
-
-function encodeBase64UrlUtf8(value) {
-  const bytes = new TextEncoder().encode(String(value || ""));
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-  }
-  return window.btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-function decodeBase64UrlUtf8(value) {
-  const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
-  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
-  const binary = window.atob(`${normalized}${padding}`);
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
-function canonicalizeFavoriteShareItems(items) {
-  const normalized = normalizeFavoriteTransferItems(items).items.map(({ catalogId, page }) => ({ catalogId, page }));
-  const catalogOrder = new Map(catalogs.map((catalog, index) => [String(catalog.id || ""), index]));
-  return normalized.sort((a, b) => {
-    const aIndex = catalogOrder.get(a.catalogId) ?? Number.MAX_SAFE_INTEGER;
-    const bIndex = catalogOrder.get(b.catalogId) ?? Number.MAX_SAFE_INTEGER;
-    if (aIndex !== bIndex) return aIndex - bIndex;
-    const catalogCompare = a.catalogId.localeCompare(b.catalogId, "he");
-    return catalogCompare || a.page - b.page;
-  });
-}
-
-function encodeFavoritePageRanges(pages) {
-  const sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page > 0))]
-    .sort((a, b) => a - b);
-  const ranges = [];
-  for (let index = 0; index < sorted.length;) {
-    const start = sorted[index];
-    let end = start;
-    while (index + 1 < sorted.length && sorted[index + 1] === end + 1) {
-      index += 1;
-      end = sorted[index];
-    }
-    const encodedStart = start.toString(36);
-    ranges.push(end === start ? encodedStart : `${encodedStart}-${end.toString(36)}`);
-    index += 1;
-  }
-  return ranges.join(",");
-}
-
-function decodeFavoritePageRanges(value) {
-  const pages = [];
-  String(value || "").split(",").forEach((part) => {
-    if (!part) return;
-    const [rawStart, rawEnd = rawStart] = part.split("-", 2);
-    const start = Number.parseInt(rawStart, 36);
-    const end = Number.parseInt(rawEnd, 36);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end - start > 1000) return;
-    for (let page = start; page <= end; page += 1) pages.push(page);
-  });
-  return pages;
-}
-
-function buildFavoritesShareToken(items) {
-  const grouped = new Map();
-  canonicalizeFavoriteShareItems(items).forEach(({ catalogId, page }) => {
-    const pages = grouped.get(catalogId) || [];
-    pages.push(page);
-    grouped.set(catalogId, pages);
-  });
-  const payload = [...grouped.entries()]
-    .map(([catalogId, pages]) => `${encodeURIComponent(catalogId)}~${encodeFavoritePageRanges(pages)}`)
-    .join("|");
-  return `v${FAVORITES_SHARE_VERSION}.${encodeBase64UrlUtf8(payload)}`;
-}
-
-function parseFavoritesShareToken(token) {
-  const rawToken = String(token || "").trim();
-  const prefix = `v${FAVORITES_SHARE_VERSION}.`;
-  if (!rawToken.startsWith(prefix)) return { items: [], rejected: 0, valid: false };
-
-  try {
-    const payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length));
-    const rawItems = [];
-    if (payload) {
-      payload.split("|").forEach((group) => {
-        const separatorIndex = group.indexOf("~");
-        if (separatorIndex < 1) return;
-        const catalogId = decodeURIComponent(group.slice(0, separatorIndex));
-        decodeFavoritePageRanges(group.slice(separatorIndex + 1)).forEach((page) => {
-          rawItems.push({ catalogId, page, savedAt: 0 });
-        });
-      });
-    }
-    const normalized = normalizeFavoriteTransferItems(rawItems);
-    return { ...normalized, valid: true };
-  } catch (_error) {
-    return { items: [], rejected: 0, valid: false };
-  }
-}
+const favoritesPortabilityDomain = createFavoritesPortabilityDomain({
+  normalizeItems: (values) => window.BargigFavorites?.normalizeItems?.(values) || [],
+  findCatalogById,
+  catalogs: () => catalogs,
+  encodeBase64: (value) => window.btoa(value),
+  decodeBase64: (value) => window.atob(value),
+  shareVersion: FAVORITES_SHARE_VERSION
+});
 
 function buildFavoritesShareUrl(items) {
   const url = new URL(favoritesDocumentUrl(), window.location.href);
   url.hash = "";
-  url.searchParams.set(FAVORITES_SHARE_PARAM, buildFavoritesShareToken(items));
+  url.searchParams.set(FAVORITES_SHARE_PARAM, favoritesPortabilityDomain.buildFavoritesShareToken(items));
   return url.toString();
 }
 
@@ -2635,23 +2697,16 @@ function cleanFavoritesSelectionFromUrl() {
 function syncFavoritesTransferDialogUi() {
   const pending = favoritesState.favoritesTransferPending;
   if (!pending || !favoritesElements.favoritesTransferOverlay) return;
-  const comparison = analyzeFavoriteItemMerge(pending.items, getValidFavoriteItems());
-  const incomingCount = comparison.incomingItems.length;
-  const currentCount = comparison.existingItems.length;
-  const newCount = comparison.newItems.length;
-  const alreadyExistingCount = comparison.alreadyExistingItems.length;
+  const existingItems = getValidFavoriteItems();
   if (favoritesElements.favoritesTransferTitle) favoritesElements.favoritesTransferTitle.textContent = "רשימת מועדפים התקבלה";
   if (favoritesElements.favoritesTransferDescription) {
     favoritesElements.favoritesTransferDescription.textContent = "הקישור כולל מועדפים ממחשב אחר. בחרו כיצד לשלב אותם עם הרשימה הקיימת.";
   }
   if (favoritesElements.favoritesTransferSummary) {
-    const rejectedText = pending.rejected ? ` · ${pending.rejected} פריטים לא היו זמינים באתר זה` : "";
-    const existingLabel = alreadyExistingCount === 1 ? "קיים" : "קיימים";
-    const newLabel = newCount === 1 ? "חדש" : "חדשים";
-    const overlapText = alreadyExistingCount > 0
-      ? `\nמתוכם ${alreadyExistingCount} ${existingLabel} ו-${newCount} ${newLabel}`
-      : "";
-    favoritesElements.favoritesTransferSummary.textContent = `${incomingCount} פריטים ברשימה שהתקבלה · ${currentCount} פריטים שמורים כעת${rejectedText}${overlapText}`;
+    favoritesElements.favoritesTransferSummary.textContent = favoritesPortabilityDomain.favoritesTransferSummary(
+      pending,
+      existingItems
+    );
   }
 }
 
@@ -2687,7 +2742,7 @@ function applyFavoritesTransfer(mode) {
     ...item,
     savedAt: Number(item.savedAt) > 0 ? Number(item.savedAt) : timestamp - index
   }));
-  const comparison = analyzeFavoriteItemMerge(incoming, getValidFavoriteItems());
+  const comparison = favoritesPortabilityDomain.analyzeFavoriteItemMerge(incoming, getValidFavoriteItems());
   const nextItems = mode === "merge"
     ? comparison.mergedItems
     : incoming;
@@ -2726,7 +2781,7 @@ function processFavoritesSelectionFromUrl() {
   const url = new URL(window.location.href);
   const token = url.searchParams.get(FAVORITES_SHARE_PARAM);
   if (!token) return;
-  const parsed = parseFavoritesShareToken(token);
+  const parsed = favoritesPortabilityDomain.parseFavoritesShareToken(token);
   if (!parsed.valid || !parsed.items.length) {
     cleanFavoritesSelectionFromUrl();
     showActionToast("הקישור אינו מכיל רשימת בחירה תקינה");
@@ -2974,7 +3029,7 @@ function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
   const mutation = favoritesStore.removeDetailed({ catalogId, page });
   if (mutation.changed) {
-    favoritesState.favoritesSelectedKeys.delete(favoriteItemKey({ catalogId, page }));
+    favoritesState.favoritesSelectedKeys.delete(favoritesPortabilityDomain.favoriteItemKey({ catalogId, page }));
     telemetryTrackFavorite("remove", catalogId, page, getFavoriteEntries().length);
   }
   syncFavoritesUi({ renderPanel: true });
@@ -3317,11 +3372,7 @@ function viewerInquiryGmailUrl(emailAddress, reference) {
 }
 
 function viewerInquiryMailtoUrl(emailAddress, reference) {
-  const subject = encodeURIComponent(String(reference?.subject || ""));
-  const body = encodeURIComponent(
-    String(reference?.text || "").replace(/\r?\n/g, "\r\n")
-  );
-  return `mailto:${emailAddress}?subject=${subject}&body=${body}`;
+  return buildViewerInquiryMailtoUrl(emailAddress, reference);
 }
 
 function viewerInquiryTelemetryFields(reference, action, detail = "") {
@@ -3575,12 +3626,12 @@ registerFeatureInterface("inquiry", {
 /* ===== BEGIN SOURCE: src/js/35-favorites-workspace.js ===== */
 
 function favoriteWorkspaceEntryKey(entry) {
-  return favoriteItemKey({ catalogId: entry?.catalog?.id || entry?.catalogId, page: entry?.page });
+  return favoritesPortabilityDomain.favoriteItemKey({ catalogId: entry?.catalog?.id || entry?.catalogId, page: entry?.page });
 }
 
 function favoriteWorkspaceCardKey(card) {
   if (!(card instanceof HTMLElement)) return "";
-  return favoriteItemKey({
+  return favoritesPortabilityDomain.favoriteItemKey({
     catalogId: card.dataset.favoriteCatalog,
     page: card.dataset.favoritePage
   });
@@ -3815,11 +3866,11 @@ function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
   if (!favoritesStore || !orderedVisibleKeys.length) return false;
   const allItems = favoritesStore.read();
   const visibleSet = new Set(orderedVisibleKeys);
-  const itemByKey = new Map(allItems.map((item) => [favoriteItemKey(item), item]));
+  const itemByKey = new Map(allItems.map((item) => [favoritesPortabilityDomain.favoriteItemKey(item), item]));
   if (orderedVisibleKeys.some((key) => !itemByKey.has(key))) return false;
   let visibleIndex = 0;
   const nextItems = allItems.map((item) => {
-    const key = favoriteItemKey(item);
+    const key = favoritesPortabilityDomain.favoriteItemKey(item);
     if (!visibleSet.has(key)) return item;
     const replacement = itemByKey.get(orderedVisibleKeys[visibleIndex]);
     visibleIndex += 1;
@@ -4091,6 +4142,260 @@ registerFeatureInterface("favorites-workspace", {
 });
 /* ===== END SOURCE: src/js/35-favorites-workspace.js ===== */
 
+/* ===== BEGIN SOURCE: src/js/39-search-catalog-domain.js ===== */
+
+
+const searchCatalogDomain = (() => {
+  function decodeCatalogHashTargetId(hash) {
+    const rawHash = String(hash || "");
+    if (!rawHash.startsWith("#")) return "";
+    const rawId = rawHash.slice(1);
+    try {
+      return decodeURIComponent(rawId);
+    } catch {
+      return rawId;
+    }
+  }
+
+  function catalogColumnCount(matches) {
+    if (matches?.mobile) return 1;
+    if (matches?.tablet) return 2;
+    return 3;
+  }
+
+  function clampCatalogSpan(value, columns) {
+    return Math.min(columns, Math.max(1, Number(value || 1)));
+  }
+
+  function catalogSubcategorySourceBlocks(source) {
+    const sourceBlocks = [];
+    if (Array.isArray(source?.directItems) && source.directItems.length) {
+      sourceBlocks.push({
+        blockKey: "__direct__",
+        blockIndex: -1,
+        label: "קטלוגים כלליים",
+        isDirect: true,
+        items: source.directItems
+      });
+    }
+    (Array.isArray(source?.subcategories) ? source.subcategories : []).forEach((group, index) => {
+      const subcategory = String(group?.subcategory || "").trim();
+      const items = Array.isArray(group?.items) ? group.items : [];
+      if (!subcategory || !items.length) return;
+      sourceBlocks.push({
+        blockKey: subcategory,
+        blockIndex: index,
+        label: subcategory,
+        isDirect: false,
+        items
+      });
+    });
+    return sourceBlocks;
+  }
+
+  function catalogCategorySegments(groups, columns) {
+    const safeColumns = clampCatalogSpan(columns, 3);
+    const segments = [];
+    let occupied = 0;
+
+    const appendCardBlockSegments = (group, groupIndex, block, options = {}) => {
+      const items = Array.isArray(block?.items) ? block.items : [];
+      if (!items.length) return;
+      const segmentType = options.segmentType || "category";
+      const layoutBlockKey = options.layoutBlockKey || `${segmentType}:${groupIndex}:${block?.blockKey || "main"}`;
+      let itemOffset = 0;
+      let segmentIndex = 0;
+
+      while (itemOffset < items.length) {
+        if (occupied >= safeColumns) occupied = 0;
+        const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
+        const span = Math.min(availableInRow, items.length - itemOffset, safeColumns);
+        const segment = {
+          category: group.category,
+          groupIndex,
+          segmentIndex,
+          itemOffset,
+          span,
+          items: items.slice(itemOffset, itemOffset + span),
+          hasSubcategories: Boolean(options.hasSubcategories),
+          segmentType,
+          layoutBlockKey,
+          inlineDivider: false
+        };
+        if (segmentType === "subcategory") {
+          Object.assign(segment, {
+            blockKey: block.blockKey,
+            blockIndex: block.blockIndex,
+            blockOrder: options.blockOrder,
+            label: block.label,
+            isDirect: Boolean(block.isDirect)
+          });
+        }
+        segments.push(segment);
+        itemOffset += span;
+        segmentIndex += 1;
+        occupied += span;
+        if (occupied >= safeColumns) occupied = 0;
+      }
+    };
+
+    groups.forEach((group, groupIndex) => {
+      const items = Array.isArray(group?.items) ? group.items : [];
+      if (!items.length) return;
+      if (group?.hasSubcategories) {
+        if (occupied > 0) occupied = 0;
+        segments.push({
+          category: group.category,
+          groupIndex,
+          segmentIndex: 0,
+          itemOffset: 0,
+          span: safeColumns,
+          items: [],
+          directItems: Array.isArray(group.directItems) ? group.directItems : [],
+          subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
+          hasSubcategories: true,
+          segmentType: "categoryHeader",
+          layoutBlockKey: `category-header:${groupIndex}`,
+          inlineDivider: false
+        });
+        occupied = 0;
+        catalogSubcategorySourceBlocks(group).forEach((block, blockOrder) => {
+          appendCardBlockSegments(group, groupIndex, block, {
+            segmentType: "subcategory",
+            hasSubcategories: true,
+            blockOrder,
+            layoutBlockKey: `subcategory:${groupIndex}:${block.blockKey}:${blockOrder}`
+          });
+        });
+        return;
+      }
+      appendCardBlockSegments(group, groupIndex, { blockKey: "__category__", items }, {
+        segmentType: "category",
+        hasSubcategories: false,
+        layoutBlockKey: `category:${groupIndex}`
+      });
+    });
+
+    occupied = 0;
+    segments.forEach((segment, index) => {
+      const span = clampCatalogSpan(segment.span, safeColumns);
+      if (occupied + span > safeColumns) occupied = 0;
+      const rowEnd = occupied + span;
+      const nextSegment = segments[index + 1];
+      const nextSpan = nextSegment ? clampCatalogSpan(nextSegment.span, safeColumns) : 0;
+      const sameLayoutBlock = Boolean(nextSegment && nextSegment.layoutBlockKey === segment.layoutBlockKey);
+      segment.inlineDivider = Boolean(
+        nextSegment
+        && !sameLayoutBlock
+        && segment.segmentType !== "categoryHeader"
+        && nextSegment.segmentType !== "categoryHeader"
+        && rowEnd < safeColumns
+        && nextSpan <= safeColumns - rowEnd
+      );
+      occupied = rowEnd >= safeColumns ? 0 : rowEnd;
+    });
+    return segments;
+  }
+
+  function escapeSearchMarkup(text) {
+    return String(text ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function highlightedSearchText(text, ranges = []) {
+    const raw = String(text || "");
+    if (!raw) return "";
+    const normalizedRanges = Array.isArray(ranges)
+      ? ranges
+        .map((range) => ({
+          start: Math.max(0, Math.min(raw.length, Number(range?.start) || 0)),
+          end: Math.max(0, Math.min(raw.length, Number(range?.end) || 0))
+        }))
+        .filter((range) => range.end > range.start)
+        .sort((first, second) => first.start - second.start || first.end - second.end)
+      : [];
+    let cursor = 0;
+    let markup = "";
+    normalizedRanges.forEach((range) => {
+      if (range.start < cursor) return;
+      markup += escapeSearchMarkup(raw.slice(cursor, range.start));
+      markup += `<mark class="search-match-highlight">${escapeSearchMarkup(raw.slice(range.start, range.end))}</mark>`;
+      cursor = range.end;
+    });
+    return markup + escapeSearchMarkup(raw.slice(cursor));
+  }
+
+  function searchResultDetailsMarkup(result) {
+    const page = Math.max(1, Number(result?.page) || 1);
+    const reason = String(result?.matchReason || "התאמה בטקסט הקטלוג");
+    const excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
+    return `
+      <span class="search-result-meta">עמוד ${page} · ${escapeSearchMarkup(reason)}</span>
+      ${excerpt ? `<span class="search-result-excerpt">${excerpt}</span>` : ""}
+    `;
+  }
+
+  function lightboxSearchColumnLimit(featureColumns, viewportWidth) {
+    const columns = Number(featureColumns);
+    if (Number.isFinite(columns)) return Math.max(1, Math.min(columns, 3));
+    const width = Math.max(0, Number(viewportWidth) || 0);
+    return width >= 1180 ? 3 : width >= 760 ? 2 : 1;
+  }
+
+  function resolveGlobalSearchResultAction(result) {
+    if (!result) return null;
+    if (result.targetId) return { type: "category", targetId: String(result.targetId) };
+    const catalogId = String(result.catalogId || "").trim();
+    if (!catalogId) return null;
+    if (result.resultType === "catalog") return { type: "catalog", catalogId };
+    return { type: "viewer", catalogId, page: Math.max(1, Number(result.page) || 1) };
+  }
+
+  function executeGlobalSearchResultAction(result, ports) {
+    const action = resolveGlobalSearchResultAction(result);
+    if (!action) return false;
+    if (action.type === "category") return ports.activateCategoryTarget(action.targetId) === true;
+    if (action.type === "catalog") ports.openCatalog(action.catalogId);
+    else ports.openViewer(action.catalogId, action.page);
+    return true;
+  }
+
+  function executeLightboxSearchResultAction(result, activeCatalog, ports) {
+    if (!result) return false;
+    const targetCatalogId = String(result.catalogId || activeCatalog?.id || "").trim();
+    if (!targetCatalogId) return false;
+    const pageCount = Math.max(1, Number(activeCatalog?.pages) || 1);
+    const page = Math.min(pageCount, Math.max(1, Number(result.page) || 1));
+    if (!activeCatalog || String(activeCatalog.id) !== targetCatalogId) {
+      ports.openCatalog(targetCatalogId, Math.max(1, Number(result.page) || 1));
+      return true;
+    }
+    ports.setPage(page);
+    ports.showTopUi();
+    return true;
+  }
+
+  return Object.freeze({
+    decodeCatalogHashTargetId,
+    catalogColumnCount,
+    clampCatalogSpan,
+    catalogSubcategorySourceBlocks,
+    catalogCategorySegments,
+    highlightedSearchText,
+    searchResultDetailsMarkup,
+    lightboxSearchColumnLimit,
+    resolveGlobalSearchResultAction,
+    executeGlobalSearchResultAction,
+    executeLightboxSearchResultAction
+  });
+
+})();
+/* ===== END SOURCE: src/js/39-search-catalog-domain.js ===== */
+
 /* ===== BEGIN SOURCE: src/js/40-catalog-grid.js ===== */
 
 
@@ -4334,15 +4639,7 @@ function closeMobileCategoryMenu(options = {}) {
 }
 
 function decodeHashTargetId(hash = location.hash) {
-  const rawHash = String(hash || "");
-  if (!rawHash.startsWith("#")) return "";
-
-  const rawId = rawHash.slice(1);
-  try {
-    return decodeURIComponent(rawId);
-  } catch {
-    return rawId;
-  }
+  return searchCatalogDomain.decodeCatalogHashTargetId(hash);
 }
 
 function isCatalogFocusSection(section) {
@@ -4534,159 +4831,10 @@ function syncCatalogCategoryFocusFromHash(options = {}) {
 
 
 function catalogLayoutColumnCount() {
-  if (typeof window === "undefined" || !window.matchMedia) return 3;
-  if (window.matchMedia("(max-width: 760px)").matches) return 1;
-  if (window.matchMedia("(max-width: 1180px)").matches) return 2;
-  return 3;
-}
-
-function clampCategorySpan(value, columns) {
-  return Math.min(columns, Math.max(1, Number(value || 1)));
-}
-
-function catalogSubcategorySourceBlocks(source) {
-  const sourceBlocks = [];
-
-  if (Array.isArray(source?.directItems) && source.directItems.length) {
-    sourceBlocks.push({
-      blockKey: "__direct__",
-      blockIndex: -1,
-      label: "קטלוגים כלליים",
-      isDirect: true,
-      items: source.directItems
-    });
-  }
-
-  (Array.isArray(source?.subcategories) ? source.subcategories : []).forEach((group, index) => {
-    const subcategory = String(group?.subcategory || "").trim();
-    const items = Array.isArray(group?.items) ? group.items : [];
-    if (!subcategory || !items.length) return;
-
-    sourceBlocks.push({
-      blockKey: subcategory,
-      blockIndex: index,
-      label: subcategory,
-      isDirect: false,
-      items
-    });
+  return searchCatalogDomain.catalogColumnCount({
+    mobile: Boolean(window.matchMedia?.("(max-width: 760px)").matches),
+    tablet: Boolean(window.matchMedia?.("(max-width: 1180px)").matches)
   });
-
-  return sourceBlocks;
-}
-
-function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
-  const safeColumns = clampCategorySpan(columns, 3);
-  const segments = [];
-  let occupied = 0;
-
-  const appendCardBlockSegments = (group, groupIndex, block, options = {}) => {
-    const items = Array.isArray(block?.items) ? block.items : [];
-    if (!items.length) return;
-
-    const segmentType = options.segmentType || "category";
-    const layoutBlockKey = options.layoutBlockKey || `${segmentType}:${groupIndex}:${block?.blockKey || "main"}`;
-    let itemOffset = 0;
-    let segmentIndex = 0;
-
-    while (itemOffset < items.length) {
-      if (occupied >= safeColumns) occupied = 0;
-      const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
-      const span = Math.min(availableInRow, items.length - itemOffset, safeColumns);
-
-      const segment = {
-        category: group.category,
-        groupIndex,
-        segmentIndex,
-        itemOffset,
-        span,
-        items: items.slice(itemOffset, itemOffset + span),
-        hasSubcategories: Boolean(options.hasSubcategories),
-        segmentType,
-        layoutBlockKey,
-        inlineDivider: false
-      };
-
-      if (segmentType === "subcategory") {
-        Object.assign(segment, {
-          blockKey: block.blockKey,
-          blockIndex: block.blockIndex,
-          blockOrder: options.blockOrder,
-          label: block.label,
-          isDirect: Boolean(block.isDirect)
-        });
-      }
-
-      segments.push(segment);
-      itemOffset += span;
-      segmentIndex += 1;
-      occupied += span;
-      if (occupied >= safeColumns) occupied = 0;
-    }
-  };
-
-  groups.forEach((group, groupIndex) => {
-    const items = Array.isArray(group?.items) ? group.items : [];
-    if (!items.length) return;
-
-    if (group?.hasSubcategories) {
-      if (occupied > 0) occupied = 0;
-
-      segments.push({
-        category: group.category,
-        groupIndex,
-        segmentIndex: 0,
-        itemOffset: 0,
-        span: safeColumns,
-        items: [],
-        directItems: Array.isArray(group.directItems) ? group.directItems : [],
-        subcategories: Array.isArray(group.subcategories) ? group.subcategories : [],
-        hasSubcategories: true,
-        segmentType: "categoryHeader",
-        layoutBlockKey: `category-header:${groupIndex}`,
-        inlineDivider: false
-      });
-      occupied = 0;
-
-      catalogSubcategorySourceBlocks(group).forEach((block, blockOrder) => {
-        appendCardBlockSegments(group, groupIndex, block, {
-          segmentType: "subcategory",
-          hasSubcategories: true,
-          blockOrder,
-          layoutBlockKey: `subcategory:${groupIndex}:${block.blockKey}:${blockOrder}`
-        });
-      });
-      return;
-    }
-
-    appendCardBlockSegments(group, groupIndex, { blockKey: "__category__", items }, {
-      segmentType: "category",
-      hasSubcategories: false,
-      layoutBlockKey: `category:${groupIndex}`
-    });
-  });
-
-  occupied = 0;
-  segments.forEach((segment, index) => {
-    const span = clampCategorySpan(segment.span, safeColumns);
-    if (occupied + span > safeColumns) occupied = 0;
-
-    const rowEnd = occupied + span;
-    const nextSegment = segments[index + 1];
-    const nextSpan = nextSegment ? clampCategorySpan(nextSegment.span, safeColumns) : 0;
-    const sameLayoutBlock = Boolean(nextSegment && nextSegment.layoutBlockKey === segment.layoutBlockKey);
-    segment.inlineDivider = Boolean(
-      nextSegment
-      && !sameLayoutBlock
-      && segment.segmentType !== "categoryHeader"
-      && nextSegment.segmentType !== "categoryHeader"
-      && rowEnd < safeColumns
-      && nextSpan <= safeColumns - rowEnd
-    );
-
-    occupied = rowEnd >= safeColumns ? 0 : rowEnd;
-  });
-
-  return segments;
 }
 
 function scheduleCatalogLayoutRefresh() {
@@ -4738,84 +4886,6 @@ function renderCatalogSubcategoryNav(segment) {
   `;
 }
 
-function catalogSubcategoryLayoutSegments(segment, columns = catalogLayoutColumnCount()) {
-  const safeColumns = clampCategorySpan(columns, 3);
-  const sourceBlocks = [];
-
-  if (Array.isArray(segment.directItems) && segment.directItems.length) {
-    sourceBlocks.push({
-      blockKey: "__direct__",
-      blockIndex: -1,
-      label: "קטלוגים כלליים",
-      isDirect: true,
-      items: segment.directItems
-    });
-  }
-
-  (Array.isArray(segment.subcategories) ? segment.subcategories : []).forEach((group, index) => {
-    const subcategory = String(group?.subcategory || "").trim();
-    const items = Array.isArray(group?.items) ? group.items : [];
-    if (!subcategory || !items.length) return;
-
-    sourceBlocks.push({
-      blockKey: subcategory,
-      blockIndex: index,
-      label: subcategory,
-      isDirect: false,
-      items
-    });
-  });
-
-  const layoutSegments = [];
-  let occupied = 0;
-
-  sourceBlocks.forEach((block, blockOrder) => {
-    let itemOffset = 0;
-    let segmentIndex = 0;
-
-    while (itemOffset < block.items.length) {
-      if (occupied >= safeColumns) occupied = 0;
-      const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
-      const span = Math.min(availableInRow, block.items.length - itemOffset, safeColumns);
-
-      layoutSegments.push({
-        ...block,
-        blockOrder,
-        segmentIndex,
-        itemOffset,
-        span,
-        items: block.items.slice(itemOffset, itemOffset + span),
-        inlineDivider: false
-      });
-
-      itemOffset += span;
-      segmentIndex += 1;
-      occupied += span;
-      if (occupied >= safeColumns) occupied = 0;
-    }
-  });
-
-  occupied = 0;
-  layoutSegments.forEach((block, index) => {
-    const span = clampCategorySpan(block.span, safeColumns);
-    if (occupied + span > safeColumns) occupied = 0;
-
-    const rowEnd = occupied + span;
-    const nextBlock = layoutSegments[index + 1];
-    const nextSpan = nextBlock ? clampCategorySpan(nextBlock.span, safeColumns) : 0;
-    block.inlineDivider = Boolean(
-      nextBlock
-      && nextBlock.blockOrder !== block.blockOrder
-      && rowEnd < safeColumns
-      && nextSpan <= safeColumns - rowEnd
-    );
-
-    occupied = rowEnd >= safeColumns ? 0 : rowEnd;
-  });
-
-  return layoutSegments;
-}
-
 function catalogSubcategoryBlockBaseId(segment, block, baseSectionId) {
   if (block?.isDirect) return `${baseSectionId}-general`;
   return subcategorySectionId(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
@@ -4833,7 +4903,7 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
   const sectionId = block.segmentIndex === 0 ? blockBaseId : `${blockBaseId}-part-${block.segmentIndex + 1}`;
   const titleId = `${sectionId}-title`;
   const title = String(block?.label || "").trim() || "קטלוגים";
-  const sectionStyle = `--subcategory-span: ${clampCategorySpan(block.span, 3)};`;
+  const sectionStyle = `--subcategory-span: ${searchCatalogDomain.clampCatalogSpan(block.span, 3)};`;
 
   return `
     <section class="catalog-subcategory-section" id="${escapeHtml(sectionId)}" aria-labelledby="${escapeHtml(titleId)}" style="${escapeHtml(sectionStyle)}" data-category-focus-target="${escapeHtml(blockBaseId)}" data-parent-category-target="${escapeHtml(baseSectionId)}" data-category-share-path="${escapeHtml(sharePath)}" data-subcategory-span="${escapeHtml(String(block.span))}" data-inline-divider="${block.inlineDivider ? "1" : "0"}" data-subcategory-continuation="${block.itemOffset > 0 ? "1" : "0"}">
@@ -4850,7 +4920,7 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
 function renderCatalogCategoryHeaderSegment(segment, columns) {
   const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
   const titleId = `${baseSectionId}-title`;
-  const safeColumns = clampCategorySpan(columns, 3);
+  const safeColumns = searchCatalogDomain.clampCatalogSpan(columns, 3);
   const sectionStyle = `--category-span: ${safeColumns}; --subcategory-layout-columns: ${safeColumns};`;
   const sharePath = catalogCategorySharePath(segment.category, segment.groupIndex);
 
@@ -4866,7 +4936,7 @@ function renderCatalogCategoryHeaderSegment(segment, columns) {
 
 function renderCatalogCategorySegment(segment, columns) {
   const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
-  const safeColumns = clampCategorySpan(columns, 3);
+  const safeColumns = searchCatalogDomain.clampCatalogSpan(columns, 3);
 
   if (segment.segmentType === "categoryHeader") {
     return renderCatalogCategoryHeaderSegment(segment, safeColumns);
@@ -4942,7 +5012,7 @@ function renderCatalogCards() {
 
   const columns = catalogLayoutColumnCount();
   catalogState.catalogLayoutColumns = columns;
-  const categorySegments = catalogCategorySegments(groups, columns);
+  const categorySegments =  (searchCatalogDomain.catalogCategorySegments(groups, columns));
 
   catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
   catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
@@ -5405,39 +5475,6 @@ function scheduleSearchRender(channel, query, options = {}) {
   }
 }
 
-function highlightedSearchText(text, ranges = []) {
-  const raw = String(text || "");
-  if (!raw) return "";
-  const normalizedRanges = Array.isArray(ranges)
-    ? ranges
-      .map((range) => ({
-        start: Math.max(0, Math.min(raw.length, Number(range?.start) || 0)),
-        end: Math.max(0, Math.min(raw.length, Number(range?.end) || 0))
-      }))
-      .filter((range) => range.end > range.start)
-      .sort((a, b) => a.start - b.start || a.end - b.end)
-    : [];
-  let cursor = 0;
-  let markup = "";
-  normalizedRanges.forEach((range) => {
-    if (range.start < cursor) return;
-    markup += escapeHtml(raw.slice(cursor, range.start));
-    markup += `<mark class="search-match-highlight">${escapeHtml(raw.slice(range.start, range.end))}</mark>`;
-    cursor = range.end;
-  });
-  return markup + escapeHtml(raw.slice(cursor));
-}
-
-function searchResultDetailsMarkup(result) {
-  const page = Math.max(1, Number(result?.page) || 1);
-  const reason = String(result?.matchReason || "התאמה בטקסט הקטלוג");
-  const excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
-  return `
-    <span class="search-result-meta">עמוד ${page} · ${escapeHtml(reason)}</span>
-    ${excerpt ? `<span class="search-result-excerpt">${excerpt}</span>` : ""}
-  `;
-}
-
 function getGlobalSearchCategories() {
   return getCatalogCategoryGroups()
     .filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length)
@@ -5751,19 +5788,17 @@ async function trackCompletedLightboxSearch(completion, query = searchElements.l
 
 function openLightboxSearchResult(result) {
   if (!result) return false;
-
-  const targetCatalogId = result.catalogId || activeCatalog()?.id;
-  if (!targetCatalogId) return false;
-
   const catalog = activeCatalog();
-  if (!catalog || catalog.id !== targetCatalogId) {
-    getFeatureInterface("viewer")?.openCatalog?.(targetCatalogId, Number(result.page));
-    return true;
-  }
+  const targetCatalogId = String(result.catalogId || catalog?.id || "").trim();
+  const sameCatalog = Boolean(catalog && String(catalog.id) === targetCatalogId);
+  const viewer = requireFeatureInterface("viewer");
+  const handled = searchCatalogDomain.executeLightboxSearchResultAction(result, catalog, {
+    openCatalog: viewer.openCatalog,
+    setPage: viewer.setPage,
+    showTopUi: viewer.showTopUi
+  });
+  if (!handled || !sameCatalog) return handled;
 
-  const page = clampPage(result.page, catalog);
-  getFeatureInterface("viewer")?.setPage?.(page);
-  getFeatureInterface("viewer")?.showTopUi?.();
   if (searchState.lightboxMobileSearchOpen) {
     setLightboxMobileSearchOpen(false, { hideResults: true });
   } else {
@@ -6037,11 +6072,8 @@ function normalizeSearchResultsDirection(container) {
 
 function lightboxSearchLayoutColumnLimit() {
   const columns = getFeatureInterface("catalog-grid")?.layoutColumnCount?.();
-  if (Number.isFinite(Number(columns))) {
-    return Math.max(1, Math.min(Number(columns), 3));
-  }
   const width = Math.max(0, window.innerWidth || document.documentElement?.clientWidth || 0);
-  return width >= 1180 ? 3 : width >= 760 ? 2 : 1;
+  return searchCatalogDomain.lightboxSearchColumnLimit(columns, width);
 }
 
 function updateLightboxSearchResultsLayout(count = 0) {
@@ -6196,7 +6228,7 @@ async function renderLightboxSearchResults(query) {
           <span class="reader-search-thumb-frame catalog-image-frame">
             <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
           </span>
-          <span class="reader-search-result-copy">${searchResultDetailsMarkup(result)}</span>
+          <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
         </button>
       `;
     }).join("");
@@ -6297,20 +6329,12 @@ function openGlobalSearchResult(result) {
   if (!result) return false;
   hideSearchFloatingPreview();
   closeGlobalSearchPanel({ focusButton: false });
-
-  if (result.targetId) {
-    return Boolean(getFeatureInterface("catalog-grid")?.activateCategoryTarget?.(result.targetId));
-  }
-
-  if (result.resultType === "catalog") {
-    if (!result.catalogId) return false;
-    navigateTo(catalogDocumentUrl(result.catalogId));
-    return true;
-  }
-
-  if (!result.catalogId) return false;
-  navigateTo(viewerDocumentUrl(result.catalogId, Number(result.page)));
-  return true;
+  const catalogGrid = requireFeatureInterface("catalog-grid");
+  return searchCatalogDomain.executeGlobalSearchResultAction(result, {
+    activateCategoryTarget: catalogGrid.activateCategoryTarget,
+    openCatalog: (catalogId) => navigateTo(catalogDocumentUrl(catalogId)),
+    openViewer: (catalogId, page) => navigateTo(viewerDocumentUrl(catalogId, page))
+  });
 }
 
 async function submitGlobalSearch() {
@@ -6339,7 +6363,7 @@ function globalSearchResultMarkup(result) {
         <span class="search-result-thumb-frame catalog-image-frame">
           <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
         </span>
-        <span class="search-result-copy">${searchResultDetailsMarkup(result)}</span>
+        <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
       </button>
     </article>
   `;

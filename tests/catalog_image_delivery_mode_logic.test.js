@@ -1,195 +1,124 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+const { importFrontendTestModule } = require('./frontend_test_module');
 
-const sharedSource = fs.readFileSync(path.join(__dirname, '..', 'src/js/20-shared-ui.js'), 'utf8');
-const viewerImageSource = fs.readFileSync(path.join(__dirname, '..', 'src/js/53-viewer-image.js'), 'utf8');
+const network = { saveData: false, effectiveType: '4g' };
+Object.defineProperty(globalThis, 'navigator', {
+  value: { connection: network }, writable: true, configurable: true
+});
+Object.assign(globalThis, {
+  window: {
+    BARGIG_CATALOG_TAXONOMY: { categories: [], subcategories: [] },
+    BARGIG_CATALOG_IMAGE_DELIVERY_MODE: 'responsive',
+    location: { href: 'https://example.test/viewer.html' },
+    devicePixelRatio: 1,
+    innerWidth: 800,
+    innerHeight: 600
+  },
+  requiredElement: () => ({}),
+  CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY: 'full-only',
+  CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE: 'responsive',
+  CATALOG_IMAGE_RETRY_PARAM: 'bargig_retry',
+  CATALOG_ASSET_VERSION_PARAM: 'v',
+  CATALOG_IMAGE_TIER_MEDIUM: 'medium',
+  CATALOG_IMAGE_TIER_THUMB: 'thumb',
+  CATALOG_IMAGE_TIER_FULL: 'full',
+  DEFAULT_CATALOG_MEDIUM_MAX_SIDE: 1600
+});
+const shared = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');
 
-function sourceBetween(source, startMarker, endMarker) {
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker, start + startMarker.length);
-  assert.notEqual(start, -1, `Missing ${startMarker}`);
-  assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return source.slice(start, end);
+function setNetwork({ mode = 'responsive', saveData = false, effectiveType = '4g' } = {}) {
+  window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = mode;
+  network.saveData = saveData;
+  network.effectiveType = effectiveType;
 }
 
-const modeSource = sourceBetween(
-  sharedSource,
-  'function catalogImageDeliveryMode()',
-  'function normalizeCatalogImageUrl(url)'
-);
-
-function createModeApi(mode, { saveData = false, effectiveType = '4g' } = {}) {
-  return new Function(
-    'window',
-    'isSaveDataEnabled',
-    'networkInformation',
-    'CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY',
-    'CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE',
-    `${modeSource}; return { catalogImageDeliveryMode, catalogMediumImagesEnabled, catalogNeighborPreloadRadius };`
-  )(
-    { BARGIG_CATALOG_IMAGE_DELIVERY_MODE: mode },
-    () => saveData,
-    () => ({ effectiveType }),
-    'full-only',
-    'responsive'
-  );
-}
-
-const fullOnly = createModeApi('full-only');
-assert.equal(fullOnly.catalogImageDeliveryMode(), 'full-only');
-assert.equal(fullOnly.catalogMediumImagesEnabled(), false);
-assert.equal(fullOnly.catalogNeighborPreloadRadius(), 1);
-
-const responsive = createModeApi('responsive');
-assert.equal(responsive.catalogImageDeliveryMode(), 'responsive');
-assert.equal(responsive.catalogMediumImagesEnabled(), true);
-assert.equal(responsive.catalogNeighborPreloadRadius(), 2);
-
-assert.equal(createModeApi('responsive', { effectiveType: '3g' }).catalogNeighborPreloadRadius(), 1);
-assert.equal(createModeApi('responsive', { saveData: true }).catalogNeighborPreloadRadius(), 1);
-assert.equal(createModeApi('unknown').catalogImageDeliveryMode(), 'responsive');
-
-const warmupSource = sourceBetween(
-  viewerImageSource,
-  'function shouldWarmSingleViewerFullResolution(previousZoom = viewerState.zoom)',
-  'function commitSingleViewerResolutionUpgrade'
-);
-function createWarmupApi({ zoom = 1, saveData = false, effectiveType = '4g' } = {}) {
-  return new Function(
-    'viewerState',
-    'isSaveDataEnabled',
-    'networkEffectiveType',
-    'AUTO_VIEWER_ZOOM',
-    'VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON',
-    `${warmupSource}; return shouldWarmSingleViewerFullResolution;`
-  )(
-    { zoom },
-    () => saveData,
-    () => effectiveType,
-    1,
-    0.01
-  );
-}
-assert.equal(createWarmupApi({ zoom: 1.02 })(1), true);
-assert.equal(createWarmupApi({ zoom: 1.005 })(1), false);
-assert.equal(createWarmupApi({ zoom: 1.2 })(1.25), false);
-assert.equal(createWarmupApi({ zoom: 1.2, saveData: true })(1), false);
-assert.equal(createWarmupApi({ zoom: 1.2, effectiveType: '3g' })(1), false);
-
-const variantSource = sourceBetween(
-  sharedSource,
-  'function catalogImageVariant(catalog, tier)',
-  'function catalogSupportsImageTier(catalog, tier)'
-);
-
-function createVariantApi(mediumEnabled) {
-  return new Function(
-    'catalogMediumImagesEnabled',
-    'CATALOG_IMAGE_TIER_MEDIUM',
-    'CATALOG_IMAGE_TIER_THUMB',
-    'CATALOG_IMAGE_TIER_FULL',
-    'pageSize',
-    `${variantSource}; return catalogImageVariant;`
-  )(
-    () => mediumEnabled,
-    'medium',
-    'thumb',
-    'full',
-    () => ({ width: 1200, height: 1600 })
-  );
-}
+setNetwork({ mode: 'full-only' });
+assert.equal(shared.catalogImageDeliveryMode(), 'full-only');
+assert.equal(shared.catalogMediumImagesEnabled(), false);
+assert.equal(shared.catalogNeighborPreloadRadius(), 1);
+setNetwork({ mode: 'responsive' });
+assert.equal(shared.catalogImageDeliveryMode(), 'responsive');
+assert.equal(shared.catalogMediumImagesEnabled(), true);
+assert.equal(shared.catalogNeighborPreloadRadius(), 2);
+setNetwork({ effectiveType: '3g' });
+assert.equal(shared.catalogNeighborPreloadRadius(), 1);
+setNetwork({ saveData: true });
+assert.equal(shared.catalogNeighborPreloadRadius(), 1);
+setNetwork({ mode: 'unknown' });
+assert.equal(shared.catalogImageDeliveryMode(), 'responsive');
 
 const catalog = {
+  pageSizes: [[1200, 1600]],
   imageVariants: {
     medium: { directory: 'medium', maxSide: 1600 },
     full: { directory: '', maxSide: 2800 }
   }
 };
-assert.equal(createVariantApi(false)(catalog, 'medium'), null);
-assert.deepEqual(createVariantApi(true)(catalog, 'medium'), catalog.imageVariants.medium);
-assert.deepEqual(createVariantApi(false)(catalog, 'full'), catalog.imageVariants.full);
+setNetwork({ mode: 'full-only' });
+assert.equal(shared.catalogImageVariant(catalog, 'medium'), null);
+setNetwork({ mode: 'responsive' });
+assert.deepEqual(shared.catalogImageVariant(catalog, 'medium'), catalog.imageVariants.medium);
+assert.deepEqual(shared.catalogImageVariant(catalog, 'full'), catalog.imageVariants.full);
 
-const requestSource = [
-  sourceBetween(
-    sharedSource,
-    'function catalogImageVariant(catalog, tier)',
-    'function catalogCoverSrc(catalog)'
-  ),
-  sourceBetween(
-    viewerImageSource,
-    'function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zoom)',
-    'function refreshSingleViewerImageResolution(options = {})'
-  )
-].join('\n');
+const viewerState = { zoom: 1, imageFitMode: 'height' };
+Object.assign(globalThis, {
+  viewerState,
+  viewerElements: { stageCanvas: { clientWidth: 800, clientHeight: 600 }, lightboxImageFrame: null },
+  AUTO_VIEWER_ZOOM: 1,
+  VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON: 0.01,
+  VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD: 1.35,
+  VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO: 0.96,
+  VIEWER_FIT_WIDTH: 'width',
+  VIEWER_FIT_HEIGHT: 'height',
+  isSaveDataEnabled: () => Boolean(network.saveData),
+  networkEffectiveType: () => String(network.effectiveType || ''),
+  catalogSupportsImageTier: shared.catalogSupportsImageTier,
+  catalogImageTierMaxSide: shared.catalogImageTierMaxSide,
+  catalogPageImageSrc: shared.catalogPageImageSrc,
+  pageSize: shared.pageSize,
+  thumbSrc: (_catalog, page) => `thumb-${page}.webp`,
+  pageSrc: (_catalog, page) => `full-${page}.webp`,
+  withAssetVersion: (url) => url,
+  catalogDir: () => 'assets/pages/demo',
+  pad: (page) => String(page).padStart(3, '0'),
+  imageExt: () => 'webp'
+});
+const viewerImage = importFrontendTestModule('src/js/53-viewer-image.js', 'viewer-image');
 
-function createRequestApi(mediumEnabled) {
-  return new Function(
-    'catalogMediumImagesEnabled',
-    'CATALOG_IMAGE_TIER_MEDIUM',
-    'CATALOG_IMAGE_TIER_THUMB',
-    'CATALOG_IMAGE_TIER_FULL',
-    'DEFAULT_CATALOG_MEDIUM_MAX_SIDE',
-    'VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD',
-    'VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO',
-    'VIEWER_FIT_WIDTH',
-    'VIEWER_FIT_HEIGHT',
-    'viewerState',
-    'viewerElements',
-    'window',
-    'pageSize',
-    'withAssetVersion',
-    'catalogDir',
-    'pad',
-    'imageExt',
-    'thumbSrc',
-    'pageSrc',
-    'isSaveDataEnabled',
-    `${requestSource}; return viewerPageImageRequest;`
-  )(
-    () => mediumEnabled,
-    'medium',
-    'thumb',
-    'full',
-    1600,
-    1.35,
-    0.96,
-    'width',
-    'height',
-    { zoom: 1, imageFitMode: 'height' },
-    { stageCanvas: { clientWidth: 800, clientHeight: 600 } },
-    { devicePixelRatio: 1, innerWidth: 800, innerHeight: 600 },
-    () => ({ width: 2000, height: 2800 }),
-    (url) => url,
-    () => 'assets/pages/demo',
-    (page) => String(page).padStart(3, '0'),
-    () => 'webp',
-    (_catalog, page) => `thumb-${page}.webp`,
-    (_catalog, page) => `full-${page}.webp`,
-    () => false
-  );
-}
+viewerState.zoom = 1.02; setNetwork();
+assert.equal(viewerImage.shouldWarmSingleViewerFullResolution(1), true);
+viewerState.zoom = 1.005;
+assert.equal(viewerImage.shouldWarmSingleViewerFullResolution(1), false);
+viewerState.zoom = 1.2;
+assert.equal(viewerImage.shouldWarmSingleViewerFullResolution(1.25), false);
+setNetwork({ saveData: true });
+assert.equal(viewerImage.shouldWarmSingleViewerFullResolution(1), false);
+setNetwork({ effectiveType: '3g' });
+assert.equal(viewerImage.shouldWarmSingleViewerFullResolution(1), false);
 
 const requestCatalog = {
+  id: 'demo',
+  pageSizes: [[2000, 2800]],
   imageVariants: {
     thumb: { directory: 'thumbs', maxSide: 420 },
     medium: { directory: 'medium', maxSide: 1600 },
     full: { directory: '', maxSide: 2800 }
   }
 };
-const fullOnlyRequest = createRequestApi(false)(requestCatalog, 1);
-assert.equal(fullOnlyRequest.primaryTier, 'full');
-assert.deepEqual(fullOnlyRequest.fallbackCandidates.map((candidate) => candidate.tier), ['thumb']);
-assert.equal(fullOnlyRequest.fallbackCandidates.some((candidate) => candidate.src.includes('medium')), false);
+setNetwork({ mode: 'full-only' }); viewerState.zoom = 1;
+let request = viewerImage.viewerPageImageRequest(requestCatalog, 1);
+assert.equal(request.primaryTier, 'full');
+assert.deepEqual(request.fallbackCandidates.map((candidate) => candidate.tier), ['thumb']);
 
-const responsiveRequest = createRequestApi(true)(requestCatalog, 1, { zoom: 1 });
-assert.equal(responsiveRequest.primaryTier, 'medium');
-assert.deepEqual(responsiveRequest.fallbackCandidates.map((candidate) => candidate.tier), ['full', 'thumb']);
+setNetwork({ mode: 'responsive' }); viewerState.zoom = 1;
+request = viewerImage.viewerPageImageRequest(requestCatalog, 1, { zoom: 1 });
+assert.equal(request.primaryTier, 'medium');
+assert.deepEqual(request.fallbackCandidates.map((candidate) => candidate.tier), ['full', 'thumb']);
 
-const zoomedResponsiveRequest = createRequestApi(true)(requestCatalog, 1, { zoom: 2 });
-assert.equal(zoomedResponsiveRequest.primaryTier, 'full', 'manual zoom above the threshold must request full resolution');
-assert.deepEqual(zoomedResponsiveRequest.fallbackCandidates.map((candidate) => candidate.tier), ['medium', 'thumb']);
+request = viewerImage.viewerPageImageRequest(requestCatalog, 1, { zoom: 2 });
+assert.equal(request.primaryTier, 'full');
+assert.deepEqual(request.fallbackCandidates.map((candidate) => candidate.tier), ['medium', 'thumb']);
 
 console.log('catalog_image_delivery_mode_logic.test.js: PASS');

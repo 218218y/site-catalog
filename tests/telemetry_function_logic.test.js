@@ -1,13 +1,12 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 async function loadFunctionModule() {
   const filename = path.resolve(__dirname, "../functions/api/telemetry.js");
-  const source = fs.readFileSync(filename, "utf8");
-  return import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+  return import(pathToFileURL(filename).href);
 }
 
 (async () => {

@@ -737,3 +737,18 @@ function telemetryInit() {
     telemetryFlush({ beacon: true }).catch(() => {});
   });
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__.telemetry = Object.freeze({
+    telemetryResolveReleaseId,
+    telemetryCleanText,
+    telemetryStableResourceUrl,
+    telemetryResourceSourceName,
+    telemetryResourceScope,
+    telemetryErrorSourceScope,
+    telemetryIsRuntimeErrorEvent,
+    telemetryClassifyWindowError
+  });
+}
+/* TEST-ONLY EXPORTS: END */
