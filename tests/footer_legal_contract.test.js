@@ -67,6 +67,7 @@ const footerFragment = fs.readFileSync(path.join(root, 'partials', 'site-footer.
 const footerModule = fs.readFileSync(path.join(root, 'tools', 'footer_content.py'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 const controlPanel = fs.readFileSync(path.join(root, 'catalog-control-panel.html'), 'utf8');
+const controlPanelApp = fs.readFileSync(path.join(root, 'src', 'control-panel', 'catalog-control-panel.js'), 'utf8');
 const controlServer = fs.readFileSync(path.join(root, 'tools', 'catalog_control_server.py'), 'utf8');
 const deployTool = fs.readFileSync(path.join(root, 'tools', 'deploy_cloudflare_pages.py'), 'utf8');
 const css = readAllCssBundles();
@@ -100,9 +101,9 @@ assert.match(pageBuilder, /"privacy\.html"[\s\S]*?content_filename="legal\/priva
 assert.match(pageBuilder, /"accessibility\.html"[\s\S]*?content_filename="legal\/accessibility\.content\.html"/);
 assert.match(controlPanel, /<h2>עריכת טקסט הפוטר<\/h2>/);
 assert.match(controlPanel, /id="footerEditorGroups"/);
-assert.match(controlPanel, /function footerFieldMarkup/);
-assert.match(controlPanel, /data-footer-field="\$\{escapeHtml\(key\)\}"/);
-assert.match(controlPanel, /api\('\/api\/footer'/);
+assert.match(controlPanelApp, /function footerFieldMarkup/);
+assert.match(controlPanelApp, /data-footer-field="\$\{escapeHtml\(key\)\}"/);
+assert.match(controlPanelApp, /api\('\/api\/footer'/);
 assert.match(controlServer, /if path == "\/api\/footer"/);
 assert.match(controlServer, /save_footer_content_and_render_pages/);
 assert.match(controlServer, /"footerEditor": footer_editor_schema\(\)/);

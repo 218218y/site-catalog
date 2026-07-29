@@ -15,10 +15,10 @@ Defaults are tuned for fast catalog browsing:
 - no PDF links in the site output
 
 Examples:
-    python tools/build_catalogs.py
-    python tools/build_catalogs.py --force
-    python tools/build_catalogs.py --format jpg
-    python tools/build_catalogs.py --format webp --dpi 220 --quality 84
+    python tools/build_catalogs.py --profile production
+    python tools/build_catalogs.py --profile force
+    python tools/build_catalogs.py --profile ocr-refresh
+    python tools/build_catalogs.py --profile production --format jpg
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageFilter, ImageOps
@@ -59,24 +59,32 @@ except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
 
 try:
     from tools.ocr_search_quality import (
-        DEFAULT_OCR_MAX_WORDS_PER_PAGE,
-        DEFAULT_OCR_MIN_CONFIDENCE,
-        DEFAULT_OCR_TITLE_MIN_CONFIDENCE,
         FULL_PAGE_OCR_PSM,
         OCR_SEARCH_PIPELINE_VERSION,
         filter_tesseract_tsv,
     )
 except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
     from ocr_search_quality import (
-        DEFAULT_OCR_MAX_WORDS_PER_PAGE,
-        DEFAULT_OCR_MIN_CONFIDENCE,
-        DEFAULT_OCR_TITLE_MIN_CONFIDENCE,
         FULL_PAGE_OCR_PSM,
         OCR_SEARCH_PIPELINE_VERSION,
         filter_tesseract_tsv,
     )
 
 SUPPORTED_FORMATS = {"webp", "jpg", "png"}
+try:
+    from tools.catalog_conversion_profiles import (
+        CONVERSION_PROFILES,
+        DEFAULT_CONVERSION_PROFILE,
+        get_conversion_profile,
+    )
+except ImportError:  # Direct tools/build_catalogs.py execution.
+    from catalog_conversion_profiles import (
+        CONVERSION_PROFILES,
+        DEFAULT_CONVERSION_PROFILE,
+        get_conversion_profile,
+    )
+
+
 PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
 BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 MANUAL_SEARCH_FILE = "catalogs.search-overrides.json"
@@ -1295,62 +1303,102 @@ def build_catalog_artifact(
     )
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument(
+        "--profile",
+        choices=sorted(CONVERSION_PROFILES),
+        default=DEFAULT_CONVERSION_PROFILE,
+    )
+    selected, _unknown = pre_parser.parse_known_args(argv)
+    profile = get_conversion_profile(str(selected.profile))
+
     parser = argparse.ArgumentParser(description="Convert local PDF catalogs into high-quality website page images.")
+    parser.add_argument(
+        "--profile",
+        choices=sorted(CONVERSION_PROFILES),
+        default=profile.name,
+        help="Canonical conversion workflow. Explicit flags override numeric/text profile values.",
+    )
     parser.add_argument("--config", default="catalogs.config.json", help="Path to config JSON, relative to project root")
-    parser.add_argument("--dpi", type=int, default=220, help="Render DPI for PDF pages before optional downscale")
-    parser.add_argument("--max-width", type=int, default=2800, help="Max rendered page width in pixels")
-    parser.add_argument("--max-height", type=int, default=2800, help="Max rendered page height in pixels")
-    parser.add_argument("--medium-size", type=int, default=1600, help="Max medium image width/height in pixels")
-    parser.add_argument("--thumb-size", type=int, default=420, help="Max thumbnail width/height in pixels")
-    parser.add_argument("--quality", type=int, default=84, help="Image quality for full webp/jpg pages, 1-100")
-    parser.add_argument("--medium-quality", type=int, default=82, help="Image quality for medium webp/jpg pages, 1-100")
-    parser.add_argument("--thumb-quality", type=int, default=76, help="Thumbnail quality for webp/jpg, 1-100")
-    parser.add_argument("--format", choices=sorted(SUPPORTED_FORMATS), default="webp", help="Output image format")
-    parser.add_argument("--sharpen", type=float, default=1.0, help="Sharpen amount after resize, 0 disables")
+    parser.add_argument("--dpi", type=int, default=profile.dpi, help="Render DPI for PDF pages before optional downscale")
+    parser.add_argument("--max-width", type=int, default=profile.max_width, help="Max rendered page width in pixels")
+    parser.add_argument("--max-height", type=int, default=profile.max_height, help="Max rendered page height in pixels")
+    parser.add_argument("--medium-size", type=int, default=profile.medium_size, help="Max medium image width/height in pixels")
+    parser.add_argument("--thumb-size", type=int, default=profile.thumb_size, help="Max thumbnail width/height in pixels")
+    parser.add_argument("--quality", type=int, default=profile.quality, help="Image quality for full webp/jpg pages, 1-100")
+    parser.add_argument("--medium-quality", type=int, default=profile.medium_quality, help="Image quality for medium webp/jpg pages, 1-100")
+    parser.add_argument("--thumb-quality", type=int, default=profile.thumb_quality, help="Thumbnail quality for webp/jpg, 1-100")
+    parser.add_argument("--format", choices=sorted(SUPPORTED_FORMATS), default=profile.image_format, help="Output image format")
+    parser.add_argument("--sharpen", type=float, default=profile.sharpen, help="Sharpen amount after resize, 0 disables")
     parser.add_argument(
         "--ocr",
         choices=["auto", "always", "never"],
-        default="auto",
+        default=profile.ocr_mode,
         help="Create search text with OCR. auto uses embedded PDF text first and OCRs scanned/empty pages",
     )
-    parser.add_argument("--ocr-lang", default="heb+eng", help="Tesseract OCR language, e.g. heb, eng or heb+eng")
-    parser.add_argument("--ocr-dpi", type=int, default=260, help="DPI used only for OCR input images")
-    parser.add_argument("--ocr-min-chars", type=int, default=16, help="In auto mode, OCR pages with less embedded text than this")
+    parser.add_argument("--ocr-lang", default=profile.ocr_lang, help="Tesseract OCR language, e.g. heb, eng or heb+eng")
+    parser.add_argument("--ocr-dpi", type=int, default=profile.ocr_dpi, help="DPI used only for OCR input images")
+    parser.add_argument("--ocr-min-chars", type=int, default=profile.ocr_min_chars, help="In auto mode, OCR pages with less embedded text than this")
     parser.add_argument(
         "--ocr-min-confidence",
         type=int,
-        default=DEFAULT_OCR_MIN_CONFIDENCE,
+        default=profile.ocr_min_confidence,
         help="Minimum Tesseract word confidence for full-page OCR (0-100)",
     )
     parser.add_argument(
         "--ocr-title-min-confidence",
         type=int,
-        default=DEFAULT_OCR_TITLE_MIN_CONFIDENCE,
+        default=profile.ocr_title_min_confidence,
         help="Minimum Tesseract word confidence for targeted title crops (0-100)",
     )
     parser.add_argument(
         "--ocr-max-words-per-page",
         type=int,
-        default=DEFAULT_OCR_MAX_WORDS_PER_PAGE,
+        default=profile.ocr_max_words_per_page,
         help="Safety cap for accepted full-page OCR words after filtering",
     )
     parser.add_argument("--tesseract-cmd", default="tesseract", help="Tesseract executable path/name")
-    parser.add_argument("--require-ocr", action="store_true", help="Fail conversion if OCR is needed but Tesseract cannot run")
+    parser.add_argument(
+        "--require-ocr",
+        action="store_true",
+        default=profile.require_ocr,
+        help="Fail conversion if OCR is needed but Tesseract cannot run",
+    )
     parser.add_argument(
         "--force",
         "--rebuild-all",
         action="store_true",
+        default=profile.force,
         help="Render every configured catalog again, even when assets/pages/<id> already exists",
     )
-    parser.add_argument("--no-clean", action="store_true", help="When rendering, do not delete the old output folder first")
-    parser.add_argument("--skip-existing", action="store_true", help="Skip pages that already have image and thumbnail files")
+    parser.add_argument(
+        "--no-clean",
+        action="store_true",
+        default=profile.no_clean,
+        help="When rendering, do not delete the old output folder first",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        default=profile.skip_existing,
+        help="Skip pages that already have image and thumbnail files",
+    )
     parser.add_argument(
         "--prune-missing-pdfs",
         action="store_true",
         help="Explicitly remove config entries and generated outputs whose configured source PDF is missing",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--confirmed-missing-pdf-id",
+        action="append",
+        default=[],
+        help=(
+            "Catalog id explicitly confirmed for missing-PDF pruning. Repeat for each id. "
+            "The control panel uses this to reject stale confirmations under the project lock."
+        ),
+    )
+    return parser.parse_args(argv)
 
 
 def build_options_from_args(args: argparse.Namespace) -> RenderOptions:
@@ -1379,11 +1427,30 @@ def build_options_from_args(args: argparse.Namespace) -> RenderOptions:
     )
 
 
+
+def validate_missing_pdf_prune_confirmation(
+    args: argparse.Namespace,
+    missing_entries: Sequence[Mapping[str, Any]],
+) -> None:
+    confirmed = tuple(sorted({str(value).strip() for value in args.confirmed_missing_pdf_id if str(value).strip()}))
+    if confirmed and not args.prune_missing_pdfs:
+        raise RuntimeError("--confirmed-missing-pdf-id requires --prune-missing-pdfs")
+    if not confirmed:
+        return
+    current = tuple(sorted(str(item.get("id", "")).strip() for item in missing_entries))
+    if confirmed != current:
+        raise RuntimeError(
+            "The configured missing-PDF list changed after confirmation. Nothing was deleted. "
+            "Refresh the control panel and confirm the current list."
+        )
+
+
 def run_build(args: argparse.Namespace, root: Path) -> int:
     config_path = (root / args.config).resolve()
     options = build_options_from_args(args)
     config = load_config(config_path)
     missing_entries = catalog_entries_with_missing_pdfs(root, config)
+    validate_missing_pdf_prune_confirmation(args, missing_entries)
     if missing_entries and not args.prune_missing_pdfs:
         details = "\n".join(
             f"  - {item['id']}: {item['pdf']}"
@@ -1575,6 +1642,7 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
         )
 
         print("\nDone.")
+        print(f"Conversion profile: {args.profile}")
         print(f"Catalogs: {len(compiled.generated)}")
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.build-state.json")

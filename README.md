@@ -123,7 +123,7 @@ https://cdn.bargig-furniture.com/assets/pages/...
 .04-catalog-control-panel.bat
 ```
 
-הלוח נפתח דרך שרת מקומי בכתובת `127.0.0.1:8765`. חשוב לפתוח אותו רק דרך `.04-catalog-control-panel.bat`, כי השרת הזה מספק את כתובות ה-API שהכפתורים צריכים. פתיחה של `catalog-control-panel.html` דרך שרת האתר הרגיל תציג דף, אבל הפעולות לא יעבדו.
+הלוח נפתח דרך שרת מקומי בכתובת `127.0.0.1:8765`. חשוב לפתוח אותו רק דרך `.04-catalog-control-panel.bat`, כי השרת הזה מספק את כתובות ה-API שהכפתורים צריכים. פתיחה של `catalog-control-panel.html` דרך שרת האתר הרגיל תציג דף, אבל הפעולות לא יעבדו. JavaScript ו-CSS של הלוח נמצאים ב-`src/control-panel`, נבדקים ב-TypeScript strict, והשרת מגיש רק את שלושת קובצי הממשק המורשים עם CSP וללא קוד inline.
 
 דרך לוח השליטה אפשר:
 
@@ -252,7 +252,7 @@ catalogs.search-index.json
 .012-refresh-ocr-search.bat
 ```
 
-`.011-convert-catalogs-force.bat` מבצע את אותו ניקוי, אבל מרנדר מחדש בהכרח את כל קובצי ה־PDF שנותרו.
+`.011-convert-catalogs-force.bat` משתמש בפרופיל `force` ומרנדר מחדש בהכרח את כל קובצי ה־PDF התקינים. `.012-refresh-ocr-search.bat` משתמש בפרופיל `ocr-refresh` ושומר תמונות קיימות ככל האפשר. שלושת מסלולי ההמרה ולוח השליטה בוחרים פרופיל קנוני מתוך `tools/catalog_conversion_profiles.py`, כך שאין רשימות דגלים כפולות בין ה-BAT, ה-CLI והשרת.
 
 ### 5. בדיקת סנכרון R2 לפני שינוי אמיתי
 
@@ -456,11 +456,15 @@ catalogs.generated.js              נתוני קטלוגים שנוצרו אוט
 catalogs.search.js                 תוצר חיפוש תאימות שנוצר אוטומטית; אינו נטען באתר
 catalogs.search-index.json         אינדקס החיפוש הפעיל והדטרמיניסטי עבור ה־Worker
 .04-catalog-control-panel.bat          פתיחת לוח השליטה המקומי
-catalog-control-panel.html         ממשק לוח השליטה המקומי
+catalog-control-panel.html         מעטפת HTML דקה של לוח השליטה המקומי
+src/control-panel/                 JavaScript ו-CSS של לוח השליטה; נכללים ב-TypeScript strict
+types/control-panel-api.d.ts       חוזי DTO של לוח השליטה בצד הדפדפן
 .02-bundle-site-r2-upload cloudflare.bat      העלאת dist/site-upload-r2 ל-Cloudflare Pages בלבד
 configure-r2-cors.bat               החלה ואימות של מדיניות CORS בלבד
 r2-cors.json                        מדיניות קריאת GET/HEAD מהדפדפן עבור bucket התמונות הציבורי
-tools/catalog_control_server.py    שרת מקומי שמפעיל פעולות קבועות ומעדכן קבצי קטלוגים
+tools/catalog_control_server.py    שרת מקומי מוקשח שמפעיל פעולות קבועות ומחזיר state קנוני
+tools/catalog_control_api.py       גבול HTTP/DTO, מגבלות גוף בקשה ואימות payload
+tools/catalog_conversion_profiles.py מקור אמת יחיד לפרופילי production/force/ocr-refresh
 assets/pages                       תמונות מקומיות לסנכרון אל R2; לא מועתקות לבאנדל ההעלאה
 assets/pdfs                        קבצי PDF מקוריים; נשארים בפרויקט העבודה
 .01-bundle-site-r2.bat                 יצירת תיקיית העלאה נקייה ל-Cloudflare Pages עם תמונות מ-R2
@@ -471,8 +475,8 @@ tools/build_deploy_bundle.py       בניית תיקיית ההעלאה ל-Cloud
 tools/deploy_cloudflare_pages.py  העלאה קבועה ל-Cloudflare Pages דרך Wrangler; CORS רק במצב תחזוקה מפורש
 tools/sync_r2_catalog_images.py    כלי הסנכרון מול Cloudflare R2 ללא תלות ב-AWS CLI
 sync-catalog-pdfs.bat              סריקת assets/pdfs והוספת PDFים חסרים לרשימה
-.10-convert-catalogs.bat               המרת PDF חדשים/שהשתנו + ניקוי קטלוגים שהוסרו או שחסר להם PDF
-.011-convert-catalogs-force.bat         המרה מחדש של כל ה-PDFים + אותו ניקוי אוטומטי
+.10-convert-catalogs.bat               המרת PDF חדשים/שהשתנו; PDF חסר עוצר בלי מחיקה
+.011-convert-catalogs-force.bat         המרה מחדש של כל ה-PDFים התקינים; PDF חסר עוצר בלי מחיקה
 .012-refresh-ocr-search.bat             רענון אינדקס חיפוש/OCR בלי רינדור תמונות מחדש ככל האפשר
 ```
 

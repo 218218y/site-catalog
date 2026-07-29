@@ -8,10 +8,11 @@ if not exist .venv\Scripts\activate.bat (
   exit /b 1
 )
 call .venv\Scripts\activate.bat
-python tools\build_catalogs.py --force --no-clean --skip-existing --format webp --dpi 220 --max-width 2800 --max-height 2800 --thumb-size 420 --quality 84 --thumb-quality 76 --sharpen 0.8 --ocr auto --ocr-lang heb+eng --ocr-dpi 260 --ocr-min-confidence 65 --ocr-title-min-confidence 45 --ocr-max-words-per-page 180
+python tools\build_catalogs.py --profile ocr-refresh
 if errorlevel 1 goto error
 echo.
-echo OCR/search index was refreshed with confidence-aware conservative OCR. Existing WebP page images were kept when possible.
+echo OCR/search index was refreshed with the canonical ocr-refresh profile.
+echo Existing complete page images were preserved when possible.
 echo Generated: catalogs.search.js
 echo.
 pause

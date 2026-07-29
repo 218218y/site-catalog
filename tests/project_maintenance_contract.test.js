@@ -46,6 +46,7 @@ const cleanArtifactsBat = readLauncher(windowsLaunchers.cleanArtifacts);
 const uploadSite = readLauncher(windowsLaunchers.uploadSite);
 const ciWorkflow = fs.readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
 const controlPanel = fs.readFileSync(path.join(root, "catalog-control-panel.html"), "utf8");
+const controlPanelApp = fs.readFileSync(path.join(root, "src", "control-panel", "catalog-control-panel.js"), "utf8");
 const controlServer = fs.readFileSync(path.join(root, "tools", "catalog_control_server.py"), "utf8");
 
 assert.equal(packageJson.private, true);
@@ -145,8 +146,8 @@ assert.match(verifier, /sys\.dont_write_bytecode = True/);
 assert.match(verifier, /PYTHONDONTWRITEBYTECODE/);
 assert.match(architecture, /אין לפצל מודול רק בגלל מספר השורות/);
 assert.match(controlPanel, /id="cancelJob"/);
-assert.match(controlPanel, /function cancelActiveJob/);
-assert.match(controlPanel, /\/api\/jobs\/\$\{state\.activeJobId\}\/cancel/);
+assert.match(controlPanelApp, /function cancelActiveJob/);
+assert.match(controlPanelApp, /\/api\/jobs\/\$\{state\.activeJobId\}\/cancel/);
 assert.match(controlServer, /def cancel_job\(/);
 assert.match(controlServer, /cancel_requested/);
 assert.match(controlServer, /_recover_after_canceled_job/);

@@ -8,14 +8,15 @@ if not exist .venv\Scripts\activate.bat (
   exit /b 1
 )
 call .venv\Scripts\activate.bat
-python tools\build_catalogs.py --format webp --dpi 220 --max-width 2800 --max-height 2800 --medium-size 1600 --thumb-size 420 --quality 84 --medium-quality 82 --thumb-quality 76 --sharpen 0.8 --ocr auto --ocr-lang heb+eng --ocr-dpi 260
+python tools\build_catalogs.py --profile production
 if errorlevel 1 goto error
 echo.
-echo Conversion finished in responsive WebP (thumb + medium + full).
-echo Existing converted catalogs are skipped only when the source PDF and settings did not change.
-echo Catalogs removed from catalogs.config.json were removed from assets\pages and the generated search index.
-echo Catalogs whose source PDF is missing were removed from catalogs.config.json, assets\pages and the generated search index.
-echo To rebuild every remaining PDF, run .011-convert-catalogs-force.bat
+echo Conversion finished with the canonical production profile (responsive WebP: thumb + medium + full).
+echo Existing converted catalogs are skipped only when the source PDF or production profile did not change.
+echo Catalogs removed explicitly from catalogs.config.json were removed from assets\pages and the generated search index.
+echo If a configured source PDF is missing, conversion stops without deleting anything.
+echo Use the control panel for an explicit reviewed removal, or pass --prune-missing-pdfs manually only after confirmation.
+echo To rebuild every configured PDF, run .011-convert-catalogs-force.bat
 echo Next run .07-sync-r2-images.bat. Only after the R2 sync succeeds, run .01-bundle-site-r2.bat
 echo.
 pause

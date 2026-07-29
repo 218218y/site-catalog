@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """Local control panel for catalog maintenance.
 
-This server is intentionally localhost-only. It exposes a small browser UI for
-editing catalogs.config.json, managing the catalog taxonomy, editing validated
-footer text, and running fixed maintenance commands without giving the browser
-arbitrary shell access.
+The server binds to loopback by default. Explicit remote mode is protected by
+an allowlist and per-session token. It exposes a small browser UI for editing
+validated project sources and running fixed maintenance commands without giving
+the browser arbitrary shell access.
 """
 from __future__ import annotations
 
 import argparse
+import hmac
+import ipaddress
 import base64
 import filecmp
 import json
 import os
 import re
 import signal
+import secrets
 import subprocess
 import shutil
 import sys
@@ -25,10 +28,11 @@ import uuid
 import webbrowser
 from dataclasses import dataclass, field
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping, Sequence
-from urllib.parse import unquote, urlparse
+from typing import Any, Mapping, Sequence, cast
+from urllib.parse import parse_qs, unquote, urlparse
 
 TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
@@ -67,6 +71,20 @@ from catalog_compiler import (
     retain_build_state_catalogs,
 )
 
+from catalog_conversion_profiles import conversion_profile_command
+
+from catalog_control_api import (
+    API_VERSION,
+    MAX_PDF_UPLOAD_BYTES,
+    ApiRequestError,
+    CatalogSaveRequest,
+    FooterSaveRequest,
+    RunActionRequest,
+    TaxonomySaveRequest,
+    content_length,
+    read_json_object,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "catalogs.config.json"
 TAXONOMY_FILE = PROJECT_ROOT / TAXONOMY_CONFIG_FILE
@@ -78,25 +96,11 @@ CATALOG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 PAGE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
-
-BASE_CONVERT_ARGS = [
-    "tools/build_catalogs.py",
-    "--format", "webp",
-    "--dpi", "220",
-    "--max-width", "2800",
-    "--max-height", "2800",
-    "--medium-size", "1600",
-    "--thumb-size", "420",
-    "--quality", "84",
-    "--medium-quality", "82",
-    "--thumb-quality", "76",
-    "--sharpen", "0.8",
-    "--ocr-lang", "heb+eng",
-    "--ocr-dpi", "260",
-    "--ocr-min-confidence", "65",
-    "--ocr-title-min-confidence", "45",
-    "--ocr-max-words-per-page", "180",
-]
+STATIC_FILES = {
+    "/catalog-control-panel.html": PROJECT_ROOT / "catalog-control-panel.html",
+    "/src/control-panel/catalog-control-panel.css": PROJECT_ROOT / "src/control-panel/catalog-control-panel.css",
+    "/src/control-panel/catalog-control-panel.js": PROJECT_ROOT / "src/control-panel/catalog-control-panel.js",
+}
 
 
 @dataclass(frozen=True)
@@ -115,17 +119,17 @@ ACTIONS: dict[str, Action] = {
     "convert": Action(
         "המרה רגילה",
         "ממיר קטלוגים חסרים/שהשתנו לשלוש שכבות תמונה: thumbnail, medium ו-full. קטלוג שהוסר מהרשימה ינוקה; PDF חסר לעולם לא יגרום למחיקה בלי אישור מפורש. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
-        [*BASE_CONVERT_ARGS, "--ocr", "auto"],
+        conversion_profile_command("production"),
     ),
     "convert_force": Action(
         "המרה מחדש לכל הקטלוגים",
         "מרנדר מחדש את כל הקטלוגים התקינים עם שכבות thumbnail, medium ו-full. PDF חסר עוצר את הפעולה, אלא אם המשתמש מאשר במפורש להסיר את הקטלוג החסר.",
-        ["tools/build_catalogs.py", "--force", *BASE_CONVERT_ARGS[1:], "--ocr", "auto"],
+        conversion_profile_command("force"),
     ),
     "refresh_ocr": Action(
         "רענון אינדקס חיפוש/OCR בלבד",
         "בונה מחדש את catalogs.search.* בלי לרנדר מחדש תמונות קיימות, ככל האפשר.",
-        ["tools/build_catalogs.py", "--force", "--no-clean", "--skip-existing", *BASE_CONVERT_ARGS[1:], "--ocr", "auto"],
+        conversion_profile_command("ocr-refresh"),
     ),
     "r2_preview": Action(
         "בדיקת סנכרון R2 בלי שינוי",
@@ -215,16 +219,8 @@ def rel_to_root(path: Path) -> str:
 
 
 def read_json_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
-    length = int(handler.headers.get("Content-Length", "0") or "0")
-    if length <= 0:
-        return {}
-    raw = handler.rfile.read(length)
-    if not raw:
-        return {}
-    payload = json.loads(raw.decode("utf-8-sig"))
-    if not isinstance(payload, dict):
-        raise ValueError("JSON body must be an object")
-    return payload
+    """Backward-compatible name for the bounded typed JSON reader."""
+    return read_json_object(handler)
 
 
 def read_config() -> list[dict[str, Any]]:
@@ -776,10 +772,12 @@ def read_multipart_pdf_upload(handler: BaseHTTPRequestHandler) -> tuple[str, byt
     if not boundary:
         raise ValueError("בקשת העלאת PDF חסרה boundary תקין")
 
-    length = int(handler.headers.get("Content-Length", "0") or "0")
+    length = content_length(handler, maximum=MAX_PDF_UPLOAD_BYTES)
     if length <= 0:
-        raise ValueError("לא התקבל קובץ PDF")
+        raise ApiRequestError(HTTPStatus.BAD_REQUEST, "לא התקבל קובץ PDF")
     raw = handler.rfile.read(length)
+    if len(raw) != length:
+        raise ApiRequestError(HTTPStatus.BAD_REQUEST, "בקשת העלאת ה-PDF נקטעה לפני סופה")
     delimiter = ("--" + boundary).encode("utf-8")
 
     # Do not use strip() here: binary PDFs can legitimately start or end with
@@ -1173,6 +1171,7 @@ def state_payload() -> dict[str, Any]:
             "disabledReason": reason,
         })
     return {
+        "apiVersion": API_VERSION,
         "catalogs": [normalize_catalog_for_ui(item) for item in config],
         "taxonomy": taxonomy,
         "footer": read_footer_content(PROJECT_ROOT),
@@ -1377,7 +1376,49 @@ def python_executable() -> str:
     return sys.executable
 
 
-def start_job(action_key: str, *, prune_missing_pdfs: bool = False) -> Job:
+CONVERSION_ACTION_KEYS = frozenset({"convert", "convert_force", "refresh_ocr"})
+
+
+def validate_missing_pdf_confirmation(request: RunActionRequest) -> None:
+    if not request.prune_missing_pdfs:
+        return
+    if request.action not in CONVERSION_ACTION_KEYS:
+        raise ApiRequestError(HTTPStatus.BAD_REQUEST, "Missing-PDF pruning is only valid for conversion actions")
+    current_missing_ids = tuple(sorted(item["id"] for item in configured_missing_pdfs()))
+    if request.confirmed_missing_pdf_ids != current_missing_ids:
+        raise ApiRequestError(
+            HTTPStatus.CONFLICT,
+            "The missing-PDF list changed. Refresh the panel and confirm the current list.",
+        )
+
+
+def action_command_for_job(
+    action_key: str,
+    *,
+    prune_missing_pdfs: bool = False,
+    confirmed_missing_pdf_ids: Sequence[str] = (),
+) -> list[str]:
+    action = ACTIONS.get(action_key)
+    if not action:
+        raise ValueError(f"Unknown action: {action_key}")
+    command = list(action.command)
+    if prune_missing_pdfs:
+        if action_key not in CONVERSION_ACTION_KEYS:
+            raise ValueError("Missing-PDF pruning is only valid for conversion actions")
+        command.append("--prune-missing-pdfs")
+        for catalog_id in sorted({str(value).strip() for value in confirmed_missing_pdf_ids if str(value).strip()}):
+            command.extend(("--confirmed-missing-pdf-id", catalog_id))
+    elif confirmed_missing_pdf_ids:
+        raise ValueError("Confirmed missing-PDF ids require pruning")
+    return command
+
+
+def start_job(
+    action_key: str,
+    *,
+    prune_missing_pdfs: bool = False,
+    confirmed_missing_pdf_ids: Sequence[str] = (),
+) -> Job:
     action = ACTIONS.get(action_key)
     if not action:
         raise ValueError(f"Unknown action: {action_key}")
@@ -1401,9 +1442,11 @@ def start_job(action_key: str, *, prune_missing_pdfs: bool = False) -> Job:
             pass
 
         job = Job(id=uuid.uuid4().hex[:12], action_key=action_key, label=action.label, started_at=time.time())
-        command = list(action.command)
-        if prune_missing_pdfs and action_key in {"convert", "convert_force", "refresh_ocr"}:
-            command.append("--prune-missing-pdfs")
+        command = action_command_for_job(
+            action_key,
+            prune_missing_pdfs=prune_missing_pdfs,
+            confirmed_missing_pdf_ids=confirmed_missing_pdf_ids,
+        )
         with jobs_lock:
             jobs[job.id] = job
 
@@ -1612,12 +1655,163 @@ def serialize_job(job: Job, include_log: bool = True) -> dict[str, Any]:
     return data
 
 
+@dataclass(frozen=True)
+class ControlServerSettings:
+    bind_host: str
+    port: int
+    allowed_hosts: frozenset[str]
+    remote_mode: bool
+    token: str | None = None
+
+
+class ControlHTTPServer(ThreadingHTTPServer):
+    def __init__(self, address: tuple[str, int], settings: ControlServerSettings) -> None:
+        super().__init__(address, ControlHandler)
+        self.settings = settings
+
+
+def _normalized_hostname(value: str) -> str:
+    raw = value.strip().lower()
+    if not raw:
+        return ""
+    literal = raw.strip("[]")
+    try:
+        return str(ipaddress.ip_address(literal))
+    except ValueError:
+        pass
+    try:
+        parsed = urlparse(f"//{raw}")
+        return str(parsed.hostname or "").rstrip(".")
+    except ValueError:
+        return ""
+
+
+def _is_loopback_host(host: str) -> bool:
+    normalized = _normalized_hostname(host)
+    if normalized == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
+def build_server_settings(
+    host: str,
+    port: int,
+    *,
+    allow_remote: bool = False,
+    allowed_hosts: Sequence[str] = (),
+    token: str | None = None,
+) -> ControlServerSettings:
+    normalized_bind = _normalized_hostname(host)
+    local = _is_loopback_host(normalized_bind)
+    if not local and not allow_remote:
+        raise ValueError("Binding the control panel outside loopback requires --allow-remote")
+
+    normalized_allowed = {_normalized_hostname(item) for item in allowed_hosts}
+    normalized_allowed.discard("")
+    if local:
+        normalized_allowed.update({"localhost", "127.0.0.1", "::1"})
+        if normalized_bind:
+            normalized_allowed.add(normalized_bind)
+    else:
+        if normalized_bind not in {"0.0.0.0", "::"}:
+            normalized_allowed.add(normalized_bind)
+        if not normalized_allowed:
+            raise ValueError("Remote mode requires at least one --allowed-host")
+
+    remote_mode = not local
+    normalized_token = str(token or "").strip() or None
+    if remote_mode and normalized_token is not None and len(normalized_token) < 20:
+        raise ValueError("Remote control token must contain at least 20 characters")
+    if remote_mode and normalized_token is None:
+        normalized_token = secrets.token_urlsafe(32)
+    if not remote_mode:
+        normalized_token = None
+
+    return ControlServerSettings(
+        bind_host=host,
+        port=int(port),
+        allowed_hosts=frozenset(normalized_allowed),
+        remote_mode=remote_mode,
+        token=normalized_token,
+    )
+
+
 class ControlHandler(BaseHTTPRequestHandler):
-    server_version = "CatalogControlPanel/1.0"
+    server_version = "CatalogControlPanel/2.0"
+
+    @property
+    def control_settings(self) -> ControlServerSettings:
+        server = cast(ControlHTTPServer, self.server)
+        return server.settings
+
+    def _request_token(self) -> str:
+        header = str(self.headers.get("X-Control-Token", "") or "").strip()
+        if header:
+            return header
+        cookie = SimpleCookie()
+        try:
+            cookie.load(str(self.headers.get("Cookie", "") or ""))
+        except Exception:
+            return ""
+        morsel = cookie.get("catalog_control_token")
+        return morsel.value if morsel else ""
+
+    def _validate_request_security(self, *, require_origin: bool) -> None:
+        settings = self.control_settings
+        host = _normalized_hostname(str(self.headers.get("Host", "") or ""))
+        if not host or host not in settings.allowed_hosts:
+            raise ApiRequestError(HTTPStatus.FORBIDDEN, "Host is not allowed")
+
+        fetch_site = str(self.headers.get("Sec-Fetch-Site", "") or "").lower()
+        if fetch_site == "cross-site":
+            raise ApiRequestError(HTTPStatus.FORBIDDEN, "Cross-site request is not allowed")
+
+        origin = str(self.headers.get("Origin", "") or "").strip()
+        if require_origin and settings.remote_mode and not origin:
+            raise ApiRequestError(HTTPStatus.FORBIDDEN, "Origin header is required in remote mode")
+        if origin:
+            parsed_origin = urlparse(origin)
+            if parsed_origin.scheme not in {"http", "https"}:
+                raise ApiRequestError(HTTPStatus.FORBIDDEN, "Origin is not allowed")
+            origin_host = str(parsed_origin.hostname or "").lower().rstrip(".")
+            origin_port = parsed_origin.port or (443 if parsed_origin.scheme == "https" else 80)
+            if origin_host not in settings.allowed_hosts or origin_port != settings.port:
+                raise ApiRequestError(HTTPStatus.FORBIDDEN, "Origin is not allowed")
+
+        if settings.token and not hmac.compare_digest(self._request_token(), settings.token):
+            raise ApiRequestError(HTTPStatus.UNAUTHORIZED, "Control token is required")
+
+    def _accept_token_bootstrap(self, parsed: Any) -> bool:
+        settings = self.control_settings
+        if not settings.token or parsed.path not in {"/", "", "/catalog-control-panel", "/catalog-control-panel/", "/catalog-control-panel.html"}:
+            return False
+        supplied = (parse_qs(parsed.query).get("token") or [""])[0]
+        if not supplied or not hmac.compare_digest(supplied, settings.token):
+            return False
+        host = _normalized_hostname(str(self.headers.get("Host", "") or ""))
+        if host not in settings.allowed_hosts:
+            raise ApiRequestError(HTTPStatus.FORBIDDEN, "Host is not allowed")
+        self.send_response(HTTPStatus.FOUND)
+        self._send_security_headers()
+        self.send_header("Location", "/catalog-control-panel.html")
+        self.send_header(
+            "Set-Cookie",
+            f"catalog_control_token={settings.token}; HttpOnly; SameSite=Strict; Path=/",
+        )
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
 
     def do_GET(self) -> None:  # noqa: N802
         try:
             parsed = urlparse(self.path)
+            if self._accept_token_bootstrap(parsed):
+                return
+            self._validate_request_security(require_origin=False)
             path = unquote(parsed.path)
             if path in {"/", ""}:
                 self.redirect("/catalog-control-panel.html")
@@ -1647,12 +1841,16 @@ class ControlHandler(BaseHTTPRequestHandler):
                 self.send_json(payload)
                 return
             self.serve_static(path)
+        except ApiRequestError as exc:
+            self.send_error_json(exc.status, str(exc))
         except Exception as exc:
-            self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+            print(f"ERROR: GET {self.path}: {exc}", file=sys.stderr)
+            self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal server error")
 
     def do_POST(self) -> None:  # noqa: N802
         try:
             parsed = urlparse(self.path)
+            self._validate_request_security(require_origin=True)
             path = unquote(parsed.path)
             if path == "/api/pdf-pick-native":
                 read_json_body(self)
@@ -1677,17 +1875,19 @@ class ControlHandler(BaseHTTPRequestHandler):
 
             payload = read_json_body(self)
             if path == "/api/footer":
+                request = FooterSaveRequest.parse(payload)
                 with footer_save_lock:
                     with ProjectMutationLock(PROJECT_ROOT, "שמירת הפוטר מלוח השליטה"):
-                        footer = save_footer_content_and_render_pages(payload.get("footer"))
+                        footer = save_footer_content_and_render_pages(request.footer)
                 self.send_json({"ok": True, "footer": footer, "state": state_payload(), "updatedPages": [page.filename for page in PAGE_DOCUMENTS]})
                 return
             if path == "/api/catalogs":
+                request = CatalogSaveRequest.parse(payload)
                 with taxonomy_save_lock:
                     result = save_catalogs_transactionally(
-                        payload.get("catalogs"),
-                        payload.get("taxonomy"),
-                        payload.get("assetDeletes"),
+                        request.catalogs,
+                        request.taxonomy,
+                        request.asset_deletes,
                     )
                 self.send_json({
                     "ok": True,
@@ -1700,8 +1900,9 @@ class ControlHandler(BaseHTTPRequestHandler):
                 })
                 return
             if path == "/api/taxonomy":
+                request = TaxonomySaveRequest.parse(payload)
                 with taxonomy_save_lock:
-                    result = save_taxonomy_transactionally(payload.get("taxonomy"))
+                    result = save_taxonomy_transactionally(request.taxonomy)
                 self.send_json({
                     "ok": True,
                     "state": state_payload(),
@@ -1711,35 +1912,55 @@ class ControlHandler(BaseHTTPRequestHandler):
                 })
                 return
             if path == "/api/run":
+                request = RunActionRequest.parse(payload)
+                validate_missing_pdf_confirmation(request)
                 job = start_job(
-                    str(payload.get("action", "")).strip(),
-                    prune_missing_pdfs=bool(payload.get("pruneMissingPdfs")),
+                    request.action,
+                    prune_missing_pdfs=request.prune_missing_pdfs,
+                    confirmed_missing_pdf_ids=request.confirmed_missing_pdf_ids,
                 )
                 self.send_json({"ok": True, "job": serialize_job(job)})
                 return
             self.send_error_json(HTTPStatus.NOT_FOUND, "Unknown API route")
-        except Exception as exc:
+        except ApiRequestError as exc:
+            self.send_error_json(exc.status, str(exc))
+        except (ValueError, MutationBusyError) as exc:
             self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+        except Exception as exc:
+            print(f"ERROR: POST {self.path}: {exc}", file=sys.stderr)
+            self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal server error")
 
     def serve_static(self, url_path: str) -> None:
-        relative = url_path.lstrip("/") or "catalog-control-panel.html"
-        if "/" in relative or "\\" in relative:
+        file_path = STATIC_FILES.get(url_path)
+        if file_path is None or not file_path.is_file():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
-        file_path = (PROJECT_ROOT / relative).resolve(strict=False)
-        if file_path.parent != PROJECT_ROOT.resolve() or not file_path.is_file():
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
-        content_type = "text/html; charset=utf-8" if file_path.suffix.lower() == ".html" else "text/plain; charset=utf-8"
+        content_types = {
+            ".html": "text/html; charset=utf-8",
+            ".css": "text/css; charset=utf-8",
+            ".js": "text/javascript; charset=utf-8",
+        }
+        content_type = content_types.get(file_path.suffix.lower(), "application/octet-stream")
+        raw = file_path.read_bytes()
         self.send_response(HTTPStatus.OK)
+        self._send_security_headers()
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
-        self.wfile.write(file_path.read_bytes())
+        self.wfile.write(raw)
+
+    def _send_security_headers(self) -> None:
+        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+
 
     def send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
+        self._send_security_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(raw)))
@@ -1751,7 +1972,9 @@ class ControlHandler(BaseHTTPRequestHandler):
 
     def redirect(self, location: str) -> None:
         self.send_response(HTTPStatus.FOUND)
+        self._send_security_headers()
         self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
     def log_message(self, format: str, *args: Any) -> None:
@@ -1763,6 +1986,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default=DEFAULT_HOST, help="Bind address. Default: 127.0.0.1")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Local port. Default: 8765")
     parser.add_argument("--no-open", action="store_true", help="Do not open the browser automatically")
+    parser.add_argument("--allow-remote", action="store_true", help="Explicitly permit a non-loopback bind")
+    parser.add_argument("--allowed-host", action="append", default=[], help="Host name/IP accepted in remote mode; repeat as needed")
+    parser.add_argument("--token", default="", help="Remote access token; generated automatically when omitted")
     return parser.parse_args()
 
 
@@ -1779,12 +2005,28 @@ def main() -> int:
     except Exception as exc:
         print(f"ERROR: Failed to recover the project before starting the control panel: {exc}", file=sys.stderr)
         return 1
-    server = ThreadingHTTPServer((str(args.host), int(args.port)), ControlHandler)
-    url = f"http://{args.host}:{args.port}/catalog-control-panel.html"
+    try:
+        settings = build_server_settings(
+            str(args.host),
+            int(args.port),
+            allow_remote=bool(args.allow_remote),
+            allowed_hosts=tuple(args.allowed_host),
+            token=str(args.token or ""),
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    server = ControlHTTPServer((settings.bind_host, settings.port), settings)
+    display_host = next(iter(sorted(settings.allowed_hosts))) if settings.remote_mode else settings.bind_host
+    url = f"http://{display_host}:{settings.port}/catalog-control-panel.html"
+    open_url = f"{url}?token={settings.token}" if settings.token else url
     print(f"Catalog control panel: {url}")
+    if settings.remote_mode:
+        print("WARNING: Remote control mode is enabled. Keep the token private and stop the server when finished.")
+        print(f"One-time authenticated URL: {open_url}")
     print("Press Ctrl+C to stop.")
     if not args.no_open:
-        threading.Timer(0.5, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.5, lambda: webbrowser.open(open_url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

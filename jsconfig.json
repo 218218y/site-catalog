@@ -5,14 +5,20 @@
     "noEmit": true,
     "target": "ES2022",
     "module": "none",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "strict": true,
     "skipLibCheck": true
   },
   "files": [
-    "types/frontend-globals.d.ts"
+    "types/frontend-globals.d.ts",
+    "types/control-panel-api.d.ts"
   ],
   "include": [
-    "src/js/**/*.js"
+    "src/js/**/*.js",
+    "src/control-panel/**/*.js"
   ]
 }
