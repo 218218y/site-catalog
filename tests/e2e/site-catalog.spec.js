@@ -876,6 +876,8 @@ test.describe("critical catalog journeys", () => {
     const viewport = page.viewportSize();
     if (!autoZoomBox || !viewport) throw new Error("Unable to measure the auto-zoom button layout");
     expect(autoZoomBox.x).toBeGreaterThanOrEqual(12);
+    expect(autoZoomBox.width).toBeGreaterThanOrEqual(54);
+    expect(autoZoomBox.height).toBeGreaterThanOrEqual(54);
     expect(autoZoomBox.x + autoZoomBox.width).toBeLessThan(viewport.width * 0.2);
     expect(autoZoomBox.y).toBeLessThan(viewport.height * 0.2);
 

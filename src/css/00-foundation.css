@@ -17,6 +17,13 @@
   --brand-dark: #755844;
   --brand-soft: #efe1d5;
   --accent: #d9baa3;
+  /* Shared selected-favorite treatment. Keep every surface that intentionally
+     mirrors the active favorite state on one reviewed gold palette. */
+  --favorite-active-color: #8a590d;
+  --favorite-active-background: linear-gradient(180deg, rgba(255,248,225,0.99), rgba(235,199,116,0.94));
+  --favorite-active-border: rgba(165, 111, 22, 0.48);
+  --favorite-active-shadow: 0 14px 34px rgba(111, 77, 27, 0.2), inset 0 1px 0 rgba(255,255,255,0.94);
+  --favorite-active-icon-glow: drop-shadow(0 0 8px rgba(255, 211, 113, 0.34));
   --shadow: 0 28px 70px rgba(70, 50, 36, 0.16);
   --shadow-soft: 0 16px 44px rgba(70, 50, 36, 0.10);
   --shadow-card: 0 14px 34px rgba(58, 43, 33, 0.09);

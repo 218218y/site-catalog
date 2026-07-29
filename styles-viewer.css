@@ -42,6 +42,13 @@
   --brand-dark: #755844;
   --brand-soft: #efe1d5;
   --accent: #d9baa3;
+  /* Shared selected-favorite treatment. Keep every surface that intentionally
+     mirrors the active favorite state on one reviewed gold palette. */
+  --favorite-active-color: #8a590d;
+  --favorite-active-background: linear-gradient(180deg, rgba(255,248,225,0.99), rgba(235,199,116,0.94));
+  --favorite-active-border: rgba(165, 111, 22, 0.48);
+  --favorite-active-shadow: 0 14px 34px rgba(111, 77, 27, 0.2), inset 0 1px 0 rgba(255,255,255,0.94);
+  --favorite-active-icon-glow: drop-shadow(0 0 8px rgba(255, 211, 113, 0.34));
   --shadow: 0 28px 70px rgba(70, 50, 36, 0.16);
   --shadow-soft: 0 16px 44px rgba(70, 50, 36, 0.10);
   --shadow-card: 0 14px 34px rgba(58, 43, 33, 0.09);
@@ -5463,16 +5470,18 @@ body[data-app-ready="true"] > .site-footer {
     var(--viewer-side-control-edge),
     calc(env(safe-area-inset-left, 0px) + 12px)
   );
-  width: var(--viewer-side-control-size);
-  min-width: var(--viewer-side-control-size);
-  min-height: var(--viewer-side-control-size);
+  --viewer-auto-zoom-control-size: 60px;
+  width: var(--viewer-auto-zoom-control-size);
+  min-width: var(--viewer-auto-zoom-control-size);
+  height: var(--viewer-auto-zoom-control-size);
+  min-height: var(--viewer-auto-zoom-control-size);
   padding: 0 !important;
   transform: none;
   border-radius: 999px;
-  color: var(--ink);
-  background: var(--viewer-side-control-bg) !important;
-  border-color: var(--viewer-side-control-border) !important;
-  box-shadow: var(--viewer-side-control-shadow);
+  color: var(--favorite-active-color);
+  background: var(--favorite-active-background) !important;
+  border-color: var(--favorite-active-border) !important;
+  box-shadow: var(--favorite-active-shadow);
   backdrop-filter: blur(14px);
 }
 
@@ -5480,29 +5489,28 @@ body[data-app-ready="true"] > .site-footer {
   overflow: visible;
 }
 
-/* Give the manual-zoom reset a distinct but brand-consistent treatment so it
-   remains easy to discover against both dark and light catalog artwork. */
+/* The reset action deliberately reuses the selected-favorite palette. Its
+   larger footprint and gold halo make the temporary recovery action visible
+   without inventing a second competing highlight language. */
 .viewer-auto-zoom-button:not(.hidden) {
-  color: var(--ink);
-  background: linear-gradient(135deg, #f2d8c3, var(--accent)) !important;
-  border-color: rgba(255,255,255,0.72) !important;
+  color: var(--favorite-active-color);
+  background: var(--favorite-active-background) !important;
+  border-color: var(--favorite-active-border) !important;
   box-shadow:
-    0 16px 38px rgba(0,0,0,0.38),
-    0 0 0 2px rgba(255,255,255,0.14),
-    0 0 24px rgba(217,186,163,0.34),
-    inset 0 1px 0 rgba(255,255,255,0.48);
+    var(--favorite-active-shadow),
+    0 0 0 4px rgba(255, 248, 225, 0.2),
+    0 0 30px rgba(235, 199, 116, 0.38);
 }
 
 .viewer-auto-zoom-button:hover,
 .viewer-auto-zoom-button:focus-visible {
   transform: none !important;
-  background: linear-gradient(135deg, #ffe7d5, #e6c2a8) !important;
-  border-color: rgba(255,255,255,0.86) !important;
+  background: linear-gradient(180deg, rgba(255,252,238,1), rgba(242,210,132,0.98)) !important;
+  border-color: rgba(165, 111, 22, 0.64) !important;
   box-shadow:
-    0 18px 42px rgba(0,0,0,0.40),
-    0 0 0 2px rgba(255,255,255,0.18),
-    0 0 28px rgba(217,186,163,0.42),
-    inset 0 1px 0 rgba(255,255,255,0.58);
+    var(--favorite-active-shadow),
+    0 0 0 5px rgba(255, 248, 225, 0.26),
+    0 0 36px rgba(235, 199, 116, 0.5);
 }
 
 .viewer-auto-zoom-button:active {
@@ -5510,8 +5518,8 @@ body[data-app-ready="true"] > .site-footer {
 }
 
 .viewer-auto-zoom-button svg {
-  width: 22px;
-  height: 22px;
+  width: 29px;
+  height: 29px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.75;
@@ -5529,6 +5537,13 @@ body[data-app-ready="true"] > .site-footer {
 @media (max-width: 640px) {
   .lightbox {
     --viewer-side-control-size: 44px;
+  }
+  .viewer-auto-zoom-button {
+    --viewer-auto-zoom-control-size: 54px;
+  }
+  .viewer-auto-zoom-button svg {
+    width: 26px;
+    height: 26px;
   }
 }
 
@@ -6131,14 +6146,14 @@ body[data-app-ready="true"] > .site-footer {
   transition: fill .16s ease, color .16s ease, filter .16s ease;
 }
 .viewer-favorite-button[data-favorite-active="true"] {
-  color: #8a590d;
-  background: linear-gradient(180deg, rgba(255,248,225,0.99), rgba(235,199,116,0.94)) !important;
-  border-color: rgba(165, 111, 22, 0.48) !important;
-  box-shadow: 0 14px 34px rgba(111, 77, 27, 0.2), inset 0 1px 0 rgba(255,255,255,0.94);
+  color: var(--favorite-active-color);
+  background: var(--favorite-active-background) !important;
+  border-color: var(--favorite-active-border) !important;
+  box-shadow: var(--favorite-active-shadow);
 }
 .viewer-favorite-button[data-favorite-active="true"] svg {
   fill: currentColor;
-  filter: drop-shadow(0 0 8px rgba(255, 211, 113, 0.34));
+  filter: var(--favorite-active-icon-glow);
 }
 
 @media (max-width: 960px) {

@@ -290,14 +290,14 @@
   transition: fill .16s ease, color .16s ease, filter .16s ease;
 }
 .viewer-favorite-button[data-favorite-active="true"] {
-  color: #8a590d;
-  background: linear-gradient(180deg, rgba(255,248,225,0.99), rgba(235,199,116,0.94)) !important;
-  border-color: rgba(165, 111, 22, 0.48) !important;
-  box-shadow: 0 14px 34px rgba(111, 77, 27, 0.2), inset 0 1px 0 rgba(255,255,255,0.94);
+  color: var(--favorite-active-color);
+  background: var(--favorite-active-background) !important;
+  border-color: var(--favorite-active-border) !important;
+  box-shadow: var(--favorite-active-shadow);
 }
 .viewer-favorite-button[data-favorite-active="true"] svg {
   fill: currentColor;
-  filter: drop-shadow(0 0 8px rgba(255, 211, 113, 0.34));
+  filter: var(--favorite-active-icon-glow);
 }
 
 @media (max-width: 960px) {

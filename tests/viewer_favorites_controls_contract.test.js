@@ -33,8 +33,12 @@ assert.match(css, /--viewer-side-control-near-top:\s*calc\(50% - var\(--viewer-s
 assert.match(css, /--viewer-side-control-far-top:\s*calc\(50% - var\(--viewer-side-control-step\) - var\(--viewer-side-control-step\)\)/);
 assert.match(css, /\.viewer-favorite-button\s*\{[\s\S]*?top:\s*var\(--viewer-side-control-near-top\)/);
 assert.match(css, /\.viewer-fullscreen-float\s*\{[\s\S]*?top:\s*var\(--viewer-side-control-far-top\)/);
-assert.match(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*top:\s*max\([^}]*var\(--lightbox-top-safe-offset, 0px\) \+ 18px[^}]*left:\s*max\(\s*var\(--viewer-side-control-edge\),\s*calc\(env\(safe-area-inset-left, 0px\) \+ 12px\)\s*\);[^}]*transform:\s*none;/);
-assert.match(viewerCss, /\.viewer-auto-zoom-button:not\(\.hidden\)\s*\{[^}]*color:\s*var\(--ink\);[^}]*background:\s*linear-gradient\(135deg, #f2d8c3, var\(--accent\)\) !important;/);
+assert.match(viewerCss, /--favorite-active-color:\s*#8a590d;/);
+assert.match(viewerCss, /--favorite-active-background:\s*linear-gradient\(180deg, rgba\(255,248,225,0\.99\), rgba\(235,199,116,0\.94\)\);/);
+assert.match(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*top:\s*max\([^}]*var\(--lightbox-top-safe-offset, 0px\) \+ 18px[^}]*left:\s*max\(\s*var\(--viewer-side-control-edge\),\s*calc\(env\(safe-area-inset-left, 0px\) \+ 12px\)\s*\);[^}]*--viewer-auto-zoom-control-size:\s*60px;[^}]*width:\s*var\(--viewer-auto-zoom-control-size\);[^}]*height:\s*var\(--viewer-auto-zoom-control-size\);[^}]*transform:\s*none;/);
+assert.match(viewerCss, /\.viewer-auto-zoom-button:not\(\.hidden\)\s*\{[^}]*color:\s*var\(--favorite-active-color\);[^}]*background:\s*var\(--favorite-active-background\) !important;[^}]*border-color:\s*var\(--favorite-active-border\) !important;/);
+assert.match(viewerCss, /\.viewer-favorite-button\[data-favorite-active="true"\]\s*\{[^}]*color:\s*var\(--favorite-active-color\);[^}]*background:\s*var\(--favorite-active-background\) !important;[^}]*border-color:\s*var\(--favorite-active-border\) !important;/);
+assert.match(viewerCss, /@media \(max-width: 640px\)[\s\S]*?\.viewer-auto-zoom-button\s*\{[^}]*--viewer-auto-zoom-control-size:\s*54px;/);
 assert.match(css, /\.lightbox-favorites-button\s*\{[\s\S]*?order:\s*10;/);
 assert.match(css, /\.header-favorites-count\.lightbox-favorites-count\s*\{/);
 assert.doesNotMatch(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*(?:left:\s*50%|transform:\s*translateX\(-50%\)|top:\s*var\(--viewer-side-control-lower-top\)|transform:\s*translateY\(-50%\))/);
