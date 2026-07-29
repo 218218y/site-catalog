@@ -2,9 +2,19 @@
  * Source module: 40-catalog-grid.js
  * Catalog navigation, category layout, catalog cards, preview grids, and catalog detail rendering.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { catalogDocumentUrl, categoryDocumentUrl, homeDocumentUrl, isAppPage, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
+import { catalogs } from "./03-runtime-context.js";
+import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { catalogElements, catalogState } from "./12-catalog-state.js";
+import { activeCatalog, activeViewerSource, setActiveLocation } from "./18-navigation-feature.js";
+import { applyCatalogImageDimensions, buildCategoryShareRouteHash, catalogCategorySharePath, catalogCoverLoadingAttributes, catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, catalogSubcategorySharePath, categorySectionId, categoryShareSlug, clampValue, coverThumbSrc, decodeHashRouteSegment, encodeHashRouteSegment, escapeHtml, focusHtmlElement, getCatalogCategoryGroups, isHtmlElement, normalizeShareRoutePath, pageAspectVariableStyle, setCatalogImageSource, setTooltipText, subcategorySectionId, subcategoryShareSlug, thumbSrc } from "./20-shared-ui.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { searchCatalogDomain } from "./39-search-catalog-domain.js";
+import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-search-ui.js";
 
 /** @typedef {{gap:number, minHeight:number, paddingX:number, fontSize:number}} CategoryNavMetrics */
 /** @typedef {{focusFirst?:boolean, focusButton?:boolean}} MobileCategoryMenuOptions */

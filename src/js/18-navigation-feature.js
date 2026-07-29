@@ -6,6 +6,10 @@
  * than reaching into navigationState or shellElements directly.
  */
 
+import { attachNavigationEvents, currentAppPage, setCurrentAppPage } from "./00-navigation.js";
+import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { LIGHTBOX_SOURCE_CATALOG, navigationState, shellElements } from "./11-navigation-state.js";
+
 /** @param {string} nextPage */
 function syncDocumentRouteShell(nextPage) {
   const showCatalogs = nextPage === "home";
@@ -95,3 +99,5 @@ function setActiveViewerSource(source) {
 function clearActiveLocation() {
   navigationFeature().clearLocation();
 }
+
+export { activeCatalog, activePage, activeViewerSource, clearActiveLocation, navigationFeature, setActiveLocation, setActivePage, setActiveViewerSource };

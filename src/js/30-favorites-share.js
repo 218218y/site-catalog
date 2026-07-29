@@ -2,9 +2,20 @@
  * Source module: 30-favorites-share.js
  * Favorites storage integration, portable selection links, favorites panels, and link sharing.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { canReturnToSameSite, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
+import { catalogs } from "./03-runtime-context.js";
+import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
+import { FAVORITES_SHARE_PARAM, FAVORITES_SHARE_VERSION, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
+import { telemetryTrackFavorite } from "./15-telemetry.js";
+import { activeCatalog, activePage, activeViewerSource, setActiveLocation } from "./18-navigation-feature.js";
+import { clampPage, clampValue, findCatalogById, flashActionButton, focusHtmlElement, isHtmlElement, setTooltipText, showActionToast, syncDocumentLock } from "./20-shared-ui.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { createFavoritesPortabilityDomain } from "./29-favorites-portability.js";
 
 function favoriteIdentity(catalog = activeCatalog(), page = activePage()) {
   if (!catalog) return null;
@@ -676,3 +687,5 @@ registerFeatureInterface("favorites", {
     return false;
   }
 });
+
+export { buildFavoritesShareUrl, copyTextToClipboard, favoritesPortabilityDomain, getFavoriteEntries, isFavoritesLightboxMode, shareOrCopyCurrentLink, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary };

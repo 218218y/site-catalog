@@ -3,6 +3,8 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+import { $, $image, $requiredButton, requiredElement } from "./02-dom-contracts.js";
+
 /** @type {CatalogState} */
 const catalogState = {
   catalogLayoutColumns: 0,
@@ -51,3 +53,5 @@ const catalogElements = Object.freeze({
   openCatalogEntryFromDetail: $requiredButton("openCatalogEntryFromDetail"),
   scrollToTopBtn: $requiredButton("scrollToTopBtn"),
 });
+
+export { catalogElements, catalogState };

@@ -9,6 +9,7 @@ const appState = fs.readFileSync(path.join(root, "src/js/10-app-state.js"), "utf
 const viewerStateSource = fs.readFileSync(path.join(root, "src/js/16-viewer-state.js"), "utf8");
 const viewerImage = fs.readFileSync(path.join(root, "src/js/53-viewer-image.js"), "utf8");
 const sharedUi = fs.readFileSync(path.join(root, "src/js/20-shared-ui.js"), "utf8");
+const assetUrls = fs.readFileSync(path.join(root, "src/js/17-catalog-asset-urls.js"), "utf8");
 const catalog = fs.readFileSync(path.join(root, "src/js/40-catalog-grid.js"), "utf8");
 const viewer = fs.readFileSync(path.join(root, "src/js/60-viewer.js"), "utf8");
 const searchUi = fs.readFileSync(path.join(root, "src/js/50-search-ui.js"), "utf8");
@@ -28,7 +29,7 @@ assert.match(sharedUi, /function catalogImageDeliveryMode\(\)/);
 assert.match(sharedUi, /function catalogMediumImagesEnabled\(\)/);
 assert.match(sharedUi, /tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled\(\)/);
 assert.match(sharedUi, /if \(!catalogMediumImagesEnabled\(\)\) return 1;/);
-assert.match(sharedUi, /function catalogAssetVersionForTier\(catalog, tier\)/);
+assert.match(assetUrls, /function catalogAssetVersionForTier\(catalog, tier\)/);
 assert.match(sharedUi, /function unversionedCatalogImageUrl\(url\)/);
 assert.match(viewerImage, /function viewerPageImageRequest\(catalog, page, options = \{\}\)/);
 assert.match(viewerImage, /function preferredViewerImageTier\(catalog, page, options = \{\}\)/);

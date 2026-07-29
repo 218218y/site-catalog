@@ -2,55 +2,19 @@
  * Source module: 00-navigation.js
  * Application routing, document metadata, and fullscreen-safe in-document navigation.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
-const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
-const catalogSearch = window.BargigCatalogSearch || null;
-const siteRoutes = window.BargigRoutes || null;
+import { featureCapabilities } from "./01-route-capabilities.js";
+import { getFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { catalogSearch, catalogs, siteRoutes } from "./03-runtime-context.js";
+import { navigationState } from "./11-navigation-state.js";
+import { coverThumbSrc, pageSrc } from "./17-catalog-asset-urls.js";
 let currentAppPage = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home";
 const IN_DOCUMENT_ROUTE_STATE_KEY = "__bargigInDocumentRoute";
 let hasInDocumentRouteSession = false;
-
-/** @param {string} id @returns {HTMLElement|null} */
-const $ = (id) => document.getElementById(id);
-/** @param {string} id @returns {HTMLButtonElement|null} */
-const $button = (id) => /** @type {HTMLButtonElement|null} */ (document.getElementById(id));
-/** @param {string} id @returns {HTMLAnchorElement|null} */
-const $anchor = (id) => /** @type {HTMLAnchorElement|null} */ (document.getElementById(id));
-/** @param {string} id @returns {HTMLInputElement|null} */
-const $input = (id) => /** @type {HTMLInputElement|null} */ (document.getElementById(id));
-/** @param {string} id @returns {HTMLSelectElement|null} */
-const $select = (id) => /** @type {HTMLSelectElement|null} */ (document.getElementById(id));
-/** @param {string} id @returns {HTMLTextAreaElement|null} */
-const $textarea = (id) => /** @type {HTMLTextAreaElement|null} */ (document.getElementById(id));
-/** @param {string} id @returns {HTMLImageElement|null} */
-const $image = (id) => /** @type {HTMLImageElement|null} */ (document.getElementById(id));
-
-/**
- * Resolve a DOM contract that must exist in every document loading its feature.
- * Missing required markup is an integration failure, not a nullable runtime state.
- * @param {string} id
- * @returns {HTMLElement}
- */
-function requiredElement(id) {
-  const element = document.getElementById(id);
-  if (!element) throw new Error(`Required application element is missing: #${id}`);
-  return element;
-}
-/** @param {string} id @returns {HTMLButtonElement} */
-const $requiredButton = (id) => /** @type {HTMLButtonElement} */ (requiredElement(id));
-/** @param {string} id @returns {HTMLAnchorElement} */
-const $requiredAnchor = (id) => /** @type {HTMLAnchorElement} */ (requiredElement(id));
-/** @param {string} id @returns {HTMLInputElement} */
-const $requiredInput = (id) => /** @type {HTMLInputElement} */ (requiredElement(id));
-/** @param {string} id @returns {HTMLSelectElement} */
-const $requiredSelect = (id) => /** @type {HTMLSelectElement} */ (requiredElement(id));
-/** @param {string} id @returns {HTMLTextAreaElement} */
-const $requiredTextarea = (id) => /** @type {HTMLTextAreaElement} */ (requiredElement(id));
-/** @param {string} id @returns {HTMLImageElement} */
-const $requiredImage = (id) => /** @type {HTMLImageElement} */ (requiredElement(id));
 
 /** @param {string} page */
 function isAppPage(page) {
@@ -104,7 +68,7 @@ function navigateWithinCurrentDocument(url, options = {}) {
   if (options.replace || sameUrl) history.replaceState(nextState, "", url.href);
   else history.pushState(nextState, "", url.href);
 
-  initDocumentRoute({ scrollPosition: { x: 0, y: 0 } });
+  requireFeatureInterface("app-shell").renderRoute({ scrollPosition: { x: 0, y: 0 } });
 }
 
 /** @param {string} relativeUrl @param {{replace?:boolean}} [options] */
@@ -267,7 +231,7 @@ function attachNavigationEvents() {
     if (!hasInDocumentRouteSession && !routeState?.[IN_DOCUMENT_ROUTE_STATE_KEY]) return;
 
     hasInDocumentRouteSession = true;
-    initDocumentRoute({
+    requireFeatureInterface("app-shell").renderRoute({
       scrollPosition: {
         x: routeState?.scrollX || 0,
         y: routeState?.scrollY || 0
@@ -280,3 +244,5 @@ function attachNavigationEvents() {
     getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash?.();
   });
 }
+
+export { absoluteDocumentUrl, attachNavigationEvents, canReturnToSameSite, catalogDocumentUrl, categoryDocumentUrl, currentAppPage, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, markAppReady, navigateBack, navigateTo, setCurrentAppPage, updateDocumentMetadata, viewerDocumentUrl };

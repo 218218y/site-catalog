@@ -2,9 +2,14 @@
  * Source module: 65-viewer-onboarding.js
  * First-run viewer tour: steps, spotlight geometry, cloned controls, focus handling, and cleanup.
  *
- * Event ownership lives beside the feature. The generated browser bundle still exposes
- * no runtime module requests; tools/build_frontend_assets.py concatenates all sources.
+ * Event ownership lives beside the feature. The generated browser bundle is produced
+ * from explicit ES module imports and does not perform runtime module requests.
  */
+
+import { getFeatureInterface } from "./10-app-state.js";
+import { VIEWER_ONBOARDING_STORAGE_KEY, viewerElements, viewerState } from "./16-viewer-state.js";
+import { clampValue, focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";
+import { isViewerSessionOpen } from "./52-viewer-session.js";
 
 function getViewerOnboardingStorage() {
   try {
@@ -608,3 +613,5 @@ function attachViewerOnboardingEvents() {
   viewerElements.viewerOnboardingNext?.addEventListener("click", () => moveViewerOnboardingStep(1));
   viewerElements.viewerOnboardingSkip?.addEventListener("click", () => closeViewerOnboarding());
 }
+
+export { attachViewerOnboardingEvents, closeViewerOnboarding, handleViewerOnboardingKeydown, scheduleViewerOnboardingLayout, showViewerOnboardingIfNeeded };

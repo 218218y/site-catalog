@@ -2,9 +2,31 @@
  * Source module: 60-viewer.js
  * Viewer lifecycle, page selection, route entry, and event ownership.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { canReturnToSameSite, catalogDocumentUrl, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
+import { catalogs } from "./03-runtime-context.js";
+import { CATALOG_IMAGE_TIER_FULL, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
+import { telemetryTrackCatalogOpen } from "./15-telemetry.js";
+import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, viewerElements, viewerState } from "./16-viewer-state.js";
+import { activeCatalog, activePage, activeViewerSource, setActiveLocation, setActivePage, setActiveViewerSource } from "./18-navigation-feature.js";
+import { catalogPagesShareAspectRatio, clampPage, clampValue, prepareImagePlaceholder, syncDocumentLock } from "./20-shared-ui.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { isFavoritesLightboxMode } from "./30-favorites-share.js";
+import { attachViewerShareEvents } from "./31-viewer-share.js";
+import { closeViewerInquiry, syncViewerInquiryUi } from "./32-shared-inquiry.js";
+import { initLightboxSearchStatus, renderLightboxCatalogMenu, resetLightboxSearch } from "./50-search-ui.js";
+import { exitBrowserFullscreen, handleBrowserFullscreenChange, isBrowserFullscreenActive, isViewerSessionOpen, reconcileViewerFullscreenPhase, returnToMainSiteFromLightbox, syncFullscreenButtonUi, toggleBrowserFullscreen, transitionViewerPhase, viewerUsesInDocumentFullscreenNavigation } from "./52-viewer-session.js";
+import { activeSingleViewerImageLogicalSrc, activeSingleViewerImageTier, clearSingleViewerResolutionUpgrade, preloadNeighbors, showSingleLightboxImage, viewerPageImageRequest, viewerPageSrc } from "./53-viewer-image.js";
+import { applyZoom, captureSingleImageRelativePosition, clearSingleImagePendingPosition, getAutomaticViewerFitMode, isAutoViewerZoom, normalizeViewerFitMode, normalizeViewerFitModeSource, primeLightboxFrameForCatalogPage, queueSingleImagePageTurnOrigin, queueSingleImageRelativePosition, resetImagePosition, setZoom, shouldPreserveSingleManualPosition, updateHash, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
+import { handleLightboxEdgeHoverMove, handleLightboxEdgeHoverViewportExit, handleLightboxPageRailEdgePointerDown, handlePageRailPointerOutside, hideLightboxFloatingPreview, hideViewerPageIndicator, hideViewerZoomIndicator, keepPageRailOpen, keepPageRailOpenFromHover, markTouchLikeRailInput, markTouchLikeViewportInput, openPageRailFromHotspot, openPageRailFromTouch, openTopUiFromHotspot, refreshLightboxLayoutForTopUiChange, renderLightboxPageRail, schedulePageRailClose, scheduleTopUiClose, setViewerAutomaticFitMode, setViewerFitMode, setViewerLoading, showPageRailFromHover, showTopUiTemporarily, syncAutomaticViewerFitMode, syncLightboxModeUi, syncLightboxProgress, syncTopUiPinnedUi, syncViewerAutoZoomButtonUi, toggleTopUiPinned, updateLightboxThumbs } from "./56-viewer-shell.js";
+import { clearViewerPageWheelGesture, retryCurrentViewerImage } from "./58-viewer-navigation.js";
+import { attachViewerActionEvents, closeViewerMobileMoreMenu, syncViewerMobileMoreMenuState } from "./62-viewer-actions.js";
+import { attachViewerOnboardingEvents, closeViewerOnboarding, handleViewerOnboardingKeydown, scheduleViewerOnboardingLayout, showViewerOnboardingIfNeeded } from "./65-viewer-onboarding.js";
+import { attachViewerGestures, handleLightboxPointerDownCapture, handleViewerSurfacePointerDown, stopViewerTouchMomentum } from "./70-viewer-input.js";
 
 /** @param {ViewerRefreshOptions} [options] */
 function updateLightbox(options = {}) {
@@ -511,3 +533,5 @@ registerFeatureInterface("viewer", {
     return true;
   }
 });
+
+export { moveLightbox, setFavoriteViewerIndex, setLightboxPage };

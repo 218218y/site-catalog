@@ -130,3 +130,5 @@ declare const SEARCH_INDEX_SCRIPT_SRC: string;
 
 /** Test-only source export registry stripped from production bundles. */
 declare var __BARGIG_TEST_EXPORTS__: Record<string, unknown> | undefined;
+
+declare const __BARGIG_FEATURE_CAPABILITIES__: FeatureCapabilities;

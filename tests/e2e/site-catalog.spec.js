@@ -711,6 +711,20 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#catalogs")).toBeVisible();
     await expect(page.locator("#catalogGrid .catalog-card")).toHaveCount(CATALOG_COUNT);
 
+    await page.locator("#globalSearchOpen").click();
+    await page.locator("#globalSearchInput").fill("פתיחת");
+    const fullscreenSearchResult = page.locator("#globalSearchResults [data-search-catalog]").first();
+    await expect(fullscreenSearchResult).toBeVisible();
+    await fullscreenSearchResult.click();
+    await expect(page).toHaveURL(/\/catalog\/[^/]+\/page\/\d+\/$/);
+    await expect(page.locator("body")).toHaveAttribute("data-page", "viewer");
+    await expect(page.locator("#lightbox")).toBeVisible();
+    expect(await page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
+
+    await page.locator("#lightboxHomeLink").evaluate((link) => link.click());
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator("body")).toHaveAttribute("data-page", "home");
+
     await page.locator("[data-open-catalog-preview]").first().click();
     await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/$`));
     await expect(page.locator("body")).toHaveAttribute("data-page", "catalog");

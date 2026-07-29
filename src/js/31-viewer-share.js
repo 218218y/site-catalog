@@ -6,6 +6,11 @@
  * this bridge owns only Viewer DOM bindings and is absent from catalog routes.
  */
 
+import { viewerElements } from "./16-viewer-state.js";
+import { activeCatalog, activePage } from "./18-navigation-feature.js";
+import { downloadCatalogPageSnapshot } from "./20-shared-ui.js";
+import { shareOrCopyCurrentLink } from "./30-favorites-share.js";
+
 function downloadCurrentLightboxImage() {
   if (!activeCatalog()) return;
   downloadCatalogPageSnapshot(
@@ -23,3 +28,5 @@ function attachViewerShareEvents() {
   viewerElements.lightboxScreenshot?.addEventListener("click", downloadCurrentLightboxImage);
   viewerElements.lightboxCopyLink?.addEventListener("click", shareCurrentLightboxLink);
 }
+
+export { attachViewerShareEvents, downloadCurrentLightboxImage };

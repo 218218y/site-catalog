@@ -25,6 +25,8 @@
 
 /** @typedef {{directory?:string, maxSide?:number, version?:string}} CatalogImageVariant */
 /** @typedef {{start?:number, end?:number}} SearchHighlightRange */
+/** @typedef {{subcategory:string, items:Array<CatalogRecord>}} CatalogSubcategoryGroup */
+/** @typedef {{category:string, items:Array<CatalogRecord>, directItems:Array<CatalogRecord>, subcategories:Array<CatalogSubcategoryGroup>, subcategoryMap?:Map<string, CatalogSubcategoryGroup>, hasSubcategories?:boolean}} CatalogCategoryGroup */
 /**
  * @typedef {Object} CatalogSearchResult
  * @property {string} [catalogId]
@@ -408,6 +410,7 @@
 /**
  * @typedef {Object} AppShellFeatureApi
  * @property {()=>boolean} initialize
+ * @property {(options?:{scrollPosition?:ScrollPosition|null})=>boolean} renderRoute
  */
 
 /**

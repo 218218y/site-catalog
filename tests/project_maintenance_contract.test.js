@@ -122,8 +122,9 @@ assert.match(packageJson.scripts["build:deploy:public"], /verify_public_seo\.py/
 assert.match(packageJson.scripts["build:deploy:public"], /--mirror-to dist\/site-upload-r2/);
 assert.match(packageJson.scripts["build:deploy:public"], /--mirror-to dist\/site-local/);
 assert.equal(packageJson.scripts["verify:seo:live"], "python tools/run_with_project_python.py tools/audit_public_seo.py --live");
-assert.match(builder, /def validate_js_module_boundaries/);
-assert.match(builder, /Duplicate top-level JavaScript declaration/);
+assert.match(builder, /def validate_js_spec/);
+assert.match(builder, /Unexpected esbuild graph/);
+assert.match(builder, /ESBUILD_RUNNER/);
 assert.match(verifier, /discover_javascript_tests/);
 assert.match(verifier, /resolve_project_python/);
 assert.match(verifier, /npm run setup:python/);

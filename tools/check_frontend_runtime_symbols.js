@@ -3,9 +3,8 @@
 
 /**
  * Fail when a generated route bundle references an identifier that is absent
- * from that bundle's lexical scope. This catches feature-boundary mistakes that
- * syntax checks cannot see (for example, a catalog bundle calling a Viewer-only
- * function behind a capability flag).
+ * from that route's esbuild output. This catches unresolved runtime references,
+ * tree-shaking mistakes, and feature-boundary errors in the exact browser artifact.
  */
 const path = require("node:path");
 const ts = require("typescript");

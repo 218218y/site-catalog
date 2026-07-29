@@ -2,9 +2,19 @@
  * Source module: 50-search-ui.js
  * Global and viewer search loading, scopes, result rendering, previews, and search interactions.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { catalogDocumentUrl, currentAppPage, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
+import { catalogSearch, catalogs } from "./03-runtime-context.js";
+import { getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
+import { MOBILE_READER_SEARCH_MEDIA, SEARCH_INDEX_PRELOAD_DELAY_MS, SEARCH_INPUT_DEBOUNCE_MS, SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, searchElements, searchState } from "./13-search-state.js";
+import { telemetryCleanText, telemetryFlush, telemetryTrackSearch, telemetryTrackSearchIndexFailure } from "./15-telemetry.js";
+import { activeCatalog } from "./18-navigation-feature.js";
+import { catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, clampValue, escapeHtml, getCatalogCategoryGroups, hasHoverPointer, isHtmlElement, isSaveDataEnabled, isTouchLikePointer, mediumSrc, pageSrc, setCatalogImageSource, thumbSrc } from "./20-shared-ui.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { searchCatalogDomain } from "./39-search-catalog-domain.js";
 
 /** @typedef {"global"|"viewer"} SearchChannel */
 /** @typedef {{trigger?:string}} SearchIndexLoadOptions */
@@ -1445,3 +1455,5 @@ registerFeatureInterface("search", {
   handleResize: handleSearchResize,
   handleScroll: handleSearchScroll
 });
+
+export { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu, hideLightboxSearchResults, initLightboxSearchStatus, renderLightboxCatalogMenu, resetLightboxSearch };

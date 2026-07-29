@@ -2,9 +2,22 @@
  * Source module: 56-viewer-shell.js
  * Viewer chrome, top controls, page rail, progress indicators, and fit-mode UI.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { getFeatureInterface } from "./10-app-state.js";
+import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
+import { activeCatalog, activePage } from "./18-navigation-feature.js";
+import { catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, clampValue, escapeHtml, findCatalogById, hasHoverPointer, isTouchLikePointer, pageSrc, setCatalogImageSource, setTooltipText, thumbSrc } from "./20-shared-ui.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { isFavoritesLightboxMode } from "./30-favorites-share.js";
+import { isViewerSessionOpen, syncFullscreenButtonUi } from "./52-viewer-session.js";
+import { refreshSingleViewerImageResolution } from "./53-viewer-image.js";
+import { applyZoom, getAutomaticViewerFitMode, getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, normalizeViewerFitModeSource, resetImagePosition, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
+import { clearViewerPageWheelGesture } from "./58-viewer-navigation.js";
+import { setFavoriteViewerIndex, setLightboxPage } from "./60-viewer.js";
+import { syncViewerMobileMoreMenuState } from "./62-viewer-actions.js";
 
 function showTopUiTemporarily(delay = 2200) {
   if (!viewerElements.lightbox) return;
@@ -819,3 +832,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { handleLightboxEdgeHoverMove, handleLightboxEdgeHoverViewportExit, handleLightboxPageRailEdgePointerDown, handlePageRailPointerOutside, hideLightboxFloatingPreview, hideViewerPageIndicator, hideViewerZoomIndicator, keepPageRailOpen, keepPageRailOpenFromHover, markTouchLikeRailInput, markTouchLikeViewportInput, normalizeWheelDeltaToPixels, openPageRailFromHotspot, openPageRailFromTouch, openTopUiFromHotspot, refreshLightboxLayoutForTopUiChange, renderLightboxPageRail, schedulePageRailClose, scheduleTopUiClose, setViewerAutomaticFitMode, setViewerFitMode, setViewerLoading, showPageRailFromHover, showTopUiTemporarily, showViewerZoomIndicator, syncAutomaticViewerFitMode, syncLightboxModeUi, syncLightboxProgress, syncTopUiPinnedUi, syncViewerAutoZoomButtonUi, toggleTopUiPinned, updateLightboxThumbs };

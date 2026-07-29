@@ -6,6 +6,14 @@
  * route transitions, global browser events, and startup order.
  */
 
+import { favoritesDocumentUrl, homeDocumentUrl, navigateTo, updateDocumentMetadata } from "./00-navigation.js";
+import { catalogs, siteRoutes } from "./03-runtime-context.js";
+import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
+import { telemetryInit } from "./15-telemetry.js";
+import { clearActiveLocation, navigationFeature } from "./18-navigation-feature.js";
+import { findCatalogById, handleTopLayerEscape, initImagePlaceholderObserver, recoverCatalogImageAfterInitialFailure, syncDocumentLock } from "./20-shared-ui.js";
+
 function attachShellEvents() {
   document.addEventListener("click", (event) => {
     const target = event.target;
@@ -134,7 +142,7 @@ function initDocumentRoute(options = {}) {
 }
 
 function initializeApplicationShell() {
-  telemetryInit();
+  telemetryInit({ recoverCatalogImageAfterInitialFailure });
   getFeatureInterface("catalog-grid")?.initialize();
   initImagePlaceholderObserver();
   attachFeatureEvents();
@@ -151,5 +159,8 @@ function initializeApplicationShell() {
 }
 
 registerFeatureInterface("app-shell", {
-  initialize: initializeApplicationShell
+  initialize: initializeApplicationShell,
+  renderRoute: initDocumentRoute
 });
+
+export { initDocumentRoute };

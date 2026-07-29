@@ -232,3 +232,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   __BARGIG_TEST_EXPORTS__["favorites-portability"] = Object.freeze({ createFavoritesPortabilityDomain });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { createFavoritesPortabilityDomain };

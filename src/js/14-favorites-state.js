@@ -3,6 +3,8 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+import { $requiredAnchor, $requiredButton, $requiredSelect, $requiredTextarea, requiredElement } from "./02-dom-contracts.js";
+
 const FAVORITES_SHARE_PARAM = "selection";
 const FAVORITES_SHARE_VERSION = 2;
 const FAVORITES_NOTE_MAX_LENGTH = 280;
@@ -128,3 +130,5 @@ const favoritesElements = Object.freeze({
   viewerFavoriteButton: $requiredButton("viewerFavoriteButton"),
   viewerMobileFavoritesLink: $requiredAnchor("viewerMobileFavoritesLink"),
 });
+
+export { FAVORITES_NOTE_MAX_LENGTH, FAVORITES_SHARE_PARAM, FAVORITES_SHARE_VERSION, favoritesElements, favoritesState, favoritesStore };

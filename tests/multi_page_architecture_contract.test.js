@@ -60,10 +60,10 @@ assert.match(app, /function setCurrentAppPage\([\s\S]*?document\.body\.dataset\.
 assert.match(app, /function isInternalAppDocumentUrl\([\s\S]*?siteRoutes\?\.isSameAppDocumentLocation\?\.\(window\.location, url, currentAppPage\)/);
 assert.match(app, /function canNavigateWithinCurrentDocument\([\s\S]*?getFeatureInterface\("viewer"\)\?\.usesInDocumentFullscreenNavigation\?\.\(\)[\s\S]*?isInternalAppDocumentUrl\(url\)/);
 assert.match(fs.readFileSync(path.join(root, 'site-routes.js'), 'utf8'), /function matchPageFromLocation\([\s\S]*?function basePathFromLocation\([\s\S]*?function isDocumentLocation\([\s\S]*?function isSameAppDocumentLocation\(/);
-assert.match(app, /function navigateWithinCurrentDocument\([\s\S]*?history\.pushState\([\s\S]*?initDocumentRoute\(\{ scrollPosition/);
+assert.match(app, /function navigateWithinCurrentDocument\([\s\S]*?history\.pushState\([\s\S]*?requireFeatureInterface\("app-shell"\)\.renderRoute\(\{ scrollPosition/);
 assert.match(app, /function navigateTo\([\s\S]*?canNavigateWithinCurrentDocument\(targetUrl\)[\s\S]*?window\.location\.replace\(targetUrl\?\.href \|\| target\)[\s\S]*?window\.location\.assign\(targetUrl\?\.href \|\| target\)/);
 assert.match(app, /function handleInternalAppLinkClick\([\s\S]*?getFeatureInterface\("viewer"\)\?\.usesInDocumentFullscreenNavigation\?\.\(\)[\s\S]*?navigateWithinCurrentDocument\(targetUrl\)/);
-assert.match(app, /window\.addEventListener\("popstate"[\s\S]*?initDocumentRoute\(\{/);
+assert.match(app, /window\.addEventListener\("popstate"[\s\S]*?requireFeatureInterface\("app-shell"\)\.renderRoute\(\{/);
 assert.match(app, /function syncDocumentRouteShell\([\s\S]*?nextPage === "home"[\s\S]*?catalogsSection\.classList\.toggle\("hidden", !showCatalogs\)/);
 assert.match(app, /function prepareDocumentRoute\([\s\S]*?getFeatureInterface\("viewer"\)\?\.prepareRoute\(nextPage\)[\s\S]*?getFeatureInterface\("favorites"\)\?\.prepareRoute\(nextPage\)[\s\S]*?getFeatureInterface\("catalog-grid"\)\?\.prepareRoute\(nextPage\)[\s\S]*?getFeatureInterface\("search"\)\?\.prepareRoute\(nextPage\)[\s\S]*?navigationFeature\(\)\.setAppPage\(nextPage\)[\s\S]*?navigationFeature\(\)\.syncRouteShell\(nextPage\)/);
 assert.match(app, /function navigateBack\(\) \{\s*window\.history\.back\(\);\s*\}/);

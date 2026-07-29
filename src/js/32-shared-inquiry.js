@@ -2,9 +2,18 @@
  * Source module: 32-shared-inquiry.js
  * Inquiry dialog shared by the Viewer and the favorites workspace.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into route-specific browser bundles.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { absoluteDocumentUrl, viewerDocumentUrl } from "./00-navigation.js";
+import { $requiredAnchor, $requiredButton, $requiredImage, requiredElement } from "./02-dom-contracts.js";
+import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { telemetryTrack } from "./15-telemetry.js";
+import { activeCatalog, activePage } from "./18-navigation-feature.js";
+import { buildViewerInquiryMailtoUrl } from "./19-shared-pure.js";
+import { clampPage, focusHtmlElement, isHtmlElement, pageSrc, showActionToast, syncDocumentLock, thumbSrc } from "./20-shared-ui.js";
+import { copyTextToClipboard } from "./30-favorites-share.js";
 
 /** @type {{open:boolean, returnFocus:HTMLElement|null, reference:InquiryReference|null}} */
 const inquiryState = {
@@ -358,3 +367,5 @@ registerFeatureInterface("inquiry", {
     return true;
   }
 });
+
+export { closeViewerInquiry, syncViewerInquiryUi };

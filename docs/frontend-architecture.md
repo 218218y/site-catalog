@@ -4,10 +4,10 @@
 
 ## עקרונות קבועים
 
-- עורכים רק קבצים תחת `src/js` ו־`src/css`.
+- עורכים JavaScript תחת `src/js`, נקודות כניסה תחת `src/entries`, ו־CSS תחת `src/css`.
 - `app-catalog.js`, `app-favorites.js`, `app-viewer.js` וקובצי `styles-*.css` הם תוצרים אוטומטיים.
 - `app.js` הוא loader תאימות קטן בלבד. אסור להחזיר אליו קוד יישום מונוליטי.
-- כל Route bundle עטוף ב־scope פרטי וב־strict mode.
+- כל קובץ runtime הוא ES Module אמיתי. כל Route מתחיל ב־entrypoint קטן תחת `src/entries`, ו־esbuild אורז את גרף ה־imports ל־IIFE פרטי ב־strict mode לצורך תאימות ל־HTML הקיים.
 - Feature אינו קורא state או DOM שבבעלות Feature אחר. תקשורת חוצת־Features נעשית דרך `registerFeatureInterface()` ו־`getFeatureInterface()`.
 - כל שם Feature וכל API שלו מוגדרים במפת `FeatureRegistry`; אין registry פתוח של strings ואין חוזה־על שבו כל הפעולות אופציונליות.
 - state, הפניות DOM ורישום אירועים נמצאים בבעלות תחומית מפורשת.
@@ -25,7 +25,7 @@
 | Viewer | `app-viewer.js` | `styles-viewer.css` | חיפוש בתוך Viewer, שמירת מועדפים, Viewer ומחוות; וגם יעדי המעבר בית/קטלוג/מועדפים | — |
 | משפטי/SEO | `styles.css` | ללא JavaScript יישומי | מעטפת סטטית | כל Features האינטראקטיביים |
 
-היעדר Feature נבדק לפי רשימת מודולי המקור בתוך התוצר, ולא באמצעות flag בלבד. לדוגמה, `app-catalog.js` נכשל בבנייה אם `16-viewer-state.js` או `60-viewer.js` מופיעים בו. חבילת Viewer היא חריג מכוון: היא כוללת את `catalog-grid` ואת `favorites-workspace`, מפני שהחלפת מסמך מוציאה את הדפדפן ממצב מסך מלא ולכן המעבר מה־Viewer למסלולים האלה חייב להישאר בתוך המסמך הנוכחי.
+היעדר Feature נבדק לפי ה־metafile של esbuild ולפי רשימת גרף המקור החתומה בראש התוצר, ולא באמצעות flag בלבד. לדוגמה, `app-catalog.js` נכשל בבנייה אם `16-viewer-state.js` או `60-viewer.js` מופיעים בו. חבילת Viewer היא חריג מכוון: היא כוללת את `catalog-grid` ואת `favorites-workspace`, מפני שהחלפת מסמך מוציאה את הדפדפן ממצב מסך מלא ולכן המעבר מה־Viewer למסלולים האלה חייב להישאר בתוך המסמך הנוכחי.
 
 ## בעלות על state ו־DOM
 
@@ -49,7 +49,7 @@
 - `jsconfig.json` שאינו בודק את כל `src/js` ב־strict מלא.
 - Bootstrap שמכיל יותר מגבול startup מינימלי.
 
-החריג אינו "קובץ אחר באותו bundle": רק קובצי owner מפורשים רשאים לגעת במבנה mutable. שאר הקוד משתמש בחוזה Feature ממוקד, גם כאשר כל המודולים עדיין נארזים לאותו lexical scope.
+החריג אינו "קובץ אחר באותו bundle": רק קובצי owner מפורשים רשאים לגעת במבנה mutable. כל תלות חוצת־קבצים מופיעה כ־`import` מפורש, ושאר הקוד משתמש בחוזה Feature ממוקד. אין עוד scope לקסיקלי משותף שמאפשר לסמל לא־מיובא להיראות במקרה.
 
 ## Feature Interfaces
 
@@ -76,11 +76,25 @@
 5. Interface נרשם כ־frozen object כדי למנוע החלפה שקטה בזמן ריצה.
 6. אירועים נרשמים פעם אחת בלבד באמצעות `bindFeatureEventsOnce()` ורק אחרי binder שהסתיים בהצלחה.
 
+## בניית ES Modules וגרפי מסלולים
+
+- `esbuild` הוא `devDependency` ישיר ומקובע בדיוק ל־`0.28.1`; גם `package-lock.json` מקבע את חבילת הליבה ואת הבינארי הפלטפורמי. `tools/build_frontend_esbuild.mjs` מסרב לעבוד עם גרסה אחרת.
+- נקודות הכניסה הן `src/entries/catalog.js`, `src/entries/favorites.js` ו־`src/entries/viewer.js`. הן מכילות imports סטטיים בלבד ואינן מחזיקות state או לוגיקה עסקית.
+- `tools/build_frontend_assets.py` מחזיק manifest נבדק לכל Route. לאחר bundling הוא משווה את כל `metafile.inputs` לגרף המאושר; תלות טרנזיטיבית חדשה, חסרה או לא צפויה מכשילה את הבנייה.
+- שמות התוצרים נשמרים: `app-catalog.js`, `app-favorites.js`, `app-viewer.js`. הפורמט נשאר IIFE כדי שה־HTML, ה־CSP וה־loader ההיסטורי לא יצטרכו שינוי.
+- route capability flags מוזרקים בזמן build דרך `01-route-capabilities.js`, אבל הם אינם תחליף ל־tree shaking: Feature שאינו במסלול חייב להיעדר פיזית מהגרף.
+- אין `dynamic import` בשלב זה. `catalog` ו־`favorites` כבר מפוצלים לפי מסלול, ולכן טעינה דינמית הייתה מוסיפה latency ומסלול כשל בלי חיסכון משמעותי. ב־Viewer היא אף מסוכנת יותר: Search, Catalog Grid ו־Favorites Workspace חייבים להיות זמינים באותו document כדי שמעבר בזמן fullscreen לא יגרום ליציאה ממסך מלא. החלטה זו נבחנת מחדש רק אם מדידה תראה חיסכון ממשי שמצדיק את המורכבות.
+- גרף ה־imports נבדק באמצעות strongly connected components. מחזור בין תחומים או בין Features אסור. המחזור היחיד המאושר הוא בתוך תת־המודולים הקוהרנטיים של Viewer, שבהם אין הפעלת lifecycle ברמת top-level; TypeScript, esbuild ובדיקות הדפדפן משמשים יחד כשער נגד TDZ או סדר אתחול שגוי.
+- `02-dom-contracts.js`, `03-runtime-context.js` ו־`17-catalog-asset-urls.js` הם owners נמוכים ועצמאיים שנועדו למנוע תלות הפוכה בין Navigation, Shared UI, Telemetry ו־App Shell. Telemetry מקבלת callback לשחזור תמונה דרך dependency injection, ו־Navigation מבקש render מחדש דרך חוזה `app-shell` במקום לייבא את ה־composition root.
+
 ## מודולי JavaScript
 
 | מודול | אחריות |
 |---|---|
 | `00-navigation.js` | כתובות, history, ניווט פנימי ומטא־דאטה |
+| `01-route-capabilities.js` | יכולות Route מוזרקות בזמן build |
+| `02-dom-contracts.js` | lookup טיפוסי וחוזי DOM משותפים |
+| `03-runtime-context.js` | נתוני bootstrap לקריאה בלבד: קטלוגים, חיפוש ו־routes |
 | `05-app-contracts.js` | טיפוסי JSDoc וחוזי Feature משותפים |
 | `10-app-state.js` | שירותים route-neutral ורישום Feature Interfaces |
 | `11-navigation-state.js` | מצב ניווט ו־DOM של מעטפת |
@@ -89,6 +103,7 @@
 | `14-favorites-state.js` | מצב ו־DOM של מועדפים |
 | `15-telemetry.js` | ניטור שומר פרטיות |
 | `16-viewer-state.js` | מצב ו־DOM של Viewer בלבד |
+| `17-catalog-asset-urls.js` | יצירת כתובות נכסי קטלוג וגרסאות cache |
 | `18-navigation-feature.js` | facade טיפוסי לבעלות ניווט ו־Route shell |
 | `19-shared-pure.js` | מדיניות טהורה משותפת, ללא DOM או state |
 | `20-shared-ui.js` | שירותי UI משותפים שאינם בבעלות Feature יחיד |
@@ -133,7 +148,7 @@ CSS נשמר בשכבות אחריות קיימות, אך builder מרכיב man
 - `styles-favorites.css`: מוסיף Workspace, חלון בירור משותף ו־favorites routing.
 - `styles-viewer.css`: מוסיף Viewer, onboarding, חלון בירור משותף ויכולות עיצוב למסלולי המעבר במסך מלא.
 
-סדר ה־cascade הוא חלק מהחוזה ונבדק על ידי builder. קובצי המקור אינם מועלים לפריסה; רק התוצרים החתומים ב־hash נשלחים. חוזי JSDoc נשארים מלאים במקור לצורך `checkJs`, אך ה־builder מסיר הערות type-only מה־JavaScript המיוצר ושומר הערות רישיון, כדי שהקשחת הטיפוסים לא תנפח את משקל ההורדה.
+סדר ה־cascade הוא חלק מהחוזה ונבדק על ידי builder. קובצי המקור אינם מועלים לפריסה; רק התוצרים החתומים ב־hash נשלחים. חוזי JSDoc נשארים מלאים במקור לצורך `checkJs`; esbuild מנתח אותם כמטא־דאטה מקור ואינו מעביר הערות type-only לתוצר, תוך שמירת הערות רישיון לפי `legalComments: "inline"`.
 
 ## שערי Build ו־CI
 

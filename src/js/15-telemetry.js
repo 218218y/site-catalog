@@ -7,6 +7,12 @@
  * Respect for Global Privacy Control and Do Not Track is built in.
  */
 
+import { currentAppPage } from "./00-navigation.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { CATALOG_IMAGE_RETRY_PARAM } from "./10-app-state.js";
+import { LIGHTBOX_SOURCE_CATALOG } from "./11-navigation-state.js";
+import { activeCatalog, activePage } from "./18-navigation-feature.js";
+
 /** @typedef {"LCP"|"INP"|"CLS"} TelemetryWebVitalName */
 /**
  * @typedef {Object} TelemetryFields
@@ -27,6 +33,7 @@
  */
 /** @typedef {{immediate?:boolean}} TelemetryTrackOptions */
 /** @typedef {{beacon?:boolean}} TelemetryFlushOptions */
+/** @typedef {{recoverCatalogImageAfterInitialFailure?:(image:HTMLImageElement)=>boolean}} TelemetryInitOptions */
 /** @typedef {{surface?:unknown, scope?:unknown, catalogId?:unknown, completion?:unknown, immediate?:boolean}} TelemetrySearchOptions */
 /** @typedef {{img?:HTMLImageElement|null, detail?:unknown, action?:unknown, failedAttempts?:unknown, attempt?:unknown, value?:unknown}} TelemetryImageEventOptions */
 /** @typedef {{src?:unknown, target?:Element|null, trigger?:unknown}} TelemetrySearchIndexFailureOptions */
@@ -697,7 +704,8 @@ function telemetryHandleDocumentClick(event) {
   }
 }
 
-function telemetryInit() {
+/** @param {TelemetryInitOptions} [options] */
+function telemetryInit(options = {}) {
   if (telemetryRuntime.initialized) return;
   telemetryRuntime.initialized = true;
   if (!telemetryIsEnabled()) return;
@@ -708,7 +716,7 @@ function telemetryInit() {
       const image = event.target instanceof HTMLImageElement ? event.target : null;
       if (!image) return;
       if (image.dataset.telemetryManaged !== "true") {
-        if (recoverCatalogImageAfterInitialFailure(image)) return;
+        if (options.recoverCatalogImageAfterInitialFailure?.(image)) return;
         telemetryTrackImageTerminalFailure(image.currentSrc || image.src, {
           img: image,
           detail: telemetryCatalogImageContext(image).detail,
@@ -752,3 +760,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { telemetryCatalogImageContext, telemetryCleanText, telemetryFlush, telemetryInit, telemetryTrack, telemetryTrackCatalogOpen, telemetryTrackFavorite, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure, telemetryTrackSearch, telemetryTrackSearchIndexFailure };

@@ -6,6 +6,7 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const telemetry = fs.readFileSync(path.join(root, "src/js/15-telemetry.js"), "utf8");
+const appShell = fs.readFileSync(path.join(root, "src/js/80-app-shell.js"), "utf8");
 const headers = fs.readFileSync(path.join(root, "_headers"), "utf8");
 const siteTemplate = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
 const legalTemplate = fs.readFileSync(path.join(root, "legal.template.html"), "utf8");
@@ -28,7 +29,8 @@ assert.match(telemetry, /telemetryTrackResourceError\(eventTargetElement\(event\
 assert.match(telemetry, /function telemetryResourceScope\(value\)/);
 assert.match(telemetry, /return "cloudflare-observability"/);
 assert.match(telemetry, /return "netfree-filter"/);
-assert.match(telemetry, /recoverCatalogImageAfterInitialFailure\(image\)/);
+assert.match(telemetry, /options\.recoverCatalogImageAfterInitialFailure\?\.\(image\)/);
+assert.match(appShell, /telemetryInit\(\{ recoverCatalogImageAfterInitialFailure \}\)/);
 assert.match(telemetry, /telemetryTrackSearchIndexFailure\("network-error"/);
 assert.doesNotMatch(telemetry, /telemetryTrackImageFailure/);
 assert.doesNotMatch(telemetry, /document\.cookie/);

@@ -56,8 +56,9 @@
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",
-    "wrangler": "4.112.0",
-    "typescript": "5.8.3"
+    "esbuild": "0.28.1",
+    "typescript": "5.8.3",
+    "wrangler": "4.112.0"
   },
   "allowScripts": {
     "esbuild": true,

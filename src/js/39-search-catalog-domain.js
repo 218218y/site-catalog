@@ -304,3 +304,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   __BARGIG_TEST_EXPORTS__["search-catalog"] = searchCatalogDomain;
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { searchCatalogDomain };

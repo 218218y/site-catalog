@@ -3,6 +3,9 @@
  * Minimal startup entry point. Application behavior is composed in 80-app-shell.js.
  */
 
+import { markAppReady } from "./00-navigation.js";
+import { getFeatureInterface } from "./10-app-state.js";
+
 function init() {
   return getFeatureInterface("app-shell")?.initialize() ?? true;
 }

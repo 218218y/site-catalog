@@ -3,6 +3,15 @@
  * Viewer-only image swaps, resolution selection, and progressive upgrade lifecycle.
  */
 
+import { CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, getFeatureInterface } from "./10-app-state.js";
+import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_PAGE_SWAP_CLEANUP_MS, viewerElements, viewerState } from "./16-viewer-state.js";
+import { activeCatalog, activePage } from "./18-navigation-feature.js";
+import { applyCatalogImageDimensions, catalogImageTierMaxSide, catalogNeighborPreloadRadius, catalogPageImageSrc, catalogSupportsImageTier, isSaveDataEnabled, loadCatalogImageWithRecovery, networkEffectiveType, normalizeCatalogImageUrl, pageSize, pageSrc, prepareCatalogImage, prepareImagePlaceholder, syncImagePlaceholderState } from "./20-shared-ui.js";
+import { isFavoritesLightboxMode } from "./30-favorites-share.js";
+import { isViewerSessionOpen } from "./52-viewer-session.js";
+import { applyLightboxFrameGeometry, applyZoom } from "./54-viewer-geometry.js";
+import { setViewerLoading } from "./56-viewer-shell.js";
+
 /**
  * @param {HTMLElement|null|undefined} element
  * @param {ViewerPageSwapAnimationOptions} [options]
@@ -533,3 +542,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { activeSingleViewerImageLogicalSrc, activeSingleViewerImageTier, clearSingleViewerResolutionUpgrade, preloadNeighbors, refreshSingleViewerImageResolution, shouldWarmSingleViewerFullResolution, showSingleLightboxImage, viewerPageImageRequest, viewerPageSrc };

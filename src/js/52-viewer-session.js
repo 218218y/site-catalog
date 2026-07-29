@@ -2,9 +2,15 @@
  * Source module: 52-viewer-session.js
  * Explicit viewer lifecycle and browser Fullscreen API state transitions.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { homeDocumentUrl, navigateTo } from "./00-navigation.js";
+import { VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, viewerElements, viewerState } from "./16-viewer-state.js";
+import { flashActionButton, setTooltipText } from "./20-shared-ui.js";
+import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-search-ui.js";
+import { refreshLightboxLayoutForTopUiChange, showTopUiTemporarily } from "./56-viewer-shell.js";
 
 const VIEWER_PHASE_TRANSITIONS = Object.freeze({
   [VIEWER_PHASE_CLOSED]: new Set([VIEWER_PHASE_CLOSED, VIEWER_PHASE_OPENING]),
@@ -210,3 +216,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { exitBrowserFullscreen, handleBrowserFullscreenChange, isBrowserFullscreenActive, isViewerSessionOpen, reconcileViewerFullscreenPhase, returnToMainSiteFromLightbox, syncFullscreenButtonUi, toggleBrowserFullscreen, transitionViewerPhase, viewerUsesInDocumentFullscreenNavigation };

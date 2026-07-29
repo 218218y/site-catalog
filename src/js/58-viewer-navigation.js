@@ -6,6 +6,17 @@
  * same paged navigation contract used by buttons, keyboard, and touch input.
  */
 
+import { getFeatureInterface } from "./10-app-state.js";
+import { VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_SETTLE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
+import { activeCatalog, activePage } from "./18-navigation-feature.js";
+import { clampValue } from "./20-shared-ui.js";
+import { isFavoritesLightboxMode } from "./30-favorites-share.js";
+import { isViewerSessionOpen } from "./52-viewer-session.js";
+import { showSingleLightboxImage, viewerPageImageRequest } from "./53-viewer-image.js";
+import { consumeSingleViewerPanInput, singleViewerUsesBoundaryPan } from "./54-viewer-geometry.js";
+import { normalizeWheelDeltaToPixels } from "./56-viewer-shell.js";
+import { moveLightbox, setFavoriteViewerIndex, setLightboxPage } from "./60-viewer.js";
+
 function retryCurrentViewerImage() {
   const catalog = activeCatalog();
   if (!isViewerSessionOpen() || !catalog) return;
@@ -228,3 +239,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { clearViewerPageWheelGesture, consumeSingleViewerBoundaryInput, handleViewerPageWheel, retryCurrentViewerImage };

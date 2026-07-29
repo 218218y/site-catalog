@@ -3,6 +3,9 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+import { $requiredButton, $requiredImage, $requiredInput, requiredElement } from "./02-dom-contracts.js";
+import { catalogSearch } from "./03-runtime-context.js";
+
 const SEARCH_INPUT_DEBOUNCE_MS = 90;
 const SEARCH_INDEX_PRELOAD_DELAY_MS = 6000;
 const MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)";
@@ -70,3 +73,5 @@ const searchElements = Object.freeze({
   lightboxCatalogMenuToggle: $requiredButton("lightboxCatalogMenuToggle"),
   lightboxCatalogMenu: requiredElement("lightboxCatalogMenu"),
 });
+
+export { MOBILE_READER_SEARCH_MEDIA, SEARCH_INDEX_PRELOAD_DELAY_MS, SEARCH_INPUT_DEBOUNCE_MS, SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, searchElements, searchState };

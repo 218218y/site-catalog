@@ -6,6 +6,17 @@
  * testable without mixing them into page loading, layout, or route behavior.
  */
 
+import { getFeatureInterface } from "./10-app-state.js";
+import { DOUBLE_TAP_DELAY, DOUBLE_TAP_DISTANCE, TAP_MOVE_TOLERANCE, VIEWER_PAGE_SWIPE_AXIS_RATIO, VIEWER_PAGE_SWIPE_MIN_DISTANCE, VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS, VIEWER_TOUCH_VELOCITY_BLEND, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
+import { clampValue, isTouchLikePointer } from "./20-shared-ui.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { hideLightboxSearchResults } from "./50-search-ui.js";
+import { isViewerSessionOpen } from "./52-viewer-session.js";
+import { getPointerList, pointerDistance, pointerMidpoint, setZoom, singleViewerUsesBoundaryPan, toggleZoomAtPoint } from "./54-viewer-geometry.js";
+import { normalizeWheelDeltaToPixels } from "./56-viewer-shell.js";
+import { consumeSingleViewerBoundaryInput, handleViewerPageWheel } from "./58-viewer-navigation.js";
+import { moveLightbox } from "./60-viewer.js";
+
 /** @param {EventTarget|null} surface */
 function getZoomSurfaceName(surface) {
   return surface === viewerElements.stageCanvas ? "catalog-page" : "";
@@ -631,3 +642,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { attachViewerGestures, handleLightboxPointerDownCapture, handleViewerSurfacePointerDown, stopViewerTouchMomentum };

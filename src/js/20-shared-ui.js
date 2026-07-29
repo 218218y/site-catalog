@@ -2,9 +2,16 @@
  * Source module: 20-shared-ui.js
  * Shared media loading, image placeholders, action feedback, asset paths, snapshots, and route helpers.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { eventTargetElement, requiredElement } from "./02-dom-contracts.js";
+import { catalogs } from "./03-runtime-context.js";
+import { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_EAGER_COVER_COUNT, CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY, CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE, CATALOG_IMAGE_PRELOAD_CACHE_LIMIT, CATALOG_IMAGE_RETRY_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, DEFAULT_CATALOG_MEDIUM_MAX_SIDE, catalogAssetState, featureInterfacesByEscapePriority, getFeatureInterface, uiRuntime } from "./10-app-state.js";
+import { telemetryCatalogImageContext, telemetryCleanText, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure } from "./15-telemetry.js";
+import { activeCatalog } from "./18-navigation-feature.js";
+import { catalogDir, coverThumbSrc, imageExt, pageSrc, resolveCatalogAssetUrl, thumbSrc, withAssetVersion } from "./17-catalog-asset-urls.js";
 
 /** @type {Readonly<{siteActionToast:HTMLElement}>} */
 const uiElements = Object.freeze({
@@ -40,42 +47,11 @@ function isHtmlElement(value) {
   return value instanceof HTMLElement;
 }
 
-/** @param {EventTarget|null} target @returns {Element|null} */
-function eventTargetElement(target) {
-  return target instanceof Element ? target : null;
-}
-
 /** @param {unknown} value @param {FocusOptions} [options] @returns {boolean} */
 function focusHtmlElement(value, options) {
   if (!(value instanceof HTMLElement)) return false;
   value.focus(options);
   return true;
-}
-
-function catalogAssetBaseUrl() {
-  const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
-  if (!rawBase) return "";
-  return rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
-}
-
-/** @param {string} path */
-function isAbsoluteAssetUrl(path) {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith("//") || path.startsWith("data:");
-}
-
-/** @param {unknown} path */
-function resolveCatalogAssetUrl(path) {
-  const cleanPath = String(path || "").trim();
-  if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
-
-  const baseUrl = catalogAssetBaseUrl();
-  if (!baseUrl) return cleanPath;
-
-  try {
-    return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
-  } catch {
-    return `${baseUrl}${cleanPath.replace(/^\/+/, "")}`;
-  }
 }
 
 /** @param {string} [_url] */
@@ -389,9 +365,9 @@ function clampValue(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-/** @param {number|string} num */
-function pad(num) {
-  return String(num).padStart(3, "0");
+/** @param {number|string} value */
+function pad(value) {
+  return String(value).padStart(3, "0");
 }
 
 /** @param {unknown} value */
@@ -539,50 +515,6 @@ function getCatalogCategoryGroups() {
   return groups;
 }
 
-/** @param {CatalogRecord|null|undefined} catalog */
-function imageExt(catalog) {
-  return catalog?.imageExt || "jpg";
-}
-
-/** @param {CatalogRecord} catalog */
-function catalogDir(catalog) {
-  return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
-}
-
-/** @param {CatalogRecord|null|undefined} catalog @param {unknown} tier */
-function catalogAssetVersionForTier(catalog, tier) {
-  const normalizedTier = String(tier || CATALOG_IMAGE_TIER_FULL);
-  const variantVersion = String(catalog?.imageVariants?.[normalizedTier]?.version || "").trim();
-  const baseVersion = variantVersion || String(catalog?.assetVersion || "").trim();
-  if (!baseVersion) return "";
-  return `${baseVersion}-${normalizedTier}-u${CATALOG_ASSET_URL_SCHEMA_VERSION}`;
-}
-
-/** @param {string} url @param {CatalogRecord|null|undefined} catalog @param {string} [tier] */
-function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
-  const version = catalogAssetVersionForTier(catalog, tier);
-  if (!version) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}${CATALOG_ASSET_VERSION_PARAM}=${encodeURIComponent(version)}`;
-}
-
-/** @param {CatalogRecord} catalog @param {number|string} page */
-function pageSrc(catalog, page) {
-  return withAssetVersion(
-    `${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`,
-    catalog,
-    CATALOG_IMAGE_TIER_FULL
-  );
-}
-
-/** @param {CatalogRecord} catalog @param {number|string} page */
-function thumbSrc(catalog, page) {
-  return withAssetVersion(
-    `${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`,
-    catalog,
-    CATALOG_IMAGE_TIER_THUMB
-  );
-}
-
 /** @param {CatalogRecord|null|undefined} catalog @param {string} tier @returns {CatalogImageVariant|null} */
 function catalogImageVariant(catalog, tier) {
   if (tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled()) return null;
@@ -632,11 +564,6 @@ function catalogPageImageSrc(catalog, page, tier) {
 /** @param {CatalogRecord} catalog */
 function catalogCoverSrc(catalog) {
   return catalog?.cover ? withAssetVersion(resolveCatalogAssetUrl(catalog.cover), catalog) : pageSrc(catalog, 1);
-}
-
-/** @param {CatalogRecord} catalog */
-function coverThumbSrc(catalog) {
-  return thumbSrc(catalog, 1);
 }
 
 /** @param {CatalogRecord|null|undefined} catalog @param {number|string} page */
@@ -1075,3 +1002,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { applyCatalogImageDimensions, buildCategoryShareRouteHash, catalogCategorySharePath, catalogCoverLoadingAttributes, catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, catalogImageTierMaxSide, catalogNeighborPreloadRadius, catalogPageImageSrc, catalogPagesShareAspectRatio, catalogSubcategorySharePath, catalogSupportsImageTier, categorySectionId, categoryShareSlug, clampPage, clampValue, coverThumbSrc, decodeHashRouteSegment, downloadCatalogPageSnapshot, encodeHashRouteSegment, escapeHtml, findCatalogById, flashActionButton, focusHtmlElement, getCatalogCategoryGroups, handleTopLayerEscape, hasHoverPointer, initImagePlaceholderObserver, isHtmlElement, isSaveDataEnabled, isTouchLikePointer, loadCatalogImageWithRecovery, mediumSrc, networkEffectiveType, normalizeCatalogImageUrl, normalizeShareRoutePath, pageAspectStyle, pageAspectVariableStyle, pageSize, pageSrc, prepareCatalogImage, prepareImagePlaceholder, recoverCatalogImageAfterInitialFailure, setCatalogImageSource, setTooltipText, showActionToast, subcategorySectionId, subcategoryShareSlug, syncDocumentLock, syncImagePlaceholderState, thumbSrc };

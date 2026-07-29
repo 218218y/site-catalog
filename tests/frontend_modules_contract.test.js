@@ -16,26 +16,54 @@ const legacyLoader = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 const deployBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
 const frontendBuilder = fs.readFileSync(path.join(root, 'tools', 'build_frontend_assets.py'), 'utf8');
+const esbuildRunner = fs.readFileSync(path.join(root, 'tools', 'build_frontend_esbuild.mjs'), 'utf8');
 const contractChecker = fs.readFileSync(path.join(root, 'tools', 'check_frontend_contracts.py'), 'utf8');
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+
+const sourceMarker = (relativePath) => ` *   - ${relativePath}`;
 
 for (const bundle of [catalogBundle, favoritesBundle, viewerBundle]) {
   assert.match(bundle, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
-  assert.match(bundle, /\(\(\) => \{\s*"use strict";/);
+  assert.match(bundle, /Bundler: esbuild 0\.28\.1 \(direct pinned devDependency\)/);
+  assert.match(bundle, /\(\(\) => \{\s*["']use strict["'];/);
   assert.match(bundle, /\}\)\(\);\s*$/);
   assert.equal((bundle.match(/let initResult = true;/g) || []).length, 1);
   assert.equal((bundle.match(/initResult = init\(\);/g) || []).length, 1);
+  assert.doesNotMatch(bundle, /^\s*import\s/m);
+  assert.doesNotMatch(bundle, /^\s*export\s/m);
+  assert.doesNotMatch(bundle, /__BARGIG_TEST_EXPORTS__/);
 }
 for (const css of [catalogCss, favoritesCss, viewerCss]) {
   assert.match(css, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
 }
 
+assert.equal(packageJson.devDependencies.esbuild, '0.28.1');
+assert.equal(packageLock.packages[''].devDependencies.esbuild, '0.28.1');
+assert.equal(packageLock.packages['node_modules/esbuild'].version, '0.28.1');
+assert.match(packageLock.packages['node_modules/esbuild'].resolved, /esbuild-0\.28\.1\.tgz$/);
+assert.ok(packageLock.packages['node_modules/esbuild'].integrity);
+assert.equal(packageLock.packages['node_modules/@esbuild/linux-x64'].version, '0.28.1');
+assert.ok(packageLock.packages['node_modules/@esbuild/linux-x64'].integrity);
+
 assert.match(frontendBuilder, /BUNDLE_SPECS:\s*tuple\[FrontendBundleSpec, \.\.\.\]/);
+assert.match(frontendBuilder, /entrypoint="src\/entries\/catalog\.js"/);
+assert.match(frontendBuilder, /entrypoint="src\/entries\/favorites\.js"/);
+assert.match(frontendBuilder, /entrypoint="src\/entries\/viewer\.js"/);
+assert.match(frontendBuilder, /Unexpected esbuild graph/);
 assert.match(frontendBuilder, /ROUTE_ASSETS:/);
 assert.match(frontendBuilder, /DEPLOY_GENERATED_FILES/);
 assert.match(frontendBuilder, /def atomic_write_text/);
 assert.match(frontendBuilder, /def build_frontend_assets/);
 assert.match(frontendBuilder, /def validate_module_manifest/);
 assert.match(frontendBuilder, /def render_legacy_loader/);
+assert.match(esbuildRunner, /import \{ build, version as esbuildVersion \} from "esbuild"/);
+assert.match(esbuildRunner, /EXPECTED_ESBUILD_VERSION = "0\.28\.1"/);
+assert.match(esbuildRunner, /entryPoints: \[entry\]/);
+assert.match(esbuildRunner, /bundle: true/);
+assert.match(esbuildRunner, /format: "iife"/);
+assert.match(esbuildRunner, /treeShaking: true/);
+assert.match(esbuildRunner, /metafile: true/);
 assert.match(legacyLoader, /GENERATED COMPATIBILITY LOADER/);
 assert.match(legacyLoader, /app-catalog\.js/);
 assert.match(legacyLoader, /app-favorites\.js/);
@@ -47,26 +75,47 @@ assert.match(pageBuilder, /ROUTE_SCRIPT/);
 assert.match(deployBuilder, /DEPLOY_GENERATED_FILES as FRONTEND_GENERATED_FILES/);
 assert.doesNotMatch(deployBuilder, /src\/js|src\/css/);
 
-assert.match(catalogBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
-assert.match(catalogBundle, /BEGIN SOURCE: src\/js\/50-search-ui\.js/);
-assert.doesNotMatch(catalogBundle, /BEGIN SOURCE: src\/js\/16-viewer-state\.js/);
-assert.doesNotMatch(catalogBundle, /BEGIN SOURCE: src\/js\/60-viewer\.js/);
-assert.doesNotMatch(catalogBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
+for (const bundle of [catalogBundle, favoritesBundle, viewerBundle]) {
+  assert.ok(bundle.includes(sourceMarker('src/js/02-dom-contracts.js')));
+  assert.ok(bundle.includes(sourceMarker('src/js/03-runtime-context.js')));
+  assert.ok(bundle.includes(sourceMarker('src/js/17-catalog-asset-urls.js')));
+  assert.ok(bundle.includes(sourceMarker('src/js/80-app-shell.js')));
+}
 
-assert.match(favoritesBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
-assert.match(favoritesBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
-assert.match(favoritesBundle, /BEGIN SOURCE: src\/js\/32-shared-inquiry\.js/);
-assert.doesNotMatch(favoritesBundle, /BEGIN SOURCE: src\/js\/16-viewer-state\.js/);
-assert.doesNotMatch(favoritesBundle, /BEGIN SOURCE: src\/js\/60-viewer\.js/);
+assert.match(catalogBundle, /ES module entrypoint: src\/entries\/catalog\.js/);
+assert.ok(catalogBundle.includes(sourceMarker('src/js/40-catalog-grid.js')));
+assert.ok(catalogBundle.includes(sourceMarker('src/js/50-search-ui.js')));
+assert.ok(!catalogBundle.includes(sourceMarker('src/js/16-viewer-state.js')));
+assert.ok(!catalogBundle.includes(sourceMarker('src/js/60-viewer.js')));
+assert.ok(!catalogBundle.includes(sourceMarker('src/js/35-favorites-workspace.js')));
 
-assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/16-viewer-state\.js/);
-assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/31-viewer-share\.js/);
-assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/32-shared-inquiry\.js/);
-assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/60-viewer\.js/);
-assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/35-favorites-workspace\.js/);
-assert.match(viewerBundle, /BEGIN SOURCE: src\/js\/40-catalog-grid\.js/);
+assert.match(favoritesBundle, /ES module entrypoint: src\/entries\/favorites\.js/);
+assert.ok(favoritesBundle.includes(sourceMarker('src/js/35-favorites-workspace.js')));
+assert.ok(favoritesBundle.includes(sourceMarker('src/js/40-catalog-grid.js')));
+assert.ok(favoritesBundle.includes(sourceMarker('src/js/32-shared-inquiry.js')));
+assert.ok(!favoritesBundle.includes(sourceMarker('src/js/16-viewer-state.js')));
+assert.ok(!favoritesBundle.includes(sourceMarker('src/js/60-viewer.js')));
+
+assert.match(viewerBundle, /ES module entrypoint: src\/entries\/viewer\.js/);
+assert.ok(viewerBundle.includes(sourceMarker('src/js/16-viewer-state.js')));
+assert.ok(viewerBundle.includes(sourceMarker('src/js/31-viewer-share.js')));
+assert.ok(viewerBundle.includes(sourceMarker('src/js/32-shared-inquiry.js')));
+assert.ok(viewerBundle.includes(sourceMarker('src/js/60-viewer.js')));
+assert.ok(viewerBundle.includes(sourceMarker('src/js/35-favorites-workspace.js')));
+assert.ok(viewerBundle.includes(sourceMarker('src/js/40-catalog-grid.js')));
 assert.match(viewerBundle, /getFeatureInterface\("search"\)/);
 
+for (const route of ['catalog', 'favorites', 'viewer']) {
+  const entry = fs.readFileSync(path.join(root, 'src', 'entries', `${route}.js`), 'utf8');
+  assert.match(entry, /^\/\*\* Route entry:/);
+  assert.match(entry, /import "\.\.\/js\/80-app-shell\.js";/);
+  assert.match(entry, /import "\.\.\/js\/90-bootstrap\.js";/);
+  assert.doesNotMatch(entry, /import\s*\(/);
+}
+
+assert.match(contractChecker, /runtime source is not an ES module/);
+assert.match(contractChecker, /APPROVED_IMPORT_CYCLES/);
+assert.match(contractChecker, /unapproved ES-module dependency cycle/);
 assert.match(contractChecker, /Viewer implementation reaches into search internals/);
 assert.match(contractChecker, /Search implementation reaches into Viewer internals/);
 assert.match(contractChecker, /app\.js is still a monolithic bundle/);

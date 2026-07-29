@@ -2,9 +2,17 @@
  * Source module: 62-viewer-actions.js
  * Compact Viewer mobile utility menu.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into route-specific browser bundles.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, viewerElements, viewerState } from "./16-viewer-state.js";
+import { focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";
+import { eventTargetElement } from "./02-dom-contracts.js";
+import { downloadCurrentLightboxImage } from "./31-viewer-share.js";
+import { isViewerSessionOpen } from "./52-viewer-session.js";
+import { normalizeViewerFitMode, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
+import { setViewerAutomaticFitMode, setViewerFitMode, showTopUiTemporarily, toggleTopUiPinned } from "./56-viewer-shell.js";
 
 const MOBILE_VIEWER_TOOLBAR_MEDIA = "(max-width: 760px)";
 
@@ -123,3 +131,5 @@ function attachViewerActionEvents() {
     if (!isMobileViewerToolbarMode()) closeViewerMobileMoreMenu();
   });
 }
+
+export { attachViewerActionEvents, closeViewerMobileMoreMenu, syncViewerMobileMoreMenuState };

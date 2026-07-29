@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate feature-owned frontend state, DOM references, and route bundle boundaries."""
+"""Validate feature ownership, explicit ES-module dependencies, and route bundles."""
 from __future__ import annotations
 
 import json
@@ -72,6 +72,26 @@ DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
     ),
 }
 
+STATIC_IMPORT_RE = re.compile(
+    r"^\s*import(?:\s+[\s\S]*?\s+from\s+|\s*)[\"](?P<specifier>[^\"]+)[\"]\s*;",
+    re.MULTILINE,
+)
+DYNAMIC_IMPORT_RE = re.compile(r"\bimport\s*\(")
+
+APPROVED_IMPORT_CYCLES: tuple[frozenset[str], ...] = (
+    frozenset({
+        "src/js/52-viewer-session.js",
+        "src/js/53-viewer-image.js",
+        "src/js/54-viewer-geometry.js",
+        "src/js/56-viewer-shell.js",
+        "src/js/58-viewer-navigation.js",
+        "src/js/60-viewer.js",
+        "src/js/62-viewer-actions.js",
+        "src/js/65-viewer-onboarding.js",
+        "src/js/70-viewer-input.js",
+    }),
+)
+
 FEATURE_NAMES = frozenset({
     "navigation",
     "favorites",
@@ -111,9 +131,106 @@ def check_typecheck_configuration(base: Path, failures: list[str]) -> None:
     include = config.get("include", [])
     if "src/js/**/*.js" not in include:
         failures.append("jsconfig.json must type-check every src/js module via src/js/**/*.js")
+    if "src/entries/**/*.js" not in include:
+        failures.append("jsconfig.json must type-check every route entrypoint via src/entries/**/*.js")
+    if compiler.get("module") != "ESNext" or compiler.get("moduleResolution") != "Bundler":
+        failures.append("jsconfig.json must type-check native ES modules with module=ESNext and moduleResolution=Bundler")
     files = config.get("files", [])
     if "types/frontend-globals.d.ts" not in files:
         failures.append("jsconfig.json must include types/frontend-globals.d.ts")
+
+
+def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]) -> None:
+    """Validate explicit local imports and reject unreviewed dependency cycles."""
+
+    entries = sorted((base / "src" / "entries").glob("*.js"))
+    allowed_root = (base / "src").resolve()
+    entry_root = (base / "src" / "entries").resolve()
+    all_modules = [*sources, *entries]
+    graph: dict[str, set[str]] = {path.relative_to(base).as_posix(): set() for path in all_modules}
+
+    for path in all_modules:
+        relative = path.relative_to(base).as_posix()
+        text = path.read_text(encoding="utf-8")
+        if DYNAMIC_IMPORT_RE.search(strip_javascript_comments(text)):
+            failures.append(f"dynamic import is not justified in the current route architecture: {relative}")
+        for match in STATIC_IMPORT_RE.finditer(text):
+            specifier = match.group("specifier")
+            if not specifier.startswith("."):
+                failures.append(f"browser source imports a package directly instead of a local module: {relative} -> {specifier}")
+                continue
+            if not specifier.endswith(".js"):
+                failures.append(f"browser import must include an explicit .js extension: {relative} -> {specifier}")
+            resolved = (path.parent / specifier).resolve()
+            try:
+                resolved_relative = resolved.relative_to(allowed_root)
+            except ValueError:
+                failures.append(f"browser import escapes src/: {relative} -> {specifier}")
+                continue
+            if not resolved.is_file():
+                failures.append(f"browser import target is missing: {relative} -> {specifier}")
+                continue
+            target_relative = f"src/{resolved_relative.as_posix()}"
+            if target_relative in graph:
+                graph[relative].add(target_relative)
+            if path in sources:
+                try:
+                    resolved.relative_to(entry_root)
+                except ValueError:
+                    pass
+                else:
+                    failures.append(f"runtime owner imports a route entrypoint: {relative} -> {specifier}")
+
+    index = 0
+    indices: dict[str, int] = {}
+    lowlinks: dict[str, int] = {}
+    stack: list[str] = []
+    on_stack: set[str] = set()
+    cycles: list[frozenset[str]] = []
+
+    def visit(node: str) -> None:
+        nonlocal index
+        indices[node] = index
+        lowlinks[node] = index
+        index += 1
+        stack.append(node)
+        on_stack.add(node)
+        for target in graph[node]:
+            if target not in indices:
+                visit(target)
+                lowlinks[node] = min(lowlinks[node], lowlinks[target])
+            elif target in on_stack:
+                lowlinks[node] = min(lowlinks[node], indices[target])
+        if lowlinks[node] != indices[node]:
+            return
+        component: set[str] = set()
+        while stack:
+            member = stack.pop()
+            on_stack.remove(member)
+            component.add(member)
+            if member == node:
+                break
+        if len(component) > 1:
+            cycles.append(frozenset(component))
+
+    for module in sorted(graph):
+        if module not in indices:
+            visit(module)
+
+    approved = set(APPROVED_IMPORT_CYCLES)
+    actual = set(cycles)
+    for cycle in sorted(actual - approved, key=lambda value: sorted(value)):
+        failures.append(f"unapproved ES-module dependency cycle: {sorted(cycle)}")
+    for cycle in sorted(approved - actual, key=lambda value: sorted(value)):
+        failures.append(f"approved dependency cycle changed and requires explicit review: {sorted(cycle)}")
+
+    expected_entries = {"catalog.js", "favorites.js", "viewer.js"}
+    actual_entries = {path.name for path in entries}
+    if actual_entries != expected_entries:
+        failures.append(
+            "route entrypoint set is not exact; "
+            f"expected={sorted(expected_entries)}, actual={sorted(actual_entries)}"
+        )
 
 
 def check_feature_registry(base: Path, sources: list[Path], failures: list[str]) -> None:
@@ -207,8 +324,8 @@ def check_test_only_exports(base: Path, sources: list[Path], failures: list[str]
         failures.append("source-owned frontend test module loader is missing")
     else:
         helper_text = helper.read_text(encoding="utf-8")
-        if "__BARGIG_TEST_EXPORTS__" not in helper_text or "require(resolvedPath)" not in helper_text:
-            failures.append("frontend test module loader does not import the real source module")
+        if "__BARGIG_TEST_EXPORTS__" not in helper_text or "compileFrontendModuleForTest" not in helper_text:
+            failures.append("frontend test module loader does not compile the complete source-owned ES module")
 
     for path in sources:
         text = path.read_text(encoding="utf-8")
@@ -242,9 +359,11 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     sources = sorted((base / "src" / "js").glob("*.js"))
     combined = "\n".join(path.read_text(encoding="utf-8") for path in sources)
     code_without_comments = strip_javascript_comments(combined)
+    code_without_imports = re.sub(r"^\s*import\b.*?;\s*$", "", code_without_comments, flags=re.MULTILINE)
     failures: list[str] = []
 
     check_typecheck_configuration(base, failures)
+    check_es_module_imports(base, sources, failures)
     check_feature_registry(base, sources, failures)
     check_bootstrap_boundary(base, failures)
     check_test_strategy(base, failures)
@@ -259,9 +378,9 @@ def check_frontend_contracts(root: Path | None = None) -> None:
                     f"{relative_path} reaches into {identifier}; use the owning feature interface instead"
                 )
 
-    if re.search(r"(?<![A-Za-z0-9_$.])state(?:\??\.|\s*\[)", code_without_comments):
+    if re.search(r"(?<![A-Za-z0-9_$.])state(?:\??\.|\s*\[)", code_without_imports):
         failures.append("legacy monolithic state access remains")
-    if re.search(r"(?<![A-Za-z0-9_$.])els\.", code_without_comments):
+    if re.search(r"(?<![A-Za-z0-9_$.])els\.", code_without_imports):
         failures.append("legacy monolithic els.* access remains")
 
     all_state_properties: dict[str, str] = {}
@@ -289,6 +408,44 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         unknown = sorted(used - declared)
         if unknown:
             failures.append(f"{owner} uses undeclared DOM references: {', '.join(unknown)}")
+
+    # Every runtime owner is a real ES module; no source file may rely on the old
+    # concatenated lexical scope. TypeScript then proves every cross-file symbol
+    # is either imported or intentionally global.
+    type_only_modules = {"src/js/05-app-contracts.js"}
+    for path in sources:
+        relative = path.relative_to(base).as_posix()
+        text = path.read_text(encoding="utf-8")
+        if relative not in type_only_modules and not re.search(r"^(?:import|export)\s", text, re.MULTILINE):
+            failures.append(f"runtime source is not an ES module: {relative}")
+        if "share one lexical scope" in text or "concatenates all sources" in text:
+            failures.append(f"legacy shared-scope architecture text remains: {relative}")
+
+    entries = {"catalog", "favorites", "viewer"}
+    for entry in entries:
+        entry_path = base / f"src/entries/{entry}.js"
+        if not entry_path.is_file():
+            failures.append(f"route ES-module entrypoint is missing: src/entries/{entry}.js")
+
+    package_path = base / "package.json"
+    lock_path = base / "package-lock.json"
+    try:
+        package = json.loads(package_path.read_text(encoding="utf-8"))
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        if package.get("devDependencies", {}).get("esbuild") != "0.28.1":
+            failures.append("esbuild must be a direct exact devDependency at version 0.28.1")
+        if lock.get("packages", {}).get("", {}).get("devDependencies", {}).get("esbuild") != "0.28.1":
+            failures.append("package-lock.json does not pin the root esbuild devDependency")
+        locked_esbuild = lock.get("packages", {}).get("node_modules/esbuild", {})
+        if locked_esbuild.get("version") != "0.28.1":
+            failures.append("package-lock.json does not lock esbuild 0.28.1")
+        if not locked_esbuild.get("resolved", "").endswith("/esbuild-0.28.1.tgz") or not locked_esbuild.get("integrity"):
+            failures.append("package-lock.json is missing reproducible esbuild registry metadata")
+        locked_linux = lock.get("packages", {}).get("node_modules/@esbuild/linux-x64", {})
+        if locked_linux.get("version") != "0.28.1" or not locked_linux.get("integrity"):
+            failures.append("package-lock.json is missing the locked Linux esbuild binary metadata")
+    except (OSError, json.JSONDecodeError) as error:
+        failures.append(f"could not validate pinned esbuild dependency: {error}")
 
     # Route outputs must prove that omitted features are physically absent, not merely disabled.
     route_expectations = {
@@ -337,10 +494,10 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             continue
         text = path.read_text(encoding="utf-8")
         for source in expectation["required"]:
-            if f"BEGIN SOURCE: {source}" not in text:
+            if f" *   - {source}" not in text:
                 failures.append(f"{output} is missing required feature source {source}")
         for source in expectation["forbidden"]:
-            if f"BEGIN SOURCE: {source}" in text:
+            if f" *   - {source}" in text:
                 failures.append(f"{output} contains forbidden feature source {source}")
 
 

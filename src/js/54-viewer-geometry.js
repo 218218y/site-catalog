@@ -2,9 +2,18 @@
  * Source module: 54-viewer-geometry.js
  * Viewer fit geometry, zoom, pan bounds, relative-position transfer, and edge-turn overscroll.
  *
- * These source modules intentionally share one lexical scope and are concatenated
- * by tools/build_frontend_assets.py into the single browser file app.js.
+ * Runtime dependencies are explicit ES module imports. Route entrypoints are
+ * bundled by the pinned esbuild tool into stable browser asset names.
  */
+
+import { catalogDocumentUrl, isAppPage, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
+import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
+import { AUTO_VIEWER_ZOOM, MAX_VIEWER_ZOOM, MIN_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_TURN_BUFFER_MAX_PX, VIEWER_PAGE_TURN_BUFFER_MIN_PX, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO, viewerElements, viewerState } from "./16-viewer-state.js";
+import { activeCatalog, activePage } from "./18-navigation-feature.js";
+import { clampValue, pageSize } from "./20-shared-ui.js";
+import { isFavoritesLightboxMode } from "./30-favorites-share.js";
+import { refreshSingleViewerImageResolution, shouldWarmSingleViewerFullResolution } from "./53-viewer-image.js";
+import { showTopUiTemporarily, showViewerZoomIndicator, syncViewerAutoZoomButtonUi } from "./56-viewer-shell.js";
 
 function updateHash() {
   const catalog = activeCatalog();
@@ -546,3 +555,5 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   });
 }
 /* TEST-ONLY EXPORTS: END */
+
+export { applyLightboxFrameGeometry, applyZoom, captureSingleImageRelativePosition, clearSingleImagePendingPosition, consumeSingleViewerPanInput, getAutomaticViewerFitMode, getPointerList, getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, normalizeViewerFitModeSource, pointerDistance, pointerMidpoint, primeLightboxFrameForCatalogPage, queueSingleImagePageTurnOrigin, queueSingleImageRelativePosition, resetImagePosition, setZoom, shouldPreserveSingleManualPosition, singleViewerUsesBoundaryPan, toggleZoomAtPoint, updateHash, viewerUsesAutomaticFitMode };
