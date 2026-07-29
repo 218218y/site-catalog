@@ -3125,23 +3125,21 @@ body[data-app-ready="true"] > .site-footer {
 .viewer-auto-zoom-button {
   position: fixed;
   z-index: 12;
-  /* Keep the reset action in the physical top-left corner while respecting
-     both display cutouts and a pinned/expanded viewer toolbar. */
+  /* Anchor the larger reset action to the canonical center line of the
+     left-side viewer controls. This keeps its extra width balanced equally
+     on both sides instead of aligning only the left edges. */
   top: max(
     calc(env(safe-area-inset-top, 0px) + clamp(68px, 9vh, 92px)),
     calc(var(--lightbox-top-safe-offset, 0px) + 18px)
   );
-  left: max(
-    var(--viewer-side-control-edge),
-    calc(env(safe-area-inset-left, 0px) + 12px)
-  );
+  left: var(--viewer-side-control-center-x);
   --viewer-auto-zoom-control-size: 60px;
   width: var(--viewer-auto-zoom-control-size);
   min-width: var(--viewer-auto-zoom-control-size);
   height: var(--viewer-auto-zoom-control-size);
   min-height: var(--viewer-auto-zoom-control-size);
   padding: 0 !important;
-  transform: none;
+  transform: translateX(-50%);
   border-radius: 999px;
   color: var(--favorite-active-color);
   background: var(--favorite-active-background) !important;
@@ -3169,7 +3167,7 @@ body[data-app-ready="true"] > .site-footer {
 
 .viewer-auto-zoom-button:hover,
 .viewer-auto-zoom-button:focus-visible {
-  transform: none !important;
+  transform: translateX(-50%) !important;
   background: linear-gradient(180deg, rgba(255,252,238,1), rgba(242,210,132,0.98)) !important;
   border-color: rgba(165, 111, 22, 0.64) !important;
   box-shadow:
@@ -3179,7 +3177,7 @@ body[data-app-ready="true"] > .site-footer {
 }
 
 .viewer-auto-zoom-button:active {
-  transform: none !important;
+  transform: translateX(-50%) !important;
 }
 
 .viewer-auto-zoom-button svg {
@@ -3202,6 +3200,7 @@ body[data-app-ready="true"] > .site-footer {
 @media (max-width: 640px) {
   .lightbox {
     --viewer-side-control-size: 44px;
+    --viewer-side-control-radius: 22px;
   }
   .viewer-auto-zoom-button {
     --viewer-auto-zoom-control-size: 54px;

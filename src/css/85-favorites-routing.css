@@ -260,7 +260,7 @@
   position: fixed;
   z-index: 12;
   top: var(--viewer-side-control-near-top);
-  left: var(--viewer-side-control-edge);
+  left: var(--viewer-side-control-left-edge);
   width: var(--viewer-side-control-size);
   min-width: var(--viewer-side-control-size);
   min-height: var(--viewer-side-control-size);

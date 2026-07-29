@@ -873,13 +873,21 @@ test.describe("critical catalog journeys", () => {
     await expect(autoZoomButton).toBeVisible();
 
     const autoZoomBox = await autoZoomButton.boundingBox();
+    const favoriteButtonBox = await page.locator("#viewerFavoriteButton").boundingBox();
     const viewport = page.viewportSize();
-    if (!autoZoomBox || !viewport) throw new Error("Unable to measure the auto-zoom button layout");
+    if (!autoZoomBox || !favoriteButtonBox || !viewport) {
+      throw new Error("Unable to measure the viewer side-control alignment");
+    }
     expect(autoZoomBox.x).toBeGreaterThanOrEqual(12);
     expect(autoZoomBox.width).toBeGreaterThanOrEqual(54);
     expect(autoZoomBox.height).toBeGreaterThanOrEqual(54);
     expect(autoZoomBox.x + autoZoomBox.width).toBeLessThan(viewport.width * 0.2);
     expect(autoZoomBox.y).toBeLessThan(viewport.height * 0.2);
+    const autoZoomCenterX = autoZoomBox.x + autoZoomBox.width / 2;
+    const favoriteCenterX = favoriteButtonBox.x + favoriteButtonBox.width / 2;
+    expect(Math.abs(autoZoomCenterX - favoriteCenterX)).toBeLessThanOrEqual(1);
+    expect(autoZoomBox.x).toBeLessThan(favoriteButtonBox.x);
+    expect(autoZoomBox.x + autoZoomBox.width).toBeGreaterThan(favoriteButtonBox.x + favoriteButtonBox.width);
 
     await expect(lightbox).toHaveClass(/is-zoomed/);
     await expect(lightbox).not.toHaveClass(/viewer-scroll-zoom-isolated/);
