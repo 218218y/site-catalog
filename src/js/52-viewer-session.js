@@ -20,6 +20,9 @@ const VIEWER_FULLSCREEN_TRANSITIONS = Object.freeze({
   [VIEWER_FULLSCREEN_EXITING]: new Set([VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING])
 });
 
+/**
+ * @param {{current:string, next:string, transitions:Readonly<Record<string, Set<string>>>, label:string, reason:string}} options
+ */
 function transitionStatePhase({ current, next, transitions, label, reason }) {
   const allowed = transitions[current];
   if (!allowed?.has(next)) {
@@ -29,6 +32,7 @@ function transitionStatePhase({ current, next, transitions, label, reason }) {
   return true;
 }
 
+/** @param {string} nextPhase @param {string} [reason] */
 function transitionViewerPhase(nextPhase, reason = "unspecified") {
   const currentPhase = viewerState.viewerPhase || VIEWER_PHASE_CLOSED;
   if (!transitionStatePhase({
@@ -53,6 +57,7 @@ function isViewerSessionVisible() {
   return isViewerSessionOpen() || viewerState.viewerPhase === VIEWER_PHASE_CLOSING;
 }
 
+/** @param {string} nextPhase @param {string} [reason] */
 function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
   const currentPhase = viewerState.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
   if (!transitionStatePhase({
@@ -154,6 +159,7 @@ function handleBrowserFullscreenChange() {
   }
 }
 
+/** @param {Element|null} [sourceButton] */
 async function toggleBrowserFullscreen(sourceButton = null) {
   const button = sourceButton || viewerElements.fullscreenToggle;
   if (isViewerFullscreenPending()) return;
@@ -183,6 +189,7 @@ async function toggleBrowserFullscreen(sourceButton = null) {
   }
 }
 
+/** @param {Event|null} [event] */
 function returnToMainSiteFromLightbox(event = null) {
   event?.preventDefault?.();
   closeLightboxSearchScopeMenu();

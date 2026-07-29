@@ -29,36 +29,63 @@ const uiRuntime = {
   actionToastTimer: 0,
 };
 
-/** @type {Map<string, FeatureInterface>} */
+/** @type {Map<FeatureName, RegisteredFeatureInterface>} */
 const featureInterfaces = new Map();
 
 /**
- * Register one immutable feature boundary. Duplicate names are rejected so a
- * route cannot silently replace another feature implementation.
- * @param {string} name
- * @param {FeatureInterface} api
+ * Register one immutable feature boundary. The generic registry makes unknown
+ * names and incomplete APIs compile-time failures, while runtime validation
+ * still protects generated bundles and hand-authored integration tests.
+ *
+ * @template {FeatureName} K
+ * @param {K} name
+ * @param {FeatureRegistry[K]} api
  */
 function registerFeatureInterface(name, api) {
   const normalizedName = String(name || "").trim();
-  if (!normalizedName) throw new TypeError("Feature interface requires a stable name");
+  if (!normalizedName || normalizedName !== name) {
+    throw new TypeError("Feature interface requires an exact stable name");
+  }
   if (!api || typeof api !== "object") {
     throw new TypeError(`Feature interface must be an object: ${normalizedName}`);
   }
-  if (featureInterfaces.has(normalizedName)) {
+  const featureName = /** @type {K} */ (name);
+  if (featureInterfaces.has(featureName)) {
     throw new Error(`Feature interface was registered twice: ${normalizedName}`);
   }
-  featureInterfaces.set(normalizedName, Object.freeze({ ...api, name: normalizedName }));
+  const registered = Object.freeze({ ...api, name: featureName });
+  featureInterfaces.set(featureName, /** @type {RegisteredFeatureInterface} */ (registered));
 }
 
-/** @param {string} name @returns {FeatureInterface|null} */
+/**
+ * @template {FeatureName} K
+ * @param {K} name
+ * @returns {(FeatureRegistry[K] & {readonly name:K})|null}
+ */
 function getFeatureInterface(name) {
-  return featureInterfaces.get(String(name || "")) || null;
+  return /** @type {(FeatureRegistry[K] & {readonly name:K})|null} */ (
+    featureInterfaces.get(name) || null
+  );
 }
 
+const ESCAPE_FEATURE_NAMES = /** @type {const} */ ([
+  "inquiry",
+  "favorites",
+  "catalog-navigation",
+  "search",
+  "catalog-detail",
+  "viewer"
+]);
+
+/** @returns {Array<EscapeFeatureApi & {readonly name:FeatureName}>} */
 function featureInterfacesByEscapePriority() {
-  return [...featureInterfaces.values()]
-    .filter((api) => typeof api.closeTopLayer === "function")
-    .sort((first, second) => Number(second.escapePriority || 0) - Number(first.escapePriority || 0));
+  /** @type {Array<EscapeFeatureApi & {readonly name:FeatureName}>} */
+  const interfaces = [];
+  ESCAPE_FEATURE_NAMES.forEach((name) => {
+    const api = getFeatureInterface(name);
+    if (api) interfaces.push(api);
+  });
+  return interfaces.sort((first, second) => second.escapePriority - first.escapePriority);
 }
 
 const boundEventFeatures = new Set();

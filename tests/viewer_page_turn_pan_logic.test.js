@@ -58,6 +58,7 @@ const geometryApi = new Function(
   'singleImageCanPan',
   'getSingleImageDisplayMetrics',
   'applySingleZoom',
+  'activePage',
   `${geometrySlice}\n${consumeSlice}\nreturn {
     singleViewerUsesBoundaryPan,
     getViewerPageTurnBuffer,
@@ -83,7 +84,8 @@ const geometryApi = new Function(
   () => state.zoom,
   () => metrics.overflowX > 1 || metrics.overflowY > 1,
   () => metrics,
-  () => { applyCalls += 1; }
+  () => { applyCalls += 1; },
+  () => state.page
 );
 
 assert.equal(geometryApi.getViewerPageTurnBuffer('y'), 288);
@@ -238,7 +240,7 @@ const wheelHandlerSource = navigationSource.slice(wheelHandlerStart);
 let prevented = 0;
 let boundaryInputs = 0;
 const wheelApi = new Function(
-  'navigationState',
+  'activeCatalog',
   'isViewerSessionOpen',
   'normalizeViewerPageWheelDeltas',
   'singleViewerUsesBoundaryPan',
@@ -246,7 +248,7 @@ const wheelApi = new Function(
   'consumeSingleViewerBoundaryInput',
   `${wheelHandlerSource}\nreturn { handleViewerPageWheel };`
 )(
-  { catalog: {} },
+  () => ({}),
   () => true,
   (event) => ({ deltaX: event.deltaX, deltaY: event.deltaY }),
   () => true,

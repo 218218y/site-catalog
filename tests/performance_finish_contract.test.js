@@ -33,7 +33,7 @@ assert.match(telemetry, /durationThreshold: 16/);
 assert.match(telemetry, /telemetryRecordInteractionTiming/);
 assert.match(telemetry, /__BARGIG_ENABLE_VITALS_DIAGNOSTICS__/);
 assert.match(telemetry, /__BARGIG_WEB_VITALS__/);
-assert.match(telemetry, /for \(const name of \["LCP", "INP", "CLS"\]\)/);
+assert.match(telemetry, /for \(const name of (?:\/\*\* @type \{TelemetryWebVitalName\[\]\} \*\/ \()?\["LCP", "INP", "CLS"\]\)?\)/);
 assert.match(telemetry, /\(name === "LCP" \|\| name === "INP"\) && value === 0/);
 assert.match(telemetry, /telemetryTrack\("web_vital"/);
 assert.match(telemetryFunction, /"web_vital"/);

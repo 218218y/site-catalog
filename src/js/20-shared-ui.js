@@ -6,16 +6,64 @@
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
+/** @type {Readonly<{siteActionToast:HTMLElement}>} */
+const uiElements = Object.freeze({
+  siteActionToast: requiredElement("siteActionToast")
+});
+
+/** @typedef {CatalogImageCandidate & {fallback:boolean}} CatalogImageRecoveryCandidate */
+/** @typedef {{primaryTier?:string, forceRefresh?:boolean, forceRefreshRole?:string, fallbackTier?:string, fallbackCandidates?:Array<CatalogImageCandidate>}} CatalogImageRecoveryCandidateOptions */
+/** @typedef {{failedAttempts:number, attempts:number}} CatalogImageRecoveryProgress */
+/** @typedef {{failedAttempts:number, lastCandidate:CatalogImageRecoveryCandidate|null}} CatalogImageRecoveryExhausted */
+/**
+ * @typedef {CatalogImageRecoveryCandidateOptions & {
+ *   primarySrc?:string,
+ *   fallbackSrc?:string,
+ *   isCurrent?:()=>boolean,
+ *   telemetryDetail?:unknown,
+ *   initialFailedAttempts?:number,
+ *   onExhausted?:(result:CatalogImageRecoveryExhausted)=>void,
+ *   onSuccess?:(candidate:CatalogImageRecoveryCandidate, progress:CatalogImageRecoveryProgress)=>void,
+ *   onFailure?:(candidate:CatalogImageRecoveryCandidate, progress:CatalogImageRecoveryProgress)=>void,
+ *   onAttempt?:(candidate:CatalogImageRecoveryCandidate, progress:CatalogImageRecoveryProgress)=>void
+ * }} CatalogImageRecoveryOptions
+ */
+/** @typedef {{priority?:RequestPriority, detail?:string}} CatalogImagePreloadOptions */
+/** @typedef {{name?:unknown, slug?:unknown}} CatalogTaxonomyItem */
+/** @typedef {{categories?:Array<CatalogTaxonomyItem>, subcategories?:Array<CatalogTaxonomyItem>}} CatalogTaxonomy */
+/** @typedef {{subcategory:string, items:Array<CatalogRecord>}} CatalogSubcategoryGroup */
+/** @typedef {{category:string, items:Array<CatalogRecord>, directItems:Array<CatalogRecord>, subcategories:Array<CatalogSubcategoryGroup>, subcategoryMap?:Map<string, CatalogSubcategoryGroup>, hasSubcategories?:boolean}} CatalogCategoryGroup */
+/** @typedef {{duration?:number, tone?:string}} ActionToastOptions */
+
+/** @param {unknown} value @returns {value is HTMLElement} */
+function isHtmlElement(value) {
+  return value instanceof HTMLElement;
+}
+
+/** @param {EventTarget|null} target @returns {Element|null} */
+function eventTargetElement(target) {
+  return target instanceof Element ? target : null;
+}
+
+/** @param {unknown} value @param {FocusOptions} [options] @returns {boolean} */
+function focusHtmlElement(value, options) {
+  if (!(value instanceof HTMLElement)) return false;
+  value.focus(options);
+  return true;
+}
+
 function catalogAssetBaseUrl() {
   const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
   if (!rawBase) return "";
   return rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
 }
 
+/** @param {string} path */
 function isAbsoluteAssetUrl(path) {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith("//") || path.startsWith("data:");
 }
 
+/** @param {unknown} path */
 function resolveCatalogAssetUrl(path) {
   const cleanPath = String(path || "").trim();
   if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
@@ -30,14 +78,17 @@ function resolveCatalogAssetUrl(path) {
   }
 }
 
-function catalogImageCrossOriginAttribute() {
+/** @param {string} [_url] */
+function catalogImageCrossOriginAttribute(_url = "") {
   return "";
 }
 
+/** @param {HTMLImageElement|null|undefined} img */
 function applyCatalogImageCrossOrigin(img) {
   if (img) img.removeAttribute("crossorigin");
 }
 
+/** @param {HTMLImageElement|null|undefined} img @param {string} url */
 function setCatalogImageSource(img, url) {
   if (!img) return;
   applyCatalogImageCrossOrigin(img);
@@ -76,6 +127,7 @@ function catalogNeighborPreloadRadius() {
   return 2;
 }
 
+/** @param {unknown} url */
 function normalizeCatalogImageUrl(url) {
   const value = String(url || "").trim();
   if (!value) return "";
@@ -89,6 +141,7 @@ function normalizeCatalogImageUrl(url) {
   }
 }
 
+/** @param {unknown} url */
 function unversionedCatalogImageUrl(url) {
   const value = normalizeCatalogImageUrl(url);
   if (!value) return "";
@@ -102,6 +155,7 @@ function unversionedCatalogImageUrl(url) {
   }
 }
 
+/** @param {unknown} url */
 function cacheBustedCatalogImageUrl(url) {
   const value = normalizeCatalogImageUrl(url);
   if (!value) return "";
@@ -115,10 +169,18 @@ function cacheBustedCatalogImageUrl(url) {
   }
 }
 
+/**
+ * @param {unknown} primarySrc
+ * @param {unknown} [fallbackSrc]
+ * @param {CatalogImageRecoveryCandidateOptions} [options]
+ * @returns {Array<CatalogImageRecoveryCandidate>}
+ */
 function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = {}) {
   const primary = normalizeCatalogImageUrl(primarySrc);
   const fallback = normalizeCatalogImageUrl(fallbackSrc);
+  /** @type {Array<CatalogImageRecoveryCandidate>} */
   const candidates = [];
+  /** @param {string} src @param {string} role @param {string} [tier] */
   const push = (src, role, tier = "") => {
     if (!src || candidates.some((candidate) => candidate.src === src)) return;
     candidates.push({ src, role, tier, fallback: role.startsWith("fallback") });
@@ -146,6 +208,7 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
   return candidates;
 }
 
+/** @param {HTMLImageElement} img @param {CatalogImageRecoveryOptions} [options] @returns {()=>void} */
 function loadCatalogImageWithRecovery(img, options = {}) {
   const candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options);
   const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
@@ -153,6 +216,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
   let index = 0;
   let stopped = false;
   let failedAttempts = Math.max(0, Number(options.initialFailedAttempts) || 0);
+  /** @type {CatalogImageRecoveryCandidate|null} */
   let lastCandidate = null;
 
   img.dataset.telemetryManaged = "true";
@@ -178,6 +242,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
     img.dataset.imageLoadPending = "true";
     prepareImagePlaceholder(img);
     let settled = false;
+    /** @param {boolean} loaded */
     const settle = (loaded) => {
       if (settled) return;
       settled = true;
@@ -220,13 +285,20 @@ function loadCatalogImageWithRecovery(img, options = {}) {
   return () => { stopped = true; };
 }
 
+/**
+ * @param {CatalogRecord|null|undefined} catalog
+ * @param {number|string} page
+ * @param {string} [detail]
+ * @returns {string}
+ */
 function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail") {
   const catalogId = escapeHtml(catalog?.id || "");
-  const safePage = Math.max(0, Number.parseInt(page, 10) || 0);
+  const safePage = Math.max(0, Number.parseInt(String(page), 10) || 0);
   const safeDetail = escapeHtml(detail || "thumbnail");
   return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}"`;
 }
 
+/** @param {HTMLImageElement|null|undefined} img */
 function recoverCatalogImageAfterInitialFailure(img) {
   if (!img || img.dataset.catalogImageRecovery !== "lightweight") return false;
   if (img.dataset.catalogImageRecoveryStarted === "true") return true;
@@ -256,6 +328,7 @@ function recoverCatalogImageAfterInitialFailure(img) {
   return true;
 }
 
+/** @param {unknown} url @param {CatalogImagePreloadOptions} [options] @returns {Promise<CatalogImageReadiness>} */
 function prepareCatalogImage(url, options = {}) {
   const src = String(url || "");
   if (!src) return Promise.reject(new Error("missing-image-src"));
@@ -311,14 +384,17 @@ function prepareCatalogImage(url, options = {}) {
   return promise;
 }
 
+/** @param {number} value @param {number} min @param {number} max */
 function clampValue(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+/** @param {number|string} num */
 function pad(num) {
   return String(num).padStart(3, "0");
 }
 
+/** @param {unknown} value */
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -328,18 +404,22 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+/** @param {CatalogRecord|null|undefined} catalog */
 function catalogCategoryName(catalog) {
   const category = String(catalog?.category || "").trim();
   return category || "קטלוגים";
 }
 
+/** @param {CatalogRecord|null|undefined} catalog */
 function catalogSubcategoryName(catalog) {
-  const value = catalog?.subcategory ?? catalog?.subCategory ?? catalog?.sub_category ?? catalog?.subcategories ?? catalog?.["תת קטגוריה"] ?? catalog?.["תת_קטגוריה"] ?? "";
+  const legacyCatalog = /** @type {(CatalogRecord & Record<string, unknown>)|null|undefined} */ (catalog);
+  const value = catalog?.subcategory ?? catalog?.subCategory ?? legacyCatalog?.sub_category ?? legacyCatalog?.subcategories ?? legacyCatalog?.["תת קטגוריה"] ?? legacyCatalog?.["תת_קטגוריה"] ?? "";
   const rawSubcategory = Array.isArray(value) ? value.find((item) => String(item || "").trim()) : value;
   const subcategory = String(rawSubcategory || "").trim();
   return subcategory;
 }
 
+/** @param {unknown} value */
 function categorySlug(value) {
   return String(value || "catalog")
     .trim()
@@ -348,26 +428,30 @@ function categorySlug(value) {
     .replace(/^-+|-+$/g, "") || "catalog";
 }
 
+/** @param {unknown} category @param {number} index */
 function categorySectionId(category, index) {
   return `catalog-category-${categorySlug(category)}-${index + 1}`;
 }
 
+/** @param {unknown} category @param {number} categoryIndex @param {unknown} subcategory @param {number} subcategoryIndex */
 function subcategorySectionId(category, categoryIndex, subcategory, subcategoryIndex) {
   return `${categorySectionId(category, categoryIndex)}-sub-${categorySlug(subcategory)}-${subcategoryIndex + 1}`;
 }
 
+/** @type {CatalogTaxonomy} */
 const catalogTaxonomy = window.BARGIG_CATALOG_TAXONOMY || { categories: [], subcategories: [] };
 const CATALOG_CATEGORY_SHARE_SLUGS = new Map(
   (Array.isArray(catalogTaxonomy.categories) ? catalogTaxonomy.categories : [])
-    .map((item) => [String(item?.name || "").trim(), String(item?.slug || "").trim()])
+    .map((item) => /** @type {[string, string]} */ ([String(item?.name || "").trim(), String(item?.slug || "").trim()]))
     .filter(([name, slug]) => name && slug)
 );
 const CATALOG_SUBCATEGORY_SHARE_SLUGS = new Map(
   (Array.isArray(catalogTaxonomy.subcategories) ? catalogTaxonomy.subcategories : [])
-    .map((item) => [String(item?.name || "").trim(), String(item?.slug || "").trim()])
+    .map((item) => /** @type {[string, string]} */ ([String(item?.name || "").trim(), String(item?.slug || "").trim()]))
     .filter(([name, slug]) => name && slug)
 );
 
+/** @param {unknown} value */
 function normalizeShareRouteToken(value) {
   return String(value || "")
     .trim()
@@ -377,6 +461,7 @@ function normalizeShareRouteToken(value) {
     .replace(/^-+|-+$/g, "");
 }
 
+/** @param {unknown} value */
 function normalizeShareRoutePath(value) {
   return String(value || "")
     .split("/")
@@ -385,26 +470,33 @@ function normalizeShareRoutePath(value) {
     .join("/");
 }
 
+/** @param {unknown} category @param {number} index */
 function categoryShareSlug(category, index) {
   const mapped = CATALOG_CATEGORY_SHARE_SLUGS.get(String(category || "").trim());
   return normalizeShareRouteToken(mapped) || normalizeShareRouteToken(category) || `category-${index + 1}`;
 }
 
+/** @param {unknown} subcategory @param {number} index */
 function subcategoryShareSlug(subcategory, index) {
   const mapped = CATALOG_SUBCATEGORY_SHARE_SLUGS.get(String(subcategory || "").trim());
   return normalizeShareRouteToken(mapped) || normalizeShareRouteToken(subcategory) || `sub-${index + 1}`;
 }
 
+/** @param {unknown} category @param {number} index */
 function catalogCategorySharePath(category, index) {
   return categoryShareSlug(category, index);
 }
 
+/** @param {unknown} category @param {number} categoryIndex @param {unknown} subcategory @param {number} subcategoryIndex */
 function catalogSubcategorySharePath(category, categoryIndex, subcategory, subcategoryIndex) {
   return `${categoryShareSlug(category, categoryIndex)}/${subcategoryShareSlug(subcategory, subcategoryIndex)}`;
 }
 
+/** @returns {Array<CatalogCategoryGroup>} */
 function getCatalogCategoryGroups() {
+  /** @type {Array<CatalogCategoryGroup>} */
   const groups = [];
+  /** @type {Map<string, CatalogCategoryGroup>} */
   const groupByCategory = new Map();
 
   catalogs.forEach((catalog) => {
@@ -422,6 +514,7 @@ function getCatalogCategoryGroups() {
     }
 
     const group = groupByCategory.get(category);
+    if (!group) return;
     const subcategory = catalogSubcategoryName(catalog);
     group.items.push(catalog);
 
@@ -430,12 +523,12 @@ function getCatalogCategoryGroups() {
       return;
     }
 
-    if (!group.subcategoryMap.has(subcategory)) {
+    if (!group.subcategoryMap?.has(subcategory)) {
       const subcategoryGroup = { subcategory, items: [] };
-      group.subcategoryMap.set(subcategory, subcategoryGroup);
+      group.subcategoryMap?.set(subcategory, subcategoryGroup);
       group.subcategories.push(subcategoryGroup);
     }
-    group.subcategoryMap.get(subcategory).items.push(catalog);
+    group.subcategoryMap?.get(subcategory)?.items.push(catalog);
   });
 
   groups.forEach((group) => {
@@ -446,14 +539,17 @@ function getCatalogCategoryGroups() {
   return groups;
 }
 
+/** @param {CatalogRecord|null|undefined} catalog */
 function imageExt(catalog) {
   return catalog?.imageExt || "jpg";
 }
 
+/** @param {CatalogRecord} catalog */
 function catalogDir(catalog) {
   return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {unknown} tier */
 function catalogAssetVersionForTier(catalog, tier) {
   const normalizedTier = String(tier || CATALOG_IMAGE_TIER_FULL);
   const variantVersion = String(catalog?.imageVariants?.[normalizedTier]?.version || "").trim();
@@ -462,12 +558,14 @@ function catalogAssetVersionForTier(catalog, tier) {
   return `${baseVersion}-${normalizedTier}-u${CATALOG_ASSET_URL_SCHEMA_VERSION}`;
 }
 
+/** @param {string} url @param {CatalogRecord|null|undefined} catalog @param {string} [tier] */
 function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
   const version = catalogAssetVersionForTier(catalog, tier);
   if (!version) return url;
   return `${url}${url.includes("?") ? "&" : "?"}${CATALOG_ASSET_VERSION_PARAM}=${encodeURIComponent(version)}`;
 }
 
+/** @param {CatalogRecord} catalog @param {number|string} page */
 function pageSrc(catalog, page) {
   return withAssetVersion(
     `${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`,
@@ -476,6 +574,7 @@ function pageSrc(catalog, page) {
   );
 }
 
+/** @param {CatalogRecord} catalog @param {number|string} page */
 function thumbSrc(catalog, page) {
   return withAssetVersion(
     `${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`,
@@ -484,6 +583,7 @@ function thumbSrc(catalog, page) {
   );
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {string} tier @returns {CatalogImageVariant|null} */
 function catalogImageVariant(catalog, tier) {
   if (tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled()) return null;
   const variants = catalog?.imageVariants;
@@ -498,16 +598,19 @@ function catalogImageVariant(catalog, tier) {
   return null;
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {string} tier */
 function catalogSupportsImageTier(catalog, tier) {
   return Boolean(catalogImageVariant(catalog, tier));
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {string} tier */
 function catalogImageTierMaxSide(catalog, tier) {
   const value = Number(catalogImageVariant(catalog, tier)?.maxSide);
   if (Number.isFinite(value) && value > 0) return value;
   return tier === CATALOG_IMAGE_TIER_MEDIUM ? DEFAULT_CATALOG_MEDIUM_MAX_SIDE : 0;
 }
 
+/** @param {CatalogRecord} catalog @param {number|string} page */
 function mediumSrc(catalog, page) {
   const variant = catalogImageVariant(catalog, CATALOG_IMAGE_TIER_MEDIUM);
   if (!variant) return "";
@@ -519,23 +622,28 @@ function mediumSrc(catalog, page) {
   );
 }
 
+/** @param {CatalogRecord} catalog @param {number|string} page @param {string} tier */
 function catalogPageImageSrc(catalog, page, tier) {
   if (tier === CATALOG_IMAGE_TIER_THUMB) return thumbSrc(catalog, page);
   if (tier === CATALOG_IMAGE_TIER_MEDIUM) return mediumSrc(catalog, page);
   return pageSrc(catalog, page);
 }
 
+/** @param {CatalogRecord} catalog */
 function catalogCoverSrc(catalog) {
   return catalog?.cover ? withAssetVersion(resolveCatalogAssetUrl(catalog.cover), catalog) : pageSrc(catalog, 1);
 }
 
+/** @param {CatalogRecord} catalog */
 function coverThumbSrc(catalog) {
   return thumbSrc(catalog, 1);
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {number|string} page */
 function pageSize(catalog, page) {
   const sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [];
-  const size = sizes[page - 1];
+  const pageNumber = Number.parseInt(String(page), 10);
+  const size = sizes[pageNumber - 1];
   if (!Array.isArray(size) || size.length < 2) return null;
   const width = Number(size[0]);
   const height = Number(size[1]);
@@ -543,6 +651,7 @@ function pageSize(catalog, page) {
   return { width, height };
 }
 
+/** @param {CatalogRecord|null|undefined} firstCatalog @param {number|string} firstPage @param {CatalogRecord|null|undefined} secondCatalog @param {number|string} secondPage */
 function catalogPagesShareAspectRatio(firstCatalog, firstPage, secondCatalog, secondPage) {
   const firstSize = pageSize(firstCatalog, firstPage);
   const secondSize = pageSize(secondCatalog, secondPage);
@@ -553,11 +662,13 @@ function catalogPagesShareAspectRatio(firstCatalog, firstPage, secondCatalog, se
   return Math.abs(firstRatio - secondRatio) <= 0.001;
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {number|string} page */
 function catalogImageDimensionAttributes(catalog, page) {
   const size = pageSize(catalog, page);
   return size ? ` width="${size.width}" height="${size.height}"` : "";
 }
 
+/** @param {HTMLImageElement|null|undefined} image @param {CatalogRecord|null|undefined} catalog @param {number|string} page */
 function applyCatalogImageDimensions(image, catalog, page) {
   if (!image) return;
   const size = pageSize(catalog, page);
@@ -570,6 +681,7 @@ function applyCatalogImageDimensions(image, catalog, page) {
   image.height = size.height;
 }
 
+/** @param {CatalogRecord|null|undefined} catalog */
 function catalogCoverLoadingAttributes(catalog) {
   const index = catalogs.findIndex((item) => item?.id === catalog?.id);
   const eager = index >= 0 && index < CATALOG_EAGER_COVER_COUNT;
@@ -578,21 +690,24 @@ function catalogCoverLoadingAttributes(catalog) {
     : ' loading="lazy" decoding="async" fetchpriority="low"';
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {number|string} page */
 function pageAspectStyle(catalog, page) {
   const size = pageSize(catalog, page);
   return size ? ` style="aspect-ratio: ${size.width} / ${size.height}"` : "";
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {number|string} page @param {string} [variableName] */
 function pageAspectVariableStyle(catalog, page, variableName = "--page-aspect-ratio") {
   const size = pageSize(catalog, page);
   return size ? ` style="${variableName}: ${size.width} / ${size.height}"` : "";
 }
 
+/** @param {HTMLImageElement|null|undefined} img */
 function applyLoadedPageAspect(img) {
   if (!img || !img.naturalWidth || !img.naturalHeight) return;
 
   const frame = img.closest?.(".reader-page-frame");
-  if (!frame) return;
+  if (!(frame instanceof HTMLElement)) return;
 
   const width = Number(img.naturalWidth);
   const height = Number(img.naturalHeight);
@@ -601,13 +716,15 @@ function applyLoadedPageAspect(img) {
   frame.style.aspectRatio = `${width} / ${height}`;
 
   const page = Number.parseInt(frame.dataset.page || "", 10);
-  if (!navigationState.catalog || !Number.isFinite(page) || page < 1) return;
+  const catalog = activeCatalog();
+  if (!catalog || !Number.isFinite(page) || page < 1) return;
 
-  if (!Array.isArray(navigationState.catalog.pageSizes)) navigationState.catalog.pageSizes = [];
-  navigationState.catalog.pageSizes[page - 1] = [width, height];
+  if (!Array.isArray(catalog.pageSizes)) catalog.pageSizes = [];
+  catalog.pageSizes[page - 1] = [width, height];
 
 }
 
+/** @param {HTMLImageElement|null|undefined} img */
 function watchLoadedPageAspect(img) {
   if (!img) return;
 
@@ -619,13 +736,15 @@ function watchLoadedPageAspect(img) {
   img.addEventListener("load", () => applyLoadedPageAspect(img), { once: true });
 }
 
-function clampPage(page, catalog = navigationState.catalog) {
-  const parsed = Number.parseInt(page, 10);
+/** @param {unknown} page @param {CatalogRecord|null} [catalog] */
+function clampPage(page, catalog = activeCatalog()) {
+  const parsed = Number.parseInt(String(page), 10);
   if (!Number.isFinite(parsed)) return 1;
   const maxPage = Math.max(1, Number(catalog?.pages || 1));
   return Math.min(Math.max(parsed, 1), maxPage);
 }
 
+/** @param {unknown} value */
 function safeFilePart(value) {
   return String(value || "catalog")
     .trim()
@@ -636,10 +755,12 @@ function safeFilePart(value) {
     .slice(0, 72) || "catalog";
 }
 
+/** @param {Element|null|undefined} button */
 function getTooltipText(button) {
-  return window.BargigTooltips?.getText?.(button) || button?.getAttribute?.("title") || "";
+  return window.BargigTooltips?.getText?.(button || null) || button?.getAttribute?.("title") || "";
 }
 
+/** @param {Element|null|undefined} button @param {string} text @param {Record<string, unknown>} [options] */
 function setTooltipText(button, text, options = {}) {
   if (!button) return;
   if (window.BargigTooltips?.setText) {
@@ -651,8 +772,9 @@ function setTooltipText(button, text, options = {}) {
   else button.removeAttribute("title");
 }
 
+/** @param {Element|null|undefined} button @param {string} message */
 function flashActionButton(button, message) {
-  if (!button || !message) return;
+  if (!(button instanceof HTMLElement) || !message) return;
   const originalTooltip = getTooltipText(button);
   setTooltipText(button, message);
   button.classList.remove("reader-icon-button-feedback");
@@ -664,6 +786,7 @@ function flashActionButton(button, message) {
   }, 1200);
 }
 
+/** @param {string} message */
 function actionToastTone(message) {
   if (message === "נשמר" || message === "התמונה נשמרה") return "saved";
   if (message === "הוסר" || message.includes("הוסרו")) return "removed";
@@ -671,22 +794,23 @@ function actionToastTone(message) {
   return "info";
 }
 
+/** @param {string} message @param {number|ActionToastOptions} [options] */
 function showActionToast(message, options = {}) {
-  if (!shellElements.siteActionToast || !message) return;
+  if (!uiElements.siteActionToast || !message) return;
   const normalizedOptions = typeof options === "number" ? { duration: options } : options;
   const duration = Math.max(1000, Number(normalizedOptions.duration) || 1000);
 
   window.clearTimeout(uiRuntime.actionToastTimer);
-  shellElements.siteActionToast.textContent = message;
-  shellElements.siteActionToast.dataset.tone = normalizedOptions.tone || actionToastTone(message);
-  shellElements.siteActionToast.classList.remove("hidden", "visible");
-  void shellElements.siteActionToast.offsetWidth;
-  window.requestAnimationFrame(() => shellElements.siteActionToast.classList.add("visible"));
+  uiElements.siteActionToast.textContent = message;
+  uiElements.siteActionToast.dataset.tone = normalizedOptions.tone || actionToastTone(message);
+  uiElements.siteActionToast.classList.remove("hidden", "visible");
+  void uiElements.siteActionToast.offsetWidth;
+  window.requestAnimationFrame(() => uiElements.siteActionToast.classList.add("visible"));
   uiRuntime.actionToastTimer = window.setTimeout(() => {
-    shellElements.siteActionToast.classList.remove("visible");
+    uiElements.siteActionToast.classList.remove("visible");
     window.setTimeout(() => {
-      if (!shellElements.siteActionToast.classList.contains("visible")) {
-        shellElements.siteActionToast.classList.add("hidden");
+      if (!uiElements.siteActionToast.classList.contains("visible")) {
+        uiElements.siteActionToast.classList.add("hidden");
       }
     }, 180);
   }, duration);
@@ -703,11 +827,14 @@ const IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
   ".reader-page-thumb-frame"
 ].join(", ");
 
+/** @param {HTMLImageElement|null|undefined} img @returns {HTMLElement|null} */
 function imagePlaceholderFrame(img) {
   if (img?.dataset?.placeholderIgnore === "true") return null;
-  return img?.closest?.(IMAGE_PLACEHOLDER_FRAME_SELECTOR) || null;
+  const frame = img?.closest?.(IMAGE_PLACEHOLDER_FRAME_SELECTOR) || null;
+  return frame instanceof HTMLElement ? frame : null;
 }
 
+/** @param {HTMLImageElement} img */
 function syncImagePlaceholderState(img) {
   const frame = imagePlaceholderFrame(img);
   if (!frame) return;
@@ -721,6 +848,7 @@ function syncImagePlaceholderState(img) {
   frame.classList.toggle("image-loading", pending || (!isReady && !isError));
 }
 
+/** @param {HTMLImageElement} img */
 function prepareImagePlaceholder(img) {
   const frame = imagePlaceholderFrame(img);
   if (!frame) return;
@@ -739,7 +867,9 @@ function prepareImagePlaceholder(img) {
 }
 
 function initImagePlaceholderObserver() {
-  document.querySelectorAll(`${IMAGE_PLACEHOLDER_FRAME_SELECTOR} img`).forEach(prepareImagePlaceholder);
+  document.querySelectorAll(`${IMAGE_PLACEHOLDER_FRAME_SELECTOR} img`).forEach((image) => {
+    if (image instanceof HTMLImageElement) prepareImagePlaceholder(image);
+  });
 
   document.addEventListener("load", (event) => {
     if (event.target instanceof HTMLImageElement) syncImagePlaceholderState(event.target);
@@ -757,8 +887,10 @@ function initImagePlaceholderObserver() {
       }
       mutation.addedNodes.forEach((node) => {
         if (!(node instanceof Element)) return;
-        if (node.matches?.("img")) prepareImagePlaceholder(node);
-        node.querySelectorAll?.("img").forEach(prepareImagePlaceholder);
+        if (node instanceof HTMLImageElement) prepareImagePlaceholder(node);
+        node.querySelectorAll?.("img").forEach((image) => {
+          if (image instanceof HTMLImageElement) prepareImagePlaceholder(image);
+        });
       });
     });
   });
@@ -770,6 +902,7 @@ function initImagePlaceholderObserver() {
   });
 }
 
+/** @param {HTMLImageElement} img */
 function loadDeferredImage(img) {
   const src = img?.dataset?.src;
   if (!src) return;
@@ -792,6 +925,7 @@ function loadDeferredImage(img) {
 
 
 
+/** @param {Blob} blob @param {string} filename */
 function saveBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -803,6 +937,7 @@ function saveBlob(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(url), 900);
 }
 
+/** @param {CatalogRecord|null} catalog @param {unknown} page @param {HTMLElement|null|undefined} button */
 async function downloadCatalogPageSnapshot(catalog, page, button) {
   if (!catalog) return;
   const currentPage = clampPage(page, catalog);
@@ -836,8 +971,13 @@ function hasHoverPointer() {
   return primaryFineHover || anyFineHover;
 }
 
+/** @param {Event|null|undefined} event */
 function isTouchLikePointer(event) {
-  return event?.pointerType === "touch" || event?.pointerType === "pen";
+  return Boolean(
+    event
+    && "pointerType" in event
+    && (event.pointerType === "touch" || event.pointerType === "pen")
+  );
 }
 
 function getCurrentCatalogFocusUrlTargetId() {
@@ -855,10 +995,12 @@ function getCurrentCatalogFocusUrlTargetId() {
   return "";
 }
 
+/** @param {unknown} value */
 function encodeHashRouteSegment(value) {
   return encodeURIComponent(String(value ?? ""));
 }
 
+/** @param {unknown} value */
 function decodeHashRouteSegment(value) {
   const segment = String(value || "");
   try {
@@ -868,37 +1010,37 @@ function decodeHashRouteSegment(value) {
   }
 }
 
+/** @param {unknown} path */
 function encodeShareRoutePath(path) {
   const normalizedPath = normalizeShareRoutePath(path);
   if (!normalizedPath) return "";
   return normalizedPath.split("/").map(encodeHashRouteSegment).join("/");
 }
 
+/** @param {unknown} path */
 function buildCategoryShareRouteHash(path) {
   const encodedPath = encodeShareRoutePath(path);
   return encodedPath ? `#cat/${encodedPath}` : "";
 }
 
+/** @param {unknown} id @returns {CatalogRecord|null} */
 function findCatalogById(id) {
   const catalogId = String(id || "");
   return catalogs.find((item) => String(item.id || "") === catalogId) || null;
 }
 
 function syncDocumentLock() {
-  let documentLocked = false;
-  let viewerOpen = false;
-  featureInterfaces.forEach((api) => {
-    if (typeof api.requiresDocumentLock === "function" && api.requiresDocumentLock()) {
-      documentLocked = true;
-    }
-    if (typeof api.isViewerOpen === "function" && api.isViewerOpen()) {
-      viewerOpen = true;
-    }
-  });
+  const documentLocked = Boolean(
+    getFeatureInterface("favorites")?.requiresDocumentLock() ||
+    getFeatureInterface("inquiry")?.requiresDocumentLock() ||
+    getFeatureInterface("viewer")?.requiresDocumentLock()
+  );
+  const viewerOpen = Boolean(getFeatureInterface("viewer")?.isViewerOpen());
   document.body.classList.toggle("no-scroll", documentLocked);
   document.documentElement.classList.toggle("viewer-open", viewerOpen);
 }
 
+/** @param {KeyboardEvent} event */
 function handleTopLayerEscape(event) {
   if (event.key !== "Escape" || event.defaultPrevented) return false;
 

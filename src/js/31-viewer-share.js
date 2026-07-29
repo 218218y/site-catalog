@@ -7,10 +7,10 @@
  */
 
 function downloadCurrentLightboxImage() {
-  if (!navigationState.catalog) return;
+  if (!activeCatalog()) return;
   downloadCatalogPageSnapshot(
-    navigationState.catalog,
-    navigationState.page,
+    activeCatalog(),
+    activePage(),
     viewerElements.lightboxScreenshot
   );
 }

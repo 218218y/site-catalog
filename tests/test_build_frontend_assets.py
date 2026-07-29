@@ -133,6 +133,36 @@ def test_generated_bundles_preserve_each_declared_module_order() -> None:
             assert '\n(() => {\n"use strict";' in output
             assert output.rstrip().endswith("})();")
 
+
+def test_production_javascript_strips_source_jsdoc_contracts() -> None:
+    source = (ROOT / "src/js/05-app-contracts.js").read_text(encoding="utf-8")
+    assert "@typedef" in source
+
+    for output_name in ("app-catalog.js", "app-favorites.js", "app-viewer.js"):
+        bundle = (ROOT / output_name).read_text(encoding="utf-8")
+        assert "@typedef" not in bundle
+        assert "@param" not in bundle
+        assert "@returns" not in bundle
+
+
+def test_jsdoc_stripping_preserves_executable_and_comment_like_strings() -> None:
+    source = (
+        "/** build-time contract */\n"
+        "const literal = `/** runtime text */`;\n"
+        "/*! retained license */\n"
+        "/** @param {string} value */\n"
+        "function normalize(value) { return /** @type {string} */ (value); }\n"
+    )
+
+    rendered = MODULE.strip_source_jsdoc(source)
+
+    assert "build-time contract" not in rendered
+    assert "@param" not in rendered
+    assert "@type" not in rendered
+    assert "`/** runtime text */`" in rendered
+    assert "/*! retained license */" in rendered
+    assert "function normalize(value)" in rendered
+
     viewer_sources = {
         relative: (ROOT / relative).read_text(encoding="utf-8")
         for relative in next(spec.modules for spec in MODULE.BUNDLE_SPECS if spec.output_name == "app-viewer.js")

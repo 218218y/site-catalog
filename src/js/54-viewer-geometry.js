@@ -7,27 +7,28 @@
  */
 
 function updateHash() {
-  if (!window.history?.replaceState) return;
-
-  if (isAppPage("catalog") && navigationState.catalog) {
-    history.replaceState(history.state, "", catalogDocumentUrl(navigationState.catalog.id));
-  } else if (isAppPage("viewer") && navigationState.catalog) {
-    history.replaceState(history.state, "", viewerDocumentUrl(navigationState.catalog.id, navigationState.page, {
+  const catalog = activeCatalog();
+  if (isAppPage("catalog") && catalog) {
+    history.replaceState(history.state, "", catalogDocumentUrl(catalog.id));
+  } else if (isAppPage("viewer") && catalog) {
+    history.replaceState(history.state, "", viewerDocumentUrl(catalog.id, activePage(), {
       source: isFavoritesLightboxMode() ? LIGHTBOX_SOURCE_FAVORITES : LIGHTBOX_SOURCE_CATALOG
     }));
   }
 
-  updateDocumentMetadata(navigationState.catalog);
+  updateDocumentMetadata(catalog);
 }
 
 function getPointerList() {
   return Array.from(viewerState.pointers.values());
 }
 
+/** @param {ViewerPointerPoint} first @param {ViewerPointerPoint} second */
 function pointerDistance(first, second) {
   return Math.hypot(second.x - first.x, second.y - first.y);
 }
 
+/** @param {ViewerPointerPoint} first @param {ViewerPointerPoint} second @returns {PointLike} */
 function pointerMidpoint(first, second) {
   return {
     x: (first.x + second.x) / 2,
@@ -50,14 +51,17 @@ function getSafeViewerZoom(value = viewerState.zoom) {
   return clampValue(numeric, getMinimumViewerZoom(), MAX_VIEWER_ZOOM);
 }
 
+/** @param {number} value */
 function clampViewerZoom(value) {
   return getSafeViewerZoom(value);
 }
 
+/** @param {string} fitMode */
 function normalizeViewerFitMode(fitMode) {
   return fitMode === VIEWER_FIT_WIDTH ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
 }
 
+/** @param {string} source */
 function normalizeViewerFitModeSource(source) {
   return source === VIEWER_FIT_SOURCE_AUTO
     ? VIEWER_FIT_SOURCE_AUTO
@@ -93,7 +97,7 @@ function getAutomaticViewerFitMode() {
 }
 
 function getActiveSingleImageNaturalSize() {
-  const configuredSize = navigationState.catalog ? pageSize(navigationState.catalog, navigationState.page) : null;
+  const configuredSize = activeCatalog() ? pageSize(activeCatalog(), activePage()) : null;
   if (configuredSize) return configuredSize;
 
   const image = viewerElements.lightboxImage;
@@ -149,6 +153,7 @@ function getViewerPageTurnBuffer(axis = "y") {
   );
 }
 
+/** @param {ViewerPanBoundsOptions} [options] */
 function getSinglePanBounds(options = {}) {
   const metrics = getSingleImageDisplayMetrics();
   if (!metrics) return null;
@@ -167,6 +172,7 @@ function getSinglePanBounds(options = {}) {
   };
 }
 
+/** @param {ViewerPanBoundsOptions} [options] */
 function clampSinglePan(options = {}) {
   const bounds = getSinglePanBounds(options);
   if (!bounds) return null;
@@ -196,8 +202,12 @@ function captureSingleImageRelativePosition() {
   };
 }
 
+/**
+ * @param {number|string} page
+ * @param {{xRatio:number, yRatio:number}|null} [position]
+ */
 function queueSingleImageRelativePosition(page, position = null) {
-  const nextPage = Number.parseInt(page, 10);
+  const nextPage = Number.parseInt(String(page), 10);
   if (!Number.isFinite(nextPage)) return;
   const normalized = position || captureSingleImageRelativePosition();
   viewerState.singleImageFitOriginPending = false;
@@ -209,8 +219,9 @@ function queueSingleImageRelativePosition(page, position = null) {
   };
 }
 
+/** @param {number|string} page @param {number} direction @param {string} [axis] */
 function queueSingleImagePageTurnOrigin(page, direction, axis = "y") {
-  const nextPage = Number.parseInt(page, 10);
+  const nextPage = Number.parseInt(String(page), 10);
   const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
   if (!Number.isFinite(nextPage) || !step) return;
 
@@ -225,6 +236,7 @@ function queueSingleImagePageTurnOrigin(page, direction, axis = "y") {
   viewerState.panY = 0;
 }
 
+/** @param {ViewerGeometryResetOptions} [options] */
 function resetImagePosition(options = {}) {
   viewerState.panX = 0;
   viewerState.panY = 0;
@@ -239,7 +251,7 @@ function applyPendingSingleImagePosition() {
   if (!metrics) return false;
 
   const pageTurnOrigin = viewerState.singleImagePendingPageTurnOrigin;
-  if (pageTurnOrigin?.page === navigationState.page) {
+  if (pageTurnOrigin?.page === activePage()) {
     // Edge-driven navigation behaves like continuous reading: moving forward
     // opens the target at its top, while moving backward enters from its bottom.
     // Horizontal page turns still use the same vertical reading origin and keep
@@ -253,7 +265,7 @@ function applyPendingSingleImagePosition() {
   }
 
   const relativePosition = viewerState.singleImagePendingRelativePosition;
-  if (relativePosition?.page === navigationState.page) {
+  if (relativePosition?.page === activePage()) {
     viewerState.panX = metrics.overflowX * relativePosition.xRatio;
     viewerState.panY = metrics.overflowY * relativePosition.yRatio;
     viewerState.singleImagePendingRelativePosition = null;
@@ -275,6 +287,7 @@ function applyPendingSingleImagePosition() {
   return true;
 }
 
+/** @param {ViewerGeometryResetOptions} [options] */
 function shouldPreserveSingleManualPosition(options = {}) {
   return (
     options.keepZoom !== false
@@ -284,6 +297,7 @@ function shouldPreserveSingleManualPosition(options = {}) {
   );
 }
 
+/** @param {number} naturalWidth @param {number} naturalHeight */
 function singleImageFitLayout(naturalWidth, naturalHeight) {
   const stage = viewerElements.stageCanvas;
   const width = Number(naturalWidth);
@@ -302,6 +316,7 @@ function singleImageFitLayout(naturalWidth, naturalHeight) {
   };
 }
 
+/** @param {number} naturalWidth @param {number} naturalHeight @param {ViewerFrameGeometryOptions} [options] */
 function applyLightboxFrameGeometry(naturalWidth, naturalHeight, options = {}) {
   const frame = viewerElements.lightboxImageFrame;
   const image = viewerElements.lightboxImage;
@@ -320,6 +335,7 @@ function applyLightboxFrameGeometry(naturalWidth, naturalHeight, options = {}) {
   return layout;
 }
 
+/** @param {CatalogRecord} catalog @param {number} page */
 function primeLightboxFrameForCatalogPage(catalog, page) {
   const size = pageSize(catalog, page);
   if (!size) return false;
@@ -390,6 +406,7 @@ function getDefaultZoomFocalPoint() {
   };
 }
 
+/** @param {number} nextZoom @param {PointLike|null} focal */
 function adjustSinglePanForZoom(nextZoom, focal) {
   const stage = viewerElements.stageCanvas;
   const rect = stage?.getBoundingClientRect?.();
@@ -405,6 +422,7 @@ function adjustSinglePanForZoom(nextZoom, focal) {
   viewerState.panY = focal.y - centerY - contentY * nextZoom;
 }
 
+/** @param {number} clientX @param {number} clientY @returns {PointLike|null} */
 function getSingleContentPointFromClientPoint(clientX, clientY) {
   const stage = viewerElements.stageCanvas;
   const rect = stage?.getBoundingClientRect?.();
@@ -420,6 +438,7 @@ function getSingleContentPointFromClientPoint(clientX, clientY) {
   };
 }
 
+/** @param {number} previousZoom @param {ViewerZoomChangeOptions} [options] */
 function finalizeSingleViewerZoomChange(previousZoom, options = {}) {
   const { showUi = true } = options;
   applyZoom();
@@ -433,6 +452,7 @@ function finalizeSingleViewerZoomChange(previousZoom, options = {}) {
   if (showUi) showTopUiTemporarily(1600);
 }
 
+/** @param {PointLike|null} point @param {number} nextZoom */
 function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   if (!point) return false;
   const previousZoom = viewerState.zoom;
@@ -450,6 +470,7 @@ function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   return true;
 }
 
+/** @param {number} nextZoom @param {number} clientX @param {number} clientY */
 function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
   return zoomSingleContentPointToViewportCenter(
     getSingleContentPointFromClientPoint(clientX, clientY),
@@ -457,6 +478,7 @@ function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
   );
 }
 
+/** @param {number} nextZoom @param {ViewerZoomOptions} [options] */
 function setZoom(nextZoom, options = {}) {
   const {
     showUi = true,
@@ -465,9 +487,10 @@ function setZoom(nextZoom, options = {}) {
   } = options;
   const previousZoom = viewerState.zoom;
   const zoom = clampViewerZoom(nextZoom);
-  const hasFocal = Number.isFinite(focalClientX) && Number.isFinite(focalClientY);
+  const hasFocal = typeof focalClientX === "number" && Number.isFinite(focalClientX)
+    && typeof focalClientY === "number" && Number.isFinite(focalClientY);
   const focal = hasFocal
-    ? { x: focalClientX, y: focalClientY }
+    ? { x: /** @type {number} */ (focalClientX), y: /** @type {number} */ (focalClientY) }
     : getDefaultZoomFocalPoint();
 
   if (isAutoViewerZoom(zoom)) {
@@ -483,6 +506,7 @@ function setZoom(nextZoom, options = {}) {
   finalizeSingleViewerZoomChange(previousZoom, { showUi });
 }
 
+/** @param {number} clientX @param {number} clientY */
 function toggleZoomAtPoint(clientX, clientY) {
   // A double-click enters 200% only from the canonical automatic state.
   // Any manual zoom, including values below 100%, resets to automatic first.

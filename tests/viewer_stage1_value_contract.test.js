@@ -40,7 +40,7 @@ assert.match(template, /data-viewer-mobile-action="fit-height"/);
 assert.match(template, /data-viewer-mobile-action="fit-width"/);
 assert.match(template, /id="viewerMobileFavoritesLink"/);
 
-assert.match(app, /function viewerPageInquiryReference\(\)[\s\S]*?viewerDocumentUrl\(navigationState\.catalog\.id, page\)/);
+assert.match(app, /function viewerPageInquiryReference\(\)[\s\S]*?const catalog = activeCatalog\(\);[\s\S]*?const page = clampPage\(activePage\(\), catalog\);[\s\S]*?viewerDocumentUrl\(catalog\.id, page\)/);
 assert.match(app, /function viewerInquiryReference\(\)[\s\S]*?inquiryState\.reference \|\| viewerPageInquiryReference\(\)/);
 assert.match(app, /`קטלוג: \$\{title\}`/);
 assert.match(app, /`עמוד: \$\{page\}`/);
@@ -56,7 +56,7 @@ assert.match(app, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)[\s\S
 assert.match(app, /function handleViewerMobileMoreKeydown\([\s\S]*?ArrowDown[\s\S]*?ArrowUp[\s\S]*?Home[\s\S]*?End/);
 assert.match(app, /function hideLightboxUi\([\s\S]*?closeViewerInquiry\(\{ restoreFocus: false \}\)[\s\S]*?closeViewerMobileMoreMenu\(\)/);
 
-const lightboxRender = app.match(/function renderLightboxSearchResults\(query\) \{([\s\S]*?)\n\}\n\nfunction renderCatalogCategoryMenu/)?.[1];
+const lightboxRender = app.match(/async function renderLightboxSearchResults\(query\) \{([\s\S]*?)\n\}\n\nfunction renderLightboxCatalogMenu/)?.[1];
 const globalRender = app.match(/function renderSearchResults\(query\) \{([\s\S]*?)\n\}\n\nfunction attachSearchUiEvents/)?.[1];
 assert.ok(lightboxRender, "lightbox search renderer should be extractable");
 assert.ok(globalRender, "global search renderer should be extractable");

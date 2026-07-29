@@ -12,17 +12,11 @@ const navigationState = {
   lightboxSource: LIGHTBOX_SOURCE_CATALOG,
 };
 
-/** @type {Readonly<Record<string, HTMLElement | null>>} */
+/** @type {Readonly<{
+ *   splash: HTMLElement|null,
+ *   catalogsSection: HTMLElement
+ * }>} */
 const shellElements = Object.freeze({
   splash: $("splashScreen"),
-  catalogsSection: $("catalogs"),
-  categoryNav: $("categoryNav"),
-  mobileCategoryMenuToggle: $("mobileCategoryMenuToggle"),
-  mobileCategoryMenu: $("mobileCategoryMenu"),
-  catalogCount: $("catalogCount"),
-  pageCount: $("pageCount"),
-  headerFavoritesButton: $("headerFavoritesButton"),
-  headerFavoritesCount: $("headerFavoritesCount"),
-  headerCopyLink: $("headerCopyLink"),
-  siteActionToast: $("siteActionToast"),
+  catalogsSection: requiredElement("catalogs"),
 });

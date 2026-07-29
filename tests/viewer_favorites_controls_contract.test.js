@@ -21,11 +21,11 @@ for (const html of [template, viewer]) {
   assert.doesNotMatch(toolbar, /id="fullscreenToggle"/);
 }
 
-assert.match(app, /lightboxFavoritesButton: \$\("lightboxFavoritesButton"\)/);
-assert.match(app, /lightboxFavoritesCount: \$\("lightboxFavoritesCount"\)/);
-assert.match(app, /lightboxFavoritesSeparator: \$\("lightboxFavoritesSeparator"\)/);
+assert.match(app, /lightboxFavoritesButton: \$requiredAnchor\("lightboxFavoritesButton"\)/);
+assert.match(app, /lightboxFavoritesCount: requiredElement\("lightboxFavoritesCount"\)/);
+assert.match(app, /lightboxFavoritesSeparator: requiredElement\("lightboxFavoritesSeparator"\)/);
 assert.match(app, /function syncFavoritesShortcut\(button, countElement, count\)/);
-assert.match(app, /syncFavoritesShortcut\(shellElements\.headerFavoritesButton, shellElements\.headerFavoritesCount, count\)/);
+assert.match(app, /syncFavoritesShortcut\(favoritesElements\.headerFavoritesButton, favoritesElements\.headerFavoritesCount, count\)/);
 assert.match(app, /syncFavoritesShortcut\(favoritesElements\.lightboxFavoritesButton, favoritesElements\.lightboxFavoritesCount, count\)/);
 assert.match(app, /favoritesElements\.lightboxFavoritesSeparator\?\.classList\.toggle\("hidden", count === 0\)/);
 

@@ -6,7 +6,7 @@
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
-function favoriteIdentity(catalog = navigationState.catalog, page = navigationState.page) {
+function favoriteIdentity(catalog = activeCatalog(), page = activePage()) {
   if (!catalog) return null;
   return {
     catalogId: String(catalog.id || ""),
@@ -14,12 +14,13 @@ function favoriteIdentity(catalog = navigationState.catalog, page = navigationSt
   };
 }
 
+/** @returns {FavoriteEntry[]} */
 function getFavoriteEntries() {
   if (!favoritesStore) return [];
   return favoritesStore.read().flatMap((item) => {
     const catalog = findCatalogById(item.catalogId);
-    const page = Number.parseInt(item.page, 10);
-    const maxPage = Number.parseInt(catalog?.pages, 10);
+    const page = Number.parseInt(String(item.page), 10);
+    const maxPage = Number.parseInt(String(catalog?.pages || 0), 10);
     if (!catalog || !Number.isFinite(page) || page < 1 || !Number.isFinite(maxPage) || page > maxPage) return [];
     return [{ ...item, catalog, page }];
   });
@@ -53,8 +54,10 @@ function warnIfFavoriteChangeIsTemporary(result) {
 }
 
 
+/** @returns {FavoriteItem[]} */
 function getValidFavoriteItems() {
   return getFavoriteEntries().map(({ catalogId, catalog, page, savedAt, note }) => {
+    /** @type {FavoriteItem} */
     const item = {
       catalogId: String(catalogId || catalog?.id || ""),
       page,
@@ -65,20 +68,23 @@ function getValidFavoriteItems() {
   });
 }
 
+/** @param {FavoriteKeySource|null|undefined} item */
 function favoriteItemKey(item) {
   const catalogId = String(item?.catalogId || item?.catalog?.id || "").trim();
-  const page = Number.parseInt(item?.page, 10);
+  const page = Number.parseInt(String(item?.page ?? ""), 10);
   return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\u0000${page}` : "";
 }
 
+/** @param {unknown} values @returns {FavoritesTransfer} */
 function normalizeFavoriteTransferItems(values) {
   const normalized = window.BargigFavorites?.normalizeItems?.(values) || [];
+  /** @type {FavoriteItem[]} */
   const accepted = [];
   let rejected = Math.max(0, Array.isArray(values) ? values.length - normalized.length : 0);
 
   normalized.forEach((item) => {
     const catalog = findCatalogById(item.catalogId);
-    const pageCount = Number.parseInt(catalog?.pages, 10);
+    const pageCount = Number.parseInt(String(catalog?.pages || 0), 10);
     if (!catalog || !Number.isFinite(pageCount) || item.page > pageCount) {
       rejected += 1;
       return;
@@ -93,6 +99,7 @@ function normalizeFavoriteTransferItems(values) {
   return { items: accepted, rejected };
 }
 
+/** @param {unknown} incoming @param {unknown} [existing] @returns {FavoriteMergeAnalysis} */
 function analyzeFavoriteItemMerge(incoming, existing = getValidFavoriteItems()) {
   const incomingItems = normalizeFavoriteTransferItems(incoming).items;
   const existingItems = window.BargigFavorites?.normalizeItems?.(existing) || [];
@@ -120,10 +127,12 @@ function analyzeFavoriteItemMerge(incoming, existing = getValidFavoriteItems()) 
   };
 }
 
+/** @param {unknown} incoming @param {unknown} [existing] @returns {FavoriteItem[]} */
 function mergeFavoriteItemLists(incoming, existing = getValidFavoriteItems()) {
   return analyzeFavoriteItemMerge(incoming, existing).mergedItems;
 }
 
+/** @param {unknown} value */
 function encodeBase64UrlUtf8(value) {
   const bytes = new TextEncoder().encode(String(value || ""));
   let binary = "";
@@ -137,6 +146,7 @@ function encodeBase64UrlUtf8(value) {
     .replace(/=+$/g, "");
 }
 
+/** @param {unknown} value */
 function decodeBase64UrlUtf8(value) {
   const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
   const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
@@ -145,20 +155,22 @@ function decodeBase64UrlUtf8(value) {
   return new TextDecoder().decode(bytes);
 }
 
+/** @param {unknown} items @returns {FavoriteItem[]} */
 function canonicalizeFavoriteShareItems(items) {
   const normalized = normalizeFavoriteTransferItems(items).items.map(({ catalogId, page }) => ({ catalogId, page }));
   const catalogOrder = new Map(catalogs.map((catalog, index) => [String(catalog.id || ""), index]));
   return normalized.sort((a, b) => {
-    const aIndex = catalogOrder.has(a.catalogId) ? catalogOrder.get(a.catalogId) : Number.MAX_SAFE_INTEGER;
-    const bIndex = catalogOrder.has(b.catalogId) ? catalogOrder.get(b.catalogId) : Number.MAX_SAFE_INTEGER;
+    const aIndex = catalogOrder.get(a.catalogId) ?? Number.MAX_SAFE_INTEGER;
+    const bIndex = catalogOrder.get(b.catalogId) ?? Number.MAX_SAFE_INTEGER;
     if (aIndex !== bIndex) return aIndex - bIndex;
     const catalogCompare = a.catalogId.localeCompare(b.catalogId, "he");
     return catalogCompare || a.page - b.page;
   });
 }
 
+/** @param {Array<number>} pages */
 function encodeFavoritePageRanges(pages) {
-  const sorted = [...new Set(pages.map((page) => Number.parseInt(page, 10)).filter((page) => Number.isFinite(page) && page > 0))]
+  const sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page > 0))]
     .sort((a, b) => a - b);
   const ranges = [];
   for (let index = 0; index < sorted.length;) {
@@ -175,7 +187,9 @@ function encodeFavoritePageRanges(pages) {
   return ranges.join(",");
 }
 
+/** @param {unknown} value @returns {number[]} */
 function decodeFavoritePageRanges(value) {
+  /** @type {number[]} */
   const pages = [];
   String(value || "").split(",").forEach((part) => {
     if (!part) return;
@@ -188,11 +202,14 @@ function decodeFavoritePageRanges(value) {
   return pages;
 }
 
+/** @param {unknown} items */
 function buildFavoritesShareToken(items) {
+  /** @type {Map<string,number[]>} */
   const grouped = new Map();
   canonicalizeFavoriteShareItems(items).forEach(({ catalogId, page }) => {
-    if (!grouped.has(catalogId)) grouped.set(catalogId, []);
-    grouped.get(catalogId).push(page);
+    const pages = grouped.get(catalogId) || [];
+    pages.push(page);
+    grouped.set(catalogId, pages);
   });
   const payload = [...grouped.entries()]
     .map(([catalogId, pages]) => `${encodeURIComponent(catalogId)}~${encodeFavoritePageRanges(pages)}`)
@@ -200,6 +217,7 @@ function buildFavoritesShareToken(items) {
   return `v${FAVORITES_SHARE_VERSION}.${encodeBase64UrlUtf8(payload)}`;
 }
 
+/** @param {unknown} token @returns {FavoritesTransfer} */
 function parseFavoritesShareToken(token) {
   const rawToken = String(token || "").trim();
   const prefix = `v${FAVORITES_SHARE_VERSION}.`;
@@ -207,6 +225,7 @@ function parseFavoritesShareToken(token) {
 
   try {
     const payload = decodeBase64UrlUtf8(rawToken.slice(prefix.length));
+    /** @type {FavoriteItem[]} */
     const rawItems = [];
     if (payload) {
       payload.split("|").forEach((group) => {
@@ -225,6 +244,7 @@ function parseFavoritesShareToken(token) {
   }
 }
 
+/** @param {unknown} items */
 function buildFavoritesShareUrl(items) {
   const url = new URL(favoritesDocumentUrl(), window.location.href);
   url.hash = "";
@@ -262,7 +282,8 @@ function syncFavoritesTransferDialogUi() {
   }
 }
 
-function openFavoritesTransferDialog(transfer, returnFocus = document.activeElement) {
+/** @param {FavoritesTransfer} transfer @param {HTMLElement|null} [returnFocus] */
+function openFavoritesTransferDialog(transfer, returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null) {
   if (!transfer?.items?.length || !favoritesElements.favoritesTransferOverlay) return false;
   favoritesState.favoritesTransferPending = transfer;
   favoritesState.favoritesTransferReturnFocus = returnFocus;
@@ -274,6 +295,7 @@ function openFavoritesTransferDialog(transfer, returnFocus = document.activeElem
   return true;
 }
 
+/** @param {DialogCloseOptions} [options] */
 function closeFavoritesTransferDialog(options = {}) {
   const { restoreFocus = true, cleanUrl = false } = options;
   const returnFocus = favoritesState.favoritesTransferReturnFocus;
@@ -283,9 +305,10 @@ function closeFavoritesTransferDialog(options = {}) {
   favoritesElements.favoritesTransferOverlay?.setAttribute("aria-hidden", "true");
   if (cleanUrl) cleanFavoritesSelectionFromUrl();
   syncDocumentLock();
-  if (restoreFocus && returnFocus?.focus) returnFocus.focus();
+  if (restoreFocus) focusHtmlElement(returnFocus);
 }
 
+/** @param {"merge"|"replace"} mode */
 function applyFavoritesTransfer(mode) {
   const pending = favoritesState.favoritesTransferPending;
   if (!pending?.items?.length || !favoritesStore) return;
@@ -313,11 +336,12 @@ function applyFavoritesTransfer(mode) {
     tone: "saved",
     duration: 2800
   });
-  requestAnimationFrame(() => favoritesElements.favoritesGrid?.querySelector(".favorite-card")?.focus?.());
+  requestAnimationFrame(() => focusHtmlElement(favoritesElements.favoritesGrid.querySelector(".favorite-card")));
 }
 
+/** @param {FavoritesTransfer} transfer @param {FavoritesTransferPrepareOptions} [options] */
 function prepareIncomingFavoritesTransfer(transfer, options = {}) {
-  const { returnFocus = document.activeElement } = options;
+  const { returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null } = options;
   if (!transfer?.valid || !transfer.items.length || !favoritesStore) return false;
   const currentItems = getValidFavoriteItems();
   if (!currentItems.length) {
@@ -360,6 +384,7 @@ async function shareFavoritesList() {
   );
 }
 
+/** @param {KeyboardEvent} event */
 function handleFavoritesTransferKeydown(event) {
   if (!favoritesState.favoritesTransferPending || !favoritesElements.favoritesTransferOverlay) return;
   if (event.key === "Escape") {
@@ -369,42 +394,44 @@ function handleFavoritesTransferKeydown(event) {
     return;
   }
   if (event.key !== "Tab") return;
-  const focusable = Array.from(favoritesElements.favoritesTransferOverlay.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'));
+  const focusable = Array.from(favoritesElements.favoritesTransferOverlay.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')).filter((element) => element instanceof HTMLElement);
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
-    last.focus();
+    focusHtmlElement(last);
   } else if (!event.shiftKey && document.activeElement === last) {
     event.preventDefault();
-    first.focus();
+    focusHtmlElement(first);
   }
 }
 
 function isFavoritesLightboxMode() {
-  return navigationState.lightboxSource === LIGHTBOX_SOURCE_FAVORITES;
+  return activeViewerSource() === LIGHTBOX_SOURCE_FAVORITES;
 }
 
+/** @param {FavoriteEntry[]} entries @param {unknown} catalogId @param {unknown} page */
 function findFavoriteEntryIndex(entries, catalogId, page) {
   const normalizedCatalogId = String(catalogId || "");
-  const normalizedPage = Number.parseInt(page, 10);
+  const normalizedPage = Number.parseInt(String(page), 10);
   return entries.findIndex((entry) => (
     String(entry.catalog?.id || entry.catalogId || "") === normalizedCatalogId &&
     entry.page === normalizedPage
   ));
 }
 
+/** @param {FavoriteEntry[]} entries @param {number} index */
 function setFavoriteViewerEntry(entries, index) {
   if (!entries.length) return false;
-  const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
+  const nextIndex = clampValue(Number.parseInt(String(index), 10) || 0, 0, entries.length - 1);
   const entry = entries[nextIndex];
   favoritesState.favoritesViewerIndex = nextIndex;
-  navigationState.catalog = entry.catalog;
-  navigationState.page = entry.page;
+  setActiveLocation(entry.catalog, entry.page, activeViewerSource());
   return true;
 }
 
+/** @param {FavoriteViewerSyncOptions} [options] */
 function syncFavoriteViewerAfterStoreChange(options = {}) {
   const viewer = getFeatureInterface("viewer");
   if (!viewer?.isViewerOpen?.() || !isFavoritesLightboxMode()) return;
@@ -416,10 +443,31 @@ function syncFavoriteViewerAfterStoreChange(options = {}) {
     return;
   }
 
-  const currentIndex = findFavoriteEntryIndex(entries, navigationState.catalog?.id, navigationState.page);
+  const currentIndex = findFavoriteEntryIndex(entries, activeCatalog()?.id, activePage());
   setFavoriteViewerEntry(entries, currentIndex >= 0 ? currentIndex : preferredIndex);
   viewer.renderPageRail?.();
   viewer.refresh?.({ thumbScrollIntoView: true });
+}
+
+/** @param {boolean} favoritesMode */
+function syncFavoritesViewerModeUi(favoritesMode) {
+  const button = favoritesElements.favoriteOpenCatalogButton;
+  button.classList.toggle("hidden", !favoritesMode);
+  button.setAttribute("aria-hidden", favoritesMode ? "false" : "true");
+  button.setAttribute("tabindex", favoritesMode ? "0" : "-1");
+}
+
+/** @param {boolean} open @param {HTMLElement|null} [activeTrigger] */
+function syncFavoritesInquiryTriggerState(open, activeTrigger = null) {
+  const button = favoritesElements.favoritesInquiryButton;
+  button.setAttribute("aria-expanded", open && button === activeTrigger ? "true" : "false");
+}
+
+function openCurrentFavoriteInCatalogFromViewer() {
+  const catalog = activeCatalog();
+  const viewer = getFeatureInterface("viewer");
+  if (!catalog || !viewer?.isViewerOpen() || !isFavoritesLightboxMode()) return;
+  viewer.openCatalog(catalog.id, activePage(), { source: LIGHTBOX_SOURCE_CATALOG });
 }
 
 function syncViewerFavoriteButtonUi() {
@@ -440,6 +488,7 @@ function renderFavoritesPanel(entries = getFavoriteEntries()) {
   getFeatureInterface("favorites-workspace")?.render?.(entries);
 }
 
+/** @param {HTMLElement|null|undefined} button @param {HTMLElement|null|undefined} countElement @param {number} count */
 function syncFavoritesShortcut(button, countElement, count) {
   if (countElement) countElement.textContent = String(count);
   if (!button) return;
@@ -447,12 +496,13 @@ function syncFavoritesShortcut(button, countElement, count) {
   button.setAttribute("aria-label", `פתיחת מועדפים, ${count} עמודים שמורים`);
 }
 
+/** @param {FavoritesSyncOptions} [options] */
 function syncFavoritesUi(options = {}) {
   const { renderPanel = favoritesState.favoritesOpen } = options;
   const entries = getFavoriteEntries();
   getFeatureInterface("favorites-workspace")?.prune?.(entries);
   const count = entries.length;
-  syncFavoritesShortcut(shellElements.headerFavoritesButton, shellElements.headerFavoritesCount, count);
+  syncFavoritesShortcut(favoritesElements.headerFavoritesButton, favoritesElements.headerFavoritesCount, count);
   syncFavoritesShortcut(favoritesElements.lightboxFavoritesButton, favoritesElements.lightboxFavoritesCount, count);
   favoritesElements.lightboxFavoritesSeparator?.classList.toggle("hidden", count === 0);
   favoritesElements.lightboxFavoritesSeparator?.setAttribute("aria-hidden", count === 0 ? "true" : "false");
@@ -466,6 +516,7 @@ function syncFavoritesUi(options = {}) {
   }
 }
 
+/** @param {FavoritesPanelOpenOptions} [options] */
 function openFavoritesPanel(options = {}) {
   const { allowEmpty = false, captureReturnFocus = true } = options;
   const entries = getFavoriteEntries();
@@ -476,7 +527,7 @@ function openFavoritesPanel(options = {}) {
   }
 
   if (!favoritesElements.favoritesPanel || (!allowEmpty && !entries.length)) return;
-  if (captureReturnFocus) favoritesState.favoritesReturnFocus = document.activeElement;
+  if (captureReturnFocus) favoritesState.favoritesReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   favoritesState.favoritesOpen = true;
   renderFavoritesPanel(entries);
   favoritesElements.favoritesPanel.classList.remove("hidden");
@@ -487,6 +538,7 @@ function openFavoritesPanel(options = {}) {
   updateDocumentMetadata();
 }
 
+/** @param {FavoritesPanelCloseOptions} [options] */
 function hideFavoritesPanelUi(options = {}) {
   const { restoreFocus = false, preserveReturnFocus = false } = options;
   const returnFocus = favoritesState.favoritesReturnFocus;
@@ -498,10 +550,11 @@ function hideFavoritesPanelUi(options = {}) {
   favoritesElements.favoritesPanel?.setAttribute("aria-modal", "true");
   syncDocumentLock();
 
-  if (restoreFocus && returnFocus?.focus) returnFocus.focus();
+  if (restoreFocus) focusHtmlElement(returnFocus);
   if (!preserveReturnFocus) favoritesState.favoritesReturnFocus = null;
 }
 
+/** @param {FavoritesPanelCloseOptions} [options] */
 function closeFavoritesPanel(options = {}) {
   const { restoreFocus = true, preserveReturnFocus = false } = options;
   if (isAppPage("favorites")) {
@@ -513,6 +566,7 @@ function closeFavoritesPanel(options = {}) {
   hideFavoritesPanelUi({ restoreFocus, preserveReturnFocus });
 }
 
+/** @param {string} catalogId @param {number} page */
 function openFavoriteViewer(catalogId, page) {
   const entries = getFavoriteEntries();
   const index = findFavoriteEntryIndex(entries, catalogId, page);
@@ -524,8 +578,8 @@ function openFavoriteViewer(catalogId, page) {
   }
 
   favoritesState.favoritesViewerOpeningHash = window.location.href;
-  favoritesState.favoritesViewerPreviousCatalog = navigationState.catalog;
-  favoritesState.favoritesViewerPreviousPage = navigationState.page;
+  favoritesState.favoritesViewerPreviousCatalog = activeCatalog();
+  favoritesState.favoritesViewerPreviousPage = activePage();
   setFavoriteViewerEntry(entries, index);
   getFeatureInterface("viewer")?.openCatalog?.(catalogId, page, {
     source: LIGHTBOX_SOURCE_FAVORITES,
@@ -559,6 +613,7 @@ function toggleCurrentPageFavorite() {
   }
 }
 
+/** @param {string} catalogId @param {number} page */
 function removeFavorite(catalogId, page) {
   if (!favoritesStore) return;
   const mutation = favoritesStore.removeDetailed({ catalogId, page });
@@ -590,19 +645,22 @@ function clearAllFavorites() {
   });
 }
 
+/** @param {Event} event */
 function handleFavoritesGridClick(event) {
-  if (getFeatureInterface("favorites-workspace")?.handleGridClick?.(event)) return;
-  const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
-  if (!card || !favoritesElements.favoritesGrid?.contains(card)) return;
-  const catalogId = card.dataset.favoriteCatalog;
-  const page = Number.parseInt(card.dataset.favoritePage, 10);
-  if (event.target.closest?.("[data-remove-favorite]")) {
+  if (getFeatureInterface("favorites-workspace")?.handleGridClick(event)) return;
+  const target = eventTargetElement(event.target);
+  const card = target?.closest("[data-favorite-catalog][data-favorite-page]");
+  if (!(card instanceof HTMLElement) || !favoritesElements.favoritesGrid?.contains(card)) return;
+  const catalogId = String(card.dataset.favoriteCatalog || "");
+  const page = Number.parseInt(String(card.dataset.favoritePage || ""), 10);
+  if (target?.closest("[data-remove-favorite]")) {
     removeFavorite(catalogId, page);
     return;
   }
-  if (event.target.closest?.("[data-open-favorite]")) openFavoriteViewer(catalogId, page);
+  if (target?.closest("[data-open-favorite]")) openFavoriteViewer(catalogId, page);
 }
 
+/** @param {StorageEvent} event */
 function handleFavoritesStorageChange(event) {
   if (!favoritesStore || (event.key !== null && event.key !== favoritesStore.storageKey)) return;
   favoritesStore.reload();
@@ -612,20 +670,21 @@ function handleFavoritesStorageChange(event) {
   syncFavoriteViewerAfterStoreChange();
 }
 
+/** @param {KeyboardEvent} event */
 function handleFavoritesPanelKeydown(event) {
   if (!favoritesState.favoritesOpen || event.key !== "Tab" || !favoritesElements.favoritesPanel) return;
   const focusable = Array.from(favoritesElements.favoritesPanel.querySelectorAll(
     'button:not([disabled]):not(.hidden), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-  )).filter((element) => !element.closest?.(".hidden"));
+  )).filter((element) => isHtmlElement(element) && !element.closest(".hidden"));
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
-    last.focus();
+    focusHtmlElement(last);
   } else if (!event.shiftKey && document.activeElement === last) {
     event.preventDefault();
-    first.focus();
+    focusHtmlElement(first);
   }
 }
 
@@ -633,6 +692,7 @@ function currentVisibleDocumentUrl() {
   return window.location.href;
 }
 
+/** @param {string} value */
 async function copyTextToClipboard(value) {
   if (navigator.clipboard?.writeText && window.isSecureContext) {
     await navigator.clipboard.writeText(value);
@@ -659,12 +719,14 @@ function isMobileShareEnvironment() {
 }
 
 function currentShareLabel() {
-  if (navigationState.catalog && isAppPage("viewer")) return `${navigationState.catalog.title} · עמוד ${navigationState.page}`;
-  if (navigationState.catalog && isAppPage("catalog")) return navigationState.catalog.title;
+  const catalog = activeCatalog();
+  if (catalog && isAppPage("viewer")) return `${catalog.title} · עמוד ${activePage()}`;
+  if (catalog && isAppPage("catalog")) return catalog.title;
   if (isAppPage("favorites")) return "המועדפים שלי · רהיטי ברגיג";
   return "קטלוגי רהיטי ברגיג";
 }
 
+/** @param {Element|null|undefined} button */
 async function shareOrCopyCurrentLink(button) {
   const link = currentVisibleDocumentUrl();
 
@@ -677,7 +739,7 @@ async function shareOrCopyCurrentLink(button) {
       });
       return;
     } catch (error) {
-      if (error?.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") return;
     }
   }
 
@@ -692,13 +754,24 @@ async function shareOrCopyCurrentLink(button) {
 }
 
 async function shareCurrentMainHeaderLink() {
-  await shareOrCopyCurrentLink(shellElements.headerCopyLink);
+  await shareOrCopyCurrentLink(favoritesElements.headerCopyLink);
 }
 
 function attachFavoritesShareEvents() {
-  shellElements.headerCopyLink?.addEventListener("click", () => shareCurrentMainHeaderLink());
-  favoritesElements.favoritesBackdrop?.addEventListener("click", closeFavoritesPanel);
-  favoritesElements.favoritesCloseButton?.addEventListener("click", closeFavoritesPanel);
+  favoritesElements.headerCopyLink.addEventListener("click", () => shareCurrentMainHeaderLink());
+  favoritesElements.viewerFavoriteButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleCurrentPageFavorite();
+  });
+  favoritesElements.viewerFavoriteButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+  favoritesElements.favoriteOpenCatalogButton.addEventListener("click", openCurrentFavoriteInCatalogFromViewer);
+  favoritesElements.viewerMobileFavoritesLink.href = favoritesDocumentUrl();
+  favoritesElements.viewerMobileFavoritesLink.addEventListener("click", () => {
+    getFeatureInterface("viewer")?.closeMobileMoreMenu();
+  });
+  favoritesElements.favoritesBackdrop?.addEventListener("click", () => closeFavoritesPanel());
+  favoritesElements.favoritesCloseButton?.addEventListener("click", () => closeFavoritesPanel());
   favoritesElements.favoritesClearButton?.addEventListener("click", clearAllFavorites);
   favoritesElements.favoritesShareButton?.addEventListener("click", () => shareFavoritesList());
   favoritesElements.favoritesGrid?.addEventListener("click", handleFavoritesGridClick);
@@ -723,6 +796,42 @@ registerFeatureInterface("favorites", {
     favoritesState.favoritesTransferPending ||
     favoritesState.favoriteNoteEditingKey
   ),
+  attachEvents: attachFavoritesShareEvents,
+  entries: getFavoriteEntries,
+  viewerIndex: () => favoritesState.favoritesViewerIndex,
+  setViewerIndex: (index) => {
+    favoritesState.favoritesViewerIndex = Math.max(0, Number.parseInt(String(index), 10) || 0);
+  },
+  findViewerEntryIndex: findFavoriteEntryIndex,
+  selectViewerEntry: setFavoriteViewerEntry,
+  resetViewerSession: () => {
+    favoritesState.favoritesViewerIndex = 0;
+    favoritesState.favoritesViewerOpeningHash = "";
+    favoritesState.favoritesViewerPreviousCatalog = null;
+    favoritesState.favoritesViewerPreviousPage = 1;
+    favoritesState.favoritesReturnFocus = null;
+  },
+  syncViewerButton: syncViewerFavoriteButtonUi,
+  syncViewerMode: syncFavoritesViewerModeUi,
+  syncInquiryTrigger: syncFavoritesInquiryTriggerState,
+  onboardingTarget: () => favoritesElements.viewerFavoriteButton,
+  prepareRoute: (nextPage) => {
+    if (nextPage !== "favorites" && favoritesState.favoritesTransferPending) {
+      closeFavoritesTransferDialog({ restoreFocus: false, cleanUrl: true });
+    }
+    if (nextPage !== "favorites" && favoritesState.favoriteNoteEditingKey) {
+      getFeatureInterface("favorites-workspace")?.closeNoteEditor({ restoreFocus: false });
+    }
+    if (nextPage !== "favorites" && (favoritesState.favoritesOpen || favoritesElements.favoritesPanel.classList.contains("favorites-standalone-page"))) {
+      hideFavoritesPanelUi();
+    }
+  },
+  syncUi: () => syncFavoritesUi({ renderPanel: isAppPage("favorites") }),
+  openRoute: () => {
+    openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
+    processFavoritesSelectionFromUrl();
+  },
+  isPanelOpen: () => favoritesState.favoritesOpen,
   closeTopLayer: () => {
     if (favoritesState.favoriteNoteEditingKey) {
       getFeatureInterface("favorites-workspace")?.closeNoteEditor?.();

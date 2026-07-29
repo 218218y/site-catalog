@@ -37,7 +37,7 @@ assert.match(app, /persisted/);
 assert.match(app, /window\.addEventListener\("storage", handleFavoritesStorageChange\)/);
 assert.match(app, /openFavoriteViewer\(catalogId, page\)/);
 assert.match(app, /source: LIGHTBOX_SOURCE_FAVORITES/);
-assert.match(app, /setFavoriteViewerIndex\(favoritesState\.favoritesViewerIndex \+ delta, options\)/);
+assert.match(app, /setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)/);
 assert.match(app, /openCurrentFavoriteInCatalog/);
 assert.match(app, /openFavoritesPanel\(\{ allowEmpty: true, captureReturnFocus: false \}\)/);
 assert.match(app, /window\.confirm\("למחוק את כל העמודים מהמועדפים\?"\)/);

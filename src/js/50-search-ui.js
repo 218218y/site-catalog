@@ -6,12 +6,27 @@
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
+/** @typedef {"global"|"viewer"} SearchChannel */
+/** @typedef {{trigger?:string}} SearchIndexLoadOptions */
+/** @typedef {{immediate?:boolean}} SearchScheduleOptions */
+/** @typedef {{focus?:boolean, focusButton?:boolean, hideResults?:boolean}} GlobalSearchPanelOptions */
+/** @typedef {{render?:boolean}} SearchScopeChangeOptions */
+/** @typedef {{focusInput?:boolean, returnFocus?:boolean, hideResults?:boolean, hideTopUi?:boolean}} LightboxMobileSearchOptions */
+/** @typedef {{blurTopUiFocus?:boolean, hideTopUi?:boolean}} LightboxSearchHideOptions */
+/** @typedef {{isCurrent?:()=>boolean}} SearchRequestControl */
+/** @typedef {{limit:number, channel:SearchChannel, catalogId?:string, category?:string}} CatalogSearchRequestOptions */
+/** @typedef {{restoreAfter?:boolean}} SearchPreviewSuppressionOptions */
+/** @typedef {{reader?:boolean}} SearchMarkupOptions */
+/** @typedef {{immediate?:boolean}} SearchCompletionOptions */
+
 let globalSearchRenderTimer = 0;
 let lightboxSearchRenderTimer = 0;
 let globalSearchAppendTimer = 0;
 let globalSearchRenderSequence = 0;
 let lightboxSearchRenderSequence = 0;
+/** @type {Array<CatalogSearchResult>} */
 let lastGlobalSearchResults = [];
+/** @type {Array<CatalogSearchResult>} */
 let lastLightboxSearchResults = [];
 let lastGlobalSearchKey = "";
 let lastLightboxSearchKey = "";
@@ -32,6 +47,7 @@ function refreshSearchUiAfterIndexLoad() {
   // as soon as this promise resolves.
 }
 
+/** @param {SearchIndexLoadOptions} [options] @returns {Promise<boolean>} */
 function ensureSearchIndexLoaded(options = {}) {
   if (!catalogSearch?.ensureReady) {
     searchState.searchIndexLoadState = "error";
@@ -78,6 +94,7 @@ function scheduleSearchIndexPreload() {
   }, SEARCH_INDEX_PRELOAD_DELAY_MS);
 }
 
+/** @param {SearchChannel} channel */
 function cancelScheduledSearch(channel) {
   if (channel === "global") {
     window.clearTimeout(globalSearchRenderTimer);
@@ -98,6 +115,7 @@ function cancelGlobalSearchResultAppend() {
   globalSearchAppendTimer = 0;
 }
 
+/** @param {SearchChannel} channel @param {unknown} query @param {SearchScheduleOptions} [options] */
 function scheduleSearchRender(channel, query, options = {}) {
   const delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS;
   const callback = channel === "global"
@@ -116,6 +134,7 @@ function scheduleSearchRender(channel, query, options = {}) {
   }
 }
 
+/** @param {unknown} text @param {Array<SearchHighlightRange>} [ranges] */
 function highlightedSearchText(text, ranges = []) {
   const raw = String(text || "");
   if (!raw) return "";
@@ -139,6 +158,7 @@ function highlightedSearchText(text, ranges = []) {
   return markup + escapeHtml(raw.slice(cursor));
 }
 
+/** @param {CatalogSearchResult} result */
 function searchResultDetailsMarkup(result) {
   const page = Math.max(1, Number(result?.page) || 1);
   const reason = String(result?.matchReason || "התאמה בטקסט הקטלוג");
@@ -155,6 +175,7 @@ function getGlobalSearchCategories() {
     .map((group) => ({ category: group.category }));
 }
 
+/** @param {unknown} category */
 function hasGlobalSearchCategory(category) {
   const requestedCategory = String(category || "").trim();
   if (!requestedCategory) return false;
@@ -187,6 +208,7 @@ function isGlobalSearchPanelOpen() {
   return Boolean(searchState.globalSearchOpen && searchElements.catalogSearch && !searchElements.catalogSearch.classList.contains("hidden"));
 }
 
+/** @param {boolean} open @param {GlobalSearchPanelOptions} [options] */
 function setGlobalSearchPanelOpen(open, options = {}) {
   const shouldOpen = Boolean(open);
   searchState.globalSearchOpen = shouldOpen;
@@ -220,10 +242,12 @@ function setGlobalSearchPanelOpen(open, options = {}) {
   }
 }
 
+/** @param {GlobalSearchPanelOptions} [options] */
 function openGlobalSearchPanel(options = {}) {
   setGlobalSearchPanelOpen(true, options);
 }
 
+/** @param {GlobalSearchPanelOptions} [options] */
 function closeGlobalSearchPanel(options = {}) {
   setGlobalSearchPanelOpen(false, options);
 }
@@ -255,13 +279,14 @@ function syncGlobalSearchScopeUi() {
     searchElements.globalSearchInput.placeholder = globalSearchPlaceholder();
     searchElements.globalSearchInput.setAttribute("aria-label", globalSearchPlaceholder());
   }
-  searchElements.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]").forEach((button) => {
+  Array.from(searchElements.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]") || []).filter(isHtmlElement).forEach((button) => {
     const selected = String(button.dataset.globalSearchCategory || "") === category;
     button.classList.toggle("active", selected);
     button.setAttribute("aria-checked", selected ? "true" : "false");
   });
 }
 
+/** @param {unknown} category @param {SearchScopeChangeOptions} [options] */
 function setGlobalSearchCategory(category, options = {}) {
   const requestedCategory = String(category || "").trim();
   const nextCategory = requestedCategory && hasGlobalSearchCategory(requestedCategory)
@@ -298,7 +323,7 @@ function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
 
 function lightboxSearchPlaceholder() {
   if (getLightboxSearchScope() === "all") return "חיפוש דגם בכל הקטלוגים...";
-  const title = String(navigationState.catalog?.title || "").trim();
+  const title = String(activeCatalog()?.title || "").trim();
   return title ? `חיפוש ב: ${title}` : "חיפוש ב...";
 }
 
@@ -326,6 +351,7 @@ function syncLightboxMobileSearchUi() {
   searchElements.lightboxSearchPanel?.setAttribute("aria-hidden", compactMode && !isOpen ? "true" : "false");
 }
 
+/** @param {boolean} open @param {LightboxMobileSearchOptions} [options] */
 function setLightboxMobileSearchOpen(open, options = {}) {
   const { focusInput = false, returnFocus = false, hideResults = true, hideTopUi = false } = options;
   const shouldOpen = Boolean(
@@ -356,11 +382,6 @@ function setLightboxMobileSearchOpen(open, options = {}) {
   }
 }
 
-function closeDetailCatalogMenu() {
-  catalogElements.catalogMenu?.classList.add("hidden");
-  catalogElements.catalogMenuToggle?.setAttribute("aria-expanded", "false");
-}
-
 function syncLightboxSearchScopeUi() {
   const scope = getLightboxSearchScope();
   if (searchElements.lightboxSearchScopeToggle) {
@@ -370,13 +391,14 @@ function syncLightboxSearchScopeUi() {
     searchElements.lightboxSearchInput.placeholder = lightboxSearchPlaceholder();
     searchElements.lightboxSearchInput.setAttribute("aria-label", lightboxSearchPlaceholder());
   }
-  searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
+  Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
     const selected = button.dataset.lightboxSearchScope === scope;
     button.classList.toggle("active", selected);
     button.setAttribute("aria-checked", selected ? "true" : "false");
   });
 }
 
+/** @param {unknown} scope @param {SearchScopeChangeOptions} [options] */
 function setLightboxSearchScope(scope, options = {}) {
   const nextScope = scope === "all" ? "all" : "catalog";
   if (searchState.lightboxSearchScope === nextScope) {
@@ -395,6 +417,7 @@ function setLightboxSearchScope(scope, options = {}) {
   }
 }
 
+/** @param {LightboxSearchHideOptions} [options] */
 function hideLightboxSearchResults(options = {}) {
   const { blurTopUiFocus = false, hideTopUi = false } = options;
 
@@ -406,9 +429,8 @@ function hideLightboxSearchResults(options = {}) {
   if (blurTopUiFocus) {
     const activeElement = document.activeElement;
     if (
-      activeElement &&
-      getFeatureInterface("viewer")?.containsTopBarElement?.(activeElement) &&
-      typeof activeElement.blur === "function"
+      isHtmlElement(activeElement) &&
+      getFeatureInterface("viewer")?.containsTopBarElement(activeElement)
     ) {
       activeElement.blur();
     }
@@ -428,11 +450,13 @@ function resetLightboxSearch() {
   initLightboxSearchStatus();
 }
 
+/** @param {unknown} query */
 function lightboxSearchKey(query) {
   const scope = getLightboxSearchScope();
-  return [String(query || "").trim(), scope, scope === "all" ? "" : (navigationState.catalog?.id || "")].join("\u0000");
+  return [String(query || "").trim(), scope, scope === "all" ? "" : (activeCatalog()?.id || "")].join("\u0000");
 }
 
+/** @param {unknown} query @param {number} [limit] @param {SearchRequestControl} [control] @returns {Promise<Array<CatalogSearchResult>>} */
 async function getLightboxSearchResults(query, limit = 24, control = {}) {
   const rawQuery = String(query || "").trim();
   if (rawQuery.length < 2) return [];
@@ -440,15 +464,18 @@ async function getLightboxSearchResults(query, limit = 24, control = {}) {
   if (control.isCurrent && !control.isCurrent()) return [];
   if (!catalogSearch?.hasIndex?.()) return [];
 
+  /** @type {CatalogSearchRequestOptions} */
   const options = { limit, channel: "viewer" };
   if (getLightboxSearchScope() !== "all") {
-    if (!navigationState.catalog) return [];
-    options.catalogId = navigationState.catalog.id;
+    const catalog = activeCatalog();
+    if (!catalog) return [];
+    options.catalogId = catalog.id;
   }
   const results = await catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 
+/** @param {string} completion @param {unknown} [query] */
 async function trackCompletedLightboxSearch(completion, query = searchElements.lightboxSearchInput?.value || "") {
   const rawQuery = String(query || "").trim();
   const scope = getLightboxSearchScope();
@@ -459,24 +486,26 @@ async function trackCompletedLightboxSearch(completion, query = searchElements.l
   telemetryTrackSearch(rawQuery, results.length, {
     surface: "viewer",
     scope,
-    catalogId: scope === "all" ? "" : navigationState.catalog?.id,
+    catalogId: scope === "all" ? "" : activeCatalog()?.id,
     completion
   });
   return results;
 }
 
+/** @param {CatalogSearchResult|null|undefined} result */
 function openLightboxSearchResult(result) {
   if (!result) return false;
 
-  const targetCatalogId = result.catalogId || navigationState.catalog?.id;
+  const targetCatalogId = result.catalogId || activeCatalog()?.id;
   if (!targetCatalogId) return false;
 
-  if (!navigationState.catalog || navigationState.catalog.id !== targetCatalogId) {
+  const catalog = activeCatalog();
+  if (!catalog || catalog.id !== targetCatalogId) {
     getFeatureInterface("viewer")?.openCatalog?.(targetCatalogId, Number(result.page));
     return true;
   }
 
-  const page = clampPage(result.page, navigationState.catalog);
+  const page = clampPage(result.page, catalog);
   getFeatureInterface("viewer")?.setPage?.(page);
   getFeatureInterface("viewer")?.showTopUi?.();
   if (searchState.lightboxMobileSearchOpen) {
@@ -497,7 +526,7 @@ async function submitLightboxSearch() {
 function initLightboxSearchStatus() {
   if (!searchElements.lightboxSearchStatus) return;
 
-  const hasCatalog = Boolean(navigationState.catalog);
+  const hasCatalog = Boolean(activeCatalog());
   const hasIndex = Boolean(catalogSearch?.hasIndex?.());
   const indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
   if (searchElements.lightboxSearchInput) searchElements.lightboxSearchInput.disabled = !hasCatalog;
@@ -532,6 +561,7 @@ function isLightboxSearchScopeMenuOpen() {
   return Boolean(searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"));
 }
 
+/** @param {MouseEvent|PointerEvent|WheelEvent} event */
 function rememberSearchPreviewPointer(event) {
   const clientX = Number(event?.clientX);
   const clientY = Number(event?.clientY);
@@ -541,6 +571,7 @@ function rememberSearchPreviewPointer(event) {
   searchState.searchPreviewPointerClientY = clientY;
 }
 
+/** @param {Element|null|undefined} target */
 function searchPreviewTargetBelongsToOpenResults(target) {
   if (!target || !target.isConnected) return false;
 
@@ -555,7 +586,9 @@ function searchPreviewTargetBelongsToOpenResults(target) {
   return false;
 }
 
+/** @param {Element|null|undefined} target */
 function isSearchPreviewBlockedByOpenMenu(target) {
+  if (!(target instanceof Node)) return false;
   if (searchElements.globalSearchResults?.contains(target) && isGlobalSearchScopeMenuOpen()) return true;
   if (searchElements.lightboxSearchResults?.contains(target) && isLightboxSearchScopeMenuOpen()) return true;
   return false;
@@ -569,7 +602,7 @@ function getSearchPreviewTargetAtLastPointer() {
 
   const element = document.elementFromPoint(clientX, clientY);
   const target = element?.closest?.("[data-search-preview-src]");
-  return searchPreviewTargetBelongsToOpenResults(target) ? target : null;
+  return target instanceof HTMLElement && searchPreviewTargetBelongsToOpenResults(target) ? target : null;
 }
 
 function isSearchPreviewSuppressed() {
@@ -585,10 +618,12 @@ function restoreSearchFloatingPreviewAfterSuppression() {
   showSearchFloatingPreview(target);
 }
 
+/** @param {number} [duration] @param {SearchPreviewSuppressionOptions} [options] */
 function suppressSearchFloatingTooltip(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
   window.BargigTooltips?.suppress?.(duration, options);
 }
 
+/** @param {number} [duration] @param {SearchPreviewSuppressionOptions} [options] */
 function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
   const { restoreAfter = true } = options;
   const delay = Math.max(0, Number(duration) || 0);
@@ -606,10 +641,12 @@ function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS
   }, delay + 20);
 }
 
+/** @param {HTMLElement|null|undefined} target */
 function searchPreviewPageLabel(target) {
   return String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
 }
 
+/** @param {HTMLElement|null|undefined} target */
 function positionSearchFloatingPreview(target) {
   const preview = searchElements.searchFloatingPreview;
   if (!preview || !target) return;
@@ -637,6 +674,7 @@ function positionSearchFloatingPreview(target) {
   preview.style.top = `${clampValue(top, safeMargin, Math.max(safeMargin, window.innerHeight - previewHeight - safeMargin))}px`;
 }
 
+/** @param {HTMLElement|null|undefined} target */
 function showSearchFloatingPreview(target) {
   if (!target || !searchElements.searchFloatingPreview || !searchElements.searchFloatingPreviewImage) return;
   if (!searchPreviewTargetBelongsToOpenResults(target)) return;
@@ -659,10 +697,13 @@ function showSearchFloatingPreview(target) {
   positionSearchFloatingPreview(target);
 }
 
+/** @param {ParentNode|null|undefined} container */
 function bindSearchFloatingPreviewEvents(container) {
   if (!container) return;
 
-  container.querySelectorAll("[data-search-preview-src]").forEach((target) => {
+  container.querySelectorAll("[data-search-preview-src]").forEach((candidate) => {
+    if (!(candidate instanceof HTMLElement)) return;
+    const target = candidate;
     target.addEventListener("pointerenter", (event) => {
       rememberSearchPreviewPointer(event);
       if (!hasHoverPointer() || isTouchLikePointer(event) || isSearchPreviewSuppressed()) return;
@@ -686,11 +727,13 @@ function bindSearchFloatingPreviewEvents(container) {
   });
 }
 
+/** @param {WheelEvent} event */
 function handleSearchPreviewScrollIntent(event) {
   rememberSearchPreviewPointer(event);
   suppressSearchFloatingPreview();
 }
 
+/** @param {WheelEvent} event @param {HTMLElement|null|undefined} scrollTarget */
 function normalizedWheelDeltaY(event, scrollTarget) {
   const rawDelta = Number(event?.deltaY) || 0;
   if (!rawDelta) return 0;
@@ -699,8 +742,9 @@ function normalizedWheelDeltaY(event, scrollTarget) {
   return rawDelta;
 }
 
+/** @param {EventTarget|null} eventTarget @returns {HTMLElement|null} */
 function globalSearchWheelTarget(eventTarget) {
-  if (isGlobalSearchScopeMenuOpen() && searchElements.globalSearchScopeMenu?.contains(eventTarget)) {
+  if (eventTarget instanceof Node && isGlobalSearchScopeMenuOpen() && searchElements.globalSearchScopeMenu?.contains(eventTarget)) {
     return searchElements.globalSearchScopeMenu;
   }
 
@@ -711,6 +755,7 @@ function globalSearchWheelTarget(eventTarget) {
   return null;
 }
 
+/** @param {HTMLElement|null} element @param {WheelEvent} event */
 function scrollElementByWheel(element, event) {
   if (!element) return false;
 
@@ -725,8 +770,9 @@ function scrollElementByWheel(element, event) {
   return true;
 }
 
+/** @param {WheelEvent} event */
 function handleGlobalSearchPanelWheel(event) {
-  if (!isGlobalSearchPanelOpen() || !searchElements.catalogSearch?.contains(event.target)) return;
+  if (!isGlobalSearchPanelOpen() || !(event.target instanceof Node) || !searchElements.catalogSearch?.contains(event.target)) return;
 
   handleSearchPreviewScrollIntent(event);
 
@@ -742,6 +788,7 @@ function handleGlobalSearchPanelWheel(event) {
   event.stopPropagation();
 }
 
+/** @param {HTMLElement|null|undefined} container */
 function normalizeSearchResultsDirection(container) {
   if (!container) return;
   container.setAttribute("dir", "rtl");
@@ -767,6 +814,7 @@ function updateLightboxSearchResultsLayout(count = 0) {
   searchElements.lightboxSearchResults.dataset.resultCount = String(resultCount);
 }
 
+/** @param {unknown} query @param {string} message @param {SearchMarkupOptions} [options] */
 function searchEmptyStateMarkup(query, message, options = {}) {
   const reader = options.reader === true;
   const wrapperClass = reader
@@ -790,6 +838,7 @@ function searchEmptyStateMarkup(query, message, options = {}) {
   `;
 }
 
+/** @param {SearchMarkupOptions} [options] */
 function searchIndexErrorMarkup(options = {}) {
   const reader = options.reader === true;
   const wrapperClass = reader
@@ -810,6 +859,7 @@ function searchIndexErrorMarkup(options = {}) {
   `;
 }
 
+/** @param {SearchMarkupOptions} [options] */
 function retrySearchIndexLoad(options = {}) {
   searchState.searchIndexLoadPromise = null;
   searchState.searchIndexLoadState = "idle";
@@ -824,6 +874,7 @@ function retrySearchIndexLoad(options = {}) {
     });
 }
 
+/** @param {unknown} query @returns {Promise<Array<CatalogSearchResult>>} */
 async function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
@@ -846,7 +897,7 @@ async function renderLightboxSearchResults(query) {
     return [];
   }
 
-  if (!navigationState.catalog) {
+  if (!activeCatalog()) {
     searchElements.lightboxSearchResults.classList.add("hidden");
     searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
     return [];
@@ -895,7 +946,8 @@ async function renderLightboxSearchResults(query) {
       ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.`
       : `נמצאו ${results.length} תוצאות בקטלוג הזה.`;
     searchElements.lightboxSearchResults.innerHTML = results.map((result) => {
-      const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || navigationState.catalog;
+      const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || activeCatalog();
+      if (!catalog) return "";
       const page = clampPage(result.page, catalog);
       const rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page);
       const rawThumb = result.thumb || thumbSrc(catalog, page);
@@ -913,7 +965,7 @@ async function renderLightboxSearchResults(query) {
     }).join("");
 
     bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults);
-    searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]").forEach((button) => {
+    Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button) => {
       button.addEventListener("click", async () => {
         await trackCompletedLightboxSearch("result-open");
         hideSearchFloatingPreview();
@@ -936,68 +988,22 @@ async function renderLightboxSearchResults(query) {
   }
 }
 
-function renderCatalogCategoryMenu(menu, { activeCatalogId = navigationState.catalog?.id } = {}) {
-  if (!menu) return;
-
-  if (!catalogs.length) {
-    menu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
-    return;
-  }
-
-  const groups = getCatalogCategoryGroups();
-  menu.innerHTML = groups.map((group) => `
-    <section class="reader-catalog-menu-section">
-      <div class="reader-catalog-menu-category">${escapeHtml(group.category)}</div>
-      <div class="reader-catalog-menu-items">
-        ${group.items.map((catalog) => `
-          <button class="reader-catalog-menu-item${activeCatalogId === catalog.id ? " active" : ""}" type="button" role="menuitem" data-catalog-menu-id="${escapeHtml(catalog.id)}"${activeCatalogId === catalog.id ? ' aria-current="true"' : ""}>
-            <strong>${escapeHtml(catalog.title)}</strong>
-          </button>
-        `).join("")}
-      </div>
-    </section>
-  `).join("");
-}
-
 function renderLightboxCatalogMenu() {
-  if (!searchElements.lightboxCatalogMenu) return;
-
-  renderCatalogCategoryMenu(searchElements.lightboxCatalogMenu);
-
-  searchElements.lightboxCatalogMenu.querySelectorAll("[data-catalog-menu-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const catalogId = button.dataset.catalogMenuId;
+  getFeatureInterface("catalog-grid")?.renderCatalogMenu(searchElements.lightboxCatalogMenu, {
+    onSelect: (catalogId) => {
       closeLightboxCatalogMenu();
-      if (!catalogId || catalogId === navigationState.catalog?.id) return;
-      getFeatureInterface("viewer")?.openCatalog?.(catalogId, 1);
-    });
+      if (catalogId === activeCatalog()?.id) return;
+      getFeatureInterface("viewer")?.openCatalog(catalogId, 1);
+    }
   });
 }
 
-function updateDetailCatalogMenuLabel(catalog = navigationState.catalog) {
-  if (!catalogElements.catalogMenuToggleText) return;
-  catalogElements.catalogMenuToggleText.textContent = catalog?.title || "בחר קטלוג";
-}
-
-function renderDetailCatalogMenu() {
-  if (!catalogElements.catalogMenu) return;
-
-  renderCatalogCategoryMenu(catalogElements.catalogMenu);
-
-  catalogElements.catalogMenu.querySelectorAll("[data-catalog-menu-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const catalogId = button.dataset.catalogMenuId;
-      closeDetailCatalogMenu();
-      if (!catalogId || catalogId === navigationState.catalog?.id) return;
-      navigateTo(catalogDocumentUrl(catalogId));
-    });
-  });
-}
-
+/** @param {unknown} query */
 function globalSearchKey(query) {
   return [String(query || "").trim(), getGlobalSearchCategory()].join("\u0000");
 }
 
+/** @param {unknown} query @param {number} [limit] @param {SearchRequestControl} [control] @returns {Promise<Array<CatalogSearchResult>>} */
 async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
@@ -1006,14 +1012,17 @@ async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
   if (control.isCurrent && !control.isCurrent()) return [];
   if (!catalogSearch?.hasIndex?.({ category })) return [];
 
+  /** @type {CatalogSearchRequestOptions} */
   const options = { limit, channel: "global" };
   if (category) options.category = category;
   const results = await catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 
+/** @param {unknown} query @param {number} [limit] @param {SearchRequestControl} [control] @returns {Promise<Array<CatalogSearchResult>>} */
 async function getGlobalSearchResults(query, limit = 72, control = {}) {
   const rawQuery = String(query || "").trim();
+  if (!catalogSearch) return [];
   const navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
     getCatalogCategoryGroups(),
     rawQuery,
@@ -1031,6 +1040,7 @@ async function getGlobalSearchResults(query, limit = 72, control = {}) {
   }
 }
 
+/** @param {string} completion @param {unknown} [query] @param {SearchCompletionOptions} [options] */
 async function trackCompletedGlobalSearch(completion, query = searchElements.globalSearchInput?.value || "", options = {}) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
@@ -1051,6 +1061,7 @@ function flushGlobalSearchTelemetryBeforeNavigation() {
   telemetryFlush().catch(() => {});
 }
 
+/** @param {CatalogSearchResult|null|undefined} result */
 function openGlobalSearchResult(result) {
   if (!result) return false;
   hideSearchFloatingPreview();
@@ -1079,9 +1090,10 @@ async function submitGlobalSearch() {
   return openGlobalSearchResult(results[0]);
 }
 
+/** @param {CatalogSearchResult} result */
 function globalSearchResultMarkup(result) {
   if (result?.resultType !== "ocr") {
-    return catalogSearch.navigationResultMarkup(result);
+    return catalogSearch ? catalogSearch.navigationResultMarkup(result) : "";
   }
 
   const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
@@ -1103,9 +1115,10 @@ function globalSearchResultMarkup(result) {
   `;
 }
 
+/** @param {ParentNode} root */
 function bindGlobalSearchResultEvents(root) {
   bindSearchFloatingPreviewEvents(root);
-  root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]").forEach((button) => {
+  Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button) => {
     button.addEventListener("click", async () => {
       await trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
       flushGlobalSearchTelemetryBeforeNavigation();
@@ -1122,6 +1135,7 @@ function bindGlobalSearchResultEvents(root) {
   });
 }
 
+/** @param {Array<CatalogSearchResult>} results @param {number} start @param {number} count */
 function appendGlobalSearchResultBatch(results, start, count) {
   const template = document.createElement("template");
   template.innerHTML = results
@@ -1133,12 +1147,14 @@ function appendGlobalSearchResultBatch(results, start, count) {
   return Math.min(results.length, start + count);
 }
 
+/** @param {number} renderSequence @param {unknown} rawQuery */
 function isCurrentGlobalSearchRender(renderSequence, rawQuery) {
   return renderSequence === globalSearchRenderSequence
     && globalSearchKey(rawQuery) === globalSearchKey(searchElements.globalSearchInput?.value || "")
     && isGlobalSearchPanelOpen();
 }
 
+/** @param {Array<CatalogSearchResult>} results @param {number} renderSequence @param {unknown} rawQuery */
 function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery) {
   cancelGlobalSearchResultAppend();
   searchElements.globalSearchResults.replaceChildren();
@@ -1173,6 +1189,7 @@ function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuer
   }
 }
 
+/** @param {unknown} query @returns {Promise<Array<CatalogSearchResult>>} */
 async function renderSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!searchElements.globalSearchResults) return [];
@@ -1238,8 +1255,9 @@ async function renderSearchResults(query) {
   }
 }
 
+/** @param {Event} event */
 function handleLightboxSearchResultsBackgroundClick(event) {
-  const result = event.target?.closest?.("[data-lightbox-search-page]");
+  const result = eventTargetElement(event.target)?.closest?.("[data-lightbox-search-page]");
   if (result && searchElements.lightboxSearchResults?.contains(result)) return;
 
   event.preventDefault();
@@ -1252,7 +1270,7 @@ function attachSearchUiEvents() {
     event.preventDefault();
     ensureSearchIndexLoaded().catch(() => {});
     event.stopPropagation();
-    closeDetailCatalogMenu();
+    getFeatureInterface("catalog-detail")?.close();
     closeLightboxCatalogMenu();
     closeLightboxSearchScopeMenu();
     setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: true, focusButton: true });
@@ -1286,7 +1304,7 @@ function attachSearchUiEvents() {
   searchElements.globalSearchScopeToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
     hideSearchFloatingPreview();
-    closeDetailCatalogMenu();
+    getFeatureInterface("catalog-detail")?.close();
     closeLightboxCatalogMenu();
     closeLightboxSearchScopeMenu();
     renderGlobalSearchScopeMenu();
@@ -1296,8 +1314,8 @@ function attachSearchUiEvents() {
   });
   searchElements.globalSearchScopeMenu?.addEventListener("click", (event) => {
     event.stopPropagation();
-    const button = event.target.closest?.("[data-global-search-category]");
-    if (!button || !searchElements.globalSearchScopeMenu.contains(button)) return;
+    const button = eventTargetElement(event.target)?.closest("[data-global-search-category]");
+    if (!isHtmlElement(button) || !searchElements.globalSearchScopeMenu.contains(button)) return;
     setGlobalSearchCategory(button.dataset.globalSearchCategory);
     searchElements.globalSearchInput?.focus();
   });
@@ -1351,14 +1369,14 @@ function attachSearchUiEvents() {
   searchElements.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
     hideSearchFloatingPreview();
-    closeDetailCatalogMenu();
+    getFeatureInterface("catalog-detail")?.close();
     closeLightboxCatalogMenu();
     const isOpen = !searchElements.lightboxSearchScopeMenu?.classList.contains("hidden");
     searchElements.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen);
     searchElements.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
     getFeatureInterface("viewer")?.showTopUi?.();
   });
-  searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]").forEach((button) => {
+  Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       setLightboxSearchScope(button.dataset.lightboxSearchScope);
@@ -1368,7 +1386,7 @@ function attachSearchUiEvents() {
   });
   searchElements.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
-    closeDetailCatalogMenu();
+    getFeatureInterface("catalog-detail")?.close();
     closeLightboxSearchScopeMenu();
     renderLightboxCatalogMenu();
     const isOpen = !searchElements.lightboxCatalogMenu?.classList.contains("hidden");
@@ -1378,6 +1396,60 @@ function attachSearchUiEvents() {
   });
   searchElements.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation());
   searchElements.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
+}
+
+/** @param {string} nextPage */
+function prepareSearchRoute(nextPage) {
+  closeGlobalSearchPanel({ focusButton: false });
+  closeGlobalSearchScopeMenu();
+  closeLightboxSearchScopeMenu();
+  closeLightboxCatalogMenu();
+  if (nextPage !== "viewer") setLightboxMobileSearchOpen(false, { hideResults: true });
+}
+
+/** @param {EventTarget|null} target */
+function handleSearchDocumentPointer(target) {
+  if (!(target instanceof Node)) {
+    prepareSearchRoute(currentAppPage);
+    return false;
+  }
+  const insideGlobalSearch = searchElements.catalogSearch.contains(target) || searchElements.globalSearchOpen.contains(target);
+  const insideMobileReaderSearch = searchElements.lightboxSearchPanel.contains(target) || searchElements.lightboxMobileSearchToggle.contains(target);
+  if (insideGlobalSearch) {
+    if (!searchElements.globalSearchScopeMenu.contains(target) && !searchElements.globalSearchScopeToggle.contains(target)) {
+      closeGlobalSearchScopeMenu();
+    }
+    closeLightboxSearchScopeMenu();
+    closeLightboxCatalogMenu();
+    getFeatureInterface("catalog-detail")?.close();
+    return true;
+  }
+  if (insideMobileReaderSearch) return true;
+  if (searchState.lightboxMobileSearchOpen) setLightboxMobileSearchOpen(false, { hideResults: true });
+  if (searchElements.lightboxSearchScopeMenu.contains(target) || searchElements.lightboxSearchScopeToggle.contains(target)) return true;
+  if (searchElements.lightboxCatalogMenu.contains(target) || searchElements.lightboxCatalogMenuToggle.contains(target)) return true;
+  closeGlobalSearchPanel({ focusButton: false });
+  closeGlobalSearchScopeMenu();
+  closeLightboxSearchScopeMenu();
+  closeLightboxCatalogMenu();
+  return false;
+}
+
+function initializeSearchUi() {
+  syncLightboxMobileSearchUi();
+  renderGlobalSearchScopeMenu();
+  scheduleSearchIndexPreload();
+  initSearchStatus();
+}
+
+function handleSearchResize() {
+  hideSearchFloatingPreview();
+  updateLightboxSearchResultsLayout(Number(searchElements.lightboxSearchResults.dataset.resultCount || 0));
+  syncLightboxMobileSearchUi();
+}
+
+function handleSearchScroll() {
+  hideSearchFloatingPreview();
 }
 
 registerFeatureInterface("search", {
@@ -1410,7 +1482,14 @@ registerFeatureInterface("search", {
   setLightboxMobileOpen: (open, options = {}) => setLightboxMobileSearchOpen(open, options),
   containsLightboxResult: (target) => Boolean(
     target?.closest?.("[data-lightbox-search-page]") &&
-    searchElements.lightboxSearchResults?.contains(target.closest("[data-lightbox-search-page]"))
+    searchElements.lightboxSearchResults.contains(target.closest("[data-lightbox-search-page]"))
   ),
-  hideViewerResults: (options = {}) => hideLightboxSearchResults(options)
+  hideViewerResults: (options = {}) => hideLightboxSearchResults(options),
+  closeGlobalPanel: (options = {}) => closeGlobalSearchPanel(options),
+  attachEvents: attachSearchUiEvents,
+  initialize: initializeSearchUi,
+  prepareRoute: prepareSearchRoute,
+  handleDocumentPointer: handleSearchDocumentPointer,
+  handleResize: handleSearchResize,
+  handleScroll: handleSearchScroll
 });

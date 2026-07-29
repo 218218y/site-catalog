@@ -6,6 +6,35 @@
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
+/** @typedef {{gap:number, minHeight:number, paddingX:number, fontSize:number}} CategoryNavMetrics */
+/** @typedef {{focusFirst?:boolean, focusButton?:boolean}} MobileCategoryMenuOptions */
+/** @typedef {{scroll?:boolean, animate?:boolean, targetId?:string, clearHash?:boolean}} CatalogCategoryFocusOptions */
+/** @typedef {{blockKey:string, blockIndex?:number, label?:string, isDirect?:boolean, items:Array<CatalogRecord>}} CatalogSubcategoryBlock */
+/** @typedef {CatalogSubcategoryBlock & {blockOrder:number, segmentIndex:number, itemOffset:number, span:number, inlineDivider:boolean}} CatalogSubcategoryLayoutSegment */
+/** @typedef {{segmentType?:"category"|"subcategory", layoutBlockKey?:string, hasSubcategories?:boolean, blockOrder?:number}} CatalogSegmentAppendOptions */
+/**
+ * @typedef {Object} CatalogLayoutSegment
+ * @property {string} category
+ * @property {number} groupIndex
+ * @property {number} segmentIndex
+ * @property {number} itemOffset
+ * @property {number} span
+ * @property {Array<CatalogRecord>} items
+ * @property {boolean} hasSubcategories
+ * @property {"category"|"subcategory"|"categoryHeader"} segmentType
+ * @property {string} layoutBlockKey
+ * @property {boolean} inlineDivider
+ * @property {Array<CatalogRecord>} [directItems]
+ * @property {Array<CatalogSubcategoryGroup>} [subcategories]
+ * @property {string} [blockKey]
+ * @property {number} [blockIndex]
+ * @property {number} [blockOrder]
+ * @property {string} [label]
+ * @property {boolean} [isDirect]
+ */
+/** @typedef {{baseSectionId?:string}} CatalogSubcategoryRenderOptions */
+/** @typedef {{behavior?:ScrollBehavior}} CatalogDetailScrollOptions */
+
 function initRevealObserver() {
   const nodes = document.querySelectorAll(".reveal");
   if (!("IntersectionObserver" in window)) {
@@ -47,8 +76,8 @@ function renderEmptyState() {
     catalogElements.pageGrid.innerHTML = html;
     catalogElements.pageGrid.setAttribute("aria-busy", "false");
   }
-  if (shellElements.catalogCount) shellElements.catalogCount.textContent = "0";
-  if (shellElements.pageCount) shellElements.pageCount.textContent = "0";
+  if (catalogElements.catalogCount) catalogElements.catalogCount.textContent = "0";
+  if (catalogElements.pageCount) catalogElements.pageCount.textContent = "0";
   renderCategoryNav([]);
   showCatalogDetail();
   catalogElements.catalogTitle.textContent = "עדיין אין קטלוגים להצגה";
@@ -66,21 +95,25 @@ const CATEGORY_NAV_MIN_BUTTON_HEIGHT = 30;
 const CATEGORY_NAV_MIN_BUTTON_PADDING_X = 5;
 const CATEGORY_NAV_MIN_GAP = 3;
 
+/** @param {unknown} value @param {number} [fallback] */
 function readPixelValue(value, fallback = 0) {
   const numeric = Number.parseFloat(String(value || ""));
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+/** @param {HTMLElement|null|undefined} link */
 function categoryNavLinkLabel(link) {
   return String(link?.dataset?.categoryLabel || link?.textContent || "").trim();
 }
 
+/** @param {HTMLElement|null|undefined} link @param {string} text */
 function setCategoryNavLinkTooltip(link, text) {
   if (!link) return;
   setTooltipText(link, text || "", { updateDefault: true });
   link.removeAttribute("title");
 }
 
+/** @param {Array<HTMLElement>} links @param {boolean} [enabled] */
 function syncCategoryNavOverflowTooltips(links, enabled = true) {
   links.forEach((link) => {
     if (!enabled) {
@@ -93,6 +126,7 @@ function syncCategoryNavOverflowTooltips(links, enabled = true) {
   });
 }
 
+/** @param {HTMLElement|null|undefined} header @param {Array<HTMLElement>} [links] */
 function clearCategoryNavFit(header, links = []) {
   if (!header) return;
   header.classList.remove("is-top-nav-compressed", "is-top-nav-tight", "is-top-nav-ellipsized");
@@ -103,6 +137,7 @@ function clearCategoryNavFit(header, links = []) {
   syncCategoryNavOverflowTooltips(links, false);
 }
 
+/** @param {HTMLElement} nav @param {HTMLElement} firstLink @returns {CategoryNavMetrics} */
 function readCategoryNavBaseMetrics(nav, firstLink) {
   const navStyle = window.getComputedStyle(nav);
   const linkStyle = window.getComputedStyle(firstLink);
@@ -117,6 +152,7 @@ function readCategoryNavBaseMetrics(nav, firstLink) {
   };
 }
 
+/** @param {HTMLElement} nav @param {Array<HTMLElement>} links */
 function categoryNavRequiredWidth(nav, links) {
   if (!links.length) return 0;
   const gap = readPixelValue(window.getComputedStyle(nav).columnGap, 0);
@@ -124,6 +160,7 @@ function categoryNavRequiredWidth(nav, links) {
   return linkWidth + (gap * Math.max(0, links.length - 1));
 }
 
+/** @param {HTMLElement} header @param {CategoryNavMetrics} metrics @param {number} scale */
 function applyCategoryNavScale(header, metrics, scale) {
   const safeScale = Math.max(CATEGORY_NAV_MIN_BUTTON_SCALE, Math.min(1, scale));
   header.classList.add("is-top-nav-compressed");
@@ -136,11 +173,11 @@ function applyCategoryNavScale(header, metrics, scale) {
 
 function fitCategoryNavToSingleRow() {
   catalogState.categoryNavFitRaf = 0;
-  const nav = shellElements.categoryNav;
+  const nav = catalogElements.categoryNav;
   const header = nav?.closest?.(".site-header");
-  if (!nav || !header) return;
+  if (!nav || !(header instanceof HTMLElement)) return;
 
-  const links = Array.from(nav.querySelectorAll(".category-nav-link"));
+  const links = Array.from(nav.querySelectorAll(".category-nav-link")).filter(isHtmlElement);
   clearCategoryNavFit(header, links);
   if (!links.length) return;
 
@@ -170,13 +207,13 @@ function fitCategoryNavToSingleRow() {
 }
 
 function scheduleCategoryNavFit() {
-  if (!shellElements.categoryNav) return;
+  if (!catalogElements.categoryNav) return;
   window.cancelAnimationFrame(catalogState.categoryNavFitRaf);
   catalogState.categoryNavFitRaf = window.requestAnimationFrame(fitCategoryNavToSingleRow);
 }
 
 function initCategoryNavFit() {
-  if (!shellElements.categoryNav) return;
+  if (!catalogElements.categoryNav) return;
   document.querySelectorAll('img[data-brand-logo="1"]').forEach((image) => {
     image.addEventListener("load", scheduleCategoryNavFit);
   });
@@ -187,6 +224,7 @@ function initCategoryNavFit() {
 }
 
 
+/** @param {Array<CatalogCategoryGroup>} [groups] */
 function renderCategoryNav(groups = getCatalogCategoryGroups()) {
   const links = groups.map((group, index) => {
     const targetId = categorySectionId(group.category, index);
@@ -199,14 +237,14 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
     };
   });
 
-  if (shellElements.categoryNav) {
-    shellElements.categoryNav.innerHTML = links.map((link) => `
+  if (catalogElements.categoryNav) {
+    catalogElements.categoryNav.innerHTML = links.map((link) => `
       <a class="top-nav-link category-nav-link" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">${escapeHtml(link.label)}</a>
     `).join("");
   }
 
-  if (shellElements.mobileCategoryMenu) {
-    shellElements.mobileCategoryMenu.innerHTML = links.length
+  if (catalogElements.mobileCategoryMenu) {
+    catalogElements.mobileCategoryMenu.innerHTML = links.length
       ? links.map((link) => `
           <a class="mobile-category-menu-link category-nav-link" role="menuitem" href="${escapeHtml(link.href)}" data-category-target="${escapeHtml(link.targetId)}" data-category-share-path="${escapeHtml(link.sharePath)}" data-category-label="${escapeHtml(link.label)}">
             <span>${escapeHtml(link.label)}</span>
@@ -221,26 +259,28 @@ function renderCategoryNav(groups = getCatalogCategoryGroups()) {
 }
 
 function isMobileCategoryMenuOpen() {
-  return Boolean(shellElements.mobileCategoryMenu && !shellElements.mobileCategoryMenu.classList.contains("hidden"));
+  return Boolean(catalogElements.mobileCategoryMenu && !catalogElements.mobileCategoryMenu.classList.contains("hidden"));
 }
 
+/** @param {boolean} open @param {MobileCategoryMenuOptions} [options] */
 function setMobileCategoryMenuOpen(open, options = {}) {
   const shouldOpen = Boolean(open);
-  if (!shellElements.mobileCategoryMenu || !shellElements.mobileCategoryMenuToggle) return;
+  if (!catalogElements.mobileCategoryMenu || !catalogElements.mobileCategoryMenuToggle) return;
 
-  shellElements.mobileCategoryMenu.classList.toggle("hidden", !shouldOpen);
-  shellElements.mobileCategoryMenu.classList.toggle("is-open", shouldOpen);
-  shellElements.mobileCategoryMenuToggle.classList.toggle("is-active", shouldOpen);
-  shellElements.mobileCategoryMenuToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-  shellElements.mobileCategoryMenuToggle.setAttribute("aria-label", shouldOpen ? "סגירת תפריט קטגוריות" : "פתיחת תפריט קטגוריות");
+  catalogElements.mobileCategoryMenu.classList.toggle("hidden", !shouldOpen);
+  catalogElements.mobileCategoryMenu.classList.toggle("is-open", shouldOpen);
+  catalogElements.mobileCategoryMenuToggle.classList.toggle("is-active", shouldOpen);
+  catalogElements.mobileCategoryMenuToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  catalogElements.mobileCategoryMenuToggle.setAttribute("aria-label", shouldOpen ? "סגירת תפריט קטגוריות" : "פתיחת תפריט קטגוריות");
 
   if (shouldOpen && options.focusFirst) {
-    window.requestAnimationFrame(() => shellElements.mobileCategoryMenu?.querySelector(".mobile-category-menu-link")?.focus());
+    window.requestAnimationFrame(() => focusHtmlElement(catalogElements.mobileCategoryMenu?.querySelector(".mobile-category-menu-link")));
   } else if (!shouldOpen && options.focusButton) {
-    window.requestAnimationFrame(() => shellElements.mobileCategoryMenuToggle?.focus({ preventScroll: true }));
+    window.requestAnimationFrame(() => catalogElements.mobileCategoryMenuToggle?.focus({ preventScroll: true }));
   }
 }
 
+/** @param {MobileCategoryMenuOptions} [options] */
 function closeMobileCategoryMenu(options = {}) {
   setMobileCategoryMenuOpen(false, options);
 }
@@ -257,12 +297,15 @@ function decodeHashTargetId(hash = location.hash) {
   }
 }
 
+/** @param {Element|null} section @returns {section is HTMLElement} */
 function isCatalogFocusSection(section) {
-  return Boolean(section?.classList?.contains("catalog-category-section") || section?.classList?.contains("catalog-subcategory-section"));
+  return Boolean(section instanceof HTMLElement && (section.classList.contains("catalog-category-section") || section.classList.contains("catalog-subcategory-section")));
 }
 
+/** @param {unknown} id @returns {HTMLElement|null} */
 function getCatalogCategorySectionById(id) {
-  const section = id ? document.getElementById(id) : null;
+  const sectionId = String(id || "");
+  const section = sectionId ? document.getElementById(sectionId) : null;
   return isCatalogFocusSection(section) ? section : null;
 }
 
@@ -270,15 +313,18 @@ function getCatalogCategorySectionFromHash(hash = location.hash) {
   return getCatalogCategorySectionById(decodeHashTargetId(hash));
 }
 
+/** @param {HTMLElement|null|undefined} section */
 function getCatalogCategoryFocusTargetId(section) {
   return section?.dataset?.categoryFocusTarget || section?.id || "";
 }
 
+/** @returns {HTMLElement[]} */
 function getCatalogFocusSections() {
-  if (!catalogElements.catalogGrid) return [];
-  return Array.from(catalogElements.catalogGrid.querySelectorAll(".catalog-category-section, .catalog-subcategory-section"));
+  return Array.from(catalogElements.catalogGrid.querySelectorAll(".catalog-category-section, .catalog-subcategory-section"))
+    .filter(isHtmlElement);
 }
 
+/** @param {unknown} targetId @returns {Array<HTMLElement>} */
 function getCatalogCategorySectionsByTargetId(targetId) {
   const normalizedTargetId = String(targetId || "");
   if (!normalizedTargetId) return [];
@@ -304,6 +350,7 @@ function catalogCategorySharePathFromHash(hash = location.hash) {
   return normalizeShareRoutePath(parts.slice(1).map(decodeHashRouteSegment).join("/"));
 }
 
+/** @param {unknown} path @returns {HTMLElement|null} */
 function getCatalogCategorySectionBySharePath(path) {
   const normalizedPath = normalizeShareRoutePath(path);
   if (!normalizedPath) return null;
@@ -321,12 +368,14 @@ function resolveCatalogCategoryTargetIdFromHash(hash = location.hash) {
   return decodeHashTargetId(hash);
 }
 
+/** @param {unknown} targetId */
 function buildCatalogFocusRouteHash(targetId) {
   const section = getCatalogCategorySectionsByTargetId(targetId)[0] || getCatalogCategorySectionById(targetId);
   const sharePath = normalizeShareRoutePath(section?.dataset?.categorySharePath);
   return buildCategoryShareRouteHash(sharePath) || (targetId ? `#${encodeHashRouteSegment(targetId)}` : "");
 }
 
+/** @param {unknown} targetId */
 function hasCatalogCategoryFocus(targetId) {
   return getCatalogCategorySectionsByTargetId(targetId)
     .some((section) => section.classList.contains("is-category-focus"));
@@ -335,8 +384,8 @@ function hasCatalogCategoryFocus(targetId) {
 function syncActiveCategoryNavLink(activeId = catalogState.categoryFocusTargetId) {
   const normalizedActiveId = String(activeId || "");
 
-  [shellElements.categoryNav, shellElements.mobileCategoryMenu].forEach((container) => {
-    container?.querySelectorAll(".category-nav-link").forEach((link) => {
+  [catalogElements.categoryNav, catalogElements.mobileCategoryMenu].forEach((container) => {
+    Array.from(container?.querySelectorAll(".category-nav-link") || []).filter(isHtmlElement).forEach((link) => {
       const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
       link.classList.toggle("active", isActive);
       if (isActive) link.setAttribute("aria-current", "location");
@@ -344,7 +393,7 @@ function syncActiveCategoryNavLink(activeId = catalogState.categoryFocusTargetId
     });
   });
 
-  catalogElements.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link").forEach((link) => {
+  Array.from(catalogElements.catalogGrid?.querySelectorAll(".catalog-subcategory-nav-link") || []).filter(isHtmlElement).forEach((link) => {
     const isActive = Boolean(normalizedActiveId && link.dataset.categoryTarget === normalizedActiveId);
     link.classList.toggle("active", isActive);
     if (isActive) link.setAttribute("aria-current", "location");
@@ -352,6 +401,7 @@ function syncActiveCategoryNavLink(activeId = catalogState.categoryFocusTargetId
   });
 }
 
+/** @param {CatalogCategoryFocusOptions} [options] */
 function clearCatalogCategoryFocus(options = {}) {
   const { clearHash = false } = options;
 
@@ -364,13 +414,14 @@ function clearCatalogCategoryFocus(options = {}) {
   syncActiveCategoryNavLink("");
 
   const hashTargetId = resolveCatalogCategoryTargetIdFromHash();
-  if (clearHash && hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length && window.history?.replaceState) {
+  if (clearHash && hashTargetId && getCatalogCategorySectionsByTargetId(hashTargetId).length) {
     history.replaceState(history.state, "", `${location.pathname}${location.search}`);
   }
 
   return true;
 }
 
+/** @param {HTMLElement|null} section @param {CatalogCategoryFocusOptions} [options] */
 function markCatalogCategoryFocus(section, options = {}) {
   if (!section) return false;
 
@@ -398,10 +449,12 @@ function markCatalogCategoryFocus(section, options = {}) {
   return true;
 }
 
+/** @param {string} id @param {CatalogCategoryFocusOptions} [options] */
 function markCatalogCategoryFocusById(id, options = {}) {
   return markCatalogCategoryFocus(getCatalogCategorySectionById(id), { ...options, targetId: id });
 }
 
+/** @param {unknown} targetId @param {CatalogTargetOptions} [options] */
 function activateCatalogCategoryTarget(targetId, { toggle = false } = {}) {
   const id = String(targetId || "").trim();
   if (!id) return false;
@@ -422,6 +475,7 @@ function activateCatalogCategoryTarget(targetId, { toggle = false } = {}) {
   return true;
 }
 
+/** @param {HTMLAnchorElement} link @param {Event} event */
 function handleCatalogFocusLinkClick(link, event) {
   const targetId = link?.dataset?.categoryTarget || resolveCatalogCategoryTargetIdFromHash(link?.hash);
   if (!targetId) return;
@@ -430,6 +484,7 @@ function handleCatalogFocusLinkClick(link, event) {
   activateCatalogCategoryTarget(targetId, { toggle: true });
 }
 
+/** @param {CatalogCategoryFocusOptions} [options] */
 function syncCatalogCategoryFocusFromHash(options = {}) {
   const targetId = resolveCatalogCategoryTargetIdFromHash();
   const section = getCatalogCategorySectionById(targetId);
@@ -451,11 +506,14 @@ function catalogLayoutColumnCount() {
   return 3;
 }
 
+/** @param {unknown} value @param {number} columns */
 function clampCategorySpan(value, columns) {
   return Math.min(columns, Math.max(1, Number(value || 1)));
 }
 
+/** @param {CatalogCategoryGroup} source @returns {Array<CatalogSubcategoryBlock>} */
 function catalogSubcategorySourceBlocks(source) {
+  /** @type {Array<CatalogSubcategoryBlock>} */
   const sourceBlocks = [];
 
   if (Array.isArray(source?.directItems) && source.directItems.length) {
@@ -485,11 +543,14 @@ function catalogSubcategorySourceBlocks(source) {
   return sourceBlocks;
 }
 
+/** @param {Array<CatalogCategoryGroup>} groups @param {number} [columns] @returns {Array<CatalogLayoutSegment>} */
 function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
   const safeColumns = clampCategorySpan(columns, 3);
+  /** @type {Array<CatalogLayoutSegment>} */
   const segments = [];
   let occupied = 0;
 
+  /** @param {CatalogCategoryGroup} group @param {number} groupIndex @param {CatalogSubcategoryBlock} block @param {CatalogSegmentAppendOptions} [options] */
   const appendCardBlockSegments = (group, groupIndex, block, options = {}) => {
     const items = Array.isArray(block?.items) ? block.items : [];
     if (!items.length) return;
@@ -504,6 +565,7 @@ function catalogCategorySegments(groups, columns = catalogLayoutColumnCount()) {
       const availableInRow = occupied > 0 ? safeColumns - occupied : safeColumns;
       const span = Math.min(availableInRow, items.length - itemOffset, safeColumns);
 
+      /** @type {CatalogLayoutSegment} */
       const segment = {
         category: group.category,
         groupIndex,
@@ -609,6 +671,7 @@ function scheduleCatalogLayoutRefresh() {
   }, 120);
 }
 
+/** @param {CatalogRecord} catalog @param {number} [headingLevel] */
 function renderCatalogCard(catalog, headingLevel = 3) {
   const cover = coverThumbSrc(catalog);
   const safeCatalogId = escapeHtml(catalog.id);
@@ -633,6 +696,7 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   `;
 }
 
+/** @param {CatalogLayoutSegment} segment */
 function renderCatalogSubcategoryNav(segment) {
   if (!segment?.hasSubcategories || !Array.isArray(segment.subcategories) || !segment.subcategories.length) return "";
 
@@ -649,8 +713,10 @@ function renderCatalogSubcategoryNav(segment) {
   `;
 }
 
+/** @param {CatalogLayoutSegment} segment @param {number} [columns] @returns {Array<CatalogSubcategoryLayoutSegment>} */
 function catalogSubcategoryLayoutSegments(segment, columns = catalogLayoutColumnCount()) {
   const safeColumns = clampCategorySpan(columns, 3);
+  /** @type {Array<CatalogSubcategoryBlock>} */
   const sourceBlocks = [];
 
   if (Array.isArray(segment.directItems) && segment.directItems.length) {
@@ -677,6 +743,7 @@ function catalogSubcategoryLayoutSegments(segment, columns = catalogLayoutColumn
     });
   });
 
+  /** @type {Array<CatalogSubcategoryLayoutSegment>} */
   const layoutSegments = [];
   let occupied = 0;
 
@@ -727,11 +794,13 @@ function catalogSubcategoryLayoutSegments(segment, columns = catalogLayoutColumn
   return layoutSegments;
 }
 
+/** @param {CatalogLayoutSegment} segment @param {CatalogLayoutSegment|CatalogSubcategoryLayoutSegment} block @param {string} baseSectionId */
 function catalogSubcategoryBlockBaseId(segment, block, baseSectionId) {
   if (block?.isDirect) return `${baseSectionId}-general`;
   return subcategorySectionId(segment.category, segment.groupIndex, block?.label || block?.blockKey, block?.blockIndex || 0);
 }
 
+/** @param {CatalogLayoutSegment} segment @param {CatalogLayoutSegment|CatalogSubcategoryLayoutSegment} block @param {CatalogSubcategoryRenderOptions} [options] */
 function renderCatalogSubcategoryBlock(segment, block, options = {}) {
   const { baseSectionId = "" } = options;
   const items = Array.isArray(block?.items) ? block.items : [];
@@ -758,6 +827,7 @@ function renderCatalogSubcategoryBlock(segment, block, options = {}) {
   `;
 }
 
+/** @param {CatalogLayoutSegment} segment @param {number} columns */
 function renderCatalogCategoryHeaderSegment(segment, columns) {
   const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
   const titleId = `${baseSectionId}-title`;
@@ -775,6 +845,7 @@ function renderCatalogCategoryHeaderSegment(segment, columns) {
   `;
 }
 
+/** @param {CatalogLayoutSegment} segment @param {number} columns */
 function renderCatalogCategorySegment(segment, columns) {
   const baseSectionId = categorySectionId(segment.category, segment.groupIndex);
   const safeColumns = clampCategorySpan(columns, 3);
@@ -804,6 +875,7 @@ function renderCatalogCategorySegment(segment, columns) {
   `;
 }
 
+/** @param {string|null|undefined} catalogId @param {number} [page] */
 function openCatalogEntry(catalogId, page = 1) {
   if (!catalogId) return;
   const viewer = getFeatureInterface("viewer");
@@ -817,21 +889,26 @@ function openCatalogEntry(catalogId, page = 1) {
 function bindCatalogCardEvents() {
   if (!catalogElements.catalogGrid) return;
 
-  catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-entry]").forEach((control) => {
-    control.addEventListener("click", (event) => {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      event.preventDefault();
-      openCatalogEntry(control.dataset.openCatalogEntry);
+  Array.from(catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-entry]"))
+    .filter(isHtmlElement)
+    .forEach((control) => {
+      control.addEventListener("click", (event) => {
+        if (!(event instanceof MouseEvent) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        openCatalogEntry(control.dataset.openCatalogEntry);
+      });
     });
-  });
 
-  catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-preview]").forEach((control) => {
-    control.addEventListener("click", (event) => {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      event.preventDefault();
-      openCatalog(control.dataset.openCatalogPreview, { scroll: true });
+  Array.from(catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-preview]"))
+    .filter(isHtmlElement)
+    .forEach((control) => {
+      control.addEventListener("click", (event) => {
+        if (!(event instanceof MouseEvent) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        const catalogId = String(control.dataset.openCatalogPreview || "");
+        if (catalogId) openCatalog(catalogId, { scroll: true });
+      });
     });
-  });
 }
 
 function renderCatalogCards() {
@@ -842,8 +919,8 @@ function renderCatalogCards() {
 
   const groups = getCatalogCategoryGroups();
   const totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
-  if (shellElements.catalogCount) shellElements.catalogCount.textContent = String(catalogs.length);
-  if (shellElements.pageCount) shellElements.pageCount.textContent = String(totalPages);
+  if (catalogElements.catalogCount) catalogElements.catalogCount.textContent = String(catalogs.length);
+  if (catalogElements.pageCount) catalogElements.pageCount.textContent = String(totalPages);
   renderCategoryNav(groups);
 
   const columns = catalogLayoutColumnCount();
@@ -869,12 +946,12 @@ function fillCatalogSelect() {
 
 
 function renderPageGrid() {
-  if (!navigationState.catalog) return;
+  const catalog = activeCatalog();
+  if (!catalog) return;
   // Keep generated page cards visually stable during scroll.
   // Older versions attached scroll-time observers here for reveal animation
   // and thumb activation; that caused work exactly when a card entered view.
 
-  const catalog = navigationState.catalog;
   const cards = [];
   for (let page = 1; page <= catalog.pages; page += 1) {
     cards.push(`
@@ -896,17 +973,16 @@ function renderPageGrid() {
   catalogElements.pageGrid.innerHTML = cards.join("");
   catalogElements.pageGrid.setAttribute("aria-busy", "false");
 
-  catalogElements.pageGrid.querySelectorAll("[data-open-page]").forEach((link) => {
+  Array.from(catalogElements.pageGrid.querySelectorAll("[data-open-page]"))
+    .filter(isHtmlElement)
+    .forEach((link) => {
     link.addEventListener("click", (event) => {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (!(event instanceof MouseEvent) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
       const page = Number(link.dataset.openPage);
       const viewer = getFeatureInterface("viewer");
-      if (viewer?.openCatalog && navigationState.catalog) {
-        viewer.openCatalog(navigationState.catalog.id, page);
-      } else if (navigationState.catalog) {
-        navigateTo(viewerDocumentUrl(navigationState.catalog.id, page));
-      }
+      if (viewer) viewer.openCatalog(catalog.id, page);
+      else navigateTo(viewerDocumentUrl(catalog.id, page));
     });
   });
 }
@@ -917,6 +993,7 @@ function showCatalogDetail() {
   catalogElements.catalogDetail.classList.add("in-view");
 }
 
+/** @param {CatalogDetailScrollOptions} [options] */
 function scrollCatalogDetailIntoView(options = {}) {
   if (!catalogElements.catalogDetail) return;
   const { behavior = "smooth" } = options;
@@ -941,6 +1018,7 @@ function positionCatalogScrollTopButton() {
   catalogElements.scrollToTopBtn.style.setProperty("--catalog-scroll-top-left", `${Math.round(left)}px`);
 }
 
+/** @param {boolean} visible */
 function setCatalogScrollTopButtonVisible(visible) {
   if (!catalogElements.scrollToTopBtn) return;
   catalogElements.scrollToTopBtn.classList.toggle("is-visible", Boolean(visible));
@@ -950,7 +1028,7 @@ function setCatalogScrollTopButtonVisible(visible) {
 
 function updateCatalogScrollTopButton() {
   catalogState.catalogScrollTopButtonRaf = 0;
-  if (!catalogElements.scrollToTopBtn || !catalogElements.catalogDetail || !catalogElements.pageGrid || catalogElements.catalogDetail.classList.contains("hidden") || !navigationState.catalog || getFeatureInterface("viewer")?.isViewerOpen?.()) {
+  if (!catalogElements.scrollToTopBtn || !catalogElements.catalogDetail || !catalogElements.pageGrid || catalogElements.catalogDetail.classList.contains("hidden") || !activeCatalog() || getFeatureInterface("viewer")?.isViewerOpen?.()) {
     setCatalogScrollTopButtonVisible(false);
     return;
   }
@@ -972,9 +1050,63 @@ function scheduleCatalogScrollTopButtonUpdate() {
   catalogState.catalogScrollTopButtonRaf = requestAnimationFrame(updateCatalogScrollTopButton);
 }
 
+/**
+ * Render the canonical catalog chooser markup into a caller-owned container.
+ * The Catalog feature owns taxonomy grouping and selection semantics; callers
+ * own only the container and the action performed after selection.
+ *
+ * @param {HTMLElement} menu
+ * @param {CatalogMenuRenderOptions} [options]
+ */
+function renderCatalogCategoryMenu(menu, options = {}) {
+  const { activeCatalogId = activeCatalog()?.id, onSelect } = options;
+  if (!catalogs.length) {
+    menu.innerHTML = `<div class="reader-catalog-menu-empty">אין קטלוגים להצגה</div>`;
+    return;
+  }
+
+  const groups = getCatalogCategoryGroups();
+  menu.innerHTML = groups.map((group) => `
+    <section class="reader-catalog-menu-section">
+      <div class="reader-catalog-menu-category">${escapeHtml(group.category)}</div>
+      <div class="reader-catalog-menu-items">
+        ${group.items.map((catalog) => `
+          <button class="reader-catalog-menu-item${activeCatalogId === catalog.id ? " active" : ""}" type="button" role="menuitem" data-catalog-menu-id="${escapeHtml(catalog.id)}"${activeCatalogId === catalog.id ? ' aria-current="true"' : ""}>
+            <strong>${escapeHtml(catalog.title)}</strong>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `).join("");
+
+  if (!onSelect) return;
+  Array.from(menu.querySelectorAll("[data-catalog-menu-id]"))
+    .filter(isHtmlElement)
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const catalogId = String(button.dataset.catalogMenuId || "");
+        if (catalogId) onSelect(catalogId);
+      });
+    });
+}
+
+function updateDetailCatalogMenuLabel(catalog = activeCatalog()) {
+  catalogElements.catalogMenuToggleText.textContent = catalog?.title || "בחר קטלוג";
+}
+
+function renderDetailCatalogMenu() {
+  renderCatalogCategoryMenu(catalogElements.catalogMenu, {
+    onSelect: (catalogId) => {
+      closeDetailCatalogMenu();
+      if (catalogId === activeCatalog()?.id) return;
+      navigateTo(catalogDocumentUrl(catalogId));
+    }
+  });
+}
+
 function renderCatalogDetail() {
-  if (!navigationState.catalog) return;
-  const catalog = navigationState.catalog;
+  const catalog = activeCatalog();
+  if (!catalog) return;
   showCatalogDetail();
   catalogElements.catalogTitle.textContent = catalog.title;
   catalogElements.catalogDescription.textContent = catalog.description || "";
@@ -992,6 +1124,7 @@ function renderCatalogDetail() {
   scheduleCatalogScrollTopButtonUpdate();
 }
 
+/** @param {string} id @param {CatalogOpenOptions} [options] */
 function openCatalog(id, options = {}) {
   const { scroll = false, openPage = null, scrollBehavior = "smooth" } = options;
   const catalog = catalogs.find((item) => item.id === id) || null;
@@ -1004,28 +1137,63 @@ function openCatalog(id, options = {}) {
     return;
   }
 
-  navigationState.catalog = catalog;
-  navigationState.page = 1;
+  setActiveLocation(catalog, 1, activeViewerSource());
   renderCatalogDetail();
-  if (window.history?.replaceState) {
-    history.replaceState(history.state, "", catalogDocumentUrl(catalog.id));
-  }
+  history.replaceState(history.state, "", catalogDocumentUrl(catalog.id));
 
   if (scroll) scrollCatalogDetailIntoView({ behavior: scrollBehavior });
   if (openPage != null) navigateTo(viewerDocumentUrl(catalog.id, openPage));
 }
 
+function closeDetailCatalogMenu() {
+  catalogElements.catalogMenu.classList.add("hidden");
+  catalogElements.catalogMenuToggle.setAttribute("aria-expanded", "false");
+}
+
+/** @param {EventTarget|null} target */
+function catalogGridContainsMenuTarget(target) {
+  if (!(target instanceof Node)) return false;
+  return [
+    catalogElements.catalogMenu,
+    catalogElements.catalogMenuToggle,
+    catalogElements.mobileCategoryMenu,
+    catalogElements.mobileCategoryMenuToggle
+  ].some((element) => element.contains(target));
+}
+
+/** @param {string} nextPage */
+function prepareCatalogGridRoute(nextPage) {
+  closeMobileCategoryMenu();
+  closeDetailCatalogMenu();
+  if (nextPage !== "catalog") {
+    catalogElements.catalogDetail.classList.add("hidden");
+    catalogElements.catalogDetail.classList.remove("in-view");
+    setCatalogScrollTopButtonVisible(false);
+  }
+}
+
+function handleCatalogGridResize() {
+  if (window.innerWidth > 760) closeMobileCategoryMenu();
+  scheduleCatalogLayoutRefresh();
+  scheduleCategoryNavFit();
+  scheduleCatalogScrollTopButtonUpdate();
+}
+
+function handleCatalogGridScroll() {
+  scheduleCatalogScrollTopButtonUpdate();
+}
+
 function attachCatalogGridEvents() {
-  shellElements.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
+  catalogElements.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    closeGlobalSearchPanel({ focusButton: false });
+    getFeatureInterface("search")?.closeGlobalPanel({ focusButton: false });
     setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
   });
 
-  shellElements.mobileCategoryMenu?.addEventListener("click", (event) => {
-    const link = event.target.closest?.(".category-nav-link");
-    if (!link || !shellElements.mobileCategoryMenu.contains(link)) return;
+  catalogElements.mobileCategoryMenu?.addEventListener("click", (event) => {
+    const link = eventTargetElement(event.target)?.closest(".category-nav-link");
+    if (!(link instanceof HTMLAnchorElement) || !catalogElements.mobileCategoryMenu.contains(link)) return;
     closeMobileCategoryMenu();
     handleCatalogFocusLinkClick(link, event);
   });
@@ -1042,21 +1210,22 @@ function attachCatalogGridEvents() {
   catalogElements.catalogMenu?.addEventListener("click", (event) => event.stopPropagation());
 
   catalogElements.openCatalogEntryFromDetail?.addEventListener("click", () => {
-    if (!navigationState.catalog) return;
-    navigateTo(viewerDocumentUrl(navigationState.catalog.id, 1));
+    const catalog = activeCatalog();
+    if (!catalog) return;
+    navigateTo(viewerDocumentUrl(catalog.id, 1));
   });
   catalogElements.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
 
-  shellElements.categoryNav?.addEventListener("click", (event) => {
-    const link = event.target.closest?.(".category-nav-link");
-    if (!link || !shellElements.categoryNav.contains(link)) return;
+  catalogElements.categoryNav?.addEventListener("click", (event) => {
+    const link = eventTargetElement(event.target)?.closest(".category-nav-link");
+    if (!(link instanceof HTMLAnchorElement) || !catalogElements.categoryNav.contains(link)) return;
     closeMobileCategoryMenu();
     handleCatalogFocusLinkClick(link, event);
   });
 
   catalogElements.catalogGrid?.addEventListener("click", (event) => {
-    const link = event.target.closest?.(".catalog-subcategory-nav-link");
-    if (!link || !catalogElements.catalogGrid.contains(link)) return;
+    const link = eventTargetElement(event.target)?.closest(".catalog-subcategory-nav-link");
+    if (!(link instanceof HTMLAnchorElement) || !catalogElements.catalogGrid.contains(link)) return;
     handleCatalogFocusLinkClick(link, event);
   });
 }
@@ -1085,10 +1254,17 @@ registerFeatureInterface("catalog-grid", {
   activateCategoryTarget: activateCatalogCategoryTarget,
   layoutColumnCount: catalogLayoutColumnCount,
   hideDetail: () => {
-    catalogElements.catalogDetail?.classList.add("hidden");
-    catalogElements.catalogDetail?.classList.remove("in-view");
+    catalogElements.catalogDetail.classList.add("hidden");
+    catalogElements.catalogDetail.classList.remove("in-view");
     setCatalogScrollTopButtonVisible(false);
-  }
+  },
+  prepareRoute: prepareCatalogGridRoute,
+  containsMenuTarget: catalogGridContainsMenuTarget,
+  handleResize: handleCatalogGridResize,
+  handleScroll: handleCatalogGridScroll,
+  renderCatalogMenu: renderCatalogCategoryMenu,
+  syncDetailMenuLabel: updateDetailCatalogMenuLabel,
+  renderDetailMenu: renderDetailCatalogMenu
 });
 
 registerFeatureInterface("catalog-navigation", {
@@ -1102,8 +1278,10 @@ registerFeatureInterface("catalog-navigation", {
 
 registerFeatureInterface("catalog-detail", {
   escapePriority: 200,
+  close: closeDetailCatalogMenu,
+  containsTarget: (target) => target instanceof Node && (catalogElements.catalogMenu.contains(target) || catalogElements.catalogMenuToggle.contains(target)),
   closeTopLayer: () => {
-    if (!catalogElements.catalogMenu || catalogElements.catalogMenu.classList.contains("hidden")) return false;
+    if (catalogElements.catalogMenu.classList.contains("hidden")) return false;
     closeDetailCatalogMenu();
     return true;
   }

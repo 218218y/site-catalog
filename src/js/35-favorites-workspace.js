@@ -6,38 +6,47 @@
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
+/** @param {FavoriteEntry} entry */
 function favoriteWorkspaceEntryKey(entry) {
   return favoriteItemKey({ catalogId: entry?.catalog?.id || entry?.catalogId, page: entry?.page });
 }
 
+/** @param {Element|null|undefined} card */
 function favoriteWorkspaceCardKey(card) {
-  if (!card) return "";
+  if (!(card instanceof HTMLElement)) return "";
   return favoriteItemKey({
     catalogId: card.dataset.favoriteCatalog,
     page: card.dataset.favoritePage
   });
 }
 
+/** @param {string} key @returns {HTMLElement|null} */
 function favoriteWorkspaceFindCardByKey(key) {
   if (!key || !favoritesElements.favoritesGrid) return null;
-  return Array.from(favoritesElements.favoritesGrid.querySelectorAll("[data-favorite-catalog][data-favorite-page]"))
-    .find((card) => favoriteWorkspaceCardKey(card) === key) || null;
+  const cards = /** @type {NodeListOf<HTMLElement>} */ (
+    favoritesElements.favoritesGrid.querySelectorAll("[data-favorite-catalog][data-favorite-page]")
+  );
+  return Array.from(cards).find((card) => favoriteWorkspaceCardKey(card) === key) || null;
 }
 
+/** @param {Array<FavoriteEntry>} [entries] @returns {Array<FavoriteEntry>} */
 function favoriteWorkspaceSelectedEntries(entries = getFavoriteEntries()) {
   return entries.filter((entry) => favoritesState.favoritesSelectedKeys.has(favoriteWorkspaceEntryKey(entry)));
 }
 
+/** @param {Array<FavoriteEntry>} [entries] @returns {Array<FavoriteEntry>} */
 function favoriteWorkspaceVisibleEntries(entries = getFavoriteEntries()) {
   const filter = String(favoritesState.favoritesFilterCatalogId || "");
   return filter ? entries.filter((entry) => String(entry.catalog?.id || entry.catalogId) === filter) : entries;
 }
 
+/** @param {Array<FavoriteEntry>} [entries] @returns {Array<FavoriteEntry>} */
 function favoriteWorkspaceShareLinkEntries(entries = getFavoriteEntries()) {
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   return selectedEntries.length ? selectedEntries : entries;
 }
 
+/** @param {Array<FavoriteEntry>} [entries] */
 function pruneFavoritesWorkspaceState(entries = getFavoriteEntries()) {
   const validKeys = new Set(entries.map(favoriteWorkspaceEntryKey).filter(Boolean));
   for (const key of favoritesState.favoritesSelectedKeys) {
@@ -51,7 +60,9 @@ function pruneFavoritesWorkspaceState(entries = getFavoriteEntries()) {
   }
 }
 
+/** @param {Array<FavoriteEntry>} entries */
 function favoriteWorkspaceFilterOptions(entries) {
+  /** @type {Map<string,{catalog:CatalogRecord,count:number}>} */
   const catalogCounts = new Map();
   entries.forEach((entry) => {
     const id = String(entry.catalog?.id || entry.catalogId || "");
@@ -63,6 +74,7 @@ function favoriteWorkspaceFilterOptions(entries) {
   return [...catalogCounts.entries()].map(([id, value]) => ({ id, ...value }));
 }
 
+/** @param {Array<FavoriteEntry>} entries */
 function syncFavoriteWorkspaceFilter(entries) {
   if (!favoritesElements.favoritesCatalogFilter) return;
   const options = favoriteWorkspaceFilterOptions(entries);
@@ -77,6 +89,7 @@ function syncFavoriteWorkspaceFilter(entries) {
   favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
 }
 
+/** @param {Array<FavoriteEntry>} entries @param {FavoriteWorkspaceInquiryOptions} [options] @returns {InquiryReference|null} */
 function favoriteWorkspaceInquiryReference(entries, options = {}) {
   if (!entries.length) return null;
   const selected = Boolean(options.selected);
@@ -122,6 +135,7 @@ function openFavoriteWorkspaceInquiry() {
   });
 }
 
+/** @param {Array<FavoriteEntry>} entries @param {Array<FavoriteEntry>} visibleEntries */
 function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   const selectedCount = selectedEntries.length;
@@ -164,6 +178,7 @@ function syncFavoriteWorkspaceHeaderActions(entries, visibleEntries) {
   if (favoritesElements.favoritesSelectionCount) favoritesElements.favoritesSelectionCount.textContent = String(selectedCount);
 }
 
+/** @param {FavoriteEntry} entry */
 function favoriteWorkspaceNoteMarkup(entry) {
   const note = String(entry.note || "").trim();
   if (!note) return "";
@@ -175,6 +190,7 @@ function favoriteWorkspaceNoteMarkup(entry) {
   `;
 }
 
+/** @param {FavoriteEntry} entry @param {number} visibleIndex @param {number} visibleCount */
 function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
   const { catalog, page } = entry;
   const key = favoriteWorkspaceEntryKey(entry);
@@ -227,6 +243,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
   `;
 }
 
+/** @param {Array<FavoriteEntry>} [entries] */
 function renderFavoritesWorkspace(entries = getFavoriteEntries()) {
   if (!favoritesElements.favoritesGrid) return;
   pruneFavoritesWorkspaceState(entries);
@@ -241,6 +258,7 @@ function renderFavoritesWorkspace(entries = getFavoriteEntries()) {
   favoritesElements.favoritesGrid.innerHTML = visibleEntries.map((entry, index) => favoriteWorkspaceCardMarkup(entry, index, visibleEntries.length)).join("");
 }
 
+/** @param {Array<string>} orderedVisibleKeys */
 function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
   if (!favoritesStore || !orderedVisibleKeys.length) return false;
   const allItems = favoritesStore.read();
@@ -253,13 +271,14 @@ function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
     if (!visibleSet.has(key)) return item;
     const replacement = itemByKey.get(orderedVisibleKeys[visibleIndex]);
     visibleIndex += 1;
-    return replacement;
+    return replacement || item;
   });
   const mutation = favoritesStore.replaceDetailed(nextItems);
   warnIfFavoriteChangeIsTemporary(mutation);
   return mutation.changed;
 }
 
+/** @param {string} key @param {number} direction */
 function moveFavoriteWithinVisibleOrder(key, direction) {
   const entries = getFavoriteEntries();
   const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
@@ -272,11 +291,12 @@ function moveFavoriteWithinVisibleOrder(key, direction) {
   syncFavoritesUi({ renderPanel: true });
   requestAnimationFrame(() => {
     const movedCard = favoriteWorkspaceFindCardByKey(key);
-    movedCard?.querySelector(`[data-move-favorite="${direction}"]`)?.focus?.();
+    focusHtmlElement(movedCard?.querySelector(`[data-move-favorite="${direction}"]`));
   });
   return true;
 }
 
+/** @param {string} sourceKey @param {string} targetKey */
 function reorderFavoriteByDrop(sourceKey, targetKey) {
   if (!sourceKey || !targetKey || sourceKey === targetKey) return false;
   const visibleKeys = favoriteWorkspaceVisibleEntries().map(favoriteWorkspaceEntryKey);
@@ -289,6 +309,7 @@ function reorderFavoriteByDrop(sourceKey, targetKey) {
   return true;
 }
 
+/** @param {string} key @param {boolean} selected */
 function setFavoriteWorkspaceSelection(key, selected) {
   if (!key) return;
   if (selected) favoritesState.favoritesSelectedKeys.add(key);
@@ -301,10 +322,12 @@ function clearFavoritesSelection() {
   renderFavoritesWorkspace(getFavoriteEntries());
 }
 
+/** @param {FavoriteEntry} entry */
 function favoriteWorkspaceItemUrl(entry) {
   return absoluteDocumentUrl(viewerDocumentUrl(entry.catalog.id, entry.page));
 }
 
+/** @param {Array<FavoriteEntry>} entries @param {FavoriteWorkspaceMessageOptions} [options] */
 function favoriteWorkspaceMessage(entries, options = {}) {
   const purpose = options.purpose === "inquiry" ? "inquiry" : "share";
   const lines = purpose === "inquiry"
@@ -318,10 +341,15 @@ function favoriteWorkspaceMessage(entries, options = {}) {
   return lines.join("\n").trim();
 }
 
+/** @param {Array<FavoriteEntry>} entries */
 function favoriteWorkspaceSelectionUrl(entries) {
   return buildFavoritesShareUrl(entries.map((entry) => ({ catalogId: entry.catalog.id, page: entry.page })));
 }
 
+/**
+ * @param {FavoriteEntry[]} entries
+ * @param {Element|null} [button]
+ */
 async function copyFavoriteWorkspaceLink(entries, button = null) {
   if (!entries.length) return;
   const selectionUrl = favoriteWorkspaceSelectionUrl(entries);
@@ -334,6 +362,7 @@ async function copyFavoriteWorkspaceLink(entries, button = null) {
   }
 }
 
+/** @param {string} key @returns {FavoriteEntry|null} */
 function favoriteWorkspaceFindEntryByKey(key) {
   return getFavoriteEntries().find((entry) => favoriteWorkspaceEntryKey(entry) === key) || null;
 }
@@ -343,7 +372,11 @@ function syncFavoriteNoteCount() {
   favoritesElements.favoriteNoteCount.textContent = `${favoritesElements.favoriteNoteInput.value.length}/${FAVORITES_NOTE_MAX_LENGTH}`;
 }
 
-function openFavoriteNoteEditor(key, returnFocus = document.activeElement) {
+/**
+ * @param {string} key
+ * @param {HTMLElement|null} [returnFocus]
+ */
+function openFavoriteNoteEditor(key, returnFocus = isHtmlElement(document.activeElement) ? document.activeElement : null) {
   const entry = favoriteWorkspaceFindEntryByKey(key);
   if (!entry || !favoritesElements.favoriteNoteOverlay || !favoritesElements.favoriteNoteInput) return;
   favoritesState.favoriteNoteEditingKey = key;
@@ -361,6 +394,7 @@ function openFavoriteNoteEditor(key, returnFocus = document.activeElement) {
   });
 }
 
+/** @param {NoteEditorCloseOptions} [options] */
 function closeFavoriteNoteEditor(options = {}) {
   const { restoreFocus = true } = options;
   const returnFocus = favoritesState.favoriteNoteReturnFocus;
@@ -393,16 +427,22 @@ function saveFavoriteNote() {
     tone: "removed"
   });
   requestAnimationFrame(() => {
-    favoriteWorkspaceFindCardByKey(favoriteWorkspaceEntryKey(entry))?.querySelector("[data-edit-favorite-note]")?.focus?.();
+    focusHtmlElement(favoriteWorkspaceFindCardByKey(favoriteWorkspaceEntryKey(entry))?.querySelector("[data-edit-favorite-note]"));
   });
 }
 
+/**
+ * @param {Element|null} container
+ * @returns {HTMLElement[]}
+ */
 function favoriteWorkspaceFocusable(container) {
   if (!container) return [];
   return Array.from(container.querySelectorAll('button:not([disabled]), a[href]:not(.hidden), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'))
-    .filter((element) => !element.closest?.(".hidden"));
+    .filter(isHtmlElement)
+    .filter((element) => !element.closest(".hidden"));
 }
 
+/** @param {KeyboardEvent} event @param {Element|null} container @param {()=>void} closeCallback */
 function trapFavoriteWorkspaceDialogFocus(event, container, closeCallback) {
   if (event.key === "Escape") {
     event.preventDefault();
@@ -425,32 +465,39 @@ function trapFavoriteWorkspaceDialogFocus(event, container, closeCallback) {
   return true;
 }
 
+/** @param {Event} event */
 function handleFavoritesWorkspaceGridClick(event) {
-  const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
+  const target = eventTargetElement(event.target);
+  const card = target?.closest("[data-favorite-catalog][data-favorite-page]");
   if (!card || !favoritesElements.favoritesGrid?.contains(card)) return false;
   const key = favoriteWorkspaceCardKey(card);
-  if (event.target.closest?.("[data-edit-favorite-note]")) {
-    openFavoriteNoteEditor(key, event.target.closest("button"));
+  if (target?.closest("[data-edit-favorite-note]")) {
+    const button = target.closest("button");
+    openFavoriteNoteEditor(key, isHtmlElement(button) ? button : null);
     return true;
   }
-  const moveButton = event.target.closest?.("[data-move-favorite]");
-  if (moveButton) {
+  const moveButton = target?.closest("[data-move-favorite]");
+  if (moveButton instanceof HTMLElement) {
     moveFavoriteWithinVisibleOrder(key, Number(moveButton.dataset.moveFavorite));
     return true;
   }
   return false;
 }
 
+/** @param {Event} event */
 function handleFavoritesWorkspaceGridChange(event) {
-  const checkbox = event.target.closest?.("[data-select-favorite]");
-  if (!checkbox) return;
+  const target = eventTargetElement(event.target);
+  const checkbox = target?.closest("[data-select-favorite]");
+  if (!(checkbox instanceof HTMLInputElement)) return;
   const card = checkbox.closest("[data-favorite-catalog][data-favorite-page]");
   setFavoriteWorkspaceSelection(favoriteWorkspaceCardKey(card), checkbox.checked);
 }
 
+/** @param {DragEvent} event */
 function handleFavoritesWorkspaceDragStart(event) {
-  const handle = event.target.closest?.("[data-drag-favorite]");
-  const card = handle?.closest?.("[data-favorite-catalog][data-favorite-page]");
+  const target = eventTargetElement(event.target);
+  const handle = target?.closest("[data-drag-favorite]");
+  const card = handle?.closest("[data-favorite-catalog][data-favorite-page]");
   if (!handle || !card) return;
   favoritesState.favoritesDragKey = favoriteWorkspaceCardKey(card);
   card.classList.add("is-dragging");
@@ -458,17 +505,19 @@ function handleFavoritesWorkspaceDragStart(event) {
   if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
 }
 
+/** @param {DragEvent} event */
 function handleFavoritesWorkspaceDragOver(event) {
   if (!favoritesState.favoritesDragKey) return;
-  const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
+  const card = eventTargetElement(event.target)?.closest("[data-favorite-catalog][data-favorite-page]");
   if (!card || favoriteWorkspaceCardKey(card) === favoritesState.favoritesDragKey) return;
   event.preventDefault();
   favoritesElements.favoritesGrid?.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target"));
   card.classList.add("is-drag-target");
 }
 
+/** @param {DragEvent} event */
 function handleFavoritesWorkspaceDrop(event) {
-  const card = event.target.closest?.("[data-favorite-catalog][data-favorite-page]");
+  const card = eventTargetElement(event.target)?.closest("[data-favorite-catalog][data-favorite-page]");
   if (!card || !favoritesState.favoritesDragKey) return;
   event.preventDefault();
   reorderFavoriteByDrop(favoritesState.favoritesDragKey, favoriteWorkspaceCardKey(card));

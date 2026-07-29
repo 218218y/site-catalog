@@ -7,26 +7,32 @@
  */
 
 function retryCurrentViewerImage() {
-  if (!isViewerSessionOpen() || !navigationState.catalog) return;
-  const request = viewerPageImageRequest(navigationState.catalog, navigationState.page);
-  showSingleLightboxImage(navigationState.catalog, navigationState.page, request.primarySrc, {
+  const catalog = activeCatalog();
+  if (!isViewerSessionOpen() || !catalog) return;
+  const request = viewerPageImageRequest(catalog, activePage());
+  showSingleLightboxImage(catalog, activePage(), request.primarySrc, {
     imageRequest: request,
     forceRefresh: true
   });
 }
 
 function getViewerNavigationPosition() {
-  return isFavoritesLightboxMode() ? favoritesState.favoritesViewerIndex : navigationState.page - 1;
+  return isFavoritesLightboxMode()
+    ? (getFeatureInterface("favorites")?.viewerIndex() ?? 0)
+    : activePage() - 1;
 }
 
 function getViewerNavigationMaximumPosition() {
-  if (isFavoritesLightboxMode()) return Math.max(0, getFavoriteEntries().length - 1);
-  return Math.max(0, (navigationState.catalog?.pages || 1) - 1);
+  if (isFavoritesLightboxMode()) {
+    return Math.max(0, (getFeatureInterface("favorites")?.entries().length || 0) - 1);
+  }
+  return Math.max(0, (activeCatalog()?.pages || 1) - 1);
 }
 
+/** @param {number} position @param {ViewerSetPageOptions} [options] */
 function setViewerNavigationPosition(position, options = {}) {
   const maximum = getViewerNavigationMaximumPosition();
-  const target = clampValue(Number.parseInt(position, 10) || 0, 0, maximum);
+  const target = clampValue(Number.parseInt(String(position), 10) || 0, 0, maximum);
   if (target === getViewerNavigationPosition()) return false;
 
   if (isFavoritesLightboxMode()) {
@@ -37,6 +43,7 @@ function setViewerNavigationPosition(position, options = {}) {
   return true;
 }
 
+/** @param {number} direction */
 function canMoveLightbox(direction) {
   const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
   if (!step) return false;
@@ -52,6 +59,7 @@ function clearViewerPageWheelGesture() {
   viewerState.viewerPageWheelTargetPage = 0;
 }
 
+/** @param {number} rawDelta @param {number} deltaMode @param {number} [viewportSize] */
 function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0) {
   const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
   if (deltaMode === pageMode) {
@@ -60,21 +68,24 @@ function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0
   return normalizeWheelDeltaToPixels(rawDelta, deltaMode, viewportSize);
 }
 
+/** @param {WheelEvent} event */
 function normalizeViewerPageWheelDeltas(event) {
+  const currentTarget = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
   return {
     deltaX: normalizeViewerPageWheelAxisDelta(
       event?.deltaX,
       event?.deltaMode,
-      event?.currentTarget?.clientWidth || viewerElements.stageCanvas?.clientWidth || 0
+      currentTarget?.clientWidth || viewerElements.stageCanvas?.clientWidth || 0
     ),
     deltaY: normalizeViewerPageWheelAxisDelta(
       event?.deltaY,
       event?.deltaMode,
-      event?.currentTarget?.clientHeight || viewerElements.stageCanvas?.clientHeight || 0
+      currentTarget?.clientHeight || viewerElements.stageCanvas?.clientHeight || 0
     )
   };
 }
 
+/** @param {number} deltaX @param {number} deltaY */
 function getViewerPageWheelLogicalDelta(deltaX, deltaY) {
   if (Math.abs(deltaY) >= Math.abs(deltaX)) return deltaY;
   // The viewer is RTL: a rightward finger/trackpad gesture (negative wheel
@@ -82,6 +93,7 @@ function getViewerPageWheelLogicalDelta(deltaX, deltaY) {
   return -deltaX;
 }
 
+/** @param {number} accumulator */
 function getViewerPageWheelRequestedSteps(accumulator) {
   const signedAccumulator = Number(accumulator) || 0;
   const magnitude = Math.abs(signedAccumulator);
@@ -91,6 +103,7 @@ function getViewerPageWheelRequestedSteps(accumulator) {
   return Math.sign(signedAccumulator) * Math.max(1, wholePageSteps);
 }
 
+/** @param {ViewerPanInputResult|null} result @param {number} [deltaX] @param {number} [deltaY] */
 function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
   if (!result) return null;
   // A zoomed/pannable image may expose the same black safety buffer on both
@@ -105,6 +118,7 @@ function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
   };
 }
 
+/** @param {number} direction @param {string} [axis] @param {{preservePointerInteraction?:boolean}} [options] */
 function moveLightboxFromPageTurn(direction, axis = "y", options = {}) {
   const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
   if (!step || !canMoveLightbox(step)) return false;
@@ -119,6 +133,7 @@ function moveLightboxFromPageTurn(direction, axis = "y", options = {}) {
   return true;
 }
 
+/** @param {number} [deltaX] @param {number} [deltaY] @param {{pointerId?:number}} [options] */
 function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) {
   const result = consumeSingleViewerPanInput(deltaX, deltaY);
   if (!result) return { handled: false, turned: false, moved: false };
@@ -141,8 +156,9 @@ function settleViewerPageWheelGesture() {
   clearViewerPageWheelGesture();
 }
 
+/** @param {WheelEvent} event */
 function handleViewerPageWheel(event) {
-  if (!isViewerSessionOpen() || !navigationState.catalog) return false;
+  if (!isViewerSessionOpen() || !activeCatalog()) return false;
 
   const { deltaX, deltaY } = normalizeViewerPageWheelDeltas(event);
   if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return false;

@@ -32,9 +32,9 @@ function syncViewerMobileMoreMenuState() {
   heightItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_HEIGHT);
   widthItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
   widthItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_WIDTH);
-  if (favoritesElements.viewerMobileFavoritesLink) favoritesElements.viewerMobileFavoritesLink.href = favoritesDocumentUrl();
 }
 
+/** @param {boolean} open @param {{returnFocus?:boolean}} [options] */
 function setViewerMobileMoreOpen(open, options = {}) {
   const shouldOpen = Boolean(open && isViewerSessionOpen() && isMobileViewerToolbarMode());
   viewerState.viewerMobileMoreOpen = shouldOpen;
@@ -48,7 +48,7 @@ function setViewerMobileMoreOpen(open, options = {}) {
   if (shouldOpen) {
     showTopUiTemporarily(0);
     window.requestAnimationFrame(() => {
-      viewerElements.viewerMobileMoreMenu?.querySelector('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]')?.focus?.({ preventScroll: true });
+      focusHtmlElement(viewerElements.viewerMobileMoreMenu?.querySelector('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'), { preventScroll: true });
     });
   } else if (options.returnFocus) {
     viewerElements.viewerMobileMoreToggle?.focus?.({ preventScroll: true });
@@ -59,19 +59,21 @@ function closeViewerMobileMoreMenu(options = {}) {
   setViewerMobileMoreOpen(false, options);
 }
 
+/** @returns {HTMLElement[]} */
 function getViewerMobileMoreItems() {
   if (!viewerElements.viewerMobileMoreMenu) return [];
   return Array.from(viewerElements.viewerMobileMoreMenu.querySelectorAll(
     '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'
-  )).filter((item) => !item.classList.contains("hidden") && item.getAttribute("aria-hidden") !== "true");
+  )).filter(isHtmlElement).filter((item) => !item.classList.contains("hidden") && item.getAttribute("aria-hidden") !== "true");
 }
 
+/** @param {KeyboardEvent} event */
 function handleViewerMobileMoreKeydown(event) {
   if (!viewerState.viewerMobileMoreOpen) return;
   const items = getViewerMobileMoreItems();
   if (!items.length) return;
 
-  const currentIndex = Math.max(0, items.indexOf(document.activeElement));
+  const currentIndex = Math.max(0, isHtmlElement(document.activeElement) ? items.indexOf(document.activeElement) : 0);
   let nextIndex = -1;
   if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % items.length;
   else if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
@@ -80,12 +82,13 @@ function handleViewerMobileMoreKeydown(event) {
   else return;
 
   event.preventDefault();
-  items[nextIndex]?.focus?.({ preventScroll: true });
+  focusHtmlElement(items[nextIndex], { preventScroll: true });
 }
 
+/** @param {Event} event */
 function handleViewerMobileMoreAction(event) {
-  const item = event.target.closest?.("[data-viewer-mobile-action]");
-  if (!item || !viewerElements.viewerMobileMoreMenu?.contains(item)) return;
+  const item = eventTargetElement(event.target)?.closest("[data-viewer-mobile-action]");
+  if (!isHtmlElement(item) || !viewerElements.viewerMobileMoreMenu?.contains(item)) return;
   event.preventDefault();
   event.stopPropagation();
   const action = item.dataset.viewerMobileAction;
@@ -108,11 +111,11 @@ function attachViewerActionEvents() {
   });
   viewerElements.viewerMobileMoreMenu?.addEventListener("click", handleViewerMobileMoreAction);
   viewerElements.viewerMobileMoreMenu?.addEventListener("keydown", handleViewerMobileMoreKeydown);
-  favoritesElements.viewerMobileFavoritesLink?.addEventListener("click", () => closeViewerMobileMoreMenu());
 
   document.addEventListener("pointerdown", (event) => {
     if (!viewerState.viewerMobileMoreOpen) return;
-    if (viewerElements.viewerMobileMoreMenu?.contains(event.target) || viewerElements.viewerMobileMoreToggle?.contains(event.target)) return;
+    const target = event.target instanceof Node ? event.target : null;
+    if (viewerElements.viewerMobileMoreMenu?.contains(target) || viewerElements.viewerMobileMoreToggle?.contains(target)) return;
     closeViewerMobileMoreMenu();
   }, { passive: true });
 

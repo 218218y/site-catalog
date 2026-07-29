@@ -6,6 +6,9 @@ route-specific stylesheet. Source code is maintained under ``src/js`` and
 ``src/css`` and concatenated in fixed, reviewed feature manifests. Each
 JavaScript entrypoint is wrapped in its own private strict-mode scope, so a
 feature omitted from a route is not downloaded or exposed at runtime.
+Source-level JSDoc contracts remain available to TypeScript and editors but are
+removed from production JavaScript bundles, so stronger typing does not consume
+the browser performance budget.
 
 The legal/SEO shell uses the small shared ``styles.css`` bundle and no
 application JavaScript. Manifests are validated before writing and outputs are
@@ -41,6 +44,7 @@ COMMON_JS_MODULES: tuple[str, ...] = (
     "src/js/13-search-state.js",
     "src/js/14-favorites-state.js",
     "src/js/15-telemetry.js",
+    "src/js/18-navigation-feature.js",
     "src/js/20-shared-ui.js",
     "src/js/30-favorites-share.js",
 )
@@ -48,6 +52,7 @@ COMMON_JS_MODULES: tuple[str, ...] = (
 CATALOG_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
     "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
+    "src/js/80-app-shell.js",
     "src/js/90-bootstrap.js",
 )
 
@@ -56,6 +61,7 @@ FAVORITES_JS_MODULES: tuple[str, ...] = COMMON_JS_MODULES + (
     "src/js/35-favorites-workspace.js",
     "src/js/40-catalog-grid.js",
     "src/js/50-search-ui.js",
+    "src/js/80-app-shell.js",
     "src/js/90-bootstrap.js",
 )
 
@@ -69,6 +75,7 @@ VIEWER_JS_MODULES: tuple[str, ...] = (
     "src/js/14-favorites-state.js",
     "src/js/15-telemetry.js",
     "src/js/16-viewer-state.js",
+    "src/js/18-navigation-feature.js",
     "src/js/20-shared-ui.js",
     "src/js/30-favorites-share.js",
     "src/js/31-viewer-share.js",
@@ -87,6 +94,7 @@ VIEWER_JS_MODULES: tuple[str, ...] = (
     "src/js/62-viewer-actions.js",
     "src/js/65-viewer-onboarding.js",
     "src/js/70-viewer-input.js",
+    "src/js/80-app-shell.js",
     "src/js/90-bootstrap.js",
 )
 
@@ -207,6 +215,10 @@ TOP_LEVEL_DECLARATION_PATTERN = re.compile(
     r"(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)",
     re.MULTILINE,
 )
+INLINE_TYPE_JSDOC_PATTERN = re.compile(
+    r"/\*\*\s*@(?:type|param|returns?|template|satisfies)\b.*?\*/",
+    re.DOTALL,
+)
 
 
 def validate_module_manifest(module_paths: Sequence[str], *, expected_extension: str) -> None:
@@ -262,6 +274,46 @@ def read_source_module(root: Path, relative_path: str) -> str:
     if not content.strip():
         raise ValueError(f"Frontend source module is empty: {relative_path}")
     return content
+
+
+def strip_source_jsdoc(content: str) -> str:
+    """Remove standalone JSDoc blocks without touching executable text.
+
+    Frontend modules keep extensive ``@typedef``/``@param`` contracts for
+    ``checkJs``. They are build-time metadata and should not be downloaded by
+    every browser. The scanner intentionally strips only comments that begin on
+    an otherwise-empty source line; comment-like text inside strings, template
+    literals, regular expressions, or trailing code is preserved verbatim.
+    ``/*!`` license comments are retained.
+    """
+
+    output: list[str] = []
+    in_jsdoc = False
+    for line in content.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if not in_jsdoc:
+            if not stripped.startswith("/**") or stripped.startswith("/*!"):
+                output.append(line)
+                continue
+            closing_index = stripped.find("*/", 3)
+            if closing_index < 0:
+                in_jsdoc = True
+                continue
+            if stripped[closing_index + 2 :].strip():
+                output.append(line)
+            continue
+
+        closing_index = stripped.find("*/")
+        if closing_index < 0:
+            continue
+        in_jsdoc = False
+        remainder = stripped[closing_index + 2 :]
+        if remainder.strip():
+            output.append(remainder)
+
+    if in_jsdoc:
+        raise ValueError("Unterminated standalone JSDoc block in frontend source")
+    return normalize_text(INLINE_TYPE_JSDOC_PATTERN.sub("", "".join(output)))
 
 
 def source_manifest_text(module_paths: Sequence[str]) -> str:
@@ -344,12 +396,14 @@ def render_bundle(
             **dict(capabilities or {}),
         }
         sections.append(
-            "\n/** @type {FeatureCapabilities} */\n"
+            "\n"
             f"const featureCapabilities = Object.freeze({json.dumps(normalized_capabilities, separators=(',', ':'))});\n"
         )
 
     for relative_path in module_paths:
         content = read_source_module(root, relative_path)
+        if kind == "js":
+            content = strip_source_jsdoc(content)
         sections.append(
             f"\n{comment_open} ===== BEGIN SOURCE: {relative_path} ===== {comment_close}\n"
             f"{content}"

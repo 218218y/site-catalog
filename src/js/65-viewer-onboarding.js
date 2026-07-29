@@ -48,6 +48,7 @@ function viewerZoomOnboardingCopy() {
   return "לחצו פעמיים על התמונה או השתמשו בגלגלת העכבר להגדלה; לאחר מכן גררו את התמונה למיקום הרצוי.";
 }
 
+/** @returns {Array<ViewerOnboardingStep>} */
 function getViewerOnboardingSteps() {
   return [
     {
@@ -85,11 +86,15 @@ function getViewerOnboardingSteps() {
       title: "שמירה, שיתוף ובירור",
       description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
       note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
-      target: () => inquiryElements.viewerInquiryButton,
-      floatingTargets: () => [
-        { source: inquiryElements.viewerInquiryButton, id: "inquiry" },
-        { source: favoritesElements.viewerFavoriteButton, id: "favorite" }
-      ],
+      target: () => getFeatureInterface("inquiry")?.onboardingTarget() || null,
+      floatingTargets: () => {
+        const inquiryTarget = getFeatureInterface("inquiry")?.onboardingTarget();
+        const favoriteTarget = getFeatureInterface("favorites")?.onboardingTarget();
+        return [
+          inquiryTarget ? { source: inquiryTarget, id: "inquiry" } : null,
+          favoriteTarget ? { source: favoriteTarget, id: "favorite" } : null
+        ].filter((target) => target !== null);
+      },
       preferredPlacement: "left",
       padding: 8,
       radius: 24,
@@ -189,22 +194,24 @@ function getViewerOnboardingImageFocusRect() {
   };
 }
 
+/** @returns {HTMLElement[]} */
 function getViewerOnboardingFocusableElements() {
   if (!viewerElements.viewerOnboarding) return [];
   const controls = Array.from(viewerElements.viewerOnboarding.querySelectorAll(
     'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-  )).filter((element) => !element.closest?.(".hidden"));
+  )).filter(isHtmlElement).filter((element) => !element.closest(".hidden"));
   const targets = [
     ...(viewerState.viewerOnboardingFloatingTargets || []).map((entry) => entry.clone),
     viewerState.viewerOnboardingTarget
-  ].filter(Boolean);
+  ].filter(isHtmlElement);
   const targetControls = targets.flatMap((target) => [
     ...(target.matches?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') ? [target] : []),
     ...Array.from(target.querySelectorAll?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') || [])
   ]);
-  return [...new Set([...controls, ...targetControls])];
+  return [...new Set([...controls, ...targetControls].filter(isHtmlElement))];
 }
 
+/** @param {HTMLElement|null|undefined} element @param {number} left @param {number} top @param {number} width @param {number} height */
 function setViewerOnboardingShadeRect(element, left, top, width, height) {
   if (!element) return;
   element.style.left = `${Math.max(0, left)}px`;
@@ -213,6 +220,7 @@ function setViewerOnboardingShadeRect(element, left, top, width, height) {
   element.style.height = `${Math.max(0, height)}px`;
 }
 
+/** @param {RectLike|DOMRect|null|undefined} rawRect @param {number} [padding] @param {number} [viewportMargin] @returns {RectLike|null} */
 function normalizeViewerOnboardingRect(rawRect, padding = 0, viewportMargin = 6) {
   if (!rawRect) return null;
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
@@ -232,17 +240,21 @@ function normalizeViewerOnboardingRect(rawRect, padding = 0, viewportMargin = 6)
   };
 }
 
+/** @param {ViewerOnboardingPlacement} preferred @returns {Array<ViewerOnboardingPlacement>} */
 function viewerOnboardingPlacementCandidates(preferred) {
+  /** @type {Array<ViewerOnboardingPlacement>} */
   const all = ["below", "above", "left", "right"];
   return [preferred, ...all.filter((placement) => placement !== preferred)];
 }
 
+/** @param {RectLike} targetRect @param {DOMRect} calloutRect @param {ViewerOnboardingPlacement} preferredPlacement */
 function calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, preferredPlacement) {
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
   const margin = 12;
   const gap = 18;
 
+  /** @param {ViewerOnboardingPlacement} placement */
   const coordinates = (placement) => {
     if (placement === "above") {
       return { left: targetRect.left + (targetRect.width - calloutRect.width) / 2, top: targetRect.top - calloutRect.height - gap };
@@ -256,6 +268,7 @@ function calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, prefe
     return { left: targetRect.left + (targetRect.width - calloutRect.width) / 2, top: targetRect.bottom + gap };
   };
 
+  /** @param {PositionedPoint} point */
   const overflowScore = ({ left, top }) => {
     const overflowLeft = Math.max(0, margin - left);
     const overflowTop = Math.max(0, margin - top);
@@ -296,6 +309,7 @@ function removeViewerOnboardingFloatingTargets() {
   viewerState.viewerOnboardingFloatingTargets = [];
 }
 
+/** @param {HTMLElement} clone */
 function sanitizeViewerOnboardingFloatingTarget(clone) {
   clone.removeAttribute("id");
   clone.removeAttribute("aria-controls");
@@ -306,27 +320,26 @@ function sanitizeViewerOnboardingFloatingTarget(clone) {
   clone.removeAttribute("hidden");
 }
 
+/** @param {HTMLButtonElement} source @param {HTMLButtonElement} clone */
 function syncViewerOnboardingFloatingTargetState(source, clone) {
   ["aria-label", "aria-pressed", "title", "data-pinned", "data-fullscreen-active", "data-favorite-active"].forEach((attribute) => {
-    if (source.hasAttribute(attribute)) clone.setAttribute(attribute, source.getAttribute(attribute));
+    const value = source.getAttribute(attribute);
+    if (value !== null) clone.setAttribute(attribute, value);
     else clone.removeAttribute(attribute);
   });
-  clone.disabled = Boolean(source.disabled);
+  clone.disabled = source.disabled;
 }
 
+/** @param {ViewerOnboardingStep} step @returns {Array<ViewerOnboardingTargetDefinition>} */
 function getViewerOnboardingFloatingTargetDefinitions(step) {
-  const configured = step.floatingTargets?.()
-    || (step.floatingTarget ? [{ source: step.floatingTarget(), id: "primary" }] : []);
-  return configured.map((entry, index) => {
-    const source = entry?.source || entry;
-    if (!source) return null;
-    return {
-      source,
-      id: String(entry?.id || `target-${index + 1}`)
-    };
-  }).filter(Boolean);
+  const configured = step.floatingTargets?.() || [];
+  return configured.filter((entry) => entry.source instanceof HTMLButtonElement).map((entry, index) => ({
+    source: entry.source,
+    id: String(entry.id || `target-${index + 1}`)
+  }));
 }
 
+/** @param {ViewerOnboardingStep} step @param {Array<ViewerOnboardingTargetDefinition>} definitions */
 function viewerOnboardingFloatingTargetsMatch(step, definitions) {
   const current = viewerState.viewerOnboardingFloatingTargets || [];
   return current.length === definitions.length && current.every((entry, index) => (
@@ -336,6 +349,7 @@ function viewerOnboardingFloatingTargetsMatch(step, definitions) {
   ));
 }
 
+/** @param {ViewerOnboardingStep} step */
 function updateViewerOnboardingFloatingTargets(step) {
   const definitions = getViewerOnboardingFloatingTargetDefinitions(step);
   if (!definitions.length || !viewerElements.viewerOnboarding) {
@@ -346,7 +360,7 @@ function updateViewerOnboardingFloatingTargets(step) {
   if (!viewerOnboardingFloatingTargetsMatch(step, definitions)) {
     removeViewerOnboardingFloatingTargets();
     viewerState.viewerOnboardingFloatingTargets = definitions.map(({ source, id }) => {
-      const clone = source.cloneNode(true);
+      const clone = /** @type {HTMLButtonElement} */ (source.cloneNode(true));
       sanitizeViewerOnboardingFloatingTarget(clone);
       clone.classList.add("viewer-onboarding-floating-target");
       clone.dataset.tourStep = step.id;
@@ -436,6 +450,7 @@ function scheduleViewerOnboardingLayout(delay = 0) {
   run();
 }
 
+/** @param {ViewerOnboardingStepOptions} [options] */
 function renderViewerOnboardingStep(options = {}) {
   if (!viewerState.viewerOnboardingOpen) return;
   const { focus = true, scheduleLayout = true } = options;
@@ -480,6 +495,7 @@ function renderViewerOnboardingStep(options = {}) {
   if (focus) window.requestAnimationFrame(() => viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: true }));
 }
 
+/** @param {number} delta */
 function moveViewerOnboardingStep(delta) {
   if (!viewerState.viewerOnboardingOpen) return;
   const steps = getViewerOnboardingSteps();
@@ -493,7 +509,7 @@ function moveViewerOnboardingStep(delta) {
 }
 
 function restoreViewerUiAfterOnboarding() {
-  const restore = viewerState.viewerOnboardingRestoreUi || {};
+  const restore = viewerState.viewerOnboardingRestoreUi || { showUi: false, showPageRail: false };
   viewerElements.lightbox?.classList.remove("viewer-tour-active", "viewer-tour-show-top-ui", "viewer-tour-show-page-rail");
   if (viewerElements.lightbox) {
     if (viewerState.topUiPinned || restore.showUi) viewerElements.lightbox.classList.add("show-ui");
@@ -504,6 +520,7 @@ function restoreViewerUiAfterOnboarding() {
   viewerState.viewerOnboardingRestoreUi = null;
 }
 
+/** @param {ViewerOnboardingCloseOptions} [options] */
 function closeViewerOnboarding(options = {}) {
   if (!viewerState.viewerOnboardingOpen) return;
   const { restoreFocus = true, remember = true } = options;
@@ -559,6 +576,7 @@ function showViewerOnboardingIfNeeded() {
   });
 }
 
+/** @param {KeyboardEvent} event */
 function handleViewerOnboardingKeydown(event) {
   if (!viewerState.viewerOnboardingOpen) return false;
   if (event.key === "Escape") {
@@ -577,10 +595,10 @@ function handleViewerOnboardingKeydown(event) {
   const last = focusable[focusable.length - 1];
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
-    last.focus();
+    focusHtmlElement(last);
   } else if (!event.shiftKey && document.activeElement === last) {
     event.preventDefault();
-    first.focus();
+    focusHtmlElement(first);
   }
   return true;
 }

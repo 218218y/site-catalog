@@ -2,6 +2,7 @@
 """Validate feature-owned frontend state, DOM references, and route bundle boundaries."""
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Mapping
@@ -28,6 +29,129 @@ PROPERTY_RE_TEMPLATE = r"\b{owner}\.([A-Za-z_$][A-Za-z0-9_$]*)"
 OBJECT_RE_TEMPLATE = r"const\s+{owner}\s*=\s*(?:Object\.freeze\()?\{{(?P<body>.*?)\n\}}\)?;"
 DECLARED_PROPERTY_RE = re.compile(r"^\s{2}([A-Za-z_$][A-Za-z0-9_$]*):", re.MULTILINE)
 
+# Direct access to mutable state and feature-owned DOM is permitted only inside
+# the owning feature boundary. A state declaration may live in a small state
+# module while the implementation is split across a reviewed set of files.
+DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
+    "catalogAssetState": ("src/js/10-app-state.js", "src/js/20-shared-ui.js"),
+    "uiRuntime": ("src/js/10-app-state.js", "src/js/20-shared-ui.js"),
+    "navigationState": ("src/js/00-navigation.js", "src/js/11-navigation-state.js", "src/js/18-navigation-feature.js"),
+    "shellElements": ("src/js/11-navigation-state.js", "src/js/18-navigation-feature.js"),
+    "catalogState": ("src/js/12-catalog-state.js", "src/js/40-catalog-grid.js"),
+    "catalogElements": ("src/js/12-catalog-state.js", "src/js/40-catalog-grid.js"),
+    "searchState": ("src/js/13-search-state.js", "src/js/50-search-ui.js"),
+    "searchElements": ("src/js/13-search-state.js", "src/js/50-search-ui.js"),
+    "favoritesState": ("src/js/14-favorites-state.js", "src/js/30-favorites-share.js", "src/js/35-favorites-workspace.js"),
+    "favoritesElements": ("src/js/14-favorites-state.js", "src/js/30-favorites-share.js", "src/js/35-favorites-workspace.js"),
+    "inquiryState": ("src/js/32-shared-inquiry.js",),
+    "inquiryElements": ("src/js/32-shared-inquiry.js",),
+    "viewerState": (
+        "src/js/16-viewer-state.js",
+        "src/js/52-viewer-session.js",
+        "src/js/53-viewer-image.js",
+        "src/js/54-viewer-geometry.js",
+        "src/js/56-viewer-shell.js",
+        "src/js/58-viewer-navigation.js",
+        "src/js/60-viewer.js",
+        "src/js/62-viewer-actions.js",
+        "src/js/65-viewer-onboarding.js",
+        "src/js/70-viewer-input.js",
+    ),
+    "viewerElements": (
+        "src/js/16-viewer-state.js",
+        "src/js/31-viewer-share.js",
+        "src/js/52-viewer-session.js",
+        "src/js/53-viewer-image.js",
+        "src/js/54-viewer-geometry.js",
+        "src/js/56-viewer-shell.js",
+        "src/js/58-viewer-navigation.js",
+        "src/js/60-viewer.js",
+        "src/js/62-viewer-actions.js",
+        "src/js/65-viewer-onboarding.js",
+        "src/js/70-viewer-input.js",
+    ),
+}
+
+FEATURE_NAMES = frozenset({
+    "navigation",
+    "favorites",
+    "inquiry",
+    "favorites-workspace",
+    "catalog-grid",
+    "catalog-navigation",
+    "catalog-detail",
+    "search",
+    "viewer",
+    "app-shell",
+})
+
+
+
+def strip_javascript_comments(text: str) -> str:
+    """Remove comments while preserving executable identifiers for ownership scans."""
+    return re.sub(r"/\*.*?\*/|//[^\n]*", "", text, flags=re.DOTALL)
+
+
+def check_typecheck_configuration(base: Path, failures: list[str]) -> None:
+    config_path = base / "jsconfig.json"
+    if not config_path.is_file():
+        failures.append("strict frontend type-check configuration is missing: jsconfig.json")
+        return
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        failures.append(f"jsconfig.json is not valid JSON: {error}")
+        return
+
+    compiler = config.get("compilerOptions", {})
+    required_flags = {"allowJs": True, "checkJs": True, "noEmit": True, "strict": True}
+    for name, expected in required_flags.items():
+        if compiler.get(name) is not expected:
+            failures.append(f"jsconfig.json must set compilerOptions.{name}=true")
+    include = config.get("include", [])
+    if "src/js/**/*.js" not in include:
+        failures.append("jsconfig.json must type-check every src/js module via src/js/**/*.js")
+    files = config.get("files", [])
+    if "types/frontend-globals.d.ts" not in files:
+        failures.append("jsconfig.json must include types/frontend-globals.d.ts")
+
+
+def check_feature_registry(base: Path, sources: list[Path], failures: list[str]) -> None:
+    contracts = (base / "src/js/05-app-contracts.js").read_text(encoding="utf-8")
+    registry = (base / "src/js/10-app-state.js").read_text(encoding="utf-8")
+    if "FeatureRegistry" not in contracts or "keyof FeatureRegistry" not in contracts:
+        failures.append("frontend contracts do not define an exact FeatureRegistry")
+    if re.search(r"@typedef\s+\{Object\}\s+FeatureInterface\b", contracts):
+        failures.append("legacy generic FeatureInterface contract remains")
+    if "@template {FeatureName} K" not in registry:
+        failures.append("feature registry access is not keyed by FeatureName")
+
+    registered: list[str] = []
+    for path in sources:
+        registered.extend(re.findall(r'registerFeatureInterface\("([^"\n]+)"', strip_javascript_comments(path.read_text(encoding="utf-8"))))
+    unknown = sorted(set(registered) - FEATURE_NAMES)
+    missing = sorted(FEATURE_NAMES - set(registered))
+    duplicates = sorted(name for name in set(registered) if registered.count(name) > 1)
+    if unknown:
+        failures.append(f"unknown feature registrations: {', '.join(unknown)}")
+    if missing:
+        failures.append(f"missing feature registrations: {', '.join(missing)}")
+    if duplicates:
+        failures.append(f"duplicate feature registrations: {', '.join(duplicates)}")
+
+
+def check_bootstrap_boundary(base: Path, failures: list[str]) -> None:
+    path = base / "src/js/90-bootstrap.js"
+    text = path.read_text(encoding="utf-8")
+    code = strip_javascript_comments(text)
+    function_names = re.findall(r"\bfunction\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(", code)
+    if function_names != ["init"]:
+        failures.append("90-bootstrap.js must contain only the init startup function")
+    if 'getFeatureInterface("app-shell")?.initialize()' not in code:
+        failures.append("90-bootstrap.js must delegate startup to the app-shell feature")
+    executable_lines = [line for line in code.splitlines() if line.strip()]
+    if len(executable_lines) > 18:
+        failures.append("90-bootstrap.js contains orchestration or business logic instead of a minimal startup boundary")
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -45,8 +169,21 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     base = (root or project_root()).resolve()
     sources = sorted((base / "src" / "js").glob("*.js"))
     combined = "\n".join(path.read_text(encoding="utf-8") for path in sources)
-    code_without_comments = re.sub(r"/\*.*?\*/|//[^\n]*", "", combined, flags=re.DOTALL)
+    code_without_comments = strip_javascript_comments(combined)
     failures: list[str] = []
+
+    check_typecheck_configuration(base, failures)
+    check_feature_registry(base, sources, failures)
+    check_bootstrap_boundary(base, failures)
+
+    for path in sources:
+        relative_path = path.relative_to(base).as_posix()
+        code = strip_javascript_comments(path.read_text(encoding="utf-8"))
+        for identifier, allowed_paths in DIRECT_ACCESS_OWNERS.items():
+            if relative_path not in allowed_paths and re.search(rf"\b{re.escape(identifier)}\b", code):
+                failures.append(
+                    f"{relative_path} reaches into {identifier}; use the owning feature interface instead"
+                )
 
     if re.search(r"(?<![A-Za-z0-9_$.])state(?:\??\.|\s*\[)", code_without_comments):
         failures.append("legacy monolithic state access remains")

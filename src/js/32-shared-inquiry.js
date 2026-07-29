@@ -6,6 +6,7 @@
  * by tools/build_frontend_assets.py into route-specific browser bundles.
  */
 
+/** @type {{open:boolean, returnFocus:HTMLElement|null, reference:InquiryReference|null}} */
 const inquiryState = {
   open: false,
   returnFocus: null,
@@ -13,27 +14,29 @@ const inquiryState = {
 };
 
 const inquiryElements = Object.freeze({
-  viewerInquiryButton: $("viewerInquiryButton"),
-  viewerInquiryOverlay: $("viewerInquiryOverlay"),
-  viewerInquiryBackdrop: $("viewerInquiryBackdrop"),
-  viewerInquiryClose: $("viewerInquiryClose"),
-  viewerInquiryEyebrow: $("viewerInquiryEyebrow"),
-  viewerInquiryTitle: $("viewerInquiryTitle"),
-  viewerInquiryDescription: $("viewerInquiryDescription"),
-  viewerInquiryReference: $("viewerInquiryReference"),
-  viewerInquiryCatalog: $("viewerInquiryCatalog"),
-  viewerInquiryPage: $("viewerInquiryPage"),
-  viewerInquiryPreview: $("viewerInquiryPreview"),
-  viewerInquiryActions: $("viewerInquiryActions"),
-  viewerInquiryGmail: $("viewerInquiryGmail"),
-  viewerInquiryEmail: $("viewerInquiryEmail"),
-  viewerInquiryShare: $("viewerInquiryShare"),
-  viewerInquiryCopy: $("viewerInquiryCopy")
+  viewerInquiryButton: $requiredButton("viewerInquiryButton"),
+  viewerInquiryOverlay: requiredElement("viewerInquiryOverlay"),
+  viewerInquiryBackdrop: requiredElement("viewerInquiryBackdrop"),
+  viewerInquiryClose: $requiredButton("viewerInquiryClose"),
+  viewerInquiryEyebrow: requiredElement("viewerInquiryEyebrow"),
+  viewerInquiryTitle: requiredElement("viewerInquiryTitle"),
+  viewerInquiryDescription: requiredElement("viewerInquiryDescription"),
+  viewerInquiryReference: requiredElement("viewerInquiryReference"),
+  viewerInquiryCatalog: requiredElement("viewerInquiryCatalog"),
+  viewerInquiryPage: requiredElement("viewerInquiryPage"),
+  viewerInquiryPreview: $requiredImage("viewerInquiryPreview"),
+  viewerInquiryActions: requiredElement("viewerInquiryActions"),
+  viewerInquiryGmail: $requiredAnchor("viewerInquiryGmail"),
+  viewerInquiryEmail: $requiredAnchor("viewerInquiryEmail"),
+  viewerInquiryShare: $requiredButton("viewerInquiryShare"),
+  viewerInquiryCopy: $requiredButton("viewerInquiryCopy")
 });
 
+/** @returns {HTMLAnchorElement|null} */
 function viewerInquiryFooterEmail() {
-  return Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"))
-    .find((link) => String(link.getAttribute("href") || "").startsWith("mailto:")) || null;
+  const link = Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"))
+    .find((candidate) => String(candidate.getAttribute("href") || "").startsWith("mailto:"));
+  return link instanceof HTMLAnchorElement ? link : null;
 }
 
 function viewerInquiryEmailAddress() {
@@ -42,11 +45,12 @@ function viewerInquiryEmailAddress() {
 }
 
 function viewerPageInquiryReference() {
-  if (!navigationState.catalog) return null;
-  const page = clampPage(navigationState.page, navigationState.catalog);
-  const url = absoluteDocumentUrl(viewerDocumentUrl(navigationState.catalog.id, page));
-  const title = String(navigationState.catalog.title || "קטלוג").trim() || "קטלוג";
-  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(navigationState.catalog.pages) || 1)}`;
+  const catalog = activeCatalog();
+  if (!catalog) return null;
+  const page = clampPage(activePage(), catalog);
+  const url = absoluteDocumentUrl(viewerDocumentUrl(catalog.id, page));
+  const title = String(catalog.title || "קטלוג").trim() || "קטלוג";
+  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(catalog.pages) || 1)}`;
   const subject = `בירור על דגם – ${title}, עמוד ${page}`;
   const shareText = [
     "שלום,",
@@ -58,7 +62,7 @@ function viewerPageInquiryReference() {
   return {
     kind: "viewer",
     source: "viewer-inquiry",
-    catalog: navigationState.catalog,
+    catalog,
     page,
     title: "בירור על הדגם",
     eyebrow: "פרטי העמוד מצורפים אוטומטית",
@@ -69,11 +73,11 @@ function viewerPageInquiryReference() {
     shareText,
     text,
     url,
-    previewCatalog: navigationState.catalog,
+    previewCatalog: catalog,
     previewPage: page,
     telemetry: {
       source: "viewer-inquiry",
-      catalogId: navigationState.catalog.id,
+      catalogId: catalog.id,
       pageNumber: page
     }
   };
@@ -83,6 +87,7 @@ function viewerInquiryReference() {
   return inquiryState.reference || viewerPageInquiryReference();
 }
 
+/** @param {string} emailAddress @param {InquiryReference} reference */
 function viewerInquiryGmailUrl(emailAddress, reference) {
   const query = new URLSearchParams({
     view: "cm",
@@ -94,6 +99,7 @@ function viewerInquiryGmailUrl(emailAddress, reference) {
   return `https://mail.google.com/mail/?${query.toString()}`;
 }
 
+/** @param {string} emailAddress @param {InquiryReference} reference */
 function viewerInquiryMailtoUrl(emailAddress, reference) {
   const subject = encodeURIComponent(String(reference?.subject || ""));
   const body = encodeURIComponent(
@@ -102,6 +108,7 @@ function viewerInquiryMailtoUrl(emailAddress, reference) {
   return `mailto:${emailAddress}?subject=${subject}&body=${body}`;
 }
 
+/** @param {InquiryReference} reference @param {string} action @param {string} [detail] */
 function viewerInquiryTelemetryFields(reference, action, detail = "") {
   const telemetry = reference?.telemetry || {};
   return {
@@ -114,6 +121,7 @@ function viewerInquiryTelemetryFields(reference, action, detail = "") {
   };
 }
 
+/** @param {HTMLAnchorElement} link @param {string} href @param {InquiryReference} reference @param {string} action */
 function syncViewerInquiryContactLink(link, href, reference, action) {
   if (!link) return;
   const available = Boolean(href);
@@ -137,6 +145,7 @@ function syncViewerInquiryContactLink(link, href, reference, action) {
   else delete link.dataset.contactPage;
 }
 
+/** @param {InquiryReference|null} [reference] */
 function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   if (!reference) return;
 
@@ -180,26 +189,31 @@ function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   );
 }
 
+/** @param {boolean} open @param {HTMLElement|null} [activeTrigger] */
 function setViewerInquiryTriggerState(open, activeTrigger = null) {
-  [inquiryElements.viewerInquiryButton, favoritesElements.favoritesInquiryButton].forEach((button) => {
-    if (!button) return;
-    button.setAttribute("aria-expanded", open && button === activeTrigger ? "true" : "false");
-  });
+  inquiryElements.viewerInquiryButton.setAttribute(
+    "aria-expanded",
+    open && inquiryElements.viewerInquiryButton === activeTrigger ? "true" : "false"
+  );
+  getFeatureInterface("favorites")?.syncInquiryTrigger(open, activeTrigger);
 }
 
+/** @returns {HTMLElement[]} */
 function getViewerInquiryFocusableElements() {
-  if (!inquiryElements.viewerInquiryOverlay) return [];
   return Array.from(inquiryElements.viewerInquiryOverlay.querySelectorAll(
     'button:not([disabled]), a[href]:not(.hidden), [tabindex]:not([tabindex="-1"])'
-  )).filter((element) => !element.closest?.(".hidden"));
+  )).filter(isHtmlElement).filter((element) => !element.closest(".hidden"));
 }
 
+/** @param {InquiryOpenOptions} [options] */
 function openViewerInquiry(options = {}) {
   const reference = options.reference || viewerPageInquiryReference();
   if (!reference || !inquiryElements.viewerInquiryOverlay) return;
   getFeatureInterface("viewer")?.prepareInquiry?.();
 
-  const returnFocus = options.returnFocus || document.activeElement || inquiryElements.viewerInquiryButton;
+  const returnFocus = isHtmlElement(options.returnFocus)
+    ? options.returnFocus
+    : (isHtmlElement(document.activeElement) ? document.activeElement : inquiryElements.viewerInquiryButton);
   inquiryState.reference = reference;
   inquiryState.open = true;
   inquiryState.returnFocus = returnFocus;
@@ -211,10 +225,11 @@ function openViewerInquiry(options = {}) {
   window.requestAnimationFrame(() => {
     if (!inquiryState.open) return;
     inquiryElements.viewerInquiryOverlay?.classList.add("visible");
-    (inquiryElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0])?.focus?.({ preventScroll: true });
+    focusHtmlElement(inquiryElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0], { preventScroll: true });
   });
 }
 
+/** @param {DialogCloseOptions} [options] */
 function closeViewerInquiry(options = {}) {
   if (!inquiryState.open && inquiryElements.viewerInquiryOverlay?.classList.contains("hidden")) return;
   const { restoreFocus = true } = options;
@@ -229,9 +244,10 @@ function closeViewerInquiry(options = {}) {
   window.setTimeout(() => {
     if (!inquiryState.open) inquiryElements.viewerInquiryOverlay?.classList.add("hidden");
   }, 180);
-  if (restoreFocus) (returnFocus || inquiryElements.viewerInquiryButton)?.focus?.({ preventScroll: true });
+  if (restoreFocus) focusHtmlElement(returnFocus || inquiryElements.viewerInquiryButton, { preventScroll: true });
 }
 
+/** @param {KeyboardEvent} event */
 function handleViewerInquiryKeydown(event) {
   if (!inquiryState.open) return false;
   if (event.key === "Escape") {
@@ -251,10 +267,10 @@ function handleViewerInquiryKeydown(event) {
   const last = focusable[focusable.length - 1];
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
-    last.focus();
+    focusHtmlElement(last);
   } else if (!event.shiftKey && document.activeElement === last) {
     event.preventDefault();
-    first.focus();
+    focusHtmlElement(first);
   }
   return true;
 }
@@ -297,7 +313,7 @@ async function shareViewerInquiryReference() {
       closeViewerInquiry({ restoreFocus: false });
       return;
     } catch (error) {
-      if (error?.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") return;
     }
   }
 
@@ -339,6 +355,7 @@ registerFeatureInterface("inquiry", {
   attachEvents: attachSharedInquiryEvents,
   openInquiry: (options = {}) => openViewerInquiry(options),
   close: (options = {}) => closeViewerInquiry(options),
+  onboardingTarget: () => inquiryElements.viewerInquiryButton,
   closeTopLayer: () => {
     if (!inquiryState.open) return false;
     closeViewerInquiry();

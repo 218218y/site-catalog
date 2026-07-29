@@ -6,60 +6,67 @@
  * by tools/build_frontend_assets.py into the single browser file app.js.
  */
 
+/** @param {ViewerRefreshOptions} [options] */
 function updateLightbox(options = {}) {
-  if (!navigationState.catalog) return;
+  if (!activeCatalog()) return;
   const { thumbScrollIntoView = true, preserveCurrentImage = false } = options;
   let favoriteEntries = null;
+  const favorites = getFeatureInterface("favorites");
 
   if (isFavoritesLightboxMode()) {
-    favoriteEntries = getFavoriteEntries();
+    favoriteEntries = favorites?.entries() || [];
     if (!favoriteEntries.length) {
       closeLightbox({ restoreFavorites: true });
       return;
     }
 
-    const currentIndex = findFavoriteEntryIndex(favoriteEntries, navigationState.catalog?.id, navigationState.page);
-    setFavoriteViewerEntry(favoriteEntries, currentIndex >= 0 ? currentIndex : favoritesState.favoritesViewerIndex);
+    const currentIndex = favorites?.findViewerEntryIndex(favoriteEntries, activeCatalog()?.id, activePage()) ?? -1;
+    favorites?.selectViewerEntry(
+      favoriteEntries,
+      currentIndex >= 0 ? currentIndex : favorites.viewerIndex()
+    );
   }
 
-  const catalog = navigationState.catalog;
-  navigationState.page = clampPage(navigationState.page, catalog);
+  const catalog = activeCatalog();
+  if (!catalog) return;
+  setActivePage(clampPage(activePage(), catalog));
   syncLightboxModeUi();
   syncViewerInquiryUi();
   syncViewerMobileMoreMenuState();
 
   viewerElements.lightboxTitle.textContent = catalog.title;
   if (favoriteEntries) {
-    const current = favoritesState.favoritesViewerIndex + 1;
+    const favoriteViewerIndex = favorites?.viewerIndex() ?? 0;
+    const current = favoriteViewerIndex + 1;
     const total = favoriteEntries.length;
-    viewerElements.lightboxMeta.textContent = `מועדף ${current} מתוך ${total} · עמוד ${navigationState.page}`;
-    syncLightboxProgress(current, total, `מועדף ${current} מתוך ${total} · עמוד ${navigationState.page}`, {
+    viewerElements.lightboxMeta.textContent = `מועדף ${current} מתוך ${total} · עמוד ${activePage()}`;
+    syncLightboxProgress(current, total, `מועדף ${current} מתוך ${total} · עמוד ${activePage()}`, {
       label: "מועדף",
-      detail: `עמוד ${navigationState.page}`
+      detail: `עמוד ${activePage()}`
     });
-    viewerElements.prevPageBtn.disabled = favoritesState.favoritesViewerIndex <= 0;
-    viewerElements.nextPageBtn.disabled = favoritesState.favoritesViewerIndex >= total - 1;
+    viewerElements.prevPageBtn.disabled = favoriteViewerIndex <= 0;
+    viewerElements.nextPageBtn.disabled = favoriteViewerIndex >= total - 1;
   } else {
-    viewerElements.lightboxMeta.textContent = `עמוד ${navigationState.page} מתוך ${catalog.pages}`;
-    syncLightboxProgress(navigationState.page, catalog.pages, `עמוד ${navigationState.page} מתוך ${catalog.pages}`, {
+    viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalog.pages}`;
+    syncLightboxProgress(activePage(), catalog.pages, `עמוד ${activePage()} מתוך ${catalog.pages}`, {
       label: "עמוד"
     });
-    viewerElements.prevPageBtn.disabled = navigationState.page <= 1;
-    viewerElements.nextPageBtn.disabled = navigationState.page >= catalog.pages;
+    viewerElements.prevPageBtn.disabled = activePage() <= 1;
+    viewerElements.nextPageBtn.disabled = activePage() >= catalog.pages;
   }
 
-  syncViewerFavoriteButtonUi();
+  favorites?.syncViewerButton();
   if (!favoriteEntries) initLightboxSearchStatus();
 
   const preserveFullResolutionTier = !isAutoViewerZoom()
     && activeSingleViewerImageTier() === CATALOG_IMAGE_TIER_FULL;
-  const request = viewerPageImageRequest(catalog, navigationState.page, {
+  const request = viewerPageImageRequest(catalog, activePage(), {
     forceFull: preserveFullResolutionTier
   });
   const src = request.primarySrc;
   const currentSrc = activeSingleViewerImageLogicalSrc();
   if (currentSrc !== src) {
-    showSingleLightboxImage(catalog, navigationState.page, src, { imageRequest: request, preserveCurrentImage });
+    showSingleLightboxImage(catalog, activePage(), src, { imageRequest: request, preserveCurrentImage });
   } else {
     setViewerLoading(false);
     viewerElements.lightbox?.classList.remove("is-page-loading");
@@ -71,26 +78,25 @@ function updateLightbox(options = {}) {
   updateHash();
 }
 
+/** @param {number} [page] @param {ViewerOpenOptions} [options] */
 function openLightbox(page = 1, options = {}) {
-  if (!navigationState.catalog) return;
+  const catalog = activeCatalog();
+  if (!catalog) return;
   const source = options.source === LIGHTBOX_SOURCE_FAVORITES
     ? LIGHTBOX_SOURCE_FAVORITES
     : LIGHTBOX_SOURCE_CATALOG;
 
   if (!isAppPage("viewer")) {
-    navigateTo(viewerDocumentUrl(navigationState.catalog.id, page, { source }));
+    navigateTo(viewerDocumentUrl(catalog.id, page, { source }));
     return;
   }
 
-  navigationState.lightboxSource = source;
+  setActiveViewerSource(source);
+  const favorites = getFeatureInterface("favorites");
   if (source === LIGHTBOX_SOURCE_FAVORITES) {
-    favoritesState.favoritesViewerIndex = Math.max(0, Number.parseInt(options.favoriteIndex, 10) || 0);
+    favorites?.setViewerIndex(Math.max(0, Number.parseInt(String(options.favoriteIndex ?? ""), 10) || 0));
   } else {
-    favoritesState.favoritesViewerIndex = 0;
-    favoritesState.favoritesViewerOpeningHash = "";
-    favoritesState.favoritesViewerPreviousCatalog = null;
-    favoritesState.favoritesViewerPreviousPage = 1;
-    favoritesState.favoritesReturnFocus = null;
+    favorites?.resetViewerSession();
   }
   viewerState.imageFitModeSource = normalizeViewerFitModeSource(viewerState.imageFitModeSource);
   viewerState.imageFitMode = viewerUsesAutomaticFitMode()
@@ -98,7 +104,7 @@ function openLightbox(page = 1, options = {}) {
     : normalizeViewerFitMode(viewerState.imageFitMode);
   stopViewerTouchMomentum();
   clearViewerPageWheelGesture();
-  navigationState.page = clampPage(page, navigationState.catalog);
+  setActivePage(clampPage(page, catalog));
   viewerState.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
   viewerState.pointers.clear();
@@ -106,9 +112,9 @@ function openLightbox(page = 1, options = {}) {
   closeViewerInquiry({ restoreFocus: false });
   closeViewerMobileMoreMenu();
   transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox");
-  telemetryTrackCatalogOpen(navigationState.catalog, navigationState.page, navigationState.lightboxSource);
-  primeLightboxFrameForCatalogPage(navigationState.catalog, navigationState.page);
-  const initialSrc = viewerPageSrc(navigationState.catalog, navigationState.page);
+  telemetryTrackCatalogOpen(catalog, activePage(), activeViewerSource());
+  primeLightboxFrameForCatalogPage(catalog, activePage());
+  const initialSrc = viewerPageSrc(catalog, activePage());
   if (viewerElements.lightboxImage?.getAttribute("src") !== initialSrc) {
     viewerElements.lightboxImage?.removeAttribute("src");
     prepareImagePlaceholder(viewerElements.lightboxImage);
@@ -153,11 +159,12 @@ function hideLightboxUi() {
   window.clearTimeout(viewerState.pageRailHideTimer);
   hideViewerPageIndicator();
   getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.();
-  navigationState.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
+  setActiveViewerSource(LIGHTBOX_SOURCE_CATALOG);
   transitionViewerPhase(VIEWER_PHASE_CLOSED, "lightbox-hidden");
   syncDocumentLock();
 }
 
+/** @param {ViewerCloseOptions} [options] */
 function closeLightbox(options = {}) {
   const wasFavoritesViewer = isFavoritesLightboxMode();
   const { restoreFavorites = wasFavoritesViewer } = options;
@@ -167,9 +174,10 @@ function closeLightbox(options = {}) {
       navigateBack();
       return;
     }
+    const catalogId = activeCatalog()?.id || "";
     const destination = wasFavoritesViewer && restoreFavorites
       ? favoritesDocumentUrl()
-      : catalogDocumentUrl(navigationState.catalog?.id);
+      : (catalogId ? catalogDocumentUrl(catalogId) : homeDocumentUrl());
     navigateTo(destination || homeDocumentUrl(), { replace: true });
     return;
   }
@@ -177,10 +185,11 @@ function closeLightbox(options = {}) {
   hideLightboxUi();
 }
 
+/** @param {number} page @param {ViewerSetPageOptions} [options] */
 function setLightboxPage(page, options = {}) {
-  if (!navigationState.catalog) return;
-  const nextPage = clampPage(page, navigationState.catalog);
-  if (nextPage === navigationState.page) return;
+  if (!activeCatalog()) return;
+  const nextPage = clampPage(page, activeCatalog());
+  if (nextPage === activePage()) return;
 
   const {
     thumbScrollIntoView = true,
@@ -188,7 +197,7 @@ function setLightboxPage(page, options = {}) {
     resetZoom = false,
     resetPosition = isAutoViewerZoom(),
     positionMode = "auto",
-    pageTurnDirection = Math.sign(nextPage - navigationState.page),
+    pageTurnDirection = Math.sign(nextPage - activePage()),
     pageTurnAxis = "y",
     preservePointerInteraction = false
   } = options;
@@ -212,41 +221,46 @@ function setLightboxPage(page, options = {}) {
   }
 
   if (!preservePointerInteraction) viewerState.pointers.clear();
-  const previousCatalog = navigationState.catalog;
-  const previousPage = navigationState.page;
-  navigationState.page = nextPage;
+  const previousCatalog = activeCatalog();
+  const previousPage = activePage();
+  setActivePage(nextPage);
+  const currentCatalog = activeCatalog();
   const preserveCurrentGeometry = Boolean(
-    viewerElements.lightboxImage?.complete
+    currentCatalog
+    && viewerElements.lightboxImage?.complete
     && viewerElements.lightboxImage.naturalWidth > 0
-    && catalogPagesShareAspectRatio(previousCatalog, previousPage, navigationState.catalog, navigationState.page)
+    && catalogPagesShareAspectRatio(previousCatalog, previousPage, currentCatalog, activePage())
   );
-  const geometryPrimed = !preserveCurrentGeometry
-    && primeLightboxFrameForCatalogPage(navigationState.catalog, navigationState.page);
+  const geometryPrimed = Boolean(currentCatalog && !preserveCurrentGeometry
+    && primeLightboxFrameForCatalogPage(currentCatalog, activePage()));
   if (geometryPrimed) applyZoom();
   updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
 }
 
+/** @param {number} index @param {ViewerSetPageOptions} [options] */
 function setFavoriteViewerIndex(index, options = {}) {
   if (!isFavoritesLightboxMode()) return;
-  const entries = getFavoriteEntries();
+  const favorites = getFeatureInterface("favorites");
+  const entries = favorites?.entries() || [];
   if (!entries.length) {
     closeLightbox({ restoreFavorites: true });
     return;
   }
 
+  const currentFavoriteIndex = favorites?.viewerIndex() ?? 0;
   const {
     thumbScrollIntoView = true,
     keepZoom = true,
     resetZoom = false,
     resetPosition = isAutoViewerZoom(),
     positionMode = "auto",
-    pageTurnDirection = Math.sign((Number.parseInt(index, 10) || 0) - favoritesState.favoritesViewerIndex),
+    pageTurnDirection = Math.sign((Number.parseInt(String(index), 10) || 0) - currentFavoriteIndex),
     pageTurnAxis = "y",
     preservePointerInteraction = false
   } = options;
-  const nextIndex = clampValue(Number.parseInt(index, 10) || 0, 0, entries.length - 1);
+  const nextIndex = clampValue(Number.parseInt(String(index), 10) || 0, 0, entries.length - 1);
   const entry = entries[nextIndex];
-  const itemChanged = nextIndex !== favoritesState.favoritesViewerIndex || navigationState.catalog !== entry.catalog || navigationState.page !== entry.page;
+  const itemChanged = nextIndex !== currentFavoriteIndex || activeCatalog() !== entry.catalog || activePage() !== entry.page;
   if (!itemChanged) return;
 
   const shouldResetZoom = resetZoom || keepZoom === false;
@@ -269,29 +283,33 @@ function setFavoriteViewerIndex(index, options = {}) {
   }
   if (!preservePointerInteraction) viewerState.pointers.clear();
 
-  const previousCatalog = navigationState.catalog;
-  const previousPage = navigationState.page;
-  setFavoriteViewerEntry(entries, nextIndex);
+  const previousCatalog = activeCatalog();
+  const previousPage = activePage();
+  favorites?.selectViewerEntry(entries, nextIndex);
+  const currentCatalog = activeCatalog();
   const preserveCurrentGeometry = Boolean(
-    viewerElements.lightboxImage?.complete
+    currentCatalog
+    && viewerElements.lightboxImage?.complete
     && viewerElements.lightboxImage.naturalWidth > 0
-    && catalogPagesShareAspectRatio(previousCatalog, previousPage, navigationState.catalog, navigationState.page)
+    && catalogPagesShareAspectRatio(previousCatalog, previousPage, currentCatalog, activePage())
   );
-  const geometryPrimed = !preserveCurrentGeometry
-    && primeLightboxFrameForCatalogPage(navigationState.catalog, navigationState.page);
+  const geometryPrimed = Boolean(currentCatalog && !preserveCurrentGeometry
+    && primeLightboxFrameForCatalogPage(currentCatalog, activePage()));
   if (geometryPrimed) applyZoom();
   updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
 }
 
+/** @param {number} delta @param {ViewerSetPageOptions} [options] */
 function moveLightbox(delta, options = {}) {
-  if (!navigationState.catalog) return;
+  if (!activeCatalog()) return;
   if (isFavoritesLightboxMode()) {
-    setFavoriteViewerIndex(favoritesState.favoritesViewerIndex + delta, options);
+    setFavoriteViewerIndex((getFeatureInterface("favorites")?.viewerIndex() ?? 0) + delta, options);
     return;
   }
-  setLightboxPage(navigationState.page + delta, options);
+  setLightboxPage(activePage() + delta, options);
 }
 
+/** @param {string} id @param {number} [page] @param {ViewerOpenOptions} [options] */
 function openCatalogInViewer(id, page = 1, options = {}) {
   const catalog = catalogs.find((item) => item.id === id) || null;
   if (!catalog) return;
@@ -304,32 +322,18 @@ function openCatalogInViewer(id, page = 1, options = {}) {
     return;
   }
 
-  navigationState.catalog = catalog;
-  navigationState.page = clampPage(page, catalog);
-  openLightbox(navigationState.page, { source, favoriteIndex: options.favoriteIndex });
-}
-
-function openCurrentFavoriteInCatalog() {
-  if (!isViewerSessionOpen() || !isFavoritesLightboxMode() || !navigationState.catalog) return;
-
-  const catalogId = navigationState.catalog.id;
-  const page = navigationState.page;
-
-  // Re-enter through the canonical catalog-viewer lifecycle instead of
-  // partially mutating favorites state in place. Both routes now share the same
-  // single-image renderer, so the transition receives one complete clean state.
-  openCatalogInViewer(catalogId, page, { source: LIGHTBOX_SOURCE_CATALOG });
+  setActiveLocation(catalog, clampPage(page, catalog), source);
+  openLightbox(activePage(), { source, favoriteIndex: options.favoriteIndex });
 }
 
 function attachViewerEvents() {
   attachViewerShareEvents();
   viewerElements.lightboxHomeLink?.addEventListener("click", returnToMainSiteFromLightbox);
-  favoritesElements.favoriteOpenCatalogButton?.addEventListener("click", openCurrentFavoriteInCatalog);
   viewerElements.lightboxPinTopBar?.addEventListener("click", () => {
     toggleTopUiPinned();
     if (viewerState.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
   });
-  viewerElements.lightboxBackdrop?.addEventListener("click", closeLightbox);
+  viewerElements.lightboxBackdrop?.addEventListener("click", () => closeLightbox());
   viewerElements.lightbox?.addEventListener("pointerdown", handleLightboxPageRailEdgePointerDown, { capture: true, passive: false });
   viewerElements.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: true });
   viewerElements.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(viewerElements.fullscreenToggle));
@@ -344,12 +348,6 @@ function attachViewerEvents() {
     setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
   });
   viewerElements.viewerAutoZoomBtn?.addEventListener("pointerdown", (event) => event.stopPropagation());
-  favoritesElements.viewerFavoriteButton?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleCurrentPageFavorite();
-  });
-  favoritesElements.viewerFavoriteButton?.addEventListener("pointerdown", (event) => event.stopPropagation());
   viewerElements.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown);
   viewerElements.viewerImageRetry?.addEventListener("click", retryCurrentViewerImage);
 
@@ -405,6 +403,7 @@ function handleViewerResize() {
   if (viewerState.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
 }
 
+/** @param {KeyboardEvent} event */
 function handleViewerGlobalKeydown(event) {
   if (!isViewerSessionOpen()) return false;
   if (viewerState.viewerOnboardingOpen) {
@@ -412,7 +411,7 @@ function handleViewerGlobalKeydown(event) {
     return true;
   }
 
-  const target = event.target;
+  const target = eventTargetElement(event.target);
   if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return false;
 
   if (["ArrowDown", "PageDown", "ArrowUp", "PageUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) {
@@ -434,15 +433,20 @@ function handleViewerGlobalKeydown(event) {
   } else if (event.key === "Home") {
     if (isFavoritesLightboxMode()) setFavoriteViewerIndex(0);
     else setLightboxPage(1);
-  } else if (event.key === "End" && navigationState.catalog) {
-    if (isFavoritesLightboxMode()) setFavoriteViewerIndex(getFavoriteEntries().length - 1);
-    else setLightboxPage(navigationState.catalog.pages);
+  } else if (event.key === "End") {
+    const catalog = activeCatalog();
+    if (!catalog) return false;
+    if (isFavoritesLightboxMode()) {
+      setFavoriteViewerIndex((getFeatureInterface("favorites")?.entries().length || 0) - 1);
+    }
+    else setLightboxPage(catalog.pages);
   } else {
     return false;
   }
   return true;
 }
 
+/** @param {string} nextPage */
 function prepareViewerRoute(nextPage) {
   if (nextPage !== "viewer" && isViewerSessionOpen()) hideLightboxUi();
   syncFullscreenButtonUi();
@@ -476,6 +480,7 @@ registerFeatureInterface("viewer", {
   syncMobileSearchUi: (isOpen) => viewerElements.lightbox?.classList.toggle("mobile-search-open", Boolean(isOpen)),
   showTopUi: () => showTopUiTemporarily(0),
   containsTopBarElement: (element) => Boolean(element && viewerElements.lightboxBar?.contains(element)),
+  closeMobileMoreMenu: () => closeViewerMobileMoreMenu(),
   hideTopUiForSearch: () => {
     if (viewerState.topUiPinned) return;
     window.clearTimeout(viewerState.uiHideTimer);
@@ -497,7 +502,7 @@ registerFeatureInterface("viewer", {
       return true;
     }
 
-    const target = event?.target;
+    const target = eventTargetElement(event?.target || null);
     if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) {
       getFeatureInterface("search")?.hideViewerResults?.({ blurTopUiFocus: true });
       return true;

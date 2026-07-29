@@ -7,6 +7,34 @@
  * Respect for Global Privacy Control and Do Not Track is built in.
  */
 
+/** @typedef {"LCP"|"INP"|"CLS"} TelemetryWebVitalName */
+/**
+ * @typedef {Object} TelemetryFields
+ * @property {unknown} [page]
+ * @property {unknown} [path]
+ * @property {unknown} [catalogId]
+ * @property {unknown} [query]
+ * @property {unknown} [scope]
+ * @property {unknown} [action]
+ * @property {unknown} [detail]
+ * @property {unknown} [error]
+ * @property {unknown} [source]
+ * @property {unknown} [value]
+ * @property {unknown} [durationMs]
+ * @property {unknown} [pageNumber]
+ * @property {unknown} [secondaryValue]
+ * @property {unknown} [releaseId]
+ */
+/** @typedef {{immediate?:boolean}} TelemetryTrackOptions */
+/** @typedef {{beacon?:boolean}} TelemetryFlushOptions */
+/** @typedef {{surface?:unknown, scope?:unknown, catalogId?:unknown, completion?:unknown, immediate?:boolean}} TelemetrySearchOptions */
+/** @typedef {{img?:HTMLImageElement|null, detail?:unknown, action?:unknown, failedAttempts?:unknown, attempt?:unknown, value?:unknown}} TelemetryImageEventOptions */
+/** @typedef {{src?:unknown, target?:Element|null, trigger?:unknown}} TelemetrySearchIndexFailureOptions */
+/** @typedef {Element & {currentSrc?:string, src?:string, href?:string, data?:string, rel?:string, as?:string}} TelemetryResourceElement */
+/** @typedef {{supported:Set<TelemetryWebVitalName>, reported:Set<TelemetryWebVitalName>, lcp:number, inp:number, cls:number, clsSessionValue:number, clsSessionStart:number, clsLastEntry:number, interactions:Map<number,number>}} TelemetryWebVitalsRuntime */
+/** @typedef {{enabled:boolean|null, queue:Array<Record<string,string|number>>, flushTimer:number, flushing:boolean, catalogKey:string, catalogAt:number, searchKeys:Map<string,number>, diagnosticEvents:Set<string>, webVitals:TelemetryWebVitalsRuntime, initialized:boolean}} TelemetryRuntime */
+/** @typedef {PerformanceEntry & {interactionId?:number, duration?:number}} TelemetryInteractionEntry */
+
 const TELEMETRY_ENDPOINT = "/api/telemetry";
 const TELEMETRY_SCHEMA_VERSION = 2;
 const TELEMETRY_BATCH_LIMIT = 20;
@@ -31,9 +59,10 @@ const TELEMETRY_EVENT_NAMES = new Set([
   "web_vital"
 ]);
 
+/** @type {TelemetryRuntime} */
 const telemetryRuntime = {
-  enabled: null,
-  queue: [],
+  enabled: /** @type {boolean|null} */ (null),
+  queue: /** @type {Array<Record<string, string|number>>} */ ([]),
   flushTimer: 0,
   flushing: false,
   catalogKey: "",
@@ -58,7 +87,10 @@ function telemetryResolveReleaseId() {
   const explicit = String(window.__BARGIG_RELEASE_ID__ || "").trim();
   if (explicit) return telemetryCleanText(explicit, 64);
 
-  const scriptSrc = String(document.currentScript?.src || "");
+  const currentScript = document.currentScript;
+  const scriptSrc = currentScript && "src" in currentScript
+    ? String(currentScript.src || "")
+    : String(currentScript?.getAttribute?.("src") || "");
   const filename = scriptSrc.split("?")[0].split("#")[0].split("/").pop() || "";
   const fingerprint = filename.match(/^app(?:-(?:catalog|favorites|viewer))?\.([a-f0-9]{8,64})\.js$/i)?.[1];
   if (fingerprint) return `app-${fingerprint.slice(0, 16).toLowerCase()}`;
@@ -69,6 +101,7 @@ function telemetryResolveReleaseId() {
 
 const TELEMETRY_RELEASE_ID = telemetryResolveReleaseId();
 
+/** @param {unknown} value @param {number} [limit] */
 function telemetryCleanText(value, limit = 120) {
   return String(value ?? "")
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
@@ -77,6 +110,7 @@ function telemetryCleanText(value, limit = 120) {
     .slice(0, limit);
 }
 
+/** @param {unknown} [value] */
 function telemetryCleanPathname(value = window.location.pathname) {
   const pathname = telemetryCleanText(value, 180) || "/";
   return pathname.startsWith("/") ? pathname : `/${pathname}`;
@@ -110,12 +144,14 @@ function telemetryIsEnabled() {
   return telemetryRuntime.enabled;
 }
 
+/** @param {unknown} value @param {number} [min] @param {number} [max] */
 function telemetryNumber(value, min = 0, max = 86_400_000) {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
   return Math.min(max, Math.max(min, number));
 }
 
+/** @param {unknown[]} parts */
 function telemetryErrorFingerprint(parts) {
   const source = parts.map((part) => telemetryCleanText(part, 160)).join("|");
   let hash = 2166136261;
@@ -126,6 +162,7 @@ function telemetryErrorFingerprint(parts) {
   return `e${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
+/** @param {unknown} name @param {TelemetryFields} [fields] */
 function telemetryNormalizeEvent(name, fields = {}) {
   const eventName = telemetryCleanText(name, 40);
   if (!TELEMETRY_EVENT_NAMES.has(eventName)) return null;
@@ -158,6 +195,7 @@ function telemetryScheduleFlush(delay = TELEMETRY_FLUSH_DELAY_MS) {
   }, Math.max(0, delay));
 }
 
+/** @param {unknown} name @param {TelemetryFields} [fields] @param {TelemetryTrackOptions} [options] */
 function telemetryTrack(name, fields = {}, options = {}) {
   if (!telemetryIsEnabled()) return false;
   const event = telemetryNormalizeEvent(name, fields);
@@ -171,6 +209,7 @@ function telemetryTrack(name, fields = {}, options = {}) {
   return true;
 }
 
+/** @param {TelemetryFlushOptions} [options] */
 async function telemetryFlush(options = {}) {
   if (!telemetryIsEnabled() || telemetryRuntime.flushing || !telemetryRuntime.queue.length) return false;
 
@@ -210,6 +249,7 @@ async function telemetryFlush(options = {}) {
   }
 }
 
+/** @param {CatalogRecord|null|undefined} catalog @param {number} page @param {string} [source] */
 function telemetryTrackCatalogOpen(catalog, page, source = LIGHTBOX_SOURCE_CATALOG) {
   if (!catalog) return;
   const now = Date.now();
@@ -225,6 +265,7 @@ function telemetryTrackCatalogOpen(catalog, page, source = LIGHTBOX_SOURCE_CATAL
   });
 }
 
+/** @param {unknown} query @param {number} resultCount @param {TelemetrySearchOptions} [options] */
 function telemetryTrackSearch(query, resultCount, options = {}) {
   if (!telemetryIsEnabled()) return false;
   const cleanQuery = telemetryCleanText(query, 80);
@@ -257,6 +298,7 @@ function telemetryTrackSearch(query, resultCount, options = {}) {
   }, { immediate: options.immediate === true });
 }
 
+/** @param {string} action @param {string} [catalogId] @param {number} [pageNumber] @param {number} [count] */
 function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 0) {
   telemetryTrack("favorite", {
     action,
@@ -266,12 +308,14 @@ function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 
   });
 }
 
+/** @type {Readonly<Record<TelemetryWebVitalName, readonly [number,number]>>} */
 const TELEMETRY_WEB_VITAL_THRESHOLDS = Object.freeze({
   LCP: [2500, 4000],
   INP: [200, 500],
   CLS: [0.1, 0.25]
 });
 
+/** @param {TelemetryWebVitalName} name @param {number} value */
 function telemetryWebVitalRating(name, value) {
   const thresholds = TELEMETRY_WEB_VITAL_THRESHOLDS[name];
   if (!thresholds) return "unknown";
@@ -299,6 +343,7 @@ function telemetryPublishWebVitalsDiagnostics() {
   window.__BARGIG_WEB_VITALS__ = telemetryWebVitalsSnapshot();
 }
 
+/** @param {TelemetryInteractionEntry} entry */
 function telemetryRecordInteractionTiming(entry) {
   const interactionId = Number(entry?.interactionId) || 0;
   if (!interactionId) return;
@@ -307,7 +352,7 @@ function telemetryRecordInteractionTiming(entry) {
   runtime.interactions.set(interactionId, Math.max(duration, runtime.interactions.get(interactionId) || 0));
   if (runtime.interactions.size > 300) {
     const oldest = runtime.interactions.keys().next().value;
-    runtime.interactions.delete(oldest);
+    if (oldest !== undefined) runtime.interactions.delete(oldest);
   }
   const candidates = Array.from(runtime.interactions.values()).sort((left, right) => right - left);
   // INP uses a high-percentile interaction rather than a permanently growing
@@ -320,9 +365,10 @@ function telemetryRecordInteractionTiming(entry) {
 
 function telemetryReportWebVitals() {
   const runtime = telemetryRuntime.webVitals;
-  for (const name of ["LCP", "INP", "CLS"]) {
+  for (const name of /** @type {TelemetryWebVitalName[]} */ (["LCP", "INP", "CLS"])) {
     if (!runtime.supported.has(name) || runtime.reported.has(name)) continue;
-    const value = Number(runtime[name.toLowerCase()]);
+    const snapshot = telemetryWebVitalsSnapshot();
+    const value = Number(snapshot[name]);
     if (!Number.isFinite(value) || value < 0) continue;
     if ((name === "LCP" || name === "INP") && value === 0) continue;
     runtime.reported.add(name);
@@ -387,11 +433,12 @@ function telemetryObserveWebVitals() {
   }
 }
 
+/** @param {HTMLImageElement|null|undefined} img @param {string} [src] */
 function telemetryCatalogImageContext(img, src = "") {
   const value = String(src || img?.currentSrc || img?.getAttribute?.("src") || "");
   const match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i);
-  const catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || navigationState.catalog?.id || "", 100);
-  const pageNumber = Number.parseInt(match?.[2] || img?.dataset?.page || navigationState.page || 0, 10) || 0;
+  const catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || activeCatalog()?.id || "", 100);
+  const pageNumber = Number.parseInt(String(match?.[2] || img?.dataset?.page || activePage() || 0), 10) || 0;
   let detail = "image";
   if (/\/thumbs\//i.test(value)) detail = "thumbnail";
   else if (img?.id === "lightboxImage") detail = "viewer";
@@ -399,6 +446,7 @@ function telemetryCatalogImageContext(img, src = "") {
   return { catalogId, pageNumber, detail, value };
 }
 
+/** @param {unknown} value */
 function telemetryStableResourceUrl(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -415,6 +463,7 @@ function telemetryStableResourceUrl(value) {
   }
 }
 
+/** @param {unknown} value */
 function telemetryResourceSourceName(value) {
   const clean = telemetryStableResourceUrl(value);
   if (!clean) return "inline";
@@ -431,6 +480,7 @@ function telemetryResourceSourceName(value) {
   }
 }
 
+/** @param {unknown} value */
 function telemetryResourceScope(value) {
   const clean = telemetryStableResourceUrl(value);
   if (!clean) return "inline";
@@ -450,16 +500,19 @@ function telemetryResourceScope(value) {
   }
 }
 
+/** @param {unknown} key */
 function telemetryDiagnosticOnce(key) {
   const cleanKey = telemetryCleanText(key, 320);
   if (!cleanKey || telemetryRuntime.diagnosticEvents.has(cleanKey)) return false;
   telemetryRuntime.diagnosticEvents.add(cleanKey);
   if (telemetryRuntime.diagnosticEvents.size > 240) {
-    telemetryRuntime.diagnosticEvents.delete(telemetryRuntime.diagnosticEvents.values().next().value);
+    const oldest = telemetryRuntime.diagnosticEvents.values().next().value;
+    if (oldest !== undefined) telemetryRuntime.diagnosticEvents.delete(oldest);
   }
   return true;
 }
 
+/** @param {string} name @param {string} src @param {TelemetryImageEventOptions} [options] */
 function telemetryTrackImageEvent(name, src, options = {}) {
   const context = telemetryCatalogImageContext(options.img, src);
   const detail = telemetryCleanText(options.detail || context.detail, 50);
@@ -480,18 +533,22 @@ function telemetryTrackImageEvent(name, src, options = {}) {
   }, { immediate: true });
 }
 
+/** @param {string} src @param {TelemetryImageEventOptions} [options] */
 function telemetryTrackImageAttemptFailure(src, options = {}) {
   return telemetryTrackImageEvent("image_attempt_failed", src, options);
 }
 
+/** @param {string} src @param {TelemetryImageEventOptions} [options] */
 function telemetryTrackImageRecovery(src, options = {}) {
   return telemetryTrackImageEvent("image_recovered", src, options);
 }
 
+/** @param {string} src @param {TelemetryImageEventOptions} [options] */
 function telemetryTrackImageTerminalFailure(src, options = {}) {
   return telemetryTrackImageEvent("image_terminal_failure", src, options);
 }
 
+/** @param {unknown} filename */
 function telemetryErrorSourceScope(filename) {
   const value = String(filename || "").toLowerCase();
   if (!value) return "inline";
@@ -504,12 +561,14 @@ function telemetryErrorSourceScope(filename) {
   }
 }
 
+/** @param {Event|null|undefined} event @returns {event is ErrorEvent} */
 function telemetryIsRuntimeErrorEvent(event) {
   if (!event) return false;
   if (typeof ErrorEvent === "function" && event instanceof ErrorEvent) return true;
   return Object.prototype.toString.call(event) === "[object ErrorEvent]";
 }
 
+/** @param {Event} event */
 function telemetryClassifyWindowError(event) {
   if (typeof HTMLImageElement === "function" && event?.target instanceof HTMLImageElement) return "image";
   if (telemetryIsRuntimeErrorEvent(event)) return "runtime";
@@ -517,6 +576,7 @@ function telemetryClassifyWindowError(event) {
   return "ignored";
 }
 
+/** @param {Event} event */
 function telemetryTrackRuntimeError(event) {
   if (!telemetryIsRuntimeErrorEvent(event)) return false;
   const filename = String(event.filename || "");
@@ -524,7 +584,7 @@ function telemetryTrackRuntimeError(event) {
   const errorName = telemetryCleanText(event.error?.name || "Error", 40);
   const message = telemetryCleanText(event.message || event.error?.message || "JavaScript error", 120);
   return telemetryTrack("js_error", {
-    catalogId: navigationState.catalog?.id || "",
+    catalogId: activeCatalog()?.id || "",
     action: errorName,
     detail: message,
     scope: telemetryErrorSourceScope(filename),
@@ -535,29 +595,40 @@ function telemetryTrackRuntimeError(event) {
   }, { immediate: true });
 }
 
+/** @param {Element|null|undefined} target */
 function telemetryResourceElementUrl(target) {
-  return String(target?.currentSrc || target?.src || target?.href || target?.data || "");
+  if (!target) return "";
+  const resource = /** @type {TelemetryResourceElement} */ (target);
+  return String(resource.currentSrc || resource.src || resource.href || resource.data || "");
 }
 
+/** @param {Element|null|undefined} target */
 function telemetryResourceRole(target) {
-  const explicit = telemetryCleanText(target?.dataset?.telemetryResourceRole, 50);
+  if (!target) return "resource";
+  const explicit = target instanceof HTMLElement
+    ? telemetryCleanText(target.dataset.telemetryResourceRole, 50)
+    : "";
   if (explicit) return explicit;
-  if (target?.dataset?.searchIndexSrc) return "search-index";
+  if (target instanceof HTMLElement && target.dataset.searchIndexSrc) return "search-index";
 
-  const tag = String(target?.tagName || "").toLowerCase();
-  if (tag === "link") {
-    const rel = telemetryCleanText(target.rel || target.getAttribute?.("rel") || "link", 24);
-    const asType = telemetryCleanText(target.as || target.getAttribute?.("as") || "", 24);
+  const tag = String(target.tagName || "").toLowerCase();
+  if (target instanceof HTMLLinkElement) {
+    const rel = telemetryCleanText(target.rel || target.getAttribute("rel") || "link", 24);
+    const asType = telemetryCleanText(target.as || target.getAttribute("as") || "", 24);
     return asType ? `${rel}:${asType}` : rel;
   }
   return tag || "resource";
 }
 
+/** @param {unknown} reason @param {TelemetrySearchIndexFailureOptions} [options] */
 function telemetryTrackSearchIndexFailure(reason, options = {}) {
   const src = String(options.src || telemetryResourceElementUrl(options.target) || SEARCH_INDEX_SCRIPT_SRC || "");
   const source = telemetryResourceSourceName(src);
   const action = telemetryCleanText(reason || "load-error", 50);
-  const detail = telemetryCleanText(options.trigger || options.target?.dataset?.telemetrySearchTrigger || "unknown", 50);
+  const targetTrigger = options.target instanceof HTMLElement
+    ? options.target.dataset.telemetrySearchTrigger
+    : "";
+  const detail = telemetryCleanText(options.trigger || targetTrigger || "unknown", 50);
   const scope = telemetryErrorSourceScope(src);
   const key = ["search_index_load_failed", source, action, scope, detail].join("|");
   if (!telemetryDiagnosticOnce(key)) return false;
@@ -570,6 +641,7 @@ function telemetryTrackSearchIndexFailure(reason, options = {}) {
   }, { immediate: true });
 }
 
+/** @param {Element|null|undefined} target */
 function telemetryTrackResourceError(target) {
   const src = telemetryResourceElementUrl(target);
   const role = telemetryResourceRole(target);
@@ -591,12 +663,13 @@ function telemetryTrackResourceError(target) {
   }, { immediate: true });
 }
 
+/** @param {PromiseRejectionEvent} event */
 function telemetryTrackUnhandledRejection(event) {
   const reason = event?.reason;
   const errorName = telemetryCleanText(reason?.name || "UnhandledRejection", 40);
   const message = telemetryCleanText(reason?.message || reason || "Unhandled promise rejection", 120);
   telemetryTrack("js_error", {
-    catalogId: navigationState.catalog?.id || "",
+    catalogId: activeCatalog()?.id || "",
     action: errorName,
     detail: message,
     scope: "promise",
@@ -605,9 +678,10 @@ function telemetryTrackUnhandledRejection(event) {
   }, { immediate: true });
 }
 
+/** @param {MouseEvent} event */
 function telemetryHandleDocumentClick(event) {
-  const link = event.target?.closest?.("a[href]");
-  if (!link) return;
+  const link = eventTargetElement(event.target)?.closest("a[href]");
+  if (!(link instanceof HTMLAnchorElement)) return;
   const href = String(link.getAttribute("href") || "").trim();
   let action = telemetryCleanText(link.dataset.contactAction, 50);
   if (!action && href.startsWith("tel:")) action = "phone";
@@ -631,11 +705,13 @@ function telemetryInit() {
   window.addEventListener("error", (event) => {
     const classification = telemetryClassifyWindowError(event);
     if (classification === "image") {
-      if (event.target.dataset.telemetryManaged !== "true") {
-        if (recoverCatalogImageAfterInitialFailure(event.target)) return;
-        telemetryTrackImageTerminalFailure(event.target.currentSrc || event.target.src, {
-          img: event.target,
-          detail: telemetryCatalogImageContext(event.target).detail,
+      const image = event.target instanceof HTMLImageElement ? event.target : null;
+      if (!image) return;
+      if (image.dataset.telemetryManaged !== "true") {
+        if (recoverCatalogImageAfterInitialFailure(image)) return;
+        telemetryTrackImageTerminalFailure(image.currentSrc || image.src, {
+          img: image,
+          detail: telemetryCatalogImageContext(image).detail,
           action: "unmanaged",
           failedAttempts: 1
         });
@@ -646,7 +722,7 @@ function telemetryInit() {
       telemetryTrackRuntimeError(event);
       return;
     }
-    if (classification === "resource") telemetryTrackResourceError(event.target);
+    if (classification === "resource") telemetryTrackResourceError(eventTargetElement(event.target));
   }, true);
   window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection);
   document.addEventListener("click", telemetryHandleDocumentClick, true);

@@ -43,8 +43,8 @@ assert.doesNotMatch(stateSource, /viewerPageWheelLocked|viewerPageWheelUnlockTim
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?classList\.add\("viewer-layout-paged"\)/);
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?lightboxImageFrame\?\.classList\.remove\("hidden"\)/);
 assert.doesNotMatch(viewerSource, /renderViewerScrollPages|loadViewerScrollWindow|handleViewerScrollPagesScroll/);
-assert.match(viewerSource, /const preserveFullResolutionTier = !isAutoViewerZoom\(\)[\s\S]*?const request = viewerPageImageRequest\(catalog, navigationState\.page, \{[\s\S]*?forceFull: preserveFullResolutionTier[\s\S]*?showSingleLightboxImage/);
-assert.match(viewerSource, /function moveLightbox\(delta, options = \{\}\)[\s\S]*?setFavoriteViewerIndex\(favoritesState\.favoritesViewerIndex \+ delta, options\)[\s\S]*?setLightboxPage\(navigationState\.page \+ delta, options\)/);
+assert.match(viewerSource, /const preserveFullResolutionTier = !isAutoViewerZoom\(\)[\s\S]*?const request = viewerPageImageRequest\(catalog, activePage\(\), \{[\s\S]*?forceFull: preserveFullResolutionTier[\s\S]*?showSingleLightboxImage/);
+assert.match(viewerSource, /function moveLightbox\(delta, options = \{\}\)[\s\S]*?setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)[\s\S]*?setLightboxPage\(activePage\(\) \+ delta, options\)/);
 
 assert.match(geometry, /function captureSingleImageRelativePosition\(\)/);
 assert.match(geometry, /viewerState\.panX \/ metrics\.overflowX/);
@@ -72,7 +72,7 @@ assert.doesNotMatch(navigation, /renderViewerScrollPages|scrollTop|scrollIntoVie
 
 assert.match(viewerSource, /preservePointerInteraction = false/);
 assert.match(viewerSource, /if \(!preservePointerInteraction\) viewerState\.pointers\.clear\(\)/);
-assert.match(viewerSource, /const preserveCurrentGeometry = Boolean\([\s\S]*?viewerElements\.lightboxImage\?\.complete[\s\S]*?viewerElements\.lightboxImage\.naturalWidth > 0[\s\S]*?catalogPagesShareAspectRatio\(previousCatalog, previousPage, navigationState\.catalog, navigationState\.page\)[\s\S]*?\);[\s\S]*?const geometryPrimed = !preserveCurrentGeometry[\s\S]*?primeLightboxFrameForCatalogPage\(navigationState\.catalog, navigationState\.page\);[\s\S]*?if \(geometryPrimed\) applyZoom\(\);[\s\S]*?updateLightbox\(\{ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry \}\)/);
+assert.match(viewerSource, /const currentCatalog = activeCatalog\(\);[\s\S]*?const preserveCurrentGeometry = Boolean\([\s\S]*?viewerElements\.lightboxImage\?\.complete[\s\S]*?viewerElements\.lightboxImage\.naturalWidth > 0[\s\S]*?catalogPagesShareAspectRatio\(previousCatalog, previousPage, currentCatalog, activePage\(\)\)[\s\S]*?\);[\s\S]*?const geometryPrimed = Boolean\(currentCatalog && !preserveCurrentGeometry[\s\S]*?primeLightboxFrameForCatalogPage\(currentCatalog, activePage\(\)\)\);[\s\S]*?if \(geometryPrimed\) applyZoom\(\);[\s\S]*?updateLightbox\(\{ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry \}\)/);
 
 assert.match(input, /function handleViewerPageSwipe\(event, startedX, startedY\)[\s\S]*?isTouchLikePointer\(event\)/);
 assert.match(input, /const direction = horizontal[\s\S]*?dx > 0 \? 1 : -1[\s\S]*?dy < 0 \? 1 : -1/);

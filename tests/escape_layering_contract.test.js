@@ -8,6 +8,7 @@ const { readAllBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const hierarchySource = fs.readFileSync(path.join(root, 'src', 'js', '20-shared-ui.js'), 'utf8');
+const appShell = fs.readFileSync(path.join(root, 'src', 'js', '80-app-shell.js'), 'utf8');
 const bootstrap = fs.readFileSync(path.join(root, 'src', 'js', '90-bootstrap.js'), 'utf8');
 const app = readAllBundles();
 const favoriteWorkspace = fs.readFileSync(path.join(root, 'src', 'js', '35-favorites-workspace.js'), 'utf8');
@@ -68,7 +69,8 @@ function createHarness(layerResults) {
   return { calls, handler, event };
 }
 
-assert.match(bootstrap, /if \(event\.defaultPrevented\) return;\s*if \(handleTopLayerEscape\(event\)\) return;/);
+assert.match(appShell, /if \(event\.defaultPrevented\) return;\s*if \(handleTopLayerEscape\(event\)\) return;/);
+assert.doesNotMatch(bootstrap, /addEventListener|handleTopLayerEscape/, 'bootstrap must remain a startup-only composition entry');
 assert.match(app, /function handleTopLayerEscape\(event\)/);
 assert.match(hierarchySource, /for \(const api of featureInterfacesByEscapePriority\(\)\)/);
 assert.match(favoriteWorkspace, /event\.key === "Escape"[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeCallback\(\)/);

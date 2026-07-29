@@ -6,16 +6,21 @@
  * testable without mixing them into page loading, layout, or route behavior.
  */
 
+/** @param {EventTarget|null} surface */
 function getZoomSurfaceName(surface) {
   return surface === viewerElements.stageCanvas ? "catalog-page" : "";
 }
 
+/** @param {EventTarget|null} surface */
 function isActiveZoomSurface(surface) {
   return Boolean(getZoomSurfaceName(surface));
 }
 
+/** @param {EventTarget|null} surface @param {number} pointerId */
 function captureViewerPointer(surface, pointerId) {
-  if (!surface || typeof surface.setPointerCapture !== "function") return false;
+  if (!surface || !("setPointerCapture" in surface) || typeof surface.setPointerCapture !== "function") {
+    return false;
+  }
 
   try {
     surface.setPointerCapture(pointerId);
@@ -24,16 +29,23 @@ function captureViewerPointer(surface, pointerId) {
     // Synthetic pointer events and a pointer that ended during a browser-driven
     // transition may not be eligible for capture. The gesture remains usable
     // without capture, so only suppress the expected lifecycle exception.
-    if (error?.name === "NotFoundError") return false;
+    if (error && typeof error === "object" && "name" in error && error.name === "NotFoundError") {
+      return false;
+    }
     throw error;
   }
 }
 
+/** @param {EventTarget|null} surface @param {number} pointerId */
 function releaseViewerPointerCapture(surface, pointerId) {
-  if (!surface || typeof surface.releasePointerCapture !== "function") return false;
+  if (!surface || !("releasePointerCapture" in surface) || typeof surface.releasePointerCapture !== "function") {
+    return false;
+  }
 
   try {
-    if (typeof surface.hasPointerCapture === "function" && !surface.hasPointerCapture(pointerId)) {
+    if ("hasPointerCapture" in surface
+      && typeof surface.hasPointerCapture === "function"
+      && !surface.hasPointerCapture(pointerId)) {
       return false;
     }
     surface.releasePointerCapture(pointerId);
@@ -42,11 +54,14 @@ function releaseViewerPointerCapture(surface, pointerId) {
     // Pointer capture can be released implicitly before pointerup/pointercancel
     // reaches this handler. That is a normal browser lifecycle race, not an app
     // failure. Preserve unexpected exceptions so real defects remain visible.
-    if (error?.name === "NotFoundError") return false;
+    if (error && typeof error === "object" && "name" in error && error.name === "NotFoundError") {
+      return false;
+    }
     throw error;
   }
 }
 
+/** @param {PointerEvent} event */
 function getViewerPointerEventTime(event) {
   const eventTime = Number(event?.timeStamp);
   if (Number.isFinite(eventTime) && eventTime > 0) return eventTime;
@@ -63,7 +78,9 @@ function stopViewerTouchMomentum() {
   viewerState.viewerTouchMomentumLastTime = 0;
 }
 
+/** @param {PointerEvent} event */
 function getViewerPointerMoveSamples(event) {
+  /** @type {PointerEvent[]} */
   let samples = [];
   if (typeof event?.getCoalescedEvents === "function") {
     try {
@@ -86,6 +103,7 @@ function getViewerPointerMoveSamples(event) {
   return samples;
 }
 
+/** @param {ViewerPointerPoint} point @param {number} deltaX @param {number} deltaY @param {number} sampleTime */
 function updateViewerPointerVelocity(point, deltaX, deltaY, sampleTime) {
   const elapsed = sampleTime - point.lastTime;
   const safeElapsed = Number.isFinite(elapsed) && elapsed > 0
@@ -106,6 +124,12 @@ function updateViewerPointerVelocity(point, deltaX, deltaY, sampleTime) {
   };
 }
 
+/**
+ * @param {PointerEvent} event
+ * @param {ViewerPointerPoint} initialPoint
+ * @returns {{point:ViewerPointerPoint, handled:boolean, moved:boolean, turned:boolean}}
+ */
+/** @param {PointerEvent} event @param {ViewerPointerPoint} initialPoint */
 function consumeViewerPointerPanSamples(event, initialPoint) {
   let point = initialPoint;
   let totalDeltaX = 0;
@@ -148,6 +172,7 @@ function consumeViewerPointerPanSamples(event, initialPoint) {
   };
 }
 
+/** @param {number} velocityX @param {number} velocityY */
 function clampViewerTouchMomentumVelocity(velocityX, velocityY) {
   const safeVelocityX = Number.isFinite(velocityX) ? velocityX : 0;
   const safeVelocityY = Number.isFinite(velocityY) ? velocityY : 0;
@@ -167,6 +192,7 @@ function scheduleViewerTouchMomentumFrame() {
   viewerState.viewerTouchMomentumRaf = window.requestAnimationFrame(runViewerTouchMomentumFrame);
 }
 
+/** @param {number} timestamp */
 function runViewerTouchMomentumFrame(timestamp) {
   viewerState.viewerTouchMomentumRaf = 0;
   if (
@@ -238,6 +264,7 @@ function runViewerTouchMomentumFrame(timestamp) {
   scheduleViewerTouchMomentumFrame();
 }
 
+/** @param {number} velocityX @param {number} velocityY */
 function startViewerTouchMomentum(velocityX, velocityY) {
   stopViewerTouchMomentum();
   const velocity = clampViewerTouchMomentumVelocity(velocityX, velocityY);
@@ -254,6 +281,7 @@ function startViewerTouchMomentum(velocityX, velocityY) {
   return true;
 }
 
+/** @param {PointerEvent} event */
 function startPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
@@ -299,6 +327,7 @@ function startPointerInteraction(event) {
   }
 }
 
+/** @param {PointerEvent} event */
 function movePointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
@@ -343,6 +372,7 @@ function movePointerInteraction(event) {
   }
 }
 
+/** @param {PointerEvent} event @param {number} startedX @param {number} startedY */
 function handlePotentialDoubleTap(event, startedX, startedY) {
   if (event.pointerType !== "touch" && event.pointerType !== "pen") return false;
   if (viewerState.pointers.size > 0 || viewerState.pointerGestureConsumedPan) return false;
@@ -375,6 +405,7 @@ function handlePotentialDoubleTap(event, startedX, startedY) {
   return true;
 }
 
+/** @param {PointerEvent} event @param {number} startedX @param {number} startedY */
 function handleViewerPageSwipe(event, startedX, startedY) {
   if (!isTouchLikePointer(event)) return false;
   if (viewerState.pointers.size > 0 || viewerState.pointerGestureHadMultiplePointers || viewerState.pointerGestureConsumedPan) return false;
@@ -404,6 +435,7 @@ function handleViewerPageSwipe(event, startedX, startedY) {
   return true;
 }
 
+/** @param {PointerEvent} event */
 function endPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
   let tracked = viewerState.pointers.get(event.pointerId);
@@ -453,6 +485,7 @@ function endPointerInteraction(event) {
   }
 }
 
+/** @param {PointerEvent} event */
 function cancelPointerInteraction(event) {
   if (!viewerState.pointers.has(event.pointerId)) return;
   viewerState.pointers.delete(event.pointerId);
@@ -463,12 +496,17 @@ function cancelPointerInteraction(event) {
   }
 }
 
+/** @param {WheelEvent} event */
 function getWheelZoomFactor(event) {
   const pixelMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PIXEL : 0;
   const lineMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_LINE : 1;
   const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
   const rawDelta = Number(event.deltaY);
-  const delta = normalizeWheelDeltaToPixels(rawDelta, event.deltaMode, event.currentTarget?.clientHeight || 0);
+  const currentTarget = event.currentTarget;
+  const pageSize = currentTarget && "clientHeight" in currentTarget
+    ? Number(currentTarget.clientHeight) || 0
+    : 0;
+  const delta = normalizeWheelDeltaToPixels(rawDelta, event.deltaMode, pageSize);
   if (!Number.isFinite(delta) || Math.abs(delta) < 0.01) return 1;
 
   const direction = delta < 0 ? 1 : -1;
@@ -492,6 +530,7 @@ function getWheelZoomFactor(event) {
   return Math.exp(-precisionDelta * 0.011);
 }
 
+/** @param {WheelEvent} event */
 function handleZoomSurfaceWheel(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
@@ -513,6 +552,7 @@ function handleZoomSurfaceWheel(event) {
   handleViewerPageWheel(event);
 }
 
+/** @param {MouseEvent} event */
 function handleZoomSurfaceDoubleClick(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
   if (Date.now() < viewerState.suppressNextDblClickUntil) return;
@@ -522,6 +562,7 @@ function handleZoomSurfaceDoubleClick(event) {
   toggleZoomAtPoint(event.clientX, event.clientY);
 }
 
+/** @param {HTMLElement} surface */
 function attachZoomSurfaceGestures(surface) {
   if (!surface) return;
   surface.addEventListener("pointerdown", startPointerInteraction);
@@ -536,15 +577,18 @@ function attachViewerGestures() {
   attachZoomSurfaceGestures(viewerElements.stageCanvas);
 }
 
+/** @param {EventTarget|null} target */
 function isLightboxTopInteractiveTarget(target) {
-  if (!target || typeof target.closest !== "function") return false;
+  const element = eventTargetElement(target);
+  if (!element) return false;
 
-  const interactiveTarget = target.closest(
+  const interactiveTarget = element.closest(
     ".lightbox-reader-header, .lightbox-search-results, .reader-catalog-menu, .reader-search-scope-menu"
   );
   return Boolean(interactiveTarget && viewerElements.lightboxBar?.contains(interactiveTarget));
 }
 
+/** @param {PointerEvent} event */
 function hideLightboxTopSearchFromViewerInteraction(event) {
   if (!isViewerSessionOpen()) return false;
   if (event?.button !== undefined && event.button !== 0) return false;
@@ -558,10 +602,12 @@ function hideLightboxTopSearchFromViewerInteraction(event) {
   return true;
 }
 
+/** @param {PointerEvent} event */
 function handleViewerSurfacePointerDown(event) {
   hideLightboxTopSearchFromViewerInteraction(event);
 }
 
+/** @param {PointerEvent} event */
 function handleLightboxPointerDownCapture(event) {
   stopViewerTouchMomentum();
   hideLightboxTopSearchFromViewerInteraction(event);

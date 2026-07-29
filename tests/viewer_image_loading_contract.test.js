@@ -56,8 +56,8 @@ assert.match(single, /prepareCatalogImage\(primarySrc, \{ priority: "high", deta
 assert.match(single, /\.catch\(\(\) => null\)[\s\S]*?\.then\(commitImageRequest\)/);
 assert.match(single, /delete image\.dataset\.placeholderIgnore/);
 assert.match(single, /התמונה לא הצליחה להיטען/);
-assert.match(retry, /viewerPageImageRequest\(navigationState\.catalog, navigationState\.page\)/);
-assert.match(retry, /showSingleLightboxImage\(navigationState\.catalog, navigationState\.page, request\.primarySrc/);
+assert.match(retry, /const catalog = activeCatalog\(\)[\s\S]*?viewerPageImageRequest\(catalog, activePage\(\)\)/);
+assert.match(retry, /showSingleLightboxImage\(catalog, activePage\(\), request\.primarySrc/);
 assert.match(retry, /forceRefresh: true/);
 assert.match(template, /id="viewerImageFeedback"[^>]*role="status"/);
 assert.match(template, /id="viewerImageRetry"/);

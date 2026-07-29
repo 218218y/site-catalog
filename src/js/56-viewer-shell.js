@@ -37,6 +37,7 @@ function syncLightboxTopSafeArea() {
   return offset;
 }
 
+/** @param {ViewerUiVisibilityOptions} [options] */
 function refreshLightboxLayoutForTopUiChange(options = {}) {
   if (!isViewerSessionOpen()) {
     syncLightboxTopSafeArea();
@@ -72,6 +73,7 @@ function syncTopUiPinnedUi() {
   setTooltipText(viewerElements.lightboxPinTopBar, label, { updateDefault: true });
 }
 
+/** @param {boolean} pinned */
 function setTopUiPinned(pinned) {
   viewerState.topUiPinned = Boolean(pinned);
   syncTopUiPinnedUi();
@@ -83,18 +85,22 @@ function toggleTopUiPinned() {
   setTopUiPinned(!viewerState.topUiPinned);
 }
 
+/** @param {Event|null|undefined} event @returns {PointLike|null} */
 function getViewportPointer(event) {
-  const x = Number(event?.clientX);
-  const y = Number(event?.clientY);
+  if (!(event instanceof MouseEvent)) return null;
+  const x = Number(event.clientX);
+  const y = Number(event.clientY);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   return { x, y };
 }
 
+/** @param {PointLike|null} point @param {RectLike|DOMRect|null|undefined} rect @param {number} [padding] */
 function pointInRect(point, rect, padding = 0) {
   if (!point || !rect) return false;
   return point.x >= rect.left - padding && point.x <= rect.right + padding && point.y >= rect.top - padding && point.y <= rect.bottom + padding;
 }
 
+/** @param {Event|null} [event] */
 function shouldKeepTopUiOpenForPointer(event = null) {
   if (viewerState.topUiPinned || viewerState.viewerMobileMoreOpen) return true;
   const point = getViewportPointer(event);
@@ -114,6 +120,7 @@ function shouldKeepTopUiOpenForPointer(event = null) {
   return false;
 }
 
+/** @param {Event|null} [event] */
 function scheduleTopUiClose(event = null) {
   if (!viewerElements.lightbox || !isViewerSessionOpen() || viewerState.topUiPinned || viewerState.viewerMobileMoreOpen) return;
   if (shouldKeepTopUiOpenForPointer(event)) return;
@@ -123,6 +130,7 @@ function scheduleTopUiClose(event = null) {
   }, 420);
 }
 
+/** @param {Event|null} [event] */
 function shouldKeepPageRailOpenForPointer(event = null) {
   const point = getViewportPointer(event);
   if (!point || !viewerElements.lightboxPageRail) return false;
@@ -152,6 +160,7 @@ function shouldKeepPageRailOpenForPointer(event = null) {
   return false;
 }
 
+/** @param {MouseEvent|PointerEvent} event */
 function handleLightboxHoverHoldPointerMove(event) {
   if (!shouldUseLightboxHoverPointer(event)) return;
 
@@ -171,6 +180,7 @@ function getViewportSize() {
   };
 }
 
+/** @param {PointLike|null} point */
 function isPointInTopEdgeActivationZone(point) {
   if (!point || viewerState.topUiPinned) return false;
   const { width } = getViewportSize();
@@ -188,11 +198,13 @@ function getRightEdgeViewerNavigationRect() {
   return candidates.reduce((rightmost, rect) => rect.right > rightmost.right ? rect : rightmost);
 }
 
+/** @param {PointLike|null} point */
 function isPointInPageRailNavigationConflictZone(point) {
   const navigationRect = getRightEdgeViewerNavigationRect();
   return pointInRect(point, navigationRect, 4);
 }
 
+/** @param {PointLike|null} point */
 function isPointInPageRailEdgeActivationZone(point) {
   if (!point || !viewerElements.lightboxSideHotspot || !viewerElements.lightboxPageRail) return false;
   const { width, height } = getViewportSize();
@@ -210,6 +222,7 @@ function isPointInPageRailEdgeActivationZone(point) {
   return true;
 }
 
+/** @param {PointLike|null} point */
 function openLightboxEdgeUiForPointer(point) {
   if (isPointInTopEdgeActivationZone(point)) {
     showTopUiTemporarily(0);
@@ -220,6 +233,7 @@ function openLightboxEdgeUiForPointer(point) {
   }
 }
 
+/** @param {MouseEvent} event */
 function handleLightboxEdgeHoverMove(event) {
   if (!shouldUseLightboxHoverPointer(event)) return;
   const point = getViewportPointer(event);
@@ -227,6 +241,7 @@ function handleLightboxEdgeHoverMove(event) {
   handleLightboxHoverHoldPointerMove(event);
 }
 
+/** @param {MouseEvent & {toElement?:EventTarget|null}} event */
 function handleLightboxEdgeHoverViewportExit(event) {
   if (!shouldUseLightboxHoverPointer(event)) return;
   if (event.relatedTarget || event.toElement) return;
@@ -244,6 +259,7 @@ function handleLightboxEdgeHoverViewportExit(event) {
   }
 }
 
+/** @param {boolean} isLoading */
 function setViewerLoading(isLoading) {
   viewerElements.viewerLoading.classList.toggle("hidden", !isLoading);
 }
@@ -253,10 +269,12 @@ function hideLightboxFloatingPreview() {
   viewerElements.lightboxFloatingPreview?.classList.remove("visible");
 }
 
+/** @param {HTMLElement|null|undefined} button */
 function isLightboxPageRailTrigger(button) {
   return Boolean(button?.closest?.(".lightbox-page-rail"));
 }
 
+/** @param {number} delta @param {number} deltaMode @param {number} [pageSize] */
 function normalizeWheelDeltaToPixels(delta, deltaMode, pageSize = 0) {
   const lineMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_LINE : 1;
   const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
@@ -266,6 +284,7 @@ function normalizeWheelDeltaToPixels(delta, deltaMode, pageSize = 0) {
   return delta;
 }
 
+/** @param {HTMLButtonElement} button */
 function positionLightboxFloatingPreview(button) {
   const preview = viewerElements.lightboxFloatingPreview;
   if (!preview || !button) return;
@@ -302,10 +321,11 @@ function positionLightboxFloatingPreview(button) {
   preview.style.bottom = `${bottom}px`;
 }
 
+/** @param {HTMLButtonElement} button */
 function showLightboxFloatingPreview(button) {
   if (!button || !viewerElements.lightboxFloatingPreview || !viewerElements.lightboxFloatingPreviewImage) return;
 
-  const previewCatalog = findCatalogById(button.dataset.previewCatalog) || navigationState.catalog;
+  const previewCatalog = findCatalogById(button.dataset.previewCatalog) || activeCatalog();
   if (!previewCatalog) return;
   const page = clampPage(button.dataset.previewPage || button.dataset.page, previewCatalog);
   const src = button.dataset.previewSrc || pageSrc(previewCatalog, page);
@@ -325,15 +345,17 @@ function showLightboxFloatingPreview(button) {
   positionLightboxFloatingPreview(button);
 }
 
+/** @param {ViewerRailRenderOptions} [options] */
 function updateLightboxThumbs(options = {}) {
   const { scrollIntoView = true } = options;
   const rail = viewerElements.lightboxPageThumbs;
   if (!rail) return;
 
   const previous = rail.querySelector('.lightbox-page-thumb[aria-current="page"]');
+  const favoriteViewerIndex = getFeatureInterface("favorites")?.viewerIndex() ?? 0;
   const selector = isFavoritesLightboxMode()
-    ? `.lightbox-page-thumb[data-favorite-index="${favoritesState.favoritesViewerIndex}"]`
-    : `.lightbox-page-thumb[data-page="${navigationState.page}"]`;
+    ? `.lightbox-page-thumb[data-favorite-index="${favoriteViewerIndex}"]`
+    : `.lightbox-page-thumb[data-page="${activePage()}"]`;
   const active = rail.querySelector(selector);
 
   if (previous && previous !== active) {
@@ -349,6 +371,7 @@ function updateLightboxThumbs(options = {}) {
   }
 }
 
+/** @param {HTMLButtonElement} button */
 function handleLightboxPageRailSelection(button) {
   if (!button) return;
 
@@ -366,18 +389,21 @@ function handleLightboxPageRailSelection(button) {
 }
 
 function renderLightboxPageRail() {
-  if (!navigationState.catalog || !viewerElements.lightboxPageThumbs) return;
+  const activeCatalogRecord = activeCatalog();
+  if (!activeCatalogRecord || !viewerElements.lightboxPageThumbs) return;
   const thumbs = [];
 
   if (isFavoritesLightboxMode()) {
-    const entries = getFavoriteEntries();
+    const favorites = getFeatureInterface("favorites");
+    const entries = favorites?.entries() || [];
+    const favoriteViewerIndex = favorites?.viewerIndex() ?? 0;
     if (viewerElements.lightboxPageRailTitle) viewerElements.lightboxPageRailTitle.textContent = "מועדפים";
     viewerElements.lightboxPageRail?.setAttribute("aria-label", "מעבר מהיר בין המועדפים");
 
     entries.forEach(({ catalog, page }, index) => {
       const thumb = escapeHtml(thumbSrc(catalog, page));
       const title = escapeHtml(catalog.title || "קטלוג");
-      const active = index === favoritesState.favoritesViewerIndex;
+      const active = index === favoriteViewerIndex;
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${active ? " active" : ""}" type="button" data-favorite-index="${index}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר למועדף ${index + 1}: ${title}, עמוד ${page}"${active ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
@@ -388,14 +414,14 @@ function renderLightboxPageRail() {
       `);
     });
   } else {
-    const catalog = navigationState.catalog;
+    const catalog = activeCatalogRecord;
     if (viewerElements.lightboxPageRailTitle) viewerElements.lightboxPageRailTitle.textContent = "עמודים";
     viewerElements.lightboxPageRail?.setAttribute("aria-label", "מעבר מהיר בין עמודי הקטלוג");
 
     for (let page = 1; page <= catalog.pages; page += 1) {
       const thumb = escapeHtml(thumbSrc(catalog, page));
       thumbs.push(`
-        <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === navigationState.page ? " active" : ""}" type="button" data-page="${page}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר לעמוד ${page}"${page === navigationState.page ? ' aria-current="page"' : ""}>
+        <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === activePage() ? " active" : ""}" type="button" data-page="${page}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר לעמוד ${page}"${page === activePage() ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
             <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(thumb)} />
           </span>
@@ -406,7 +432,9 @@ function renderLightboxPageRail() {
   }
 
   viewerElements.lightboxPageThumbs.innerHTML = thumbs.join("");
-  viewerElements.lightboxPageThumbs.querySelectorAll(".lightbox-page-thumb").forEach((button) => {
+  /** @type {NodeListOf<HTMLButtonElement>} */
+  const pageThumbButtons = viewerElements.lightboxPageThumbs.querySelectorAll(".lightbox-page-thumb");
+  pageThumbButtons.forEach((button) => {
     button.addEventListener("pointerenter", () => showLightboxFloatingPreview(button));
     button.addEventListener("pointerleave", hideLightboxFloatingPreview);
     button.addEventListener("focus", () => showLightboxFloatingPreview(button));
@@ -490,6 +518,7 @@ function showViewerZoomIndicator(value = viewerState.zoom) {
   }, VIEWER_ZOOM_INDICATOR_HIDE_MS);
 }
 
+/** @param {string} fitMode @param {ViewerFitModeOptions} [options] */
 function setViewerFitMode(fitMode, options = {}) {
   const nextFitMode = normalizeViewerFitMode(fitMode);
   const {
@@ -516,6 +545,7 @@ function setViewerFitMode(fitMode, options = {}) {
   if (showUi) showTopUiTemporarily(1600);
 }
 
+/** @param {ViewerFitModeOptions} [options] */
 function setViewerAutomaticFitMode(options = {}) {
   setViewerFitMode(getAutomaticViewerFitMode(), {
     ...options,
@@ -523,6 +553,7 @@ function setViewerAutomaticFitMode(options = {}) {
   });
 }
 
+/** @param {ViewerFitModeOptions} [options] */
 function syncAutomaticViewerFitMode(options = {}) {
   if (!viewerUsesAutomaticFitMode()) return false;
 
@@ -537,9 +568,7 @@ function syncLightboxModeUi() {
   const favoritesMode = isFavoritesLightboxMode();
   viewerElements.lightbox?.classList.add("catalog-entry-mode");
   viewerElements.lightbox?.classList.toggle("favorites-viewer-mode", favoritesMode);
-  favoritesElements.favoriteOpenCatalogButton?.classList.toggle("hidden", !favoritesMode);
-  favoritesElements.favoriteOpenCatalogButton?.setAttribute("aria-hidden", favoritesMode ? "false" : "true");
-  favoritesElements.favoriteOpenCatalogButton?.setAttribute("tabindex", favoritesMode ? "0" : "-1");
+  getFeatureInterface("favorites")?.syncViewerMode(favoritesMode);
   viewerElements.prevPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הקודם" : "העמוד הקודם");
   viewerElements.nextPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הבא" : "העמוד הבא");
   syncViewerLayoutModeUi();
@@ -553,11 +582,13 @@ function syncLightboxModeUi() {
 
 
 
+/** @param {Event|null} [event] */
 function isObservedMouseHoverEvent(event = null) {
-  if (event?.pointerType === "mouse") return true;
+  if (event && "pointerType" in event && event.pointerType === "mouse") return true;
   return String(event?.type || "").startsWith("mouse");
 }
 
+/** @param {Event|null|undefined} event */
 function markTouchLikeViewportInput(event) {
   if (isTouchLikePointer(event) || event?.type === "touchstart") {
     viewerState.lastTouchLikeViewportInputAt = Date.now();
@@ -568,12 +599,14 @@ function hasRecentTouchLikeViewportInput(timeout = 900) {
   return Date.now() - viewerState.lastTouchLikeViewportInputAt < timeout;
 }
 
+/** @param {Event|null} [event] */
 function openTopUiFromHotspot(event = null) {
   if (!isViewerSessionOpen() || viewerState.viewerOnboardingOpen) return;
   markTouchLikeViewportInput(event);
   showTopUiTemporarily(0);
 }
 
+/** @param {Event|null|undefined} event */
 function markTouchLikeRailInput(event) {
   if (isTouchLikePointer(event)) {
     viewerState.lastTouchLikeRailInputAt = Date.now();
@@ -585,6 +618,7 @@ function hasRecentTouchLikeRailInput(timeout = 900) {
   return Date.now() - viewerState.lastTouchLikeRailInputAt < timeout;
 }
 
+/** @param {Event|null} [event] */
 function shouldUseLightboxHoverPointer(event = null) {
   if (!isViewerSessionOpen()) return false;
   if (isTouchLikePointer(event) || hasRecentTouchLikeViewportInput()) return false;
@@ -597,12 +631,14 @@ function shouldUseLightboxHoverPointer(event = null) {
   return hasHoverPointer();
 }
 
+/** @param {Event|null} [event] */
 function shouldUsePageRailHover(event = null) {
   if (!shouldUseLightboxHoverPointer(event)) return false;
   if (hasRecentTouchLikeRailInput()) return false;
   return true;
 }
 
+/** @param {number} [delay] @param {ViewerRailRenderOptions} [options] */
 function showPageRailTemporarily(delay = 2600, options = {}) {
   const { scrollIntoView = true } = options;
   if (!viewerElements.lightbox || !isViewerSessionOpen()) return;
@@ -616,6 +652,7 @@ function showPageRailTemporarily(delay = 2600, options = {}) {
   }
 }
 
+/** @param {ViewerRailRenderOptions} [options] */
 function keepPageRailOpen(options = {}) {
   const { scrollIntoView = true } = options;
   if (!isViewerSessionOpen()) return;
@@ -624,6 +661,7 @@ function keepPageRailOpen(options = {}) {
   updateLightboxThumbs({ scrollIntoView });
 }
 
+/** @param {Event|null} [event] */
 function schedulePageRailClose(event = null) {
   if (!shouldUsePageRailHover(event)) return;
   if (shouldKeepPageRailOpenForPointer(event)) return;
@@ -633,6 +671,7 @@ function schedulePageRailClose(event = null) {
   }, 420);
 }
 
+/** @param {PointerEvent} event */
 function openPageRailFromTouch(event) {
   if (!isTouchLikePointer(event)) return;
   markTouchLikeRailInput(event);
@@ -640,9 +679,10 @@ function openPageRailFromTouch(event) {
   keepPageRailOpen();
 }
 
+/** @param {PointerEvent} event */
 function handleLightboxPageRailEdgePointerDown(event) {
   if (!isTouchLikePointer(event) || !isViewerSessionOpen() || viewerState.viewerOnboardingOpen) return;
-  if (viewerElements.lightboxPageRail?.contains(event.target)) return;
+  if (viewerElements.lightboxPageRail?.contains(eventTargetElement(event.target))) return;
 
   const point = getViewportPointer(event);
   if (!isPointInPageRailEdgeActivationZone(point)) return;
@@ -654,6 +694,7 @@ function handleLightboxPageRailEdgePointerDown(event) {
   keepPageRailOpen();
 }
 
+/** @param {Event|null} [event] */
 function openPageRailFromHotspot(event = null) {
   if (hasRecentTouchLikeRailInput()) {
     keepPageRailOpen();
@@ -662,19 +703,22 @@ function openPageRailFromHotspot(event = null) {
   showPageRailTemporarily(shouldUsePageRailHover(event) ? 2600 : 0);
 }
 
+/** @param {Event|null} [event] */
 function showPageRailFromHover(event = null) {
   if (shouldUsePageRailHover(event)) showPageRailTemporarily(0);
 }
 
+/** @param {Event|null} [event] */
 function keepPageRailOpenFromHover(event = null) {
   if (shouldUsePageRailHover(event)) keepPageRailOpen();
 }
 
+/** @param {PointerEvent} event */
 function handlePageRailPointerOutside(event) {
   if (!viewerElements.lightbox || !isViewerSessionOpen()) return;
   if (!viewerElements.lightbox.classList.contains("show-page-rail")) return;
 
-  const target = event.target;
+  const target = eventTargetElement(event.target);
   if (viewerElements.lightboxPageRail?.contains(target) || viewerElements.lightboxSideHotspot?.contains(target)) return;
   if (!isTouchLikePointer(event) && shouldUsePageRailHover(event)) return;
 
@@ -717,10 +761,11 @@ function showViewerPageIndicatorTemporarily(delay = VIEWER_PAGE_INDICATOR_HIDE_M
   }, delay);
 }
 
+/** @param {number|string} current @param {number|string} total @param {string} title @param {ViewerPageIndicatorOptions} [options] */
 function syncLightboxProgress(current, total, title, options = {}) {
   if (!viewerElements.lightboxProgress) return;
-  const totalItems = Math.max(1, Number.parseInt(total, 10) || 1);
-  const currentItem = clampValue(Number.parseInt(current, 10) || 1, 1, totalItems);
+  const totalItems = Math.max(1, Number.parseInt(String(total), 10) || 1);
+  const currentItem = clampValue(Number.parseInt(String(current), 10) || 1, 1, totalItems);
   const ratio = totalItems <= 1 ? 1 : currentItem / totalItems;
   const clampedRatio = Math.min(1, Math.max(0, ratio));
   const label = String(options.label || "עמוד");

@@ -13,17 +13,57 @@ let currentAppPage = siteRoutes?.pageFromLocation?.(window.location, document.bo
 const IN_DOCUMENT_ROUTE_STATE_KEY = "__bargigInDocumentRoute";
 let hasInDocumentRouteSession = false;
 
+/** @param {string} id @returns {HTMLElement|null} */
 const $ = (id) => document.getElementById(id);
+/** @param {string} id @returns {HTMLButtonElement|null} */
+const $button = (id) => /** @type {HTMLButtonElement|null} */ (document.getElementById(id));
+/** @param {string} id @returns {HTMLAnchorElement|null} */
+const $anchor = (id) => /** @type {HTMLAnchorElement|null} */ (document.getElementById(id));
+/** @param {string} id @returns {HTMLInputElement|null} */
+const $input = (id) => /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+/** @param {string} id @returns {HTMLSelectElement|null} */
+const $select = (id) => /** @type {HTMLSelectElement|null} */ (document.getElementById(id));
+/** @param {string} id @returns {HTMLTextAreaElement|null} */
+const $textarea = (id) => /** @type {HTMLTextAreaElement|null} */ (document.getElementById(id));
+/** @param {string} id @returns {HTMLImageElement|null} */
+const $image = (id) => /** @type {HTMLImageElement|null} */ (document.getElementById(id));
 
+/**
+ * Resolve a DOM contract that must exist in every document loading its feature.
+ * Missing required markup is an integration failure, not a nullable runtime state.
+ * @param {string} id
+ * @returns {HTMLElement}
+ */
+function requiredElement(id) {
+  const element = document.getElementById(id);
+  if (!element) throw new Error(`Required application element is missing: #${id}`);
+  return element;
+}
+/** @param {string} id @returns {HTMLButtonElement} */
+const $requiredButton = (id) => /** @type {HTMLButtonElement} */ (requiredElement(id));
+/** @param {string} id @returns {HTMLAnchorElement} */
+const $requiredAnchor = (id) => /** @type {HTMLAnchorElement} */ (requiredElement(id));
+/** @param {string} id @returns {HTMLInputElement} */
+const $requiredInput = (id) => /** @type {HTMLInputElement} */ (requiredElement(id));
+/** @param {string} id @returns {HTMLSelectElement} */
+const $requiredSelect = (id) => /** @type {HTMLSelectElement} */ (requiredElement(id));
+/** @param {string} id @returns {HTMLTextAreaElement} */
+const $requiredTextarea = (id) => /** @type {HTMLTextAreaElement} */ (requiredElement(id));
+/** @param {string} id @returns {HTMLImageElement} */
+const $requiredImage = (id) => /** @type {HTMLImageElement} */ (requiredElement(id));
+
+/** @param {string} page */
 function isAppPage(page) {
   return currentAppPage === page;
 }
 
+/** @param {string} page */
 function setCurrentAppPage(page) {
   currentAppPage = siteRoutes?.normalizePage?.(page) || String(page || "home");
   if (document.body) document.body.dataset.page = currentAppPage;
 }
 
+/** @param {Record<string, unknown>} [values] */
 function historyStateWithRouteData(values = {}) {
   const currentState = history.state && typeof history.state === "object" ? history.state : {};
   return { ...currentState, [IN_DOCUMENT_ROUTE_STATE_KEY]: true, ...values };
@@ -37,6 +77,7 @@ function saveCurrentRouteScrollPosition() {
   }), "", window.location.href);
 }
 
+/** @param {URL} url */
 function isInternalAppDocumentUrl(url) {
   return Boolean(
     url &&
@@ -44,16 +85,16 @@ function isInternalAppDocumentUrl(url) {
   );
 }
 
+/** @param {URL} url */
 function canNavigateWithinCurrentDocument(url) {
   return Boolean(
     featureCapabilities.viewer &&
     getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.() &&
-    window.history?.pushState &&
-    window.history?.replaceState &&
     isInternalAppDocumentUrl(url)
   );
 }
 
+/** @param {URL} url @param {{replace?:boolean}} [options] */
 function navigateWithinCurrentDocument(url, options = {}) {
   hasInDocumentRouteSession = true;
   saveCurrentRouteScrollPosition();
@@ -66,6 +107,7 @@ function navigateWithinCurrentDocument(url, options = {}) {
   initDocumentRoute({ scrollPosition: { x: 0, y: 0 } });
 }
 
+/** @param {string} relativeUrl @param {{replace?:boolean}} [options] */
 function navigateTo(relativeUrl, options = {}) {
   const target = String(relativeUrl || "").trim();
   if (!target) return;
@@ -90,12 +132,13 @@ function navigateBack() {
   window.history.back();
 }
 
+/** @param {MouseEvent} event */
 function handleInternalAppLinkClick(event) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   if (!featureCapabilities.viewer || !getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.()) return;
 
-  const link = event.target.closest?.("a[href]");
-  if (!link || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
+  const link = eventTargetElement(event.target)?.closest("a[href]");
+  if (!(link instanceof HTMLAnchorElement) || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
 
   let targetUrl = null;
   try {
@@ -131,6 +174,7 @@ function homeDocumentUrl() {
   return siteRoutes?.homeUrl?.() || "index.html";
 }
 
+/** @param {string} catalogId */
 function catalogDocumentUrl(catalogId) {
   return siteRoutes?.catalogUrl?.(catalogId) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/`;
 }
@@ -139,23 +183,28 @@ function favoritesDocumentUrl() {
   return siteRoutes?.favoritesUrl?.() || "favorites.html";
 }
 
+/** @param {string} catalogId @param {number} [page] @param {Record<string, unknown>} [options] */
 function viewerDocumentUrl(catalogId, page = 1, options = {}) {
-  return siteRoutes?.viewerUrl?.(catalogId, page, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${Math.max(1, Number.parseInt(page, 10) || 1)}/`;
+  return siteRoutes?.viewerUrl?.(catalogId, page, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${Math.max(1, Number.parseInt(String(page), 10) || 1)}/`;
 }
 
+/** @param {string} categorySlugValue @param {string} [subcategorySlugValue] */
 function categoryDocumentUrl(categorySlugValue, subcategorySlugValue = "") {
   return siteRoutes?.categoryUrl?.(categorySlugValue, subcategorySlugValue) || homeDocumentUrl();
 }
 
+/** @param {string} relativeUrl */
 function absoluteDocumentUrl(relativeUrl) {
   return new URL(relativeUrl, document.baseURI || window.location.href).href;
 }
 
+/** @param {string} selector @param {string|undefined} value @param {string} [attribute] */
 function setMetadataContent(selector, value, attribute = "content") {
   const element = document.querySelector(selector);
   if (element && value) element.setAttribute(attribute, value);
 }
 
+/** @param {CatalogRecord|null} [catalog] */
 function currentDocumentMetadata(catalog = navigationState?.catalog || null) {
   const brand = "רהיטי ברגיג";
   if (isAppPage("catalog") && catalog) {
@@ -190,6 +239,7 @@ function currentDocumentMetadata(catalog = navigationState?.catalog || null) {
   };
 }
 
+/** @param {CatalogRecord|null} [catalog] */
 function updateDocumentMetadata(catalog = navigationState?.catalog || null) {
   const metadata = currentDocumentMetadata(catalog);
   document.title = metadata.title;

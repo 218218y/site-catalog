@@ -3,7 +3,11 @@
  * Viewer-only image swaps, resolution selection, and progressive upgrade lifecycle.
  */
 
-function runViewerPageSwapAnimation(element, options = {}) {
+/**
+ * @param {HTMLElement|null|undefined} element
+ * @param {ViewerPageSwapAnimationOptions} [options]
+ */
+function runViewerPageSwapAnimation(element, options = /** @type {ViewerPageSwapAnimationOptions} */ ({ timerKey: "singleImageAnimationTimer" })) {
   const { timerKey, root = element?.parentElement } = options;
   if (!element || !timerKey || !(timerKey in viewerState)) return;
 
@@ -30,6 +34,7 @@ function runSingleImageSwapAnimation() {
 }
 
 
+/** @param {number} token */
 function finishSingleImageSwap(token) {
   if (token !== viewerState.singleImageLoadToken) return;
   setViewerLoading(false);
@@ -167,6 +172,12 @@ function commitSingleViewerResolutionUpgrade(token = viewerState.singleImageReso
   return true;
 }
 
+/**
+ * @param {CatalogRecord} catalog
+ * @param {number} page
+ * @param {CatalogImageRequest} request
+ * @param {ViewerResolutionUpgradeOptions} [options]
+ */
 function prepareSingleViewerResolutionUpgrade(catalog, page, request, options = {}) {
   if (!catalog || !request?.primarySrc || request.primaryTier !== CATALOG_IMAGE_TIER_FULL) return false;
   const targetSrc = normalizeCatalogImageUrl(request.primarySrc);
@@ -198,12 +209,12 @@ function prepareSingleViewerResolutionUpgrade(catalog, page, request, options = 
     isCurrent: () => (
       token === viewerState.singleImageResolutionLoadToken
       && isViewerSessionOpen()
-      && navigationState.catalog === catalog
-      && navigationState.page === page
+      && activeCatalog() === catalog
+      && activePage() === page
       && viewerState.singleImageResolutionTargetSrc === targetSrc
     ),
     telemetryDetail: "viewer-resolution-upgrade",
-    onSuccess: (candidate) => {
+    onSuccess: /** @param {CatalogImageCandidate} candidate */ (candidate) => {
       const finishReady = () => {
         if (token !== viewerState.singleImageResolutionLoadToken || !image.naturalWidth) return;
         viewerState.singleImageResolutionStop = null;
@@ -256,6 +267,12 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
   if (mode !== "error") viewerElements.lightboxImageFrame?.classList.remove("image-terminal-error");
 }
 
+/**
+ * @param {CatalogRecord} catalog
+ * @param {number} page
+ * @param {string} src
+ * @param {ViewerImageSwapOptions} [options]
+ */
 function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!viewerElements.lightboxImage || !catalog) return;
 
@@ -306,8 +323,8 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   const requestIsCurrent = () => (
     token === viewerState.singleImageLoadToken
     && isViewerSessionOpen()
-    && navigationState.catalog === catalog
-    && navigationState.page === page
+    && activeCatalog() === catalog
+    && activePage() === page
   );
   const commitImageRequest = () => {
     if (!requestIsCurrent()) return;
@@ -318,7 +335,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
       forceRefresh: Boolean(options.forceRefresh),
       isCurrent: requestIsCurrent,
       telemetryDetail: "viewer-single",
-      onSuccess: (candidate) => {
+      onSuccess: /** @param {CatalogImageCandidate} candidate */ (candidate) => {
         delete image.dataset.placeholderIgnore;
         const loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL;
         const degraded = catalogImageTierRank(loadedTier) < catalogImageTierRank(request.primaryTier);
@@ -362,6 +379,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   }
 }
 
+/** @param {CatalogRecord} catalog @param {number} page @param {number} [zoom] */
 function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zoom) {
   const frame = viewerElements.lightboxImageFrame || null;
   const rect = frame?.getBoundingClientRect?.();
@@ -382,6 +400,7 @@ function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zo
   return Math.max(size.width, size.height) * Math.max(0.01, scale) * dpr * Math.max(1, Number(zoom) || 1);
 }
 
+/** @param {CatalogRecord} catalog @param {number} page @param {ViewerImageRequestOptions} [options] */
 function preferredViewerImageTier(catalog, page, options = {}) {
   if (options.forceFull || !catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)) {
     return CATALOG_IMAGE_TIER_FULL;
@@ -401,6 +420,7 @@ function preferredViewerImageTier(catalog, page, options = {}) {
   return CATALOG_IMAGE_TIER_MEDIUM;
 }
 
+/** @param {CatalogRecord} catalog @param {number} page @param {ViewerImageRequestOptions} [options] @returns {CatalogImageRequest} */
 function viewerPageImageRequest(catalog, page, options = {}) {
   const primaryTier = preferredViewerImageTier(catalog, page, options);
   const tierOrder = primaryTier === CATALOG_IMAGE_TIER_FULL
@@ -421,10 +441,12 @@ function viewerPageImageRequest(catalog, page, options = {}) {
   };
 }
 
+/** @param {CatalogRecord} catalog @param {number} page @param {ViewerImageRequestOptions} [options] */
 function viewerPageSrc(catalog, page, options = {}) {
   return viewerPageImageRequest(catalog, page, options).primarySrc;
 }
 
+/** @param {string} tier */
 function catalogImageTierRank(tier) {
   if (tier === CATALOG_IMAGE_TIER_FULL) return 3;
   if (tier === CATALOG_IMAGE_TIER_MEDIUM) return 2;
@@ -432,14 +454,17 @@ function catalogImageTierRank(tier) {
   return 0;
 }
 
+/** @param {ViewerImageRequestOptions} [options] */
 function refreshSingleViewerImageResolution(options = {}) {
-  if (!isViewerSessionOpen() || !navigationState.catalog || !viewerElements.lightboxImage) return false;
+  const catalog = activeCatalog();
+  if (!isViewerSessionOpen() || !catalog || !viewerElements.lightboxImage) return false;
   if (viewerState.singleImageResolutionRetainedForSwap) return false;
-  const request = viewerPageImageRequest(navigationState.catalog, navigationState.page, options);
+  const page = activePage();
+  const request = viewerPageImageRequest(catalog, page, options);
 
   if (options.warmFull && request.primaryTier !== CATALOG_IMAGE_TIER_FULL) {
-    const fullRequest = viewerPageImageRequest(navigationState.catalog, navigationState.page, { forceFull: true });
-    prepareSingleViewerResolutionUpgrade(navigationState.catalog, navigationState.page, fullRequest, { commit: false });
+    const fullRequest = viewerPageImageRequest(catalog, page, { forceFull: true });
+    prepareSingleViewerResolutionUpgrade(catalog, page, fullRequest, { commit: false });
   }
 
   const currentSrc = activeSingleViewerImageLogicalSrc();
@@ -449,7 +474,7 @@ function refreshSingleViewerImageResolution(options = {}) {
   if (catalogImageTierRank(loadedTier) > catalogImageTierRank(request.primaryTier)) return false;
 
   if (request.primaryTier === CATALOG_IMAGE_TIER_FULL) {
-    return prepareSingleViewerResolutionUpgrade(navigationState.catalog, navigationState.page, request, { commit: true });
+    return prepareSingleViewerResolutionUpgrade(catalog, page, request, { commit: true });
   }
 
   if (!viewerState.singleImageResolutionVisible && !viewerState.singleImageResolutionReady) {
@@ -459,19 +484,22 @@ function refreshSingleViewerImageResolution(options = {}) {
 }
 
 function preloadNeighbors() {
-  if (!navigationState.catalog) return;
-  const preferredTier = preferredViewerImageTier(navigationState.catalog, navigationState.page);
+  const catalog = activeCatalog();
+  if (!catalog) return;
+  const preferredTier = preferredViewerImageTier(catalog, activePage());
   const preloadFull = preferredTier === CATALOG_IMAGE_TIER_FULL;
   const radius = preloadFull ? 1 : catalogNeighborPreloadRadius();
   const requestOptions = preloadFull ? { forceFull: true } : { preferMedium: true };
   if (radius < 1) return;
 
   if (isFavoritesLightboxMode()) {
-    const entries = getFavoriteEntries();
+    const favorites = getFeatureInterface("favorites");
+    const entries = favorites?.entries() || [];
+    const viewerIndex = favorites?.viewerIndex() ?? 0;
     Array.from({ length: radius * 2 }, (_unused, index) => (
       index < radius
-        ? favoritesState.favoritesViewerIndex - (radius - index)
-        : favoritesState.favoritesViewerIndex + (index - radius + 1)
+        ? viewerIndex - (radius - index)
+        : viewerIndex + (index - radius + 1)
     ))
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
@@ -483,12 +511,12 @@ function preloadNeighbors() {
 
   Array.from({ length: radius * 2 }, (_unused, index) => (
     index < radius
-      ? navigationState.page - (radius - index)
-      : navigationState.page + (index - radius + 1)
+      ? activePage() - (radius - index)
+      : activePage() + (index - radius + 1)
   ))
-    .filter((page) => page >= 1 && page <= navigationState.catalog.pages)
+    .filter((page) => page >= 1 && page <= catalog.pages)
     .forEach((page) => {
-      prepareCatalogImage(viewerPageSrc(navigationState.catalog, page, requestOptions), { priority: "low" }).catch(() => {});
+      prepareCatalogImage(viewerPageSrc(catalog, page, requestOptions), { priority: "low" }).catch(() => {});
     });
 }
 

@@ -7,17 +7,12 @@
     "module": "none",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
-    "noImplicitAny": false,
     "skipLibCheck": true
   },
   "files": [
-    "types/frontend-globals.d.ts",
-    "src/js/05-app-contracts.js",
-    "src/js/10-app-state.js",
-    "src/js/11-navigation-state.js",
-    "src/js/12-catalog-state.js",
-    "src/js/13-search-state.js",
-    "src/js/14-favorites-state.js",
-    "src/js/16-viewer-state.js"
+    "types/frontend-globals.d.ts"
+  ],
+  "include": [
+    "src/js/**/*.js"
   ]
 }
