@@ -33,10 +33,11 @@ assert.match(css, /--viewer-side-control-near-top:\s*calc\(50% - var\(--viewer-s
 assert.match(css, /--viewer-side-control-far-top:\s*calc\(50% - var\(--viewer-side-control-step\) - var\(--viewer-side-control-step\)\)/);
 assert.match(css, /\.viewer-favorite-button\s*\{[\s\S]*?top:\s*var\(--viewer-side-control-near-top\)/);
 assert.match(css, /\.viewer-fullscreen-float\s*\{[\s\S]*?top:\s*var\(--viewer-side-control-far-top\)/);
-assert.match(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*top:\s*max\([^}]*var\(--lightbox-top-safe-offset, 0px\) \+ 18px[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\)/);
+assert.match(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*top:\s*max\([^}]*var\(--lightbox-top-safe-offset, 0px\) \+ 18px[^}]*left:\s*max\(\s*var\(--viewer-side-control-edge\),\s*calc\(env\(safe-area-inset-left, 0px\) \+ 12px\)\s*\);[^}]*transform:\s*none;/);
+assert.match(viewerCss, /\.viewer-auto-zoom-button:not\(\.hidden\)\s*\{[^}]*color:\s*var\(--ink\);[^}]*background:\s*linear-gradient\(135deg, #f2d8c3, var\(--accent\)\) !important;/);
 assert.match(css, /\.lightbox-favorites-button\s*\{[\s\S]*?order:\s*10;/);
 assert.match(css, /\.header-favorites-count\.lightbox-favorites-count\s*\{/);
-assert.doesNotMatch(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*(?:left:\s*var\(--viewer-side-control-edge\)|top:\s*var\(--viewer-side-control-lower-top\)|transform:\s*translateY\(-50%\))/);
+assert.doesNotMatch(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*(?:left:\s*50%|transform:\s*translateX\(-50%\)|top:\s*var\(--viewer-side-control-lower-top\)|transform:\s*translateY\(-50%\))/);
 assert.doesNotMatch(css, /\.viewer-favorite-button\s*\{[\s\S]*?top:\s*calc\(50% - 142px\)/);
 
 console.log('viewer_favorites_controls_contract.test.js: PASS');

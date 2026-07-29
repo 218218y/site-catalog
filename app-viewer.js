@@ -7852,7 +7852,9 @@ function setZoom(nextZoom, options = {}) {
 }
 
 function toggleZoomAtPoint(clientX, clientY) {
-  if (viewerState.zoom > 1.01) {
+  // A double-click enters 200% only from the canonical automatic state.
+  // Any manual zoom, including values below 100%, resets to automatic first.
+  if (!isAutoViewerZoom()) {
     setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
     return;
   }

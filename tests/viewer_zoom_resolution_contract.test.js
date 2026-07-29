@@ -35,8 +35,8 @@ const context = {
     return context.viewerState.zoom > previousZoom;
   },
   showTopUiTemporarily() { uiCalls += 1; },
-  clampViewerZoom(value) { return Math.max(1, Math.min(4, Number(value) || 1)); },
-  isAutoViewerZoom(value) { return Math.abs(Number(value) - 1) <= 0.001; },
+  clampViewerZoom(value) { return Math.max(0.35, Math.min(4, Number(value) || 1)); },
+  isAutoViewerZoom(value = context.viewerState.zoom) { return Math.abs(Number(value) - 1) <= 0.001; },
   clearSingleImagePendingPosition() { pendingClearCalls += 1; },
   getSingleContentPointFromClientPoint(clientX, clientY) {
     return { x: clientX / 10, y: clientY / 10 };
@@ -70,5 +70,19 @@ assert.equal(context.viewerState.zoom, 2.5);
 assert.equal(applyCalls, 2);
 assert.equal(refreshCalls.length, 2, "ordinary zoom must use the same resolution finalizer exactly once");
 assert.equal(uiCalls, 1);
+
+context.zoomApi.toggleZoomAtPoint(120, 80);
+assert.equal(context.viewerState.zoom, 1, "double-click from enlarged manual zoom must reset to automatic zoom");
+
+context.zoomApi.setZoom(0.75, { showUi: false });
+assert.equal(context.viewerState.zoom, 0.75, "manual zoom-out must remain below the automatic zoom level");
+context.zoomApi.toggleZoomAtPoint(120, 80);
+assert.equal(context.viewerState.zoom, 1, "double-click from reduced manual zoom must reset to automatic zoom first");
+
+context.zoomApi.toggleZoomAtPoint(120, 80);
+assert.equal(context.viewerState.zoom, 2, "only a double-click from automatic zoom may enter 200% zoom");
+assert.equal(applyCalls, 6);
+assert.equal(refreshCalls.length, 6, "every zoom transition must pass through the shared finalizer exactly once");
+assert.equal(uiCalls, 1, "double-click reset and zoom-in must not change toolbar visibility behavior");
 
 console.log("viewer_zoom_resolution_contract.test.js: PASS");

@@ -875,14 +875,35 @@ test.describe("critical catalog journeys", () => {
     const autoZoomBox = await autoZoomButton.boundingBox();
     const viewport = page.viewportSize();
     if (!autoZoomBox || !viewport) throw new Error("Unable to measure the auto-zoom button layout");
-    expect(Math.abs((autoZoomBox.x + autoZoomBox.width / 2) - viewport.width / 2)).toBeLessThanOrEqual(2);
+    expect(autoZoomBox.x).toBeGreaterThanOrEqual(12);
+    expect(autoZoomBox.x + autoZoomBox.width).toBeLessThan(viewport.width * 0.2);
     expect(autoZoomBox.y).toBeLessThan(viewport.height * 0.2);
 
     await expect(lightbox).toHaveClass(/is-zoomed/);
     await expect(lightbox).not.toHaveClass(/viewer-scroll-zoom-isolated/);
 
     await frame.dblclick({ position: { x: 720, y: 450 } });
-    await expect(page.locator("#viewerAutoZoomBtn")).toBeHidden();
+    await expect(autoZoomButton).toBeHidden();
+
+    await page.locator("#stageCanvas").evaluate((element) => {
+      element.dispatchEvent(new WheelEvent("wheel", {
+        deltaY: 100,
+        deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true
+      }));
+    });
+    await expect(autoZoomButton).toBeVisible();
+    await expect.poll(() => frame.evaluate((element) => (
+      Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1
+    ))).toBeLessThan(1);
+
+    await frame.dblclick();
+    await expect(autoZoomButton).toBeHidden();
+    await expect.poll(() => frame.evaluate((element) => (
+      Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1
+    ))).toBeCloseTo(1, 2);
   });
 
   test("lands on the final requested page for repeated vertical keyboard commands", async ({ page }) => {
