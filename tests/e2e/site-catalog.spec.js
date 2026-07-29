@@ -869,7 +869,15 @@ test.describe("critical catalog journeys", () => {
     const lightbox = page.locator("#lightbox");
     const frame = page.locator("#lightboxImageFrame");
     await frame.dblclick({ position: { x: 220, y: 180 } });
-    await expect(page.locator("#viewerAutoZoomBtn")).toBeVisible();
+    const autoZoomButton = page.locator("#viewerAutoZoomBtn");
+    await expect(autoZoomButton).toBeVisible();
+
+    const autoZoomBox = await autoZoomButton.boundingBox();
+    const viewport = page.viewportSize();
+    if (!autoZoomBox || !viewport) throw new Error("Unable to measure the auto-zoom button layout");
+    expect(Math.abs((autoZoomBox.x + autoZoomBox.width / 2) - viewport.width / 2)).toBeLessThanOrEqual(2);
+    expect(autoZoomBox.y).toBeLessThan(viewport.height * 0.2);
+
     await expect(lightbox).toHaveClass(/is-zoomed/);
     await expect(lightbox).not.toHaveClass(/viewer-scroll-zoom-isolated/);
 

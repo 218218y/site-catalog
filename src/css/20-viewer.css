@@ -16,7 +16,6 @@
   --viewer-side-control-step: calc(var(--viewer-side-control-size) + var(--viewer-side-control-gap));
   --viewer-side-control-near-top: calc(50% - var(--viewer-side-control-step));
   --viewer-side-control-far-top: calc(50% - var(--viewer-side-control-step) - var(--viewer-side-control-step));
-  --viewer-side-control-lower-top: calc(50% + var(--viewer-side-control-step));
   /* Viewer chrome intentionally reuses the public site's warm brand language.
      The catalog canvas stays neutral and dark for image contrast, while every
      interactive surface is driven by this single token set. */

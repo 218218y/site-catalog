@@ -3118,13 +3118,19 @@ body[data-app-ready="true"] > .site-footer {
 .viewer-auto-zoom-button {
   position: fixed;
   z-index: 12;
-  top: var(--viewer-side-control-lower-top);
-  left: var(--viewer-side-control-edge);
+  /* Keep the reset action centered and clearly separated from the top chrome.
+     The pinned-toolbar offset wins whenever that toolbar is taller than the
+     normal top breathing room, including the expanded mobile search layout. */
+  top: max(
+    calc(env(safe-area-inset-top, 0px) + clamp(68px, 9vh, 92px)),
+    calc(var(--lightbox-top-safe-offset, 0px) + 18px)
+  );
+  left: 50%;
   width: var(--viewer-side-control-size);
   min-width: var(--viewer-side-control-size);
   min-height: var(--viewer-side-control-size);
   padding: 0 !important;
-  transform: translateY(-50%);
+  transform: translateX(-50%);
   border-radius: 999px;
   color: #fff;
   background: var(--viewer-side-control-bg) !important;
@@ -3137,8 +3143,8 @@ body[data-app-ready="true"] > .site-footer {
   overflow: visible;
 }
 
-/* Highlight only the auto-zoom control while it is available after manual zoom.
-   The side arrows keep using the shared neutral side-control variables. */
+/* Highlight the centered reset action while it is available after manual zoom.
+   Other floating viewer controls keep using the shared neutral variables. */
 .viewer-auto-zoom-button:not(.hidden) {
   color: #fff;
   background: rgba(217, 186, 163, 0.46) !important;
@@ -3152,7 +3158,7 @@ body[data-app-ready="true"] > .site-footer {
 
 .viewer-auto-zoom-button:hover,
 .viewer-auto-zoom-button:focus-visible {
-  transform: translateY(-50%) !important;
+  transform: translateX(-50%) !important;
   background: rgba(236, 207, 184, 0.56) !important;
   border-color: rgba(255,255,255,0.54) !important;
   box-shadow:
@@ -3163,7 +3169,7 @@ body[data-app-ready="true"] > .site-footer {
 }
 
 .viewer-auto-zoom-button:active {
-  transform: translateY(-50%) !important;
+  transform: translateX(-50%) !important;
 }
 
 .viewer-auto-zoom-button svg {
