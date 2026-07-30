@@ -47,12 +47,17 @@ DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
     "inquiryElements": ("src/js/32-shared-inquiry.js",),
     "viewerState": (
         "src/js/16-viewer-state.js",
+        "src/js/51-viewer-session-state.js",
         "src/js/52-viewer-session.js",
         "src/js/53-viewer-image.js",
         "src/js/54-viewer-geometry.js",
+        "src/js/55-viewer-zoom-controller.js",
         "src/js/56-viewer-shell.js",
+        "src/js/57-viewer-fit-controller.js",
         "src/js/58-viewer-navigation.js",
+        "src/js/59-viewer-page-controller.js",
         "src/js/60-viewer.js",
+        "src/js/61-viewer-layout-controller.js",
         "src/js/62-viewer-actions.js",
         "src/js/65-viewer-onboarding.js",
         "src/js/70-viewer-input.js",
@@ -60,12 +65,17 @@ DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
     "viewerElements": (
         "src/js/16-viewer-state.js",
         "src/js/31-viewer-share.js",
+        "src/js/51-viewer-session-state.js",
         "src/js/52-viewer-session.js",
         "src/js/53-viewer-image.js",
         "src/js/54-viewer-geometry.js",
+        "src/js/55-viewer-zoom-controller.js",
         "src/js/56-viewer-shell.js",
+        "src/js/57-viewer-fit-controller.js",
         "src/js/58-viewer-navigation.js",
+        "src/js/59-viewer-page-controller.js",
         "src/js/60-viewer.js",
+        "src/js/61-viewer-layout-controller.js",
         "src/js/62-viewer-actions.js",
         "src/js/65-viewer-onboarding.js",
         "src/js/70-viewer-input.js",
@@ -94,20 +104,6 @@ FORBIDDEN_RUNTIME_GLOBALS: tuple[str, ...] = (
     "BargigRoutes",
 )
 
-
-APPROVED_IMPORT_CYCLES: tuple[frozenset[str], ...] = (
-    frozenset({
-        "src/js/52-viewer-session.js",
-        "src/js/53-viewer-image.js",
-        "src/js/54-viewer-geometry.js",
-        "src/js/56-viewer-shell.js",
-        "src/js/58-viewer-navigation.js",
-        "src/js/60-viewer.js",
-        "src/js/62-viewer-actions.js",
-        "src/js/65-viewer-onboarding.js",
-        "src/js/70-viewer-input.js",
-    }),
-)
 
 FEATURE_NAMES = frozenset({
     "navigation",
@@ -285,12 +281,8 @@ def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]
         if module not in indices:
             visit(module)
 
-    approved = set(APPROVED_IMPORT_CYCLES)
-    actual = set(cycles)
-    for cycle in sorted(actual - approved, key=lambda value: sorted(value)):
-        failures.append(f"unapproved ES-module dependency cycle: {sorted(cycle)}")
-    for cycle in sorted(approved - actual, key=lambda value: sorted(value)):
-        failures.append(f"approved dependency cycle changed and requires explicit review: {sorted(cycle)}")
+    for cycle in sorted(cycles, key=lambda value: sorted(value)):
+        failures.append(f"ES-module dependency cycle is forbidden: {sorted(cycle)}")
 
     expected_entries = {"catalog.js", "favorites.js", "viewer.js"}
     actual_entries = {path.name for path in entries}
@@ -544,7 +536,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     all_browser_sources = [*sources, *runtime_sources]
     combined = "\n".join(path.read_text(encoding="utf-8") for path in sources)
     code_without_comments = strip_javascript_comments(combined)
-    code_without_imports = re.sub(r"^\s*import\b.*?;\s*$", "", code_without_comments, flags=re.MULTILINE)
+    code_without_imports = STATIC_IMPORT_RE.sub("", code_without_comments)
     failures: list[str] = []
 
     check_typecheck_configuration(base, failures)
@@ -649,12 +641,28 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     # Route outputs must prove that omitted features are physically absent, not merely disabled.
     route_expectations = {
         "app-catalog.js": {
-            "required": ("src/js/39-search-catalog-domain.js", "src/js/40-catalog-grid.js", "src/js/50-search-ui.js"),
+            "required": (
+                "src/js/39-search-catalog-domain.js",
+                "src/js/40-catalog-grid.js",
+                "src/js/50-search-ui.js",
+            ),
             "forbidden": (
                 "src/js/16-viewer-state.js",
                 "src/js/31-viewer-share.js",
+                "src/js/51-viewer-session-state.js",
+                "src/js/52-viewer-session.js",
                 "src/js/53-viewer-image.js",
+                "src/js/54-viewer-geometry.js",
+                "src/js/55-viewer-zoom-controller.js",
+                "src/js/56-viewer-shell.js",
+                "src/js/57-viewer-fit-controller.js",
+                "src/js/58-viewer-navigation.js",
+                "src/js/59-viewer-page-controller.js",
                 "src/js/60-viewer.js",
+                "src/js/61-viewer-layout-controller.js",
+                "src/js/62-viewer-actions.js",
+                "src/js/65-viewer-onboarding.js",
+                "src/js/70-viewer-input.js",
                 "src/js/35-favorites-workspace.js",
             ),
         },
@@ -668,8 +676,20 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             "forbidden": (
                 "src/js/16-viewer-state.js",
                 "src/js/31-viewer-share.js",
+                "src/js/51-viewer-session-state.js",
+                "src/js/52-viewer-session.js",
                 "src/js/53-viewer-image.js",
+                "src/js/54-viewer-geometry.js",
+                "src/js/55-viewer-zoom-controller.js",
+                "src/js/56-viewer-shell.js",
+                "src/js/57-viewer-fit-controller.js",
+                "src/js/58-viewer-navigation.js",
+                "src/js/59-viewer-page-controller.js",
                 "src/js/60-viewer.js",
+                "src/js/61-viewer-layout-controller.js",
+                "src/js/62-viewer-actions.js",
+                "src/js/65-viewer-onboarding.js",
+                "src/js/70-viewer-input.js",
             ),
         },
         "app-viewer.js": {
@@ -680,8 +700,20 @@ def check_frontend_contracts(root: Path | None = None) -> None:
                 "src/js/35-favorites-workspace.js",
                 "src/js/39-search-catalog-domain.js",
                 "src/js/40-catalog-grid.js",
+                "src/js/51-viewer-session-state.js",
+                "src/js/52-viewer-session.js",
                 "src/js/53-viewer-image.js",
+                "src/js/54-viewer-geometry.js",
+                "src/js/55-viewer-zoom-controller.js",
+                "src/js/56-viewer-shell.js",
+                "src/js/57-viewer-fit-controller.js",
+                "src/js/58-viewer-navigation.js",
+                "src/js/59-viewer-page-controller.js",
                 "src/js/60-viewer.js",
+                "src/js/61-viewer-layout-controller.js",
+                "src/js/62-viewer-actions.js",
+                "src/js/65-viewer-onboarding.js",
+                "src/js/70-viewer-input.js",
             ),
             "forbidden": (),
         },
@@ -706,7 +738,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
 
     viewer_implementation_sources = [
         path for path in sources
-        if re.fullmatch(r"(?:31|5[2-9]|6[0-9]|70)-.*\.js", path.name)
+        if re.fullmatch(r"(?:31|5[1-9]|6[0-9]|70)-.*\.js", path.name)
     ]
     for path in viewer_implementation_sources:
         text = path.read_text(encoding="utf-8")

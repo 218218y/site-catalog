@@ -86,7 +86,7 @@
 - האופטימיזציה מתבצעת לפני fingerprinting, ולכן ה־hash בשם הקובץ מייצג בדיוק את הקוד הממוזער שנשלח לדפדפן. ה־Route bundles ממוזערים לאחר הטבעת `__BARGIG_RELEASE_ID__`; ה־Search Worker ממוזער לפני חישוב שמו, ו־`catalog-search.js` ממוזער רק לאחר שהוזרקו אליו השמות הסופיים של ה־Worker והאינדקס. לאחר מכן כל ארבעת מודולי ה־runtime מקבלים hash עצמאי, imports של שלושת ה־Route bundles נכתבים לשמות האמיתיים, ורק אז גם ה־Routes מקבלים fingerprint. האימות הסופי עוקב אחר גרף HTML → Route ESM → runtime ESM → Worker/index ודוחה generation חסר, מעורב או לא־מקושר. אין יצירת source maps או `sourceMappingURL` בתוצר הציבורי. כל מעבר כותב תחילה temporary files ומחליף את הקבצים רק לאחר שכל ההמרות באותו מעבר הצליחו.
 - route capability flags מוזרקים בזמן build דרך `01-route-capabilities.js`, אבל הם אינם תחליף ל־tree shaking: Feature שאינו במסלול חייב להיעדר פיזית מהגרף.
 - `dynamic import` אינו מאושר כרגע: אין בפרויקט יכולת אופציונלית כבדה שמצדיקה chunk נוסף, נתיב פריסה נוסף ומסלול כשל נוסף. `catalog-snapshot.js` קטן ומיובא רק מה־adapter של Viewer, ללא script עצמאי, ללא בקשת רשת נוספת וללא כניסה לגרפי Catalog/Favorites. `catalog` ו־`favorites` כבר מפוצלים לפי מסלול, ואילו Search, Catalog Grid ו־Favorites Workspace ב־Viewer נשארים eager באותו document כדי שמעבר בזמן fullscreen לא יגרום ליציאה ממסך מלא.
-- גרף ה־imports נבדק באמצעות strongly connected components. מחזור בין תחומים או בין Features אסור. המחזור היחיד המאושר הוא בתוך תת־המודולים הקוהרנטיים של Viewer, שבהם אין הפעלת lifecycle ברמת top-level; TypeScript, esbuild ובדיקות הדפדפן משמשים יחד כשער נגד TDZ או סדר אתחול שגוי.
+- גרף ה־imports נבדק באמצעות strongly connected components, וכל מחזור אסור ללא allowlist או חריגים. תת־מודולי ה־Viewer בנויים כשכבות חד־כיווניות: state ו־geometry בתחתית, controllers לפקודות zoom/fit/page/layout מעליהם, shell להצגת UI, ו־`60-viewer.js` כ־composition/lifecycle root עליון שאף תת־מודול אינו מייבא. כך סדר האתחול נגזר מהגרף עצמו ואינו נשען על TDZ, side effects או הסכמה ידנית למחזור.
 - `02-dom-contracts.js`, `03-runtime-context.js` ו־`17-catalog-asset-urls.js` הם owners נמוכים ועצמאיים שנועדו למנוע תלות הפוכה בין Navigation, Shared UI, Telemetry ו־App Shell. Telemetry מקבלת callback לשחזור תמונה דרך dependency injection, ו־Navigation מבקש render מחדש דרך חוזה `app-shell` במקום לייבא את ה־composition root.
 
 ## מודולי JavaScript
@@ -117,13 +117,18 @@
 | `39-search-catalog-domain.js` | מדיניות טהורה ל־layout ולמעברי Search/Catalog/Viewer |
 | `40-catalog-grid.js` | Grid, קטגוריות ותצוגת פרטי קטלוג |
 | `50-search-ui.js` | לקוח Worker וממשקי החיפוש |
-| `52-viewer-session.js` | state machine של Viewer ו־Fullscreen |
-| `53-viewer-image.js` | טעינת תמונת Viewer והחלפת רזולוציה |
-| `54-viewer-geometry.js` | fit, zoom, pan ונקודות מוקד |
-| `56-viewer-shell.js` | toolbar, page rail ומעטפת Viewer |
-| `58-viewer-navigation.js` | גלגלת, touchpad ומעבר עמוד |
-| `60-viewer.js` | lifecycle והרכבת ממשק Viewer |
-| `62-viewer-actions.js` | תפריט הפעולות הקומפקטי של ה־Viewer |
+| `51-viewer-session-state.js` | state machine נמוך ומעברי phase חוקיים של Viewer ו־Fullscreen |
+| `52-viewer-session.js` | בקר Fullscreen של הדפדפן וניווט חזרה מה־Viewer |
+| `53-viewer-image.js` | טעינת תמונת Viewer, recovery והחלפת רזולוציה |
+| `54-viewer-geometry.js` | geometry טהור יחסית: fit, pan, bounds, positions ונרמול wheel |
+| `55-viewer-zoom-controller.js` | פקודות zoom ותיאום geometry, רזולוציה ו־chrome |
+| `56-viewer-shell.js` | presentation owner ל־toolbar, page rail, progress ומצב בקרי UI |
+| `57-viewer-fit-controller.js` | פקודות fit ותיאום reset, geometry ורזולוציה |
+| `58-viewer-navigation.js` | פירוש wheel/touchpad, boundary pan וכוונת מעבר עמוד |
+| `59-viewer-page-controller.js` | owner קנוני ל־page movement, render והחלפת מועדף |
+| `60-viewer.js` | composition/lifecycle root עליון; אינו API פנימי לתת־מודולים |
+| `61-viewer-layout-controller.js` | תיאום layout, pinned top UI ורענון geometry |
+| `62-viewer-actions.js` | אירועים ופעולות של תפריט הכלים הקומפקטי |
 | `65-viewer-onboarding.js` | הדרכת כניסה |
 | `70-viewer-input.js` | pointer, pinch, pan, wheel ו־double tap |
 | `80-app-shell.js` | composition root ותיאום lifecycle דרך Feature APIs |

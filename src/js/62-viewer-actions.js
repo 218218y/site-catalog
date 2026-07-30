@@ -10,36 +10,15 @@ import { VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, viewerElements, viewerState } from
 import { focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { downloadCurrentLightboxImage } from "./31-viewer-share.js";
-import { isViewerSessionOpen } from "./52-viewer-session.js";
-import { normalizeViewerFitMode, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
-import { setViewerAutomaticFitMode, setViewerFitMode, showTopUiTemporarily, toggleTopUiPinned } from "./56-viewer-shell.js";
+import { isViewerSessionOpen } from "./51-viewer-session-state.js";
+import { showTopUiTemporarily, syncViewerMobileMoreMenuState } from "./56-viewer-shell.js";
+import { setViewerAutomaticFitMode, setViewerFitMode } from "./57-viewer-fit-controller.js";
+import { toggleTopUiPinned } from "./61-viewer-layout-controller.js";
 
 const MOBILE_VIEWER_TOOLBAR_MEDIA = "(max-width: 760px)";
 
 function isMobileViewerToolbarMode() {
   return Boolean(window.matchMedia?.(MOBILE_VIEWER_TOOLBAR_MEDIA).matches);
-}
-
-function syncViewerMobileMoreMenuState() {
-  const menu = viewerElements.viewerMobileMoreMenu;
-  if (!menu) return;
-  const fitMode = normalizeViewerFitMode(viewerState.imageFitMode);
-  const automatic = viewerUsesAutomaticFitMode();
-  const pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]');
-  const autoItem = menu.querySelector('[data-viewer-mobile-action="fit-auto"]');
-  const heightItem = menu.querySelector('[data-viewer-mobile-action="fit-height"]');
-  const widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]');
-  const pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
-
-  pinItem?.setAttribute("aria-checked", viewerState.topUiPinned ? "true" : "false");
-  pinItem?.classList.toggle("active", viewerState.topUiPinned);
-  if (pinLabel) pinLabel.textContent = viewerState.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
-  autoItem?.setAttribute("aria-checked", automatic ? "true" : "false");
-  autoItem?.classList.toggle("active", automatic);
-  heightItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
-  heightItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_HEIGHT);
-  widthItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
-  widthItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_WIDTH);
 }
 
 /** @param {boolean} open @param {{returnFocus?:boolean}} [options] */
@@ -132,4 +111,4 @@ function attachViewerActionEvents() {
   });
 }
 
-export { attachViewerActionEvents, closeViewerMobileMoreMenu, syncViewerMobileMoreMenuState };
+export { attachViewerActionEvents, closeViewerMobileMoreMenu };

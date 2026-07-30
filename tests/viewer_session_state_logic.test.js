@@ -39,36 +39,39 @@ Object.assign(globalThis, {
 });
 const originalWarn = console.warn;
 console.warn = (...args) => warnings.push(args);
-const api = importFrontendTestModule("src/js/52-viewer-session.js", "viewer-session");
 
-assert.equal(api.isViewerSessionOpen(), false);
-assert.equal(api.isViewerSessionVisible(), false);
-assert.equal(api.transitionViewerPhase("opening", "test-open"), true);
-assert.equal(api.isViewerSessionOpen(), true);
+const stateApi = importFrontendTestModule("src/js/51-viewer-session-state.js", "viewer-session-state");
+Object.assign(globalThis, stateApi);
+
+assert.equal(stateApi.isViewerSessionOpen(), false);
+assert.equal(stateApi.isViewerSessionVisible(), false);
+assert.equal(stateApi.transitionViewerPhase("opening", "test-open"), true);
+assert.equal(stateApi.isViewerSessionOpen(), true);
 assert.equal(documentValue.body.dataset.viewerPhase, "opening");
-assert.equal(api.transitionViewerPhase("open", "ready"), true);
+assert.equal(stateApi.transitionViewerPhase("open", "ready"), true);
 assert.equal(viewerState.viewerPhaseReason, "ready");
-assert.equal(api.transitionViewerPhase("closed", "invalid-skip"), false, "open must close through the closing phase");
+assert.equal(stateApi.transitionViewerPhase("closed", "invalid-skip"), false, "open must close through the closing phase");
 assert.equal(viewerState.viewerPhase, "open", "invalid transitions must not mutate state");
 assert.equal(warnings.length, 1);
-assert.equal(api.transitionViewerPhase("closing", "close"), true);
-assert.equal(api.isViewerSessionOpen(), false);
-assert.equal(api.isViewerSessionVisible(), true);
-assert.equal(api.transitionViewerPhase("closed", "hidden"), true);
-assert.equal(api.isViewerSessionVisible(), false);
+assert.equal(stateApi.transitionViewerPhase("closing", "close"), true);
+assert.equal(stateApi.isViewerSessionOpen(), false);
+assert.equal(stateApi.isViewerSessionVisible(), true);
+assert.equal(stateApi.transitionViewerPhase("closed", "hidden"), true);
+assert.equal(stateApi.isViewerSessionVisible(), false);
 
-assert.equal(api.viewerUsesInDocumentFullscreenNavigation(), false);
-assert.equal(api.transitionViewerFullscreenPhase("entering", "request"), true);
+const browserApi = importFrontendTestModule("src/js/52-viewer-session.js", "viewer-browser-session");
+assert.equal(browserApi.viewerUsesInDocumentFullscreenNavigation(), false);
+assert.equal(stateApi.transitionViewerFullscreenPhase("entering", "request"), true);
 documentValue.fullscreenElement = documentValue.documentElement;
-api.reconcileViewerFullscreenPhase("browser-entered");
+browserApi.reconcileViewerFullscreenPhase("browser-entered");
 assert.equal(viewerState.viewerFullscreenPhase, "active");
 assert.equal(documentValue.documentElement.dataset.viewerFullscreenPhase, "active");
-assert.equal(api.viewerUsesInDocumentFullscreenNavigation(), true);
-assert.equal(api.transitionViewerFullscreenPhase("exiting", "exit"), true);
+assert.equal(browserApi.viewerUsesInDocumentFullscreenNavigation(), true);
+assert.equal(stateApi.transitionViewerFullscreenPhase("exiting", "exit"), true);
 documentValue.fullscreenElement = null;
-api.reconcileViewerFullscreenPhase("browser-exited");
+browserApi.reconcileViewerFullscreenPhase("browser-exited");
 assert.equal(viewerState.viewerFullscreenPhase, "inactive");
-assert.equal(api.viewerUsesInDocumentFullscreenNavigation(), false);
+assert.equal(browserApi.viewerUsesInDocumentFullscreenNavigation(), false);
 console.warn = originalWarn;
 
 console.log("viewer_session_state_logic.test.js: PASS");

@@ -66,7 +66,15 @@ Object.assign(globalThis, {
   showTopUiTemporarily() { uiCalls += 1; },
   syncViewerAutoZoomButtonUi() { autoZoomUiCalls += 1; }
 });
-const api = importFrontendTestModule("src/js/54-viewer-geometry.js", "viewer-geometry");
+const geometry = importFrontendTestModule("src/js/54-viewer-geometry.js", "viewer-geometry");
+Object.assign(globalThis, {
+  applyZoom: geometry.applyZoom,
+  clearSingleImagePendingPosition: geometry.clearSingleImagePendingPosition,
+  getSafeViewerZoom: geometry.getSafeViewerZoom,
+  isAutoViewerZoom: geometry.isAutoViewerZoom,
+  resetImagePosition: geometry.resetImagePosition
+});
+const api = importFrontendTestModule("src/js/55-viewer-zoom-controller.js", "viewer-zoom-controller");
 
 const originalClear = api.clearSingleImagePendingPosition;
 assert.equal(typeof originalClear, "undefined", "test API exposes behavior, not mutable internals");

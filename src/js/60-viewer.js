@@ -1,107 +1,39 @@
 /**
  * Source module: 60-viewer.js
- * Viewer lifecycle, page selection, route entry, and event ownership.
+ * Viewer lifecycle and composition root.
  *
- * Runtime dependencies are explicit ES module imports. Route entrypoints are
- * bundled by the pinned esbuild tool into stable browser asset names.
+ * This module assembles the Viewer feature, owns open/close lifecycle and event
+ * wiring, and registers the public feature boundary. No Viewer submodule imports
+ * this file; reusable commands live in their dedicated lower-level owners.
  */
 
 import { canReturnToSameSite, catalogDocumentUrl, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
-import { catalogFirstPage, catalogLastPage, catalogPageOrdinal } from "./06-catalog-page-numbering.js";
-import { CATALOG_IMAGE_TIER_FULL, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
+import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { telemetryTrackCatalogOpen } from "./15-telemetry.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, viewerElements, viewerState } from "./16-viewer-state.js";
 import { activeCatalog, activePage, activeViewerSource, setActiveLocation, setActivePage, setActiveViewerSource } from "./18-navigation-feature.js";
-import { catalogPagesShareAspectRatio, clampPage, clampValue, prepareImagePlaceholder, syncDocumentLock } from "./20-shared-ui.js";
+import { clampPage, prepareImagePlaceholder, syncDocumentLock } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
 import { attachViewerShareEvents } from "./31-viewer-share.js";
-import { closeViewerInquiry, syncViewerInquiryUi } from "./32-shared-inquiry.js";
-import { initLightboxSearchStatus, renderLightboxCatalogMenu, resetLightboxSearch } from "./50-search-ui.js";
-import { exitBrowserFullscreen, handleBrowserFullscreenChange, isBrowserFullscreenActive, isViewerSessionOpen, reconcileViewerFullscreenPhase, returnToMainSiteFromLightbox, syncFullscreenButtonUi, toggleBrowserFullscreen, transitionViewerPhase, viewerUsesInDocumentFullscreenNavigation } from "./52-viewer-session.js";
-import { activeSingleViewerImageLogicalSrc, activeSingleViewerImageTier, clearSingleViewerResolutionUpgrade, preloadNeighbors, showSingleLightboxImage, viewerPageImageRequest, viewerPageSrc } from "./53-viewer-image.js";
-import { applyZoom, captureSingleImageRelativePosition, clearSingleImagePendingPosition, getAutomaticViewerFitMode, isAutoViewerZoom, normalizeViewerFitMode, normalizeViewerFitModeSource, primeLightboxFrameForCatalogPage, queueSingleImagePageTurnOrigin, queueSingleImageRelativePosition, resetImagePosition, setZoom, shouldPreserveSingleManualPosition, updateHash, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
-import { handleLightboxEdgeHoverMove, handleLightboxEdgeHoverViewportExit, handleLightboxPageRailEdgePointerDown, handlePageRailPointerOutside, hideLightboxFloatingPreview, hideViewerPageIndicator, hideViewerZoomIndicator, keepPageRailOpen, keepPageRailOpenFromHover, markTouchLikeRailInput, markTouchLikeViewportInput, openPageRailFromHotspot, openPageRailFromTouch, openTopUiFromHotspot, refreshLightboxLayoutForTopUiChange, renderLightboxPageRail, schedulePageRailClose, scheduleTopUiClose, setViewerAutomaticFitMode, setViewerFitMode, setViewerLoading, showPageRailFromHover, showTopUiTemporarily, syncAutomaticViewerFitMode, syncLightboxModeUi, syncLightboxProgress, syncTopUiPinnedUi, syncViewerAutoZoomButtonUi, toggleTopUiPinned, updateLightboxThumbs } from "./56-viewer-shell.js";
+import { closeViewerInquiry } from "./32-shared-inquiry.js";
+import { renderLightboxCatalogMenu, resetLightboxSearch } from "./50-search-ui.js";
+import { isViewerSessionOpen, transitionViewerPhase } from "./51-viewer-session-state.js";
+import { exitBrowserFullscreen, handleBrowserFullscreenChange, isBrowserFullscreenActive, reconcileViewerFullscreenPhase, returnToMainSiteFromLightbox, syncFullscreenButtonUi, toggleBrowserFullscreen, viewerUsesInDocumentFullscreenNavigation } from "./52-viewer-session.js";
+import { clearSingleViewerResolutionUpgrade, setViewerLoading, viewerPageSrc } from "./53-viewer-image.js";
+import { applyZoom, clearSingleImagePendingPosition, getAutomaticViewerFitMode, normalizeViewerFitMode, normalizeViewerFitModeSource, primeLightboxFrameForCatalogPage, resetImagePosition, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
+import { setZoom } from "./55-viewer-zoom-controller.js";
+import { handleLightboxEdgeHoverMove, handleLightboxEdgeHoverViewportExit, handleLightboxPageRailEdgePointerDown, handlePageRailPointerOutside, hideLightboxFloatingPreview, hideViewerPageIndicator, hideViewerZoomIndicator, keepPageRailOpen, keepPageRailOpenFromHover, markTouchLikeRailInput, markTouchLikeViewportInput, openPageRailFromHotspot, openPageRailFromTouch, openTopUiFromHotspot, renderLightboxPageRail, schedulePageRailClose, scheduleTopUiClose, showPageRailFromHover, showTopUiTemporarily, syncLightboxModeUi, syncTopUiPinnedUi, syncViewerAutoZoomButtonUi, syncViewerMobileMoreMenuState } from "./56-viewer-shell.js";
+import { setViewerAutomaticFitMode, setViewerFitMode, syncAutomaticViewerFitMode } from "./57-viewer-fit-controller.js";
 import { clearViewerPageWheelGesture, retryCurrentViewerImage } from "./58-viewer-navigation.js";
-import { attachViewerActionEvents, closeViewerMobileMoreMenu, syncViewerMobileMoreMenuState } from "./62-viewer-actions.js";
+import { attachViewerPageControllerEvents, moveLightbox, setFavoriteViewerIndex, setLightboxPage, updateLightbox } from "./59-viewer-page-controller.js";
+import { refreshLightboxLayoutForTopUiChange, toggleTopUiPinned } from "./61-viewer-layout-controller.js";
+import { attachViewerActionEvents, closeViewerMobileMoreMenu } from "./62-viewer-actions.js";
 import { attachViewerOnboardingEvents, closeViewerOnboarding, handleViewerOnboardingKeydown, scheduleViewerOnboardingLayout, showViewerOnboardingIfNeeded } from "./65-viewer-onboarding.js";
 import { attachViewerGestures, handleLightboxPointerDownCapture, handleViewerSurfacePointerDown, stopViewerTouchMomentum } from "./70-viewer-input.js";
-
-/** @param {ViewerRefreshOptions} [options] */
-function updateLightbox(options = {}) {
-  if (!activeCatalog()) return;
-  const { thumbScrollIntoView = true, preserveCurrentImage = false } = options;
-  let favoriteEntries = null;
-  const favorites = getFeatureInterface("favorites");
-
-  if (isFavoritesLightboxMode()) {
-    favoriteEntries = favorites?.entries() || [];
-    if (!favoriteEntries.length) {
-      closeLightbox({ restoreFavorites: true });
-      return;
-    }
-
-    const currentIndex = favorites?.findViewerEntryIndex(favoriteEntries, activeCatalog()?.id, activePage()) ?? -1;
-    favorites?.selectViewerEntry(
-      favoriteEntries,
-      currentIndex >= 0 ? currentIndex : favorites.viewerIndex()
-    );
-  }
-
-  const catalog = activeCatalog();
-  if (!catalog) return;
-  setActivePage(clampPage(activePage(), catalog));
-  syncLightboxModeUi();
-  syncViewerInquiryUi();
-  syncViewerMobileMoreMenuState();
-
-  viewerElements.lightboxTitle.textContent = catalog.title;
-  if (favoriteEntries) {
-    const favoriteViewerIndex = favorites?.viewerIndex() ?? 0;
-    const current = favoriteViewerIndex + 1;
-    const total = favoriteEntries.length;
-    viewerElements.lightboxMeta.textContent = `מועדף ${current} מתוך ${total} · עמוד ${activePage()}`;
-    syncLightboxProgress(current, total, `מועדף ${current} מתוך ${total} · עמוד ${activePage()}`, {
-      label: "מועדף",
-      detail: `עמוד ${activePage()}`
-    });
-    viewerElements.prevPageBtn.disabled = favoriteViewerIndex <= 0;
-    viewerElements.nextPageBtn.disabled = favoriteViewerIndex >= total - 1;
-  } else {
-    viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`;
-    syncLightboxProgress(catalogPageOrdinal(catalog, activePage()), catalog.pages, `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, {
-      label: "עמוד",
-      displayCurrent: activePage(),
-      displayTotal: catalogLastPage(catalog)
-    });
-    viewerElements.prevPageBtn.disabled = activePage() <= catalogFirstPage(catalog);
-    viewerElements.nextPageBtn.disabled = activePage() >= catalogLastPage(catalog);
-  }
-
-  favorites?.syncViewerButton();
-  if (!favoriteEntries) initLightboxSearchStatus();
-
-  const preserveFullResolutionTier = !isAutoViewerZoom()
-    && activeSingleViewerImageTier() === CATALOG_IMAGE_TIER_FULL;
-  const request = viewerPageImageRequest(catalog, activePage(), {
-    forceFull: preserveFullResolutionTier
-  });
-  const src = request.primarySrc;
-  const currentSrc = activeSingleViewerImageLogicalSrc();
-  if (currentSrc !== src) {
-    showSingleLightboxImage(catalog, activePage(), src, { imageRequest: request, preserveCurrentImage });
-  } else {
-    setViewerLoading(false);
-    viewerElements.lightbox?.classList.remove("is-page-loading");
-    applyZoom();
-  }
-
-  updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView });
-  preloadNeighbors();
-  updateHash();
-}
 
 /** @param {number} [page] @param {ViewerOpenOptions} [options] */
 function openLightbox(page = undefined, options = {}) {
@@ -153,6 +85,7 @@ function openLightbox(page = undefined, options = {}) {
   if (!isFavoritesLightboxMode()) renderLightboxCatalogMenu();
   resetLightboxSearch();
   syncLightboxModeUi();
+  syncFullscreenButtonUi();
   showTopUiTemporarily(1700);
   updateLightbox();
   getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.();
@@ -210,130 +143,6 @@ function closeLightbox(options = {}) {
   hideLightboxUi();
 }
 
-/** @param {number} page @param {ViewerSetPageOptions} [options] */
-function setLightboxPage(page, options = {}) {
-  if (!activeCatalog()) return;
-  const nextPage = clampPage(page, activeCatalog());
-  if (nextPage === activePage()) return;
-
-  const {
-    thumbScrollIntoView = true,
-    keepZoom = true,
-    resetZoom = false,
-    resetPosition = isAutoViewerZoom(),
-    positionMode = "auto",
-    pageTurnDirection = Math.sign(nextPage - activePage()),
-    pageTurnAxis = "y",
-    preservePointerInteraction = false
-  } = options;
-  const shouldResetZoom = resetZoom || keepZoom === false;
-  const shouldResetPosition = shouldResetZoom || resetPosition;
-  const preserveRelativePosition = positionMode !== "page-turn"
-    && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition });
-  const relativePosition = preserveRelativePosition
-    ? captureSingleImageRelativePosition()
-    : null;
-
-  hideLightboxFloatingPreview();
-  if (shouldResetZoom) viewerState.zoom = AUTO_VIEWER_ZOOM;
-
-  if (positionMode === "page-turn") {
-    queueSingleImagePageTurnOrigin(nextPage, pageTurnDirection, pageTurnAxis);
-  } else if (shouldResetPosition) {
-    resetImagePosition({ queueSingleFitOrigin: true });
-  } else if (relativePosition) {
-    queueSingleImageRelativePosition(nextPage, relativePosition);
-  }
-
-  if (!preservePointerInteraction) viewerState.pointers.clear();
-  const previousCatalog = activeCatalog();
-  const previousPage = activePage();
-  setActivePage(nextPage);
-  const currentCatalog = activeCatalog();
-  const preserveCurrentGeometry = Boolean(
-    currentCatalog
-    && viewerElements.lightboxImage?.complete
-    && viewerElements.lightboxImage.naturalWidth > 0
-    && catalogPagesShareAspectRatio(previousCatalog, previousPage, currentCatalog, activePage())
-  );
-  const geometryPrimed = Boolean(currentCatalog && !preserveCurrentGeometry
-    && primeLightboxFrameForCatalogPage(currentCatalog, activePage()));
-  if (geometryPrimed) applyZoom();
-  updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
-}
-
-/** @param {number} index @param {ViewerSetPageOptions} [options] */
-function setFavoriteViewerIndex(index, options = {}) {
-  if (!isFavoritesLightboxMode()) return;
-  const favorites = getFeatureInterface("favorites");
-  const entries = favorites?.entries() || [];
-  if (!entries.length) {
-    closeLightbox({ restoreFavorites: true });
-    return;
-  }
-
-  const currentFavoriteIndex = favorites?.viewerIndex() ?? 0;
-  const {
-    thumbScrollIntoView = true,
-    keepZoom = true,
-    resetZoom = false,
-    resetPosition = isAutoViewerZoom(),
-    positionMode = "auto",
-    pageTurnDirection = Math.sign((Number.parseInt(String(index), 10) || 0) - currentFavoriteIndex),
-    pageTurnAxis = "y",
-    preservePointerInteraction = false
-  } = options;
-  const nextIndex = clampValue(Number.parseInt(String(index), 10) || 0, 0, entries.length - 1);
-  const entry = entries[nextIndex];
-  const itemChanged = nextIndex !== currentFavoriteIndex || activeCatalog() !== entry.catalog || activePage() !== entry.page;
-  if (!itemChanged) return;
-
-  const shouldResetZoom = resetZoom || keepZoom === false;
-  const shouldResetPosition = shouldResetZoom || resetPosition;
-  const preserveRelativePosition = positionMode !== "page-turn"
-    && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition });
-  const relativePosition = preserveRelativePosition
-    ? captureSingleImageRelativePosition()
-    : null;
-
-  hideLightboxFloatingPreview();
-  if (shouldResetZoom) viewerState.zoom = AUTO_VIEWER_ZOOM;
-
-  if (positionMode === "page-turn") {
-    queueSingleImagePageTurnOrigin(entry.page, pageTurnDirection, pageTurnAxis);
-  } else if (shouldResetPosition) {
-    resetImagePosition({ queueSingleFitOrigin: true });
-  } else if (relativePosition) {
-    queueSingleImageRelativePosition(entry.page, relativePosition);
-  }
-  if (!preservePointerInteraction) viewerState.pointers.clear();
-
-  const previousCatalog = activeCatalog();
-  const previousPage = activePage();
-  favorites?.selectViewerEntry(entries, nextIndex);
-  const currentCatalog = activeCatalog();
-  const preserveCurrentGeometry = Boolean(
-    currentCatalog
-    && viewerElements.lightboxImage?.complete
-    && viewerElements.lightboxImage.naturalWidth > 0
-    && catalogPagesShareAspectRatio(previousCatalog, previousPage, currentCatalog, activePage())
-  );
-  const geometryPrimed = Boolean(currentCatalog && !preserveCurrentGeometry
-    && primeLightboxFrameForCatalogPage(currentCatalog, activePage()));
-  if (geometryPrimed) applyZoom();
-  updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
-}
-
-/** @param {number} delta @param {ViewerSetPageOptions} [options] */
-function moveLightbox(delta, options = {}) {
-  if (!activeCatalog()) return;
-  if (isFavoritesLightboxMode()) {
-    setFavoriteViewerIndex((getFeatureInterface("favorites")?.viewerIndex() ?? 0) + delta, options);
-    return;
-  }
-  setLightboxPage(activePage() + delta, options);
-}
-
 /** @param {string} id @param {number} [page] @param {ViewerOpenOptions} [options] */
 function openCatalogInViewer(id, page = undefined, options = {}) {
   const catalog = catalogs.find((item) => item.id === id) || null;
@@ -353,9 +162,11 @@ function openCatalogInViewer(id, page = undefined, options = {}) {
 
 function attachViewerEvents() {
   attachViewerShareEvents();
+  attachViewerPageControllerEvents();
   viewerElements.lightboxHomeLink?.addEventListener("click", returnToMainSiteFromLightbox);
   viewerElements.lightboxPinTopBar?.addEventListener("click", () => {
     toggleTopUiPinned();
+    syncViewerMobileMoreMenuState();
     if (viewerState.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
   });
   viewerElements.lightboxBackdrop?.addEventListener("click", () => closeLightbox());
@@ -364,9 +175,18 @@ function attachViewerEvents() {
   viewerElements.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(viewerElements.fullscreenToggle));
   viewerElements.prevPageBtn?.addEventListener("click", () => moveLightbox(-1));
   viewerElements.nextPageBtn?.addEventListener("click", () => moveLightbox(1));
-  viewerElements.fitAutoBtn?.addEventListener("click", () => setViewerAutomaticFitMode());
-  viewerElements.fitHeightBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_HEIGHT));
-  viewerElements.fitWidthBtn?.addEventListener("click", () => setViewerFitMode(VIEWER_FIT_WIDTH));
+  viewerElements.fitAutoBtn?.addEventListener("click", () => {
+    setViewerAutomaticFitMode();
+    syncViewerMobileMoreMenuState();
+  });
+  viewerElements.fitHeightBtn?.addEventListener("click", () => {
+    setViewerFitMode(VIEWER_FIT_HEIGHT);
+    syncViewerMobileMoreMenuState();
+  });
+  viewerElements.fitWidthBtn?.addEventListener("click", () => {
+    setViewerFitMode(VIEWER_FIT_WIDTH);
+    syncViewerMobileMoreMenuState();
+  });
   viewerElements.viewerAutoZoomBtn?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -536,5 +356,3 @@ registerFeatureInterface("viewer", {
     return true;
   }
 });
-
-export { moveLightbox, setFavoriteViewerIndex, setLightboxPage };

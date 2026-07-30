@@ -12,11 +12,10 @@ import { VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { clampValue } from "./20-shared-ui.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
-import { isViewerSessionOpen } from "./52-viewer-session.js";
+import { isViewerSessionOpen } from "./51-viewer-session-state.js";
 import { showSingleLightboxImage, viewerPageImageRequest } from "./53-viewer-image.js";
-import { consumeSingleViewerPanInput, isAutoViewerZoom, singleViewerUsesBoundaryPan } from "./54-viewer-geometry.js";
-import { normalizeWheelDeltaToPixels } from "./56-viewer-shell.js";
-import { moveLightbox, setFavoriteViewerIndex, setLightboxPage } from "./60-viewer.js";
+import { consumeSingleViewerPanInput, isAutoViewerZoom, normalizeWheelDeltaToPixels, singleViewerUsesBoundaryPan } from "./54-viewer-geometry.js";
+import { moveLightbox, setFavoriteViewerIndex, setLightboxPage } from "./59-viewer-page-controller.js";
 
 function retryCurrentViewerImage() {
   const catalog = activeCatalog();

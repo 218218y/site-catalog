@@ -14,7 +14,7 @@ const css = readAllCssBundles();
 const bundleBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
 const favoritesShareSource = fs.readFileSync(path.join(root, 'src/js/30-favorites-share.js'), 'utf8');
 const favoritesWorkspaceSource = fs.readFileSync(path.join(root, 'src/js/35-favorites-workspace.js'), 'utf8');
-const viewerSource = fs.readFileSync(path.join(root, 'src/js/60-viewer.js'), 'utf8');
+const viewerPageControllerSource = fs.readFileSync(path.join(root, 'src/js/59-viewer-page-controller.js'), 'utf8');
 
 assert.match(html, /<a[^>]*class="[^"]*header-favorites-button[^"]*hidden[^"]*"[^>]*id="headerFavoritesButton"[^>]*href="favorites\.html"/);
 assert.match(html, /<div[^>]*id="favoritesPanel"[^>]*role="dialog"[^>]*aria-modal="true"/);
@@ -44,7 +44,7 @@ assert.match(favoritesShareSource, /persisted/);
 assert.match(favoritesShareSource, /window\.addEventListener\("storage", handleFavoritesStorageChange\)/);
 assert.match(favoritesShareSource, /openFavoriteViewer\(catalogId, page\)/);
 assert.match(favoritesShareSource, /source: LIGHTBOX_SOURCE_FAVORITES/);
-assert.match(viewerSource, /setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)/);
+assert.match(viewerPageControllerSource, /setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)/);
 assert.match(favoritesShareSource, /openCurrentFavoriteInCatalogFromViewer/);
 assert.match(favoritesShareSource, /openFavoritesPanel\(\{ allowEmpty: true, captureReturnFocus: false \}\)/);
 assert.match(favoritesShareSource, /window\.confirm\("למחוק את כל העמודים מהמועדפים\?"\)/);

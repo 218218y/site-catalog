@@ -1,84 +1,30 @@
 /**
  * Source module: 52-viewer-session.js
- * Explicit viewer lifecycle and browser Fullscreen API state transitions.
+ * Browser Fullscreen API controller and Viewer fullscreen presentation.
  *
- * Runtime dependencies are explicit ES module imports. Route entrypoints are
- * bundled by the pinned esbuild tool into stable browser asset names.
+ * Lifecycle state transitions live in 51-viewer-session-state.js. This module
+ * owns only browser fullscreen integration and may request higher-level layout
+ * refreshes without becoming a state owner itself.
  */
 
 import { homeDocumentUrl, navigateTo } from "./00-navigation.js";
-import { VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, viewerElements, viewerState } from "./16-viewer-state.js";
+import {
+  VIEWER_FULLSCREEN_ACTIVE,
+  VIEWER_FULLSCREEN_ENTERING,
+  VIEWER_FULLSCREEN_EXITING,
+  VIEWER_FULLSCREEN_INACTIVE,
+  viewerElements,
+  viewerState
+} from "./16-viewer-state.js";
 import { flashActionButton, setTooltipText } from "./20-shared-ui.js";
 import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-search-ui.js";
-import { refreshLightboxLayoutForTopUiChange, showTopUiTemporarily } from "./56-viewer-shell.js";
-
-const VIEWER_PHASE_TRANSITIONS = Object.freeze({
-  [VIEWER_PHASE_CLOSED]: new Set([VIEWER_PHASE_CLOSED, VIEWER_PHASE_OPENING]),
-  [VIEWER_PHASE_OPENING]: new Set([VIEWER_PHASE_OPENING, VIEWER_PHASE_OPEN, VIEWER_PHASE_CLOSING, VIEWER_PHASE_CLOSED]),
-  [VIEWER_PHASE_OPEN]: new Set([VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, VIEWER_PHASE_CLOSING]),
-  [VIEWER_PHASE_CLOSING]: new Set([VIEWER_PHASE_CLOSING, VIEWER_PHASE_CLOSED, VIEWER_PHASE_OPENING])
-});
-
-const VIEWER_FULLSCREEN_TRANSITIONS = Object.freeze({
-  [VIEWER_FULLSCREEN_INACTIVE]: new Set([VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_ACTIVE]),
-  [VIEWER_FULLSCREEN_ENTERING]: new Set([VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULLSCREEN_EXITING]),
-  [VIEWER_FULLSCREEN_ACTIVE]: new Set([VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE]),
-  [VIEWER_FULLSCREEN_EXITING]: new Set([VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING])
-});
-
-/**
- * @param {{current:string, next:string, transitions:Readonly<Record<string, Set<string>>>, label:string, reason:string}} options
- */
-function transitionStatePhase({ current, next, transitions, label, reason }) {
-  const allowed = transitions[current];
-  if (!allowed?.has(next)) {
-    console.warn(`Ignored invalid ${label} transition`, { current, next, reason });
-    return false;
-  }
-  return true;
-}
-
-/** @param {string} nextPhase @param {string} [reason] */
-function transitionViewerPhase(nextPhase, reason = "unspecified") {
-  const currentPhase = viewerState.viewerPhase || VIEWER_PHASE_CLOSED;
-  if (!transitionStatePhase({
-    current: currentPhase,
-    next: nextPhase,
-    transitions: VIEWER_PHASE_TRANSITIONS,
-    label: "viewer phase",
-    reason
-  })) return false;
-
-  viewerState.viewerPhase = nextPhase;
-  viewerState.viewerPhaseReason = String(reason || "unspecified");
-  if (document.body) document.body.dataset.viewerPhase = nextPhase;
-  return true;
-}
-
-function isViewerSessionOpen() {
-  return viewerState.viewerPhase === VIEWER_PHASE_OPENING || viewerState.viewerPhase === VIEWER_PHASE_OPEN;
-}
-
-function isViewerSessionVisible() {
-  return isViewerSessionOpen() || viewerState.viewerPhase === VIEWER_PHASE_CLOSING;
-}
-
-/** @param {string} nextPhase @param {string} [reason] */
-function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
-  const currentPhase = viewerState.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
-  if (!transitionStatePhase({
-    current: currentPhase,
-    next: nextPhase,
-    transitions: VIEWER_FULLSCREEN_TRANSITIONS,
-    label: "viewer fullscreen phase",
-    reason
-  })) return false;
-
-  viewerState.viewerFullscreenPhase = nextPhase;
-  viewerState.viewerFullscreenReason = String(reason || "unspecified");
-  if (document.documentElement) document.documentElement.dataset.viewerFullscreenPhase = nextPhase;
-  return true;
-}
+import {
+  isViewerFullscreenPending,
+  isViewerSessionOpen,
+  transitionViewerFullscreenPhase
+} from "./51-viewer-session-state.js";
+import { showTopUiTemporarily } from "./56-viewer-shell.js";
+import { refreshLightboxLayoutForTopUiChange } from "./61-viewer-layout-controller.js";
 
 function getBrowserFullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || null;
@@ -91,19 +37,15 @@ function isBrowserFullscreenActive() {
 function isBrowserFullscreenSupported() {
   const root = document.documentElement;
   return Boolean(
-    document.fullscreenEnabled ||
-    document.webkitFullscreenEnabled ||
-    document.mozFullScreenEnabled ||
-    document.msFullscreenEnabled ||
-    root?.requestFullscreen ||
-    root?.webkitRequestFullscreen ||
-    root?.mozRequestFullScreen ||
-    root?.msRequestFullscreen
+    document.fullscreenEnabled
+    || document.webkitFullscreenEnabled
+    || document.mozFullScreenEnabled
+    || document.msFullscreenEnabled
+    || root?.requestFullscreen
+    || root?.webkitRequestFullscreen
+    || root?.mozRequestFullScreen
+    || root?.msRequestFullscreen
   );
-}
-
-function isViewerFullscreenPending() {
-  return viewerState.viewerFullscreenPhase === VIEWER_FULLSCREEN_ENTERING || viewerState.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
 }
 
 function reconcileViewerFullscreenPhase(reason = "browser-state") {
@@ -205,16 +147,21 @@ function returnToMainSiteFromLightbox(event = null) {
 
 /* TEST-ONLY EXPORTS: BEGIN */
 if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-session"] = Object.freeze({
-    transitionStatePhase,
-    transitionViewerPhase,
-    isViewerSessionOpen,
-    isViewerSessionVisible,
-    transitionViewerFullscreenPhase,
+  __BARGIG_TEST_EXPORTS__["viewer-browser-session"] = Object.freeze({
+    isBrowserFullscreenActive,
     reconcileViewerFullscreenPhase,
     viewerUsesInDocumentFullscreenNavigation
   });
 }
 /* TEST-ONLY EXPORTS: END */
 
-export { exitBrowserFullscreen, handleBrowserFullscreenChange, isBrowserFullscreenActive, isViewerSessionOpen, reconcileViewerFullscreenPhase, returnToMainSiteFromLightbox, syncFullscreenButtonUi, toggleBrowserFullscreen, transitionViewerPhase, viewerUsesInDocumentFullscreenNavigation };
+export {
+  exitBrowserFullscreen,
+  handleBrowserFullscreenChange,
+  isBrowserFullscreenActive,
+  reconcileViewerFullscreenPhase,
+  returnToMainSiteFromLightbox,
+  syncFullscreenButtonUi,
+  toggleBrowserFullscreen,
+  viewerUsesInDocumentFullscreenNavigation
+};

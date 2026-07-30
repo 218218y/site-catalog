@@ -15,6 +15,7 @@ const stateSource = read('src/js/16-viewer-state.js');
 const geometry = read('src/js/54-viewer-geometry.js');
 const shell = read('src/js/56-viewer-shell.js');
 const navigation = read('src/js/58-viewer-navigation.js');
+const pageController = read('src/js/59-viewer-page-controller.js');
 const viewerSource = read('src/js/60-viewer.js');
 const input = read('src/js/70-viewer-input.js');
 const bootstrap = read('src/js/90-bootstrap.js');
@@ -49,8 +50,8 @@ assert.doesNotMatch(stateSource, /viewerPageWheelLocked|viewerPageWheelUnlockTim
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?classList\.add\("viewer-layout-paged"\)/);
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?lightboxImageFrame\?\.classList\.remove\("hidden"\)/);
 assert.doesNotMatch(viewerSource, /renderViewerScrollPages|loadViewerScrollWindow|handleViewerScrollPagesScroll/);
-assert.match(viewerSource, /const preserveFullResolutionTier = !isAutoViewerZoom\(\)[\s\S]*?const request = viewerPageImageRequest\(catalog, activePage\(\), \{[\s\S]*?forceFull: preserveFullResolutionTier[\s\S]*?showSingleLightboxImage/);
-assert.match(viewerSource, /function moveLightbox\(delta, options = \{\}\)[\s\S]*?setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)[\s\S]*?setLightboxPage\(activePage\(\) \+ delta, options\)/);
+assert.match(pageController, /const preserveFullResolutionTier = !isAutoViewerZoom\(\)[\s\S]*?const request = viewerPageImageRequest\(catalog, activePage\(\), \{[\s\S]*?forceFull: preserveFullResolutionTier[\s\S]*?showSingleLightboxImage/);
+assert.match(pageController, /function moveLightbox\(delta, options = \{\}\)[\s\S]*?setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)[\s\S]*?setLightboxPage\(activePage\(\) \+ delta, options\)/);
 
 assert.match(geometry, /function captureSingleImageRelativePosition\(\)/);
 assert.match(geometry, /viewerState\.panX \/ metrics\.overflowX/);
@@ -81,9 +82,9 @@ assert.match(navigation, /handleViewerPageWheel,[\s\S]*?clearViewerPageWheelGest
 assert.doesNotMatch(navigation, /viewerPageWheelLocked|keepViewerPageWheelLockedUntilSettle|unlockViewerPageWheel/);
 assert.doesNotMatch(navigation, /renderViewerScrollPages|scrollTop|scrollIntoView|viewerScroll/);
 
-assert.match(viewerSource, /preservePointerInteraction = false/);
-assert.match(viewerSource, /if \(!preservePointerInteraction\) viewerState\.pointers\.clear\(\)/);
-assert.match(viewerSource, /const currentCatalog = activeCatalog\(\);[\s\S]*?const preserveCurrentGeometry = Boolean\([\s\S]*?viewerElements\.lightboxImage\?\.complete[\s\S]*?viewerElements\.lightboxImage\.naturalWidth > 0[\s\S]*?catalogPagesShareAspectRatio\(previousCatalog, previousPage, currentCatalog, activePage\(\)\)[\s\S]*?\);[\s\S]*?const geometryPrimed = Boolean\(currentCatalog && !preserveCurrentGeometry[\s\S]*?primeLightboxFrameForCatalogPage\(currentCatalog, activePage\(\)\)\);[\s\S]*?if \(geometryPrimed\) applyZoom\(\);[\s\S]*?updateLightbox\(\{ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry \}\)/);
+assert.match(pageController, /preservePointerInteraction = false/);
+assert.match(pageController, /if \(!preservePointerInteraction\) viewerState\.pointers\.clear\(\)/);
+assert.match(pageController, /const currentCatalog = activeCatalog\(\);[\s\S]*?const preserveCurrentGeometry = Boolean\([\s\S]*?viewerElements\.lightboxImage\?\.complete[\s\S]*?viewerElements\.lightboxImage\.naturalWidth > 0[\s\S]*?catalogPagesShareAspectRatio\(previousCatalog, previousPage, currentCatalog, activePage\(\)\)[\s\S]*?\);[\s\S]*?const geometryPrimed = Boolean\(currentCatalog && !preserveCurrentGeometry[\s\S]*?primeLightboxFrameForCatalogPage\(currentCatalog, activePage\(\)\)\);[\s\S]*?if \(geometryPrimed\) applyZoom\(\);[\s\S]*?updateLightbox\(\{ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry \}\)/);
 
 assert.match(input, /function handleViewerPageSwipe\(event, startedX, startedY\)[\s\S]*?isTouchLikePointer\(event\)/);
 assert.match(input, /const direction = horizontal[\s\S]*?dx > 0 \? 1 : -1[\s\S]*?dy < 0 \? 1 : -1/);

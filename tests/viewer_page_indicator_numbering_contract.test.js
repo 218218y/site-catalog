@@ -5,13 +5,13 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const viewer = fs.readFileSync(path.join(root, "src/js/60-viewer.js"), "utf8");
+const pageController = fs.readFileSync(path.join(root, "src/js/59-viewer-page-controller.js"), "utf8");
 const shell = fs.readFileSync(path.join(root, "src/js/56-viewer-shell.js"), "utf8");
 const bundle = fs.readFileSync(path.join(root, "app-viewer.js"), "utf8");
 
-assert.match(viewer, /catalogPageOrdinal\(catalog, activePage\(\)\)/);
-assert.match(viewer, /displayCurrent:\s*activePage\(\)/);
-assert.match(viewer, /displayTotal:\s*catalogLastPage\(catalog\)/);
+assert.match(pageController, /catalogPageOrdinal\(catalog, activePage\(\)\)/);
+assert.match(pageController, /displayCurrent:\s*activePage\(\)/);
+assert.match(pageController, /displayTotal:\s*catalogLastPage\(catalog\)/);
 
 assert.match(shell, /viewerPageIndicatorCurrent\.textContent\s*=\s*String\(displayCurrent\)/);
 assert.match(shell, /viewerPageIndicatorTotal\.textContent\s*=\s*String\(displayTotal\)/);

@@ -141,8 +141,8 @@ for (const route of ['catalog', 'favorites', 'viewer']) {
 }
 
 assert.match(contractChecker, /runtime source is not an ES module/);
-assert.match(contractChecker, /APPROVED_IMPORT_CYCLES/);
-assert.match(contractChecker, /unapproved ES-module dependency cycle/);
+assert.doesNotMatch(contractChecker, /APPROVED_IMPORT_CYCLES/);
+assert.match(contractChecker, /ES-module dependency cycle is forbidden/);
 assert.match(contractChecker, /Viewer implementation reaches into search internals/);
 assert.match(contractChecker, /Search implementation reaches into Viewer internals/);
 assert.match(contractChecker, /_has_legacy_top_level_iife_wrapper/);

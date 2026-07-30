@@ -9,7 +9,7 @@
 import { getFeatureInterface } from "./10-app-state.js";
 import { VIEWER_ONBOARDING_STORAGE_KEY, viewerElements, viewerState } from "./16-viewer-state.js";
 import { clampValue, focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";
-import { isViewerSessionOpen } from "./52-viewer-session.js";
+import { isViewerSessionOpen } from "./51-viewer-session-state.js";
 
 function getViewerOnboardingStorage() {
   try {

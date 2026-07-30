@@ -11,11 +11,11 @@ import { DOUBLE_TAP_DELAY, DOUBLE_TAP_DISTANCE, TAP_MOVE_TOLERANCE, VIEWER_PAGE_
 import { clampValue, isTouchLikePointer } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { hideLightboxSearchResults } from "./50-search-ui.js";
-import { isViewerSessionOpen } from "./52-viewer-session.js";
-import { getPointerList, pointerDistance, pointerMidpoint, setZoom, singleViewerUsesBoundaryPan, toggleZoomAtPoint } from "./54-viewer-geometry.js";
-import { normalizeWheelDeltaToPixels } from "./56-viewer-shell.js";
+import { isViewerSessionOpen } from "./51-viewer-session-state.js";
+import { getPointerList, normalizeWheelDeltaToPixels, pointerDistance, pointerMidpoint, singleViewerUsesBoundaryPan } from "./54-viewer-geometry.js";
+import { setZoom, toggleZoomAtPoint } from "./55-viewer-zoom-controller.js";
 import { consumeSingleViewerBoundaryInput, handleViewerPageWheel, moveLightboxFromPageTurn } from "./58-viewer-navigation.js";
-import { moveLightbox } from "./60-viewer.js";
+import { moveLightbox } from "./59-viewer-page-controller.js";
 
 /** @param {EventTarget|null} surface */
 function getZoomSurfaceName(surface) {

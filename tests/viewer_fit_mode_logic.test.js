@@ -36,6 +36,7 @@ Object.assign(globalThis, {
   clearViewerPageWheelGesture() {},
   resetImagePosition() {},
   syncViewerFitModeUi() {},
+  syncViewerAutoZoomButtonUi() {},
   syncViewerMobileMoreMenuState() {},
   setPressedState() {},
   setTooltipText() {},
@@ -50,7 +51,7 @@ Object.assign(globalThis, {
   getAutomaticViewerFitMode: geometry.getAutomaticViewerFitMode,
   viewerUsesAutomaticFitMode: geometry.viewerUsesAutomaticFitMode
 });
-const shell = importFrontendTestModule("src/js/56-viewer-shell.js", "viewer-shell");
+const fitController = importFrontendTestModule("src/js/57-viewer-fit-controller.js", "viewer-fit-controller");
 
 assert.equal(geometry.getAutomaticViewerFitMode(), "height");
 viewerElements.stageCanvas.clientWidth = 390;
@@ -66,28 +67,28 @@ viewerElements.stageCanvas.clientWidth = 390;
 viewerElements.stageCanvas.clientHeight = 844;
 viewerState.imageFitMode = "height";
 viewerState.imageFitModeSource = "auto";
-assert.equal(shell.syncAutomaticViewerFitMode({ showUi: false }), true);
+assert.equal(fitController.syncAutomaticViewerFitMode({ showUi: false }), true);
 assert.equal(viewerState.imageFitMode, "width");
 assert.equal(viewerState.imageFitModeSource, "auto");
 
-shell.setViewerFitMode("width", { showUi: false });
+fitController.setViewerFitMode("width", { showUi: false });
 assert.equal(viewerState.imageFitModeSource, "manual");
 viewerElements.stageCanvas.clientWidth = 844;
 viewerElements.stageCanvas.clientHeight = 390;
-assert.equal(shell.syncAutomaticViewerFitMode({ showUi: false }), false);
+assert.equal(fitController.syncAutomaticViewerFitMode({ showUi: false }), false);
 assert.equal(viewerState.imageFitMode, "width");
 
-shell.setViewerAutomaticFitMode({ showUi: false });
+fitController.setViewerAutomaticFitMode({ showUi: false });
 assert.equal(viewerState.imageFitModeSource, "auto");
 assert.equal(viewerState.imageFitMode, "height");
 viewerElements.stageCanvas.clientWidth = 390;
 viewerElements.stageCanvas.clientHeight = 844;
-assert.equal(shell.syncAutomaticViewerFitMode({ showUi: false }), true);
+assert.equal(fitController.syncAutomaticViewerFitMode({ showUi: false }), true);
 assert.equal(viewerState.imageFitMode, "width");
 
-shell.setViewerFitMode("width", { showUi: false });
+fitController.setViewerFitMode("width", { showUi: false });
 assert.equal(viewerState.imageFitModeSource, "manual");
-shell.setViewerAutomaticFitMode({ showUi: false });
+fitController.setViewerAutomaticFitMode({ showUi: false });
 assert.equal(viewerState.imageFitModeSource, "auto");
 assert.equal(viewerState.imageFitMode, "width");
 

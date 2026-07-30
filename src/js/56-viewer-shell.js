@@ -13,12 +13,8 @@ import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, clampValue, escapeHtml, findCatalogById, hasHoverPointer, isTouchLikePointer, pageSrc, setCatalogImageSource, setTooltipText, thumbSrc } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
-import { isViewerSessionOpen, syncFullscreenButtonUi } from "./52-viewer-session.js";
-import { refreshSingleViewerImageResolution } from "./53-viewer-image.js";
-import { applyZoom, getAutomaticViewerFitMode, getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, normalizeViewerFitModeSource, resetImagePosition, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
-import { clearViewerPageWheelGesture } from "./58-viewer-navigation.js";
-import { setFavoriteViewerIndex, setLightboxPage } from "./60-viewer.js";
-import { syncViewerMobileMoreMenuState } from "./62-viewer-actions.js";
+import { isViewerSessionOpen } from "./51-viewer-session-state.js";
+import { getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
 
 function showTopUiTemporarily(delay = 2200) {
   if (!viewerElements.lightbox) return;
@@ -51,25 +47,6 @@ function syncLightboxTopSafeArea() {
   return offset;
 }
 
-/** @param {ViewerUiVisibilityOptions} [options] */
-function refreshLightboxLayoutForTopUiChange(options = {}) {
-  if (!isViewerSessionOpen()) {
-    syncLightboxTopSafeArea();
-    return;
-  }
-
-  const { resetAutoSingleOrigin = true } = options;
-  syncLightboxTopSafeArea();
-
-  if (resetAutoSingleOrigin && isAutoViewerZoom()) {
-    resetImagePosition({ queueSingleFitOrigin: true });
-  }
-
-  applyZoom();
-  refreshSingleViewerImageResolution();
-
-}
-
 function syncTopUiPinnedUi() {
   const pinned = Boolean(viewerState.topUiPinned);
   const label = pinned ? "ביטול נעיצת הסרגל העליון" : "נעיצת הסרגל העליון";
@@ -78,25 +55,12 @@ function syncTopUiPinnedUi() {
   viewerElements.lightbox?.classList.toggle("top-ui-pinned", pinned);
   if (pinned) viewerElements.lightbox?.classList.add("show-ui");
   syncLightboxTopSafeArea();
-  syncViewerMobileMoreMenuState();
 
   if (!viewerElements.lightboxPinTopBar) return;
   viewerElements.lightboxPinTopBar.dataset.pinned = pinned ? "true" : "false";
   viewerElements.lightboxPinTopBar.setAttribute("aria-pressed", pinned ? "true" : "false");
   viewerElements.lightboxPinTopBar.setAttribute("aria-label", label);
   setTooltipText(viewerElements.lightboxPinTopBar, label, { updateDefault: true });
-}
-
-/** @param {boolean} pinned */
-function setTopUiPinned(pinned) {
-  viewerState.topUiPinned = Boolean(pinned);
-  syncTopUiPinnedUi();
-  refreshLightboxLayoutForTopUiChange();
-  if (!viewerState.topUiPinned) showTopUiTemporarily(1400);
-}
-
-function toggleTopUiPinned() {
-  setTopUiPinned(!viewerState.topUiPinned);
 }
 
 /** @param {Event|null|undefined} event @returns {PointLike|null} */
@@ -273,12 +237,6 @@ function handleLightboxEdgeHoverViewportExit(event) {
   }
 }
 
-/** @param {boolean} isLoading */
-function setViewerLoading(isLoading) {
-  viewerElements.viewerLoading.classList.toggle("hidden", !isLoading);
-}
-
-
 function hideLightboxFloatingPreview() {
   viewerElements.lightboxFloatingPreview?.classList.remove("visible");
 }
@@ -286,16 +244,6 @@ function hideLightboxFloatingPreview() {
 /** @param {HTMLElement|null|undefined} button */
 function isLightboxPageRailTrigger(button) {
   return Boolean(button?.closest?.(".lightbox-page-rail"));
-}
-
-/** @param {number} delta @param {number} deltaMode @param {number} [pageSize] */
-function normalizeWheelDeltaToPixels(delta, deltaMode, pageSize = 0) {
-  const lineMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_LINE : 1;
-  const pageMode = typeof WheelEvent !== "undefined" ? WheelEvent.DOM_DELTA_PAGE : 2;
-
-  if (deltaMode === lineMode) return delta * 36;
-  if (deltaMode === pageMode) return delta * Math.max(1, pageSize);
-  return delta;
 }
 
 /** @param {HTMLButtonElement} button */
@@ -385,23 +333,6 @@ function updateLightboxThumbs(options = {}) {
   }
 }
 
-/** @param {HTMLButtonElement} button */
-function handleLightboxPageRailSelection(button) {
-  if (!button) return;
-
-  hideLightboxFloatingPreview();
-
-  if (isFavoritesLightboxMode()) {
-    setFavoriteViewerIndex(Number(button.dataset.favoriteIndex), { thumbScrollIntoView: false });
-  } else {
-    const targetPage = Number(button.dataset.page);
-    if (!Number.isFinite(targetPage)) return;
-    setLightboxPage(targetPage, { thumbScrollIntoView: false });
-  }
-
-  showPageRailTemporarily(1800, { scrollIntoView: false });
-}
-
 function renderLightboxPageRail() {
   const activeCatalogRecord = activeCatalog();
   if (!activeCatalogRecord || !viewerElements.lightboxPageThumbs) return;
@@ -453,11 +384,29 @@ function renderLightboxPageRail() {
     button.addEventListener("pointerleave", hideLightboxFloatingPreview);
     button.addEventListener("focus", () => showLightboxFloatingPreview(button));
     button.addEventListener("blur", hideLightboxFloatingPreview);
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      handleLightboxPageRailSelection(button);
-    });
   });
+}
+
+function syncViewerMobileMoreMenuState() {
+  const menu = viewerElements.viewerMobileMoreMenu;
+  if (!menu) return;
+  const fitMode = normalizeViewerFitMode(viewerState.imageFitMode);
+  const automatic = viewerUsesAutomaticFitMode();
+  const pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]');
+  const autoItem = menu.querySelector('[data-viewer-mobile-action="fit-auto"]');
+  const heightItem = menu.querySelector('[data-viewer-mobile-action="fit-height"]');
+  const widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]');
+  const pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
+
+  pinItem?.setAttribute("aria-checked", viewerState.topUiPinned ? "true" : "false");
+  pinItem?.classList.toggle("active", viewerState.topUiPinned);
+  if (pinLabel) pinLabel.textContent = viewerState.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
+  autoItem?.setAttribute("aria-checked", automatic ? "true" : "false");
+  autoItem?.classList.toggle("active", automatic);
+  heightItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
+  heightItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_HEIGHT);
+  widthItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_WIDTH ? "true" : "false");
+  widthItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_WIDTH);
 }
 
 function syncViewerFitModeUi() {
@@ -532,52 +481,6 @@ function showViewerZoomIndicator(value = viewerState.zoom) {
   }, VIEWER_ZOOM_INDICATOR_HIDE_MS);
 }
 
-/** @param {string} fitMode @param {ViewerFitModeOptions} [options] */
-function setViewerFitMode(fitMode, options = {}) {
-  const nextFitMode = normalizeViewerFitMode(fitMode);
-  const {
-    showUi = true,
-    source = VIEWER_FIT_SOURCE_MANUAL,
-    refreshLayout = true
-  } = options;
-  const shouldResetView = nextFitMode !== viewerState.imageFitMode;
-
-  viewerState.imageFitModeSource = normalizeViewerFitModeSource(source);
-  viewerState.imageFitMode = nextFitMode;
-  if (shouldResetView) {
-    clearViewerPageWheelGesture();
-    viewerState.zoom = AUTO_VIEWER_ZOOM;
-    resetImagePosition({ queueSingleFitOrigin: true });
-    viewerState.pointers.clear();
-  }
-
-  syncViewerFitModeUi();
-  if (refreshLayout) {
-    applyZoom();
-    refreshSingleViewerImageResolution();
-  }
-  if (showUi) showTopUiTemporarily(1600);
-}
-
-/** @param {ViewerFitModeOptions} [options] */
-function setViewerAutomaticFitMode(options = {}) {
-  setViewerFitMode(getAutomaticViewerFitMode(), {
-    ...options,
-    source: VIEWER_FIT_SOURCE_AUTO
-  });
-}
-
-/** @param {ViewerFitModeOptions} [options] */
-function syncAutomaticViewerFitMode(options = {}) {
-  if (!viewerUsesAutomaticFitMode()) return false;
-
-  const nextFitMode = getAutomaticViewerFitMode();
-  if (nextFitMode === viewerState.imageFitMode) return false;
-
-  setViewerAutomaticFitMode(options);
-  return true;
-}
-
 function syncLightboxModeUi() {
   const favoritesMode = isFavoritesLightboxMode();
   viewerElements.lightbox?.classList.add("catalog-entry-mode");
@@ -587,7 +490,6 @@ function syncLightboxModeUi() {
   viewerElements.nextPageBtn?.setAttribute("aria-label", favoritesMode ? "המועדף הבא" : "העמוד הבא");
   syncViewerLayoutModeUi();
   syncViewerFitModeUi();
-  syncFullscreenButtonUi();
 
   if (viewerElements.lightboxModeLabel) {
     viewerElements.lightboxModeLabel.textContent = favoritesMode ? "תצוגת מועדפים" : "כניסה לקטלוג";
@@ -828,14 +730,10 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     getRightEdgeViewerNavigationRect,
     isPointInPageRailNavigationConflictZone,
     isPointInPageRailEdgeActivationZone,
-    normalizeWheelDeltaToPixels,
-    setViewerFitMode,
-    setViewerAutomaticFitMode,
-    syncAutomaticViewerFitMode,
     shouldUseLightboxHoverPointer,
     shouldUsePageRailHover
   });
 }
 /* TEST-ONLY EXPORTS: END */
 
-export { handleLightboxEdgeHoverMove, handleLightboxEdgeHoverViewportExit, handleLightboxPageRailEdgePointerDown, handlePageRailPointerOutside, hideLightboxFloatingPreview, hideViewerPageIndicator, hideViewerZoomIndicator, keepPageRailOpen, keepPageRailOpenFromHover, markTouchLikeRailInput, markTouchLikeViewportInput, normalizeWheelDeltaToPixels, openPageRailFromHotspot, openPageRailFromTouch, openTopUiFromHotspot, refreshLightboxLayoutForTopUiChange, renderLightboxPageRail, schedulePageRailClose, scheduleTopUiClose, setViewerAutomaticFitMode, setViewerFitMode, setViewerLoading, showPageRailFromHover, showTopUiTemporarily, showViewerZoomIndicator, syncAutomaticViewerFitMode, syncLightboxModeUi, syncLightboxProgress, syncTopUiPinnedUi, syncViewerAutoZoomButtonUi, toggleTopUiPinned, updateLightboxThumbs };
+export { handleLightboxEdgeHoverMove, handleLightboxEdgeHoverViewportExit, handleLightboxPageRailEdgePointerDown, handlePageRailPointerOutside, hideLightboxFloatingPreview, hideViewerPageIndicator, hideViewerZoomIndicator, keepPageRailOpen, keepPageRailOpenFromHover, markTouchLikeRailInput, markTouchLikeViewportInput, openPageRailFromHotspot, openPageRailFromTouch, openTopUiFromHotspot, renderLightboxPageRail, schedulePageRailClose, scheduleTopUiClose, showPageRailFromHover, showTopUiTemporarily, showViewerZoomIndicator, showPageRailTemporarily, syncLightboxModeUi, syncLightboxProgress, syncLightboxTopSafeArea, syncTopUiPinnedUi, syncViewerAutoZoomButtonUi, syncViewerFitModeUi, syncViewerMobileMoreMenuState, updateLightboxThumbs };

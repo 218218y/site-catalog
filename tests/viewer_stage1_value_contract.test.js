@@ -12,6 +12,7 @@ const template = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
 const sharedPureSource = fs.readFileSync(path.join(root, "src/js/19-shared-pure.js"), "utf8");
 const sharedInquirySource = fs.readFileSync(path.join(root, "src/js/32-shared-inquiry.js"), "utf8");
 const searchUiSource = fs.readFileSync(path.join(root, "src/js/50-search-ui.js"), "utf8");
+const pageControllerSource = fs.readFileSync(path.join(root, "src/js/59-viewer-page-controller.js"), "utf8");
 const viewerSource = fs.readFileSync(path.join(root, "src/js/60-viewer.js"), "utf8");
 const viewerActionsSource = fs.readFileSync(path.join(root, "src/js/62-viewer-actions.js"), "utf8");
 const telemetrySource = fs.readFileSync(path.join(root, "src/js/15-telemetry.js"), "utf8");
@@ -58,8 +59,8 @@ assert.match(sharedInquirySource, /function viewerInquiryGmailUrl\([\s\S]*?mail\
 assert.match(sharedInquirySource, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?navigator\.share\(shareData\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "share"\)/);
 assert.doesNotMatch(sharedInquirySource, /viewerInquiry(?:Gmail|Email)\.title\s*=|setTooltipText\(els\.viewerInquiry(?:Gmail|Email)/);
 assert.match(sharedInquirySource, /function copyViewerInquiryReference\([\s\S]*?copyTextToClipboard\(reference\.text\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "copy"\)/);
-assert.match(viewerSource, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)/);
-assert.match(viewerSource, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)[\s\S]*?syncViewerMobileMoreMenuState\(\)/);
+assert.match(pageControllerSource, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)/);
+assert.match(pageControllerSource, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)[\s\S]*?syncViewerMobileMoreMenuState\(\)/);
 assert.match(viewerActionsSource, /function handleViewerMobileMoreKeydown\([\s\S]*?ArrowDown[\s\S]*?ArrowUp[\s\S]*?Home[\s\S]*?End/);
 assert.match(viewerSource, /function hideLightboxUi\([\s\S]*?closeViewerInquiry\(\{ restoreFocus: false \}\)[\s\S]*?closeViewerMobileMoreMenu\(\)/);
 

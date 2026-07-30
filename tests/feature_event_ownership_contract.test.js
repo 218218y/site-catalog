@@ -13,6 +13,7 @@ const favorites = read("src/js/30-favorites-share.js");
 const inquiry = read("src/js/32-shared-inquiry.js");
 const catalog = read("src/js/40-catalog-grid.js");
 const search = read("src/js/50-search-ui.js");
+const viewerSessionState = read("src/js/51-viewer-session-state.js");
 const viewerSession = read("src/js/52-viewer-session.js");
 const viewerGeometry = read("src/js/54-viewer-geometry.js");
 const viewerShell = read("src/js/56-viewer-shell.js");
@@ -59,8 +60,8 @@ assert.doesNotMatch(bootstrap, /addEventListener|attachFeatureEvents|attachShell
 assert.match(bootstrap, /requireFeatureInterface\("app-shell"\)\.initialize\(\)/, "app-shell must be a required startup dependency");
 assert.doesNotMatch(bootstrap, /getFeatureInterface\("app-shell"\)|\?\.initialize/, "startup must not silently tolerate a missing app-shell");
 
-assert.match(viewerSession, /function transitionViewerPhase\(/);
-assert.match(viewerSession, /function transitionViewerFullscreenPhase\(/);
+assert.match(viewerSessionState, /function transitionViewerPhase\(/);
+assert.match(viewerSessionState, /function transitionViewerFullscreenPhase\(/);
 assert.match(viewerGeometry, /function applyZoom\(/);
 assert.match(viewerShell, /function renderLightboxPageRail\(/);
 assert.match(viewerNavigation, /function handleViewerPageWheel\(/);
