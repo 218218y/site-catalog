@@ -51,9 +51,20 @@ function isCatalogPage(catalog, page) {
     && parsed <= catalogLastPage(catalog);
 }
 
+/**
+ * Return the one-based position of a displayed page inside its catalog.
+ * This is intentionally distinct from the page number shown to the user:
+ * page 0 is ordinal 1 in a catalog with an unnumbered cover.
+ * @param {CatalogRecord|null|undefined} catalog
+ * @param {unknown} displayPage
+ */
+function catalogPageOrdinal(catalog, displayPage) {
+  return clampCatalogPage(displayPage, catalog) - catalogFirstPage(catalog) + 1;
+}
+
 /** @param {CatalogRecord|null|undefined} catalog @param {unknown} displayPage */
 function displayPageToAssetPage(catalog, displayPage) {
-  return clampCatalogPage(displayPage, catalog) - catalogFirstPage(catalog) + 1;
+  return catalogPageOrdinal(catalog, displayPage);
 }
 
 /** @param {CatalogRecord|null|undefined} catalog @param {unknown} assetPage */
@@ -78,6 +89,7 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     catalogPageCount,
     catalogPageNumberStart,
     catalogPageNumbers,
+    catalogPageOrdinal,
     clampCatalogPage,
     displayPageToAssetPage,
     isCatalogPage
@@ -93,6 +105,7 @@ export {
   catalogPageCount,
   catalogPageNumberStart,
   catalogPageNumbers,
+  catalogPageOrdinal,
   clampCatalogPage,
   displayPageToAssetPage,
   isCatalogPage

@@ -782,9 +782,13 @@ function syncLightboxProgress(current, total, title, options = {}) {
   const currentItem = clampValue(Number.parseInt(String(current), 10) || 1, 1, totalItems);
   const ratio = totalItems <= 1 ? 1 : currentItem / totalItems;
   const clampedRatio = Math.min(1, Math.max(0, ratio));
+  const parsedDisplayCurrent = Number.parseInt(String(options.displayCurrent ?? currentItem), 10);
+  const parsedDisplayTotal = Number.parseInt(String(options.displayTotal ?? totalItems), 10);
+  const displayCurrent = Number.isFinite(parsedDisplayCurrent) ? parsedDisplayCurrent : currentItem;
+  const displayTotal = Number.isFinite(parsedDisplayTotal) ? parsedDisplayTotal : totalItems;
   const label = String(options.label || "עמוד");
   const detail = String(options.detail || "").trim();
-  const accessibleTitle = title || `${label} ${currentItem} מתוך ${totalItems}`;
+  const accessibleTitle = title || `${label} ${displayCurrent} מתוך ${displayTotal}`;
 
   viewerElements.lightboxProgress.style.setProperty("--catalog-progress-ratio", String(clampedRatio));
   viewerElements.lightboxProgress.style.setProperty("--catalog-progress-percent", `${clampedRatio * 100}%`);
@@ -796,8 +800,8 @@ function syncLightboxProgress(current, total, title, options = {}) {
 
   if (viewerElements.viewerPageIndicator) {
     viewerElements.viewerPageIndicatorLabel.textContent = label;
-    viewerElements.viewerPageIndicatorCurrent.textContent = String(currentItem);
-    viewerElements.viewerPageIndicatorTotal.textContent = String(totalItems);
+    viewerElements.viewerPageIndicatorCurrent.textContent = String(displayCurrent);
+    viewerElements.viewerPageIndicatorTotal.textContent = String(displayTotal);
     if (viewerElements.viewerPageIndicatorDetail) {
       viewerElements.viewerPageIndicatorDetail.textContent = detail;
       viewerElements.viewerPageIndicatorDetail.classList.toggle("hidden", !detail);

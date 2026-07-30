@@ -11,6 +11,8 @@ const pageNumbering = importFrontendTestModule(
 const regular = { id: "regular", pages: 3 };
 assert.equal(pageNumbering.catalogFirstPage(regular), 1);
 assert.equal(pageNumbering.catalogLastPage(regular), 3);
+assert.equal(pageNumbering.catalogPageOrdinal(regular, 1), 1);
+assert.equal(pageNumbering.catalogPageOrdinal(regular, 3), 3);
 assert.deepEqual(pageNumbering.catalogPageNumbers(regular), [1, 2, 3]);
 assert.equal(pageNumbering.displayPageToAssetPage(regular, 1), 1);
 assert.equal(pageNumbering.assetPageToDisplayPage(regular, 3), 3);
@@ -21,6 +23,8 @@ assert.equal(pageNumbering.catalogFirstPage({ pages: 2, pageNumberStart: "0" }),
 const coverCatalog = { id: "cover", pages: 3, pageNumberStart: 0 };
 assert.equal(pageNumbering.catalogFirstPage(coverCatalog), 0);
 assert.equal(pageNumbering.catalogLastPage(coverCatalog), 2);
+assert.equal(pageNumbering.catalogPageOrdinal(coverCatalog, 0), 1);
+assert.equal(pageNumbering.catalogPageOrdinal(coverCatalog, 2), 3);
 assert.deepEqual(pageNumbering.catalogPageNumbers(coverCatalog), [0, 1, 2]);
 assert.equal(pageNumbering.displayPageToAssetPage(coverCatalog, 0), 1);
 assert.equal(pageNumbering.displayPageToAssetPage(coverCatalog, 2), 3);

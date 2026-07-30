@@ -78,8 +78,11 @@ function isCatalogPage(catalog, page) {
   let parsed = integerOr(page, Number.NaN);
   return Number.isFinite(parsed) && parsed >= catalogFirstPage(catalog) && parsed <= catalogLastPage(catalog);
 }
-function displayPageToAssetPage(catalog, displayPage) {
+function catalogPageOrdinal(catalog, displayPage) {
   return clampCatalogPage(displayPage, catalog) - catalogFirstPage(catalog) + 1;
+}
+function displayPageToAssetPage(catalog, displayPage) {
+  return catalogPageOrdinal(catalog, displayPage);
 }
 function catalogPageNumbers(catalog) {
   let firstPage = catalogFirstPage(catalog);
@@ -5133,8 +5136,8 @@ function showViewerPageIndicatorTemporarily(delay = VIEWER_PAGE_INDICATOR_HIDE_M
 }
 function syncLightboxProgress(current, total, title, options = {}) {
   if (!viewerElements.lightboxProgress) return;
-  let totalItems = Math.max(1, Number.parseInt(String(total), 10) || 1), currentItem = clampValue(Number.parseInt(String(current), 10) || 1, 1, totalItems), ratio = totalItems <= 1 ? 1 : currentItem / totalItems, clampedRatio = Math.min(1, Math.max(0, ratio)), label = String(options.label || "עמוד"), detail = String(options.detail || "").trim(), accessibleTitle = title || `${label} ${currentItem} מתוך ${totalItems}`;
-  viewerElements.lightboxProgress.style.setProperty("--catalog-progress-ratio", String(clampedRatio)), viewerElements.lightboxProgress.style.setProperty("--catalog-progress-percent", `${clampedRatio * 100}%`), viewerElements.lightboxProgress.setAttribute("aria-valuemin", "1"), viewerElements.lightboxProgress.setAttribute("aria-valuemax", String(totalItems)), viewerElements.lightboxProgress.setAttribute("aria-valuenow", String(currentItem)), viewerElements.lightboxProgress.setAttribute("aria-valuetext", accessibleTitle), viewerElements.lightboxProgress.setAttribute("title", accessibleTitle), viewerElements.viewerPageIndicator && (viewerElements.viewerPageIndicatorLabel.textContent = label, viewerElements.viewerPageIndicatorCurrent.textContent = String(currentItem), viewerElements.viewerPageIndicatorTotal.textContent = String(totalItems), viewerElements.viewerPageIndicatorDetail && (viewerElements.viewerPageIndicatorDetail.textContent = detail, viewerElements.viewerPageIndicatorDetail.classList.toggle("hidden", !detail)), viewerElements.viewerPageIndicator.setAttribute("title", accessibleTitle), showViewerPageIndicatorTemporarily());
+  let totalItems = Math.max(1, Number.parseInt(String(total), 10) || 1), currentItem = clampValue(Number.parseInt(String(current), 10) || 1, 1, totalItems), ratio = totalItems <= 1 ? 1 : currentItem / totalItems, clampedRatio = Math.min(1, Math.max(0, ratio)), parsedDisplayCurrent = Number.parseInt(String(options.displayCurrent ?? currentItem), 10), parsedDisplayTotal = Number.parseInt(String(options.displayTotal ?? totalItems), 10), displayCurrent = Number.isFinite(parsedDisplayCurrent) ? parsedDisplayCurrent : currentItem, displayTotal = Number.isFinite(parsedDisplayTotal) ? parsedDisplayTotal : totalItems, label = String(options.label || "עמוד"), detail = String(options.detail || "").trim(), accessibleTitle = title || `${label} ${displayCurrent} מתוך ${displayTotal}`;
+  viewerElements.lightboxProgress.style.setProperty("--catalog-progress-ratio", String(clampedRatio)), viewerElements.lightboxProgress.style.setProperty("--catalog-progress-percent", `${clampedRatio * 100}%`), viewerElements.lightboxProgress.setAttribute("aria-valuemin", "1"), viewerElements.lightboxProgress.setAttribute("aria-valuemax", String(totalItems)), viewerElements.lightboxProgress.setAttribute("aria-valuenow", String(currentItem)), viewerElements.lightboxProgress.setAttribute("aria-valuetext", accessibleTitle), viewerElements.lightboxProgress.setAttribute("title", accessibleTitle), viewerElements.viewerPageIndicator && (viewerElements.viewerPageIndicatorLabel.textContent = label, viewerElements.viewerPageIndicatorCurrent.textContent = String(displayCurrent), viewerElements.viewerPageIndicatorTotal.textContent = String(displayTotal), viewerElements.viewerPageIndicatorDetail && (viewerElements.viewerPageIndicatorDetail.textContent = detail, viewerElements.viewerPageIndicatorDetail.classList.toggle("hidden", !detail)), viewerElements.viewerPageIndicator.setAttribute("title", accessibleTitle), showViewerPageIndicatorTemporarily());
 }
 function syncViewerLayoutModeUi() {
   viewerElements.lightbox?.classList.add("viewer-layout-paged"), viewerElements.lightbox?.classList.remove("viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated"), viewerElements.lightboxImageFrame?.classList.remove("hidden");
@@ -5849,8 +5852,10 @@ function updateLightbox(options = {}) {
       detail: `עמוד ${activePage()}`
     }), viewerElements.prevPageBtn.disabled = favoriteViewerIndex <= 0, viewerElements.nextPageBtn.disabled = favoriteViewerIndex >= total - 1;
   } else
-    viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, syncLightboxProgress(activePage() - catalogFirstPage(catalog) + 1, catalog.pages, `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, {
-      label: "עמוד"
+    viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, syncLightboxProgress(catalogPageOrdinal(catalog, activePage()), catalog.pages, `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, {
+      label: "עמוד",
+      displayCurrent: activePage(),
+      displayTotal: catalogLastPage(catalog)
     }), viewerElements.prevPageBtn.disabled = activePage() <= catalogFirstPage(catalog), viewerElements.nextPageBtn.disabled = activePage() >= catalogLastPage(catalog);
   favorites?.syncViewerButton(), favoriteEntries || initLightboxSearchStatus();
   let preserveFullResolutionTier = !isAutoViewerZoom() && activeSingleViewerImageTier() === CATALOG_IMAGE_TIER_FULL, request = viewerPageImageRequest(catalog, activePage(), {

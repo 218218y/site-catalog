@@ -63,8 +63,11 @@ function isCatalogPage(catalog, page) {
   let parsed = integerOr(page, Number.NaN);
   return Number.isFinite(parsed) && parsed >= catalogFirstPage(catalog) && parsed <= catalogLastPage(catalog);
 }
-function displayPageToAssetPage(catalog, displayPage) {
+function catalogPageOrdinal(catalog, displayPage) {
   return clampCatalogPage(displayPage, catalog) - catalogFirstPage(catalog) + 1;
+}
+function displayPageToAssetPage(catalog, displayPage) {
+  return catalogPageOrdinal(catalog, displayPage);
 }
 function catalogPageNumbers(catalog) {
   let firstPage = catalogFirstPage(catalog);

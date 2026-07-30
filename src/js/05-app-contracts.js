@@ -142,7 +142,7 @@
 /** @typedef {{resetAutoSingleOrigin?:boolean}} ViewerUiVisibilityOptions */
 /** @typedef {{scrollIntoView?:boolean}} ViewerRailRenderOptions */
 /** @typedef {{showUi?:boolean, source?:string, refreshLayout?:boolean}} ViewerFitModeOptions */
-/** @typedef {{label?:string, detail?:string}} ViewerPageIndicatorOptions */
+/** @typedef {{label?:string, detail?:string, displayCurrent?:number|string, displayTotal?:number|string}} ViewerPageIndicatorOptions */
 /** @typedef {"below"|"above"|"left"|"right"} ViewerOnboardingPlacement */
 /** @typedef {{source:HTMLButtonElement, id:string}} ViewerOnboardingTargetDefinition */
 /**

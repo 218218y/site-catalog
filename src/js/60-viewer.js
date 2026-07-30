@@ -8,7 +8,7 @@
 
 import { canReturnToSameSite, catalogDocumentUrl, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
-import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
+import { catalogFirstPage, catalogLastPage, catalogPageOrdinal } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { telemetryTrackCatalogOpen } from "./15-telemetry.js";
@@ -71,8 +71,10 @@ function updateLightbox(options = {}) {
     viewerElements.nextPageBtn.disabled = favoriteViewerIndex >= total - 1;
   } else {
     viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`;
-    syncLightboxProgress(activePage() - catalogFirstPage(catalog) + 1, catalog.pages, `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, {
-      label: "עמוד"
+    syncLightboxProgress(catalogPageOrdinal(catalog, activePage()), catalog.pages, `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, {
+      label: "עמוד",
+      displayCurrent: activePage(),
+      displayTotal: catalogLastPage(catalog)
     });
     viewerElements.prevPageBtn.disabled = activePage() <= catalogFirstPage(catalog);
     viewerElements.nextPageBtn.disabled = activePage() >= catalogLastPage(catalog);

@@ -1145,6 +1145,45 @@ def load_manual_search_overrides(root: Path) -> dict[str, dict[int, str]]:
     return result
 
 
+def _merge_manual_search_text(existing_text: Any, manual_text: Any) -> str:
+    """Return one normalized text containing exactly one manual override copy.
+
+    Older builds could append the same manual suffix on every skipped conversion
+    because the previous search text already contained the override. Work with
+    normalized token sequences so page text remains stable across repeated runs
+    and legacy duplicate suffixes are repaired deterministically.
+    """
+    existing = normalize_search_text(existing_text)
+    manual = normalize_search_text(manual_text)
+    if not manual:
+        return existing
+    if not existing:
+        return manual
+
+    existing_tokens = existing.split()
+    manual_tokens = manual.split()
+    manual_length = len(manual_tokens)
+    if not manual_length:
+        return existing
+
+    # Collapse one or more legacy copies at the end, then append one canonical
+    # copy. Manual overrides are deliberately appended after extracted/OCR text.
+    stripped_tokens = list(existing_tokens)
+    removed_suffix = False
+    while len(stripped_tokens) >= manual_length and stripped_tokens[-manual_length:] == manual_tokens:
+        del stripped_tokens[-manual_length:]
+        removed_suffix = True
+    if removed_suffix:
+        return " ".join([*stripped_tokens, *manual_tokens]).strip()
+
+    # If the exact token phrase already exists elsewhere, do not duplicate it.
+    for start in range(0, len(existing_tokens) - manual_length + 1):
+        if existing_tokens[start:start + manual_length] == manual_tokens:
+            return existing
+
+    return " ".join([*existing_tokens, *manual_tokens])
+
+
 def merge_manual_search_pages(
     search_pages: list[dict[str, Any]],
     manual_pages: dict[int, str] | None,
@@ -1170,7 +1209,7 @@ def merge_manual_search_pages(
         if page_count is not None and page_number > page_count:
             print(f"[warn] Ignoring manual search text for page {page_number}; catalog has only {page_count} pages.", file=sys.stderr)
             continue
-        merged[page_number] = _combine_search_texts([merged.get(page_number, ""), manual_text])
+        merged[page_number] = _merge_manual_search_text(merged.get(page_number, ""), manual_text)
 
     return [{"page": page_number, "text": text} for page_number, text in sorted(merged.items()) if text]
 
