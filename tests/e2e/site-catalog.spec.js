@@ -66,6 +66,7 @@ const LARGE_CATALOG_LAST_PAGE = catalogLastPage(LARGE_CATALOG);
 const PERFORMANCE_BUDGETS = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../performance-budgets.json"), "utf8"));
 const FAVORITES_WORKSPACE_CATALOGS = catalogData.slice(0, 2).map((catalog) => ({
   id: catalog.id,
+  firstPage: catalogPageAtOrdinal(catalog, 1),
   page: catalogPageAtOrdinal(catalog, 2)
 }));
 const PREVIEW_PAGE = catalogPageAtOrdinal(testCatalog, 6);
@@ -813,7 +814,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightboxImageFrame")).toBeVisible();
   });
 
-  test("preserves relative pan for explicit navigation and uses a fresh reading origin after edge scrolling", async ({ page }) => {
+  test("preserves relative pan for explicit navigation and resets manual view after edge scrolling", async ({ page }) => {
     await preparePage(page, { legacyViewerLayout: "side" });
     const startPage = Math.min(3, Math.max(CATALOG_FIRST_PAGE, CATALOG_LAST_PAGE - 2));
     await openDirectViewer(page, startPage);
@@ -883,16 +884,12 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(edgeTarget));
     await expectCurrentViewerImageReady(page);
     await expect(lightbox).not.toHaveClass(/viewer-scroll-zoom-isolated/);
-    await expect.poll(() => frame.evaluate((element, expectedZoom) => {
+    await expect.poll(() => frame.evaluate((element) => {
       const zoom = Number.parseFloat(element.style.getPropertyValue("--single-zoom")) || 1;
-      return Math.abs(zoom - expectedZoom);
-    }, initialZoom)).toBeLessThanOrEqual(0.01);
-    await expect.poll(() => page.evaluate(() => {
-      const stageRect = document.querySelector("#stageCanvas")?.getBoundingClientRect();
-      const frameRect = document.querySelector("#lightboxImageFrame")?.getBoundingClientRect();
-      if (!stageRect || !frameRect) return 0;
-      return stageRect.top - frameRect.top;
-    })).toBeGreaterThan(40);
+      const x = Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0;
+      const y = Number.parseFloat(element.style.getPropertyValue("--single-pan-y")) || 0;
+      return Math.max(Math.abs(zoom - 1), Math.abs(x), Math.abs(y));
+    })).toBeLessThanOrEqual(0.01);
 
     const continuedPosition = await frame.evaluate((element) => ({
       x: Number.parseFloat(element.style.getPropertyValue("--single-pan-x")) || 0,
@@ -1503,7 +1500,7 @@ test("shares favorites to a clean browser context without relying on local stora
 test("favorites workspace supports notes, ordering, filtering, focused sharing, and the shared inquiry dialog", async ({ page, browser }) => {
   test.skip(FAVORITES_WORKSPACE_CATALOGS.length < 2, "E2E requires at least two catalogs for filtering.");
   const items = [
-    { catalogId: FAVORITES_WORKSPACE_CATALOGS[0].id, page: 1, savedAt: 30 },
+    { catalogId: FAVORITES_WORKSPACE_CATALOGS[0].id, page: FAVORITES_WORKSPACE_CATALOGS[0].firstPage, savedAt: 30 },
     { catalogId: FAVORITES_WORKSPACE_CATALOGS[1].id, page: FAVORITES_WORKSPACE_CATALOGS[1].page, savedAt: 20 },
     { catalogId: FAVORITES_WORKSPACE_CATALOGS[0].id, page: FAVORITES_WORKSPACE_CATALOGS[0].page, savedAt: 10 }
   ];

@@ -20,7 +20,8 @@ const state = {
   viewerPageWheelSettleTimer: 0,
   viewerPageWheelAccumulator: 0,
   viewerPageWheelBasePage: 0,
-  viewerPageWheelTargetPage: 0
+  viewerPageWheelTargetPage: 0,
+  viewerPageWheelResetGestureActive: false
 };
 const stageCanvas = { clientWidth: 800, clientHeight: 800 };
 let metrics = { overflowX: 40, overflowY: 100 };
@@ -216,11 +217,8 @@ assert.deepEqual(
   "ordinary scrolling at automatic zoom keeps the continuous-reading page origin"
 );
 
-// Continuous wheel/trackpad input must continue to reach boundary pan after a page turn.
-globalThis.consumeSingleViewerPanInput = () => {
-  boundaryInputs += 1;
-  return { moved: true, remainingDeltaX: 0, remainingDeltaY: 0 };
-};
+// A trailing delta from the same manual-zoom edge gesture must not skip the
+// freshly opened page after the view has been reset.
 let prevented = 0;
 const wheelEvent = {
   deltaX: 0,
@@ -229,9 +227,35 @@ const wheelEvent = {
   currentTarget: null,
   preventDefault() { prevented += 1; }
 };
+state.zoom = 2;
+boundaryInputs = 0;
+boundaryPanResult = { moved: false, remainingDeltaX: 0, remainingDeltaY: 18 };
+globalThis.consumeSingleViewerPanInput = () => {
+  boundaryInputs += 1;
+  return boundaryPanResult;
+};
+const moveCountBeforeWheelReset = moveCalls.length;
+assert.equal(navigation.handleViewerPageWheel(wheelEvent), true);
+assert.equal(moveCalls.length, moveCountBeforeWheelReset + 1);
+assert.equal(state.viewerPageWheelResetGestureActive, true);
+boundaryPanResult = { moved: true, remainingDeltaX: 0, remainingDeltaY: 0 };
+assert.equal(navigation.handleViewerPageWheel(wheelEvent), true);
+assert.equal(boundaryInputs, 1, "the trailing delta is owned by the completed reset gesture");
+assert.equal(moveCalls.length, moveCountBeforeWheelReset + 1, "the trailing delta must not issue a second page command");
+navigation.clearViewerPageWheelGesture();
+
+// Automatic-fit boundary panning remains continuous because no manual view was
+// reset and every event still belongs to the reading stream.
+state.zoom = 1;
+boundaryInputs = 0;
+globalThis.consumeSingleViewerPanInput = () => {
+  boundaryInputs += 1;
+  return { moved: true, remainingDeltaX: 0, remainingDeltaY: 0 };
+};
 assert.equal(navigation.handleViewerPageWheel(wheelEvent), true);
 assert.equal(navigation.handleViewerPageWheel(wheelEvent), true);
-assert.equal(boundaryInputs, 2, "continuous wheel/trackpad events must reach the newly opened image without a settle pause");
-assert.equal(prevented, 2);
+assert.equal(boundaryInputs, 2, "automatic-fit wheel events must continue to reach boundary pan");
+assert.equal(prevented, 4);
+navigation.clearViewerPageWheelGesture();
 
 console.log("viewer_page_turn_pan_logic.test.js: PASS");

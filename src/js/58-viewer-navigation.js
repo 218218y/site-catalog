@@ -69,6 +69,23 @@ function clearViewerPageWheelGesture() {
   viewerState.viewerPageWheelAccumulator = 0;
   viewerState.viewerPageWheelBasePage = 0;
   viewerState.viewerPageWheelTargetPage = 0;
+  viewerState.viewerPageWheelResetGestureActive = false;
+}
+
+function scheduleViewerPageWheelSettle() {
+  window.clearTimeout(viewerState.viewerPageWheelSettleTimer);
+  viewerState.viewerPageWheelSettleTimer = window.setTimeout(
+    settleViewerPageWheelGesture,
+    VIEWER_PAGE_WHEEL_SETTLE_MS
+  );
+}
+
+function holdViewerPageWheelAfterManualReset() {
+  viewerState.viewerPageWheelAccumulator = 0;
+  viewerState.viewerPageWheelBasePage = 0;
+  viewerState.viewerPageWheelTargetPage = 0;
+  viewerState.viewerPageWheelResetGestureActive = true;
+  scheduleViewerPageWheelSettle();
 }
 
 /** @param {number} rawDelta @param {number} deltaMode @param {number} [viewportSize] */
@@ -209,9 +226,19 @@ function handleViewerPageWheel(event) {
 
   event.preventDefault();
 
+  // A wheel/trackpad stream can emit trailing deltas after a zoomed edge turn.
+  // That turn resets the manual view, so the remainder belongs to the gesture
+  // that already changed page and must not immediately skip another page.
+  if (viewerState.viewerPageWheelResetGestureActive) {
+    scheduleViewerPageWheelSettle();
+    return true;
+  }
+
   if (singleViewerUsesBoundaryPan()) {
+    const resetManualView = !isAutoViewerZoom();
     clearViewerPageWheelGesture();
-    consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: true });
+    const boundary = consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: true });
+    if (boundary.turned && resetManualView) holdViewerPageWheelAfterManualReset();
     return true;
   }
 
@@ -252,11 +279,7 @@ function handleViewerPageWheel(event) {
     );
   }
 
-  window.clearTimeout(viewerState.viewerPageWheelSettleTimer);
-  viewerState.viewerPageWheelSettleTimer = window.setTimeout(
-    settleViewerPageWheelGesture,
-    VIEWER_PAGE_WHEEL_SETTLE_MS
-  );
+  scheduleViewerPageWheelSettle();
   return true;
 }
 
@@ -271,7 +294,8 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     getViewerPageTurnNavigationOptions,
     moveLightboxFromPageTurn,
     consumeSingleViewerBoundaryInput,
-    handleViewerPageWheel
+    handleViewerPageWheel,
+    clearViewerPageWheelGesture
   });
 }
 /* TEST-ONLY EXPORTS: END */

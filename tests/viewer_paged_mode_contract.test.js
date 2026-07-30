@@ -38,6 +38,7 @@ assert.match(stateSource, /singleImagePendingRelativePosition: null/);
 assert.match(stateSource, /singleImagePendingPageTurnOrigin: null/);
 assert.match(stateSource, /viewerTouchMomentumRaf: 0/);
 assert.match(stateSource, /viewerPageWheelAccumulator: 0/);
+assert.match(stateSource, /viewerPageWheelResetGestureActive: false/);
 assert.doesNotMatch(stateSource, /viewerPageWheelLocked|viewerPageWheelUnlockTimer|singlePageTurnPointerId/);
 
 assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?classList\.add\("viewer-layout-paged"\)/);
@@ -68,7 +69,9 @@ assert.doesNotMatch(navigation, /remainingDeltaX[\s\S]{0,240}page-turn intent/);
 assert.match(navigation, /function getViewerPageTurnNavigationOptions\(direction, axis = "y", options = \{\}\)[\s\S]*?resetViewOnPageTurn[\s\S]*?!isAutoViewerZoom\(\)[\s\S]*?keepZoom: false[\s\S]*?resetZoom: true[\s\S]*?resetPosition: true[\s\S]*?positionMode: "auto"/);
 assert.match(navigation, /function getViewerPageTurnNavigationOptions\(direction, axis = "y", options = \{\}\)[\s\S]*?keepZoom: true[\s\S]*?positionMode: "page-turn"[\s\S]*?pageTurnDirection: step/);
 assert.match(navigation, /function moveLightboxFromPageTurn\(direction, axis = "y", options = \{\}\)[\s\S]*?getViewerPageTurnNavigationOptions\(step, axis, options\)/);
-assert.match(navigation, /if \(singleViewerUsesBoundaryPan\(\)\)[\s\S]*?consumeSingleViewerBoundaryInput\(deltaX, deltaY, \{ resetViewOnPageTurn: true \}\)/);
+assert.match(navigation, /if \(viewerState\.viewerPageWheelResetGestureActive\)[\s\S]*?scheduleViewerPageWheelSettle\(\)/);
+assert.match(navigation, /if \(singleViewerUsesBoundaryPan\(\)\)[\s\S]*?const resetManualView = !isAutoViewerZoom\(\)[\s\S]*?consumeSingleViewerBoundaryInput\(deltaX, deltaY, \{ resetViewOnPageTurn: true \}\)[\s\S]*?boundary\.turned && resetManualView[\s\S]*?holdViewerPageWheelAfterManualReset\(\)/);
+assert.match(navigation, /handleViewerPageWheel,[\s\S]*?clearViewerPageWheelGesture/);
 assert.doesNotMatch(navigation, /viewerPageWheelLocked|keepViewerPageWheelLockedUntilSettle|unlockViewerPageWheel/);
 assert.doesNotMatch(navigation, /renderViewerScrollPages|scrollTop|scrollIntoView|viewerScroll/);
 

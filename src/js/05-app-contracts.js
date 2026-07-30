@@ -109,6 +109,7 @@
  * @property {number} viewerPageWheelBasePage
  * @property {number} viewerPageWheelTargetPage
  * @property {number} viewerPageWheelSettleTimer
+ * @property {boolean} viewerPageWheelResetGestureActive
  * @property {boolean} viewerOnboardingOpen
  * @property {boolean} viewerOnboardingShownThisSession
  * @property {number} viewerOnboardingStep

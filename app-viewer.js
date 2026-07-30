@@ -2002,6 +2002,7 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,
   viewerPageWheelSettleTimer: 0,
+  viewerPageWheelResetGestureActive: !1,
   viewerOnboardingOpen: !1,
   viewerOnboardingShownThisSession: !1,
   viewerOnboardingStep: 0,
@@ -4644,7 +4645,16 @@ function canMoveLightbox(direction) {
   return current + step >= 0 && current + step <= getViewerNavigationMaximumPosition();
 }
 function clearViewerPageWheelGesture() {
-  window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = 0, viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0;
+  window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = 0, viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0, viewerState.viewerPageWheelResetGestureActive = !1;
+}
+function scheduleViewerPageWheelSettle() {
+  window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = window.setTimeout(
+    settleViewerPageWheelGesture,
+    VIEWER_PAGE_WHEEL_SETTLE_MS
+  );
+}
+function holdViewerPageWheelAfterManualReset() {
+  viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0, viewerState.viewerPageWheelResetGestureActive = !0, scheduleViewerPageWheelSettle();
 }
 function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0) {
   let pageMode = typeof WheelEvent < "u" ? WheelEvent.DOM_DELTA_PAGE : 2;
@@ -4724,8 +4734,12 @@ function handleViewerPageWheel(event) {
   if (!isViewerSessionOpen() || !activeCatalog()) return !1;
   let { deltaX, deltaY } = normalizeViewerPageWheelDeltas(event);
   if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return !1;
-  if (event.preventDefault(), singleViewerUsesBoundaryPan())
-    return clearViewerPageWheelGesture(), consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: !0 }), !0;
+  if (event.preventDefault(), viewerState.viewerPageWheelResetGestureActive)
+    return scheduleViewerPageWheelSettle(), !0;
+  if (singleViewerUsesBoundaryPan()) {
+    let resetManualView = !isAutoViewerZoom();
+    return clearViewerPageWheelGesture(), consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: !0 }).turned && resetManualView && holdViewerPageWheelAfterManualReset(), !0;
+  }
   let logicalDelta = getViewerPageWheelLogicalDelta(deltaX, deltaY);
   if (Math.abs(logicalDelta) < 0.01) return !0;
   if (!viewerState.viewerPageWheelBasePage) {
@@ -4749,10 +4763,7 @@ function handleViewerPageWheel(event) {
       )
     );
   }
-  return window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = window.setTimeout(
-    settleViewerPageWheelGesture,
-    VIEWER_PAGE_WHEEL_SETTLE_MS
-  ), !0;
+  return scheduleViewerPageWheelSettle(), !0;
 }
 
 // src/js/62-viewer-actions.js

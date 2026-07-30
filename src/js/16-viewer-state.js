@@ -103,6 +103,7 @@ const viewerState = {
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,
   viewerPageWheelSettleTimer: 0,
+  viewerPageWheelResetGestureActive: false,
   viewerOnboardingOpen: false,
   viewerOnboardingShownThisSession: false,
   viewerOnboardingStep: 0,
