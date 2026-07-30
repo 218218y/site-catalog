@@ -9,6 +9,7 @@ const root = path.join(__dirname, '..');
 const app = readAllBundles();
 const css = readAllCssBundles();
 const catalogCssSource = fs.readFileSync(path.join(root, 'src/css/10-catalog.css'), 'utf8');
+const shellCssSource = fs.readFileSync(path.join(root, 'src/css/06-shell-components.css'), 'utf8');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const favorites = fs.readFileSync(path.join(root, 'favorites.html'), 'utf8');
@@ -57,6 +58,26 @@ assert.match(css, /@keyframes image-placeholder-sheen/);
 assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?contain:\s*layout paint style/);
 assert.doesNotMatch(css, /width var\(--image-swap-duration\)|height var\(--image-swap-duration\)/);
 assert.match(css, /\.viewer-page-indicator\s*\{/);
+
+const topNavRule = shellCssSource.match(/\.top-nav\s*\{([\s\S]*?)\}/);
+assert.ok(topNavRule, 'top navigation layout rule should exist');
+assert.match(topNavRule[1], /overflow:\s*hidden/, 'top navigation must retain responsive clipping');
+assert.match(topNavRule[1], /padding-block:\s*6px/, 'clipped navigation must leave room for the rounded focus ring');
+
+const topNavLinkRule = shellCssSource.match(/\.top-nav a\s*\{([\s\S]*?)\}/);
+assert.ok(topNavLinkRule, 'top navigation link rule should exist');
+assert.match(topNavLinkRule[1], /border-radius:\s*999px/, 'category navigation controls must remain pill-shaped');
+const topNavLinkShadows = [...topNavLinkRule[1].matchAll(/box-shadow:\s*([^;]+);/g)].map((match) => match[1].trim());
+assert.deepEqual(topNavLinkShadows.length, 1, 'category navigation should define one intentional elevation treatment');
+assert.match(topNavLinkShadows[0], /^inset\b/, 'clipped category navigation must not restore a rectangular outer shadow');
+
+const topNavHoverRule = shellCssSource.match(/\.top-nav a:hover,\s*\.top-nav a:focus-visible\s*\{([\s\S]*?)\}/);
+assert.ok(topNavHoverRule, 'top navigation hover/focus rule should exist');
+assert.match(topNavHoverRule[1], /box-shadow:\s*inset\b[^;]*;/, 'hover elevation must remain inset within the rounded control');
+
+const topNavActiveRule = shellCssSource.match(/\.top-nav \.category-nav-link\.active,\s*\.top-nav \.category-nav-link\[aria-current="location"\]\s*\{([\s\S]*?)\}/);
+assert.ok(topNavActiveRule, 'active category navigation rule should exist');
+assert.match(topNavActiveRule[1], /box-shadow:\s*inset\b[^;]*;/, 'active category elevation must remain inset within the rounded control');
 
 const pageGridRule = catalogCssSource.match(/\.page-grid\s*\{([\s\S]*?)\}/);
 assert.ok(pageGridRule, 'catalog page grid rule should exist');
