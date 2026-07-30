@@ -59,3 +59,11 @@ def test_cleanup_never_descends_into_dependency_or_build_directories(tmp_path: P
     assert MODULE.clean_project_artifacts(tmp_path, check=True) == ()
     MODULE.clean_project_artifacts(tmp_path)
     assert all(path.exists() for path in protected)
+
+
+def test_pytest_cache_is_redirected_to_the_artifact_root(pytestconfig) -> None:
+    cache_dir = Path(str(pytestconfig.getini("cache_dir")))
+
+    assert cache_dir.as_posix() == ".artifacts/pytest-cache"
+    assert cache_dir.parts[0] in MODULE.IGNORED_DIRECTORY_NAMES
+    assert not cache_dir.is_absolute()

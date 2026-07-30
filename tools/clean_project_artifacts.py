@@ -22,6 +22,8 @@ RETIRED_CATALOG_SEARCH_ARTIFACTS: tuple[str, ...] = (
     "catalogs.search.js",
     "catalogs.search.json",
 )
+# Pytest writes its active cache under .artifacts/pytest-cache via pytest.ini.
+# Keep the historical root path here so old working trees are cleaned once.
 LOCAL_CACHE_DIRECTORIES: tuple[str, ...] = (".pytest_cache",)
 IGNORED_DIRECTORY_NAMES: frozenset[str] = frozenset({".git", ".venv", "node_modules", "dist", ".artifacts"})
 
