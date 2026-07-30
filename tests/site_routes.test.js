@@ -46,7 +46,18 @@ assert.equal(routes.pageFromLocation({ pathname: '/favorites/' }), 'favorites');
 assert.equal(routes.pageFromLocation({ pathname: '/' }), 'home');
 assert.equal(routes.matchPageFromLocation({ pathname: '/catalog/abc/' }), 'catalog');
 assert.equal(routes.matchPageFromLocation({ pathname: '/catalog/abc/page/4/' }), 'viewer');
+assert.equal(routes.matchPageFromLocation({ pathname: '/' }, 'viewer'), 'home');
+assert.equal(routes.matchPageFromLocation({ pathname: '/favorites.html' }, 'viewer'), 'favorites');
+assert.equal(routes.matchPageFromLocation({ pathname: '/unknown-page' }, 'catalog'), 'catalog');
 assert.equal(routes.matchPageFromLocation({ pathname: '/unknown-page' }), '');
+assert.deepEqual(
+  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/', search: '' }, 'viewer'))),
+  { page: 'home', catalogId: '', currentPage: 1, source: 'catalog' }
+);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog/opening-tbi-2026/page/4/', search: '' }, 'home'))),
+  { page: 'viewer', catalogId: 'opening-tbi-2026', currentPage: 4, source: 'catalog' }
+);
 assert.equal(routes.isDocumentLocation({ pathname: '/catalog/abc/page/4/' }), true);
 assert.equal(routes.isDocumentLocation({ pathname: '/unknown-page' }), false);
 assert.equal(routes.basePathFromLocation({ pathname: '/favorites' }, 'favorites'), '/');

@@ -26,6 +26,15 @@ const visualSpec = fs.readFileSync(path.join(root, "tests", "e2e", "visual-compo
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
 const prepublishGate = fs.readFileSync(path.join(root, "docs", "prepublish-quality-gate.md"), "utf8");
 
+function pngDimensions(relativePath) {
+  const buffer = fs.readFileSync(path.join(root, relativePath));
+  assert.equal(buffer.toString("ascii", 1, 4), "PNG", `${relativePath} must be a PNG file`);
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20)
+  };
+}
+
 assert.match(packageJson.devDependencies?.["@playwright/test"] || "", /^\^?1\./);
 assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
 assert.equal(packageJson.scripts["test:e2e"], "playwright test");
@@ -109,5 +118,14 @@ for (const relative of [
 ]) {
   assert.equal(fs.existsSync(path.join(root, relative)), true, `Missing ${relative}`);
 }
+
+// A stale pixel baseline with a different width cannot ever satisfy the visual
+// fixture contract. Keep this cheap check platform-independent so Windows runs
+// catch baseline drift before Linux CI performs the canonical pixel comparison.
+assert.equal(
+  pngDimensions("tests/e2e/__screenshots__/favorites-workspace.png").width,
+  1120,
+  "favorites workspace baseline must match VISUAL_FIXTURE_MAX_WIDTH"
+);
 
 console.log("browser_e2e_contract.test.js: PASS");

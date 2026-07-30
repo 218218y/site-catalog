@@ -100,10 +100,11 @@ function shellDocumentMatch(pathname) {
 
 /** @param {LocationLike} locationLike @param {unknown} [declaredPage] @returns {SitePage|""} */
 function matchPageFromLocation(locationLike, declaredPage = "") {
-  if (String(declaredPage || "").trim()) return normalizePage(declaredPage);
-  return cleanCatalogRouteMatch(locationLike?.pathname)?.page
+  const locationPage = cleanCatalogRouteMatch(locationLike?.pathname)?.page
     || shellDocumentMatch(locationLike?.pathname)?.page
     || "";
+  if (locationPage) return locationPage;
+  return String(declaredPage || "").trim() ? normalizePage(declaredPage) : "";
 }
 
 /** @param {LocationLike} locationLike @param {unknown} [declaredPage] @returns {SitePage} */

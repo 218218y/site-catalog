@@ -72,7 +72,8 @@ function shellDocumentMatch(pathname) {
   return match ? { page: match[0], baseSegments: segments.slice(0, -1) } : null;
 }
 function matchPageFromLocation(locationLike, declaredPage = "") {
-  return String(declaredPage || "").trim() ? normalizePage(declaredPage) : cleanCatalogRouteMatch(locationLike?.pathname)?.page || shellDocumentMatch(locationLike?.pathname)?.page || "";
+  let locationPage = cleanCatalogRouteMatch(locationLike?.pathname)?.page || shellDocumentMatch(locationLike?.pathname)?.page || "";
+  return locationPage || (String(declaredPage || "").trim() ? normalizePage(declaredPage) : "");
 }
 function pageFromLocation(locationLike, declaredPage = "") {
   return matchPageFromLocation(locationLike, declaredPage) || PAGE_HOME;
