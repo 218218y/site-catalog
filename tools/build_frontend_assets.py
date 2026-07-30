@@ -136,6 +136,35 @@ MODULE_NAME_PATTERN = re.compile(r"^(?P<order>\d{2})-[a-z0-9-]+\.(?P<extension>j
 ESBUILD_RUNNER = Path(__file__).with_name("build_frontend_esbuild.mjs")
 CSS_CASCADE_LAYER = "bargig.application"
 
+
+def ensure_local_esbuild() -> None:
+    """Provision only the pinned local esbuild packages when they are absent."""
+
+    try:
+        from bootstrap_esbuild_offline import (
+            CORE_ARCHIVE,
+            PLATFORM_ARCHIVES,
+            current_platform_key,
+            install_esbuild,
+            installation_is_current,
+        )
+    except ImportError as error:
+        raise RuntimeError("Cannot load the repository-local esbuild bootstrap") from error
+
+    root = project_root()
+    try:
+        platform_spec = PLATFORM_ARCHIVES[current_platform_key()]
+    except RuntimeError as error:
+        raise RuntimeError(str(error)) from error
+    if installation_is_current(root, CORE_ARCHIVE) and installation_is_current(root, platform_spec):
+        return
+    try:
+        install_esbuild(root, verify_runtime=False, quiet=True)
+    except RuntimeError as error:
+        raise RuntimeError(
+            "esbuild is unavailable and the verified offline bootstrap failed: " + str(error)
+        ) from error
+
 @dataclass(frozen=True)
 class FrontendBuildResult:
     output: Path
@@ -355,6 +384,7 @@ def _partition_metafile_inputs(
 
 def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
     validate_js_spec(root, spec)
+    ensure_local_esbuild()
     capabilities = {
         "viewer": False, "favoritesWorkspace": False, "catalogGrid": False, "search": False,
         **dict(spec.capabilities or {}),
@@ -368,7 +398,16 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
             "--outfile", str(raw_output), "--metafile", str(metafile_path),
             "--capabilities", json.dumps(capabilities, separators=(",", ":")),
         ]
-        completed = subprocess.run(command, cwd=root, text=True, capture_output=True, check=False)
+        environment = os.environ.copy()
+        environment.pop("ESBUILD_BINARY_PATH", None)
+        completed = subprocess.run(
+            command,
+            cwd=root,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
         if completed.returncode:
             details = (completed.stderr or completed.stdout).strip()
             raise RuntimeError(f"esbuild failed for {spec.output_name}: {details}")

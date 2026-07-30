@@ -514,6 +514,23 @@ npm run setup
 `npm run setup` מכין את סביבת Python המקומית `.venv` ומתקין את Chromium המבודד של Playwright. אפשר במקום זאת להריץ את `.20-setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
 גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`, ו־Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`. גרסת Node המומלצת ל־CI ולפיתוח נשמרת ב־`.nvmrc`.
 
+### סביבת esbuild מקומית ללא התקנת npm מלאה
+
+לבדיקת קוד, עבודה בצ'אט ובניית קובצי ה־frontend אין צורך להתקין Playwright, Wrangler ושאר עץ התלויות. הפרויקט כולל ארכיונים נעולים תחת `vendor/npm/esbuild` ומתקין מהם רק את `esbuild` ואת הבינארי המתאים למערכת:
+
+```bash
+python tools/bootstrap_esbuild_offline.py
+python tools/build_frontend_assets.py --check
+```
+
+המנגנון תומך ב־Linux x64, Linux ARM64 ו־Windows x64, מאמת את חתימות SHA-512 מה־lockfile ואינו פונה לרשת או מפעיל `npm`. כלי בניית ה־frontend מפעיל את ה־bootstrap הזה אוטומטית כאשר `esbuild` חסר. אפשר לבדוק התקנה קיימת ללא שינוי באמצעות:
+
+```bash
+python tools/bootstrap_esbuild_offline.py --check
+```
+
+ההתקנה המלאה באמצעות `npm ci` עדיין נדרשת לעבודות שבאמת משתמשות ב־TypeScript, Wrangler, Playwright או במסלול האימות המלא.
+
 גרסאות npm חדשות חוסמות install scripts של תלויות שלא נבדקו. `package.json` מאשר במפורש רק את `esbuild`, `sharp` ו־`workerd`; הגרסאות המדויקות שלהן עדיין נעולות ב־`package-lock.json`. בסוף `npm ci` רץ `tools/check_node_install_scripts.js`, שמפעיל בפועל את הבינאריים ואת Wrangler ונכשל בהודעה ברורה אם סקריפט נדרש נחסם או התקנה בינארית נפגמה. אין לאשר חבילות נוספות אוטומטית בלי לבדוק מדוע הן מבקשות install script.
 
 הפקודות המרכזיות:

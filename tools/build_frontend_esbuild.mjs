@@ -26,7 +26,7 @@ function parseArguments(argv) {
 const args = parseArguments(process.argv.slice(2));
 if (esbuildVersion !== EXPECTED_ESBUILD_VERSION) {
   throw new Error(
-    `Unsupported esbuild version ${esbuildVersion}; expected ${EXPECTED_ESBUILD_VERSION}. Run npm ci.`,
+    `Unsupported esbuild version ${esbuildVersion}; expected ${EXPECTED_ESBUILD_VERSION}. Run python tools/bootstrap_esbuild_offline.py (or npm ci for the full toolchain).`,
   );
 }
 

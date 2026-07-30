@@ -6,6 +6,8 @@
   "scripts": {
     "setup": "npm run setup:python && npm run setup:browsers",
     "setup:python": "python tools/setup_python_env.py",
+    "setup:esbuild:offline": "python tools/bootstrap_esbuild_offline.py",
+    "check:esbuild:offline": "python tools/bootstrap_esbuild_offline.py --check",
     "setup:browsers": "playwright install chromium",
     "build": "npm run build:local",
     "build:frontend": "python tools/build_frontend_assets.py",
