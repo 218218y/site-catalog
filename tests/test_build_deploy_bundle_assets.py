@@ -42,6 +42,7 @@ def test_image_delivery_policy_is_part_of_bundle_freshness_inputs() -> None:
     inputs = {path.relative_to(ROOT).as_posix() for path in MODULE.discover_build_input_paths(ROOT)}
     assert "catalog-assets.config.js" in inputs
     assert "tools/catalog_image_policy.py" in inputs
+    assert "tools/optimize_deploy_assets.mjs" in inputs
 
 
 def test_catalog_authoritative_sources_and_compiler_are_bundle_freshness_inputs() -> None:
@@ -362,6 +363,32 @@ def test_search_runtime_assets_are_fingerprinted_before_runtime_bundle(tmp_path:
     assert 'static/static/' not in runtime
 
 
+def test_minified_search_runtime_keeps_valid_fingerprinted_dynamic_urls(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    for relative in ("catalog-search.js", "catalog-search-worker.js", "catalogs.search-index.json"):
+        write_asset(out, relative, (ROOT / relative).read_bytes())
+
+    worker_stats = MODULE.optimize_deploy_assets(
+        out,
+        ({"path": "catalog-search-worker.js", "kind": "script"},),
+    )
+    targets = MODULE.fingerprint_search_runtime_assets(out)
+    runtime_stats = MODULE.optimize_deploy_assets(
+        out,
+        MODULE.DEPLOY_OPTIMIZATION_POST_SEARCH_ASSETS,
+    )
+    runtime = (out / "catalog-search.js").read_text(encoding="utf-8")
+
+    assert worker_stats.bytes_after < worker_stats.bytes_before
+    assert runtime_stats.bytes_after < runtime_stats.bytes_before
+    assert MODULE.FINGERPRINTED_SEARCH_WORKER_URL_RE.search(runtime).group("url") == targets["catalog-search-worker.js"]
+    assert MODULE.FINGERPRINTED_SEARCH_INDEX_URL_RE.search(runtime).group("url") == Path(
+        targets["catalogs.search-index.json"]
+    ).name
+    assert "SEARCH_WORKER_SCRIPT_SRC" not in runtime
+    assert "SEARCH_INDEX_DATA_SRC" not in runtime
+
+
 def test_search_runtime_validation_rejects_missing_dynamic_asset(tmp_path: Path) -> None:
     out = tmp_path / "bundle"
     assets = write_search_runtime_bundle(out)
@@ -390,6 +417,95 @@ def test_deployment_release_id_is_shared_deterministic_and_option_sensitive() ->
     assert first.startswith("deploy-")
     assert len(first) == len("deploy-") + 16
     assert changed != first
+
+
+def test_deploy_code_assets_receive_production_only_standard_minification(tmp_path: Path) -> None:
+    out = tmp_path / "bundle"
+    specs = (
+        *MODULE.DEPLOY_OPTIMIZATION_PRE_SEARCH_ASSETS,
+        *MODULE.DEPLOY_OPTIMIZATION_POST_SEARCH_ASSETS,
+    )
+    source_contents: dict[str, bytes] = {}
+    for spec in specs:
+        relative = spec["path"]
+        source = ROOT / relative
+        content = source.read_bytes()
+        source_contents[relative] = content
+        write_asset(out, relative, content)
+
+    release_id = "deploy-0123456789abcdef"
+    MODULE.stamp_deployment_release_id(out, release_id)
+    stats = MODULE.combine_optimization_stats(
+        MODULE.optimize_deploy_assets(out, MODULE.DEPLOY_OPTIMIZATION_PRE_SEARCH_ASSETS),
+        MODULE.optimize_deploy_assets(out, MODULE.DEPLOY_OPTIMIZATION_POST_SEARCH_ASSETS),
+    )
+
+    assert stats.files == len(specs)
+    assert stats.bytes_after < stats.bytes_before
+    assert stats.bytes_saved == stats.bytes_before - stats.bytes_after
+    assert MODULE.build_options_payload(
+        external_assets_url="https://cdn.example.com",
+        seo_mode="private",
+    )["frontendOptimizationProfile"] == MODULE.DEPLOY_OPTIMIZATION_PROFILE
+
+    for spec in specs:
+        relative = spec["path"]
+        optimized = (out / relative).read_text(encoding="utf-8")
+        source_text = source_contents[relative].decode("utf-8")
+        assert (ROOT / relative).read_bytes() == source_contents[relative]
+        assert (out / relative).stat().st_size < len(source_contents[relative]) + 80
+        assert "sourceMappingURL=" not in optimized
+        assert optimized.endswith("\n")
+        if source_text.count("\n") >= 10:
+            assert optimized.count("\n") < source_text.count("\n") // 5
+        if spec["kind"] == "esm":
+            assert f'window.__BARGIG_RELEASE_ID__="{release_id}"' in optimized
+            assert optimized.count(f'window.__BARGIG_RELEASE_ID__="{release_id}"') == 1
+            assert "GENERATED FILE — DO NOT EDIT DIRECTLY" not in optimized
+        elif spec["kind"] == "css" and relative.startswith("styles"):
+            assert "@layer bargig.application" in optimized
+            assert "BEGIN SOURCE:" not in optimized
+
+
+def test_deploy_optimizer_fails_before_partial_output_when_an_asset_is_missing(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "bundle"
+    specs = MODULE.DEPLOY_OPTIMIZATION_PRE_SEARCH_ASSETS
+    first = specs[0]["path"]
+    write_asset(out, first, (ROOT / first).read_bytes())
+    original = (out / first).read_bytes()
+
+    with pytest.raises(FileNotFoundError, match="Cannot optimize missing deploy assets"):
+        MODULE.optimize_deploy_assets(out, specs)
+
+    assert (out / first).read_bytes() == original
+
+
+def test_deploy_optimizer_commits_nothing_when_esbuild_rejects_one_asset(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "bundle"
+    specs = MODULE.DEPLOY_OPTIMIZATION_PRE_SEARCH_ASSETS
+    originals: dict[str, bytes] = {}
+    for spec in specs:
+        relative = spec["path"]
+        content = (
+            b".component { color: red; padding: 0 1rem; }\n"
+            if spec["kind"] == "css"
+            else b"const descriptiveLocalName = 1; window.example = descriptiveLocalName;\n"
+        )
+        originals[relative] = content
+        write_asset(out, relative, content)
+    broken = next(spec["path"] for spec in reversed(specs) if spec["kind"] != "css")
+    write_asset(out, broken, b"const = ;\n")
+    originals[broken] = b"const = ;\n"
+
+    with pytest.raises(RuntimeError, match="Deploy asset optimization failed"):
+        MODULE.optimize_deploy_assets(out, specs)
+
+    for relative, content in originals.items():
+        assert (out / relative).read_bytes() == content
 
 
 def test_route_bundles_receive_one_shared_replaceable_release_stamp(tmp_path: Path) -> None:

@@ -32,7 +32,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 import time
 import zipfile
 from dataclasses import dataclass
@@ -45,7 +47,11 @@ try:
 except ModuleNotFoundError:  # Direct execution
     from project_mutation import MutationBusyError, ProjectMutationLock, ProjectTransaction
 
-from build_frontend_assets import DEPLOY_GENERATED_FILES as FRONTEND_GENERATED_FILES, build_frontend_assets
+from build_frontend_assets import (
+    DEPLOY_GENERATED_FILES as FRONTEND_GENERATED_FILES,
+    build_frontend_assets,
+    ensure_local_esbuild,
+)
 from catalog_compiler import compile_current_project_catalog_data
 from catalog_image_policy import (
     DEFAULT_CATALOG_IMAGE_DELIVERY_MODE,
@@ -129,6 +135,26 @@ DEPLOY_APP_FILES = tuple(
     name for name in FRONTEND_GENERATED_FILES
     if name.startswith("app-") and name.endswith(".js")
 )
+
+
+def deploy_optimization_kind(relative: str) -> str:
+    if relative.endswith(".css"):
+        return "css"
+    if relative in DEPLOY_APP_FILES:
+        return "esm"
+    if relative.endswith(".js"):
+        return "script"
+    raise ValueError(f"Unsupported deploy optimization asset: {relative}")
+
+
+DEPLOY_OPTIMIZATION_PRE_SEARCH_ASSETS = tuple(
+    {"path": relative, "kind": deploy_optimization_kind(relative)}
+    for relative in DEPLOY_FILES
+    if relative.endswith((".css", ".js")) and relative != "catalog-search.js"
+)
+DEPLOY_OPTIMIZATION_POST_SEARCH_ASSETS = (
+    {"path": "catalog-search.js", "kind": "script"},
+)
 ALL_FINGERPRINTED_EXTENSIONS = FINGERPRINTED_EXTENSIONS | DYNAMIC_FINGERPRINTED_EXTENSIONS
 # Root documents retained for unit-test fixtures; deploy fingerprinting discovers nested HTML dynamically.
 FINGERPRINT_HTML_FILES = tuple(page.filename for page in PAGE_DOCUMENTS) + ("404.html",)
@@ -141,12 +167,24 @@ FINGERPRINT_SOURCE_HTML_FILES = tuple(
 HASHED_ASSET_FILENAME_RE = re.compile(
     r"^(?P<stem>.+)\.(?P<digest>[0-9a-f]{12})\.(?P<extension>css|js|json)$"
 )
-SEARCH_WORKER_RUNTIME_RE = re.compile(r'const SEARCH_WORKER_SCRIPT_SRC = "(?P<url>[^"]+)";')
-SEARCH_INDEX_RUNTIME_RE = re.compile(r'const SEARCH_INDEX_DATA_SRC = "(?P<url>[^"]+)";')
+SEARCH_WORKER_RUNTIME_RE = re.compile(
+    r'\bSEARCH_WORKER_SCRIPT_SRC\s*=\s*"(?P<url>[^"]+)"'
+)
+SEARCH_INDEX_RUNTIME_RE = re.compile(
+    r'\bSEARCH_INDEX_DATA_SRC\s*=\s*"(?P<url>[^"]+)"'
+)
+FINGERPRINTED_SEARCH_WORKER_URL_RE = re.compile(
+    r'"(?P<url>static/catalog-search-worker\.[0-9a-f]{12}\.js)"'
+)
+FINGERPRINTED_SEARCH_INDEX_URL_RE = re.compile(
+    r'"(?P<url>(?:static/)?catalogs\.search-index\.[0-9a-f]{12}\.json)"'
+)
 
 ARTIFACT_STATE_SCHEMA = 2
 ARTIFACT_STATE_SUFFIX = ".build.json"
-BUILD_SIGNATURE_VERSION = "site-bundle-v5"
+BUILD_SIGNATURE_VERSION = "site-bundle-v6"
+DEPLOY_OPTIMIZATION_PROFILE = "standard-minified-v1"
+DEPLOY_OPTIMIZER = Path(__file__).with_name("optimize_deploy_assets.mjs")
 LEGACY_ARTIFACT_DIRS = (
     "dist/seo-private",
     "dist/seo-public",
@@ -190,6 +228,7 @@ BUILD_TOOL_FILES = (
     "tools/build_deploy_bundle.py",
     "tools/build_site_pages.py",
     "tools/build_frontend_assets.py",
+    "tools/optimize_deploy_assets.mjs",
     "tools/build_big_pages_viewer.py",
     "tools/catalog_compiler.py",
     "tools/catalog_schema.py",
@@ -205,6 +244,17 @@ BUILD_TOOL_FILES = (
 class CopyStats:
     files: int
     bytes: int
+
+
+@dataclass(frozen=True)
+class DeployOptimizationStats:
+    files: int
+    bytes_before: int
+    bytes_after: int
+
+    @property
+    def bytes_saved(self) -> int:
+        return self.bytes_before - self.bytes_after
 
 
 def project_root() -> Path:
@@ -282,6 +332,7 @@ def build_options_payload(
         "confirmPublicIndexing": bool(confirm_public_indexing),
         "includeJson": bool(include_json),
         "includeBigPagesViewer": bool(include_big_pages_viewer),
+        "frontendOptimizationProfile": DEPLOY_OPTIMIZATION_PROFILE,
     }
 
 
@@ -575,6 +626,111 @@ def write_asset_config(root: Path, out_dir: Path, base_url: str) -> CopyStats:
     return CopyStats(files=1, bytes=target.stat().st_size)
 
 
+def optimize_deploy_assets(
+    out_dir: Path,
+    assets: Sequence[Mapping[str, str]],
+) -> DeployOptimizationStats:
+    """Minify one explicit deploy asset set with an all-or-nothing transform pass.
+
+    Checked-in files remain reviewable and contract-testable. Only copied files
+    inside the staging deployment artifact receive whitespace/comment removal
+    and local identifier mangling. Property names and browser globals remain
+    untouched, and no source maps are emitted.
+    """
+
+    ensure_local_esbuild()
+    normalized_assets = [dict(item) for item in assets]
+    if not normalized_assets:
+        raise ValueError("Deploy optimization requires at least one asset")
+    missing = [
+        item["path"]
+        for item in normalized_assets
+        if not (out_dir / item["path"]).is_file()
+    ]
+    if missing:
+        raise FileNotFoundError(
+            "Cannot optimize missing deploy assets: " + ", ".join(missing)
+        )
+
+    with tempfile.TemporaryDirectory(prefix="bargig-deploy-optimize-") as temporary_dir:
+        temporary = Path(temporary_dir)
+        manifest_path = temporary / "manifest.json"
+        report_path = temporary / "report.json"
+        manifest_path.write_text(
+            json.dumps(
+                {"profile": DEPLOY_OPTIMIZATION_PROFILE, "assets": normalized_assets},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ) + "\n",
+            encoding="utf-8",
+        )
+        environment = os.environ.copy()
+        environment.pop("ESBUILD_BINARY_PATH", None)
+        completed = subprocess.run(
+            [
+                "node",
+                str(DEPLOY_OPTIMIZER),
+                "--root",
+                str(out_dir),
+                "--manifest",
+                str(manifest_path),
+                "--report",
+                str(report_path),
+            ],
+            cwd=project_root(),
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode:
+            details = (completed.stderr or completed.stdout).strip()
+            raise RuntimeError(f"Deploy asset optimization failed: {details}")
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError("Deploy optimizer did not produce a valid report") from error
+
+    if report.get("profile") != DEPLOY_OPTIMIZATION_PROFILE:
+        raise RuntimeError("Deploy optimizer reported an unexpected optimization profile")
+    if report.get("esbuildVersion") != "0.28.1":
+        raise RuntimeError("Deploy optimizer reported an unexpected esbuild version")
+    report_assets = report.get("assets")
+    if not isinstance(report_assets, list):
+        raise RuntimeError("Deploy optimizer report is missing its asset inventory")
+    actual_paths = [item.get("path") for item in report_assets if isinstance(item, dict)]
+    expected_paths = [item["path"] for item in normalized_assets]
+    if actual_paths != expected_paths:
+        raise RuntimeError(
+            f"Deploy optimizer asset inventory drifted; expected={expected_paths}, actual={actual_paths}"
+        )
+
+    try:
+        before = sum(int(item["beforeBytes"]) for item in report_assets)
+        after = sum(int(item["afterBytes"]) for item in report_assets)
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError("Deploy optimizer report contains invalid byte counts") from error
+    if before <= 0 or after <= 0 or after >= before:
+        raise RuntimeError(
+            f"Deploy optimization did not reduce the code payload: before={before}, after={after}"
+        )
+    return DeployOptimizationStats(
+        files=len(report_assets),
+        bytes_before=before,
+        bytes_after=after,
+    )
+
+
+def combine_optimization_stats(
+    *stats: DeployOptimizationStats,
+) -> DeployOptimizationStats:
+    return DeployOptimizationStats(
+        files=sum(item.files for item in stats),
+        bytes_before=sum(item.bytes_before for item in stats),
+        bytes_after=sum(item.bytes_after for item in stats),
+    )
+
+
 def content_hash(path: Path, length: int = 12) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()[:length]
 
@@ -673,12 +829,12 @@ def fingerprint_search_runtime_assets(out_dir: Path) -> dict[str, str]:
     worker_runtime_url = targets["catalog-search-worker.js"]
     index_runtime_url = Path(targets["catalogs.search-index.json"]).name
     runtime_text, worker_replacements = SEARCH_WORKER_RUNTIME_RE.subn(
-        f'const SEARCH_WORKER_SCRIPT_SRC = "{worker_runtime_url}";',
+        f'SEARCH_WORKER_SCRIPT_SRC = "{worker_runtime_url}"',
         runtime_text,
         count=1,
     )
     runtime_text, index_replacements = SEARCH_INDEX_RUNTIME_RE.subn(
-        f'const SEARCH_INDEX_DATA_SRC = "{index_runtime_url}";',
+        f'SEARCH_INDEX_DATA_SRC = "{index_runtime_url}"',
         runtime_text,
         count=1,
     )
@@ -968,8 +1124,8 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
     else:
         runtime_text = (out_dir / search_runtime_assets[0]).read_text(encoding="utf-8", errors="replace")
         dynamic_specs = (
-            (SEARCH_WORKER_RUNTIME_RE, "catalog-search-worker", ".js", "worker"),
-            (SEARCH_INDEX_RUNTIME_RE, "catalogs.search-index", ".json", "search index"),
+            (FINGERPRINTED_SEARCH_WORKER_URL_RE, "catalog-search-worker", ".js", "worker"),
+            (FINGERPRINTED_SEARCH_INDEX_URL_RE, "catalogs.search-index", ".json", "search index"),
         )
         for runtime_pattern, expected_stem, expected_suffix, label in dynamic_specs:
             match = runtime_pattern.search(runtime_text)
@@ -1410,7 +1566,19 @@ def _main_unlocked() -> int:
             raise RuntimeError(
                 f"Expected to stamp {len(DEPLOY_APP_FILES)} route bundles, stamped {stamped_bundles}"
             )
+        pre_search_optimization = optimize_deploy_assets(
+            staging_dir,
+            DEPLOY_OPTIMIZATION_PRE_SEARCH_ASSETS,
+        )
         fingerprinted_search_assets = fingerprint_search_runtime_assets(staging_dir)
+        post_search_optimization = optimize_deploy_assets(
+            staging_dir,
+            DEPLOY_OPTIMIZATION_POST_SEARCH_ASSETS,
+        )
+        optimization_stats = combine_optimization_stats(
+            pre_search_optimization,
+            post_search_optimization,
+        )
         fingerprinted_assets = fingerprint_source_assets(
             root,
             staging_dir,
@@ -1447,6 +1615,13 @@ def _main_unlocked() -> int:
         print("[seo] Clean category, catalog and page-sharing routes were generated.")
         print(f"[assets] R2/CDN catalog images: {args.external_assets_url}")
         print(f"[release] Shared deployment telemetry id: {release_id}")
+        print(
+            f"[optimize] {DEPLOY_OPTIMIZATION_PROFILE}: "
+            f"{optimization_stats.files} deploy CSS/JS assets, "
+            f"{format_bytes(optimization_stats.bytes_before)} -> "
+            f"{format_bytes(optimization_stats.bytes_after)} "
+            f"({format_bytes(optimization_stats.bytes_saved)} saved); source maps disabled."
+        )
         print("[assets] assets/pages was intentionally not copied into the Cloudflare Pages upload folder.")
         if fingerprinted_assets:
             print(

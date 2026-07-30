@@ -15,6 +15,7 @@ npm run verify
 - חוזי Frontend,‏ JSDoc/`checkJs` וסמלי runtime לכל Route bundle.
 - בדיקות Python וחוזי JavaScript.
 - בניית Deploy נקייה ובדיקת תקציבי גודל.
+- אימות שכל קובצי ה־CSS וה־JavaScript בתוצר הפרסום עברו `standard-minified-v1`, שה־release id וכתובות Search הדינמיות נכללו לפני ה־fingerprint ושלא פורסמו source maps.
 - Playwright Chromium מול תוצרי הפריסה, לא מול קובצי המקור.
 - מובייל, מקלדת בלבד, אחסון מקומי חסום וקטלוג גדול.
 - חיפוש מהיר תחת האטת CPU פי 4 והוכחה שתוצאה ישנה אינה מצוירת.
