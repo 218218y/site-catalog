@@ -32,11 +32,17 @@
  * @typedef {Object} CatalogSearchResult
  * @property {string} [catalogId]
  * @property {number|string} [page]
- * @property {CatalogRecord} [catalog]
+ * @property {CatalogRecord|null} [catalog]
  * @property {string} [title]
  * @property {string} [excerpt]
  * @property {string} [kind]
  * @property {string} [resultType]
+ * @property {string} [label]
+ * @property {string} [category]
+ * @property {string} [subcategory]
+ * @property {number} [score]
+ * @property {number} [sourceOrder]
+ * @property {string} [matchField]
  * @property {string} [targetId]
  * @property {string} [catalogTitle]
  * @property {string} [image]
@@ -196,6 +202,12 @@
  * @property {()=>({persisted:boolean, reason:string})} status
  * @property {()=>FavoriteMutationResult|null} lastMutation
  * @property {(item:FavoriteItem)=>boolean} has
+ * @property {(item:FavoriteItem)=>boolean} add
+ * @property {(item:FavoriteItem)=>FavoriteMutationResult} addDetailed
+ * @property {(item:FavoriteItem, patch:Partial<FavoriteItem>)=>boolean} update
+ * @property {(item:FavoriteItem, patch:Partial<FavoriteItem>)=>FavoriteMutationResult} updateDetailed
+ * @property {(keys:string[])=>boolean} reorder
+ * @property {(keys:string[])=>FavoriteMutationResult} reorderDetailed
  * @property {(item:FavoriteItem)=>boolean} toggle
  * @property {(item:FavoriteItem)=>FavoriteMutationResult} toggleDetailed
  * @property {(item:FavoriteItem)=>boolean} remove
@@ -234,7 +246,7 @@
  * @typedef {Object} InquiryReference
  * @property {string} kind
  * @property {string} source
- * @property {CatalogRecord} [catalog]
+ * @property {CatalogRecord|null} [catalog]
  * @property {number} [page]
  * @property {Array<FavoriteEntry>} [entries]
  * @property {number} [count]

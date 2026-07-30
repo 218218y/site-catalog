@@ -6,6 +6,7 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+import { tooltips } from "../runtime/tooltip-manager.js";
 import { eventTargetElement, requiredElement } from "./02-dom-contracts.js";
 import { catalogs } from "./03-runtime-context.js";
 import { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_EAGER_COVER_COUNT, CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY, CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE, CATALOG_IMAGE_PRELOAD_CACHE_LIMIT, CATALOG_IMAGE_RETRY_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, DEFAULT_CATALOG_MEDIUM_MAX_SIDE, catalogAssetState, featureInterfacesByEscapePriority, getFeatureInterface, uiRuntime } from "./10-app-state.js";
@@ -671,19 +672,13 @@ function clampPage(page, catalog = activeCatalog()) {
 
 /** @param {Element|null|undefined} button */
 function getTooltipText(button) {
-  return window.BargigTooltips?.getText?.(button || null) || button?.getAttribute?.("title") || "";
+  return tooltips.getText(button || null) || button?.getAttribute?.("title") || "";
 }
 
 /** @param {Element|null|undefined} button @param {string} text @param {Record<string, unknown>} [options] */
 function setTooltipText(button, text, options = {}) {
   if (!button) return;
-  if (window.BargigTooltips?.setText) {
-    window.BargigTooltips.setText(button, text, options);
-    return;
-  }
-
-  if (text) button.setAttribute("title", text);
-  else button.removeAttribute("title");
+  tooltips.setText(button, text, options);
 }
 
 /** @param {Element|null|undefined} button @param {string} message */

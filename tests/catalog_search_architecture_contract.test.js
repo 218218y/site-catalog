@@ -7,7 +7,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const compiler = fs.readFileSync(path.join(root, "tools/catalog_compiler.py"), "utf8");
 const indexBuilder = fs.readFileSync(path.join(root, "tools/catalog_search_index.py"), "utf8");
-const runtime = fs.readFileSync(path.join(root, "catalog-search.js"), "utf8");
+const runtime = fs.readFileSync(path.join(root, "src/runtime/catalog-search.js"), "utf8");
 const worker = fs.readFileSync(path.join(root, "catalog-search-worker.js"), "utf8");
 const searchUi = fs.readFileSync(path.join(root, "src/js/50-search-ui.js"), "utf8");
 const searchDomain = fs.readFileSync(path.join(root, "src/js/39-search-catalog-domain.js"), "utf8");
@@ -23,10 +23,11 @@ assert.match(indexBuilder, /normalize_search_text/);
 assert.match(indexBuilder, /"terms": normalized_postings/);
 
 assert.match(runtime, /new Worker\(SEARCH_WORKER_SCRIPT_SRC/);
-assert.match(runtime, /worker\.postMessage\(\{\s*type: "search"/);
+assert.match(runtime, /activeWorker\.postMessage\(\{\s*type: "search"/);
 assert.match(runtime, /latestRequestByChannel/);
 assert.match(runtime, /SearchCancelledError/);
-assert.doesNotMatch(runtime, /window\.BARGIG_CATALOG_SEARCH/);
+assert.doesNotMatch(runtime, /window\.BargigCatalogSearch/);
+assert.match(runtime, /export \{[\s\S]*catalogSearch/);
 assert.doesNotMatch(runtime, /searchIndex\(\)\.forEach/);
 
 assert.match(worker, /async function resolveTokenDocuments/);
@@ -51,10 +52,11 @@ assert.doesNotMatch(postIndexRefresh, /render(?:Lightbox)?SearchResults\(/);
 assert.match(searchUi, /searchCatalogDomain\.searchResultDetailsMarkup\(result\)/);
 assert.match(searchDomain, /search-match-highlight/);
 assert.match(searchDomain, /עמוד \$\{page\}/);
-assert.match(searchUi, /catalogSearch\?\.cancel\?\.\("global"\)/);
-assert.match(searchUi, /catalogSearch\?\.cancel\?\.\("viewer"\)/);
+assert.match(searchUi, /catalogSearch\.cancel\("global"\)/);
+assert.match(searchUi, /catalogSearch\.cancel\("viewer"\)/);
 
 assert.match(deploy, /fingerprint_search_runtime_assets/);
+assert.match(deploy, /fingerprint_runtime_modules/);
 assert.match(deploy, /catalog-search-worker\.js/);
 assert.match(deploy, /catalogs\.search-index\.json/);
 assert.doesNotMatch(deploy.split("DEPLOY_FILES =", 2)[1].split("OPTIONAL_DEPLOY_FILES", 1)[0], /catalogs\.search\.js/);

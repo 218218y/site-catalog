@@ -15,7 +15,7 @@ const viewer = fs.readFileSync(path.join(root, "src/js/60-viewer.js"), "utf8");
 const searchUi = fs.readFileSync(path.join(root, "src/js/50-search-ui.js"), "utf8");
 const favorites = fs.readFileSync(path.join(root, "src/js/35-favorites-workspace.js"), "utf8");
 const converter = fs.readFileSync(path.join(root, "tools/build_catalogs.py"), "utf8");
-const searchRuntime = fs.readFileSync(path.join(root, "catalog-search.js"), "utf8");
+const searchRuntime = fs.readFileSync(path.join(root, "src/runtime/catalog-search.js"), "utf8");
 const remoteVerifier = fs.readFileSync(path.join(root, "tools/verify_remote_catalog_assets.py"), "utf8");
 const assetConfig = fs.readFileSync(path.join(root, "catalog-assets.config.js"), "utf8");
 

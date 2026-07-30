@@ -8,20 +8,21 @@
 
 import { favoritesDocumentUrl, homeDocumentUrl, navigateTo, updateDocumentMetadata } from "./00-navigation.js";
 import { catalogs, siteRoutes } from "./03-runtime-context.js";
-import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { telemetryInit } from "./15-telemetry.js";
 import { clearActiveLocation, navigationFeature } from "./18-navigation-feature.js";
 import { findCatalogById, handleTopLayerEscape, initImagePlaceholderObserver, recoverCatalogImageAfterInitialFailure, syncDocumentLock } from "./20-shared-ui.js";
 
 function attachShellEvents() {
+  const catalogGrid = requireFeatureInterface("catalog-grid");
+  const search = requireFeatureInterface("search");
+
   document.addEventListener("click", (event) => {
     const target = event.target;
-    const catalogGrid = getFeatureInterface("catalog-grid");
-    if (catalogGrid && !catalogGrid.containsMenuTarget(target)) catalogGrid.closeMobileMenu();
+    if (!catalogGrid.containsMenuTarget(target)) catalogGrid.closeMobileMenu();
 
-    const search = getFeatureInterface("search");
-    if (search?.handleDocumentPointer(target)) return;
+    if (search.handleDocumentPointer(target)) return;
 
     const catalogDetail = getFeatureInterface("catalog-detail");
     if (catalogDetail?.containsTarget(target)) return;
@@ -29,14 +30,14 @@ function attachShellEvents() {
   });
 
   window.addEventListener("resize", () => {
-    getFeatureInterface("catalog-grid")?.handleResize();
-    getFeatureInterface("search")?.handleResize();
+    catalogGrid.handleResize();
+    search.handleResize();
     getFeatureInterface("viewer")?.handleResize();
   });
 
   window.addEventListener("scroll", () => {
-    getFeatureInterface("search")?.handleScroll();
-    getFeatureInterface("catalog-grid")?.handleScroll();
+    search.handleScroll();
+    catalogGrid.handleScroll();
   }, { passive: true });
 
   window.addEventListener("keydown", (event) => {
@@ -47,16 +48,14 @@ function attachShellEvents() {
 }
 
 function attachFeatureEvents() {
-  const catalogGrid = getFeatureInterface("catalog-grid");
-  if (catalogGrid) bindFeatureEventsOnce("catalog-grid", catalogGrid.attachEvents);
+  const catalogGrid = requireFeatureInterface("catalog-grid");
+  const search = requireFeatureInterface("search");
+  const favorites = requireFeatureInterface("favorites");
 
-  const search = getFeatureInterface("search");
-  if (search) bindFeatureEventsOnce("search-ui", search.attachEvents);
-
+  bindFeatureEventsOnce("catalog-grid", catalogGrid.attachEvents);
+  bindFeatureEventsOnce("search-ui", search.attachEvents);
   bindFeatureEventsOnce("shell", attachShellEvents);
-
-  const favorites = getFeatureInterface("favorites");
-  if (favorites) bindFeatureEventsOnce("favorites-share", favorites.attachEvents);
+  bindFeatureEventsOnce("favorites-share", favorites.attachEvents);
 
   const inquiry = getFeatureInterface("inquiry");
   if (inquiry) bindFeatureEventsOnce("inquiry", inquiry.attachEvents);
@@ -69,10 +68,14 @@ function attachFeatureEvents() {
 
 /** @param {string} nextPage */
 function prepareDocumentRoute(nextPage) {
+  const favorites = requireFeatureInterface("favorites");
+  const catalogGrid = requireFeatureInterface("catalog-grid");
+  const search = requireFeatureInterface("search");
+
   getFeatureInterface("viewer")?.prepareRoute(nextPage);
-  getFeatureInterface("favorites")?.prepareRoute(nextPage);
-  getFeatureInterface("catalog-grid")?.prepareRoute(nextPage);
-  getFeatureInterface("search")?.prepareRoute(nextPage);
+  favorites.prepareRoute(nextPage);
+  catalogGrid.prepareRoute(nextPage);
+  search.prepareRoute(nextPage);
   navigationFeature().setAppPage(nextPage);
   navigationFeature().syncRouteShell(nextPage);
   syncDocumentLock();
@@ -80,17 +83,14 @@ function prepareDocumentRoute(nextPage) {
 
 /** @param {{scrollPosition?:ScrollPosition|null}} [options] */
 function initDocumentRoute(options = {}) {
-  const route = siteRoutes?.parseLocation(window.location) || {
-    page: navigationFeature().appPage(),
-    catalogId: "",
-    currentPage: 1,
-    source: LIGHTBOX_SOURCE_CATALOG
-  };
+  const route = siteRoutes.parseLocation(window.location, navigationFeature().appPage());
+  const favorites = requireFeatureInterface("favorites");
+  const catalogGrid = requireFeatureInterface("catalog-grid");
 
   prepareDocumentRoute(route.page);
   if (route.page === "home") {
     clearActiveLocation();
-    getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash({
+    catalogGrid.syncCategoryFocusFromHash({
       animate: false,
       scroll: Boolean(window.location.hash)
     });
@@ -101,7 +101,7 @@ function initDocumentRoute(options = {}) {
 
   if (route.page === "favorites") {
     clearActiveLocation();
-    getFeatureInterface("favorites")?.openRoute();
+    favorites.openRoute();
     navigationFeature().restoreScroll(options.scrollPosition);
     return true;
   }
@@ -113,14 +113,14 @@ function initDocumentRoute(options = {}) {
   }
 
   if (route.page === "catalog") {
-    getFeatureInterface("catalog-grid")?.openCatalog(catalog.id, { scrollBehavior: "auto" });
+    catalogGrid.openCatalog(catalog.id, { scrollBehavior: "auto" });
     navigationFeature().restoreScroll(options.scrollPosition);
     return true;
   }
 
   if (route.page === "viewer") {
     if (route.source === LIGHTBOX_SOURCE_FAVORITES) {
-      const entries = getFeatureInterface("favorites")?.entries() || [];
+      const entries = favorites.entries();
       const favoriteIndex = entries.findIndex((entry) => entry.catalog.id === catalog.id && entry.page === route.currentPage);
       if (favoriteIndex < 0) {
         navigateTo(favoritesDocumentUrl(), { replace: true });
@@ -142,19 +142,23 @@ function initDocumentRoute(options = {}) {
 }
 
 function initializeApplicationShell() {
+  const catalogGrid = requireFeatureInterface("catalog-grid");
+  const search = requireFeatureInterface("search");
+  const favorites = requireFeatureInterface("favorites");
+
   telemetryInit({ recoverCatalogImageAfterInitialFailure });
-  getFeatureInterface("catalog-grid")?.initialize();
+  catalogGrid.initialize();
   initImagePlaceholderObserver();
   attachFeatureEvents();
-  getFeatureInterface("search")?.initialize();
-  getFeatureInterface("favorites")?.syncUi();
+  search.initialize();
+  favorites.syncUi();
 
   if (!catalogs.length) {
-    getFeatureInterface("catalog-grid")?.renderEmptyState();
+    catalogGrid.renderEmptyState();
     return true;
   }
 
-  getFeatureInterface("catalog-grid")?.renderInitialContent();
+  catalogGrid.renderInitialContent();
   return initDocumentRoute();
 }
 

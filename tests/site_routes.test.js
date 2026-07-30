@@ -4,10 +4,11 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-global.window = undefined;
-global.document = { body: { dataset: { page: 'home' } } };
 global.location = { pathname: '/', search: '', origin: 'http://localhost:8080' };
-const routes = require(path.join(root, 'site-routes.js'));
+global.window = { location: global.location };
+global.document = { body: { dataset: { page: 'home' } } };
+const { importStandaloneRuntimeModule } = require('./frontend_test_module');
+const routes = importStandaloneRuntimeModule('src/runtime/site-routes.js');
 
 assert.ok(routes, 'route API should be exported');
 assert.equal(routes.homeUrl(), '/');

@@ -1,8 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { normalizeItems } = require('../favorites-store.js');
-const { importFrontendTestModule } = require('./frontend_test_module');
+const { importFrontendTestModule, importStandaloneRuntimeModule } = require('./frontend_test_module');
+const { normalizeItems } = importStandaloneRuntimeModule('src/runtime/favorites-store.js');
 
 const { createFavoritesPortabilityDomain } = importFrontendTestModule(
   'src/js/29-favorites-portability.js',

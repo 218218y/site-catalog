@@ -81,6 +81,18 @@ DYNAMIC_IMPORT_SPECIFIER_RE = re.compile(r"\bimport\s*\(\s*[\"\'](?P<specifier>[
 
 APPROVED_DYNAMIC_IMPORTS: Mapping[str, tuple[str, ...]] = {}
 APPROVED_ROOT_BROWSER_MODULES: tuple[str, ...] = ("catalog-snapshot.js",)
+EXTERNAL_RUNTIME_MODULES: tuple[str, ...] = (
+    "catalog-search.js",
+    "tooltip-manager.js",
+    "favorites-store.js",
+    "site-routes.js",
+)
+FORBIDDEN_RUNTIME_GLOBALS: tuple[str, ...] = (
+    "BargigCatalogSearch",
+    "BargigTooltips",
+    "BargigFavorites",
+    "BargigRoutes",
+)
 
 
 APPROVED_IMPORT_CYCLES: tuple[frozenset[str], ...] = (
@@ -163,6 +175,8 @@ def check_typecheck_configuration(base: Path, failures: list[str]) -> None:
         failures.append("jsconfig.json must type-check every src/js module via src/js/**/*.js")
     if "src/entries/**/*.js" not in include:
         failures.append("jsconfig.json must type-check every route entrypoint via src/entries/**/*.js")
+    if "src/runtime/**/*.js" not in include:
+        failures.append("jsconfig.json must type-check every external runtime module via src/runtime/**/*.js")
     for root_module in APPROVED_ROOT_BROWSER_MODULES:
         if root_module not in include:
             failures.append(f"jsconfig.json must type-check approved root browser module: {root_module}")
@@ -320,8 +334,10 @@ def check_bootstrap_boundary(base: Path, failures: list[str]) -> None:
     function_names = re.findall(r"\bfunction\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(", code)
     if function_names != ["init"]:
         failures.append("90-bootstrap.js must contain only the init startup function")
-    if 'getFeatureInterface("app-shell")?.initialize()' not in code:
-        failures.append("90-bootstrap.js must delegate startup to the app-shell feature")
+    if 'requireFeatureInterface("app-shell").initialize()' not in code:
+        failures.append("90-bootstrap.js must require the app-shell feature during startup")
+    if 'getFeatureInterface("app-shell")' in code:
+        failures.append("90-bootstrap.js must not allow a missing app-shell feature to become a silent no-op")
     executable_lines = [line for line in code.splitlines() if line.strip()]
     if len(executable_lines) > 18:
         failures.append("90-bootstrap.js contains orchestration or business logic instead of a minimal startup boundary")
@@ -524,15 +540,30 @@ def _has_legacy_top_level_iife_wrapper(source: str) -> bool:
 def check_frontend_contracts(root: Path | None = None) -> None:
     base = (root or project_root()).resolve()
     sources = sorted((base / "src" / "js").glob("*.js"))
+    runtime_sources = sorted((base / "src" / "runtime").glob("*.js"))
+    all_browser_sources = [*sources, *runtime_sources]
     combined = "\n".join(path.read_text(encoding="utf-8") for path in sources)
     code_without_comments = strip_javascript_comments(combined)
     code_without_imports = re.sub(r"^\s*import\b.*?;\s*$", "", code_without_comments, flags=re.MULTILINE)
     failures: list[str] = []
 
     check_typecheck_configuration(base, failures)
-    check_es_module_imports(base, sources, failures)
+    check_es_module_imports(base, all_browser_sources, failures)
     check_feature_registry(base, sources, failures)
     check_bootstrap_boundary(base, failures)
+
+    for path in [*runtime_sources, *(base / name for name in EXTERNAL_RUNTIME_MODULES)]:
+        if not path.is_file():
+            failures.append(f"external runtime module is missing: {path.relative_to(base).as_posix()}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        for global_name in FORBIDDEN_RUNTIME_GLOBALS:
+            if re.search(rf"\bwindow\.{re.escape(global_name)}\b", text):
+                failures.append(
+                    f"business runtime API leaked back onto window.{global_name}: "
+                    f"{path.relative_to(base).as_posix()}"
+                )
+
     check_test_strategy(base, failures)
     check_test_only_exports(base, sources, failures)
     check_css_architecture(base, failures)
@@ -717,10 +748,16 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         expected_tag = f'<script type="module" data-bargig-route-module src="{route_asset}"></script>'
         if expected_tag not in page_text:
             failures.append(f"{page_name} does not load {route_asset} as a native module")
+        for runtime_asset in EXTERNAL_RUNTIME_MODULES:
+            if f'<script src="{runtime_asset}"></script>' in page_text:
+                failures.append(f"{page_name} still loads business runtime {runtime_asset} as a classic script")
 
     template_text = (base / "site.template.html").read_text(encoding="utf-8")
     if '<script type="module" data-bargig-route-module src="{{ROUTE_SCRIPT}}"></script>' not in template_text:
         failures.append("site.template.html does not emit native route module scripts")
+    for runtime_asset in EXTERNAL_RUNTIME_MODULES:
+        if f'<script src="{runtime_asset}"></script>' in template_text:
+            failures.append(f"site.template.html still loads business runtime {runtime_asset} as a classic script")
 
     if failures:
         raise RuntimeError("Frontend contract check failed:\n  - " + "\n  - ".join(failures))

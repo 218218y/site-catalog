@@ -6,8 +6,8 @@
 - לכל קטלוג ולכל עמוד שיתוף נוצר קובץ HTML בכתובת נקייה, אך כולם משתמשים באותן תבניות ובאותו JavaScript משותף; אין תחזוקת HTML ידנית לכל קטלוג.
 - `site.template.html` ו-`legal.template.html` הם מקורות ה-HTML המשותפים, ו-`tools/build_site_pages.py` מייצר מהם את ששת הדפים הציבוריים.
 - `partials/site-footer.html` שומר את מבנה ועיצוב הפוטר, ו-`partials/site-footer.content.json` שומר רק את הטקסטים והפרטים הניתנים לעריכה.
-- קוד המקור של הממשק מחולק לפי תחומים תחת `src/js` ו־`src/css`; שלושה entrypoints נבנים ל־ES Modules נפרדים לפי מסלול, וכל מסלול מוריד רק את קוד ה־Features הדרוש לו.
-- `site-routes.js` מרכז את בניית הכתובות ופענוחן עבור מבנה הדפים הנוכחי.
+- קוד המקור של הממשק מחולק לפי תחומים תחת `src/js`, שירותי ESM חיצוניים תחת `src/runtime` ו־CSS תחת `src/css`; שלושה entrypoints נבנים ל־ES Modules נפרדים לפי מסלול, וכל מסלול מוריד רק את קוד ה־Features הדרוש לו.
+- `src/runtime/site-routes.js` מרכז את בניית הכתובות ופענוחן; תוצר `site-routes.js` נשאר asset נפרד ומיובא במפורש כדי לשמור cache משותף בין המסלולים.
 - האתר הסטטי עצמו עולה ל-Cloudflare Pages דרך Wrangler.
 - תמונות עמודי הקטלוגים נשמרות ומוגשות דרך Cloudflare R2 / CDN.
 - תיקיית `assets/pages` נשארת תיקיית עבודה מקומית וסנכרון ל-R2; היא לא מועתקת לתיקיית ההעלאה ל-Cloudflare Pages.
@@ -435,12 +435,13 @@ assets\pages
 index.html                         דף האתר הראשי
 src/css/                           מקורות העיצוב לפי תחומים; נערכים ידנית
 src/js/                            מקורות JavaScript לפי תחומים; נערכים ידנית
+src/runtime/                       שירותי ESM טיפוסיים וחיצוניים המשותפים למסלולים
 styles.css                         באנדל CSS שנוצר אוטומטית מכל src/css
 app-catalog.js                    ES Module שנוצר למסלולי הבית והקטלוג
 app-favorites.js                  ES Module שנוצר למסלול המועדפים
 app-viewer.js                     ES Module שנוצר למסלול ה־Viewer
 tools/build_frontend_assets.py    בנייה אטומית ובדיקת עדכניות של תוצרי הממשק
-catalog-search.js                  לקוח אסינכרוני לחיפוש בתוך הקטלוגים
+catalog-search.js                  תוצר ESM חיצוני ומפוענח של לקוח החיפוש; המקור תחת src/runtime
 catalog-search-worker.js           מנוע החיפוש שרץ מחוץ ל־Main Thread
 catalogs.search-index.json         אינדקס הפוך ומנורמל שנבנה מראש בזמן Build
 catalog-snapshot.js                מקור ESM לצילום עמוד; מיובא רק מ־Viewer ואינו נפרס כקובץ עצמאי
@@ -633,9 +634,9 @@ python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furni
 
 ## מנוע החיפוש ואינדקס הגרסה
 
-החיפוש הפעיל משתמש ב־`catalogs.search-index.json`, אינדקס הפוך ומנורמל שנבנה פעם אחת על ידי ה־Compiler. `catalog-search.js` מנהל בקשות וביטול שאילתות, ו־`catalog-search-worker.js` מבצע את איתור המועמדים, הדירוג והפקת קטעי ההתאמה מחוץ ל־Main Thread.
+החיפוש הפעיל משתמש ב־`catalogs.search-index.json`, אינדקס הפוך ומנורמל שנבנה פעם אחת על ידי ה־Compiler. `src/runtime/catalog-search.js` הוא המקור הטיפוסי שמנהל בקשות וביטול שאילתות, ותוצר `catalog-search.js` נשאר ESM חיצוני ונפרד משלושת ה־Route bundles. `catalog-search-worker.js` מבצע את איתור המועמדים, הדירוג והפקת קטעי ההתאמה מחוץ ל־Main Thread.
 
-בבאנדל הפריסה ה־Worker והאינדקס מקבלים שמות בעלי hash תחת `static/`. הנתיבים המדויקים נכתבים לתוך `catalog-search.js` לפני שגם הוא מקבל hash. בדיקת הבאנדל מאמתת את שרשרת שלושת הקבצים ואת תוכנם, ולכן דפדפן אינו יכול לשלב לקוח חדש עם Worker או אינדקס ישן.
+בבאנדל הפריסה ה־Worker והאינדקס מקבלים שמות בעלי hash תחת `static/`. הנתיבים המדויקים נכתבים לתוך `catalog-search.js` לפני שגם הוא מקבל hash; לאחר מכן imports של כל Route bundle נכתבים ל־runtime המפוענח. בדיקת הבאנדל מאמתת את השרשרת HTML → Route ESM → Search ESM → Worker/index ואת תוכן כל קובץ, ולכן דפדפן אינו יכול לשלב generations שונים.
 
 בדיקת הביצועים על מספר העמודים האמיתי זמינה ב־`npm run test:search-performance`, והיא נכללת גם בחוזי JavaScript של CI. בדיקת Playwright נוספת מפעילה האטת CPU פי 4 ומוודאת שהממשק נשאר מגיב ושרק תוצאת השאילתה האחרונה מוצגת. פירוט הארכיטקטורה נמצא ב־`docs/catalog-search-worker.md`.
 

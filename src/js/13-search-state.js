@@ -16,7 +16,7 @@ const searchState = {
   globalSearchOpen: false,
   lightboxSearchScope: "catalog",
   lightboxMobileSearchOpen: false,
-  searchIndexLoadState: catalogSearch?.isReady?.() ? "ready" : "idle",
+  searchIndexLoadState: catalogSearch.isReady() ? "ready" : "idle",
   searchIndexLoadPromise: null,
   searchIndexPreloadTimer: 0,
   searchPreviewSuppressUntil: 0,

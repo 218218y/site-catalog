@@ -210,7 +210,7 @@ test.describe("visual component regression", () => {
       bodyAttributes: 'data-page="catalog" data-app-ready="true"',
       viewport: { width: 900, height: 420 }
     });
-    await page.addScriptTag({ path: TOOLTIP_MANAGER_PATH });
+    await page.addScriptTag({ path: TOOLTIP_MANAGER_PATH, type: "module" });
 
     const mailLink = page.locator(".site-footer-email-link");
     await expect(mailLink).toHaveAttribute("data-tooltip", "פתיחה בתוכנת דואר");

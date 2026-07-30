@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const clients = [
-  ["client", require(path.join(root, "catalog-search.js"))],
+  ["client", require("./frontend_test_module").importStandaloneRuntimeModule("src/runtime/catalog-search.js")],
   ["worker", require(path.join(root, "catalog-search-worker.js"))],
 ];
 const vectors = JSON.parse(

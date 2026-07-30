@@ -49,6 +49,8 @@ except ModuleNotFoundError:  # Direct execution
 
 from build_frontend_assets import (
     DEPLOY_GENERATED_FILES as FRONTEND_GENERATED_FILES,
+    ROUTE_GENERATED_FILES,
+    RUNTIME_EXTERNAL_MODULES,
     build_frontend_assets,
     ensure_local_esbuild,
 )
@@ -81,12 +83,8 @@ DEPLOY_FILES = [
     "404.css",
     "https-redirect.js",
     *FRONTEND_GENERATED_FILES,
-    "catalog-search.js",
     "catalog-search-worker.js",
     "catalogs.search-index.json",
-    "tooltip-manager.js",
-    "favorites-store.js",
-    "site-routes.js",
     "catalog-assets.config.js",
     "brand-logo.svg",
     "brand-logo-header.svg",
@@ -132,15 +130,17 @@ FINGERPRINTED_ASSET_DIR = "static"
 FINGERPRINTED_EXTENSIONS = {".css", ".js"}
 DYNAMIC_FINGERPRINTED_EXTENSIONS = {".js", ".json"}
 DEPLOY_APP_FILES = tuple(
-    name for name in FRONTEND_GENERATED_FILES
+    name for name in ROUTE_GENERATED_FILES
     if name.startswith("app-") and name.endswith(".js")
 )
+DEPLOY_RUNTIME_MODULE_FILES = tuple(RUNTIME_EXTERNAL_MODULES.values())
+DEPLOY_ESM_FILES = frozenset((*DEPLOY_APP_FILES, *DEPLOY_RUNTIME_MODULE_FILES))
 
 
 def deploy_optimization_kind(relative: str) -> str:
     if relative.endswith(".css"):
         return "css"
-    if relative in DEPLOY_APP_FILES:
+    if relative in DEPLOY_ESM_FILES:
         return "esm"
     if relative.endswith(".js"):
         return "script"
@@ -153,7 +153,7 @@ DEPLOY_OPTIMIZATION_PRE_SEARCH_ASSETS = tuple(
     if relative.endswith((".css", ".js")) and relative != "catalog-search.js"
 )
 DEPLOY_OPTIMIZATION_POST_SEARCH_ASSETS = (
-    {"path": "catalog-search.js", "kind": "script"},
+    {"path": "catalog-search.js", "kind": "esm"},
 )
 ALL_FINGERPRINTED_EXTENSIONS = FINGERPRINTED_EXTENSIONS | DYNAMIC_FINGERPRINTED_EXTENSIONS
 # Root documents retained for unit-test fixtures; deploy fingerprinting discovers nested HTML dynamically.
@@ -179,10 +179,13 @@ FINGERPRINTED_SEARCH_WORKER_URL_RE = re.compile(
 FINGERPRINTED_SEARCH_INDEX_URL_RE = re.compile(
     r'"(?P<url>(?:static/)?catalogs\.search-index\.[0-9a-f]{12}\.json)"'
 )
+FINGERPRINTED_RUNTIME_IMPORT_RE = re.compile(
+    r'(?P<prefix>\bfrom\s*|\bimport\s*)(?P<quote>["\'])(?P<url>\./[^"\']+)(?P=quote)'
+)
 
 ARTIFACT_STATE_SCHEMA = 2
 ARTIFACT_STATE_SUFFIX = ".build.json"
-BUILD_SIGNATURE_VERSION = "site-bundle-v6"
+BUILD_SIGNATURE_VERSION = "site-bundle-v7"
 DEPLOY_OPTIMIZATION_PROFILE = "standard-minified-v1"
 DEPLOY_OPTIMIZER = Path(__file__).with_name("optimize_deploy_assets.mjs")
 LEGACY_ARTIFACT_DIRS = (
@@ -210,11 +213,7 @@ BUILD_INPUT_FILES = (
     "catalogs.search.js",
     "catalogs.search.json",
     "catalogs.search-index.json",
-    "catalog-search.js",
     "catalog-search-worker.js",
-    "tooltip-manager.js",
-    "favorites-store.js",
-    "site-routes.js",
     "catalog-snapshot.js",
     "catalog-assets.config.js",
     "favicon-loader.js",
@@ -844,6 +843,68 @@ def fingerprint_search_runtime_assets(out_dir: Path) -> dict[str, str]:
     return targets
 
 
+def fingerprint_runtime_modules(out_dir: Path) -> dict[str, str]:
+    """Fingerprint external ESM runtimes and rewrite route-bundle imports.
+
+    Runtime services stay independently cacheable instead of being duplicated in
+    every route bundle. Route bundles are still at the bundle root at this stage;
+    they are rewritten to sibling hashed module specifiers before both sides move
+    into ``static/``.
+    """
+
+    runtime_targets: dict[str, str] = {}
+    for logical_name in DEPLOY_RUNTIME_MODULE_FILES:
+        source = out_dir / logical_name
+        if not source.is_file():
+            raise FileNotFoundError(f"Cannot fingerprint missing runtime module: {logical_name}")
+        normalize_fingerprinted_text(source)
+        target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(source)
+        target = out_dir / target_relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            target.unlink()
+        shutil.move(str(source), str(target))
+        runtime_targets[logical_name] = target_relative.as_posix()
+
+    expected_specifiers = {
+        logical_name: f"./{Path(target_relative).name}"
+        for logical_name, target_relative in runtime_targets.items()
+    }
+    for app_name in DEPLOY_APP_FILES:
+        app_path = out_dir / app_name
+        if not app_path.is_file():
+            raise FileNotFoundError(f"Cannot rewrite runtime imports in missing route bundle: {app_name}")
+        app_text = app_path.read_text(encoding="utf-8", errors="strict")
+        replacement_counts: dict[str, int] = {}
+        for logical_name, target_specifier in expected_specifiers.items():
+            source_specifier = f"./{logical_name}"
+            pattern = re.compile(
+                rf'(?P<prefix>\bfrom\s*|\bimport\s*)(?P<quote>["\"])'
+                rf'{re.escape(source_specifier)}(?P=quote)'
+            )
+            app_text, count = pattern.subn(
+                lambda match: f'{match.group("prefix")}{match.group("quote")}{target_specifier}{match.group("quote")}',
+                app_text,
+            )
+            replacement_counts[logical_name] = count
+        missing_imports = sorted(name for name, count in replacement_counts.items() if count < 1)
+        if missing_imports:
+            raise ValueError(
+                f"Route bundle {app_name} does not import every external runtime module: {missing_imports}"
+            )
+        stale_specifiers = [
+            f"./{logical_name}" for logical_name in DEPLOY_RUNTIME_MODULE_FILES
+            if f"./{logical_name}" in app_text
+        ]
+        if stale_specifiers:
+            raise ValueError(
+                f"Unfingerprinted runtime imports remain in {app_name}: {sorted(stale_specifiers)}"
+            )
+        app_path.write_text(app_text, encoding="utf-8", newline="\n")
+
+    return runtime_targets
+
+
 def discover_bundle_html(out_dir: Path) -> list[Path]:
     """Return every deployed HTML document, including generated clean routes."""
 
@@ -947,7 +1008,7 @@ def fingerprint_source_assets(
             include_big_pages_viewer=include_big_pages_viewer,
         )
     )
-    for frontend_asset in FRONTEND_GENERATED_FILES:
+    for frontend_asset in ROUTE_GENERATED_FILES:
         if frontend_asset not in references:
             references.append(frontend_asset)
     return fingerprint_asset_references(out_dir, references)
@@ -1114,15 +1175,64 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
             f"found {sorted(found_route_scripts)}"
         )
 
-    search_runtime_assets = sorted(
-        asset for asset in referenced_assets if Path(asset).name.startswith("catalog-search.")
-    )
-    if len(search_runtime_assets) != 1:
+    expected_runtime_stems = {Path(name).stem for name in DEPLOY_RUNTIME_MODULE_FILES}
+    runtime_assets_by_stem: dict[str, str] = {}
+    for app_asset in app_assets:
+        app_relative = Path(app_asset)
+        app_text = (out_dir / app_relative).read_text(encoding="utf-8", errors="replace")
+        imported_runtime_stems: set[str] = set()
+        for import_match in FINGERPRINTED_RUNTIME_IMPORT_RE.finditer(app_text):
+            import_reference = import_match.group("url")
+            raw_import_path = Path(import_reference)
+            if raw_import_path.is_absolute() or ".." in raw_import_path.parts:
+                invalid_assets.append(f"{app_asset} -> {import_reference} (unsafe module import)")
+                continue
+            imported_relative = app_relative.parent / raw_import_path
+            imported_path = out_dir / imported_relative
+            if not imported_path.is_file():
+                missing_assets.append(f"{app_asset} -> {import_reference}")
+                continue
+            imported_name = HASHED_ASSET_FILENAME_RE.fullmatch(imported_relative.name)
+            if imported_name is None or imported_name.group("extension") != "js":
+                invalid_assets.append(
+                    f"{app_asset} -> {import_reference} (runtime module is not fingerprinted)"
+                )
+                continue
+            runtime_stem = imported_name.group("stem")
+            if runtime_stem not in expected_runtime_stems:
+                invalid_assets.append(
+                    f"{app_asset} -> {import_reference} (unexpected external runtime module)"
+                )
+                continue
+            if imported_name.group("digest") != cached_content_hash(imported_path):
+                invalid_assets.append(
+                    f"{app_asset} -> {import_reference} (filename hash does not match file contents)"
+                )
+                continue
+            prior_asset = runtime_assets_by_stem.setdefault(runtime_stem, imported_relative.as_posix())
+            if prior_asset != imported_relative.as_posix():
+                invalid_assets.append(
+                    f"multiple fingerprinted generations found for runtime module {runtime_stem}"
+                )
+                continue
+            imported_runtime_stems.add(runtime_stem)
+            referenced_assets.add(imported_relative.as_posix())
+
+        if imported_runtime_stems != expected_runtime_stems:
+            invalid_assets.append(
+                f"{app_asset} runtime import set drifted; expected {sorted(expected_runtime_stems)}, "
+                f"found {sorted(imported_runtime_stems)}"
+            )
+
+    if set(runtime_assets_by_stem) != expected_runtime_stems:
         invalid_assets.append(
-            f"expected one fingerprinted catalog-search.js reference, found {len(search_runtime_assets)}"
+            "fingerprinted external runtime inventory drifted; "
+            f"expected {sorted(expected_runtime_stems)}, found {sorted(runtime_assets_by_stem)}"
         )
-    else:
-        runtime_text = (out_dir / search_runtime_assets[0]).read_text(encoding="utf-8", errors="replace")
+
+    search_runtime_asset = runtime_assets_by_stem.get("catalog-search")
+    if search_runtime_asset:
+        runtime_text = (out_dir / search_runtime_asset).read_text(encoding="utf-8", errors="replace")
         dynamic_specs = (
             (FINGERPRINTED_SEARCH_WORKER_URL_RE, "catalog-search-worker", ".js", "worker"),
             (FINGERPRINTED_SEARCH_INDEX_URL_RE, "catalogs.search-index", ".json", "search index"),
@@ -1137,7 +1247,7 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
             if raw_dynamic_relative.is_absolute() or ".." in raw_dynamic_relative.parts:
                 invalid_assets.append(f"catalog-search.js -> {dynamic_reference} (unsafe path)")
                 continue
-            runtime_relative = Path(search_runtime_assets[0])
+            runtime_relative = Path(search_runtime_asset)
             dynamic_relative = (
                 raw_dynamic_relative
                 if raw_dynamic_relative.parts and raw_dynamic_relative.parts[0] == FINGERPRINTED_ASSET_DIR
@@ -1579,11 +1689,13 @@ def _main_unlocked() -> int:
             pre_search_optimization,
             post_search_optimization,
         )
+        fingerprinted_runtime_assets = fingerprint_runtime_modules(staging_dir)
         fingerprinted_assets = fingerprint_source_assets(
             root,
             staging_dir,
             include_big_pages_viewer=args.include_big_pages_viewer,
         )
+        fingerprinted_assets.update(fingerprinted_runtime_assets)
         fingerprinted_assets.update(fingerprinted_search_assets)
         rewrite_existing_bundle_html(staging_dir, fingerprinted_assets)
         asset_stage_seconds = time.perf_counter() - asset_stage_started

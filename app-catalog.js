@@ -25,6 +25,11 @@
  *   - src/js/50-search-ui.js
  *   - src/js/80-app-shell.js
  *   - src/js/90-bootstrap.js
+ * External runtime modules:
+ *   - src/runtime/catalog-search.js
+ *   - src/runtime/tooltip-manager.js
+ *   - src/runtime/favorites-store.js
+ *   - src/runtime/site-routes.js
  * Compiler virtual inputs: <define:__BARGIG_FEATURE_CAPABILITIES__>
  * Output format: native browser ES module
  * Bundler: esbuild 0.28.1 (direct pinned devDependency)
@@ -171,7 +176,9 @@ function eventTargetElement(target) {
 }
 
 // src/js/03-runtime-context.js
-var catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [], catalogSearch = window.BargigCatalogSearch || null, siteRoutes = window.BargigRoutes || null;
+import { catalogSearch } from "./catalog-search.js";
+import { siteRoutes } from "./site-routes.js";
+var catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
 
 // src/js/11-navigation-state.js
 var LIGHTBOX_SOURCE_CATALOG = "catalog", LIGHTBOX_SOURCE_FAVORITES = "favorites", navigationState = {
@@ -238,12 +245,12 @@ function coverThumbSrc(catalog) {
 }
 
 // src/js/00-navigation.js
-var currentAppPage = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home", IN_DOCUMENT_ROUTE_STATE_KEY = "__bargigInDocumentRoute", hasInDocumentRouteSession = !1;
+var currentAppPage = siteRoutes.pageFromLocation(window.location, document.body?.dataset?.page), IN_DOCUMENT_ROUTE_STATE_KEY = "__bargigInDocumentRoute", hasInDocumentRouteSession = !1;
 function isAppPage(page) {
   return currentAppPage === page;
 }
 function setCurrentAppPage(page) {
-  currentAppPage = siteRoutes?.normalizePage?.(page) || String(page || "home"), document.body && (document.body.dataset.page = currentAppPage);
+  currentAppPage = siteRoutes.normalizePage(page), document.body && (document.body.dataset.page = currentAppPage);
 }
 function historyStateWithRouteData(values = {}) {
   return { ...history.state && typeof history.state == "object" ? history.state : {}, [IN_DOCUMENT_ROUTE_STATE_KEY]: !0, ...values };
@@ -255,7 +262,7 @@ function saveCurrentRouteScrollPosition() {
   }), "", window.location.href);
 }
 function isInternalAppDocumentUrl(url) {
-  return !!(url && siteRoutes?.isSameAppDocumentLocation?.(window.location, url, currentAppPage));
+  return !!(url && siteRoutes.isSameAppDocumentLocation(window.location, url, currentAppPage));
 }
 function canNavigateWithinCurrentDocument(url) {
   return !!(featureCapabilities.viewer && getFeatureInterface("viewer")?.usesInDocumentFullscreenNavigation?.() && isInternalAppDocumentUrl(url));
@@ -307,20 +314,20 @@ function canReturnToSameSite() {
   }
 }
 function homeDocumentUrl() {
-  return siteRoutes?.homeUrl?.() || "index.html";
+  return siteRoutes.homeUrl();
 }
 function catalogDocumentUrl(catalogId) {
-  return siteRoutes?.catalogUrl?.(catalogId) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/`;
+  return siteRoutes.catalogUrl(catalogId);
 }
 function favoritesDocumentUrl() {
-  return siteRoutes?.favoritesUrl?.() || "favorites.html";
+  return siteRoutes.favoritesUrl();
 }
 function viewerDocumentUrl(catalogId, page = 1, options = {}) {
   let parsedPage = Number.parseInt(String(page), 10), routePage = Number.isFinite(parsedPage) && parsedPage >= 0 ? parsedPage : 1;
-  return siteRoutes?.viewerUrl?.(catalogId, routePage, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${routePage}/`;
+  return siteRoutes.viewerUrl(catalogId, routePage, options);
 }
 function categoryDocumentUrl(categorySlugValue, subcategorySlugValue = "") {
-  return siteRoutes?.categoryUrl?.(categorySlugValue, subcategorySlugValue) || homeDocumentUrl();
+  return siteRoutes.categoryUrl(categorySlugValue, subcategorySlugValue);
 }
 function absoluteDocumentUrl(relativeUrl) {
   return new URL(relativeUrl, document.baseURI || window.location.href).href;
@@ -426,7 +433,11 @@ function clearActiveLocation() {
   navigationFeature().clearLocation();
 }
 
+// src/js/30-favorites-share.js
+import { normalizeItems as normalizeFavoriteItems } from "./favorites-store.js";
+
 // src/js/14-favorites-state.js
+import { createStore } from "./favorites-store.js";
 var FAVORITES_SHARE_PARAM = "selection", FAVORITES_SHARE_VERSION = 2;
 function getFavoritesStorage() {
   try {
@@ -435,10 +446,7 @@ function getFavoritesStorage() {
     return null;
   }
 }
-var favoritesStore = (
-  /** @type {FavoritesStore|null} */
-  window.BargigFavorites?.createStore?.({ storage: getFavoritesStorage() }) || null
-), favoritesState = {
+var favoritesStore = createStore({ storage: getFavoritesStorage() }), favoritesState = {
   favoritesViewerIndex: 0,
   favoritesViewerOpeningHash: "",
   favoritesViewerPreviousCatalog: null,
@@ -953,6 +961,7 @@ function telemetryInit(options = {}) {
 }
 
 // src/js/20-shared-ui.js
+import { tooltips } from "./tooltip-manager.js";
 var uiElements = Object.freeze({
   siteActionToast: requiredElement("siteActionToast")
 });
@@ -1241,16 +1250,10 @@ function clampPage(page, catalog = activeCatalog()) {
   return clampCatalogPage(page, catalog);
 }
 function getTooltipText(button) {
-  return window.BargigTooltips?.getText?.(button || null) || button?.getAttribute?.("title") || "";
+  return tooltips.getText(button || null) || button?.getAttribute?.("title") || "";
 }
 function setTooltipText(button, text, options = {}) {
-  if (button) {
-    if (window.BargigTooltips?.setText) {
-      window.BargigTooltips.setText(button, text, options);
-      return;
-    }
-    text ? button.setAttribute("title", text) : button.removeAttribute("title");
-  }
+  button && tooltips.setText(button, text, options);
 }
 function flashActionButton(button, message) {
   if (!(button instanceof HTMLElement) || !message) return;
@@ -1532,7 +1535,7 @@ function getValidFavoriteItems() {
   });
 }
 var favoritesPortabilityDomain = createFavoritesPortabilityDomain({
-  normalizeItems: (values) => window.BargigFavorites?.normalizeItems?.(values) || [],
+  normalizeItems: normalizeFavoriteItems,
   findCatalogById,
   catalogs: () => catalogs,
   encodeBase64: (value) => window.btoa(value),
@@ -2037,13 +2040,16 @@ var searchCatalogDomain = (() => {
   });
 })();
 
+// src/js/50-search-ui.js
+import { tooltips as tooltips2 } from "./tooltip-manager.js";
+
 // src/js/13-search-state.js
 var SEARCH_INPUT_DEBOUNCE_MS = 90, SEARCH_INDEX_PRELOAD_DELAY_MS = 6e3, MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)", SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260, searchState = {
   globalSearchCategory: "",
   globalSearchOpen: !1,
   lightboxSearchScope: "catalog",
   lightboxMobileSearchOpen: !1,
-  searchIndexLoadState: catalogSearch?.isReady?.() ? "ready" : "idle",
+  searchIndexLoadState: catalogSearch.isReady() ? "ready" : "idle",
   searchIndexLoadPromise: null,
   searchIndexPreloadTimer: 0,
   searchPreviewSuppressUntil: 0,
@@ -2078,14 +2084,12 @@ var SEARCH_INPUT_DEBOUNCE_MS = 90, SEARCH_INDEX_PRELOAD_DELAY_MS = 6e3, MOBILE_R
 // src/js/50-search-ui.js
 var globalSearchRenderTimer = 0, lightboxSearchRenderTimer = 0, globalSearchAppendTimer = 0, globalSearchRenderSequence = 0, lightboxSearchRenderSequence = 0, lastGlobalSearchResults = [], lastLightboxSearchResults = [], lastGlobalSearchKey = "", lastLightboxSearchKey = "", GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 6, GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 6;
 function isSearchIndexReady() {
-  return !!catalogSearch?.isReady?.();
+  return catalogSearch.isReady();
 }
 function refreshSearchUiAfterIndexLoad() {
   initSearchStatus(), initLightboxSearchStatus();
 }
 function ensureSearchIndexLoaded(options = {}) {
-  if (!catalogSearch?.ensureReady)
-    return searchState.searchIndexLoadState = "error", Promise.reject(new Error("Catalog search runtime is unavailable"));
   if (isSearchIndexReady())
     return searchState.searchIndexLoadState = "ready", Promise.resolve(!0);
   if (searchState.searchIndexLoadPromise) return searchState.searchIndexLoadPromise;
@@ -2104,14 +2108,14 @@ function scheduleSearchIndexPreload() {
   }, SEARCH_INDEX_PRELOAD_DELAY_MS));
 }
 function cancelScheduledSearch(channel) {
-  channel === "global" ? (window.clearTimeout(globalSearchRenderTimer), window.clearTimeout(globalSearchAppendTimer), globalSearchRenderTimer = 0, globalSearchAppendTimer = 0, globalSearchRenderSequence += 1) : (window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = 0, lightboxSearchRenderSequence += 1), catalogSearch?.cancel?.(channel);
+  channel === "global" ? (window.clearTimeout(globalSearchRenderTimer), window.clearTimeout(globalSearchAppendTimer), globalSearchRenderTimer = 0, globalSearchAppendTimer = 0, globalSearchRenderSequence += 1) : (window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = 0, lightboxSearchRenderSequence += 1), catalogSearch.cancel(channel);
 }
 function cancelGlobalSearchResultAppend() {
   window.clearTimeout(globalSearchAppendTimer), globalSearchAppendTimer = 0;
 }
 function scheduleSearchRender(channel, query, options = {}) {
   let delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS, callback = channel === "global" ? () => renderSearchResults(query) : () => renderLightboxSearchResults(query);
-  catalogSearch?.cancel?.(channel), channel === "global" ? (cancelGlobalSearchResultAppend(), globalSearchRenderSequence += 1, window.clearTimeout(globalSearchRenderTimer), globalSearchRenderTimer = window.setTimeout(callback, delay)) : (lightboxSearchRenderSequence += 1, window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = window.setTimeout(callback, delay));
+  catalogSearch.cancel(channel), channel === "global" ? (cancelGlobalSearchResultAppend(), globalSearchRenderSequence += 1, window.clearTimeout(globalSearchRenderTimer), globalSearchRenderTimer = window.setTimeout(callback, delay)) : (lightboxSearchRenderSequence += 1, window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = window.setTimeout(callback, delay));
 }
 function getGlobalSearchCategories() {
   return getCatalogCategoryGroups().filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length).map((group) => ({ category: group.category }));
@@ -2246,7 +2250,7 @@ async function getLightboxSearchResults(query, limit = 24, control = {}) {
   let rawQuery = String(query || "").trim();
   if (rawQuery.length < 2) return [];
   if (await ensureSearchIndexLoaded({ trigger: "viewer-search" }), control.isCurrent && !control.isCurrent()) return [];
-  if (!catalogSearch?.hasIndex?.()) return [];
+  if (!catalogSearch.hasIndex()) return [];
   let options = { limit, channel: "viewer" };
   if (getLightboxSearchScope() !== "all") {
     let catalog = activeCatalog();
@@ -2280,7 +2284,7 @@ async function submitLightboxSearch() {
 }
 function initLightboxSearchStatus() {
   if (!searchElements.lightboxSearchStatus) return;
-  let hasCatalog = !!activeCatalog(), hasIndex = !!catalogSearch?.hasIndex?.(), indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
+  let hasCatalog = !!activeCatalog(), hasIndex = !!catalogSearch.hasIndex(), indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
   if (searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.disabled = !hasCatalog), syncLightboxSearchScopeUi(), !hasCatalog) {
     searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
     return;
@@ -2325,7 +2329,7 @@ function restoreSearchFloatingPreviewAfterSuppression() {
   !target || isSearchPreviewBlockedByOpenMenu(target) || showSearchFloatingPreview(target);
 }
 function suppressSearchFloatingTooltip(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
-  window.BargigTooltips?.suppress?.(duration, options);
+  tooltips2.suppress(duration, options);
 }
 function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
   let { restoreAfter = !0 } = options, delay = Math.max(0, Number(duration) || 0);
@@ -2454,7 +2458,7 @@ async function renderLightboxSearchResults(query) {
   if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
   let renderSequence = ++lightboxSearchRenderSequence, renderKey = lightboxSearchKey(rawQuery);
   if (normalizeSearchResultsDirection(searchElements.lightboxSearchResults), hideSearchFloatingPreview(), updateLightboxSearchResultsLayout(0), searchElements.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0), rawQuery.length < 2)
-    return catalogSearch?.cancel?.("viewer"), lastLightboxSearchKey = "", lastLightboxSearchResults = [], searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.innerHTML = "", initLightboxSearchStatus(), [];
+    return catalogSearch.cancel("viewer"), lastLightboxSearchKey = "", lastLightboxSearchResults = [], searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.innerHTML = "", initLightboxSearchStatus(), [];
   if (!activeCatalog())
     return searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.", [];
   searchElements.lightboxSearchResults.setAttribute("aria-busy", "true"), searchElements.lightboxSearchStatus.textContent = "מחפש באינדקס…";
@@ -2490,7 +2494,7 @@ async function renderLightboxSearchResults(query) {
       event.stopPropagation(), searchElements.lightboxSearchInput.value = "", renderLightboxSearchResults(""), searchElements.lightboxSearchInput.focus();
     }), []));
   } catch (error) {
-    return catalogSearch?.isCancelledError?.(error) || renderSequence !== lightboxSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: !0 }), searchElements.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: !0 })), searchElements.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.", []);
+    return catalogSearch.isCancelledError(error) || renderSequence !== lightboxSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: !0 }), searchElements.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: !0 })), searchElements.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.", []);
   }
 }
 function renderLightboxCatalogMenu() {
@@ -2507,16 +2511,14 @@ async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
   let rawQuery = String(query || "").trim(), category = getGlobalSearchCategory();
   if (rawQuery.length < 2) return [];
   if (await ensureSearchIndexLoaded({ trigger: "global-search" }), control.isCurrent && !control.isCurrent()) return [];
-  if (!catalogSearch?.hasIndex?.({ category })) return [];
+  if (!catalogSearch.hasIndex({ category })) return [];
   let options = { limit, channel: "global" };
   category && (options.category = category);
   let results = await catalogSearch.search(rawQuery, options);
   return Array.isArray(results) ? results : [];
 }
 async function getGlobalSearchResults(query, limit = 72, control = {}) {
-  let rawQuery = String(query || "").trim();
-  if (!catalogSearch) return [];
-  let navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
+  let rawQuery = String(query || "").trim(), navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
     getCatalogCategoryGroups(),
     rawQuery,
     { category: getGlobalSearchCategory(), limit: 36 }
@@ -2623,7 +2625,7 @@ async function renderSearchResults(query) {
   cancelGlobalSearchResultAppend();
   let renderSequence = ++globalSearchRenderSequence, renderKey = globalSearchKey(rawQuery);
   if (normalizeSearchResultsDirection(searchElements.globalSearchResults), hideSearchFloatingPreview(), searchElements.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0), rawQuery.length < 2)
-    return catalogSearch?.cancel?.("global"), lastGlobalSearchKey = "", lastGlobalSearchResults = [], searchElements.globalSearchResults.classList.add("hidden"), searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.innerHTML = "", initSearchStatus(), [];
+    return catalogSearch.cancel("global"), lastGlobalSearchKey = "", lastGlobalSearchResults = [], searchElements.globalSearchResults.classList.add("hidden"), searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.innerHTML = "", initSearchStatus(), [];
   let category = getGlobalSearchCategory();
   searchElements.globalSearchResults.setAttribute("aria-busy", "true");
   try {
@@ -2637,7 +2639,7 @@ async function renderSearchResults(query) {
       searchElements.globalSearchInput.value = "", renderSearchResults(""), searchElements.globalSearchInput.focus();
     }), []));
   } catch (error) {
-    return catalogSearch?.isCancelledError?.(error) || renderSequence !== globalSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.classList.remove("hidden"), searchElements.globalSearchResults.innerHTML = searchIndexErrorMarkup(), searchElements.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad()), []);
+    return catalogSearch.isCancelledError(error) || renderSequence !== globalSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.classList.remove("hidden"), searchElements.globalSearchResults.innerHTML = searchIndexErrorMarkup(), searchElements.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad()), []);
   }
 }
 function handleLightboxSearchResultsBackgroundClick(event) {
@@ -3286,56 +3288,49 @@ registerFeatureInterface("catalog-detail", {
 
 // src/js/80-app-shell.js
 function attachShellEvents() {
+  let catalogGrid = requireFeatureInterface("catalog-grid"), search = requireFeatureInterface("search");
   document.addEventListener("click", (event) => {
-    let target = event.target, catalogGrid = getFeatureInterface("catalog-grid");
-    if (catalogGrid && !catalogGrid.containsMenuTarget(target) && catalogGrid.closeMobileMenu(), getFeatureInterface("search")?.handleDocumentPointer(target)) return;
+    let target = event.target;
+    if (catalogGrid.containsMenuTarget(target) || catalogGrid.closeMobileMenu(), search.handleDocumentPointer(target)) return;
     let catalogDetail = getFeatureInterface("catalog-detail");
     catalogDetail?.containsTarget(target) || catalogDetail?.close();
   }), window.addEventListener("resize", () => {
-    getFeatureInterface("catalog-grid")?.handleResize(), getFeatureInterface("search")?.handleResize(), getFeatureInterface("viewer")?.handleResize();
+    catalogGrid.handleResize(), search.handleResize(), getFeatureInterface("viewer")?.handleResize();
   }), window.addEventListener("scroll", () => {
-    getFeatureInterface("search")?.handleScroll(), getFeatureInterface("catalog-grid")?.handleScroll();
+    search.handleScroll(), catalogGrid.handleScroll();
   }, { passive: !0 }), window.addEventListener("keydown", (event) => {
     event.defaultPrevented || handleTopLayerEscape(event) || getFeatureInterface("viewer")?.handleGlobalKeydown(event);
   });
 }
 function attachFeatureEvents() {
-  let catalogGrid = getFeatureInterface("catalog-grid");
-  catalogGrid && bindFeatureEventsOnce("catalog-grid", catalogGrid.attachEvents);
-  let search = getFeatureInterface("search");
-  search && bindFeatureEventsOnce("search-ui", search.attachEvents), bindFeatureEventsOnce("shell", attachShellEvents);
-  let favorites = getFeatureInterface("favorites");
-  favorites && bindFeatureEventsOnce("favorites-share", favorites.attachEvents);
+  let catalogGrid = requireFeatureInterface("catalog-grid"), search = requireFeatureInterface("search"), favorites = requireFeatureInterface("favorites");
+  bindFeatureEventsOnce("catalog-grid", catalogGrid.attachEvents), bindFeatureEventsOnce("search-ui", search.attachEvents), bindFeatureEventsOnce("shell", attachShellEvents), bindFeatureEventsOnce("favorites-share", favorites.attachEvents);
   let inquiry = getFeatureInterface("inquiry");
   inquiry && bindFeatureEventsOnce("inquiry", inquiry.attachEvents);
   let viewer = getFeatureInterface("viewer");
   viewer && bindFeatureEventsOnce("viewer", viewer.attachEvents), bindFeatureEventsOnce("navigation", navigationFeature().attachEvents);
 }
 function prepareDocumentRoute(nextPage) {
-  getFeatureInterface("viewer")?.prepareRoute(nextPage), getFeatureInterface("favorites")?.prepareRoute(nextPage), getFeatureInterface("catalog-grid")?.prepareRoute(nextPage), getFeatureInterface("search")?.prepareRoute(nextPage), navigationFeature().setAppPage(nextPage), navigationFeature().syncRouteShell(nextPage), syncDocumentLock();
+  let favorites = requireFeatureInterface("favorites"), catalogGrid = requireFeatureInterface("catalog-grid"), search = requireFeatureInterface("search");
+  getFeatureInterface("viewer")?.prepareRoute(nextPage), favorites.prepareRoute(nextPage), catalogGrid.prepareRoute(nextPage), search.prepareRoute(nextPage), navigationFeature().setAppPage(nextPage), navigationFeature().syncRouteShell(nextPage), syncDocumentLock();
 }
 function initDocumentRoute(options = {}) {
-  let route = siteRoutes?.parseLocation(window.location) || {
-    page: navigationFeature().appPage(),
-    catalogId: "",
-    currentPage: 1,
-    source: LIGHTBOX_SOURCE_CATALOG
-  };
+  let route = siteRoutes.parseLocation(window.location, navigationFeature().appPage()), favorites = requireFeatureInterface("favorites"), catalogGrid = requireFeatureInterface("catalog-grid");
   if (prepareDocumentRoute(route.page), route.page === "home")
-    return clearActiveLocation(), getFeatureInterface("catalog-grid")?.syncCategoryFocusFromHash({
+    return clearActiveLocation(), catalogGrid.syncCategoryFocusFromHash({
       animate: !1,
       scroll: !!window.location.hash
     }), updateDocumentMetadata(), window.location.hash || navigationFeature().restoreScroll(options.scrollPosition), !0;
   if (route.page === "favorites")
-    return clearActiveLocation(), getFeatureInterface("favorites")?.openRoute(), navigationFeature().restoreScroll(options.scrollPosition), !0;
+    return clearActiveLocation(), favorites.openRoute(), navigationFeature().restoreScroll(options.scrollPosition), !0;
   let catalog = findCatalogById(route.catalogId);
   if (!catalog)
     return navigateTo(homeDocumentUrl(), { replace: !0 }), !1;
   if (route.page === "catalog")
-    return getFeatureInterface("catalog-grid")?.openCatalog(catalog.id, { scrollBehavior: "auto" }), navigationFeature().restoreScroll(options.scrollPosition), !0;
+    return catalogGrid.openCatalog(catalog.id, { scrollBehavior: "auto" }), navigationFeature().restoreScroll(options.scrollPosition), !0;
   if (route.page === "viewer") {
     if (route.source === LIGHTBOX_SOURCE_FAVORITES) {
-      let favoriteIndex = (getFeatureInterface("favorites")?.entries() || []).findIndex((entry) => entry.catalog.id === catalog.id && entry.page === route.currentPage);
+      let favoriteIndex = favorites.entries().findIndex((entry) => entry.catalog.id === catalog.id && entry.page === route.currentPage);
       return favoriteIndex < 0 ? (navigateTo(favoritesDocumentUrl(), { replace: !0 }), !1) : (getFeatureInterface("viewer")?.openCatalog(catalog.id, route.currentPage, {
         source: LIGHTBOX_SOURCE_FAVORITES,
         favoriteIndex
@@ -3346,7 +3341,8 @@ function initDocumentRoute(options = {}) {
   return navigateTo(homeDocumentUrl(), { replace: !0 }), !1;
 }
 function initializeApplicationShell() {
-  return telemetryInit({ recoverCatalogImageAfterInitialFailure }), getFeatureInterface("catalog-grid")?.initialize(), initImagePlaceholderObserver(), attachFeatureEvents(), getFeatureInterface("search")?.initialize(), getFeatureInterface("favorites")?.syncUi(), catalogs.length ? (getFeatureInterface("catalog-grid")?.renderInitialContent(), initDocumentRoute()) : (getFeatureInterface("catalog-grid")?.renderEmptyState(), !0);
+  let catalogGrid = requireFeatureInterface("catalog-grid"), search = requireFeatureInterface("search"), favorites = requireFeatureInterface("favorites");
+  return telemetryInit({ recoverCatalogImageAfterInitialFailure }), catalogGrid.initialize(), initImagePlaceholderObserver(), attachFeatureEvents(), search.initialize(), favorites.syncUi(), catalogs.length ? (catalogGrid.renderInitialContent(), initDocumentRoute()) : (catalogGrid.renderEmptyState(), !0);
 }
 registerFeatureInterface("app-shell", {
   initialize: initializeApplicationShell,
@@ -3355,7 +3351,7 @@ registerFeatureInterface("app-shell", {
 
 // src/js/90-bootstrap.js
 function init() {
-  return getFeatureInterface("app-shell")?.initialize() ?? !0;
+  return requireFeatureInterface("app-shell").initialize();
 }
 var initResult = !0;
 try {

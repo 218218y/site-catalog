@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Build deterministic route-specific browser assets.
 
-JavaScript is authored as native ES modules under ``src/js``. Each route has a
-small entrypoint under ``src/entries`` and is bundled by the project's directly
-pinned esbuild dependency. The generated files keep their historical names but are emitted as native
-browser ES modules. Existing fullscreen-safe in-document routing remains
+JavaScript is authored as native ES modules under ``src/js`` and ``src/runtime``.
+Each route has a small entrypoint under ``src/entries`` and imports shared runtime
+modules as external browser modules. The pinned esbuild dependency emits both
+the route bundles and the separately cacheable runtime assets under their historical names. Existing fullscreen-safe in-document routing remains
 unchanged while every source dependency is explicit and statically validated.
 
 CSS remains a reviewed ordered cascade inside one explicit application layer;
@@ -59,6 +59,13 @@ VIEWER_CSS_MODULES: tuple[str, ...] = (
     "src/css/97-seo-foundation.css",
 )
 
+
+RUNTIME_EXTERNAL_MODULES: Mapping[str, str] = {
+    "src/runtime/catalog-search.js": "catalog-search.js",
+    "src/runtime/tooltip-manager.js": "tooltip-manager.js",
+    "src/runtime/favorites-store.js": "favorites-store.js",
+    "src/runtime/site-routes.js": "site-routes.js",
+}
 CATALOG_JS_INPUTS: tuple[str, ...] = (
     "src/entries/catalog.js", "src/js/00-navigation.js", "src/js/01-route-capabilities.js",
     "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/06-catalog-page-numbering.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
@@ -103,27 +110,37 @@ class FrontendBundleSpec:
     entrypoint: str | None = None
     expected_inputs: tuple[str, ...] = ()
     capabilities: Mapping[str, bool] | None = None
+    external_modules: Mapping[str, str] | None = None
 
 BUNDLE_SPECS: tuple[FrontendBundleSpec, ...] = (
     FrontendBundleSpec("styles.css", "css", CORE_CSS_MODULES),
     FrontendBundleSpec("styles-catalog.css", "css", CATALOG_CSS_MODULES),
     FrontendBundleSpec("styles-favorites.css", "css", FAVORITES_CSS_MODULES),
     FrontendBundleSpec("styles-viewer.css", "css", VIEWER_CSS_MODULES),
+    *(FrontendBundleSpec(
+        output_name,
+        "runtime-js",
+        entrypoint=source_path,
+        expected_inputs=(source_path,),
+    ) for source_path, output_name in RUNTIME_EXTERNAL_MODULES.items()),
     FrontendBundleSpec("app-catalog.js", "js", entrypoint="src/entries/catalog.js",
-        expected_inputs=CATALOG_JS_INPUTS,
+        expected_inputs=CATALOG_JS_INPUTS, external_modules=RUNTIME_EXTERNAL_MODULES,
         capabilities={"viewer": False, "favoritesWorkspace": False, "catalogGrid": True, "search": True}),
     FrontendBundleSpec("app-favorites.js", "js", entrypoint="src/entries/favorites.js",
-        expected_inputs=FAVORITES_JS_INPUTS,
+        expected_inputs=FAVORITES_JS_INPUTS, external_modules=RUNTIME_EXTERNAL_MODULES,
         capabilities={"viewer": False, "favoritesWorkspace": True, "catalogGrid": True, "search": True}),
     FrontendBundleSpec("app-viewer.js", "js", entrypoint="src/entries/viewer.js",
-        expected_inputs=VIEWER_JS_INPUTS,
+        expected_inputs=VIEWER_JS_INPUTS, external_modules=RUNTIME_EXTERNAL_MODULES,
         capabilities={"viewer": True, "favoritesWorkspace": True, "catalogGrid": True, "search": True}),
 )
 
-ROUTE_GENERATED_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS)
-DEPLOY_GENERATED_FILES = ROUTE_GENERATED_FILES
-GENERATED_FILES = ROUTE_GENERATED_FILES
-GENERATED_JS_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "js")
+GENERATED_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS)
+DEPLOY_GENERATED_FILES = GENERATED_FILES
+ROUTE_GENERATED_FILES = tuple(
+    spec.output_name for spec in BUNDLE_SPECS
+    if spec.kind == "css" or spec.output_name.startswith("app-")
+)
+GENERATED_JS_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS if spec.kind in {"js", "runtime-js"})
 GENERATED_CSS_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "css")
 ROUTE_ASSETS: Mapping[str, tuple[str, str]] = {
     "home": ("styles-catalog.css", "app-catalog.js"),
@@ -210,12 +227,24 @@ def validate_module_manifest(module_paths: Sequence[str], *, expected_extension:
 def validate_js_spec(root: Path, spec: FrontendBundleSpec) -> None:
     if not spec.entrypoint or not spec.expected_inputs:
         raise ValueError(f"JavaScript bundle {spec.output_name} requires an entrypoint and expected input graph")
-    if Path(spec.entrypoint).parent.as_posix() != "src/entries":
-        raise ValueError(f"JavaScript entrypoint must live under src/entries: {spec.entrypoint}")
+    expected_parent = "src/runtime" if spec.kind == "runtime-js" else "src/entries"
+    if Path(spec.entrypoint).parent.as_posix() != expected_parent:
+        raise ValueError(f"JavaScript entrypoint must live under {expected_parent}: {spec.entrypoint}")
     for relative in spec.expected_inputs:
         read_source_module(root, relative)
     if spec.entrypoint not in spec.expected_inputs:
         raise ValueError(f"Expected graph for {spec.output_name} does not contain its entrypoint")
+    external_modules = dict(spec.external_modules or {})
+    if spec.kind == "runtime-js" and external_modules:
+        raise ValueError(f"Runtime module {spec.output_name} cannot depend on external runtime modules")
+    if len(external_modules.values()) != len(set(external_modules.values())):
+        raise ValueError(f"Duplicate external runtime output in {spec.output_name}")
+    for source_path, output_name in external_modules.items():
+        read_source_module(root, source_path)
+        if Path(source_path).parent.as_posix() != "src/runtime":
+            raise ValueError(f"External runtime source must live under src/runtime: {source_path}")
+        if Path(output_name).name != output_name or not output_name.endswith(".js"):
+            raise ValueError(f"External runtime output must be a root JavaScript filename: {output_name}")
 
 
 def source_manifest_text(module_paths: Sequence[str]) -> str:
@@ -385,7 +414,7 @@ def _partition_metafile_inputs(
 def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
     validate_js_spec(root, spec)
     ensure_local_esbuild()
-    capabilities = {
+    capabilities = None if spec.kind == "runtime-js" else {
         "viewer": False, "favoritesWorkspace": False, "catalogGrid": False, "search": False,
         **dict(spec.capabilities or {}),
     }
@@ -397,6 +426,7 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
             "node", str(ESBUILD_RUNNER), "--root", str(root), "--entry", spec.entrypoint,
             "--outfile", str(raw_output), "--metafile", str(metafile_path),
             "--capabilities", json.dumps(capabilities, separators=(",", ":")),
+            "--external-modules", json.dumps(dict(spec.external_modules or {}), separators=(",", ":")),
         ]
         environment = os.environ.copy()
         environment.pop("ESBUILD_BINARY_PATH", None)
@@ -422,13 +452,43 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
         raise RuntimeError(
             f"Unexpected esbuild graph for {spec.output_name}; missing={missing}, unexpected={unexpected}"
         )
+    output_records = list(metafile.get("outputs", {}).values())
+    if len(output_records) != 1:
+        raise RuntimeError(f"Expected one esbuild output record for {spec.output_name}")
+    actual_external_imports = tuple(
+        str(item.get("path", ""))
+        for item in output_records[0].get("imports", [])
+        if item.get("external")
+    )
+    expected_external_imports = frozenset(
+        f"./{output_name}" for output_name in (spec.external_modules or {}).values()
+    )
+    if frozenset(actual_external_imports) != expected_external_imports:
+        raise RuntimeError(
+            f"Unexpected external runtime imports for {spec.output_name}; "
+            f"expected={sorted(expected_external_imports)}, actual={sorted(set(actual_external_imports))}"
+        )
+    missing_runtime_references = sorted(
+        runtime_path for runtime_path in expected_external_imports
+        if actual_external_imports.count(runtime_path) < 1
+    )
+    if missing_runtime_references:
+        raise RuntimeError(
+            f"External runtime imports were tree-shaken unexpectedly for {spec.output_name}: "
+            f"{missing_runtime_references}"
+        )
     if "__BARGIG_TEST_EXPORTS__" in raw_bundle or "TEST-ONLY EXPORTS" in raw_bundle:
         raise RuntimeError(f"Test-only exports leaked into {spec.output_name}")
 
+    external_manifest = (
+        f" * External runtime modules:\n{source_manifest_text(tuple((spec.external_modules or {}).keys()))}\n"
+        if spec.external_modules else ""
+    )
     banner = (
         "/*\n * GENERATED FILE — DO NOT EDIT DIRECTLY.\n"
         f" * Browser bundle: {spec.output_name}\n * ES module entrypoint: {spec.entrypoint}\n"
         f" * Bundled ES module graph:\n{source_manifest_text(spec.expected_inputs)}\n"
+        f"{external_manifest}"
         f" * Compiler virtual inputs: {', '.join(virtual_inputs) if virtual_inputs else 'none'}\n"
         " * Output format: native browser ES module\n"
         " * Bundler: esbuild 0.28.1 (direct pinned devDependency)\n"
@@ -460,14 +520,14 @@ def atomic_write_text(path: Path, content: str) -> bool:
 
 
 def build_one(root: Path, spec: FrontendBundleSpec, *, check: bool) -> FrontendBuildResult:
-    content = render_javascript_bundle(root, spec) if spec.kind == "js" else render_css_bundle(root, spec)
+    content = render_javascript_bundle(root, spec) if spec.kind in {"js", "runtime-js"} else render_css_bundle(root, spec)
     output = root / spec.output_name
     expected = content.encode("utf-8")
     stale = not output.is_file() or output.read_bytes() != expected
     if check and stale:
         raise RuntimeError(f"Generated frontend asset is stale: {spec.output_name}. Run: python tools/build_frontend_assets.py")
     changed = False if check else atomic_write_text(output, content)
-    module_count = len(spec.expected_inputs if spec.kind == "js" else spec.modules)
+    module_count = len(spec.expected_inputs) + len(spec.external_modules or {}) if spec.kind in {"js", "runtime-js"} else len(spec.modules)
     return FrontendBuildResult(output, module_count, len(expected), changed, sha256_text(content))
 
 

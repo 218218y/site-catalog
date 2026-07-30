@@ -13,7 +13,7 @@ import { eventTargetElement } from "./02-dom-contracts.js";
 import { catalogSearch, catalogs, siteRoutes } from "./03-runtime-context.js";
 import { navigationState } from "./11-navigation-state.js";
 import { coverThumbSrc, pageSrc } from "./17-catalog-asset-urls.js";
-let currentAppPage = siteRoutes?.pageFromLocation?.(window.location, document.body?.dataset?.page) || "home";
+let currentAppPage = siteRoutes.pageFromLocation(window.location, document.body?.dataset?.page);
 const IN_DOCUMENT_ROUTE_STATE_KEY = "__bargigInDocumentRoute";
 let hasInDocumentRouteSession = false;
 
@@ -24,7 +24,7 @@ function isAppPage(page) {
 
 /** @param {string} page */
 function setCurrentAppPage(page) {
-  currentAppPage = siteRoutes?.normalizePage?.(page) || String(page || "home");
+  currentAppPage = siteRoutes.normalizePage(page);
   if (document.body) document.body.dataset.page = currentAppPage;
 }
 
@@ -46,7 +46,7 @@ function saveCurrentRouteScrollPosition() {
 function isInternalAppDocumentUrl(url) {
   return Boolean(
     url &&
-    siteRoutes?.isSameAppDocumentLocation?.(window.location, url, currentAppPage)
+    siteRoutes.isSameAppDocumentLocation(window.location, url, currentAppPage)
   );
 }
 
@@ -136,28 +136,28 @@ function canReturnToSameSite() {
 }
 
 function homeDocumentUrl() {
-  return siteRoutes?.homeUrl?.() || "index.html";
+  return siteRoutes.homeUrl();
 }
 
 /** @param {string} catalogId */
 function catalogDocumentUrl(catalogId) {
-  return siteRoutes?.catalogUrl?.(catalogId) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/`;
+  return siteRoutes.catalogUrl(catalogId);
 }
 
 function favoritesDocumentUrl() {
-  return siteRoutes?.favoritesUrl?.() || "favorites.html";
+  return siteRoutes.favoritesUrl();
 }
 
 /** @param {string} catalogId @param {number} [page] @param {Record<string, unknown>} [options] */
 function viewerDocumentUrl(catalogId, page = 1, options = {}) {
   const parsedPage = Number.parseInt(String(page), 10);
   const routePage = Number.isFinite(parsedPage) && parsedPage >= 0 ? parsedPage : 1;
-  return siteRoutes?.viewerUrl?.(catalogId, routePage, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${routePage}/`;
+  return siteRoutes.viewerUrl(catalogId, routePage, options);
 }
 
 /** @param {string} categorySlugValue @param {string} [subcategorySlugValue] */
 function categoryDocumentUrl(categorySlugValue, subcategorySlugValue = "") {
-  return siteRoutes?.categoryUrl?.(categorySlugValue, subcategorySlugValue) || homeDocumentUrl();
+  return siteRoutes.categoryUrl(categorySlugValue, subcategorySlugValue);
 }
 
 /** @param {string} relativeUrl */

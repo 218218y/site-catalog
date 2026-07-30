@@ -1,278 +1,237 @@
-(function initBargigFavorites(globalScope) {
-  "use strict";
-
-  const STORAGE_KEY = "bargig.catalog-favorites.v1";
-  const STORAGE_VERSION = 2;
-  const MAX_ITEMS = 500;
-  const MAX_NOTE_LENGTH = 280;
-
-  function normalizeNote(value) {
-    const normalized = String(value || "")
-      .replace(/\r\n?/g, "\n")
-      .trim();
-    return normalized.slice(0, MAX_NOTE_LENGTH);
+/*
+ * GENERATED FILE — DO NOT EDIT DIRECTLY.
+ * Browser bundle: favorites-store.js
+ * ES module entrypoint: src/runtime/favorites-store.js
+ * Bundled ES module graph:
+ *   - src/runtime/favorites-store.js
+ * Compiler virtual inputs: none
+ * Output format: native browser ES module
+ * Bundler: esbuild 0.28.1 (direct pinned devDependency)
+ * Build command: python tools/build_frontend_assets.py
+ */
+// src/runtime/favorites-store.js
+var STORAGE_KEY = "bargig.catalog-favorites.v1", STORAGE_VERSION = 2, MAX_ITEMS = 500, MAX_NOTE_LENGTH = 280;
+function normalizeNote(value) {
+  return String(value || "").replace(/\r\n?/g, `
+`).trim().slice(0, 280);
+}
+function normalizeItem(value) {
+  if (!value || typeof value != "object") return null;
+  let input = (
+    /** @type {FavoriteItemInput} */
+    value
+  ), catalogId = String(input.catalogId || "").trim(), page = Number.parseInt(String(input.page ?? ""), 10), savedAt = Number(input.savedAt);
+  if (!catalogId || !Number.isFinite(page) || page < 0) return null;
+  let item = {
+    catalogId,
+    page,
+    savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : 0
+  }, note = normalizeNote(input.note);
+  return note && (item.note = note), item;
+}
+function itemKey(item) {
+  let normalized = normalizeItem(item);
+  return normalized ? `${normalized.catalogId}\0${normalized.page}` : "";
+}
+function normalizeItems(values) {
+  if (!Array.isArray(values)) return [];
+  let seen = /* @__PURE__ */ new Set(), normalized = [];
+  for (let value of values) {
+    let item = normalizeItem(value);
+    if (!item) continue;
+    let key = itemKey(item);
+    if (!seen.has(key) && (seen.add(key), normalized.push(item), normalized.length >= 500))
+      break;
   }
-
-  function normalizeItem(value) {
-    if (!value || typeof value !== "object") return null;
-    const catalogId = String(value.catalogId || "").trim();
-    const page = Number.parseInt(value.page, 10);
-    const savedAt = Number(value.savedAt);
-    if (!catalogId || !Number.isFinite(page) || page < 0) return null;
-    const item = {
-      catalogId,
-      page,
-      savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : 0
+  return normalized;
+}
+function parsePayload(rawValue) {
+  if (!rawValue) return [];
+  try {
+    let payload = (
+      /** @type {{version?:unknown, items?:unknown}} */
+      JSON.parse(String(rawValue))
+    );
+    return !payload || typeof payload != "object" ? [] : payload.version !== 2 ? [] : normalizeItems(payload.items);
+  } catch {
+    return [];
+  }
+}
+function serializePayload(items) {
+  return JSON.stringify({
+    version: 2,
+    items: normalizeItems(items)
+  });
+}
+function persistenceFailureReason(error, fallback = "write-failed") {
+  let candidate = (
+    /** @type {{name?:unknown, message?:unknown}|null} */
+    error && typeof error == "object" ? error : null
+  ), name = String(candidate?.name || "").toLowerCase(), message = String(candidate?.message || "").toLowerCase();
+  return name.includes("quota") || message.includes("quota") ? "quota-exceeded" : name.includes("security") || message.includes("denied") || message.includes("blocked") ? "blocked" : fallback;
+}
+function createStore(options = {}) {
+  let storageKey = String(options.storageKey || STORAGE_KEY), storage = options.storage || null, memoryItems = [], persistence = {
+    persisted: !!(storage && typeof storage.setItem == "function"),
+    reason: storage ? "" : "unavailable"
+  }, lastMutation = null;
+  function persistenceSnapshot() {
+    return { ...persistence };
+  }
+  function mutationResult(operation, changed, writeResult, extra = {}) {
+    let result = {
+      operation,
+      changed: !!changed,
+      persisted: !!writeResult.persisted,
+      reason: String(extra.reason || writeResult.reason || ""),
+      items: memoryItems.slice(),
+      ...typeof extra.active == "boolean" ? { active: extra.active } : {}
     };
-    const note = normalizeNote(value.note);
-    if (note) item.note = note;
-    return item;
+    return lastMutation = result, result;
   }
-
-  function itemKey(item) {
-    const normalized = normalizeItem(item);
-    return normalized ? `${normalized.catalogId}\u0000${normalized.page}` : "";
-  }
-
-  function normalizeItems(values) {
-    if (!Array.isArray(values)) return [];
-    const seen = new Set();
-    const normalized = [];
-
-    for (const value of values) {
-      const item = normalizeItem(value);
-      if (!item) continue;
-      const key = itemKey(item);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      normalized.push(item);
-      if (normalized.length >= MAX_ITEMS) break;
-    }
-
-    return normalized;
-  }
-
-  function parsePayload(rawValue) {
-    if (!rawValue) return [];
+  function readFromStorage() {
+    if (!storage || typeof storage.getItem != "function")
+      return persistence = { persisted: !1, reason: "unavailable" }, memoryItems.slice();
     try {
-      const payload = JSON.parse(rawValue);
-      if (!payload || typeof payload !== "object") return [];
-      if (payload.version !== STORAGE_VERSION) return [];
-      return normalizeItems(payload.items);
-    } catch (_error) {
-      return [];
+      let items = parsePayload(storage.getItem(storageKey));
+      return persistence = { persisted: !0, reason: "" }, items;
+    } catch (error) {
+      return persistence = { persisted: !1, reason: persistenceFailureReason(error, "read-failed") }, memoryItems.slice();
     }
   }
-
-  function serializePayload(items) {
-    return JSON.stringify({
-      version: STORAGE_VERSION,
-      items: normalizeItems(items)
-    });
+  function persist(items) {
+    if (memoryItems = normalizeItems(items), !storage || typeof storage.setItem != "function")
+      return persistence = { persisted: !1, reason: "unavailable" }, persistenceSnapshot();
+    let serialized = serializePayload(memoryItems);
+    try {
+      if (storage.setItem(storageKey, serialized), typeof storage.getItem == "function" && storage.getItem(storageKey) !== serialized)
+        return persistence = { persisted: !1, reason: "verification-failed" }, persistenceSnapshot();
+      persistence = { persisted: !0, reason: "" };
+    } catch (error) {
+      persistence = { persisted: !1, reason: persistenceFailureReason(error) };
+    }
+    return persistenceSnapshot();
   }
-
-  function persistenceFailureReason(error, fallback = "write-failed") {
-    const name = String(error?.name || "").toLowerCase();
-    const message = String(error?.message || "").toLowerCase();
-    if (name.includes("quota") || message.includes("quota")) return "quota-exceeded";
-    if (name.includes("security") || message.includes("denied") || message.includes("blocked")) return "blocked";
-    return fallback;
+  function unchanged(operation, extra = {}) {
+    return mutationResult(operation, !1, persistenceSnapshot(), extra);
   }
-
-  function createStore(options) {
-    const config = options || {};
-    const storageKey = String(config.storageKey || STORAGE_KEY);
-    const storage = config.storage || null;
-    let memoryItems = [];
-    let persistence = {
-      persisted: Boolean(storage && typeof storage.setItem === "function"),
-      reason: storage ? "" : "unavailable"
-    };
-    let lastMutation = null;
-
-    function persistenceSnapshot() {
-      return { ...persistence };
-    }
-
-    function mutationResult(operation, changed, writeResult, extra = {}) {
-      const result = {
-        operation,
-        changed: Boolean(changed),
-        persisted: Boolean(writeResult?.persisted),
-        reason: String(writeResult?.reason || ""),
-        items: memoryItems.slice(),
-        ...extra
-      };
-      lastMutation = result;
-      return result;
-    }
-
-    function readFromStorage() {
-      if (!storage || typeof storage.getItem !== "function") {
-        persistence = { persisted: false, reason: "unavailable" };
-        return memoryItems.slice();
-      }
-      try {
-        const items = parsePayload(storage.getItem(storageKey));
-        persistence = { persisted: true, reason: "" };
-        return items;
-      } catch (error) {
-        persistence = { persisted: false, reason: persistenceFailureReason(error, "read-failed") };
-        return memoryItems.slice();
-      }
-    }
-
-    function persist(items) {
-      memoryItems = normalizeItems(items);
-      if (!storage || typeof storage.setItem !== "function") {
-        persistence = { persisted: false, reason: "unavailable" };
-        return persistenceSnapshot();
-      }
-
-      const serialized = serializePayload(memoryItems);
-      try {
-        storage.setItem(storageKey, serialized);
-        if (typeof storage.getItem === "function" && storage.getItem(storageKey) !== serialized) {
-          persistence = { persisted: false, reason: "verification-failed" };
-          return persistenceSnapshot();
-        }
-        persistence = { persisted: true, reason: "" };
-      } catch (error) {
-        persistence = { persisted: false, reason: persistenceFailureReason(error) };
-      }
+  return memoryItems = readFromStorage(), {
+    storageKey,
+    read() {
+      return memoryItems.slice();
+    },
+    reload() {
+      return memoryItems = readFromStorage(), memoryItems.slice();
+    },
+    status() {
       return persistenceSnapshot();
+    },
+    lastMutation() {
+      return lastMutation ? { ...lastMutation, items: lastMutation.items.slice() } : null;
+    },
+    has(item) {
+      let key = itemKey(item);
+      return !!(key && memoryItems.some((candidate) => itemKey(candidate) === key));
+    },
+    addDetailed(item) {
+      let normalized = normalizeItem(item);
+      if (!normalized) return unchanged("add", { active: !1, reason: "invalid-item" });
+      let key = itemKey(normalized), existing = memoryItems.find((candidate) => itemKey(candidate) === key), nextItems = [existing ? { ...existing, ...normalized } : normalized, ...memoryItems.filter((candidate) => itemKey(candidate) !== key)];
+      return mutationResult("add", !0, persist(nextItems), { active: !0 });
+    },
+    add(item) {
+      return this.addDetailed(item).changed;
+    },
+    updateDetailed(item, patch) {
+      let key = itemKey(item);
+      if (!key || !patch || typeof patch != "object") return unchanged("update", { reason: "invalid-update" });
+      let index = memoryItems.findIndex((candidate) => itemKey(candidate) === key);
+      if (index < 0) return unchanged("update", { reason: "not-found" });
+      let current = memoryItems[index], next = normalizeItem({ ...current, ...patch });
+      if (!next) return unchanged("update", { reason: "invalid-update" });
+      let nextItems = memoryItems.slice();
+      return nextItems[index] = next, serializePayload(nextItems) === serializePayload(memoryItems) ? unchanged("update") : mutationResult("update", !0, persist(nextItems));
+    },
+    update(item, patch) {
+      return this.updateDetailed(item, patch).changed;
+    },
+    setNoteDetailed(item, note) {
+      let result = { ...this.updateDetailed(item, { note: normalizeNote(note) }), operation: "set-note" };
+      return lastMutation = result, result;
+    },
+    setNote(item, note) {
+      return this.setNoteDetailed(item, note).changed;
+    },
+    reorderDetailed(keys) {
+      if (!Array.isArray(keys)) return unchanged("reorder", { reason: "invalid-order" });
+      let normalizedKeys = keys.map((value) => String(value || "")).filter(Boolean);
+      if (normalizedKeys.length !== memoryItems.length) return unchanged("reorder", { reason: "invalid-order" });
+      let currentByKey = new Map(memoryItems.map((item) => [itemKey(item), item]));
+      if (new Set(normalizedKeys).size !== memoryItems.length) return unchanged("reorder", { reason: "invalid-order" });
+      if (normalizedKeys.some((key) => !currentByKey.has(key))) return unchanged("reorder", { reason: "invalid-order" });
+      let nextItems = normalizedKeys.map((key) => currentByKey.get(key)).filter((item) => !!item);
+      return serializePayload(nextItems) === serializePayload(memoryItems) ? unchanged("reorder") : mutationResult("reorder", !0, persist(nextItems));
+    },
+    reorder(keys) {
+      return this.reorderDetailed(keys).changed;
+    },
+    removeDetailed(item) {
+      let key = itemKey(item);
+      if (!key) return unchanged("remove", { active: !1, reason: "invalid-item" });
+      let nextItems = memoryItems.filter((candidate) => itemKey(candidate) !== key);
+      return nextItems.length === memoryItems.length ? unchanged("remove", { active: !1, reason: "not-found" }) : mutationResult("remove", !0, persist(nextItems), { active: !1 });
+    },
+    remove(item) {
+      return this.removeDetailed(item).changed;
+    },
+    toggleDetailed(item) {
+      let result = this.has(item) ? { ...this.removeDetailed(item), operation: "toggle", active: !1 } : { ...this.addDetailed(item), operation: "toggle", active: !0 };
+      return lastMutation = result, result;
+    },
+    toggle(item) {
+      return !!this.toggleDetailed(item).active;
+    },
+    clearDetailed() {
+      return memoryItems.length ? mutationResult("clear", !0, persist([])) : unchanged("clear");
+    },
+    clear() {
+      return this.clearDetailed().changed;
+    },
+    replaceDetailed(items) {
+      let nextItems = normalizeItems(items);
+      return serializePayload(nextItems) === serializePayload(memoryItems) ? unchanged("replace") : mutationResult("replace", !0, persist(nextItems));
+    },
+    replace(items) {
+      return this.replaceDetailed(items), memoryItems.slice();
     }
-
-    function unchanged(operation, extra = {}) {
-      return mutationResult(operation, false, persistenceSnapshot(), extra);
-    }
-
-    memoryItems = readFromStorage();
-
-    const store = {
-      storageKey,
-      read() {
-        return memoryItems.slice();
-      },
-      reload() {
-        memoryItems = readFromStorage();
-        return memoryItems.slice();
-      },
-      status() {
-        return persistenceSnapshot();
-      },
-      lastMutation() {
-        return lastMutation ? { ...lastMutation, items: lastMutation.items.slice() } : null;
-      },
-      has(item) {
-        const key = itemKey(item);
-        return Boolean(key && memoryItems.some((candidate) => itemKey(candidate) === key));
-      },
-      addDetailed(item) {
-        const normalized = normalizeItem(item);
-        if (!normalized) return unchanged("add", { active: false, reason: "invalid-item" });
-        const key = itemKey(normalized);
-        const existing = memoryItems.find((candidate) => itemKey(candidate) === key);
-        const merged = existing ? { ...existing, ...normalized } : normalized;
-        const nextItems = [merged, ...memoryItems.filter((candidate) => itemKey(candidate) !== key)];
-        return mutationResult("add", true, persist(nextItems), { active: true });
-      },
-      add(item) {
-        return this.addDetailed(item).changed;
-      },
-      updateDetailed(item, patch) {
-        const key = itemKey(item);
-        if (!key || !patch || typeof patch !== "object") return unchanged("update", { reason: "invalid-update" });
-        const index = memoryItems.findIndex((candidate) => itemKey(candidate) === key);
-        if (index < 0) return unchanged("update", { reason: "not-found" });
-        const current = memoryItems[index];
-        const next = normalizeItem({ ...current, ...patch });
-        if (!next) return unchanged("update", { reason: "invalid-update" });
-        const nextItems = memoryItems.slice();
-        nextItems[index] = next;
-        if (serializePayload(nextItems) === serializePayload(memoryItems)) return unchanged("update");
-        return mutationResult("update", true, persist(nextItems));
-      },
-      update(item, patch) {
-        return this.updateDetailed(item, patch).changed;
-      },
-      setNoteDetailed(item, note) {
-        const result = { ...this.updateDetailed(item, { note: normalizeNote(note) }), operation: "set-note" };
-        lastMutation = result;
-        return result;
-      },
-      setNote(item, note) {
-        return this.setNoteDetailed(item, note).changed;
-      },
-      reorderDetailed(keys) {
-        if (!Array.isArray(keys)) return unchanged("reorder", { reason: "invalid-order" });
-        const normalizedKeys = keys.map((value) => String(value || "")).filter(Boolean);
-        if (normalizedKeys.length !== memoryItems.length) return unchanged("reorder", { reason: "invalid-order" });
-        const currentByKey = new Map(memoryItems.map((item) => [itemKey(item), item]));
-        if (new Set(normalizedKeys).size !== memoryItems.length) return unchanged("reorder", { reason: "invalid-order" });
-        if (normalizedKeys.some((key) => !currentByKey.has(key))) return unchanged("reorder", { reason: "invalid-order" });
-        const nextItems = normalizedKeys.map((key) => currentByKey.get(key));
-        if (serializePayload(nextItems) === serializePayload(memoryItems)) return unchanged("reorder");
-        return mutationResult("reorder", true, persist(nextItems));
-      },
-      reorder(keys) {
-        return this.reorderDetailed(keys).changed;
-      },
-      removeDetailed(item) {
-        const key = itemKey(item);
-        if (!key) return unchanged("remove", { active: false, reason: "invalid-item" });
-        const nextItems = memoryItems.filter((candidate) => itemKey(candidate) !== key);
-        if (nextItems.length === memoryItems.length) return unchanged("remove", { active: false, reason: "not-found" });
-        return mutationResult("remove", true, persist(nextItems), { active: false });
-      },
-      remove(item) {
-        return this.removeDetailed(item).changed;
-      },
-      toggleDetailed(item) {
-        const result = this.has(item)
-          ? { ...this.removeDetailed(item), operation: "toggle", active: false }
-          : { ...this.addDetailed(item), operation: "toggle", active: true };
-        lastMutation = result;
-        return result;
-      },
-      toggle(item) {
-        return this.toggleDetailed(item).active;
-      },
-      clearDetailed() {
-        if (!memoryItems.length) return unchanged("clear");
-        return mutationResult("clear", true, persist([]));
-      },
-      clear() {
-        return this.clearDetailed().changed;
-      },
-      replaceDetailed(items) {
-        const nextItems = normalizeItems(items);
-        if (serializePayload(nextItems) === serializePayload(memoryItems)) return unchanged("replace");
-        return mutationResult("replace", true, persist(nextItems));
-      },
-      replace(items) {
-        this.replaceDetailed(items);
-        return memoryItems.slice();
-      }
-    };
-
-    return store;
-  }
-
-  const api = {
-    STORAGE_KEY,
-    STORAGE_VERSION,
-    MAX_ITEMS,
-    MAX_NOTE_LENGTH,
-    normalizeNote,
-    normalizeItem,
-    normalizeItems,
-    itemKey,
-    parsePayload,
-    serializePayload,
-    createStore
   };
-
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (globalScope) globalScope.BargigFavorites = api;
-})(typeof window !== "undefined" ? window : globalThis);
+}
+var favoritesRuntime = Object.freeze({
+  STORAGE_KEY,
+  STORAGE_VERSION: 2,
+  MAX_ITEMS: 500,
+  MAX_NOTE_LENGTH: 280,
+  normalizeNote,
+  normalizeItem,
+  normalizeItems,
+  itemKey,
+  parsePayload,
+  serializePayload,
+  createStore
+});
+var favorites_store_default = favoritesRuntime;
+export {
+  MAX_ITEMS,
+  MAX_NOTE_LENGTH,
+  STORAGE_KEY,
+  STORAGE_VERSION,
+  createStore,
+  favorites_store_default as default,
+  favoritesRuntime,
+  itemKey,
+  normalizeItem,
+  normalizeItems,
+  normalizeNote,
+  parsePayload,
+  serializePayload
+};

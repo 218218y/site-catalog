@@ -7,7 +7,8 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const windowObject = { BARGIG_CATALOGS: [] };
 global.window = windowObject;
-const catalogSearch = require(path.join(root, "catalog-search.js"));
+const { importStandaloneRuntimeModule } = require("./frontend_test_module");
+const catalogSearch = importStandaloneRuntimeModule("src/runtime/catalog-search.js");
 
 assert.ok(catalogSearch, "catalog search runtime should expose its public API");
 assert.equal(catalogSearch.normalize("פרד״י"), "פרדי");

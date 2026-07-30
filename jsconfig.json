@@ -20,6 +20,7 @@
   ],
   "include": [
     "src/js/**/*.js",
+    "src/runtime/**/*.js",
     "src/entries/**/*.js",
     "src/control-panel/**/*.js",
     "catalog-snapshot.js"

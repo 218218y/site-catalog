@@ -10,7 +10,7 @@ const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const favorites = fs.readFileSync(path.join(root, 'favorites.html'), 'utf8');
 const app = readAllBundles();
 const css = readAllCssBundles();
-const store = fs.readFileSync(path.join(root, 'favorites-store.js'), 'utf8');
+const store = fs.readFileSync(path.join(root, 'src', 'runtime', 'favorites-store.js'), 'utf8');
 const favoritesWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'js', '35-favorites-workspace.js'), 'utf8');
 const privacy = fs.readFileSync(path.join(root, 'legal', 'privacy.content.html'), 'utf8');
 

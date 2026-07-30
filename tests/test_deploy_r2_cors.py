@@ -214,20 +214,33 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
     (static_dir / worker_name).write_bytes(worker_content)
     (static_dir / index_name).write_bytes(index_content)
 
-    runtime_content = (
-        f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
-        f'const SEARCH_INDEX_DATA_SRC = "static/{index_name}";\n'
-    ).encode("utf-8")
-    runtime_name = f"catalog-search.{hashlib.sha256(runtime_content).hexdigest()[:12]}.js"
-    (static_dir / runtime_name).write_bytes(runtime_content)
+    runtime_sources = {
+        "catalog-search": (
+            f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
+            f'const SEARCH_INDEX_DATA_SRC = "{index_name}";\n'
+            'export const catalogSearch = {};\n'
+        ).encode("utf-8"),
+        "tooltip-manager": b"export const tooltips = {};\n",
+        "favorites-store": b"export function createStore() { return {}; }\n",
+        "site-routes": b"export const siteRoutes = {};\n",
+    }
+    runtime_names: dict[str, str] = {}
+    for stem, content in runtime_sources.items():
+        runtime_name = f"{stem}.{hashlib.sha256(content).hexdigest()[:12]}.js"
+        (static_dir / runtime_name).write_bytes(content)
+        runtime_names[stem] = runtime_name
 
     style_content = b"body {}\n"
     style_name = f"styles.{hashlib.sha256(style_content).hexdigest()[:12]}.css"
     (static_dir / style_name).write_bytes(style_content)
 
+    runtime_imports = "".join(
+        f'import "./{runtime_names[stem]}";\n'
+        for stem in ("catalog-search", "tooltip-manager", "favorites-store", "site-routes")
+    )
     route_scripts: dict[str, str] = {}
     for stem in ("app-catalog", "app-favorites", "app-viewer"):
-        app_content = f"window.{stem.replace('-', '_')} = true;\n".encode("utf-8")
+        app_content = (runtime_imports + f"window.{stem.replace('-', '_')} = true;\n").encode("utf-8")
         app_name = f"{stem}.{hashlib.sha256(app_content).hexdigest()[:12]}.js"
         (static_dir / app_name).write_bytes(app_content)
         route_scripts[stem] = app_name
@@ -239,8 +252,7 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
             script = missing_reference[1]
         (bundle_dir / html_name).write_text(
             f'<link rel="stylesheet" href="static/{style_name}">'
-            f'<script src="static/{runtime_name}"></script>'
-            f'<script src="{script}"></script>',
+            f'<script type="module" src="{script}"></script>',
             encoding="utf-8",
         )
 

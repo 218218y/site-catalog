@@ -3,6 +3,7 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+import { createStore } from "../runtime/favorites-store.js";
 import { $requiredAnchor, $requiredButton, $requiredSelect, $requiredTextarea, requiredElement } from "./02-dom-contracts.js";
 
 const FAVORITES_SHARE_PARAM = "selection";
@@ -17,10 +18,8 @@ function getFavoritesStorage() {
   }
 }
 
-/** @type {FavoritesStore|null} */
-const favoritesStore = /** @type {FavoritesStore|null} */ (
-  window.BargigFavorites?.createStore?.({ storage: getFavoritesStorage() }) || null
-);
+/** @type {FavoritesStore} */
+const favoritesStore = createStore({ storage: getFavoritesStorage() });
 /** @type {FavoritesState} */
 const favoritesState = {
   favoritesViewerIndex: 0,

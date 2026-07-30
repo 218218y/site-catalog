@@ -6,6 +6,7 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+import { tooltips } from "../runtime/tooltip-manager.js";
 import { catalogDocumentUrl, currentAppPage, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogSearch, catalogs } from "./03-runtime-context.js";
 import { getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
@@ -44,7 +45,7 @@ const GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 6;
 const GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 6;
 
 function isSearchIndexReady() {
-  return Boolean(catalogSearch?.isReady?.());
+  return catalogSearch.isReady();
 }
 
 function refreshSearchUiAfterIndexLoad() {
@@ -59,10 +60,6 @@ function refreshSearchUiAfterIndexLoad() {
 
 /** @param {SearchIndexLoadOptions} [options] @returns {Promise<boolean>} */
 function ensureSearchIndexLoaded(options = {}) {
-  if (!catalogSearch?.ensureReady) {
-    searchState.searchIndexLoadState = "error";
-    return Promise.reject(new Error("Catalog search runtime is unavailable"));
-  }
   if (isSearchIndexReady()) {
     searchState.searchIndexLoadState = "ready";
     return Promise.resolve(true);
@@ -117,7 +114,7 @@ function cancelScheduledSearch(channel) {
     lightboxSearchRenderTimer = 0;
     lightboxSearchRenderSequence += 1;
   }
-  catalogSearch?.cancel?.(channel);
+  catalogSearch.cancel(channel);
 }
 
 function cancelGlobalSearchResultAppend() {
@@ -131,7 +128,7 @@ function scheduleSearchRender(channel, query, options = {}) {
   const callback = channel === "global"
     ? () => renderSearchResults(query)
     : () => renderLightboxSearchResults(query);
-  catalogSearch?.cancel?.(channel);
+  catalogSearch.cancel(channel);
   if (channel === "global") {
     cancelGlobalSearchResultAppend();
     globalSearchRenderSequence += 1;
@@ -437,7 +434,7 @@ async function getLightboxSearchResults(query, limit = 24, control = {}) {
   if (rawQuery.length < 2) return [];
   await ensureSearchIndexLoaded({ trigger: "viewer-search" });
   if (control.isCurrent && !control.isCurrent()) return [];
-  if (!catalogSearch?.hasIndex?.()) return [];
+  if (!catalogSearch.hasIndex()) return [];
 
   /** @type {CatalogSearchRequestOptions} */
   const options = { limit, channel: "viewer" };
@@ -500,7 +497,7 @@ function initLightboxSearchStatus() {
   if (!searchElements.lightboxSearchStatus) return;
 
   const hasCatalog = Boolean(activeCatalog());
-  const hasIndex = Boolean(catalogSearch?.hasIndex?.());
+  const hasIndex = Boolean(catalogSearch.hasIndex());
   const indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
   if (searchElements.lightboxSearchInput) searchElements.lightboxSearchInput.disabled = !hasCatalog;
   syncLightboxSearchScopeUi();
@@ -593,7 +590,7 @@ function restoreSearchFloatingPreviewAfterSuppression() {
 
 /** @param {number} [duration] @param {SearchPreviewSuppressionOptions} [options] */
 function suppressSearchFloatingTooltip(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
-  window.BargigTooltips?.suppress?.(duration, options);
+  tooltips.suppress(duration, options);
 }
 
 /** @param {number} [duration] @param {SearchPreviewSuppressionOptions} [options] */
@@ -857,7 +854,7 @@ async function renderLightboxSearchResults(query) {
   searchElements.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
-    catalogSearch?.cancel?.("viewer");
+    catalogSearch.cancel("viewer");
     lastLightboxSearchKey = "";
     lastLightboxSearchResults = [];
     searchElements.lightboxSearchResults.classList.add("hidden");
@@ -947,7 +944,7 @@ async function renderLightboxSearchResults(query) {
     });
     return results;
   } catch (error) {
-    if (catalogSearch?.isCancelledError?.(error) || renderSequence !== lightboxSearchRenderSequence) return [];
+    if (catalogSearch.isCancelledError(error) || renderSequence !== lightboxSearchRenderSequence) return [];
     searchState.searchIndexLoadState = "error";
     searchElements.lightboxSearchResults.removeAttribute("aria-busy");
     searchElements.lightboxSearchResults.classList.remove("hidden");
@@ -980,7 +977,7 @@ async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
   if (rawQuery.length < 2) return [];
   await ensureSearchIndexLoaded({ trigger: "global-search" });
   if (control.isCurrent && !control.isCurrent()) return [];
-  if (!catalogSearch?.hasIndex?.({ category })) return [];
+  if (!catalogSearch.hasIndex({ category })) return [];
 
   /** @type {CatalogSearchRequestOptions} */
   const options = { limit, channel: "global" };
@@ -992,7 +989,6 @@ async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
 /** @param {unknown} query @param {number} [limit] @param {SearchRequestControl} [control] @returns {Promise<Array<CatalogSearchResult>>} */
 async function getGlobalSearchResults(query, limit = 72, control = {}) {
   const rawQuery = String(query || "").trim();
-  if (!catalogSearch) return [];
   const navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
     getCatalogCategoryGroups(),
     rawQuery,
@@ -1164,7 +1160,7 @@ async function renderSearchResults(query) {
   searchElements.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0);
 
   if (rawQuery.length < 2) {
-    catalogSearch?.cancel?.("global");
+    catalogSearch.cancel("global");
     lastGlobalSearchKey = "";
     lastGlobalSearchResults = [];
     searchElements.globalSearchResults.classList.add("hidden");
@@ -1207,7 +1203,7 @@ async function renderSearchResults(query) {
     renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery);
     return results;
   } catch (error) {
-    if (catalogSearch?.isCancelledError?.(error) || renderSequence !== globalSearchRenderSequence) return [];
+    if (catalogSearch.isCancelledError(error) || renderSequence !== globalSearchRenderSequence) return [];
     searchState.searchIndexLoadState = "error";
     searchElements.globalSearchResults.removeAttribute("aria-busy");
     searchElements.globalSearchResults.classList.remove("hidden");

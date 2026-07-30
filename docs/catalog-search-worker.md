@@ -17,7 +17,7 @@ The artifact is covered by `schemas/catalogs.search-index.schema.json`, the comp
 
 ## Browser runtime
 
-`catalog-search.js` is a small client facade. It lazily starts `catalog-search-worker.js`, maps worker results back to catalog image URLs, and owns request lifecycle by channel. Global search and in-viewer search use separate channels.
+`src/runtime/catalog-search.js` is the typed source for a small external ESM client facade. The generated `catalog-search.js` stays outside the route bundles, is imported explicitly by them, and receives its own immutable fingerprint. It lazily starts `catalog-search-worker.js`, maps worker results back to catalog image URLs, and owns request lifecycle by channel. Global search and in-viewer search use separate channels.
 
 The Worker performs candidate selection from postings, category/catalog filtering, phrase verification, scoring, excerpt selection and highlight range generation. At initialization it compiles compact bigram and trigram maps over the normalized vocabulary. Two-character and longer partial queries therefore inspect only terms that share all required grams instead of scanning the full vocabulary. One-character internal workloads retain a cooperative full-scan fallback for cancellation testing, although the public UI requires at least two characters.
 

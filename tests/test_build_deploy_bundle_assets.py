@@ -205,19 +205,31 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
     index_name = f"catalogs.search-index.{MODULE.content_hash(index)}.json"
     index = index.rename(static / index_name)
 
-    runtime = static / "catalog-search.js"
-    runtime.write_text(
-        f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
-        f'const SEARCH_INDEX_DATA_SRC = "static/{index_name}";\n',
-        encoding="utf-8",
-    )
-    runtime_name = f"catalog-search.{MODULE.content_hash(runtime)}.js"
-    runtime = runtime.rename(static / runtime_name)
+    runtime_sources = {
+        "catalog-search": (
+            f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
+            f'const SEARCH_INDEX_DATA_SRC = "{index_name}";\n'
+            'export const catalogSearch = {};\n'
+        ),
+        "tooltip-manager": "export const tooltips = {};\n",
+        "favorites-store": "export function createStore() { return {}; }\n",
+        "site-routes": "export const siteRoutes = {};\n",
+    }
+    runtime_assets: dict[str, Path] = {}
+    for stem, content in runtime_sources.items():
+        runtime = static / f"{stem}.js"
+        runtime.write_text(content, encoding="utf-8")
+        runtime_name = f"{stem}.{MODULE.content_hash(runtime)}.js"
+        runtime_assets[stem] = runtime.rename(static / runtime_name)
 
+    runtime_imports = "".join(
+        f'import "./{runtime_assets[stem].name}";\n'
+        for stem in ("catalog-search", "tooltip-manager", "favorites-store", "site-routes")
+    )
     route_apps: dict[str, Path] = {}
     for stem in ("app-catalog", "app-favorites", "app-viewer"):
         app = static / f"{stem}.js"
-        app.write_text(f"window.{stem.replace('-', '_')} = true;\n", encoding="utf-8")
+        app.write_text(runtime_imports + f"window.{stem.replace('-', '_')} = true;\n", encoding="utf-8")
         app_name = f"{stem}.{MODULE.content_hash(app)}.js"
         route_apps[stem] = app.rename(static / app_name)
 
@@ -231,10 +243,15 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
         html = out / html_name
         html.parent.mkdir(parents=True, exist_ok=True)
         html.write_text(
-            f'<script src="static/{runtime_name}"></script><script src="static/{app.name}"></script>',
+            f'<script type="module" src="static/{app.name}"></script>',
             encoding="utf-8",
         )
-    return {**route_apps, "runtime": runtime, "worker": worker, "index": index}
+    return {
+        **route_apps,
+        **runtime_assets,
+        "worker": worker,
+        "index": index,
+    }
 
 
 def test_bundle_validation_rejects_stale_hash_generation(tmp_path: Path) -> None:
@@ -261,7 +278,7 @@ def test_bundle_validation_hashes_each_shared_asset_once(
 
     monkeypatch.setattr(MODULE, "content_hash", counting_content_hash)
 
-    assert MODULE.validate_fingerprinted_bundle(out) == 6
+    assert MODULE.validate_fingerprinted_bundle(out) == 9
     assert hash_calls == {path: 1 for path in assets.values()}
 
 
@@ -459,8 +476,11 @@ def test_deploy_code_assets_receive_production_only_standard_minification(tmp_pa
         if source_text.count("\n") >= 10:
             assert optimized.count("\n") < source_text.count("\n") // 5
         if spec["kind"] == "esm":
-            assert f'window.__BARGIG_RELEASE_ID__="{release_id}"' in optimized
-            assert optimized.count(f'window.__BARGIG_RELEASE_ID__="{release_id}"') == 1
+            if relative in MODULE.DEPLOY_APP_FILES:
+                assert f'window.__BARGIG_RELEASE_ID__="{release_id}"' in optimized
+                assert optimized.count(f'window.__BARGIG_RELEASE_ID__="{release_id}"') == 1
+            else:
+                assert "__BARGIG_RELEASE_ID__" not in optimized
             assert "GENERATED FILE — DO NOT EDIT DIRECTLY" not in optimized
         elif spec["kind"] == "css" and relative.startswith("styles"):
             assert "@layer bargig.application" in optimized

@@ -3,20 +3,29 @@
 This inventory distinguishes active runtime assets from reconstruction or diagnostic outputs.
 It is enforced by `tests/compatibility_artifact_inventory.test.js`.
 
-## Active browser runtime assets
+## Active browser bootstrap and generated-data assets
 
-The route documents currently load the following standalone boundaries before the native route module:
+The route documents load only these classic scripts before the native route module:
 
 - `catalog-assets.config.js` — deploy-time image origin and delivery policy.
-- `catalogs.generated.js` — browser catalog metadata projection.
-- `catalog-taxonomy.generated.js` — browser taxonomy projection.
+- `catalogs.generated.js` — generated browser catalog metadata projection.
+- `catalog-taxonomy.generated.js` — generated browser taxonomy projection.
+
+They are configuration/data boundaries, not business APIs. Their temporary generated-data role and the
+reviewed path to external ESM projections are documented in `docs/catalog-data-esm-projection.md`.
+
+## Independently cached external ES modules
+
+The route bundles import these typed modules explicitly; HTML does not load them as classic scripts:
+
 - `catalog-search.js` — asynchronous search client.
 - `tooltip-manager.js` — shared tooltip lifecycle.
 - `favorites-store.js` — durable favorites storage service.
 - `site-routes.js` — clean-route parsing and URL construction.
 
-These files are active boundaries, not accidental compatibility outputs. They remain independently cached
-bootstrap/data services and must not be removed until their consumers are migrated in one reviewed slice.
+Their editable sources live under `src/runtime/`. esbuild keeps them external to every route bundle, and the
+deploy builder fingerprints each module once, rewrites route imports to the hashed sibling and rejects stale
+or mixed generations. They expose no `window.Bargig*` business API.
 
 ## Route-scoped native ES module
 

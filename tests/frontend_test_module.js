@@ -151,4 +151,55 @@ function importFrontendTestModule(relativePath, exportKey, globals = {}) {
   return api;
 }
 
-module.exports = { compileFrontendModuleForTest, importFrontendTestModule };
+/**
+ * Import a standalone source ES module through TypeScript's CommonJS
+ * transpilation. This is reserved for dependency-free runtime owners under
+ * src/runtime; route integration is still verified against the real ESM
+ * bundles and deployment artifact.
+ *
+ * @param {string} relativePath
+ * @param {Record<string, unknown>} [globals]
+ */
+function importStandaloneRuntimeModule(relativePath, globals = {}) {
+  for (const [name, value] of Object.entries(globals)) {
+    Object.defineProperty(globalThis, name, { value, writable: true, configurable: true });
+  }
+
+  const runtimeRoot = path.join(PROJECT_ROOT, "src", "runtime");
+  const absolutePath = path.resolve(PROJECT_ROOT, relativePath);
+  if (absolutePath !== runtimeRoot && !absolutePath.startsWith(`${runtimeRoot}${path.sep}`)) {
+    throw new Error(`Standalone runtime test modules must live under src/runtime: ${relativePath}`);
+  }
+
+  const source = fs.readFileSync(absolutePath, "utf8");
+  const sourceFile = ts.createSourceFile(absolutePath, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+  if (sourceFile.statements.some((statement) => ts.isImportDeclaration(statement))) {
+    throw new Error(`Standalone runtime module must not have source imports: ${relativePath}`);
+  }
+  const transpiled = ts.transpileModule(source, {
+    fileName: absolutePath,
+    reportDiagnostics: true,
+    compilerOptions: {
+      allowJs: true,
+      checkJs: false,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  if (transpiled.diagnostics?.length) {
+    const diagnostics = ts.formatDiagnosticsWithColorAndContext(transpiled.diagnostics, {
+      getCanonicalFileName: (name) => name,
+      getCurrentDirectory: () => PROJECT_ROOT,
+      getNewLine: () => "\n",
+    });
+    throw new Error(`Could not transpile runtime module ${relativePath}:\n${diagnostics}`);
+  }
+
+  const runtimeModule = new Module(`${absolutePath}.test-runtime`, module);
+  runtimeModule.filename = absolutePath;
+  runtimeModule.paths = Module._nodeModulePaths(path.dirname(absolutePath));
+  runtimeModule._compile(transpiled.outputText, absolutePath);
+  return runtimeModule.exports;
+}
+
+module.exports = { compileFrontendModuleForTest, importFrontendTestModule, importStandaloneRuntimeModule };

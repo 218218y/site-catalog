@@ -6,6 +6,7 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+import { normalizeItems as normalizeFavoriteItems } from "../runtime/favorites-store.js";
 import { canReturnToSameSite, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
 import { isCatalogPage } from "./06-catalog-page-numbering.js";
@@ -80,7 +81,7 @@ function getValidFavoriteItems() {
 }
 
 const favoritesPortabilityDomain = createFavoritesPortabilityDomain({
-  normalizeItems: (values) => window.BargigFavorites?.normalizeItems?.(values) || [],
+  normalizeItems: normalizeFavoriteItems,
   findCatalogById,
   catalogs: () => catalogs,
   encodeBase64: (value) => window.btoa(value),

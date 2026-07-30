@@ -25,7 +25,7 @@ SPEC.loader.exec_module(MODULE)
 
 
 def source_paths_for_spec(spec: object) -> tuple[str, ...]:
-    return tuple(spec.expected_inputs if spec.kind == "js" else spec.modules)
+    return tuple(spec.expected_inputs if spec.kind in {"js", "runtime-js"} else spec.modules)
 
 
 def all_source_modules() -> tuple[str, ...]:
@@ -71,10 +71,29 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
         "styles-catalog.css",
         "styles-favorites.css",
         "styles-viewer.css",
+        "catalog-search.js",
+        "tooltip-manager.js",
+        "favorites-store.js",
+        "site-routes.js",
         "app-catalog.js",
         "app-favorites.js",
         "app-viewer.js",
     }
+    assert {
+        output: specs[output].entrypoint
+        for output in MODULE.RUNTIME_EXTERNAL_MODULES.values()
+    } == {
+        output: source
+        for source, output in MODULE.RUNTIME_EXTERNAL_MODULES.items()
+    }
+    for output in MODULE.RUNTIME_EXTERNAL_MODULES.values():
+        runtime_spec = specs[output]
+        assert runtime_spec.kind == "runtime-js"
+        assert runtime_spec.expected_inputs == (runtime_spec.entrypoint,)
+        assert runtime_spec.external_modules is None
+        generated = (ROOT / output).read_text(encoding="utf-8")
+        assert "Compiler virtual inputs: none" in generated
+        assert "__BARGIG_FEATURE_CAPABILITIES__" not in generated
 
     catalog_inputs = specs["app-catalog.js"].expected_inputs
     favorites_inputs = specs["app-favorites.js"].expected_inputs
@@ -311,10 +330,15 @@ def test_render_javascript_bundle_accepts_esbuild_define_virtual_inputs(
         outfile = Path(command[command.index("--outfile") + 1])
         metafile = Path(command[command.index("--metafile") + 1])
         outfile.write_text("console.log('module');\n", encoding="utf-8")
-        metafile.write_text(json.dumps({"inputs": {
-            "src/entries/catalog.js": {},
-            "<define:__BARGIG_FEATURE_CAPABILITIES__>": {},
-        }}), encoding="utf-8")
+        metafile.write_text(json.dumps({
+            "inputs": {
+                "src/entries/catalog.js": {},
+                "<define:__BARGIG_FEATURE_CAPABILITIES__>": {},
+            },
+            "outputs": {
+                "app-catalog.js": {"imports": []},
+            },
+        }), encoding="utf-8")
         return type("Completed", (), {"returncode": 0, "stderr": "", "stdout": ""})()
 
     monkeypatch.setattr(MODULE.subprocess, "run", fake_esbuild)

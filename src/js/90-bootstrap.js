@@ -4,10 +4,10 @@
  */
 
 import { markAppReady } from "./00-navigation.js";
-import { getFeatureInterface } from "./10-app-state.js";
+import { requireFeatureInterface } from "./10-app-state.js";
 
 function init() {
-  return getFeatureInterface("app-shell")?.initialize() ?? true;
+  return requireFeatureInterface("app-shell").initialize();
 }
 
 let initResult = true;

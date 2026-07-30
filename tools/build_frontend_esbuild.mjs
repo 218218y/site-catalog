@@ -17,7 +17,7 @@ function parseArguments(argv) {
     }
     values.set(name.slice(2), value);
   }
-  for (const required of ["root", "entry", "outfile", "metafile", "capabilities"]) {
+  for (const required of ["root", "entry", "outfile", "metafile", "capabilities", "external-modules"]) {
     if (!values.has(required)) throw new Error(`Missing required --${required}`);
   }
   return Object.fromEntries(values);
@@ -35,6 +35,31 @@ const entry = path.resolve(root, args.entry);
 const outfile = path.resolve(args.outfile);
 const metafilePath = path.resolve(args.metafile);
 const capabilities = JSON.parse(args.capabilities);
+const externalModules = JSON.parse(args["external-modules"]);
+const compileTimeDefines = {
+  __BARGIG_TEST_EXPORTS__: "undefined",
+};
+if (capabilities !== null) {
+  compileTimeDefines.__BARGIG_FEATURE_CAPABILITIES__ = JSON.stringify(capabilities);
+}
+const externalRuntimeBySource = new Map(
+  Object.entries(externalModules).map(([sourcePath, outputName]) => [
+    path.resolve(root, sourcePath),
+    String(outputName),
+  ]),
+);
+
+const externalRuntimePlugin = {
+  name: "bargig-external-runtime",
+  setup(pluginBuild) {
+    pluginBuild.onResolve({ filter: /^\.{1,2}\// }, (resolveArgs) => {
+      const absoluteSource = path.resolve(resolveArgs.resolveDir, resolveArgs.path);
+      const outputName = externalRuntimeBySource.get(absoluteSource);
+      if (!outputName) return null;
+      return { path: `./${outputName}`, external: true };
+    });
+  },
+};
 
 const result = await build({
   absWorkingDir: root,
@@ -52,10 +77,8 @@ const result = await build({
   minifyWhitespace: false,
   minifyIdentifiers: false,
   legalComments: "inline",
-  define: {
-    __BARGIG_FEATURE_CAPABILITIES__: JSON.stringify(capabilities),
-    __BARGIG_TEST_EXPORTS__: "undefined",
-  },
+  define: compileTimeDefines,
+  plugins: [externalRuntimePlugin],
   logLevel: "silent",
 });
 
