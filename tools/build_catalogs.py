@@ -1686,7 +1686,7 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
         print(f"Format: {options.image_format.upper()}")
         print("Generated: catalogs.build-state.json")
         print("Generated: catalogs.generated.js")
-        print("Generated: catalogs.search.js")
+        print("Generated: catalogs.search-index.json")
         if (root / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html").is_file():
             print("Generated: catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html")
         print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings can refresh the search index without re-rendering images. Use --force to rebuild all catalogs.")

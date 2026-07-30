@@ -124,7 +124,8 @@ assert.match(packageJson.scripts["build:deploy:public"], /--mirror-to dist\/site
 assert.match(packageJson.scripts["build:deploy:public"], /--mirror-to dist\/site-local/);
 assert.equal(packageJson.scripts["verify:seo:live"], "python tools/run_with_project_python.py tools/audit_public_seo.py --live");
 assert.match(builder, /def validate_js_spec/);
-assert.match(builder, /Unexpected esbuild graph/);
+assert.match(builder, /CAPABILITY_BOUNDARIES/);
+assert.match(builder, /Disabled capability/);
 assert.match(builder, /ESBUILD_RUNNER/);
 assert.match(verifier, /discover_javascript_tests/);
 assert.match(verifier, /resolve_project_python/);

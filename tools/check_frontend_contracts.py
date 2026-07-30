@@ -419,11 +419,23 @@ def check_test_only_exports(base: Path, sources: list[Path], failures: list[str]
 
 
 
+CSS_IMPORTANT_BUDGET = 105
+
+
 def check_css_architecture(base: Path, failures: list[str]) -> None:
     """Keep the current cascade behavior explicit and global stacking semantic."""
 
     css_sources = sorted((base / "src/css").glob("*.css"))
     foundation = (base / "src/css/00-foundation.css").read_text(encoding="utf-8")
+    important_count = sum(
+        path.read_text(encoding="utf-8").count("!important")
+        for path in css_sources
+    )
+    if important_count > CSS_IMPORTANT_BUDGET:
+        failures.append(
+            f"CSS !important budget exceeded: {important_count} > {CSS_IMPORTANT_BUDGET}; "
+            "prefer scoped ownership selectors before adding cascade overrides"
+        )
     token_values: list[int] = []
     missing_tokens: list[str] = []
     for token in Z_INDEX_SCALE:

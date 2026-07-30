@@ -136,7 +136,7 @@ ACTIONS: dict[str, Action] = {
     ),
     "refresh_ocr": Action(
         "רענון אינדקס חיפוש/OCR בלבד",
-        "בונה מחדש את catalogs.search.* בלי לרנדר מחדש תמונות קיימות, ככל האפשר.",
+        "בונה מחדש את catalogs.search-index.json בלי לרנדר מחדש תמונות קיימות, ככל האפשר.",
         conversion_profile_command("ocr-refresh"),
     ),
     "r2_preview": Action(
@@ -1206,7 +1206,7 @@ def state_payload() -> dict[str, Any]:
             "config": rel_to_root(CONFIG_FILE),
             "taxonomy": rel_to_root(TAXONOMY_FILE),
             "generated": (PROJECT_ROOT / "catalogs.generated.js").is_file(),
-            "search": (PROJECT_ROOT / "catalogs.search.js").is_file(),
+            "search": (PROJECT_ROOT / "catalogs.search-index.json").is_file(),
             "pdfDir": rel_to_root(PDF_DIR),
             "pagesDir": rel_to_root(PAGES_DIR),
             "footerContent": rel_to_root(FOOTER_CONTENT_FILE),

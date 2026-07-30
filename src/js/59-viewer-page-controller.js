@@ -44,6 +44,21 @@ import {
   updateLightboxThumbs
 } from "./56-viewer-shell.js";
 
+/** @param {CatalogRecord} catalog @param {number} page */
+function catalogPageProgress(catalog, page) {
+  const displayTotal = catalogLastPage(catalog);
+  return {
+    current: catalogPageOrdinal(catalog, page),
+    total: catalog.pages,
+    title: `עמוד ${page} מתוך ${displayTotal}`,
+    options: {
+      label: "עמוד",
+      displayCurrent: page,
+      displayTotal
+    }
+  };
+}
+
 /** @param {ViewerRefreshOptions} [options] */
 function updateLightbox(options = {}) {
   if (!activeCatalog()) return;
@@ -85,12 +100,9 @@ function updateLightbox(options = {}) {
     viewerElements.prevPageBtn.disabled = favoriteViewerIndex <= 0;
     viewerElements.nextPageBtn.disabled = favoriteViewerIndex >= total - 1;
   } else {
-    viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`;
-    syncLightboxProgress(catalogPageOrdinal(catalog, activePage()), catalog.pages, `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, {
-      label: "עמוד",
-      displayCurrent: activePage(),
-      displayTotal: catalogLastPage(catalog)
-    });
+    const progress = catalogPageProgress(catalog, activePage());
+    viewerElements.lightboxMeta.textContent = progress.title;
+    syncLightboxProgress(progress.current, progress.total, progress.title, progress.options);
     viewerElements.prevPageBtn.disabled = activePage() <= catalogFirstPage(catalog);
     viewerElements.nextPageBtn.disabled = activePage() >= catalogLastPage(catalog);
   }
@@ -264,6 +276,12 @@ function handleViewerPageRailClick(event) {
 function attachViewerPageControllerEvents() {
   viewerElements.lightboxPageThumbs?.addEventListener("click", handleViewerPageRailClick);
 }
+
+/* TEST-ONLY EXPORTS: BEGIN */
+if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
+  __BARGIG_TEST_EXPORTS__["viewer-page-controller"] = Object.freeze({ catalogPageProgress });
+}
+/* TEST-ONLY EXPORTS: END */
 
 export {
   attachViewerPageControllerEvents,

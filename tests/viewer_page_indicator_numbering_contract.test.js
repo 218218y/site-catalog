@@ -1,26 +1,64 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
+const { importFrontendTestModule } = require("./frontend_test_module");
 
-const root = path.resolve(__dirname, "..");
-const pageController = fs.readFileSync(path.join(root, "src/js/59-viewer-page-controller.js"), "utf8");
-const shell = fs.readFileSync(path.join(root, "src/js/56-viewer-shell.js"), "utf8");
-const bundle = fs.readFileSync(path.join(root, "app-viewer.js"), "utf8");
+Object.assign(globalThis, {
+  catalogLastPage: (catalog) => (catalog.pageNumberStart === 0 ? catalog.pages - 1 : catalog.pages),
+  catalogPageOrdinal: (catalog, page) => page - (catalog.pageNumberStart === 0 ? 0 : 1) + 1
+});
+const controller = importFrontendTestModule("src/js/59-viewer-page-controller.js", "viewer-page-controller");
 
-assert.match(pageController, /catalogPageOrdinal\(catalog, activePage\(\)\)/);
-assert.match(pageController, /displayCurrent:\s*activePage\(\)/);
-assert.match(pageController, /displayTotal:\s*catalogLastPage\(catalog\)/);
+const catalog = { pages: 10, pageNumberStart: 0 };
+assert.deepEqual(controller.catalogPageProgress(catalog, 0), {
+  current: 1,
+  total: 10,
+  title: "עמוד 0 מתוך 9",
+  options: { label: "עמוד", displayCurrent: 0, displayTotal: 9 }
+});
+assert.deepEqual(controller.catalogPageProgress(catalog, 9), {
+  current: 10,
+  total: 10,
+  title: "עמוד 9 מתוך 9",
+  options: { label: "עמוד", displayCurrent: 9, displayTotal: 9 }
+});
 
-assert.match(shell, /viewerPageIndicatorCurrent\.textContent\s*=\s*String\(displayCurrent\)/);
-assert.match(shell, /viewerPageIndicatorTotal\.textContent\s*=\s*String\(displayTotal\)/);
-assert.doesNotMatch(shell, /viewerPageIndicatorCurrent\.textContent\s*=\s*String\(currentItem\)/);
-assert.doesNotMatch(shell, /viewerPageIndicatorTotal\.textContent\s*=\s*String\(totalItems\)/);
+function fakeElement() {
+  const attributes = new Map();
+  return {
+    textContent: "",
+    style: { values: new Map(), setProperty(name, value) { this.values.set(name, String(value)); } },
+    classList: { values: new Set(), add(name) { this.values.add(name); }, remove(name) { this.values.delete(name); }, toggle(name, enabled) { if (enabled) this.values.add(name); else this.values.delete(name); } },
+    setAttribute(name, value) { attributes.set(name, String(value)); },
+    getAttribute(name) { return attributes.get(name) ?? null; }
+  };
+}
 
-assert.match(bundle, /displayCurrent:\s*activePage\(\)/);
-assert.match(bundle, /displayTotal:\s*catalogLastPage\(catalog\)/);
-assert.match(bundle, /viewerPageIndicatorCurrent\.textContent\s*=\s*String\(displayCurrent\)/);
-assert.match(bundle, /viewerPageIndicatorTotal\.textContent\s*=\s*String\(displayTotal\)/);
+const viewerElements = {
+  lightboxProgress: fakeElement(),
+  viewerPageIndicator: fakeElement(),
+  viewerPageIndicatorLabel: fakeElement(),
+  viewerPageIndicatorCurrent: fakeElement(),
+  viewerPageIndicatorTotal: fakeElement(),
+  viewerPageIndicatorDetail: fakeElement()
+};
+Object.assign(globalThis, {
+  viewerElements,
+  viewerState: { pageIndicatorHideTimer: 0 },
+  VIEWER_PAGE_INDICATOR_HIDE_MS: 1000,
+  clampValue: (value, min, max) => Math.min(max, Math.max(min, value)),
+  isViewerSessionOpen: () => true,
+  window: { clearTimeout() {}, setTimeout() { return 1; } }
+});
+const shell = importFrontendTestModule("src/js/56-viewer-shell.js", "viewer-shell");
+const progress = controller.catalogPageProgress(catalog, 0);
+shell.syncLightboxProgress(progress.current, progress.total, progress.title, progress.options);
+
+assert.equal(viewerElements.lightboxProgress.getAttribute("aria-valuenow"), "1");
+assert.equal(viewerElements.lightboxProgress.getAttribute("aria-valuemax"), "10");
+assert.equal(viewerElements.lightboxProgress.getAttribute("aria-valuetext"), "עמוד 0 מתוך 9");
+assert.equal(viewerElements.viewerPageIndicatorCurrent.textContent, "0");
+assert.equal(viewerElements.viewerPageIndicatorTotal.textContent, "9");
+assert.equal(viewerElements.viewerPageIndicatorLabel.textContent, "עמוד");
 
 console.log("viewer_page_indicator_numbering_contract.test.js: PASS");

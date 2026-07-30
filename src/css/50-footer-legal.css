@@ -110,10 +110,10 @@ body[data-app-ready="true"] > .site-footer {
   color: var(--muted);
   font-size: .76rem;
 }
-.site-footer-hours {
-  color: var(--brand-dark) !important;
-  font-size: 1.05rem !important;
-  font-weight: 900 !important;
+.site-footer-card .site-footer-hours {
+  color: var(--brand-dark);
+  font-size: 1.05rem;
+  font-weight: 900;
 }
 .site-footer-contact-list,
 .site-footer-link-list {
@@ -280,9 +280,9 @@ body[data-app-ready="true"] > .site-footer {
 .site-footer-gmail-link span {
   min-width: 0;
   text-align: left;
-  color: currentColor !important;
-  font-size: .79rem !important;
-  font-weight: 820 !important;
+  color: currentColor;
+  font-size: .79rem;
+  font-weight: 820;
 }
 
 /* Standalone legal documents share the same brand language without loading the catalog runtime. */

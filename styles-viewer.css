@@ -3996,11 +3996,11 @@ a.reader-home:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 9px;
-  padding: 0 17px !important;
-  border: 1px solid rgba(255,255,255,.34) !important;
+  padding: 0 17px;
+  border: 1px solid rgba(255,255,255,.34);
   border-radius: 999px;
   color: #fff;
-  background: linear-gradient(135deg, rgba(143,109,85,.97), rgba(103,77,59,.97)) !important;
+  background: linear-gradient(135deg, rgba(143,109,85,.97), rgba(103,77,59,.97));
   box-shadow: 0 18px 46px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.2);
   backdrop-filter: blur(16px);
   font: inherit;
@@ -4010,8 +4010,8 @@ a.reader-home:focus-visible {
 .inquiry-trigger-button:hover,
 .inquiry-trigger-button:focus-visible {
   color: #fff;
-  background: linear-gradient(135deg, rgba(161,124,96,.99), rgba(113,83,63,.99)) !important;
-  border-color: rgba(255,255,255,.5) !important;
+  background: linear-gradient(135deg, rgba(161,124,96,.99), rgba(113,83,63,.99));
+  border-color: rgba(255,255,255,.5);
   box-shadow: 0 20px 50px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.22);
   transform: translateY(-1px);
 }
@@ -4230,7 +4230,7 @@ a.reader-home:focus-visible {
     right: max(12px, env(safe-area-inset-right));
     bottom: max(12px, env(safe-area-inset-bottom));
     min-height: 43px;
-    padding-inline: 14px !important;
+    padding-inline: 14px;
   }
   .viewer-inquiry-button span { font-size: .84rem; }
 }
@@ -4249,7 +4249,7 @@ a.reader-home:focus-visible {
   .viewer-inquiry-button {
     width: 44px;
     min-width: 44px;
-    padding: 0 !important;
+    padding: 0;
   }
 }
 
@@ -4804,10 +4804,10 @@ body[data-app-ready="true"] > .site-footer {
   color: var(--muted);
   font-size: .76rem;
 }
-.site-footer-hours {
-  color: var(--brand-dark) !important;
-  font-size: 1.05rem !important;
-  font-weight: 900 !important;
+.site-footer-card .site-footer-hours {
+  color: var(--brand-dark);
+  font-size: 1.05rem;
+  font-weight: 900;
 }
 .site-footer-contact-list,
 .site-footer-link-list {
@@ -4974,9 +4974,9 @@ body[data-app-ready="true"] > .site-footer {
 .site-footer-gmail-link span {
   min-width: 0;
   text-align: left;
-  color: currentColor !important;
-  font-size: .79rem !important;
-  font-weight: 820 !important;
+  color: currentColor;
+  font-size: .79rem;
+  font-weight: 820;
 }
 
 

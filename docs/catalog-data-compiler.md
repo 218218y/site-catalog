@@ -21,14 +21,15 @@ The following files are outputs and must never be edited or used as normal compi
 ```text
 catalogs.generated.json
 catalogs.generated.js
-catalogs.search.json
-catalogs.search.js
 catalogs.search-index.json
 ```
 
 The control panel and `tools/build_catalogs.py` both call the same compiler. The
 control panel changes source metadata; PDF conversion changes build state. The
-compiler is the only component that serializes the public catalog/search files. The normalized search index is compiled from the same generated/search model, so it cannot drift from catalog metadata or PDF-derived page text.
+compiler is the only component that serializes the public catalog files and active search index. The normalized
+search index is compiled directly from the same validated in-memory generated/search projection, so it cannot drift
+from catalog metadata or PDF-derived page text. The intermediate projection remains schema-validated but is no
+longer written as `catalogs.search.json` or `catalogs.search.js`.
 
 ## Official schemas
 
@@ -71,7 +72,9 @@ python tools/catalog_compiler.py --migrate-legacy-state
 
 Normal compilation never falls back to public generated files. A missing or
 invalid build-state file is a hard error, preventing generated output from
-quietly becoming a second source of truth.
+quietly becoming a second source of truth. The explicit migration command may
+read a matched legacy pair of `catalogs.search.json` and `catalogs.search.js`;
+normal compilation never reads or rewrites that retired pair.
 
 Normal compilation and deployment treat `catalogs.build-state.json` as
 read-only. Only PDF conversion and explicit catalog ID deletion/rename flows

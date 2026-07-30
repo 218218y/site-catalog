@@ -13,7 +13,7 @@ if errorlevel 1 goto error
 echo.
 echo OCR/search index was refreshed with the canonical ocr-refresh profile.
 echo Existing complete page images were preserved when possible.
-echo Generated: catalogs.search.js
+echo Generated: catalogs.search-index.json
 echo.
 pause
 exit /b 0

@@ -76,7 +76,9 @@ assert.match(frontendBuilder, /BUNDLE_SPECS:\s*tuple\[FrontendBundleSpec, \.\.\.
 assert.match(frontendBuilder, /entrypoint="src\/entries\/catalog\.js"/);
 assert.match(frontendBuilder, /entrypoint="src\/entries\/favorites\.js"/);
 assert.match(frontendBuilder, /entrypoint="src\/entries\/viewer\.js"/);
-assert.match(frontendBuilder, /Unexpected esbuild graph/);
+assert.match(frontendBuilder, /CAPABILITY_BOUNDARIES/);
+assert.match(frontendBuilder, /Disabled capability/);
+assert.match(frontendBuilder, /required input boundaries/);
 assert.match(frontendBuilder, /ROUTE_ASSETS:/);
 assert.match(frontendBuilder, /DEPLOY_GENERATED_FILES/);
 assert.match(frontendBuilder, /def atomic_write_text/);

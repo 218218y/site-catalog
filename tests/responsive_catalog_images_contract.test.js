@@ -1,61 +1,54 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
+const { importFrontendTestModule, importStandaloneRuntimeModule } = require("./frontend_test_module");
 
-const root = path.resolve(__dirname, "..");
-const appState = fs.readFileSync(path.join(root, "src/js/10-app-state.js"), "utf8");
-const viewerStateSource = fs.readFileSync(path.join(root, "src/js/16-viewer-state.js"), "utf8");
-const viewerImage = fs.readFileSync(path.join(root, "src/js/53-viewer-image.js"), "utf8");
-const sharedUi = fs.readFileSync(path.join(root, "src/js/20-shared-ui.js"), "utf8");
-const assetUrls = fs.readFileSync(path.join(root, "src/js/17-catalog-asset-urls.js"), "utf8");
-const catalog = fs.readFileSync(path.join(root, "src/js/40-catalog-grid.js"), "utf8");
-const pageController = fs.readFileSync(path.join(root, "src/js/59-viewer-page-controller.js"), "utf8");
-const searchUi = fs.readFileSync(path.join(root, "src/js/50-search-ui.js"), "utf8");
-const favorites = fs.readFileSync(path.join(root, "src/js/35-favorites-workspace.js"), "utf8");
-const converter = fs.readFileSync(path.join(root, "tools/build_catalogs.py"), "utf8");
-const searchRuntime = fs.readFileSync(path.join(root, "src/runtime/catalog-search.js"), "utf8");
-const remoteVerifier = fs.readFileSync(path.join(root, "tools/verify_remote_catalog_assets.py"), "utf8");
-const assetConfig = fs.readFileSync(path.join(root, "catalog-assets.config.js"), "utf8");
+const policy = importFrontendTestModule("src/js/10-app-state.js", "catalog-image-policy");
+assert.deepEqual(policy, {
+  CATALOG_ASSET_URL_SCHEMA_VERSION: 2,
+  CATALOG_ASSET_VERSION_PARAM: "v",
+  CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY: "full-only",
+  CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE: "responsive",
+  CATALOG_IMAGE_RETRY_PARAM: "bargig_retry",
+  CATALOG_IMAGE_TIER_FULL: "full",
+  CATALOG_IMAGE_TIER_MEDIUM: "medium",
+  CATALOG_IMAGE_TIER_THUMB: "thumb",
+  DEFAULT_CATALOG_MEDIUM_MAX_SIDE: 1600
+});
 
-assert.match(appState, /const CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE = "responsive";/);
-assert.match(appState, /const CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY = "full-only";/);
-assert.match(appState, /const DEFAULT_CATALOG_MEDIUM_MAX_SIDE = 1600;/);
-assert.match(viewerStateSource, /const VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1\.35;/);
-assert.match(viewerStateSource, /const VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON = 0\.01;/);
-assert.match(sharedUi, /function mediumSrc\(catalog, page\)/);
-assert.match(sharedUi, /function catalogImageDeliveryMode\(\)/);
-assert.match(sharedUi, /function catalogMediumImagesEnabled\(\)/);
-assert.match(sharedUi, /tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled\(\)/);
-assert.match(sharedUi, /if \(!catalogMediumImagesEnabled\(\)\) return 1;/);
-assert.match(assetUrls, /function catalogAssetVersionForTier\(catalog, tier\)/);
-assert.match(sharedUi, /function unversionedCatalogImageUrl\(url\)/);
-assert.match(viewerImage, /function viewerPageImageRequest\(catalog, page, options = \{\}\)/);
-assert.match(viewerImage, /function preferredViewerImageTier\(catalog, page, options = \{\}\)/);
-assert.match(viewerImage, /requiredPixels > mediumMaxSide \* VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO/);
-assert.match(sharedUi, /function isSaveDataEnabled\(\)/);
-assert.match(viewerImage, /function shouldWarmSingleViewerFullResolution\(previousZoom = viewerState\.zoom\)/);
-assert.match(viewerImage, /function prepareSingleViewerResolutionUpgrade\(catalog, page, request, options = \{\}\)/);
-assert.match(viewerImage, /image\.decode\(\)\.catch\(\(\) => \{\}\)\.then\(finishReady\)/);
-assert.match(sharedUi, /effectiveType === "3g"\) return 1/);
-assert.match(viewerImage, /fallbackCandidates: candidates\.slice\(1\)/);
-assert.match(viewerImage, /function preloadNeighbors\(\)[\s\S]*?const radius = preloadFull \? 1 : catalogNeighborPreloadRadius\(\);/);
-assert.match(viewerImage, /const requestOptions = preloadFull \? \{ forceFull: true \} : \{ preferMedium: true \};/);
-assert.match(viewerImage, /viewerPageSrc\(catalog, page, requestOptions\)/);
-assert.match(pageController, /const preserveFullResolutionTier = !isAutoViewerZoom\(\)[\s\S]*?activeSingleViewerImageTier\(\) === CATALOG_IMAGE_TIER_FULL/);
-assert.match(pageController, /viewerPageImageRequest\(catalog, activePage\(\), \{[\s\S]*?forceFull: preserveFullResolutionTier[\s\S]*?\}\)/);
-assert.match(searchUi, /if \(isSaveDataEnabled\(\)\) return;/);
-assert.match(searchUi, /const rawImage = rawThumb \|\| rawPreview;/);
-assert.match(favorites, /const image = thumbSrc\(catalog, page\);/);
-assert.match(converter, /"mediumSize": int\(options\.medium_size\)/);
-assert.match(converter, /medium_dir = out_dir \/ "medium"/);
-assert.match(converter, /def catalog_asset_versions\(/);
-assert.match(converter, /"version": asset_versions\["medium"\]/);
-assert.match(searchRuntime, /const ASSET_URL_SCHEMA_VERSION = 2;/);
-assert.match(searchRuntime, /function assetVersionForTier\(catalog, tier\)/);
-assert.match(remoteVerifier, /CATALOG_ASSET_URL_SCHEMA_VERSION = 2/);
-assert.match(remoteVerifier, /versioned: bool = False/);
-assert.match(assetConfig, /window\.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "responsive";/);
+Object.assign(globalThis, {
+  CATALOG_ASSET_URL_SCHEMA_VERSION: policy.CATALOG_ASSET_URL_SCHEMA_VERSION,
+  CATALOG_ASSET_VERSION_PARAM: policy.CATALOG_ASSET_VERSION_PARAM,
+  CATALOG_IMAGE_TIER_FULL: policy.CATALOG_IMAGE_TIER_FULL,
+  CATALOG_IMAGE_TIER_THUMB: policy.CATALOG_IMAGE_TIER_THUMB,
+  displayPageToAssetPage: (_catalog, page) => Number(page),
+  catalogFirstPage: () => 1,
+  window: { BARGIG_CATALOG_ASSET_BASE_URL: "https://cdn.example.test/catalogs/" }
+});
+const urls = importFrontendTestModule("src/js/17-catalog-asset-urls.js", "catalog-asset-urls");
+const catalog = {
+  id: "demo",
+  assetVersion: "release",
+  imageVariants: {
+    thumb: { version: "thumb-release" },
+    medium: { version: "medium-release" },
+    full: { version: "full-release" }
+  }
+};
+assert.equal(urls.catalogAssetVersionForTier(catalog, "medium"), "medium-release-medium-u2");
+assert.equal(urls.catalogAssetVersionForTier({ assetVersion: "legacy" }, "full"), "legacy-full-u2");
+assert.equal(
+  urls.withAssetVersion("https://cdn.example.test/page-001.webp", catalog, "thumb"),
+  "https://cdn.example.test/page-001.webp?v=thumb-release-thumb-u2"
+);
+assert.equal(
+  urls.resolveCatalogAssetUrl("assets/pages/demo/page-001.webp"),
+  "https://cdn.example.test/catalogs/assets/pages/demo/page-001.webp"
+);
+
+const runtimeWindow = { BARGIG_CATALOGS: [catalog] };
+const search = importStandaloneRuntimeModule("src/runtime/catalog-search.js", { window: runtimeWindow });
+assert.match(search.pageSrc(catalog, 1), /page-001\.jpg\?v=full-release-full-u2$/);
+assert.match(search.thumbSrc(catalog, 1), /thumbs\/page-001\.jpg\?v=thumb-release-thumb-u2$/);
 
 console.log("responsive_catalog_images_contract.test.js: PASS");

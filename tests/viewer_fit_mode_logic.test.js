@@ -1,16 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 const { importFrontendTestModule } = require("./frontend_test_module");
-
-const root = path.join(__dirname, "..");
-const shellSource = fs.readFileSync(path.join(root, "src/js/56-viewer-shell.js"), "utf8");
-assert.match(shellSource, /const automatic = viewerUsesAutomaticFitMode\(\);[\s\S]*?fitAutoBtn/);
-assert.match(shellSource, /setTooltipText\(viewerElements\.fitAutoBtn, "התאמת תצוגה אוטומטי"/);
-assert.match(shellSource, /const isActive = !automatic && fitMode === VIEWER_FIT_HEIGHT/);
-assert.match(shellSource, /const isActive = !automatic && fitMode === VIEWER_FIT_WIDTH/);
 
 const viewerState = {
   imageFitMode: "height",
@@ -18,7 +9,32 @@ const viewerState = {
   zoom: 1,
   pointers: new Map()
 };
-const viewerElements = { stageCanvas: { clientWidth: 1440, clientHeight: 900 } };
+
+function fakeClassList() {
+  const values = new Set();
+  return {
+    toggle(name, enabled) { if (enabled) values.add(name); else values.delete(name); },
+    contains(name) { return values.has(name); }
+  };
+}
+
+function fakeButton() {
+  const attributes = new Map();
+  return {
+    attributes,
+    setAttribute(name, value) { attributes.set(name, String(value)); },
+    getAttribute(name) { return attributes.get(name) ?? null; }
+  };
+}
+
+const viewerElements = {
+  stageCanvas: { clientWidth: 1440, clientHeight: 900 },
+  lightbox: { classList: fakeClassList() },
+  fitAutoBtn: fakeButton(),
+  fitHeightBtn: fakeButton(),
+  fitWidthBtn: fakeButton()
+};
+const tooltips = new Map();
 Object.assign(globalThis, {
   VIEWER_FIT_HEIGHT: "height",
   VIEWER_FIT_WIDTH: "width",
@@ -35,11 +51,10 @@ Object.assign(globalThis, {
   document: { documentElement: { clientWidth: 1440, clientHeight: 900 } },
   clearViewerPageWheelGesture() {},
   resetImagePosition() {},
-  syncViewerFitModeUi() {},
   syncViewerAutoZoomButtonUi() {},
   syncViewerMobileMoreMenuState() {},
   setPressedState() {},
-  setTooltipText() {},
+  setTooltipText(element, text) { tooltips.set(element, text); },
   applyZoom() {},
   refreshSingleViewerImageResolution() {},
   showTopUiTemporarily() {}
@@ -52,6 +67,8 @@ Object.assign(globalThis, {
   viewerUsesAutomaticFitMode: geometry.viewerUsesAutomaticFitMode
 });
 const fitController = importFrontendTestModule("src/js/57-viewer-fit-controller.js", "viewer-fit-controller");
+const shell = importFrontendTestModule("src/js/56-viewer-shell.js", "viewer-shell");
+globalThis.syncViewerFitModeUi = shell.syncViewerFitModeUi;
 
 assert.equal(geometry.getAutomaticViewerFitMode(), "height");
 viewerElements.stageCanvas.clientWidth = 390;
@@ -71,8 +88,23 @@ assert.equal(fitController.syncAutomaticViewerFitMode({ showUi: false }), true);
 assert.equal(viewerState.imageFitMode, "width");
 assert.equal(viewerState.imageFitModeSource, "auto");
 
+shell.syncViewerFitModeUi();
+assert.equal(viewerElements.fitAutoBtn.getAttribute("aria-pressed"), "true");
+assert.equal(viewerElements.fitHeightBtn.getAttribute("aria-pressed"), "false");
+assert.equal(viewerElements.fitWidthBtn.getAttribute("aria-pressed"), "false");
+assert.equal(viewerElements.fitAutoBtn.getAttribute("aria-label"), "התאמת תצוגה אוטומטי");
+assert.equal(tooltips.get(viewerElements.fitAutoBtn), "התאמת תצוגה אוטומטי");
+assert.equal(viewerElements.lightbox.classList.contains("fit-width"), true);
+
 fitController.setViewerFitMode("width", { showUi: false });
 assert.equal(viewerState.imageFitModeSource, "manual");
+shell.syncViewerFitModeUi();
+assert.equal(viewerElements.fitAutoBtn.getAttribute("aria-pressed"), "false");
+assert.equal(viewerElements.fitWidthBtn.getAttribute("aria-pressed"), "true");
+assert.equal(viewerElements.fitHeightBtn.getAttribute("aria-pressed"), "false");
+assert.equal(tooltips.get(viewerElements.fitHeightBtn), "התאמה לגובה");
+assert.equal(tooltips.get(viewerElements.fitWidthBtn), "התאמה לרוחב");
+
 viewerElements.stageCanvas.clientWidth = 844;
 viewerElements.stageCanvas.clientHeight = 390;
 assert.equal(fitController.syncAutomaticViewerFitMode({ showUi: false }), false);
@@ -84,12 +116,6 @@ assert.equal(viewerState.imageFitMode, "height");
 viewerElements.stageCanvas.clientWidth = 390;
 viewerElements.stageCanvas.clientHeight = 844;
 assert.equal(fitController.syncAutomaticViewerFitMode({ showUi: false }), true);
-assert.equal(viewerState.imageFitMode, "width");
-
-fitController.setViewerFitMode("width", { showUi: false });
-assert.equal(viewerState.imageFitModeSource, "manual");
-fitController.setViewerAutomaticFitMode({ showUi: false });
-assert.equal(viewerState.imageFitModeSource, "auto");
 assert.equal(viewerState.imageFitMode, "width");
 
 console.log("viewer_fit_mode_logic.test.js: PASS");

@@ -24,16 +24,31 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
-def source_paths_for_spec(spec: object) -> tuple[str, ...]:
-    return tuple(spec.expected_inputs if spec.kind in {"js", "runtime-js"} else spec.modules)
+def generated_graph_inputs(output_name: str) -> tuple[str, ...]:
+    source = (ROOT / output_name).read_text(encoding="utf-8")
+    graph = source.split(" * Bundled ES module graph:\n", 1)[1]
+    graph = graph.split(" * External runtime modules:\n", 1)[0]
+    graph = graph.split(" * Compiler virtual inputs:", 1)[0]
+    return tuple(
+        line.removeprefix(" *   - ")
+        for line in graph.splitlines()
+        if line.startswith(" *   - ")
+    )
 
 
 def all_source_modules() -> tuple[str, ...]:
-    return tuple(dict.fromkeys(
+    css_sources = (
         relative
         for spec in MODULE.BUNDLE_SPECS
-        for relative in source_paths_for_spec(spec)
-    ))
+        if spec.kind == "css"
+        for relative in spec.modules
+    )
+    javascript_sources = (
+        path.relative_to(ROOT).as_posix()
+        for directory in (ROOT / "src/js", ROOT / "src/entries", ROOT / "src/runtime")
+        for path in sorted(directory.glob("*.js"))
+    )
+    return tuple(dict.fromkeys((*css_sources, *javascript_sources, "catalog-snapshot.js")))
 
 
 def copy_frontend_sources(target: Path) -> None:
@@ -89,15 +104,15 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
     for output in MODULE.RUNTIME_EXTERNAL_MODULES.values():
         runtime_spec = specs[output]
         assert runtime_spec.kind == "runtime-js"
-        assert runtime_spec.expected_inputs == (runtime_spec.entrypoint,)
+        assert runtime_spec.required_inputs == (runtime_spec.entrypoint,)
         assert runtime_spec.external_modules is None
         generated = (ROOT / output).read_text(encoding="utf-8")
         assert "Compiler virtual inputs: none" in generated
         assert "__BARGIG_FEATURE_CAPABILITIES__" not in generated
 
-    catalog_inputs = specs["app-catalog.js"].expected_inputs
-    favorites_inputs = specs["app-favorites.js"].expected_inputs
-    viewer_inputs = specs["app-viewer.js"].expected_inputs
+    catalog_inputs = generated_graph_inputs("app-catalog.js")
+    favorites_inputs = generated_graph_inputs("app-favorites.js")
+    viewer_inputs = generated_graph_inputs("app-viewer.js")
     assert specs["app-catalog.js"].entrypoint == "src/entries/catalog.js"
     assert specs["app-favorites.js"].entrypoint == "src/entries/favorites.js"
     assert specs["app-viewer.js"].entrypoint == "src/entries/viewer.js"
@@ -228,7 +243,7 @@ def test_generated_bundles_publish_the_reviewed_esbuild_graph() -> None:
 
         assert f"ES module entrypoint: {spec.entrypoint}" in output
         assert "Bundler: esbuild 0.28.1 (direct pinned devDependency)" in output
-        for relative in spec.expected_inputs:
+        for relative in spec.required_inputs:
             assert f" *   - {relative}" in output
         assert "Output format: native browser ES module" in output
         assert "\n(() => {" not in output
@@ -270,7 +285,7 @@ def test_manifest_validation_is_reserved_for_ordered_css_layers() -> None:
         MODULE.validate_module_manifest(("src/css/viewer.css",), expected_extension="css")
 
 
-def test_js_spec_requires_an_entrypoint_and_reviewed_graph(tmp_path: Path) -> None:
+def test_js_spec_requires_an_entrypoint_and_required_boundaries(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
     entry = root / "src/entries/catalog.js"
@@ -278,14 +293,14 @@ def test_js_spec_requires_an_entrypoint_and_reviewed_graph(tmp_path: Path) -> No
     entry.write_text("export {};\n", encoding="utf-8")
 
     missing_graph = MODULE.FrontendBundleSpec("app-catalog.js", "js", entrypoint="src/entries/catalog.js")
-    with pytest.raises(ValueError, match="requires an entrypoint and expected input graph"):
+    with pytest.raises(ValueError, match="requires an entrypoint and required input boundaries"):
         MODULE.validate_js_spec(root, missing_graph)
 
     wrong_entry = MODULE.FrontendBundleSpec(
         "app-catalog.js",
         "js",
         entrypoint="src/js/00-navigation.js",
-        expected_inputs=("src/js/00-navigation.js",),
+        required_inputs=("src/js/00-navigation.js",),
     )
     with pytest.raises(ValueError, match="src/entries"):
         MODULE.validate_js_spec(root, wrong_entry)
@@ -323,7 +338,7 @@ def test_render_javascript_bundle_accepts_esbuild_define_virtual_inputs(
         "app-catalog.js",
         "js",
         entrypoint="src/entries/catalog.js",
-        expected_inputs=("src/entries/catalog.js",),
+        required_inputs=("src/entries/catalog.js",),
     )
 
     def fake_esbuild(command: list[str], **_kwargs: object) -> object:
@@ -427,18 +442,31 @@ def test_check_mode_detects_a_stale_route_asset(tmp_path: Path) -> None:
         MODULE.build_frontend_assets(root, check=True)
 
 
-def test_esbuild_graph_rejects_an_unreviewed_transitive_dependency(tmp_path: Path) -> None:
+def test_esbuild_graph_accepts_new_shared_dependencies_without_manifest_churn(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
     copy_frontend_sources(root)
-    unexpected = root / "src/js/17-unreviewed.js"
-    unexpected.write_text("export const unreviewed = true;\n", encoding="utf-8")
+    shared_helper = root / "src/js/17-shared-probe.js"
+    shared_helper.write_text("globalThis.__sharedProbe = true;\n", encoding="utf-8")
     entry = root / "src/entries/catalog.js"
-    entry.write_text('import "../js/17-unreviewed.js";\n' + entry.read_text(encoding="utf-8"), encoding="utf-8")
+    entry.write_text('import "../js/17-shared-probe.js";\n' + entry.read_text(encoding="utf-8"), encoding="utf-8")
 
-    spec = js_specs()["app-catalog.js"]
-    with pytest.raises(RuntimeError, match="Unexpected esbuild graph"):
-        MODULE.render_javascript_bundle(root, spec)
+    output = MODULE.render_javascript_bundle(root, js_specs()["app-catalog.js"])
+
+    assert " *   - src/js/17-shared-probe.js" in output
+
+
+def test_esbuild_graph_rejects_a_new_disabled_capability_owner(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    copy_frontend_sources(root)
+    viewer_probe = root / "src/js/19-viewer-probe.js"
+    viewer_probe.write_text("globalThis.__viewerProbe = true;\n", encoding="utf-8")
+    entry = root / "src/entries/catalog.js"
+    entry.write_text('import "../js/19-viewer-probe.js";\n' + entry.read_text(encoding="utf-8"), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Disabled capability 'viewer' leaked"):
+        MODULE.render_javascript_bundle(root, js_specs()["app-catalog.js"])
 
 
 def test_build_is_deterministic_and_does_not_emit_source_directories(tmp_path: Path) -> None:

@@ -731,7 +731,9 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     isPointInPageRailNavigationConflictZone,
     isPointInPageRailEdgeActivationZone,
     shouldUseLightboxHoverPointer,
-    shouldUsePageRailHover
+    shouldUsePageRailHover,
+    syncLightboxProgress,
+    syncViewerFitModeUi
   });
 }
 /* TEST-ONLY EXPORTS: END */

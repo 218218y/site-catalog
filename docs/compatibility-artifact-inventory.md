@@ -38,9 +38,13 @@ or mixed generations. They expose no `window.Bargig*` business API.
 - `catalogs.generated.json` is the canonical machine-readable catalog projection used by build, SEO, R2,
   telemetry and maintenance tools.
 - `catalogs.search-index.json` is the active normalized worker index.
-- `catalogs.search.json` and `catalogs.search.js` are reconstructable audit/migration projections. They are not
-  loaded by route HTML and `catalogs.search.js` is not deployed. Their removal belongs to a dedicated catalog
-  compiler state migration, not to a CSS or frontend cleanup slice.
+- `catalogs.search.json` and `catalogs.search.js` were retired after a repository-wide consumer inventory proved
+  that no browser, build, deploy, control-panel or maintenance path consumed them. They are no longer generated,
+  checked in or deployed. `tools/catalog_compiler.py` retains a read-only adapter for the explicit
+  `--migrate-legacy-state` command so an older project can seed `catalogs.build-state.json` once; normal builds
+  neither read nor recreate those files.
+  Existing working copies can remove the retired pair through `npm run clean:artifacts`; the cleanup list is explicit
+  and does not include the active normalized index.
 
 ## Retired artifact
 

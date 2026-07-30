@@ -206,14 +206,14 @@ assets\pages
 catalogs.build-state.json
 catalogs.generated.js
 catalogs.generated.json
-catalogs.search.js
-catalogs.search.json
 catalogs.search-index.json
 ```
 
 `catalogs.config.json` הוא מקור האמת למידע העריכתי, ו־`catalogs.build-state.json`
-הוא מקור האמת היחיד לנתונים שנגזרו מה־PDF. קובצי `generated/search` והאינדקס המנורמל נוצרים
-רק דרך `tools/catalog_compiler.py`; אין לערוך אותם ידנית. פירוט מלא נמצא ב־
+הוא מקור האמת היחיד לנתונים שנגזרו מה־PDF. קובצי `generated` והאינדקס המנורמל נוצרים
+רק דרך `tools/catalog_compiler.py`; אין לערוך אותם ידנית. תוצרי התאימות הישנים
+`catalogs.search.js` ו־`catalogs.search.json` הוסרו לאחר שהוכח שאין להם צרכני runtime;
+ה־Compiler יודע לקרוא אותם רק במסלול migration מפורש של פרויקט ישן. פירוט מלא נמצא ב־
 `docs/catalog-data-compiler.md`.
 
 אם כבר קיימות תמונות תקינות, הסקריפט מדלג עליהן ולא מרנדר מחדש בלי צורך. אם אינדקס החיפוש חסר או שצריך OCR מעודכן, הוא מרענן את החיפוש ככל האפשר בלי לגעת בתמונות קיימות.
@@ -456,7 +456,6 @@ partials/site-footer.html          תבנית מבנה הפוטר; העיצוב 
 partials/site-footer.content.json  טקסטי הפוטר הנערכים דרך לוח השליטה
 tools/footer_content.py            אימות, escaping ובניית קישורי הפוטר מתוך קובץ התוכן
 catalogs.generated.js              נתוני קטלוגים שנוצרו אוטומטית
-catalogs.search.js                 תוצר חיפוש תאימות שנוצר אוטומטית; אינו נטען באתר
 catalogs.search-index.json         אינדקס החיפוש הפעיל והדטרמיניסטי עבור ה־Worker
 .04-catalog-control-panel.bat          פתיחת לוח השליטה המקומי
 catalog-control-panel.html         מעטפת HTML דקה של לוח השליטה המקומי
@@ -577,7 +576,7 @@ npm run test:e2e:update
 npm run setup:browsers
 ```
 
-כלי הבנייה מאמת את גרף ה־imports של כל entrypoint מול manifest נבדק. קלטי compiler וירטואליים של esbuild נבדקים בנפרד מקובצי המקור, כך שתלות פיזית חדשה אינה יכולה להסתתר בגרף.
+כלי הבנייה מאמת לכל entrypoint חוזי Route ו־capability במקום להקפיא רשימה ידנית של כל תלות טרנזיטיבית. composition roots נדרשים חייבים להופיע, Feature כבוי חייב להיעדר פיזית, ומודולי Viewer חדשים מזוהים אוטומטית לפי גבול ownership. קלטי compiler וירטואליים של esbuild נבדקים בנפרד מקובצי המקור.
 
 הקבצים הישנים `wp_logo_data.js` ו־`brand-logo.js` כבר אינם קיימים בפרויקט. אין צורך לחפש או למחוק אותם ידנית; בדיקות התחזוקה מוודאות שהם נשארים מחוץ למבנה.
 

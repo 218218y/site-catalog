@@ -3,6 +3,7 @@
  * Browser bundle: app-viewer.js
  * ES module entrypoint: src/entries/viewer.js
  * Bundled ES module graph:
+ *   - catalog-snapshot.js
  *   - src/entries/viewer.js
  *   - src/js/00-navigation.js
  *   - src/js/01-route-capabilities.js
@@ -44,7 +45,6 @@
  *   - src/js/70-viewer-input.js
  *   - src/js/80-app-shell.js
  *   - src/js/90-bootstrap.js
- *   - catalog-snapshot.js
  * External runtime modules:
  *   - src/runtime/catalog-search.js
  *   - src/runtime/tooltip-manager.js
@@ -5054,6 +5054,19 @@ function toggleZoomAtPoint(clientX, clientY) {
 }
 
 // src/js/59-viewer-page-controller.js
+function catalogPageProgress(catalog, page) {
+  let displayTotal = catalogLastPage(catalog);
+  return {
+    current: catalogPageOrdinal(catalog, page),
+    total: catalog.pages,
+    title: `עמוד ${page} מתוך ${displayTotal}`,
+    options: {
+      label: "עמוד",
+      displayCurrent: page,
+      displayTotal
+    }
+  };
+}
 function updateLightbox(options = {}) {
   if (!activeCatalog()) return;
   let { thumbScrollIntoView = !0, preserveCurrentImage = !1 } = options, favoriteEntries = null, favorites = getFeatureInterface("favorites");
@@ -5076,12 +5089,10 @@ function updateLightbox(options = {}) {
       label: "מועדף",
       detail: `עמוד ${activePage()}`
     }), viewerElements.prevPageBtn.disabled = favoriteViewerIndex <= 0, viewerElements.nextPageBtn.disabled = favoriteViewerIndex >= total - 1;
-  } else
-    viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, syncLightboxProgress(catalogPageOrdinal(catalog, activePage()), catalog.pages, `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, {
-      label: "עמוד",
-      displayCurrent: activePage(),
-      displayTotal: catalogLastPage(catalog)
-    }), viewerElements.prevPageBtn.disabled = activePage() <= catalogFirstPage(catalog), viewerElements.nextPageBtn.disabled = activePage() >= catalogLastPage(catalog);
+  } else {
+    let progress = catalogPageProgress(catalog, activePage());
+    viewerElements.lightboxMeta.textContent = progress.title, syncLightboxProgress(progress.current, progress.total, progress.title, progress.options), viewerElements.prevPageBtn.disabled = activePage() <= catalogFirstPage(catalog), viewerElements.nextPageBtn.disabled = activePage() >= catalogLastPage(catalog);
+  }
   favorites?.syncViewerButton(), favoriteEntries || initLightboxSearchStatus();
   let preserveFullResolutionTier = !isAutoViewerZoom() && activeSingleViewerImageTier() === CATALOG_IMAGE_TIER_FULL, request = viewerPageImageRequest(catalog, activePage(), {
     forceFull: preserveFullResolutionTier

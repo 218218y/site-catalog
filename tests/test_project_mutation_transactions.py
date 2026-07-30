@@ -159,8 +159,6 @@ def build_fixture(root: Path, *, include_missing: bool = False) -> None:
     )
     (root / "catalogs.generated.json").write_text('[{"id":"old-public"}]\n', encoding="utf-8")
     (root / "catalogs.generated.js").write_text("window.BARGIG_CATALOGS = [{\"id\":\"old-public\"}];\n", encoding="utf-8")
-    (root / "catalogs.search.json").write_text('[{"catalogId":"old-public","pages":[]}]\n', encoding="utf-8")
-    (root / "catalogs.search.js").write_text("window.BARGIG_CATALOG_SEARCH = [{\"catalogId\":\"old-public\",\"pages\":[]}];\n", encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -248,11 +246,8 @@ def control_fixture(root: Path) -> tuple[list[dict[str, object]], dict[str, obje
     }
     (root / "catalog-taxonomy.config.json").write_text(json.dumps(taxonomy) + "\n", encoding="utf-8")
     generated = [{"id": "old-id", "title": "Old", "description": "old", "category": "Category", "subcategory": "Sub", "pages": 1, "dir": "assets/pages/old-id", "cover": "assets/pages/old-id/page-001.webp", "imageExt": "webp"}]
-    search = [{"catalogId": "old-id", "title": "Old", "pages": [{"page": 1, "text": "old"}]}]
     (root / "catalogs.generated.json").write_text(json.dumps(generated) + "\n", encoding="utf-8")
     (root / "catalogs.generated.js").write_text("old generated js\n", encoding="utf-8")
-    (root / "catalogs.search.json").write_text(json.dumps(search) + "\n", encoding="utf-8")
-    (root / "catalogs.search.js").write_text("old search js\n", encoding="utf-8")
     (root / "catalogs.build-state.json").write_text(
         json.dumps({"version": 1, "catalogs": [build_state_artifact("old-id", image_format="webp")]}) + "\n",
         encoding="utf-8",
@@ -301,12 +296,12 @@ def test_control_panel_save_commits_all_related_outputs_together(
 
     saved_config = json.loads((root / "catalogs.config.json").read_text(encoding="utf-8"))
     generated = json.loads((root / "catalogs.generated.json").read_text(encoding="utf-8"))
-    search = json.loads((root / "catalogs.search.json").read_text(encoding="utf-8"))
+    search_index = json.loads((root / "catalogs.search-index.json").read_text(encoding="utf-8"))
     overrides = json.loads((root / "catalogs.search-overrides.json").read_text(encoding="utf-8"))
     assert saved_config[0]["id"] == "new-id"
     assert generated[0]["id"] == "new-id"
     assert generated[0]["dir"] == "assets/pages/new-id"
-    assert search[0]["catalogId"] == "new-id"
+    assert search_index["catalogs"][0]["id"] == "new-id"
     assert "new-id" in overrides and "old-id" not in overrides
     assert (root / "assets/pages/new-id/page-001.webp").read_bytes() == b"old image"
     assert not (root / "assets/pages/old-id").exists()

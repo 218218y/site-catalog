@@ -8,9 +8,11 @@ Authoritative inputs have distinct ownership:
 * ``catalogs.build-state.json`` owns PDF-derived artifact/search facts produced
   by the conversion pipeline.
 
-Every public ``catalogs.generated.*`` / ``catalogs.search.*`` byte is emitted by
-this module.  The control panel and PDF converter provide inputs; neither owns a
-second serializer or metadata patching path.
+Every checked-in ``catalogs.generated.*`` byte and the active
+``catalogs.search-index.json`` are emitted by this module. The control panel and
+PDF converter provide inputs; neither owns a second serializer or metadata
+patching path. Legacy ``catalogs.search.json`` / ``catalogs.search.js`` may be
+read only by the explicit one-time state migration adapter.
 """
 from __future__ import annotations
 
@@ -57,15 +59,13 @@ except ModuleNotFoundError:  # Direct execution from tools/
 BUILD_STATE_FILE = "catalogs.build-state.json"
 GENERATED_JSON_FILE = "catalogs.generated.json"
 GENERATED_JS_FILE = "catalogs.generated.js"
-SEARCH_JSON_FILE = "catalogs.search.json"
-SEARCH_JS_FILE = "catalogs.search.js"
+LEGACY_SEARCH_JSON_FILE = "catalogs.search.json"
+LEGACY_SEARCH_JS_FILE = "catalogs.search.js"
 SEARCH_INDEX_FILE = "catalogs.search-index.json"
 TAXONOMY_JS_FILE = "catalog-taxonomy.generated.js"
 MANAGED_CATALOG_OUTPUTS = (
     Path(GENERATED_JSON_FILE),
     Path(GENERATED_JS_FILE),
-    Path(SEARCH_JSON_FILE),
-    Path(SEARCH_JS_FILE),
     Path(SEARCH_INDEX_FILE),
 )
 VARIANT_DIRECTORIES = {
@@ -100,22 +100,12 @@ def _generated_js_bytes(entries: Sequence[Mapping[str, Any]]) -> bytes:
     ).encode("utf-8")
 
 
-def _search_js_bytes(entries: Sequence[Mapping[str, Any]]) -> bytes:
-    payload = json.dumps(list(entries), ensure_ascii=False, indent=2)
-    return (
-        "// הקובץ הזה נוצר אוטומטית על ידי tools/catalog_compiler.py\n"
-        "// אינדקס החיפוש מורכב מנתוני ההמרה וממטא-דאטת הקטלוג; אין לערוך אותו ידנית.\n"
-        f"window.BARGIG_CATALOG_SEARCH = {payload};\n"
-    ).encode("utf-8")
-
 
 def compiled_catalog_file_bytes(compiled: CompiledCatalogData) -> dict[Path, bytes]:
     """Return every managed public catalog output as deterministic bytes."""
     return {
         Path(GENERATED_JSON_FILE): _json_bytes(compiled.generated),
         Path(GENERATED_JS_FILE): _generated_js_bytes(compiled.generated),
-        Path(SEARCH_JSON_FILE): _json_bytes(compiled.search),
-        Path(SEARCH_JS_FILE): _search_js_bytes(compiled.search),
         Path(SEARCH_INDEX_FILE): _json_bytes(compiled.search_index),
     }
 
@@ -251,8 +241,8 @@ def migrate_legacy_outputs_to_build_state(root: Path) -> dict[str, Any]:
     """
     generated_path = root / GENERATED_JSON_FILE
     generated_js_path = root / GENERATED_JS_FILE
-    search_path = root / SEARCH_JSON_FILE
-    search_js_path = root / SEARCH_JS_FILE
+    search_path = root / LEGACY_SEARCH_JSON_FILE
+    search_js_path = root / LEGACY_SEARCH_JS_FILE
     generated_pair = (generated_path.is_file(), generated_js_path.is_file())
     search_pair = (search_path.is_file(), search_js_path.is_file())
     if generated_pair[0] != generated_pair[1]:

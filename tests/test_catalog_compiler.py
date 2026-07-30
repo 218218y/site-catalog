@@ -80,14 +80,17 @@ def test_checked_in_catalog_sources_and_outputs_match_official_schemas() -> None
     taxonomy_payload = json.loads((ROOT / "catalog-taxonomy.config.json").read_text(encoding="utf-8"))
     state = json.loads((ROOT / COMPILER.BUILD_STATE_FILE).read_text(encoding="utf-8"))
     generated = json.loads((ROOT / COMPILER.GENERATED_JSON_FILE).read_text(encoding="utf-8"))
-    search = json.loads((ROOT / COMPILER.SEARCH_JSON_FILE).read_text(encoding="utf-8"))
+    compiled = COMPILER.compile_current_project_catalog_data(
+        ROOT,
+        writer=lambda path, _data: pytest.fail(f"checked-in compiler output is stale: {path}"),
+    )
     search_index = json.loads((ROOT / COMPILER.SEARCH_INDEX_FILE).read_text(encoding="utf-8"))
 
     SCHEMA.validate_catalog_config(catalogs, ROOT)
     SCHEMA.validate_taxonomy_config(taxonomy_payload, ROOT)
     SCHEMA.validate_build_state(state, ROOT)
     SCHEMA.validate_generated(generated, ROOT)
-    SCHEMA.validate_search(search, ROOT)
+    SCHEMA.validate_search(compiled.search, ROOT)
     SCHEMA.validate_search_index(search_index, ROOT)
     SCHEMA.validate_taxonomy_coverage(catalogs, taxonomy_payload)
 
@@ -178,8 +181,6 @@ def test_compiler_is_byte_deterministic_and_second_write_is_a_noop(tmp_path: Pat
     assert {path.name for path in first_writes} == {
         COMPILER.GENERATED_JSON_FILE,
         COMPILER.GENERATED_JS_FILE,
-        COMPILER.SEARCH_JSON_FILE,
-        COMPILER.SEARCH_JS_FILE,
         COMPILER.SEARCH_INDEX_FILE,
     }
 
@@ -259,13 +260,17 @@ def test_normal_compilation_never_uses_public_outputs_as_input(tmp_path: Path) -
     write_sources(root, catalogs, state)
     (root / COMPILER.GENERATED_JSON_FILE).write_text('[{"id":"tampered"}]\n', encoding="utf-8")
     (root / COMPILER.GENERATED_JS_FILE).write_text("tampered\n", encoding="utf-8")
-    (root / COMPILER.SEARCH_JSON_FILE).write_text('[{"catalogId":"tampered","pages":[]}]\n', encoding="utf-8")
-    (root / COMPILER.SEARCH_JS_FILE).write_text("tampered\n", encoding="utf-8")
+    legacy_search_json = root / COMPILER.LEGACY_SEARCH_JSON_FILE
+    legacy_search_js = root / COMPILER.LEGACY_SEARCH_JS_FILE
+    legacy_search_json.write_text('[{"catalogId":"tampered","pages":[]}]\n', encoding="utf-8")
+    legacy_search_js.write_text("tampered\n", encoding="utf-8")
 
     COMPILER.compile_current_project_catalog_data(root, writer=lambda path, data: path.write_bytes(data))
 
     assert json.loads((root / COMPILER.GENERATED_JSON_FILE).read_text(encoding="utf-8"))[0]["id"] == "one"
-    assert json.loads((root / COMPILER.SEARCH_JSON_FILE).read_text(encoding="utf-8"))[0]["catalogId"] == "one"
+    assert json.loads((root / COMPILER.SEARCH_INDEX_FILE).read_text(encoding="utf-8"))["catalogs"][0]["id"] == "one"
+    assert legacy_search_json.read_text(encoding="utf-8") == '[{"catalogId":"tampered","pages":[]}]\n'
+    assert legacy_search_js.read_text(encoding="utf-8") == "tampered\n"
 
 
 def test_missing_build_state_is_a_hard_error_for_normal_compilation(tmp_path: Path) -> None:
@@ -321,11 +326,13 @@ def test_explicit_legacy_migration_requires_matching_json_and_js(tmp_path: Path)
     (root / COMPILER.GENERATED_JS_FILE).write_bytes(
         COMPILER.compiled_catalog_file_bytes(expected)[Path(COMPILER.GENERATED_JS_FILE)]
     )
-    (root / COMPILER.SEARCH_JSON_FILE).write_bytes(
-        COMPILER.compiled_catalog_file_bytes(expected)[Path(COMPILER.SEARCH_JSON_FILE)]
-    )
-    (root / COMPILER.SEARCH_JS_FILE).write_bytes(
-        COMPILER.compiled_catalog_file_bytes(expected)[Path(COMPILER.SEARCH_JS_FILE)]
+    legacy_search_payload = json.dumps(expected.search, ensure_ascii=False, indent=2) + "\n"
+    (root / COMPILER.LEGACY_SEARCH_JSON_FILE).write_text(legacy_search_payload, encoding="utf-8")
+    (root / COMPILER.LEGACY_SEARCH_JS_FILE).write_text(
+        "window.BARGIG_CATALOG_SEARCH = "
+        + json.dumps(expected.search, ensure_ascii=False, indent=2)
+        + ";\n",
+        encoding="utf-8",
     )
 
     migrated = COMPILER.migrate_legacy_outputs_to_build_state(root)
@@ -338,14 +345,17 @@ def test_explicit_legacy_migration_requires_matching_json_and_js(tmp_path: Path)
 
 def test_schema_rejects_cross_file_and_asset_path_drift() -> None:
     generated = json.loads((ROOT / COMPILER.GENERATED_JSON_FILE).read_text(encoding="utf-8"))
-    search = json.loads((ROOT / COMPILER.SEARCH_JSON_FILE).read_text(encoding="utf-8"))
+    compiled = COMPILER.compile_current_project_catalog_data(
+        ROOT,
+        writer=lambda path, _data: pytest.fail(f"checked-in compiler output is stale: {path}"),
+    )
 
     invalid_generated = deepcopy(generated)
     invalid_generated[0]["cover"] = "assets/pages/wrong/page-001.webp"
     with pytest.raises(SCHEMA.SchemaValidationError, match="cover must be"):
         SCHEMA.validate_generated(invalid_generated, ROOT)
 
-    invalid_search = deepcopy(search)
+    invalid_search = deepcopy(compiled.search)
     invalid_search[0]["title"] = "Different title"
     with pytest.raises(SCHEMA.SchemaValidationError, match="must match"):
         SCHEMA.validate_compiled_pair(generated, invalid_search)

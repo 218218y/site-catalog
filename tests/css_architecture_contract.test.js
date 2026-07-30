@@ -43,6 +43,14 @@ for (const name of sources) {
   assert.doesNotMatch(source, /@layer\b/, `${name}: cascade layer ownership belongs to the builder`);
 }
 
+const importantBudget = 105;
+const importantCount = sources.reduce((total, name) => {
+  const source = fs.readFileSync(path.join(cssDirectory, name), "utf8");
+  return total + (source.match(/!important/g) || []).length;
+}, 0);
+assert.ok(importantCount <= importantBudget, `CSS !important budget exceeded: ${importantCount} > ${importantBudget}`);
+assert.equal(importantCount, 105, "update the reviewed budget downward when overrides are removed");
+
 for (const bundleName of ["styles.css", "styles-catalog.css", "styles-favorites.css", "styles-viewer.css"]) {
   const bundle = fs.readFileSync(path.join(root, bundleName), "utf8");
   assert.match(bundle, /Cascade layer: bargig\.application/);

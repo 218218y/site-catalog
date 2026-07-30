@@ -48,4 +48,28 @@ assert.equal(manual[0].role, 'manual');
 assert.match(manual[0].src, /bargig_retry=/);
 assert.doesNotMatch(manual[0].src, /old/);
 
+{
+  const catalog = { id: "catalog-one" };
+  const request = { primarySrc: "https://cdn.example.test/page-004.webp", fallbackCandidates: [] };
+  const calls = [];
+  Object.assign(globalThis, {
+    activeCatalog: () => catalog,
+    activePage: () => 4,
+    isViewerSessionOpen: () => true,
+    viewerPageImageRequest: (candidateCatalog, page) => {
+      assert.equal(candidateCatalog, catalog);
+      assert.equal(page, 4);
+      return request;
+    },
+    showSingleLightboxImage: (...args) => calls.push(args)
+  });
+  const navigation = importFrontendTestModule("src/js/58-viewer-navigation.js", "viewer-navigation");
+  navigation.retryCurrentViewerImage();
+  assert.deepEqual(calls, [[catalog, 4, request.primarySrc, { imageRequest: request, forceRefresh: true }]]);
+
+  globalThis.isViewerSessionOpen = () => false;
+  navigation.retryCurrentViewerImage();
+  assert.equal(calls.length, 1, "closed Viewer sessions must not start a retry");
+}
+
 console.log('viewer_image_loading_logic.test.js: PASS');

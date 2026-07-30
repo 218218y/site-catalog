@@ -80,7 +80,7 @@
 
 - `esbuild` הוא `devDependency` ישיר ומקובע בדיוק ל־`0.28.1`; גם `package-lock.json` מקבע את חבילת הליבה ואת הבינארי הפלטפורמי. `tools/build_frontend_esbuild.mjs` מסרב לעבוד עם גרסה אחרת.
 - נקודות הכניסה הן `src/entries/catalog.js`, `src/entries/favorites.js` ו־`src/entries/viewer.js`. הן מכילות imports סטטיים בלבד ואינן מחזיקות state או לוגיקה עסקית.
-- `tools/build_frontend_assets.py` מחזיק manifest נבדק לכל Route. לאחר bundling הוא מפריד בין קובצי מקור פיזיים לבין קלטי compiler וירטואליים כגון `<define:...>`. הגרף הפיזי מושווה במדויק ל־manifest המאושר, וקלט וירטואלי שאינו ברשימת ה־defines המוכרת מכשיל את הבנייה.
+- `tools/build_frontend_assets.py` מחזיק חוזי Route ו־capability, לא snapshot ידני של כל הקבצים הטרנזיטיביים. entrypoint ו־composition roots נדרשים חייבים להופיע; owner של capability כבוי חייב להיעדר; ומודולי Viewer מזוהים אוטומטית לפי גבול ownership. כך helper משותף חדש יכול להיכנס דרך import רגיל בלי manifest churn, אך זליגת Feature עדיין מכשילה את הבנייה. לאחר bundling קובצי מקור פיזיים מופרדים מקלטי compiler וירטואליים כגון `<define:...>`, וקלט וירטואלי לא מוכר נשאר כשל קשיח.
 - שמות תוצרי המסלולים נשמרים: `app-catalog.js`, `app-favorites.js`, `app-viewer.js`. שירותי `catalog-search.js`, `tooltip-manager.js`, `favorites-store.js` ו־`site-routes.js` נוצרים גם הם כ־ESM נפרד ומיובאים מפורשות מכל Route bundle. הפורמט הוא `esm`, וה־HTML טוען רק את Route entry באמצעות `<script type="module">`; אין מעטפת IIFE סביב התוצר, classic script עסקי או loader היסטורי. בדיקת החוזה בוחנת את המבנה החיצוני בלבד כדי לא לפסול ביטויי אתחול מקומיים תקינים.
 - קיימת הפרדה מכוונת בין קובצי הבדיקה שבשורש לבין תוצרי הפרסום: הקבצים שבשורש נשארים קריאים לצורך review וחוזי build, ואילו כל קובצי ה־CSS וה־JavaScript שנכנסים ל־`dist/site-upload-r2` ול־mirrors עוברים את פרופיל `standard-minified-v1` באמצעות `tools/optimize_deploy_assets.mjs`. CSS עובר minify מלא; route ESM וסקריפטים קלאסיים מבודדים עוברים צמצום תחביר, רווחים ושמות מזהים מקומיים. שמות properties, מפתחות אובייקט ו־browser globals אינם מעורפלים.
 - האופטימיזציה מתבצעת לפני fingerprinting, ולכן ה־hash בשם הקובץ מייצג בדיוק את הקוד הממוזער שנשלח לדפדפן. ה־Route bundles ממוזערים לאחר הטבעת `__BARGIG_RELEASE_ID__`; ה־Search Worker ממוזער לפני חישוב שמו, ו־`catalog-search.js` ממוזער רק לאחר שהוזרקו אליו השמות הסופיים של ה־Worker והאינדקס. לאחר מכן כל ארבעת מודולי ה־runtime מקבלים hash עצמאי, imports של שלושת ה־Route bundles נכתבים לשמות האמיתיים, ורק אז גם ה־Routes מקבלים fingerprint. האימות הסופי עוקב אחר גרף HTML → Route ESM → runtime ESM → Worker/index ודוחה generation חסר, מעורב או לא־מקושר. אין יצירת source maps או `sourceMappingURL` בתוצר הציבורי. כל מעבר כותב תחילה temporary files ומחליף את הקבצים רק לאחר שכל ההמרות באותו מעבר הצליחו.
@@ -140,7 +140,7 @@
 
 - לוגיקה טהורה נמצאת במודולי domain כגון `19-shared-pure.js`, `29-favorites-portability.js` ו־`39-search-catalog-domain.js`. ה־owners של ה־UI מאצילים אליהם במקום לשכפל אלגוריתם בבדיקה.
 - כאשר owner ותיק עדיין תלוי ב־DOM או ב־state, הוא רשאי לפרסם API בדיקה קטן בתוך גבול `TEST-ONLY EXPORTS`. `tests/frontend_test_module.js` טוען את קובץ המקור האמיתי ומקבל את ה־API הזה; ה־builder מסיר את הגבול כולו מכל bundle ייצור.
-- source-text tests נשארים רק לחוזים שבהם מבנה הקוד הוא המוצר הנבדק: manifest, היעדר Feature ממסלול, markup/CSS נדרש, CSP או wiring של build. הם אינם מחלצים או מבצעים לוגיקה עסקית.
+- source-text tests נשארים רק לחוזים שבהם מבנה הקוד הוא המוצר הנבדק: גבולות Route/capability, היעדר Feature ממסלול, markup/CSS נדרש, CSP או wiring של build. הם אינם מחלצים או מבצעים לוגיקה עסקית. Wave 4 העביר את מדיניות תמונות responsive, מצב Fit ומספור עמודים לבדיקות שמפעילות את ה־API האמיתי ואת תוצאת ה־DOM.
 - תוצרי `app-*.js` הקריאים שבשורש נבדקים רק כחוזי build/route: banner, entrypoint, מודולים נדרשים או אסורים והיעדר runtime היסטורי. בדיקות מימוש אינן מחפשות פונקציות או הצהרות בתוך פלט esbuild, משום שגם בניית הבסיס רשאית לשנות `const` ל־`var`, ערכי boolean ל־`!0` וצורות שקולות נוספות. בדיקה נפרדת מוכיחה שכל קובצי הקוד ב־deploy ממוזערים, ללא source map, ושקובצי השורש לא השתנו.
 - נרמול החיפוש נבדק מול `tests/fixtures/search_normalization_vectors.json`, אותו corpus שמורץ גם נגד Python Compiler וגם נגד Worker JavaScript. שינוי ב־Unicode, באותיות סופיות, במקף עברי, ב־quotes או ב־loose matching אינו יכול לסטות בין build ל־runtime.
 - seams בין Features נבדקים דרך ports מחייבים. לדוגמה, `Search` אינו רשאי לדווח הצלחה כאשר `Catalog Grid` או `Viewer` חסרים; אינטגרציה נדרשת נפתרת באמצעות `requireFeatureInterface()` ונכשלת בקול ברור.
@@ -169,7 +169,7 @@
 
 ## שכבות CSS וטעינה לפי מסלול
 
-CSS נשמר בשכבות אחריות קיימות, אך builder מרכיב manifest שונה לכל Route. אין לפצל selector רק כדי להקטין קובץ; שכבה נכללת במסלול כאשר הרכיבים שלה באמת קיימים בו.
+CSS נשמר במודולי אחריות קיימים, וה־builder מרכיב רשימת CSS מסודרת לכל Route. אין לפצל selector רק כדי להקטין קובץ; מודול נכלל במסלול כאשר הרכיבים שלו באמת קיימים בו. כל bundle עטוף כרגע בשכבת application יחידה כדי לשמר source order ו־specificity; מעבר למספר cascade layers נדחה בכוונה עד לכיסוי visual regression יציב. מדיניות מלאה ותקציב `!important` מתועדים ב־`docs/css-cascade-strategy.md`.
 
 - `styles.css`: foundation, shell, media, footer, accessibility ו־SEO.
 - `styles-catalog.css`: מוסיף Grid ותיקוני קטלוג.

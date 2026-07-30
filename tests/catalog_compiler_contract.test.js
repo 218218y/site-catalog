@@ -75,7 +75,10 @@ assert.match(compiler, /render_updated_files_from_catalogs/);
 assert.match(compiler, /catalog-big-pages-viewer-netfree\/catalog-big-pages-viewer\.html/);
 
 assert.match(fs.readFileSync(path.join(root, "catalogs.generated.js"), "utf8"), /tools\/catalog_compiler\.py/);
-assert.match(fs.readFileSync(path.join(root, "catalogs.search.js"), "utf8"), /tools\/catalog_compiler\.py/);
+assert.equal(fs.existsSync(path.join(root, "catalogs.search.json")), false);
+assert.equal(fs.existsSync(path.join(root, "catalogs.search.js")), false);
+assert.match(compiler, /LEGACY_SEARCH_JSON_FILE = "catalogs\.search\.json"/);
+assert.match(compiler, /LEGACY_SEARCH_JS_FILE = "catalogs\.search\.js"/);
 const normalizedSearchIndex = JSON.parse(fs.readFileSync(path.join(root, "catalogs.search-index.json"), "utf8"));
 assert.equal(normalizedSearchIndex.version, 1);
 assert.equal(normalizedSearchIndex.documents.length, normalizedSearchIndex.stats.pages);

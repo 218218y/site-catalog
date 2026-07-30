@@ -18,6 +18,11 @@ DUPLICATE_SHARE_IMAGES: tuple[str, ...] = (
     "social-share-default(3).png",
     "social-share-default(4).png",
 )
+RETIRED_CATALOG_SEARCH_ARTIFACTS: tuple[str, ...] = (
+    "catalogs.search.js",
+    "catalogs.search.json",
+)
+LOCAL_CACHE_DIRECTORIES: tuple[str, ...] = (".pytest_cache",)
 IGNORED_DIRECTORY_NAMES: frozenset[str] = frozenset({".git", ".venv", "node_modules", "dist", ".artifacts"})
 
 
@@ -48,7 +53,9 @@ def iter_bytecode_files(root: Path) -> Iterable[Path]:
 def cleanup_candidates(root: Path) -> tuple[Path, ...]:
     candidates = list(iter_cache_directories(root))
     candidates.extend(iter_bytecode_files(root))
+    candidates.extend(root / name for name in LOCAL_CACHE_DIRECTORIES if (root / name).is_dir())
     candidates.extend(root / name for name in DUPLICATE_SHARE_IMAGES if (root / name).exists())
+    candidates.extend(root / name for name in RETIRED_CATALOG_SEARCH_ARTIFACTS if (root / name).exists())
     return tuple(sorted(set(candidates), key=lambda path: (len(path.parts), path.as_posix()), reverse=True))
 
 

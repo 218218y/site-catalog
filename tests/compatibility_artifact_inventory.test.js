@@ -31,6 +31,10 @@ for (const documentName of routeDocuments) {
   assert.doesNotMatch(source, /(?:src|href)=["']app\.js["']/);
 }
 
+for (const retired of ["catalogs.search.js", "catalogs.search.json"]) {
+  assert.equal(fs.existsSync(path.join(root, retired)), false, `${retired} must remain retired`);
+}
+
 const deploy = fs.readFileSync(path.join(root, "tools", "build_deploy_bundle.py"), "utf8");
 const deployFiles = deploy.split("DEPLOY_FILES =", 2)[1].split("OPTIONAL_DEPLOY_FILES", 1)[0];
 assert.doesNotMatch(deployFiles, /catalogs\.search\.js/);

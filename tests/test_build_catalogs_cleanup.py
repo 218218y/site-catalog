@@ -74,17 +74,7 @@ def test_conversion_always_reconciles_removed_catalogs(
         }, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    (root / "catalogs.search.json").write_text(
-        json.dumps(
-            [
-                {"catalogId": "keep", "title": "Keep", "pages": [{"page": 1, "text": "old keep"}]},
-                {"catalogId": "missing-pdf", "title": "Missing PDF", "pages": [{"page": 1, "text": "stale OCR"}]},
-                {"catalogId": "unlisted", "title": "Unlisted", "pages": [{"page": 1, "text": "stale OCR"}]},
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (root / "catalogs.search.js").write_text("legacy search js\n", encoding="utf-8")
+
 
     for catalog_id in ("missing-pdf", "unlisted"):
         output = root / "assets/pages" / catalog_id
@@ -128,14 +118,14 @@ def test_conversion_always_reconciles_removed_catalogs(
     assert not (root / "assets/pages/unlisted").exists()
 
     generated = json.loads((root / "catalogs.generated.json").read_text(encoding="utf-8"))
-    search = json.loads((root / "catalogs.search.json").read_text(encoding="utf-8"))
+    search_index = json.loads((root / "catalogs.search-index.json").read_text(encoding="utf-8"))
     assert [entry["id"] for entry in generated] == ["keep"]
     medium_variant = generated[0]["imageVariants"]["medium"]
     assert medium_variant["directory"] == "medium"
     assert medium_variant["maxSide"] == 1600
     assert len(medium_variant["version"]) == 12
     assert generated[0]["assetVersion"]
-    assert [entry["catalogId"] for entry in search] == ["keep"]
+    assert [entry["id"] for entry in search_index["catalogs"]] == ["keep"]
 
 
 def test_only_two_conversion_actions_and_batch_files_remain() -> None:
@@ -186,8 +176,7 @@ def test_full_conversion_and_control_panel_save_emit_identical_catalog_bytes(
         "catalogs.build-state.json",
         "catalogs.generated.json",
         "catalogs.generated.js",
-        "catalogs.search.json",
-        "catalogs.search.js",
+        "catalogs.search-index.json",
     )
     conversion_bytes = {name: (root / name).read_bytes() for name in managed}
 

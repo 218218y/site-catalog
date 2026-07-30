@@ -112,7 +112,6 @@ WEB_APP_ICON_PATTERNS = (
 
 JSON_DEPLOY_FILES = [
     "catalogs.generated.json",
-    "catalogs.search.json",
 ]
 
 HTML_ASSET_RE = re.compile(r"<(?:script|link)\b[^>]*(?:src|href)=[\"']([^\"']+)[\"']", re.IGNORECASE)
@@ -210,8 +209,6 @@ BUILD_INPUT_FILES = (
     "catalogs.build-state.json",
     "catalogs.generated.json",
     "catalogs.generated.js",
-    "catalogs.search.js",
-    "catalogs.search.json",
     "catalogs.search-index.json",
     "catalog-search-worker.js",
     "catalog-snapshot.js",
@@ -1522,7 +1519,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create a clean Cloudflare Pages upload folder for the R2-backed catalog website.")
     parser.add_argument("--out", default="dist/site-upload-r2", help="Output folder, relative to the project root by default")
     parser.add_argument("--zip", action="store_true", help="Also create a .zip file next to the output folder")
-    parser.add_argument("--include-json", action="store_true", help="Also copy catalogs.generated.json and catalogs.search.json")
+    parser.add_argument("--include-json", action="store_true", help="Also copy catalogs.generated.json")
     parser.add_argument(
         "--external-assets-url",
         default=DEFAULT_R2_ASSET_BASE_URL,

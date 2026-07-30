@@ -354,7 +354,8 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     consumeSingleViewerBoundaryInput,
     consumeViewerPageWheelResetContinuation,
     handleViewerPageWheel,
-    clearViewerPageWheelGesture
+    clearViewerPageWheelGesture,
+    retryCurrentViewerImage
   });
 }
 /* TEST-ONLY EXPORTS: END */

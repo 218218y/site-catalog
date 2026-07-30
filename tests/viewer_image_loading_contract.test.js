@@ -1,77 +1,26 @@
-'use strict';
+"use strict";
 
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { readAllCssBundles } = require("./frontend_test_assets");
 
-const root = path.join(__dirname, '..');
-const app = readAllBundles();
-const appState = fs.readFileSync(path.join(root, 'src/js/10-app-state.js'), 'utf8');
-const sharedUi = fs.readFileSync(path.join(root, 'src/js/20-shared-ui.js'), 'utf8');
-const viewerImage = fs.readFileSync(path.join(root, 'src/js/53-viewer-image.js'), 'utf8');
-const viewerNavigation = fs.readFileSync(path.join(root, 'src/js/58-viewer-navigation.js'), 'utf8');
+const root = path.join(__dirname, "..");
 const css = readAllCssBundles();
-const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
+const template = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
 
-function sourceBetween(source, startMarker, endMarker) {
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker, start + startMarker.length);
-  assert.notEqual(start, -1, `Missing ${startMarker}`);
-  assert.notEqual(end, -1, `Missing ${endMarker}`);
-  return source.slice(start, end);
-}
-
-const recovery = sourceBetween(
-  sharedUi,
-  'function loadCatalogImageWithRecovery(img, options = {})',
-  'function prepareCatalogImage(url, options = {})'
-);
-const single = sourceBetween(
-  viewerImage,
-  'function showSingleLightboxImage(catalog, page, src, options = {})',
-  'function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zoom)'
-);
-const retry = sourceBetween(
-  viewerNavigation,
-  'function retryCurrentViewerImage()',
-  'function getViewerNavigationPosition()'
-);
-
-assert.match(appState, /const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";/);
-assert.match(sharedUi, /function catalogImageRecoveryCandidates\(/);
-assert.match(recovery, /setCatalogImageSource\(img, candidate\.src\);/);
-assert.match(recovery, /onExhausted/);
-assert.match(recovery, /telemetryTrackImageAttemptFailure/);
-assert.match(recovery, /telemetryTrackImageRecovery/);
-assert.match(recovery, /telemetryTrackImageTerminalFailure/);
-assert.match(sharedUi, /fallback: role\.startsWith\("fallback"\)/);
-assert.match(single, /fallbackCandidates: request\.fallbackCandidates/);
-assert.match(single, /image\.dataset\.loadedTier/);
-assert.match(single, /telemetryDetail: "viewer-single"/);
-assert.match(single, /const preserveCurrentImage = Boolean\(/);
-assert.match(single, /retainSingleViewerResolutionLayerForSwap\(\)/);
-assert.match(single, /releaseSingleViewerRetainedResolutionLayer\(\)/);
-assert.match(single, /image\.dataset\.placeholderIgnore = "true"/);
-assert.match(single, /prepareCatalogImage\(primarySrc, \{ priority: "high", detail: "viewer-page-stage" \}\)/);
-assert.match(single, /\.catch\(\(\) => null\)[\s\S]*?\.then\(commitImageRequest\)/);
-assert.match(single, /delete image\.dataset\.placeholderIgnore/);
-assert.match(single, /התמונה לא הצליחה להיטען/);
-assert.match(retry, /const catalog = activeCatalog\(\)[\s\S]*?viewerPageImageRequest\(catalog, activePage\(\)\)/);
-assert.match(retry, /showSingleLightboxImage\(catalog, activePage\(\), request\.primarySrc/);
-assert.match(retry, /forceRefresh: true/);
+// This file intentionally owns only the markup and visual-state contract.
+// Recovery candidates, retry commands, telemetry and resolution-layer behavior
+// are exercised through the real module APIs in the corresponding logic tests.
 assert.match(template, /id="viewerImageFeedback"[^>]*role="status"/);
 assert.match(template, /id="viewerImageRetry"/);
 assert.match(css, /\.viewer-image-feedback\s*\{/);
 assert.doesNotMatch(css, /\.viewer-scroll-image-feedback\s*\{/);
 assert.match(css, /\.lightbox-image-frame\.image-terminal-error/);
 assert.match(css, /\.lightbox\.is-page-loading \.lightbox-image-frame\s*\{[\s\S]*?brightness\(\.97\)/);
-assert.match(viewerImage, /function prepareSingleViewerResolutionUpgrade\(/);
-assert.match(viewerImage, /telemetryDetail: "viewer-resolution-upgrade"/);
-assert.match(viewerImage, /activeSingleViewerImageLogicalSrc\(\)/);
 assert.match(css, /\.lightbox-image-frame > \.lightbox-image:not\(\.lightbox-image-resolution\)\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?display:\s*block;[\s\S]*?width:\s*100%;[\s\S]*?height:\s*100%;/);
-assert.match(css, /\.image-placeholder-frame:not\(\.lightbox-image-frame\) > img:not\(\[data-placeholder-ignore=\"true\"\]\)\s*\{[\s\S]*?position:\s*relative;/);
+assert.match(css, /\.image-placeholder-frame:not\(\.lightbox-image-frame\) > img:not\(\[data-placeholder-ignore="true"\]\)\s*\{[\s\S]*?position:\s*relative;/);
 assert.match(css, /\.lightbox-image-frame \.lightbox-image-resolution/);
 assert.match(css, /\.lightbox-image-frame\.is-resolution-upgrade-ready \.lightbox-image-resolution/);
 
-console.log('viewer_image_loading_contract.test.js: PASS');
+console.log("viewer_image_loading_contract.test.js: PASS");

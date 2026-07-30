@@ -14,6 +14,7 @@ performs no writes and fails when any generated asset is stale.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -66,43 +67,53 @@ RUNTIME_EXTERNAL_MODULES: Mapping[str, str] = {
     "src/runtime/favorites-store.js": "favorites-store.js",
     "src/runtime/site-routes.js": "site-routes.js",
 }
-CATALOG_JS_INPUTS: tuple[str, ...] = (
-    "src/entries/catalog.js", "src/js/00-navigation.js", "src/js/01-route-capabilities.js",
-    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/06-catalog-page-numbering.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
-    "src/js/13-search-state.js", "src/js/14-favorites-state.js", "src/js/15-telemetry.js",
-    "src/js/17-catalog-asset-urls.js", "src/js/18-navigation-feature.js", "src/js/20-shared-ui.js",
-    "src/js/29-favorites-portability.js", "src/js/30-favorites-share.js",
-    "src/js/39-search-catalog-domain.js", "src/js/40-catalog-grid.js",
-    "src/js/50-search-ui.js", "src/js/80-app-shell.js", "src/js/90-bootstrap.js",
-)
-FAVORITES_JS_INPUTS: tuple[str, ...] = (
-    "src/entries/favorites.js", "src/js/00-navigation.js", "src/js/01-route-capabilities.js",
-    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/06-catalog-page-numbering.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
-    "src/js/13-search-state.js", "src/js/14-favorites-state.js", "src/js/15-telemetry.js",
-    "src/js/17-catalog-asset-urls.js", "src/js/18-navigation-feature.js", "src/js/19-shared-pure.js", "src/js/20-shared-ui.js",
-    "src/js/29-favorites-portability.js", "src/js/30-favorites-share.js",
-    "src/js/32-shared-inquiry.js", "src/js/35-favorites-workspace.js",
-    "src/js/39-search-catalog-domain.js", "src/js/40-catalog-grid.js",
-    "src/js/50-search-ui.js", "src/js/80-app-shell.js", "src/js/90-bootstrap.js",
-)
-VIEWER_JS_INPUTS: tuple[str, ...] = (
-    "src/entries/viewer.js", "src/js/00-navigation.js", "src/js/01-route-capabilities.js",
-    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/06-catalog-page-numbering.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
-    "src/js/13-search-state.js", "src/js/14-favorites-state.js", "src/js/15-telemetry.js",
-    "src/js/16-viewer-state.js", "src/js/17-catalog-asset-urls.js", "src/js/18-navigation-feature.js", "src/js/19-shared-pure.js",
-    "src/js/20-shared-ui.js", "src/js/29-favorites-portability.js",
-    "src/js/30-favorites-share.js", "src/js/31-viewer-share.js",
-    "src/js/32-shared-inquiry.js", "src/js/35-favorites-workspace.js",
-    "src/js/39-search-catalog-domain.js", "src/js/40-catalog-grid.js",
-    "src/js/50-search-ui.js", "src/js/51-viewer-session-state.js",
-    "src/js/52-viewer-session.js", "src/js/53-viewer-image.js",
-    "src/js/54-viewer-geometry.js", "src/js/55-viewer-zoom-controller.js",
-    "src/js/56-viewer-shell.js", "src/js/57-viewer-fit-controller.js",
-    "src/js/58-viewer-navigation.js", "src/js/59-viewer-page-controller.js",
-    "src/js/60-viewer.js", "src/js/61-viewer-layout-controller.js",
-    "src/js/62-viewer-actions.js", "src/js/65-viewer-onboarding.js",
-    "src/js/70-viewer-input.js", "src/js/80-app-shell.js", "src/js/90-bootstrap.js",
-    "catalog-snapshot.js",
+@dataclass(frozen=True)
+class CapabilityBoundary:
+    required_roots: tuple[str, ...]
+    owned_patterns: tuple[str, ...]
+
+
+CAPABILITY_BOUNDARIES: Mapping[str, CapabilityBoundary] = {
+    "viewer": CapabilityBoundary(
+        required_roots=("src/js/60-viewer.js",),
+        owned_patterns=("src/js/*viewer*.js", "catalog-snapshot.js"),
+    ),
+    "favoritesWorkspace": CapabilityBoundary(
+        required_roots=("src/js/35-favorites-workspace.js",),
+        owned_patterns=("src/js/35-favorites-workspace.js",),
+    ),
+    "catalogGrid": CapabilityBoundary(
+        required_roots=("src/js/40-catalog-grid.js",),
+        owned_patterns=("src/js/40-catalog-grid.js",),
+    ),
+    "search": CapabilityBoundary(
+        required_roots=("src/js/50-search-ui.js",),
+        owned_patterns=("src/js/50-search-ui.js",),
+    ),
+}
+
+
+def capability_owned_inputs(inputs: Sequence[str], boundary: CapabilityBoundary) -> tuple[str, ...]:
+    """Return graph inputs owned by a capability using reviewed naming boundaries.
+
+    The ownership patterns deliberately describe architecture, not a frozen
+    esbuild graph. A new shared helper may enter a route through normal imports
+    without editing this file, while a newly added Viewer module is still
+    rejected automatically from routes where the Viewer capability is disabled.
+    """
+
+    return tuple(sorted(
+        relative
+        for relative in inputs
+        if any(fnmatch.fnmatchcase(relative, pattern) for pattern in boundary.owned_patterns)
+    ))
+
+
+COMMON_ROUTE_REQUIRED_INPUTS: tuple[str, ...] = (
+    "src/js/18-navigation-feature.js",
+    "src/js/30-favorites-share.js",
+    "src/js/80-app-shell.js",
+    "src/js/90-bootstrap.js",
 )
 
 @dataclass(frozen=True)
@@ -111,7 +122,7 @@ class FrontendBundleSpec:
     kind: str
     modules: tuple[str, ...] = ()
     entrypoint: str | None = None
-    expected_inputs: tuple[str, ...] = ()
+    required_inputs: tuple[str, ...] = ()
     capabilities: Mapping[str, bool] | None = None
     external_modules: Mapping[str, str] | None = None
 
@@ -124,16 +135,20 @@ BUNDLE_SPECS: tuple[FrontendBundleSpec, ...] = (
         output_name,
         "runtime-js",
         entrypoint=source_path,
-        expected_inputs=(source_path,),
+        required_inputs=(source_path,),
     ) for source_path, output_name in RUNTIME_EXTERNAL_MODULES.items()),
     FrontendBundleSpec("app-catalog.js", "js", entrypoint="src/entries/catalog.js",
-        expected_inputs=CATALOG_JS_INPUTS, external_modules=RUNTIME_EXTERNAL_MODULES,
+        required_inputs=("src/entries/catalog.js", *COMMON_ROUTE_REQUIRED_INPUTS),
+        external_modules=RUNTIME_EXTERNAL_MODULES,
         capabilities={"viewer": False, "favoritesWorkspace": False, "catalogGrid": True, "search": True}),
     FrontendBundleSpec("app-favorites.js", "js", entrypoint="src/entries/favorites.js",
-        expected_inputs=FAVORITES_JS_INPUTS, external_modules=RUNTIME_EXTERNAL_MODULES,
+        required_inputs=("src/entries/favorites.js", *COMMON_ROUTE_REQUIRED_INPUTS, "src/js/32-shared-inquiry.js"),
+        external_modules=RUNTIME_EXTERNAL_MODULES,
         capabilities={"viewer": False, "favoritesWorkspace": True, "catalogGrid": True, "search": True}),
     FrontendBundleSpec("app-viewer.js", "js", entrypoint="src/entries/viewer.js",
-        expected_inputs=VIEWER_JS_INPUTS, external_modules=RUNTIME_EXTERNAL_MODULES,
+        required_inputs=("src/entries/viewer.js", *COMMON_ROUTE_REQUIRED_INPUTS,
+                         "src/js/31-viewer-share.js", "src/js/32-shared-inquiry.js"),
+        external_modules=RUNTIME_EXTERNAL_MODULES,
         capabilities={"viewer": True, "favoritesWorkspace": True, "catalogGrid": True, "search": True}),
 )
 
@@ -228,15 +243,15 @@ def validate_module_manifest(module_paths: Sequence[str], *, expected_extension:
 
 
 def validate_js_spec(root: Path, spec: FrontendBundleSpec) -> None:
-    if not spec.entrypoint or not spec.expected_inputs:
-        raise ValueError(f"JavaScript bundle {spec.output_name} requires an entrypoint and expected input graph")
+    if not spec.entrypoint or not spec.required_inputs:
+        raise ValueError(f"JavaScript bundle {spec.output_name} requires an entrypoint and required input boundaries")
     expected_parent = "src/runtime" if spec.kind == "runtime-js" else "src/entries"
     if Path(spec.entrypoint).parent.as_posix() != expected_parent:
         raise ValueError(f"JavaScript entrypoint must live under {expected_parent}: {spec.entrypoint}")
-    for relative in spec.expected_inputs:
+    for relative in spec.required_inputs:
         read_source_module(root, relative)
-    if spec.entrypoint not in spec.expected_inputs:
-        raise ValueError(f"Expected graph for {spec.output_name} does not contain its entrypoint")
+    if spec.entrypoint not in spec.required_inputs:
+        raise ValueError(f"Required boundaries for {spec.output_name} do not contain its entrypoint")
     external_modules = dict(spec.external_modules or {})
     if spec.kind == "runtime-js" and external_modules:
         raise ValueError(f"Runtime module {spec.output_name} cannot depend on external runtime modules")
@@ -448,13 +463,47 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
         metafile = json.loads(metafile_path.read_text(encoding="utf-8"))
 
     actual_inputs, virtual_inputs = _partition_metafile_inputs(root, metafile.get("inputs", {}))
-    expected_inputs = tuple(sorted(spec.expected_inputs))
-    if actual_inputs != expected_inputs:
-        missing = sorted(set(expected_inputs) - set(actual_inputs))
-        unexpected = sorted(set(actual_inputs) - set(expected_inputs))
+    actual_input_set = set(actual_inputs)
+    required_inputs = set(spec.required_inputs)
+    missing_required = sorted(required_inputs - actual_input_set)
+    if missing_required:
         raise RuntimeError(
-            f"Unexpected esbuild graph for {spec.output_name}; missing={missing}, unexpected={unexpected}"
+            f"Required architecture boundary is absent from {spec.output_name}: {missing_required}"
         )
+    if spec.kind == "runtime-js":
+        expected_runtime_graph = (spec.entrypoint,)
+        if actual_inputs != expected_runtime_graph:
+            raise RuntimeError(
+                f"Runtime module {spec.output_name} must remain a single-source owner; actual={list(actual_inputs)}"
+            )
+    else:
+        invalid_inputs = sorted(
+            relative for relative in actual_inputs
+            if relative != "catalog-snapshot.js"
+            and not relative.startswith("src/js/")
+            and not relative.startswith("src/entries/")
+        )
+        if invalid_inputs:
+            raise RuntimeError(f"Route graph contains sources outside approved roots: {invalid_inputs}")
+        foreign_entries = sorted(
+            relative for relative in actual_inputs
+            if relative.startswith("src/entries/") and relative != spec.entrypoint
+        )
+        if foreign_entries:
+            raise RuntimeError(f"Route graph includes another route entrypoint: {foreign_entries}")
+        for capability, boundary in CAPABILITY_BOUNDARIES.items():
+            enabled = bool((spec.capabilities or {}).get(capability, False))
+            present = capability_owned_inputs(actual_inputs, boundary)
+            missing_roots = sorted(set(boundary.required_roots) - actual_input_set)
+            if enabled and missing_roots:
+                raise RuntimeError(
+                    f"Enabled capability {capability!r} is missing its composition root "
+                    f"from {spec.output_name}: {missing_roots}"
+                )
+            if not enabled and present:
+                raise RuntimeError(
+                    f"Disabled capability {capability!r} leaked into {spec.output_name}: {list(present)}"
+                )
     output_records = list(metafile.get("outputs", {}).values())
     if len(output_records) != 1:
         raise RuntimeError(f"Expected one esbuild output record for {spec.output_name}")
@@ -490,7 +539,7 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
     banner = (
         "/*\n * GENERATED FILE — DO NOT EDIT DIRECTLY.\n"
         f" * Browser bundle: {spec.output_name}\n * ES module entrypoint: {spec.entrypoint}\n"
-        f" * Bundled ES module graph:\n{source_manifest_text(spec.expected_inputs)}\n"
+        f" * Bundled ES module graph:\n{source_manifest_text(actual_inputs)}\n"
         f"{external_manifest}"
         f" * Compiler virtual inputs: {', '.join(virtual_inputs) if virtual_inputs else 'none'}\n"
         " * Output format: native browser ES module\n"
@@ -530,7 +579,12 @@ def build_one(root: Path, spec: FrontendBundleSpec, *, check: bool) -> FrontendB
     if check and stale:
         raise RuntimeError(f"Generated frontend asset is stale: {spec.output_name}. Run: python tools/build_frontend_assets.py")
     changed = False if check else atomic_write_text(output, content)
-    module_count = len(spec.expected_inputs) + len(spec.external_modules or {}) if spec.kind in {"js", "runtime-js"} else len(spec.modules)
+    if spec.kind in {"js", "runtime-js"}:
+        graph_match = re.search(r"\* Bundled ES module graph:\n(?P<graph>(?: \*   - .*\n)+)", content)
+        graph_count = len(graph_match.group("graph").splitlines()) if graph_match else 0
+        module_count = graph_count + len(spec.external_modules or {})
+    else:
+        module_count = len(spec.modules)
     return FrontendBuildResult(output, module_count, len(expected), changed, sha256_text(content))
 
 
