@@ -284,7 +284,7 @@ def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]
     for cycle in sorted(cycles, key=lambda value: sorted(value)):
         failures.append(f"ES-module dependency cycle is forbidden: {sorted(cycle)}")
 
-    expected_entries = {"catalog.js", "favorites.js", "viewer.js"}
+    expected_entries = {"catalog.js", "favorites.js", "viewer.js", "payment.js"}
     actual_entries = {path.name for path in entries}
     if actual_entries != expected_entries:
         failures.append(
@@ -409,7 +409,7 @@ def check_test_only_exports(base: Path, sources: list[Path], failures: list[str]
         if begins != ends:
             failures.append(f"unbalanced test-only export boundary: {path.relative_to(base).as_posix()}")
 
-    for output in ("app-catalog.js", "app-favorites.js", "app-viewer.js"):
+    for output in ("app-catalog.js", "app-favorites.js", "app-viewer.js", "app-payment.js"):
         path = base / output
         if not path.is_file():
             continue
@@ -624,7 +624,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         if "share one lexical scope" in text or "concatenates all sources" in text:
             failures.append(f"legacy shared-scope architecture text remains: {relative}")
 
-    entries = {"catalog", "favorites", "viewer"}
+    entries = {"catalog", "favorites", "viewer", "payment"}
     for entry in entries:
         entry_path = base / f"src/entries/{entry}.js"
         if not entry_path.is_file():
@@ -729,6 +729,15 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             ),
             "forbidden": (),
         },
+        "app-payment.js": {
+            "required": ("src/entries/payment.js",),
+            "forbidden": (
+                "src/js/16-viewer-state.js",
+                "src/js/35-favorites-workspace.js",
+                "src/js/40-catalog-grid.js",
+                "src/js/60-viewer.js",
+            ),
+        },
     }
     for output, expectation in route_expectations.items():
         path = base / output
@@ -782,6 +791,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         "catalog.html": "app-catalog.js",
         "favorites.html": "app-favorites.js",
         "viewer.html": "app-viewer.js",
+        "payment.html": "app-payment.js",
     }
     for page_name, route_asset in route_pages.items():
         page_path = base / page_name
@@ -799,6 +809,9 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     template_text = (base / "site.template.html").read_text(encoding="utf-8")
     if '<script type="module" data-bargig-route-module src="{{ROUTE_SCRIPT}}"></script>' not in template_text:
         failures.append("site.template.html does not emit native route module scripts")
+    payment_template_text = (base / "payment.template.html").read_text(encoding="utf-8")
+    if '<script type="module" data-bargig-route-module src="{{ROUTE_SCRIPT}}"></script>' not in payment_template_text:
+        failures.append("payment.template.html does not emit the native payment route module")
     for runtime_asset in EXTERNAL_RUNTIME_MODULES:
         if f'<script src="{runtime_asset}"></script>' in template_text:
             failures.append(f"site.template.html still loads business runtime {runtime_asset} as a classic script")

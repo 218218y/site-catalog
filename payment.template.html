@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="he" dir="rtl" class="has-bargig-logo">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {{BASE_TAG}}
+  <script src="https-redirect.js"></script>
+  <meta name="robots" content="{{ROBOTS_CONTENT}}" />
+  <meta name="theme-color" content="#8b6f5a" />
+  <link rel="manifest" href="site.webmanifest" />
+  <link rel="icon" href="favicon.ico" sizes="any" data-site-favicon="1" />
+  <script src="favicon-loader.js" defer></script>
+  {{ROUTE_PRELOAD}}
+  <title>{{PAGE_TITLE}}</title>
+  <meta name="description" content="{{PAGE_DESCRIPTION}}" />
+  <link rel="canonical" href="{{CANONICAL_URL}}" />
+  {{SOCIAL_METADATA}}
+  {{STRUCTURED_DATA}}
+  <link rel="stylesheet" href="{{ROUTE_STYLESHEET}}" />
+</head>
+<body data-page="{{PAGE_MODE}}">
+  <a class="skip-link" href="#main-content">דילוג לתוכן הראשי</a>
+  <header class="legal-site-header" id="top">
+    <a class="brand legal-site-brand" href="index.html" aria-label="רהיטי ברגיג - דף הבית">
+      <span class="brand-mark-frame" aria-hidden="true">
+        <img class="brand-mark" src="brand-logo-header.svg" width="786" height="317" alt="" decoding="async" />
+      </span>
+      <span class="brand-text">
+        <strong>רהיטי ברגיג</strong>
+        <small>גלריית קטלוגים</small>
+      </span>
+    </a>
+    <a class="button soft legal-back-link" href="index.html">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg>
+      <span>חזרה לקטלוגים</span>
+    </a>
+  </header>
+
+  <main class="payment-main" id="main-content" tabindex="-1">
+    <nav class="legal-breadcrumbs" aria-label="פירורי לחם">
+      <a href="index.html">דף הבית</a>
+      <span aria-hidden="true">/</span>
+      <span aria-current="page">תשלום חוב קיים</span>
+    </nav>
+
+    <section class="payment-layout" aria-labelledby="paymentPageTitle">
+      <div class="payment-intro-card">
+        <span class="legal-eyebrow">תשלום מאובטח עבור עסקה קיימת</span>
+        <h1 id="paymentPageTitle">תשלום חוב לרהיטי ברגיג</h1>
+        <p>עמוד זה מיועד ללקוחות שכבר ביצעו הזמנה או סיכמו עסקה מול העסק. התשלום אינו יוצר הזמנה חדשה ואינו משנה את המפרט, המחיר, מועדי האספקה או תנאי העסקה שסוכמו.</p>
+
+        <div class="payment-safety-note" role="note">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5 19 6v5.2c0 4.55-2.75 7.85-7 9.3-4.25-1.45-7-4.75-7-9.3V6z"/><path d="m8.8 12 2.1 2.1 4.4-4.6"/></svg>
+          <div>
+            <strong>פרטי כרטיס האשראי אינם מוזנים באתר זה.</strong>
+            <span>לאחר השלמת הפרטים ואישור התקנון תועברו לעמוד התשלום המאובטח של {{PAYMENT_PROVIDER_NAME}}.</span>
+          </div>
+        </div>
+
+        <ul class="payment-process-list" aria-label="שלבי התשלום">
+          <li><span>1</span><div><strong>מזהים את ההזמנה</strong><small>ממלאים שם לקוח ומספר הזמנה או חשבון.</small></div></li>
+          <li><span>2</span><div><strong>מאשרים את התנאים</strong><small>קוראים ומאשרים את תקנון התשלום ומדיניות הפרטיות.</small></div></li>
+          <li><span>3</span><div><strong>עוברים לספק הסליקה</strong><small>התשלום עצמו מתבצע מחוץ לאתר בעמוד מאובטח.</small></div></li>
+        </ul>
+      </div>
+
+      <div class="payment-form-card">
+        <header>
+          <span class="payment-form-kicker">פרטי זיהוי</span>
+          <h2>לפני המעבר לתשלום</h2>
+          <p>יש למלא את הפרטים כפי שהם מופיעים בהזמנה או בחשבון שקיבלתם מהעסק.</p>
+        </header>
+
+        <form
+          id="paymentForm"
+          class="payment-form"
+          novalidate
+          data-payment-enabled="{{PAYMENT_ENABLED}}"
+          data-payment-url="{{PAYMENT_URL}}"
+          data-payment-provider="{{PAYMENT_PROVIDER_NAME}}"
+          data-payment-open-new-tab="{{PAYMENT_OPEN_IN_NEW_TAB}}"
+          data-customer-name-query-parameter="{{PAYMENT_CUSTOMER_NAME_QUERY_PARAMETER}}"
+          data-order-number-query-parameter="{{PAYMENT_ORDER_NUMBER_QUERY_PARAMETER}}"
+        >
+          <div class="payment-field">
+            <label for="paymentCustomerName">שם הלקוח <span aria-hidden="true">*</span></label>
+            <input
+              id="paymentCustomerName"
+              name="customerName"
+              type="text"
+              autocomplete="name"
+              maxlength="120"
+              required
+              aria-describedby="paymentCustomerNameHelp"
+            />
+            <small id="paymentCustomerNameHelp">השם שבו בוצעה ההזמנה.</small>
+          </div>
+
+          <div class="payment-field">
+            <label for="paymentOrderNumber">מספר הזמנה או חשבון <span aria-hidden="true">*</span></label>
+            <input
+              id="paymentOrderNumber"
+              name="orderNumber"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              maxlength="80"
+              required
+              aria-describedby="paymentOrderNumberHelp"
+            />
+            <small id="paymentOrderNumberHelp">אין לכם מספר? פנו אלינו לפני ביצוע התשלום.</small>
+          </div>
+
+          <label class="payment-consent" for="paymentTermsAccepted">
+            <input id="paymentTermsAccepted" name="termsAccepted" type="checkbox" required />
+            <span>
+              קראתי ואני מאשר/ת את
+              <a href="terms.html" target="_blank" rel="noopener">תקנון הרכישה והתשלום</a>
+              ואת
+              <a href="privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a>.
+            </span>
+          </label>
+
+          <p class="payment-form-status" id="paymentFormStatus" role="status" aria-live="polite"></p>
+
+          <button class="button primary payment-submit" id="paymentSubmit" type="submit" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7.5h14v9H5z"/><path d="M5 10.5h14M8 14h3"/></svg>
+            <span>מעבר לתשלום המאובטח</span>
+          </button>
+
+          <p class="payment-form-footnote">אין להזין כאן מספר כרטיס אשראי, קוד אבטחה או סיסמה. אם הסכום או פרטי ההזמנה אינם ברורים, יש לפנות לעסק לפני התשלום.</p>
+        </form>
+      </div>
+    </section>
+
+    <section class="payment-contact-strip" aria-label="סיוע בתשלום">
+      <div>
+        <strong>צריכים עזרה לפני התשלום?</strong>
+        <span>אפשר ליצור קשר ולוודא את מספר ההזמנה והסכום המדויק.</span>
+      </div>
+      <div class="payment-contact-actions">
+        <a class="button soft" href="tel:{{PAYMENT_CONTACT_PHONE_HREF}}"><span>חיוג לעסק</span></a>
+        <a class="button soft" href="mailto:{{PAYMENT_CONTACT_EMAIL}}"><span>שליחת מייל</span></a>
+      </div>
+    </section>
+  </main>
+
+  {{SITE_FOOTER}}
+  <script type="module" data-bargig-route-module src="{{ROUTE_SCRIPT}}"></script>
+</body>
+</html>

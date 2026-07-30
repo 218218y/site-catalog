@@ -150,6 +150,8 @@ BUNDLE_SPECS: tuple[FrontendBundleSpec, ...] = (
                          "src/js/31-viewer-share.js", "src/js/32-shared-inquiry.js"),
         external_modules=RUNTIME_EXTERNAL_MODULES,
         capabilities={"viewer": True, "favoritesWorkspace": True, "catalogGrid": True, "search": True}),
+    FrontendBundleSpec("app-payment.js", "js", entrypoint="src/entries/payment.js",
+        required_inputs=("src/entries/payment.js",)),
 )
 
 GENERATED_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS)
@@ -165,6 +167,7 @@ ROUTE_ASSETS: Mapping[str, tuple[str, str]] = {
     "catalog": ("styles-catalog.css", "app-catalog.js"),
     "favorites": ("styles-favorites.css", "app-favorites.js"),
     "viewer": ("styles-viewer.css", "app-viewer.js"),
+    "payment": ("styles.css", "app-payment.js"),
 }
 
 MODULE_NAME_PATTERN = re.compile(r"^(?P<order>\d{2})-[a-z0-9-]+\.(?P<extension>js|css)$")

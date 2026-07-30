@@ -31,6 +31,8 @@ def copy_page_sources(target: Path) -> None:
     for relative in (
         "site.template.html",
         "legal.template.html",
+        "payment.template.html",
+        "payment.config.json",
         "partials/site-footer.html",
         "partials/site-footer.content.json",
         "legal/terms.content.html",

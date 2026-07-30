@@ -23,7 +23,8 @@ from catalog_page_numbering import first_display_page, iter_display_pages, last_
 
 from build_frontend_assets import ROUTE_ASSETS, build_frontend_assets
 from catalog_compiler import verify_managed_outputs_reconstructable
-from footer_content import read_footer_content, render_footer_template, validate_footer_content
+from footer_content import phone_href, read_footer_content, render_footer_template, validate_footer_content
+from payment_config import read_payment_config
 from seo_site import (
     SeoConfig,
     Taxonomy,
@@ -108,18 +109,26 @@ PAGE_DOCUMENTS = (
         "viewer.html",
     ),
     PageDocument(
+        "payment.html",
+        "payment",
+        "תשלום חוב קיים | רהיטי ברגיג",
+        "עמוד מאובטח לזיהוי הזמנה ומעבר לתשלום חוב קיים לרהיטי ברגיג.",
+        "payment.html",
+        template_filename="payment.template.html",
+    ),
+    PageDocument(
         "terms.html",
         "terms",
-        "תנאי שימוש | רהיטי ברגיג",
-        "תנאי השימוש באתר הקטלוגים של רהיטי ברגיג.",
+        "תקנון רכישה ותשלום | רהיטי ברגיג",
+        "תקנון השימוש באתר ותשלום חוב עבור עסקאות קיימות ברהיטי ברגיג.",
         "terms.html",
         indexable_public=True,
         template_filename="legal.template.html",
         content_filename="legal/terms.content.html",
-        legal_eyebrow="שימוש הוגן וברור",
-        legal_heading="תנאי שימוש",
-        legal_updated="15 ביולי 2026",
-        legal_summary="התנאים מותאמים לאתר קטלוגים המציג ריהוט ומאפשר שמירת בחירות ויצירת קשר, ללא רכישה או תשלום מקוונים.",
+        legal_eyebrow="שימוש, התקשרות ותשלום ברור",
+        legal_heading="תקנון רכישה ותשלום",
+        legal_updated="30 ביולי 2026",
+        legal_summary="התקנון מסדיר את השימוש באתר ואת המעבר לתשלום חוב עבור הזמנה או עסקה שסוכמו מראש עם רהיטי ברגיג.",
     ),
     PageDocument(
         "privacy.html",
@@ -132,8 +141,8 @@ PAGE_DOCUMENTS = (
         content_filename="legal/privacy.content.html",
         legal_eyebrow="שקיפות ושמירה על מידע",
         legal_heading="מדיניות פרטיות",
-        legal_updated="15 ביולי 2026",
-        legal_summary="המדיניות מתארת את המידע שנשמר במכשיר, מידע שנמסר בפנייה והשימוש בספקי התשתית הנדרשים להפעלת האתר.",
+        legal_updated="30 ביולי 2026",
+        legal_summary="המדיניות מתארת מידע שנמסר בפנייה ובתשלום, מידע הנשמר במכשיר והשימוש בספקי תשתית וסליקה הנדרשים להפעלת האתר.",
     ),
     PageDocument(
         "accessibility.html",
@@ -476,6 +485,31 @@ def render_base_document(
                 config=config,
                 asset_rewrites=asset_rewrites,
             )
+        )
+    elif page.template_filename == "payment.template.html":
+        payment = read_payment_config(root)
+        route_stylesheet, route_script = ROUTE_ASSETS[page.mode]
+        rewrites = asset_rewrites or {}
+        replacements.update(
+            {
+                "{{PAGE_MODE}}": page.mode,
+                "{{ROUTE_STYLESHEET}}": rewrites.get(route_stylesheet, route_stylesheet),
+                "{{ROUTE_SCRIPT}}": rewrites.get(route_script, route_script),
+                "{{PAYMENT_ENABLED}}": "true" if payment["enabled"] else "false",
+                "{{PAYMENT_URL}}": html.escape(payment["paymentUrl"], quote=True),
+                "{{PAYMENT_PROVIDER_NAME}}": html.escape(payment["providerName"], quote=True),
+                "{{PAYMENT_OPEN_IN_NEW_TAB}}": "true" if payment["openInNewTab"] else "false",
+                "{{PAYMENT_CUSTOMER_NAME_QUERY_PARAMETER}}": html.escape(
+                    payment["customerNameQueryParameter"], quote=True
+                ),
+                "{{PAYMENT_ORDER_NUMBER_QUERY_PARAMETER}}": html.escape(
+                    payment["orderNumberQueryParameter"], quote=True
+                ),
+                "{{PAYMENT_CONTACT_PHONE_HREF}}": html.escape(
+                    phone_href(footer_content["mobile"]), quote=True
+                ),
+                "{{PAYMENT_CONTACT_EMAIL}}": html.escape(footer_content["email"], quote=True),
+            }
         )
     else:
         legal_content = read_required_text(root, page.content_filename).strip() if page.content_filename else ""

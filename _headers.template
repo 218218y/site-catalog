@@ -34,6 +34,12 @@
   Cache-Control: no-store, max-age=0, must-revalidate
 /favorites.html
   Cache-Control: no-store, max-age=0, must-revalidate
+/payment
+  Cache-Control: no-store, max-age=0, must-revalidate
+/payment/
+  Cache-Control: no-store, max-age=0, must-revalidate
+/payment.html
+  Cache-Control: no-store, max-age=0, must-revalidate
 /terms
   Cache-Control: no-store, max-age=0, must-revalidate
 /terms/

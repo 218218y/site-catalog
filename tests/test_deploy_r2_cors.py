@@ -244,9 +244,18 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
         app_name = f"{stem}.{hashlib.sha256(app_content).hexdigest()[:12]}.js"
         (static_dir / app_name).write_bytes(app_content)
         route_scripts[stem] = app_name
+    payment_content = b"document.body.dataset.appReady = 'true';\n"
+    payment_name = f"app-payment.{hashlib.sha256(payment_content).hexdigest()[:12]}.js"
+    (static_dir / payment_name).write_bytes(payment_content)
+    route_scripts["app-payment"] = payment_name
 
     for html_name in (*MODULE.PUBLIC_HTML_FILES, "viewer.html"):
-        stem = "app-favorites" if html_name == "favorites.html" else "app-viewer" if html_name == "viewer.html" else "app-catalog"
+        stem = (
+            "app-favorites" if html_name == "favorites.html"
+            else "app-viewer" if html_name == "viewer.html"
+            else "app-payment" if html_name == "payment.html"
+            else "app-catalog"
+        )
         script = f"static/{route_scripts[stem]}"
         if missing_reference and missing_reference[0] == html_name:
             script = missing_reference[1]

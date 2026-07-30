@@ -6,7 +6,7 @@ const path = require('node:path');
 const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
-const publicPages = ['index.html', 'catalog.html', 'favorites.html', 'viewer.html', 'terms.html', 'privacy.html', 'accessibility.html'];
+const publicPages = ['index.html', 'catalog.html', 'favorites.html', 'viewer.html', 'payment.html', 'terms.html', 'privacy.html', 'accessibility.html'];
 const footerContent = JSON.parse(fs.readFileSync(path.join(root, 'partials', 'site-footer.content.json'), 'utf8'));
 
 function escapeHtml(value) {
@@ -53,6 +53,7 @@ for (const filename of publicPages) {
   assert.match(contactCard, /site-footer-email-link[\s\S]*?site-footer-gmail-link/);
   const footerBottom = html.match(/<div class="site-footer-bottom">([\s\S]*?)<\/div>/)?.[1] || "";
   assert.doesNotMatch(footerBottom, /site-footer-gmail-link/);
+  assert.match(html, /href="payment\.html" class="site-footer-payment-link">/);
   assert.match(html, /href="terms\.html">/);
   assert.match(html, /href="privacy\.html">/);
   assert.match(html, /href="accessibility\.html">/);
@@ -63,6 +64,7 @@ for (const filename of publicPages) {
 
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const legalTemplate = fs.readFileSync(path.join(root, 'legal.template.html'), 'utf8');
+const paymentTemplate = fs.readFileSync(path.join(root, 'payment.template.html'), 'utf8');
 const footerFragment = fs.readFileSync(path.join(root, 'partials', 'site-footer.html'), 'utf8');
 const footerModule = fs.readFileSync(path.join(root, 'tools', 'footer_content.py'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
@@ -77,6 +79,7 @@ assert.match(template, /\{\{SITE_FOOTER\}\}/);
 assert.match(legalTemplate, /\{\{LEGAL_CONTENT\}\}/);
 assert.match(legalTemplate, /<main class="legal-main" id="main-content" tabindex="-1">/);
 assert.match(footerFragment, /\{\{FOOTER_VISIT_TITLE\}\}/);
+assert.match(footerFragment, /href="payment\.html" class="site-footer-payment-link">\{\{FOOTER_PAYMENT_LABEL\}\}<\/a>/);
 assert.match(footerFragment, /href="tel:\{\{FOOTER_MOBILE_TEL_HREF\}\}"/);
 assert.match(footerFragment, /href="\{\{FOOTER_GMAIL_HREF\}\}"/);
 assert.match(footerFragment, /\{\{FOOTER_REGISTRATION_NUMBER\}\}/);
@@ -100,6 +103,9 @@ assert.match(pageBuilder, /footer_content: dict\[str, str\] \| None = None/);
 assert.match(pageBuilder, /"terms\.html"[\s\S]*?template_filename="legal\.template\.html"/);
 assert.match(pageBuilder, /"privacy\.html"[\s\S]*?content_filename="legal\/privacy\.content\.html"/);
 assert.match(pageBuilder, /"accessibility\.html"[\s\S]*?content_filename="legal\/accessibility\.content\.html"/);
+assert.match(pageBuilder, /"payment\.html"[\s\S]*?template_filename="payment\.template\.html"/);
+assert.match(paymentTemplate, /data-payment-enabled="\{\{PAYMENT_ENABLED\}\}"/);
+assert.match(paymentTemplate, /data-payment-url="\{\{PAYMENT_URL\}\}"/);
 assert.match(controlPanel, /<h2>עריכת טקסט הפוטר<\/h2>/);
 assert.match(controlPanel, /id="footerEditorGroups"/);
 assert.match(controlPanelFooter, /function footerFieldMarkup/);
@@ -125,7 +131,7 @@ assert.match(css, /\.site-footer-gmail-link span\s*\{[\s\S]*?text-align:\s*left;
 assert.doesNotMatch(css, /\.site-footer-gmail-link\s*\{[^}]*border-radius:\s*50%/);
 assert.match(css, /\.site-footer-contact-list a:hover,[\s\S]*?background:\s*linear-gradient\([\s\S]*?box-shadow:/);
 assert.match(css, /\.site-footer-link-list a:focus-visible[\s\S]*?outline:\s*2px solid/);
-assert.match(css, /body:not\(\[data-page="viewer"\]\) > \.site-footer\s*\{\s*margin-top:\s*0;/);
+assert.match(css, /body:is\(\[data-page="home"\], \[data-page="catalog"\], \[data-page="favorites"\]\):not\(\[data-app-ready="true"\]\) > \.site-footer/);
 assert.match(css, /\.site-footer\s*\{[\s\S]*?padding:\s*0\s+clamp\(/);
 assert.doesNotMatch(css, /\.site-footer-intro\s*\{/);
 assert.match(css, /--viewer-control-inner-shadow:\s*none;/);
@@ -138,11 +144,17 @@ assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.site-footer-grid\s*\{\s*
 const terms = fs.readFileSync(path.join(root, 'terms.html'), 'utf8');
 const privacy = fs.readFileSync(path.join(root, 'privacy.html'), 'utf8');
 const accessibility = fs.readFileSync(path.join(root, 'accessibility.html'), 'utf8');
+const payment = fs.readFileSync(path.join(root, 'payment.html'), 'utf8');
+const paymentSource = fs.readFileSync(path.join(root, 'src', 'entries', 'payment.js'), 'utf8');
 assert.match(terms, /<body data-page="terms">/);
-assert.match(terms, /האתר אינו משמש לביצוע הזמנה מחייבת, סליקת תשלום או כריתת עסקה מקוונת/);
+assert.match(terms, /עמוד למעבר לתשלום חוב עבור הזמנה או עסקה קיימת/);
+assert.match(terms, /התשלום באתר אינו יוצר הזמנה חדשה/);
+assert.match(terms, /תיבת האישור אינה מסומנת מראש/);
+assert.match(terms, /Grow במסגרת שירותי התשלומים של Morning/);
+assert.match(terms, /האתר אינו שומר את מספר כרטיס האשראי/);
 assert.match(terms, /קישור לשיתוף רשימת בחירה עשוי לכלול בכתובת עצמה/);
 assert.doesNotMatch(terms, /דין ויישוב מחלוקות/);
-assert.match(terms, /<h2>11\. יצירת קשר<\/h2>/);
+assert.match(terms, /<h2>16\. יצירת קשר<\/h2>/);
 assert.match(privacy, /<body data-page="privacy">/);
 assert.match(privacy, /localStorage/);
 assert.match(privacy, /Cloudflare Pages ו־Cloudflare R2\/CDN/);
@@ -154,9 +166,27 @@ assert.match(privacy, /טקסט חלקי בזמן ההקלדה אינו נשלח
 assert.match(privacy, /Enter או בוחר תוצאה/);
 assert.match(privacy, /עד 80 תווים/);
 assert.match(privacy, /החריג היחיד הוא מונח חיפוש שהושלם/);
+assert.match(privacy, /שם לקוח ומספר הזמנה או חשבון/);
+assert.match(privacy, /מספר כרטיס אשראי, תוקף, קוד אבטחה/);
+assert.match(privacy, /Grow במסגרת שירותי Morning/);
+assert.match(privacy, /שדות הזיהוי בעמוד התשלום אינם נשמרים/);
 assert.match(accessibility, /<body data-page="accessibility">/);
 assert.match(accessibility, /ת״י 5568 חלק 1/);
 assert.match(accessibility, /מגבלות ידועות וחלופות נגישות/);
 assert.match(accessibility, /17 ביולי 2026/);
+assert.match(payment, /<body data-page="payment">/);
+assert.match(payment, /name="customerName"[\s\S]*?required/);
+assert.match(payment, /name="orderNumber"[\s\S]*?required/);
+assert.match(payment, /name="termsAccepted" type="checkbox" required/);
+assert.doesNotMatch(payment, /name="termsAccepted"[^>]*checked/);
+assert.match(payment, /id="paymentSubmit" type="submit" disabled/);
+assert.match(payment, /href="terms\.html" target="_blank" rel="noopener"/);
+assert.match(payment, /href="privacy\.html" target="_blank" rel="noopener"/);
+assert.match(payment, /src="app-payment\.js"/);
+assert.doesNotMatch(payment, /name="(?:card|cardNumber|cvv|cvc|expiry)"/i);
+assert.doesNotMatch(paymentSource, /localStorage|sessionStorage|fetch\(/);
+assert.match(paymentSource, /parsedUrl\?\.protocol === "https:"/);
+assert.match(paymentSource, /form\.reportValidity\(\)/);
+
 
 console.log('footer_legal_contract.test.js: PASS');

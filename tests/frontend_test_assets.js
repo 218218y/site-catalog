@@ -7,7 +7,8 @@ const root = path.join(__dirname, '..');
 const ROUTE_BUNDLES = Object.freeze({
   catalog: 'app-catalog.js',
   favorites: 'app-favorites.js',
-  viewer: 'app-viewer.js'
+  viewer: 'app-viewer.js',
+  payment: 'app-payment.js'
 });
 const ROUTE_STYLES = Object.freeze({
   core: 'styles.css',

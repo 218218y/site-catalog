@@ -1,0 +1,130 @@
+/** Route entry: hosted payment handoff page. */
+
+export {};
+
+const form = /** @type {HTMLFormElement | null} */ (document.getElementById("paymentForm"));
+const submitButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("paymentSubmit"));
+const statusElement = /** @type {HTMLElement | null} */ (document.getElementById("paymentFormStatus"));
+const customerNameInput = /** @type {HTMLInputElement | null} */ (document.getElementById("paymentCustomerName"));
+const orderNumberInput = /** @type {HTMLInputElement | null} */ (document.getElementById("paymentOrderNumber"));
+const termsCheckbox = /** @type {HTMLInputElement | null} */ (document.getElementById("paymentTermsAccepted"));
+
+/** @param {unknown} value @returns {boolean} */
+function parseBoolean(value) {
+  return String(value).trim().toLowerCase() === "true";
+}
+
+/** @param {HTMLInputElement | null} input @returns {string} */
+function normalizedValue(input) {
+  return String(input?.value || "").trim();
+}
+
+function paymentConfiguration() {
+  if (!(form instanceof HTMLFormElement)) return null;
+  const paymentUrl = String(form.dataset.paymentUrl || "").trim();
+  let parsedUrl = null;
+  try {
+    parsedUrl = paymentUrl ? new URL(paymentUrl) : null;
+  } catch {
+    parsedUrl = null;
+  }
+
+  const enabled = parseBoolean(form.dataset.paymentEnabled);
+  const validUrl = parsedUrl?.protocol === "https:" && !parsedUrl.username && !parsedUrl.password;
+  return {
+    enabled: enabled && validUrl,
+    providerName: String(form.dataset.paymentProvider || "ספק הסליקה").trim(),
+    paymentUrl: parsedUrl,
+    openInNewTab: parseBoolean(form.dataset.paymentOpenNewTab),
+    customerNameQueryParameter: String(form.dataset.customerNameQueryParameter || "").trim(),
+    orderNumberQueryParameter: String(form.dataset.orderNumberQueryParameter || "").trim(),
+  };
+}
+
+/** @param {string} message @param {string} [state] */
+function setStatus(message, state = "neutral") {
+  if (!(statusElement instanceof HTMLElement)) return;
+  statusElement.textContent = message;
+  statusElement.dataset.state = state;
+}
+
+function markAppReady() {
+  document.body.dataset.appReady = "true";
+}
+
+function updateSubmitState() {
+  if (!(form instanceof HTMLFormElement) || !(submitButton instanceof HTMLButtonElement)) return;
+  const config = paymentConfiguration();
+  const fieldsComplete = Boolean(
+    normalizedValue(customerNameInput)
+    && normalizedValue(orderNumberInput)
+    && termsCheckbox instanceof HTMLInputElement
+    && termsCheckbox.checked
+  );
+
+  submitButton.disabled = !(config?.enabled && fieldsComplete);
+  submitButton.setAttribute("aria-disabled", String(submitButton.disabled));
+
+  if (!config?.enabled) {
+    setStatus("קישור התשלום עדיין אינו פעיל. אפשר לפנות לעסק כדי להשלים את התשלום.", "unavailable");
+  } else if (!fieldsComplete) {
+    setStatus("יש להשלים את שני השדות ולאשר את התקנון לפני המעבר לתשלום.");
+  } else {
+    setStatus(`הפרטים הושלמו. המעבר ל${config.providerName} זמין.`, "ready");
+  }
+}
+
+/** @param {URL} url @param {string} parameterName @param {string} value */
+function appendConfiguredValue(url, parameterName, value) {
+  if (!parameterName || !value) return;
+  url.searchParams.set(parameterName, value);
+}
+
+/** @param {SubmitEvent} event */
+function submitPayment(event) {
+  event.preventDefault();
+  if (!(form instanceof HTMLFormElement)) return;
+
+  const config = paymentConfiguration();
+  if (!config?.enabled || !(config.paymentUrl instanceof URL)) {
+    updateSubmitState();
+    return;
+  }
+
+  if (!form.reportValidity()) {
+    setStatus("חסרים פרטים נדרשים או שלא אושר התקנון.", "error");
+    updateSubmitState();
+    return;
+  }
+
+  const targetUrl = new URL(config.paymentUrl.href);
+  appendConfiguredValue(
+    targetUrl,
+    config.customerNameQueryParameter,
+    normalizedValue(customerNameInput),
+  );
+  appendConfiguredValue(
+    targetUrl,
+    config.orderNumberQueryParameter,
+    normalizedValue(orderNumberInput),
+  );
+
+  setStatus(`מעבירים אתכם לעמוד התשלום המאובטח של ${config.providerName}…`, "ready");
+  if (config.openInNewTab) {
+    const paymentWindow = window.open(targetUrl.href, "_blank", "noopener,noreferrer");
+    if (paymentWindow) {
+      paymentWindow.opener = null;
+      return;
+    }
+  }
+  window.location.assign(targetUrl.href);
+}
+
+if (form instanceof HTMLFormElement) {
+  form.addEventListener("input", updateSubmitState);
+  form.addEventListener("change", updateSubmitState);
+  form.addEventListener("submit", submitPayment);
+}
+
+updateSubmitState();
+markAppReady();

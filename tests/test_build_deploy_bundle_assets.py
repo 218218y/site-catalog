@@ -232,11 +232,16 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
         app.write_text(runtime_imports + f"window.{stem.replace('-', '_')} = true;\n", encoding="utf-8")
         app_name = f"{stem}.{MODULE.content_hash(app)}.js"
         route_apps[stem] = app.rename(static / app_name)
+    payment_app = static / "app-payment.js"
+    payment_app.write_text("document.body.dataset.appReady = 'true';\n", encoding="utf-8")
+    payment_name = f"app-payment.{MODULE.content_hash(payment_app)}.js"
+    route_apps["app-payment"] = payment_app.rename(static / payment_name)
 
     documents = {
         "index.html": route_apps["app-catalog"],
         "favorites.html": route_apps["app-favorites"],
         "viewer.html": route_apps["app-viewer"],
+        "payment.html": route_apps["app-payment"],
         "nested/index.html": route_apps["app-catalog"],
     }
     for html_name, app in documents.items():
@@ -278,7 +283,7 @@ def test_bundle_validation_hashes_each_shared_asset_once(
 
     monkeypatch.setattr(MODULE, "content_hash", counting_content_hash)
 
-    assert MODULE.validate_fingerprinted_bundle(out) == 9
+    assert MODULE.validate_fingerprinted_bundle(out) == 10
     assert hash_calls == {path: 1 for path in assets.values()}
 
 
@@ -649,3 +654,17 @@ def test_legacy_seo_artifacts_are_removed_without_touching_canonical_outputs(tmp
     assert not (root / ".artifacts/public-seo-preview.audit.json").exists()
     assert (root / "dist/site-upload-r2/index.html").is_file()
     assert (root / "dist/site-local/index.html").is_file()
+
+
+def test_payment_route_is_the_only_runtime_free_route_bundle() -> None:
+    assert MODULE.expected_runtime_modules_for_app("app-payment.js") == frozenset()
+    assert MODULE.expected_runtime_modules_for_app("static/app-payment.0123456789ab.js") == frozenset()
+
+    expected_catalog_runtime = frozenset(MODULE.DEPLOY_RUNTIME_MODULE_FILES)
+    for filename in (
+        "app-catalog.js",
+        "app-favorites.js",
+        "app-viewer.js",
+        "static/app-catalog.0123456789ab.js",
+    ):
+        assert MODULE.expected_runtime_modules_for_app(filename) == expected_catalog_runtime

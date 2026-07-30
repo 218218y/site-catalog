@@ -79,6 +79,7 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
         "catalog": ("styles-catalog.css", "app-catalog.js"),
         "favorites": ("styles-favorites.css", "app-favorites.js"),
         "viewer": ("styles-viewer.css", "app-viewer.js"),
+        "payment": ("styles.css", "app-payment.js"),
     }
     specs = {spec.output_name: spec for spec in MODULE.BUNDLE_SPECS}
     assert set(specs) == {
@@ -93,6 +94,7 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
         "app-catalog.js",
         "app-favorites.js",
         "app-viewer.js",
+        "app-payment.js",
     }
     assert {
         output: specs[output].entrypoint
@@ -113,9 +115,12 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
     catalog_inputs = generated_graph_inputs("app-catalog.js")
     favorites_inputs = generated_graph_inputs("app-favorites.js")
     viewer_inputs = generated_graph_inputs("app-viewer.js")
+    payment_inputs = generated_graph_inputs("app-payment.js")
     assert specs["app-catalog.js"].entrypoint == "src/entries/catalog.js"
     assert specs["app-favorites.js"].entrypoint == "src/entries/favorites.js"
     assert specs["app-viewer.js"].entrypoint == "src/entries/viewer.js"
+    assert specs["app-payment.js"].entrypoint == "src/entries/payment.js"
+    assert payment_inputs == ("src/entries/payment.js",)
 
     common_runtime_owners = {
         "src/js/02-dom-contracts.js",
@@ -169,6 +174,7 @@ def test_route_entrypoints_are_small_explicit_static_composition_roots() -> None
         "catalog": {"18-navigation-feature.js", "30-favorites-share.js", "40-catalog-grid.js", "50-search-ui.js", "80-app-shell.js", "90-bootstrap.js"},
         "favorites": {"18-navigation-feature.js", "30-favorites-share.js", "32-shared-inquiry.js", "35-favorites-workspace.js", "40-catalog-grid.js", "50-search-ui.js", "80-app-shell.js", "90-bootstrap.js"},
         "viewer": {"18-navigation-feature.js", "30-favorites-share.js", "31-viewer-share.js", "32-shared-inquiry.js", "35-favorites-workspace.js", "40-catalog-grid.js", "50-search-ui.js", "60-viewer.js", "80-app-shell.js", "90-bootstrap.js"},
+        "payment": set(),
     }
     for route, expected_names in expectations.items():
         path = ROOT / f"src/entries/{route}.js"
@@ -180,7 +186,10 @@ def test_route_entrypoints_are_small_explicit_static_composition_roots() -> None
         }
         assert imports == expected_names
         assert "import(" not in source
-        assert "export " not in source
+        if route == "payment":
+            assert "export {};" in source
+        else:
+            assert "export " not in source
 
 
 def test_every_runtime_owner_is_a_real_es_module() -> None:
@@ -264,6 +273,10 @@ def test_route_bundles_keep_forbidden_features_physically_absent() -> None:
         "app-viewer.js": {
             "required": {"src/js/16-viewer-state.js", "src/js/31-viewer-share.js", "src/js/35-favorites-workspace.js", "src/js/40-catalog-grid.js", "src/js/60-viewer.js"},
             "forbidden": set(),
+        },
+        "app-payment.js": {
+            "required": {"src/entries/payment.js"},
+            "forbidden": {"src/js/16-viewer-state.js", "src/js/35-favorites-workspace.js", "src/js/40-catalog-grid.js", "src/js/60-viewer.js"},
         },
     }
     for output_name, expectation in expectations.items():

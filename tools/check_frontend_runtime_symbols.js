@@ -11,7 +11,7 @@ const ts = require("typescript");
 
 const root = path.resolve(__dirname, "..");
 const bundles = process.argv.slice(2);
-const targets = bundles.length ? bundles : ["app-catalog.js", "app-favorites.js", "app-viewer.js"];
+const targets = bundles.length ? bundles : ["app-catalog.js", "app-favorites.js", "app-viewer.js", "app-payment.js"];
 const ambientGlobals = path.join(root, "types", "frontend-runtime-globals.d.ts");
 const failures = [];
 

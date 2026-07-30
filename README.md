@@ -4,9 +4,9 @@
 
 - האתר נבנה כאתר סטטי מלא עם כתובות נקיות. תיקיית המקור אינה משמשת כשרת; preview מקומי נוצר ב־`dist/site-local` ובאנדל הפריסה ב־`dist/site-upload-r2`.
 - לכל קטלוג ולכל עמוד שיתוף נוצר קובץ HTML בכתובת נקייה, אך כולם משתמשים באותן תבניות ובאותו JavaScript משותף; אין תחזוקת HTML ידנית לכל קטלוג.
-- `site.template.html` ו-`legal.template.html` הם מקורות ה-HTML המשותפים, ו-`tools/build_site_pages.py` מייצר מהם את ששת הדפים הציבוריים.
+- `site.template.html`, ‏`legal.template.html` ו־`payment.template.html` הם מקורות ה־HTML המשותפים, ו־`tools/build_site_pages.py` מייצר מהם את שמונת דפי השורש הציבוריים.
 - `partials/site-footer.html` שומר את מבנה ועיצוב הפוטר, ו-`partials/site-footer.content.json` שומר רק את הטקסטים והפרטים הניתנים לעריכה.
-- קוד המקור של הממשק מחולק לפי תחומים תחת `src/js`, שירותי ESM חיצוניים תחת `src/runtime` ו־CSS תחת `src/css`; שלושה entrypoints נבנים ל־ES Modules נפרדים לפי מסלול, וכל מסלול מוריד רק את קוד ה־Features הדרוש לו.
+- קוד המקור של הממשק מחולק לפי תחומים תחת `src/js`, שירותי ESM חיצוניים תחת `src/runtime` ו־CSS תחת `src/css`; ארבעה entrypoints נבנים ל־ES Modules נפרדים לפי מסלול, וכל מסלול מוריד רק את קוד ה־Features הדרוש לו.
 - `src/runtime/site-routes.js` מרכז את בניית הכתובות ופענוחן; תוצר `site-routes.js` נשאר asset נפרד ומיובא במפורש כדי לשמור cache משותף בין המסלולים.
 - האתר הסטטי עצמו עולה ל-Cloudflare Pages דרך Wrangler.
 - תמונות עמודי הקטלוגים נשמרות ומוגשות דרך Cloudflare R2 / CDN.
@@ -21,6 +21,7 @@
 /catalog/<catalog-id>/                 גלריית עמודי קטלוג
 /catalog/<catalog-id>/page/<number>/   צפייה ושיתוף של עמוד מדויק
 favorites.html                         המועדפים כדף עצמאי
+payment.html                           תשלום חוב עבור עסקה קיימת
 terms.html                             תנאי שימוש
 privacy.html                           מדיניות פרטיות
 accessibility.html                     הצהרת נגישות
@@ -37,9 +38,9 @@ accessibility.html                     הצהרת נגישות
 
 ## מבנה קוד הממשק
 
-קובצי `app-catalog.js`, `app-favorites.js`, `app-viewer.js` וקובצי `styles-*.css` נוצרים אוטומטית. קובצי ה־JavaScript נטענים בדפדפן כ־`type="module"`; אין loader תאימות ואין לערוך את התוצרים ישירות.
+קובצי `app-catalog.js`, `app-favorites.js`, `app-viewer.js`, ‏`app-payment.js` וקובצי `styles-*.css` נוצרים אוטומטית. קובצי ה־JavaScript נטענים בדפדפן כ־`type="module"`; אין loader תאימות ואין לערוך את התוצרים ישירות.
 
-מקורות JavaScript נמצאים תחת `src/js` ומחולקים לפי בעלות על state, DOM ו־lifecycle. הבית והקטלוג אינם מורידים את קוד או state ה־Viewer; דף המועדפים מוסיף את סביבת העבודה שלו; ודף ה־Viewer כולל במכוון גם Search, Catalog Grid ו־Favorites Workspace כדי לאפשר ניווט בתוך אותו document בזמן fullscreen. תקשורת בין Features עוברת דרך Interfaces קפואים ומפורשים, ו־`90-bootstrap.js` נשאר composition root בלבד. מקורות CSS נשארים שכבות תחומיות, אך נבנים לשלושה stylesheets לפי מסלול כדי לא לטעון Viewer או Workspace במקום שאינם קיימים.
+מקורות JavaScript נמצאים תחת `src/js` ומחולקים לפי בעלות על state, DOM ו־lifecycle. הבית והקטלוג אינם מורידים את קוד או state ה־Viewer; דף המועדפים מוסיף את סביבת העבודה שלו; ודף ה־Viewer כולל במכוון גם Search, Catalog Grid ו־Favorites Workspace כדי לאפשר ניווט בתוך אותו document בזמן fullscreen. תקשורת בין Features עוברת דרך Interfaces קפואים ומפורשים, ו־`90-bootstrap.js` נשאר composition root בלבד. מקורות CSS נשארים שכבות תחומיות, אך נבנים ל־stylesheet ליבה ולשלושה stylesheets ייעודיים למסלולי הקטלוג כדי לא לטעון Viewer או Workspace במקום שאינם קיימים.
 
 לבנייה ידנית של קובצי הממשק בלבד:
 
@@ -59,6 +60,9 @@ python tools\build_frontend_assets.py --check
 
 מפת האחריות, כיוון התלויות וכללי התחזוקה מפורטים ב־`docs/frontend-architecture.md`.
 
+## תשלום חוב באמצעות Morning / Grow
+
+האתר כולל את `payment.html` כעמוד מעבר לתשלום חוב עבור הזמנה או עסקה קיימת. פרטי כרטיס אינם מוזנים באתר, וקישור הסליקה כבוי כברירת מחדל עד להזנת כתובת HTTPS מאושרת ב־`payment.config.json`. אין לשמור בקובץ זה מפתח API, סיסמה או סוד מסחרי. הוראות ההפעלה, מיפוי שדות ורשימת הבדיקות לפני פרסום נמצאים ב־`docs/payment-integration.md`.
 
 
 ## סביבת העבודה של המועדפים

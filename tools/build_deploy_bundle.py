@@ -134,6 +134,21 @@ DEPLOY_APP_FILES = tuple(
 )
 DEPLOY_RUNTIME_MODULE_FILES = tuple(RUNTIME_EXTERNAL_MODULES.values())
 DEPLOY_ESM_FILES = frozenset((*DEPLOY_APP_FILES, *DEPLOY_RUNTIME_MODULE_FILES))
+RUNTIME_FREE_ROUTE_APP_STEMS = frozenset({"app-payment"})
+
+
+def route_app_stem(filename: str | Path) -> str:
+    """Return the stable route-app stem for raw or fingerprinted filenames."""
+
+    return Path(filename).name.split(".", 1)[0]
+
+
+def expected_runtime_modules_for_app(filename: str | Path) -> frozenset[str]:
+    """Return the external runtime modules that a route bundle must import."""
+
+    if route_app_stem(filename) in RUNTIME_FREE_ROUTE_APP_STEMS:
+        return frozenset()
+    return frozenset(DEPLOY_RUNTIME_MODULE_FILES)
 
 
 def deploy_optimization_kind(relative: str) -> str:
@@ -201,9 +216,11 @@ BUILD_INPUT_FILES = (
     "https-redirect.js",
     "site.template.html",
     "legal.template.html",
+    "payment.template.html",
     "seo-page.template.html",
     "seo.config.json",
     "seo-routes.lock.json",
+    "payment.config.json",
     "catalogs.config.json",
     "catalog-taxonomy.config.json",
     "catalogs.build-state.json",
@@ -232,6 +249,7 @@ BUILD_TOOL_FILES = (
     "tools/seo_site.py",
     "tools/seo_route_lock.py",
     "tools/footer_content.py",
+    "tools/payment_config.py",
     "tools/catalog_image_policy.py",
 )
 
@@ -884,10 +902,14 @@ def fingerprint_runtime_modules(out_dir: Path) -> dict[str, str]:
                 app_text,
             )
             replacement_counts[logical_name] = count
-        missing_imports = sorted(name for name, count in replacement_counts.items() if count < 1)
-        if missing_imports:
+        imported_modules = frozenset(
+            name for name, count in replacement_counts.items() if count > 0
+        )
+        expected_modules = expected_runtime_modules_for_app(app_name)
+        if imported_modules != expected_modules:
             raise ValueError(
-                f"Route bundle {app_name} does not import every external runtime module: {missing_imports}"
+                f"Route bundle {app_name} runtime import set drifted; "
+                f"expected {sorted(expected_modules)}, found {sorted(imported_modules)}"
             )
         stale_specifiers = [
             f"./{logical_name}" for logical_name in DEPLOY_RUNTIME_MODULE_FILES
@@ -1156,7 +1178,7 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
                 continue
             referenced_assets.add(relative.as_posix())
 
-    expected_route_scripts = {"app-catalog", "app-favorites", "app-viewer"}
+    expected_route_scripts = {"app-catalog", "app-favorites", "app-viewer", "app-payment"}
     app_assets = sorted(
         asset for asset in referenced_assets
         if any(Path(asset).name.startswith(f"{stem}.") for stem in expected_route_scripts)
@@ -1215,9 +1237,12 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
             imported_runtime_stems.add(runtime_stem)
             referenced_assets.add(imported_relative.as_posix())
 
-        if imported_runtime_stems != expected_runtime_stems:
+        expected_app_runtime_stems = {
+            Path(name).stem for name in expected_runtime_modules_for_app(app_asset)
+        }
+        if imported_runtime_stems != expected_app_runtime_stems:
             invalid_assets.append(
-                f"{app_asset} runtime import set drifted; expected {sorted(expected_runtime_stems)}, "
+                f"{app_asset} runtime import set drifted; expected {sorted(expected_app_runtime_stems)}, "
                 f"found {sorted(imported_runtime_stems)}"
             )
 

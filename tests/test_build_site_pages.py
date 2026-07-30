@@ -47,6 +47,8 @@ def test_route_bundle_tokens_honor_deploy_asset_rewrites(tmp_path: Path) -> None
         "app-favorites.js": "static/app-favorites.444444.js",
         "styles-viewer.css": "static/styles-viewer.555555.css",
         "app-viewer.js": "static/app-viewer.666666.js",
+        "styles.css": "static/styles.777777.css",
+        "app-payment.js": "static/app-payment.888888.js",
     }
     MODULE.render_site_pages(
         ROOT,
@@ -67,12 +69,14 @@ def test_route_bundle_tokens_honor_deploy_asset_rewrites(tmp_path: Path) -> None
         "favorites": tmp_path / "favorites.html",
         "catalog": tmp_path / MODULE.catalog_path(catalog_id) / "index.html",
         "viewer": tmp_path / MODULE.catalog_page_path(catalog_id, 1) / "index.html",
+        "payment": tmp_path / "payment.html",
     }
     expected = {
         "home": (rewrites["styles-catalog.css"], rewrites["app-catalog.js"]),
         "favorites": (rewrites["styles-favorites.css"], rewrites["app-favorites.js"]),
         "catalog": (rewrites["styles-catalog.css"], rewrites["app-catalog.js"]),
         "viewer": (rewrites["styles-viewer.css"], rewrites["app-viewer.js"]),
+        "payment": (rewrites["styles.css"], rewrites["app-payment.js"]),
     }
 
     for route_name, path in rendered_routes.items():

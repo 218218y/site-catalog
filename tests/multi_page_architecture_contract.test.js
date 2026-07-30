@@ -10,7 +10,8 @@ const pages = {
   'index.html': { mode: 'home', script: 'app-catalog.js', stylesheet: 'styles-catalog.css' },
   'catalog.html': { mode: 'catalog', script: 'app-catalog.js', stylesheet: 'styles-catalog.css' },
   'favorites.html': { mode: 'favorites', script: 'app-favorites.js', stylesheet: 'styles-favorites.css' },
-  'viewer.html': { mode: 'viewer', script: 'app-viewer.js', stylesheet: 'styles-viewer.css' }
+  'viewer.html': { mode: 'viewer', script: 'app-viewer.js', stylesheet: 'styles-viewer.css' },
+  'payment.html': { mode: 'payment', script: 'app-payment.js', stylesheet: 'styles.css' }
 };
 
 for (const [filename, { mode, script, stylesheet }] of Object.entries(pages)) {

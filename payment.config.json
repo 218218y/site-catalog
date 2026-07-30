@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "providerName": "Grow באמצעות Morning",
+  "paymentUrl": "",
+  "openInNewTab": true,
+  "customerNameQueryParameter": "",
+  "orderNumberQueryParameter": ""
+}

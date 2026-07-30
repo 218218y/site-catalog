@@ -65,4 +65,10 @@ for (const appName of ["app-catalog.js", "app-favorites.js", "app-viewer.js"]) {
   }
 }
 
+const paymentApp = fs.readFileSync(path.join(root, "app-payment.js"), "utf8");
+assert.match(paymentApp, /src\/entries\/payment\.js/);
+for (const asset of externalRuntimeAssets) {
+  assert.doesNotMatch(paymentApp, new RegExp(`from ["']\\./${asset.replaceAll(".", "\\.")}["']`), `app-payment.js: ${asset} must remain absent`);
+}
+
 console.log("compatibility_artifact_inventory.test.js: PASS");
