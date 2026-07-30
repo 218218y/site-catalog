@@ -8,7 +8,7 @@
 
 import { catalogFirstPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface } from "./10-app-state.js";
-import { VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_SETTLE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
+import { VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS, VIEWER_PAGE_WHEEL_SETTLE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { clampValue } from "./20-shared-ui.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
@@ -70,6 +70,9 @@ function clearViewerPageWheelGesture() {
   viewerState.viewerPageWheelBasePage = 0;
   viewerState.viewerPageWheelTargetPage = 0;
   viewerState.viewerPageWheelResetGestureActive = false;
+  viewerState.viewerPageWheelResetLastEventAt = 0;
+  viewerState.viewerPageWheelResetLastDelta = 0;
+  viewerState.viewerPageWheelResetDirection = 0;
 }
 
 function scheduleViewerPageWheelSettle() {
@@ -80,12 +83,65 @@ function scheduleViewerPageWheelSettle() {
   );
 }
 
-function holdViewerPageWheelAfterManualReset() {
+/** @param {number} logicalDelta @param {number} eventTime */
+function holdViewerPageWheelAfterManualReset(logicalDelta, eventTime) {
   viewerState.viewerPageWheelAccumulator = 0;
   viewerState.viewerPageWheelBasePage = 0;
   viewerState.viewerPageWheelTargetPage = 0;
   viewerState.viewerPageWheelResetGestureActive = true;
+  viewerState.viewerPageWheelResetLastEventAt = eventTime;
+  viewerState.viewerPageWheelResetLastDelta = Math.abs(logicalDelta);
+  viewerState.viewerPageWheelResetDirection = Math.sign(logicalDelta);
   scheduleViewerPageWheelSettle();
+}
+
+/** @param {WheelEvent} event */
+function getViewerPageWheelEventTime(event) {
+  const eventTime = Number(event?.timeStamp);
+  if (Number.isFinite(eventTime) && eventTime >= 0) return eventTime;
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+/**
+ * WheelEvent has no portable gesture-start/gesture-end signal. After a manual
+ * zoom edge turn, classify only the decaying same-direction tail as belonging
+ * to the completed gesture. A cadence break, direction change, or renewed
+ * acceleration marks a fresh gesture and the current event must be processed.
+ *
+ * @param {number} logicalDelta
+ * @param {number} eventTime
+ */
+function consumeViewerPageWheelResetContinuation(logicalDelta, eventTime) {
+  if (!viewerState.viewerPageWheelResetGestureActive) return false;
+
+  const direction = Math.sign(logicalDelta);
+  const magnitude = Math.abs(logicalDelta);
+  const previousDirection = viewerState.viewerPageWheelResetDirection;
+  const previousMagnitude = viewerState.viewerPageWheelResetLastDelta;
+  const elapsed = Math.max(0, eventTime - viewerState.viewerPageWheelResetLastEventAt);
+  const sameDirection = direction !== 0 && direction === previousDirection;
+  const accelerated = magnitude >= Math.max(
+    previousMagnitude * VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO,
+    previousMagnitude + VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX
+  );
+  const restartedAfterCadenceBreak = elapsed >= VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS;
+
+  if (
+    !sameDirection
+    || accelerated
+    || restartedAfterCadenceBreak
+  ) {
+    clearViewerPageWheelGesture();
+    return false;
+  }
+
+  viewerState.viewerPageWheelResetLastEventAt = eventTime;
+  viewerState.viewerPageWheelResetLastDelta = magnitude;
+  scheduleViewerPageWheelSettle();
+  return true;
 }
 
 /** @param {number} rawDelta @param {number} deltaMode @param {number} [viewportSize] */
@@ -226,11 +282,13 @@ function handleViewerPageWheel(event) {
 
   event.preventDefault();
 
+  const logicalDelta = getViewerPageWheelLogicalDelta(deltaX, deltaY);
+  const eventTime = getViewerPageWheelEventTime(event);
+
   // A wheel/trackpad stream can emit trailing deltas after a zoomed edge turn.
   // That turn resets the manual view, so the remainder belongs to the gesture
   // that already changed page and must not immediately skip another page.
-  if (viewerState.viewerPageWheelResetGestureActive) {
-    scheduleViewerPageWheelSettle();
+  if (consumeViewerPageWheelResetContinuation(logicalDelta, eventTime)) {
     return true;
   }
 
@@ -238,11 +296,12 @@ function handleViewerPageWheel(event) {
     const resetManualView = !isAutoViewerZoom();
     clearViewerPageWheelGesture();
     const boundary = consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: true });
-    if (boundary.turned && resetManualView) holdViewerPageWheelAfterManualReset();
+    if (boundary.turned && resetManualView) {
+      holdViewerPageWheelAfterManualReset(logicalDelta, eventTime);
+    }
     return true;
   }
 
-  const logicalDelta = getViewerPageWheelLogicalDelta(deltaX, deltaY);
   if (Math.abs(logicalDelta) < 0.01) return true;
 
   const gestureStarted = !viewerState.viewerPageWheelBasePage;
@@ -294,6 +353,7 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     getViewerPageTurnNavigationOptions,
     moveLightboxFromPageTurn,
     consumeSingleViewerBoundaryInput,
+    consumeViewerPageWheelResetContinuation,
     handleViewerPageWheel,
     clearViewerPageWheelGesture
   });

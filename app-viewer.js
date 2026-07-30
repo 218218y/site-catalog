@@ -1945,7 +1945,7 @@ registerFeatureInterface("favorites", {
 });
 
 // src/js/16-viewer-state.js
-var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FIT_HEIGHT = "height", VIEWER_FIT_WIDTH = "width", VIEWER_FIT_SOURCE_AUTO = "auto", VIEWER_FIT_SOURCE_MANUAL = "manual", VIEWER_PHASE_CLOSED = "closed", VIEWER_PHASE_OPENING = "opening", VIEWER_PHASE_OPEN = "open", VIEWER_PHASE_CLOSING = "closing", VIEWER_FULLSCREEN_INACTIVE = "inactive", VIEWER_FULLSCREEN_ENTERING = "entering", VIEWER_FULLSCREEN_ACTIVE = "active", VIEWER_FULLSCREEN_EXITING = "exiting", VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON = 0.01, VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2", DOUBLE_TAP_DELAY = 320, DOUBLE_TAP_DISTANCE = 34, TAP_MOVE_TOLERANCE = 14, VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46, VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35, VIEWER_ZOOM_INDICATOR_HIDE_MS = 760, VIEWER_PAGE_INDICATOR_HIDE_MS = 1e3, VIEWER_PAGE_SWAP_CLEANUP_MS = 240, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100, VIEWER_PAGE_WHEEL_SETTLE_MS = 150, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36, VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144, VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330, VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0.08, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS = 2.6, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 48e-4, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS = 34, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS = 80, VIEWER_TOUCH_VELOCITY_BLEND = 0.45, viewerState = {
+var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FIT_HEIGHT = "height", VIEWER_FIT_WIDTH = "width", VIEWER_FIT_SOURCE_AUTO = "auto", VIEWER_FIT_SOURCE_MANUAL = "manual", VIEWER_PHASE_CLOSED = "closed", VIEWER_PHASE_OPENING = "opening", VIEWER_PHASE_OPEN = "open", VIEWER_PHASE_CLOSING = "closing", VIEWER_FULLSCREEN_INACTIVE = "inactive", VIEWER_FULLSCREEN_ENTERING = "entering", VIEWER_FULLSCREEN_ACTIVE = "active", VIEWER_FULLSCREEN_EXITING = "exiting", VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON = 0.01, VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2", DOUBLE_TAP_DELAY = 320, DOUBLE_TAP_DISTANCE = 34, TAP_MOVE_TOLERANCE = 14, VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46, VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35, VIEWER_ZOOM_INDICATOR_HIDE_MS = 760, VIEWER_PAGE_INDICATOR_HIDE_MS = 1e3, VIEWER_PAGE_SWAP_CLEANUP_MS = 240, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100, VIEWER_PAGE_WHEEL_SETTLE_MS = 150, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS = 48, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO = 1.4, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36, VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144, VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330, VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0.08, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS = 2.6, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 48e-4, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS = 34, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS = 80, VIEWER_TOUCH_VELOCITY_BLEND = 0.45, viewerState = {
   zoom: 1,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
@@ -2003,6 +2003,9 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   viewerPageWheelTargetPage: 0,
   viewerPageWheelSettleTimer: 0,
   viewerPageWheelResetGestureActive: !1,
+  viewerPageWheelResetLastEventAt: 0,
+  viewerPageWheelResetLastDelta: 0,
+  viewerPageWheelResetDirection: 0,
   viewerOnboardingOpen: !1,
   viewerOnboardingShownThisSession: !1,
   viewerOnboardingStep: 0,
@@ -4645,7 +4648,7 @@ function canMoveLightbox(direction) {
   return current + step >= 0 && current + step <= getViewerNavigationMaximumPosition();
 }
 function clearViewerPageWheelGesture() {
-  window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = 0, viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0, viewerState.viewerPageWheelResetGestureActive = !1;
+  window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = 0, viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0, viewerState.viewerPageWheelResetGestureActive = !1, viewerState.viewerPageWheelResetLastEventAt = 0, viewerState.viewerPageWheelResetLastDelta = 0, viewerState.viewerPageWheelResetDirection = 0;
 }
 function scheduleViewerPageWheelSettle() {
   window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = window.setTimeout(
@@ -4653,8 +4656,20 @@ function scheduleViewerPageWheelSettle() {
     VIEWER_PAGE_WHEEL_SETTLE_MS
   );
 }
-function holdViewerPageWheelAfterManualReset() {
-  viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0, viewerState.viewerPageWheelResetGestureActive = !0, scheduleViewerPageWheelSettle();
+function holdViewerPageWheelAfterManualReset(logicalDelta, eventTime) {
+  viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0, viewerState.viewerPageWheelResetGestureActive = !0, viewerState.viewerPageWheelResetLastEventAt = eventTime, viewerState.viewerPageWheelResetLastDelta = Math.abs(logicalDelta), viewerState.viewerPageWheelResetDirection = Math.sign(logicalDelta), scheduleViewerPageWheelSettle();
+}
+function getViewerPageWheelEventTime(event) {
+  let eventTime = Number(event?.timeStamp);
+  return Number.isFinite(eventTime) && eventTime >= 0 ? eventTime : typeof performance < "u" && typeof performance.now == "function" ? performance.now() : Date.now();
+}
+function consumeViewerPageWheelResetContinuation(logicalDelta, eventTime) {
+  if (!viewerState.viewerPageWheelResetGestureActive) return !1;
+  let direction = Math.sign(logicalDelta), magnitude = Math.abs(logicalDelta), previousDirection = viewerState.viewerPageWheelResetDirection, previousMagnitude = viewerState.viewerPageWheelResetLastDelta, elapsed = Math.max(0, eventTime - viewerState.viewerPageWheelResetLastEventAt), sameDirection = direction !== 0 && direction === previousDirection, accelerated = magnitude >= Math.max(
+    previousMagnitude * VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO,
+    previousMagnitude + VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX
+  ), restartedAfterCadenceBreak = elapsed >= VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS;
+  return !sameDirection || accelerated || restartedAfterCadenceBreak ? (clearViewerPageWheelGesture(), !1) : (viewerState.viewerPageWheelResetLastEventAt = eventTime, viewerState.viewerPageWheelResetLastDelta = magnitude, scheduleViewerPageWheelSettle(), !0);
 }
 function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0) {
   let pageMode = typeof WheelEvent < "u" ? WheelEvent.DOM_DELTA_PAGE : 2;
@@ -4734,13 +4749,14 @@ function handleViewerPageWheel(event) {
   if (!isViewerSessionOpen() || !activeCatalog()) return !1;
   let { deltaX, deltaY } = normalizeViewerPageWheelDeltas(event);
   if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return !1;
-  if (event.preventDefault(), viewerState.viewerPageWheelResetGestureActive)
-    return scheduleViewerPageWheelSettle(), !0;
+  event.preventDefault();
+  let logicalDelta = getViewerPageWheelLogicalDelta(deltaX, deltaY), eventTime = getViewerPageWheelEventTime(event);
+  if (consumeViewerPageWheelResetContinuation(logicalDelta, eventTime))
+    return !0;
   if (singleViewerUsesBoundaryPan()) {
     let resetManualView = !isAutoViewerZoom();
-    return clearViewerPageWheelGesture(), consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: !0 }).turned && resetManualView && holdViewerPageWheelAfterManualReset(), !0;
+    return clearViewerPageWheelGesture(), consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: !0 }).turned && resetManualView && holdViewerPageWheelAfterManualReset(logicalDelta, eventTime), !0;
   }
-  let logicalDelta = getViewerPageWheelLogicalDelta(deltaX, deltaY);
   if (Math.abs(logicalDelta) < 0.01) return !0;
   if (!viewerState.viewerPageWheelBasePage) {
     let currentPosition = getViewerNavigationPosition();

@@ -21,7 +21,10 @@ const state = {
   viewerPageWheelAccumulator: 0,
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,
-  viewerPageWheelResetGestureActive: false
+  viewerPageWheelResetGestureActive: false,
+  viewerPageWheelResetLastEventAt: 0,
+  viewerPageWheelResetLastDelta: 0,
+  viewerPageWheelResetDirection: 0
 };
 const stageCanvas = { clientWidth: 800, clientHeight: 800 };
 let metrics = { overflowX: 40, overflowY: 100 };
@@ -120,8 +123,10 @@ geometry.applyPendingSingleImagePosition();
 assert.equal(state.panY, -260, "backward edge turn enters the previous image from its bottom");
 
 const moveCalls = [];
+const setPageCalls = [];
 let boundaryPanResult = { moved: true, remainingDeltaX: 0, remainingDeltaY: 18 };
 let boundaryInputs = 0;
+let usesBoundaryPan = true;
 class HTMLElementValue {}
 Object.assign(globalThis, {
   HTMLElement: HTMLElementValue,
@@ -130,16 +135,24 @@ Object.assign(globalThis, {
   VIEWER_PAGE_WHEEL_PAGE_DELTA_PX: 840,
   VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX: 72,
   VIEWER_PAGE_WHEEL_SETTLE_MS: 180,
+  VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS: 48,
+  VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO: 1.4,
   isFavoritesLightboxMode: () => false,
   getFeatureInterface: () => null,
   setFavoriteViewerIndex() {},
-  setLightboxPage() {},
-  moveLightbox: (...args) => moveCalls.push(args),
+  setLightboxPage: (...args) => {
+    setPageCalls.push(args);
+    state.page = args[0];
+  },
+  moveLightbox: (...args) => {
+    moveCalls.push(args);
+    state.page += args[0];
+  },
   consumeSingleViewerPanInput: () => boundaryPanResult,
   isAutoViewerZoom: () => Math.abs(state.zoom - 1) <= 0.001,
   normalizeWheelDeltaToPixels: (delta) => Number(delta) || 0,
   isViewerSessionOpen: () => true,
-  singleViewerUsesBoundaryPan: () => true
+  singleViewerUsesBoundaryPan: () => usesBoundaryPan
 });
 const navigation = importFrontendTestModule("src/js/58-viewer-navigation.js", "viewer-navigation");
 
@@ -224,6 +237,7 @@ const wheelEvent = {
   deltaX: 0,
   deltaY: 48,
   deltaMode: 0,
+  timeStamp: 1000,
   currentTarget: null,
   preventDefault() { prevented += 1; }
 };
@@ -238,15 +252,47 @@ const moveCountBeforeWheelReset = moveCalls.length;
 assert.equal(navigation.handleViewerPageWheel(wheelEvent), true);
 assert.equal(moveCalls.length, moveCountBeforeWheelReset + 1);
 assert.equal(state.viewerPageWheelResetGestureActive, true);
+state.zoom = 1;
 boundaryPanResult = { moved: true, remainingDeltaX: 0, remainingDeltaY: 0 };
-assert.equal(navigation.handleViewerPageWheel(wheelEvent), true);
+assert.equal(navigation.handleViewerPageWheel({ ...wheelEvent, deltaY: 24, timeStamp: 1016 }), true);
 assert.equal(boundaryInputs, 1, "the trailing delta is owned by the completed reset gesture");
 assert.equal(moveCalls.length, moveCountBeforeWheelReset + 1, "the trailing delta must not issue a second page command");
+
+// A new wheel/trackpad gesture must not wait for the full settle timeout. A
+// cadence break followed by renewed input is processed by the current event.
+usesBoundaryPan = false;
+const pageBeforeRestart = state.page;
+assert.equal(navigation.handleViewerPageWheel({ ...wheelEvent, deltaY: 96, timeStamp: 1072 }), true);
+assert.equal(state.page, pageBeforeRestart + 1, "a fresh gesture after the momentum tail advances immediately");
+assert.equal(setPageCalls.length, 1);
+assert.equal(state.viewerPageWheelResetGestureActive, false);
+navigation.clearViewerPageWheelGesture();
+
+state.viewerPageWheelResetGestureActive = true;
+state.viewerPageWheelResetLastEventAt = 2000;
+state.viewerPageWheelResetLastDelta = 18;
+state.viewerPageWheelResetDirection = 1;
+assert.equal(
+  navigation.consumeViewerPageWheelResetContinuation(-8, 2016),
+  false,
+  "an opposite-direction wheel event starts a fresh gesture immediately"
+);
+
+state.viewerPageWheelResetGestureActive = true;
+state.viewerPageWheelResetLastEventAt = 3000;
+state.viewerPageWheelResetLastDelta = 10;
+state.viewerPageWheelResetDirection = 1;
+assert.equal(
+  navigation.consumeViewerPageWheelResetContinuation(90, 3016),
+  false,
+  "renewed acceleration starts a fresh gesture even inside the cadence window"
+);
 navigation.clearViewerPageWheelGesture();
 
 // Automatic-fit boundary panning remains continuous because no manual view was
 // reset and every event still belongs to the reading stream.
 state.zoom = 1;
+usesBoundaryPan = true;
 boundaryInputs = 0;
 globalThis.consumeSingleViewerPanInput = () => {
   boundaryInputs += 1;
@@ -255,7 +301,7 @@ globalThis.consumeSingleViewerPanInput = () => {
 assert.equal(navigation.handleViewerPageWheel(wheelEvent), true);
 assert.equal(navigation.handleViewerPageWheel(wheelEvent), true);
 assert.equal(boundaryInputs, 2, "automatic-fit wheel events must continue to reach boundary pan");
-assert.equal(prevented, 4);
+assert.equal(prevented, 5);
 navigation.clearViewerPageWheelGesture();
 
 console.log("viewer_page_turn_pan_logic.test.js: PASS");
