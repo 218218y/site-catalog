@@ -5,6 +5,7 @@ const path = require("node:path");
 const { test, expect } = require("@playwright/test");
 
 const COMPARE_CANONICAL_SCREENSHOTS = process.platform === "linux" && process.env.PLAYWRIGHT_VISUAL_BASELINE === "1";
+const VISUAL_FIXTURE_MAX_WIDTH = 1120;
 
 const ROOT = path.join(__dirname, "..", "..");
 const TOOLTIP_MANAGER_PATH = path.join(ROOT, "tooltip-manager.js");
@@ -61,7 +62,7 @@ function fixtureDocument(body, options = {}) {
     html, body { min-height: 100%; }
     body { margin: 0; }
     *, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }
-    .visual-fixture { width: min(1120px, calc(100vw - 48px)); margin: 24px auto; }
+    .visual-fixture { width: min(${VISUAL_FIXTURE_MAX_WIDTH}px, calc(100vw - 48px)); margin: 24px auto; }
     .visual-fixture img { object-fit: cover; }
     ${extraCss}
   </style>
@@ -364,7 +365,7 @@ test.describe("visual component regression", () => {
       extraCss: ".visual-favorites-dialog { position: static; width: 100%; max-width: none; max-height: none; transform: none; }"
     });
 
-    await expectVisualComponent(page.locator(".visual-favorites-dialog"), "favorites-workspace.png", { width: 1242, minHeight: 600, maxHeight: 645 });
+    await expectVisualComponent(page.locator(".visual-favorites-dialog"), "favorites-workspace.png", { width: VISUAL_FIXTURE_MAX_WIDTH, minHeight: 600, maxHeight: 645 });
   });
 
   test("viewer image error remains clear and actionable", async ({ page }) => {

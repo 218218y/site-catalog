@@ -31,21 +31,44 @@ const testCatalog = catalogData.find((catalog) => catalog.id === "opening-tbi-20
   || catalogData.find((catalog) => Number(catalog.pages) >= 6)
   || catalogData[0];
 if (!testCatalog) throw new Error("E2E requires at least one generated catalog.");
+const catalogsById = new Map(catalogData.map((catalog) => [catalog.id, catalog]));
+
+function catalogFirstPage(catalog) {
+  return catalog?.pageNumberStart === 0 ? 0 : 1;
+}
+
+function catalogLastPage(catalog) {
+  const pageCount = Math.max(1, Number(catalog?.pages) || 1);
+  return catalogFirstPage(catalog) + pageCount - 1;
+}
+
+function catalogPageAtOrdinal(catalog, ordinal) {
+  return Math.min(catalogLastPage(catalog), catalogFirstPage(catalog) + Math.max(1, ordinal) - 1);
+}
+
+function displayPageToAssetPage(catalog, displayPage) {
+  return displayPage - catalogFirstPage(catalog) + 1;
+}
+
 const CATALOG_ID = testCatalog.id;
 const CATALOG_PAGES = Math.max(1, Number(testCatalog.pages) || 1);
+const CATALOG_FIRST_PAGE = catalogFirstPage(testCatalog);
+const CATALOG_LAST_PAGE = catalogLastPage(testCatalog);
 const favoriteCatalogTransitionCatalog = catalogData.find((catalog) => catalog.id === "opening-fredi-2026") || testCatalog;
 const FAVORITE_CATALOG_TRANSITION_ID = favoriteCatalogTransitionCatalog.id;
 const FAVORITE_CATALOG_TRANSITION_PAGES = Math.max(1, Number(favoriteCatalogTransitionCatalog.pages) || 1);
-const FAVORITE_CATALOG_TRANSITION_PAGE = Math.min(4, FAVORITE_CATALOG_TRANSITION_PAGES);
+const FAVORITE_CATALOG_TRANSITION_LAST_PAGE = catalogLastPage(favoriteCatalogTransitionCatalog);
+const FAVORITE_CATALOG_TRANSITION_PAGE = catalogPageAtOrdinal(favoriteCatalogTransitionCatalog, 4);
 const CATALOG_COUNT = catalogData.length;
 const LARGE_CATALOG = [...catalogData].sort((left, right) => Number(right.pages || 0) - Number(left.pages || 0))[0];
 const LARGE_CATALOG_PAGES = Math.max(1, Number(LARGE_CATALOG?.pages) || 1);
+const LARGE_CATALOG_LAST_PAGE = catalogLastPage(LARGE_CATALOG);
 const PERFORMANCE_BUDGETS = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../performance-budgets.json"), "utf8"));
 const FAVORITES_WORKSPACE_CATALOGS = catalogData.slice(0, 2).map((catalog) => ({
   id: catalog.id,
-  page: Math.min(2, Math.max(1, Number(catalog.pages) || 1))
+  page: catalogPageAtOrdinal(catalog, 2)
 }));
-const PREVIEW_PAGE = Math.min(6, CATALOG_PAGES);
+const PREVIEW_PAGE = catalogPageAtOrdinal(testCatalog, 6);
 const ONBOARDING_KEY = "bargig.viewer-onboarding.v2";
 const FAVORITES_KEY = "bargig.catalog-favorites.v1";
 const VIEWER_LAYOUT_KEY = "bargig.viewer-layout.v1";
@@ -216,7 +239,12 @@ async function waitForApp(page) {
   await expect(page.locator("body")).toHaveAttribute("data-app-ready", "true");
 }
 
-async function openDirectViewer(page, pageNumber = 1) {
+function currentViewerCatalog(page) {
+  const match = new URL(page.url()).pathname.match(/\/catalog\/([^/]+)\/page\/\d+\/$/);
+  return catalogsById.get(match?.[1] || "") || testCatalog;
+}
+
+async function openDirectViewer(page, pageNumber = CATALOG_FIRST_PAGE) {
   await page.goto(`/catalog/${CATALOG_ID}/page/${pageNumber}/`);
   await waitForApp(page);
   await expect(page.locator("#lightbox")).toBeVisible();
@@ -228,7 +256,9 @@ async function currentViewerSurface(page) {
 }
 
 async function expectCurrentViewerImageReady(page) {
-  await expect.poll(() => page.evaluate(() => {
+  const catalog = currentViewerCatalog(page);
+  const firstDisplayPage = catalogFirstPage(catalog);
+  await expect.poll(() => page.evaluate((firstPage) => {
     const frame = document.querySelector("#lightboxImageFrame");
     const lightbox = document.querySelector("#lightbox");
     const image = document.querySelector("#lightboxImage");
@@ -240,13 +270,14 @@ async function expectCurrentViewerImageReady(page) {
 
     const source = String(image.getAttribute("src") || "");
     const sourcePage = source.match(/page-(\d+)\.[a-z0-9]+(?:[?#]|$)/i);
+    const expectedAssetPage = pageNumber - firstPage + 1;
     return frame.classList.contains("image-ready")
       && frame.getAttribute("aria-busy") !== "true"
       && !lightbox?.classList.contains("is-page-loading")
       && image.complete
       && image.naturalWidth > 0
-      && Number(sourcePage?.[1]) === pageNumber;
-  })).toBe(true);
+      && Number(sourcePage?.[1]) === expectedAssetPage;
+  }, firstDisplayPage)).toBe(true);
 }
 
 async function revealViewerTopToolbar(page) {
@@ -405,13 +436,14 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator(".catalog-card")).toHaveCount(CATALOG_COUNT);
     await page.locator(".catalog-open-button").first().click();
 
-    await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/1/$`));
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
+    await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/${CATALOG_FIRST_PAGE}/$`));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_FIRST_PAGE));
+    await expectCurrentViewerImageReady(page);
 
     await page.locator("#nextPageBtn").click();
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_FIRST_PAGE + 1));
     await page.locator("#prevPageBtn").click();
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_FIRST_PAGE));
   });
 
   test("opens the catalog preview and launches the selected page", async ({ page }) => {
@@ -660,7 +692,7 @@ test.describe("critical catalog journeys", () => {
       new RegExp(`page-${String(FAVORITE_CATALOG_TRANSITION_PAGE).padStart(3, "0")}[.]webp`)
     );
 
-    if (FAVORITE_CATALOG_TRANSITION_PAGE < FAVORITE_CATALOG_TRANSITION_PAGES) {
+    if (FAVORITE_CATALOG_TRANSITION_PAGE < FAVORITE_CATALOG_TRANSITION_LAST_PAGE) {
       const nextPage = FAVORITE_CATALOG_TRANSITION_PAGE + 1;
       await armPageSwapObservation(page.locator("#lightboxImageFrame"));
       await page.locator("#nextPageBtn").click();
@@ -669,7 +701,7 @@ test.describe("critical catalog journeys", () => {
       await expectPageSwapObserved(page.locator("#lightboxImageFrame"));
       await expect(page.locator("#lightboxImage")).toHaveAttribute(
         "src",
-        new RegExp(`page-${String(nextPage).padStart(3, "0")}[.]webp`)
+        new RegExp(`page-${String(displayPageToAssetPage(favoriteCatalogTransitionCatalog, nextPage)).padStart(3, "0")}[.]webp`)
       );
     }
   });
@@ -679,7 +711,10 @@ test.describe("critical catalog journeys", () => {
     await openDirectViewer(page, 5);
 
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("5");
-    await expect(page.locator("#lightboxImage")).toHaveAttribute("src", /page-005\.webp/);
+    await expect(page.locator("#lightboxImage")).toHaveAttribute(
+      "src",
+      new RegExp(`page-${String(displayPageToAssetPage(testCatalog, 5)).padStart(3, "0")}[.]webp`)
+    );
 
     await revealViewerTopToolbar(page);
     await page.locator("#lightboxCopyLink").click();
@@ -700,7 +735,7 @@ test.describe("critical catalog journeys", () => {
       });
     });
     await preparePage(page);
-    await openDirectViewer(page, 1);
+    await openDirectViewer(page, CATALOG_FIRST_PAGE);
     await page.locator("#viewerFavoriteButton").click();
 
     await page.locator("#lightboxHomeLink").evaluate((link) => link.click());
@@ -740,16 +775,16 @@ test.describe("critical catalog journeys", () => {
 
   test("supports keyboard navigation in the RTL viewer", async ({ page }) => {
     await preparePage(page);
-    await openDirectViewer(page, 1);
+    await openDirectViewer(page, CATALOG_FIRST_PAGE);
 
     await page.keyboard.press("ArrowLeft");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_FIRST_PAGE + 1));
     await page.keyboard.press("ArrowRight");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_FIRST_PAGE));
     await page.keyboard.press("End");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_PAGES));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_LAST_PAGE));
     await page.keyboard.press("Home");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_FIRST_PAGE));
   });
 
   test("starts in the single-image paged layout without a layout switch control", async ({ page }) => {
@@ -763,7 +798,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#lightboxImageFrame")).toHaveClass(/image-ready/);
     await expect(page.locator("#stageCanvas #lightboxImage")).toHaveCount(1);
 
-    if (startPage < CATALOG_PAGES) {
+    if (startPage < CATALOG_LAST_PAGE) {
       await armPageSwapObservation(page.locator("#lightboxImageFrame"));
       await page.locator("#nextPageBtn").click();
       await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage + 1));
@@ -780,7 +815,7 @@ test.describe("critical catalog journeys", () => {
 
   test("preserves relative pan for explicit navigation and uses a fresh reading origin after edge scrolling", async ({ page }) => {
     await preparePage(page, { legacyViewerLayout: "side" });
-    const startPage = Math.min(3, Math.max(1, CATALOG_PAGES - 2));
+    const startPage = Math.min(3, Math.max(CATALOG_FIRST_PAGE, CATALOG_LAST_PAGE - 2));
     await openDirectViewer(page, startPage);
 
     const lightbox = page.locator("#lightbox");
@@ -932,10 +967,10 @@ test.describe("critical catalog journeys", () => {
 
   test("lands on the final requested page for repeated vertical keyboard commands", async ({ page }) => {
     await preparePage(page);
-    const startPage = Math.min(2, Math.max(1, CATALOG_PAGES - 4));
+    const startPage = Math.min(2, Math.max(CATALOG_FIRST_PAGE, CATALOG_LAST_PAGE - 4));
     await openDirectViewer(page, startPage);
 
-    const forwardSteps = Math.min(3, CATALOG_PAGES - startPage);
+    const forwardSteps = Math.min(3, CATALOG_LAST_PAGE - startPage);
     for (let index = 0; index < forwardSteps; index += 1) {
       await page.evaluate((repeat) => {
         window.dispatchEvent(new KeyboardEvent("keydown", {
@@ -951,7 +986,7 @@ test.describe("critical catalog journeys", () => {
     await expectCurrentViewerImageReady(page);
     await expect(page.locator("#lightboxImage")).toHaveAttribute(
       "src",
-      new RegExp(`page-${String(forwardPage).padStart(3, "0")}[.]webp`)
+      new RegExp(`page-${String(displayPageToAssetPage(testCatalog, forwardPage)).padStart(3, "0")}[.]webp`)
     );
 
     const backwardSteps = Math.min(2, forwardPage - 1);
@@ -1051,7 +1086,7 @@ test.describe("critical catalog journeys", () => {
 
   test("normalizes mouse-wheel and precision-touchpad streams through one paged path", async ({ page }) => {
     await preparePage(page);
-    const startPage = Math.min(3, Math.max(1, CATALOG_PAGES - 6));
+    const startPage = Math.min(3, Math.max(CATALOG_FIRST_PAGE, CATALOG_LAST_PAGE - 6));
     await openDirectViewer(page, startPage);
 
     const stage = page.locator("#stageCanvas");
@@ -1075,7 +1110,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
     await settleWheelGesture();
 
-    const firstPageTarget = Math.min(CATALOG_PAGES, startPage + 1);
+    const firstPageTarget = Math.min(CATALOG_LAST_PAGE, startPage + 1);
     expect(await dispatchWheelStream([10, 10])).toBe(true);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(firstPageTarget));
     await settleWheelGesture();
@@ -1084,7 +1119,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
     await settleWheelGesture();
 
-    const twoPageTarget = Math.min(CATALOG_PAGES, startPage + 2);
+    const twoPageTarget = Math.min(CATALOG_LAST_PAGE, startPage + 2);
     await dispatchWheelStream([200]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(twoPageTarget));
     await settleWheelGesture();
@@ -1093,12 +1128,12 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(startPage));
     await settleWheelGesture();
 
-    const lineModeTarget = Math.min(CATALOG_PAGES, startPage + 1);
+    const lineModeTarget = Math.min(CATALOG_LAST_PAGE, startPage + 1);
     await dispatchWheelStream([3], 1);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(lineModeTarget));
     await settleWheelGesture();
 
-    const repeatedTarget = Math.min(CATALOG_PAGES, lineModeTarget + 3);
+    const repeatedTarget = Math.min(CATALOG_LAST_PAGE, lineModeTarget + 3);
     await dispatchWheelStream([100, 100, 100]);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(repeatedTarget));
     await expectCurrentViewerImageReady(page);
@@ -1106,26 +1141,26 @@ test.describe("critical catalog journeys", () => {
 
   test("keeps paged-viewer boundary navigation stationary", async ({ page }) => {
     await preparePage(page);
-    await openDirectViewer(page, 1);
+    await openDirectViewer(page, CATALOG_FIRST_PAGE);
 
     const frame = page.locator("#lightboxImageFrame");
     const firstTransform = await frame.evaluate((element) => element.style.transform);
     await page.keyboard.press("ArrowRight");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("1");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_FIRST_PAGE));
     await expect.poll(() => frame.evaluate((element) => element.style.transform)).toBe(firstTransform);
 
     await page.keyboard.press("End");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_PAGES));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_LAST_PAGE));
     await expectCurrentViewerImageReady(page);
     const lastSrc = await page.locator("#lightboxImage").getAttribute("src");
     await page.keyboard.press("ArrowLeft");
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_PAGES));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_LAST_PAGE));
     await expect(page.locator("#lightboxImage")).toHaveAttribute("src", lastSrc || "");
   });
 
   test("supports PageUp, PageDown, and horizontal and vertical touch swipes", async ({ page }) => {
     await preparePage(page);
-    const startPage = Math.min(2, Math.max(1, CATALOG_PAGES - 2));
+    const startPage = Math.min(2, Math.max(CATALOG_FIRST_PAGE, CATALOG_LAST_PAGE - 2));
     await openDirectViewer(page, startPage);
 
     await page.keyboard.press("PageDown");
@@ -1181,8 +1216,9 @@ test.describe("critical catalog journeys", () => {
   });
 
   test("falls back to the thumbnail when a full catalog image fails", async ({ page }) => {
-    await preparePage(page, { failPages: [2] });
-    await page.goto(`/catalog/${CATALOG_ID}/page/2/`);
+    const failingDisplayPage = Math.min(2, CATALOG_LAST_PAGE);
+    await preparePage(page, { failPages: [displayPageToAssetPage(testCatalog, failingDisplayPage)] });
+    await page.goto(`/catalog/${CATALOG_ID}/page/${failingDisplayPage}/`);
     await waitForApp(page);
 
     const frame = page.locator("#lightboxImageFrame");
@@ -1191,7 +1227,7 @@ test.describe("critical catalog journeys", () => {
     await expect(page.locator("#viewerImageFeedback")).toContainText("מוצגת חלופה מוקטנת");
     await expect(page.locator("#viewerImageRetry")).toBeVisible();
     await expect(page.locator("#viewerLoading")).toBeHidden();
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(failingDisplayPage));
   });
 
   test("shows the first-run viewer tour once and remembers dismissal", async ({ page }) => {
@@ -1251,7 +1287,9 @@ test.describe("critical catalog journeys", () => {
     const startingPage = Number(await page.locator("#viewerPageIndicatorCurrent").textContent());
     const totalPages = Number(await page.locator("#viewerPageIndicatorTotal").textContent());
     const key = startingPage < totalPages ? "ArrowLeft" : "ArrowRight";
-    const expectedPage = startingPage < totalPages ? startingPage + 1 : Math.max(1, startingPage - 1);
+    const expectedPage = startingPage < totalPages
+      ? startingPage + 1
+      : Math.max(catalogFirstPage(currentViewerCatalog(page)), startingPage - 1);
     await page.keyboard.press(key);
     await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(expectedPage));
   });
@@ -1264,11 +1302,11 @@ test.describe("critical catalog journeys", () => {
 
     const cards = page.locator("#pageGrid .page-card");
     await expect(cards).toHaveCount(LARGE_CATALOG_PAGES);
-    const finalCard = page.locator(`[data-open-page="${LARGE_CATALOG_PAGES}"]`);
+    const finalCard = page.locator(`[data-open-page="${LARGE_CATALOG_LAST_PAGE}"]`);
     await finalCard.scrollIntoViewIfNeeded();
     await finalCard.click();
-    await expect(page).toHaveURL(new RegExp(`/catalog/${LARGE_CATALOG.id}/page/${LARGE_CATALOG_PAGES}/$`));
-    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(LARGE_CATALOG_PAGES));
+    await expect(page).toHaveURL(new RegExp(`/catalog/${LARGE_CATALOG.id}/page/${LARGE_CATALOG_LAST_PAGE}/$`));
+    await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(LARGE_CATALOG_LAST_PAGE));
     await expectCurrentViewerImageReady(page);
   });
 
@@ -1342,7 +1380,7 @@ test.describe("critical catalog journeys", () => {
     const inquiryContact = events.find((event) => event.name === "contact" && event.action === "copy");
     expect(inquiryContact?.source).toBe("viewer-inquiry");
     expect(inquiryContact?.catalogId).toBe(openedCatalogId);
-    expect(inquiryContact?.pageNumber).toBeGreaterThanOrEqual(1);
+    expect(inquiryContact?.pageNumber).toBeGreaterThanOrEqual(catalogFirstPage(catalogsById.get(openedCatalogId)));
     expect(names).not.toContain("page_view");
     expect(names).not.toContain("page_load");
     expect(names).not.toContain("first_catalog_image");
@@ -1653,7 +1691,7 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   expect(overflow).toBeLessThanOrEqual(1);
 
   await page.locator(".catalog-open-button").first().click();
-  await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/1/$`));
+  await expect(page).toHaveURL(new RegExp(`/catalog/${CATALOG_ID}/page/${CATALOG_FIRST_PAGE}/$`));
   await expectCurrentViewerImageReady(page);
   // Fit-width deliberately starts a portrait page at its top edge so the reader
   // can scroll through it naturally. Only the fitted horizontal axis should be
@@ -1674,7 +1712,7 @@ test("mobile home and viewer survive portrait and landscape orientation", async 
   await page.keyboard.press("Escape");
   await expect(page.locator("#viewerMobileMoreMenu")).toBeHidden();
   await page.locator("#nextPageBtn").click();
-  await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText("2");
+  await expect(page.locator("#viewerPageIndicatorCurrent")).toHaveText(String(CATALOG_FIRST_PAGE + 1));
 
   await page.setViewportSize({ width: 844, height: 390 });
   await expectViewerFrameCentered(page);
@@ -1727,7 +1765,7 @@ test.describe("visual regression", () => {
 
   test("viewer stage remains centered and unclipped", async ({ page }) => {
     await preparePage(page);
-    await openDirectViewer(page, 1);
+    await openDirectViewer(page, CATALOG_FIRST_PAGE);
     await expect(page.locator("#lightboxStage")).toHaveScreenshot("viewer-stage.png", { stylePath: VISUAL_STYLE });
   });
 });
