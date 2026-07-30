@@ -59,6 +59,9 @@ for (const bundle of [catalogBundle, favoritesBundle, viewerBundle]) {
 }
 for (const css of [catalogCss, favoritesCss, viewerCss]) {
   assert.match(css, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
+  assert.match(css, /Cascade layer: bargig\.application/);
+  assert.equal((css.match(/@layer bargig\.application;/g) || []).length, 1);
+  assert.equal((css.match(/@layer bargig\.application \{/g) || []).length, 1);
 }
 
 assert.equal(packageJson.devDependencies.esbuild, '0.28.1');
@@ -79,8 +82,8 @@ assert.match(frontendBuilder, /DEPLOY_GENERATED_FILES/);
 assert.match(frontendBuilder, /def atomic_write_text/);
 assert.match(frontendBuilder, /def build_frontend_assets/);
 assert.match(frontendBuilder, /def validate_module_manifest/);
-assert.match(frontendBuilder, /def remove_obsolete_generated_files/);
-assert.match(frontendBuilder, /results = tuple\(build_one/);
+assert.match(frontendBuilder, /CSS_CASCADE_LAYER = \"bargig\.application\"/);
+assert.match(frontendBuilder, /return tuple\(build_one/);
 assert.match(frontendBuilder, /_partition_metafile_inputs/);
 assert.match(esbuildRunner, /import \{ build, version as esbuildVersion \} from "esbuild"/);
 assert.match(esbuildRunner, /EXPECTED_ESBUILD_VERSION = "0\.28\.1"/);
@@ -89,7 +92,6 @@ assert.match(esbuildRunner, /bundle: true/);
 assert.match(esbuildRunner, /format: "esm"/);
 assert.match(esbuildRunner, /treeShaking: true/);
 assert.match(esbuildRunner, /metafile: true/);
-assert.equal(fs.existsSync(path.join(root, 'app.js')), false, 'obsolete compatibility loader must be removed');
 
 assert.match(pageBuilder, /from build_frontend_assets import ROUTE_ASSETS, build_frontend_assets/);
 assert.match(pageBuilder, /ROUTE_STYLESHEET/);
@@ -110,6 +112,7 @@ assert.ok(catalogBundle.includes(sourceMarker('src/js/50-search-ui.js')));
 assert.ok(!catalogBundle.includes(sourceMarker('src/js/16-viewer-state.js')));
 assert.ok(!catalogBundle.includes(sourceMarker('src/js/60-viewer.js')));
 assert.ok(!catalogBundle.includes(sourceMarker('src/js/35-favorites-workspace.js')));
+assert.ok(!catalogBundle.includes(sourceMarker("catalog-snapshot.js")));
 
 assert.match(favoritesBundle, /ES module entrypoint: src\/entries\/favorites\.js/);
 assert.ok(favoritesBundle.includes(sourceMarker('src/js/35-favorites-workspace.js')));
@@ -117,8 +120,10 @@ assert.ok(favoritesBundle.includes(sourceMarker('src/js/40-catalog-grid.js')));
 assert.ok(favoritesBundle.includes(sourceMarker('src/js/32-shared-inquiry.js')));
 assert.ok(!favoritesBundle.includes(sourceMarker('src/js/16-viewer-state.js')));
 assert.ok(!favoritesBundle.includes(sourceMarker('src/js/60-viewer.js')));
+assert.ok(!favoritesBundle.includes(sourceMarker("catalog-snapshot.js")));
 
 assert.match(viewerBundle, /ES module entrypoint: src\/entries\/viewer\.js/);
+assert.ok(viewerBundle.includes(sourceMarker("catalog-snapshot.js")));
 assert.ok(viewerBundle.includes(sourceMarker('src/js/16-viewer-state.js')));
 assert.ok(viewerBundle.includes(sourceMarker('src/js/31-viewer-share.js')));
 assert.ok(viewerBundle.includes(sourceMarker('src/js/32-shared-inquiry.js')));
@@ -140,10 +145,11 @@ assert.match(contractChecker, /APPROVED_IMPORT_CYCLES/);
 assert.match(contractChecker, /unapproved ES-module dependency cycle/);
 assert.match(contractChecker, /Viewer implementation reaches into search internals/);
 assert.match(contractChecker, /Search implementation reaches into Viewer internals/);
-assert.match(contractChecker, /obsolete compatibility loader remains/);
 assert.match(contractChecker, /_has_legacy_top_level_iife_wrapper/);
 assert.doesNotMatch(contractChecker, /if \"\(\(\) => \\{\" in text/);
 assert.match(contractChecker, /native ES module depends on document\.currentScript/);
+assert.match(contractChecker, /def check_css_architecture/);
+assert.match(contractChecker, /unreviewed z-index declaration/);
 assert.doesNotMatch(telemetrySource, /document\.currentScript/);
 assert.match(telemetrySource, /script\[type=module\]\[data-bargig-route-module\]/);
 

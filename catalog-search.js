@@ -26,7 +26,6 @@
     let text = String(value ?? "")
       .toLowerCase()
       .normalize("NFKD")
-      .replace(/[\u0591-\u05C7]/g, "")
       .replace(/\p{M}+/gu, "")
       .replace(/[״׳'\"“”]/g, "")
       .replace(/[־–—_]/g, " ")

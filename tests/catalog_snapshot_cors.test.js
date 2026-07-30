@@ -1,9 +1,12 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
-function createHarness() {
+async function createHarness() {
   const imageRequests = [];
   let canvasTainted = false;
 
@@ -71,14 +74,23 @@ function createHarness() {
   };
   global.Image = FakeImage;
   const modulePath = path.join(__dirname, '..', 'catalog-snapshot.js');
-  delete require.cache[require.resolve(modulePath)];
-  const snapshotApi = require(modulePath);
-  return { windowObject, imageRequests, snapshotApi };
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'bargig-catalog-snapshot-'));
+  const temporaryModule = path.join(temporaryDirectory, 'catalog-snapshot.mjs');
+  fs.writeFileSync(temporaryModule, fs.readFileSync(modulePath, 'utf8'), 'utf8');
+  const snapshotApi = (await import(pathToFileURL(temporaryModule).href)).default;
+  return {
+    windowObject,
+    imageRequests,
+    snapshotApi,
+    cleanup() {
+      fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+    },
+  };
 }
 
 async function run() {
   {
-    const harness = createHarness();
+    const harness = await createHarness();
     const blob = await harness.snapshotApi.buildSnapshotBlob(
       'https://cdn.example.com/assets/pages/catalog/page-001.webp?v=abc'
     );
@@ -88,10 +100,11 @@ async function run() {
     assert.match(harness.imageRequests[0].src, /[?&]v=abc(?:&|$)/);
     assert.equal(harness.imageRequests[1].src, 'https://catalog.example.com/brand-logo.svg');
     assert.equal(harness.imageRequests[1].crossOrigin, '');
+    harness.cleanup();
   }
 
   {
-    const harness = createHarness();
+    const harness = await createHarness();
     await harness.snapshotApi.buildSnapshotBlob(
       'https://catalog.example.com/assets/pages/catalog/page-001.webp'
     );
@@ -100,6 +113,7 @@ async function run() {
       harness.imageRequests[0].src,
       'https://catalog.example.com/assets/pages/catalog/page-001.webp'
     );
+    harness.cleanup();
   }
 
   console.log('catalog_snapshot_cors.test.js: PASS');

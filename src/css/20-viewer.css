@@ -8,7 +8,7 @@
 .lightbox {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-viewer-root);
   --viewer-side-control-size: 46px;
   --viewer-side-control-radius: 23px;
   --viewer-side-control-edge: clamp(22px, 3.2vw, 40px);
@@ -80,7 +80,7 @@
   top: 0;
   right: 0;
   left: 0;
-  z-index: 36;
+  z-index: var(--z-viewer-progress);
   height: 3px;
   overflow: hidden;
   pointer-events: none;
@@ -97,20 +97,20 @@
   transition: transform .22s ease;
 }
 .lightbox-progress {
-  z-index: 36;
+  z-index: var(--z-viewer-progress);
 }
 .reader-progress {
-  z-index: 36;
+  z-index: var(--z-viewer-progress);
 }
 .lightbox-top-hotspot {
   /* The opener must remain below an already-visible toolbar. The toolbar can
      stay open through :hover or :focus-within even after the transient
      .show-ui class is removed, so relying only on opacity state lets the
      opener arrow float above active controls. */
-  z-index: 34;
+  z-index: var(--z-viewer-hotspot);
 }
 .lightbox-top-shell {
-  z-index: 35;
+  z-index: var(--z-viewer-shell);
 }
 .lightbox.show-ui .lightbox-top-shell,
 .lightbox-top-hotspot:hover + .lightbox-top-shell,
@@ -126,7 +126,7 @@
 }
 .reader-header.lightbox-reader-header {
   position: relative;
-  z-index: 30;
+  z-index: var(--z-site-header);
   width: 100%;
   /* The brand side contains the logo plus three non-shrinking quick-action
      buttons. Its measured minimum footprint is 230px at desktop/intermediate
@@ -664,7 +664,7 @@
   pointer-events: auto;
 }
 .reader-top-hotspot {
-  z-index: 34;
+  z-index: var(--z-viewer-hotspot);
   top: 0;
   right: 0;
   left: 0;
@@ -678,7 +678,7 @@
   cursor: pointer;
 }
 .reader-side-hotspot {
-  z-index: 35;
+  z-index: var(--z-viewer-shell);
 }
 .reader-top-hotspot span,
 .reader-side-hotspot span {
@@ -697,7 +697,7 @@
 }
 .reader-top-shell {
   position: fixed;
-  z-index: 35;
+  z-index: var(--z-viewer-shell);
   top: 0;
   right: 0;
   left: 0;
@@ -1017,7 +1017,7 @@ a.reader-home:focus-visible {
 }
 .reader-search-scope-menu {
   position: absolute;
-  z-index: 130;
+  z-index: var(--z-elevated-menu);
   top: calc(100% + 9px);
   left: 0;
   width: 190px;
@@ -1226,7 +1226,7 @@ a.reader-home:focus-visible {
 }
 .reader-page-rail {
   position: fixed;
-  z-index: 30;
+  z-index: var(--z-site-header);
   top: 10px;
   right: 10px;
   bottom: 10px;
@@ -1342,7 +1342,7 @@ a.reader-home:focus-visible {
 }
 .reader-floating-preview {
   position: fixed;
-  z-index: 42;
+  z-index: var(--z-floating-control);
   top: 50%;
   right: clamp(218px, 19vw, 322px);
   width: min(440px, 34vw);

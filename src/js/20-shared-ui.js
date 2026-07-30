@@ -1,6 +1,6 @@
 /**
  * Source module: 20-shared-ui.js
- * Shared media loading, image placeholders, action feedback, asset paths, snapshots, and route helpers.
+ * Shared media loading, image placeholders, action feedback, asset paths, and route helpers.
  *
  * Runtime dependencies are explicit ES module imports. Route entrypoints are
  * bundled by the pinned esbuild tool into stable browser asset names.
@@ -671,17 +671,6 @@ function clampPage(page, catalog = activeCatalog()) {
   return Math.min(Math.max(parsed, 1), maxPage);
 }
 
-/** @param {unknown} value */
-function safeFilePart(value) {
-  return String(value || "catalog")
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 72) || "catalog";
-}
-
 /** @param {Element|null|undefined} button */
 function getTooltipText(button) {
   return window.BargigTooltips?.getText?.(button || null) || button?.getAttribute?.("title") || "";
@@ -852,45 +841,6 @@ function loadDeferredImage(img) {
 
 
 
-/** @param {Blob} blob @param {string} filename */
-function saveBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 900);
-}
-
-/** @param {CatalogRecord|null} catalog @param {unknown} page @param {HTMLElement|null|undefined} button */
-async function downloadCatalogPageSnapshot(catalog, page, button) {
-  if (!catalog) return;
-  const currentPage = clampPage(page, catalog);
-  const src = pageSrc(catalog, currentPage);
-
-  try {
-    if (!window.CatalogSnapshot?.buildSnapshotBlob) {
-      throw new Error("snapshot-exporter-missing");
-    }
-
-    const blob = await window.CatalogSnapshot.buildSnapshotBlob(src);
-    const extension = window.CatalogSnapshot.extension || "jpg";
-    saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.${extension}`);
-    flashActionButton(button, "נשמר");
-    showActionToast("התמונה נשמרה", { tone: "saved" });
-  } catch (error) {
-    console.error("[CatalogSnapshot] Failed to export catalog page", {
-      catalogId: catalog.id,
-      page: currentPage,
-      src,
-      error
-    });
-    window.alert("לא הצלחתי ליצור את תמונת העמוד. יש לוודא שמדיניות CORS של מאגר התמונות מאפשרת קריאה מהאתר.");
-  }
-}
-
 function hasHoverPointer() {
   if (typeof window.matchMedia !== "function") return true;
   const primaryFineHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -1003,4 +953,4 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
 }
 /* TEST-ONLY EXPORTS: END */
 
-export { applyCatalogImageDimensions, buildCategoryShareRouteHash, catalogCategorySharePath, catalogCoverLoadingAttributes, catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, catalogImageTierMaxSide, catalogNeighborPreloadRadius, catalogPageImageSrc, catalogPagesShareAspectRatio, catalogSubcategorySharePath, catalogSupportsImageTier, categorySectionId, categoryShareSlug, clampPage, clampValue, coverThumbSrc, decodeHashRouteSegment, downloadCatalogPageSnapshot, encodeHashRouteSegment, escapeHtml, findCatalogById, flashActionButton, focusHtmlElement, getCatalogCategoryGroups, handleTopLayerEscape, hasHoverPointer, initImagePlaceholderObserver, isHtmlElement, isSaveDataEnabled, isTouchLikePointer, loadCatalogImageWithRecovery, mediumSrc, networkEffectiveType, normalizeCatalogImageUrl, normalizeShareRoutePath, pageAspectStyle, pageAspectVariableStyle, pageSize, pageSrc, prepareCatalogImage, prepareImagePlaceholder, recoverCatalogImageAfterInitialFailure, setCatalogImageSource, setTooltipText, showActionToast, subcategorySectionId, subcategoryShareSlug, syncDocumentLock, syncImagePlaceholderState, thumbSrc };
+export { applyCatalogImageDimensions, buildCategoryShareRouteHash, catalogCategorySharePath, catalogCoverLoadingAttributes, catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, catalogImageTierMaxSide, catalogNeighborPreloadRadius, catalogPageImageSrc, catalogPagesShareAspectRatio, catalogSubcategorySharePath, catalogSupportsImageTier, categorySectionId, categoryShareSlug, clampPage, clampValue, coverThumbSrc, decodeHashRouteSegment, encodeHashRouteSegment, escapeHtml, findCatalogById, flashActionButton, focusHtmlElement, getCatalogCategoryGroups, handleTopLayerEscape, hasHoverPointer, initImagePlaceholderObserver, isHtmlElement, isSaveDataEnabled, isTouchLikePointer, loadCatalogImageWithRecovery, mediumSrc, networkEffectiveType, normalizeCatalogImageUrl, normalizeShareRoutePath, pageAspectStyle, pageAspectVariableStyle, pageSize, pageSrc, prepareCatalogImage, prepareImagePlaceholder, recoverCatalogImageAfterInitialFailure, setCatalogImageSource, setTooltipText, showActionToast, subcategorySectionId, subcategoryShareSlug, syncDocumentLock, syncImagePlaceholderState, thumbSrc };

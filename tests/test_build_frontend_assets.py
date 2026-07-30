@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -105,6 +106,9 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
     assert "src/js/39-search-catalog-domain.js" in viewer_inputs
     assert "src/js/40-catalog-grid.js" in viewer_inputs
     assert "src/js/31-viewer-share.js" in viewer_inputs
+    assert "catalog-snapshot.js" not in catalog_inputs
+    assert "catalog-snapshot.js" not in favorites_inputs
+    assert "catalog-snapshot.js" in viewer_inputs
 
     for relative in all_source_modules():
         assert (ROOT / relative).is_file(), relative
@@ -195,6 +199,10 @@ def test_generated_bundles_publish_the_reviewed_esbuild_graph() -> None:
         output = (ROOT / spec.output_name).read_text(encoding="utf-8")
         assert output.lstrip().startswith("/*")
         if spec.kind == "css":
+            assert f"Cascade layer: {MODULE.CSS_CASCADE_LAYER}" in output
+            assert output.count(f"@layer {MODULE.CSS_CASCADE_LAYER};") == 1
+            assert output.count(f"@layer {MODULE.CSS_CASCADE_LAYER} {{") == 1
+            assert output.rstrip().endswith("}")
             positions = [output.index(f"BEGIN SOURCE: {relative}") for relative in spec.modules]
             assert positions == sorted(positions), spec.output_name
             continue
@@ -316,31 +324,73 @@ def test_render_javascript_bundle_accepts_esbuild_define_virtual_inputs(
     assert "<define:__BARGIG_FEATURE_CAPABILITIES__>" in output
     assert "console.log('module');" in output
 
-def test_obsolete_compatibility_loader_is_removed_or_rejected(tmp_path: Path) -> None:
-    obsolete = tmp_path / "app.js"
-    obsolete.write_text("legacy", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="Obsolete frontend compatibility asset"):
-        MODULE.remove_obsolete_generated_files(tmp_path, check=True)
 
-    MODULE.remove_obsolete_generated_files(tmp_path, check=False)
-    assert not obsolete.exists()
 
-def test_failed_route_build_does_not_remove_obsolete_asset(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    obsolete = tmp_path / "app.js"
-    obsolete.write_text("legacy", encoding="utf-8")
+def test_css_bundle_strips_internal_comments_but_preserves_license_comments(tmp_path: Path) -> None:
+    source = tmp_path / "src/css/00-a.css"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "/* internal architecture note */\n"
+        "/*! retained license */\n"
+        '.label::before { content: "/* visible text */"; }\n'
+        ".a { color: red; }\n",
+        encoding="utf-8",
+    )
+    spec = MODULE.FrontendBundleSpec("styles-test.css", "css", modules=("src/css/00-a.css",))
 
-    def fail_build(*_args: object, **_kwargs: object) -> object:
-        raise RuntimeError("simulated route build failure")
+    output = MODULE.render_css_bundle(tmp_path, spec)
 
-    monkeypatch.setattr(MODULE, "build_one", fail_build)
-    with pytest.raises(RuntimeError, match="simulated route build failure"):
-        MODULE.build_frontend_assets(tmp_path)
+    assert "internal architecture note" not in output
+    assert "/*! retained license */" in output
+    assert 'content: "/* visible text */"' in output
+    assert ".a { color: red; }" in output
 
-    assert obsolete.read_text(encoding="utf-8") == "legacy"
+
+def test_css_comment_scanner_rejects_unterminated_comments() -> None:
+    with pytest.raises(ValueError, match="Unterminated CSS comment"):
+        MODULE.strip_internal_css_comments(".a { color: red; } /* incomplete")
+
+
+def test_css_line_end_whitespace_is_removed_without_touching_strings() -> None:
+    source = '.a { color: red; }   \n.b::before { content: "value  "; }  \n'
+
+    result = MODULE.strip_css_line_end_whitespace(source)
+
+    assert result == '.a { color: red; }\n.b::before { content: "value  "; }\n'
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes are not portable to Windows")
+def test_atomic_write_uses_readable_defaults_and_preserves_existing_mode(tmp_path: Path) -> None:
+    output = tmp_path / "generated.css"
+
+    assert MODULE.atomic_write_text(output, "first\n")
+    assert output.stat().st_mode & 0o777 == 0o644
+
+    output.chmod(0o640)
+    assert MODULE.atomic_write_text(output, "second\n")
+    assert output.stat().st_mode & 0o777 == 0o640
+
+
+def test_css_cascade_layer_preserves_reviewed_module_order(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    module_a = root / "src/css/00-a.css"
+    module_b = root / "src/css/10-b.css"
+    module_a.parent.mkdir(parents=True)
+    module_a.write_text(".same { color: red; }\n", encoding="utf-8")
+    module_b.write_text(".same { color: blue; }\n", encoding="utf-8")
+    spec = MODULE.FrontendBundleSpec(
+        "styles-test.css",
+        "css",
+        modules=("src/css/00-a.css", "src/css/10-b.css"),
+    )
+
+    output = MODULE.render_css_bundle(root, spec)
+
+    assert output.count(f"@layer {MODULE.CSS_CASCADE_LAYER};") == 1
+    assert output.count(f"@layer {MODULE.CSS_CASCADE_LAYER} {{") == 1
+    assert output.index("color: red") < output.index("color: blue")
+    assert output.rstrip().endswith("}")
 
 def test_check_mode_detects_a_stale_route_asset(tmp_path: Path) -> None:
     root = tmp_path / "project"

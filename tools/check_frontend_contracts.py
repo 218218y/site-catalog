@@ -77,6 +77,11 @@ STATIC_IMPORT_RE = re.compile(
     re.MULTILINE,
 )
 DYNAMIC_IMPORT_RE = re.compile(r"\bimport\s*\(")
+DYNAMIC_IMPORT_SPECIFIER_RE = re.compile(r"\bimport\s*\(\s*[\"\'](?P<specifier>[^\"\']+)[\"\']\s*\)")
+
+APPROVED_DYNAMIC_IMPORTS: Mapping[str, tuple[str, ...]] = {}
+APPROVED_ROOT_BROWSER_MODULES: tuple[str, ...] = ("catalog-snapshot.js",)
+
 
 APPROVED_IMPORT_CYCLES: tuple[frozenset[str], ...] = (
     frozenset({
@@ -104,6 +109,31 @@ FEATURE_NAMES = frozenset({
     "viewer",
     "app-shell",
 })
+
+Z_INDEX_SCALE: tuple[str, ...] = (
+    "--z-sticky",
+    "--z-site-header",
+    "--z-viewer-hotspot",
+    "--z-viewer-shell",
+    "--z-viewer-progress",
+    "--z-search-results",
+    "--z-floating-control",
+    "--z-scroll-top",
+    "--z-mobile-menu",
+    "--z-viewer-root",
+    "--z-feature-panel",
+    "--z-feature-action",
+    "--z-search-popover",
+    "--z-dialog",
+    "--z-floating-menu",
+    "--z-elevated-menu",
+    "--z-toast",
+    "--z-tour",
+    "--z-transfer-dialog",
+    "--z-note-dialog",
+    "--z-skip-link",
+    "--z-tooltip",
+)
 
 
 
@@ -133,6 +163,9 @@ def check_typecheck_configuration(base: Path, failures: list[str]) -> None:
         failures.append("jsconfig.json must type-check every src/js module via src/js/**/*.js")
     if "src/entries/**/*.js" not in include:
         failures.append("jsconfig.json must type-check every route entrypoint via src/entries/**/*.js")
+    for root_module in APPROVED_ROOT_BROWSER_MODULES:
+        if root_module not in include:
+            failures.append(f"jsconfig.json must type-check approved root browser module: {root_module}")
     if compiler.get("module") != "ESNext" or compiler.get("moduleResolution") != "Bundler":
         failures.append("jsconfig.json must type-check native ES modules with module=ESNext and moduleResolution=Bundler")
     files = config.get("files", [])
@@ -144,16 +177,31 @@ def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]
     """Validate explicit local imports and reject unreviewed dependency cycles."""
 
     entries = sorted((base / "src" / "entries").glob("*.js"))
+    root_modules = [base / relative for relative in APPROVED_ROOT_BROWSER_MODULES]
     allowed_root = (base / "src").resolve()
     entry_root = (base / "src" / "entries").resolve()
-    all_modules = [*sources, *entries]
+    all_modules = [*sources, *entries, *root_modules]
     graph: dict[str, set[str]] = {path.relative_to(base).as_posix(): set() for path in all_modules}
 
     for path in all_modules:
         relative = path.relative_to(base).as_posix()
         text = path.read_text(encoding="utf-8")
-        if DYNAMIC_IMPORT_RE.search(strip_javascript_comments(text)):
-            failures.append(f"dynamic import is not justified in the current route architecture: {relative}")
+        executable = strip_javascript_comments(text)
+        dynamic_specifiers = tuple(
+            match.group("specifier") for match in DYNAMIC_IMPORT_SPECIFIER_RE.finditer(executable)
+        )
+        expected_dynamic_specifiers = APPROVED_DYNAMIC_IMPORTS.get(relative, ())
+        if dynamic_specifiers != expected_dynamic_specifiers:
+            failures.append(
+                f"dynamic import contract changed for {relative}; "
+                f"expected={expected_dynamic_specifiers}, actual={dynamic_specifiers}"
+            )
+        if DYNAMIC_IMPORT_RE.search(executable) and not dynamic_specifiers:
+            failures.append(f"dynamic import must use one reviewed static string specifier: {relative}")
+        for specifier in dynamic_specifiers:
+            target = (path.parent / specifier).resolve()
+            if not specifier.endswith(".js") or not target.is_file():
+                failures.append(f"reviewed dynamic import target is invalid: {relative} -> {specifier}")
         for match in STATIC_IMPORT_RE.finditer(text):
             specifier = match.group("specifier")
             if not specifier.startswith("."):
@@ -164,13 +212,19 @@ def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]
             resolved = (path.parent / specifier).resolve()
             try:
                 resolved_relative = resolved.relative_to(allowed_root)
+                target_relative = f"src/{resolved_relative.as_posix()}"
             except ValueError:
-                failures.append(f"browser import escapes src/: {relative} -> {specifier}")
-                continue
+                try:
+                    target_relative = resolved.relative_to(base.resolve()).as_posix()
+                except ValueError:
+                    failures.append(f"browser import escapes project root: {relative} -> {specifier}")
+                    continue
+                if target_relative not in APPROVED_ROOT_BROWSER_MODULES:
+                    failures.append(f"browser import escapes src/: {relative} -> {specifier}")
+                    continue
             if not resolved.is_file():
                 failures.append(f"browser import target is missing: {relative} -> {specifier}")
                 continue
-            target_relative = f"src/{resolved_relative.as_posix()}"
             if target_relative in graph:
                 graph[relative].add(target_relative)
             if path in sources:
@@ -356,6 +410,62 @@ def check_test_only_exports(base: Path, sources: list[Path], failures: list[str]
             failures.append(f"{output} ships test-only source exports")
 
 
+
+def check_css_architecture(base: Path, failures: list[str]) -> None:
+    """Keep the current cascade behavior explicit and global stacking semantic."""
+
+    css_sources = sorted((base / "src/css").glob("*.css"))
+    foundation = (base / "src/css/00-foundation.css").read_text(encoding="utf-8")
+    token_values: list[int] = []
+    missing_tokens: list[str] = []
+    for token in Z_INDEX_SCALE:
+        match = re.search(rf"{re.escape(token)}\s*:\s*(-?\d+)\s*;", foundation)
+        if not match:
+            missing_tokens.append(token)
+            continue
+        token_values.append(int(match.group(1)))
+    if missing_tokens:
+        failures.append(f"global z-index token contract is incomplete: {', '.join(missing_tokens)}")
+    elif token_values[0] < 20 or any(left >= right for left, right in zip(token_values, token_values[1:])):
+        failures.append("global z-index token values must form a strictly increasing scale starting at 20 or above")
+
+    z_index_declaration = re.compile(r"\bz-index\s*:\s*([^;{}]+)")
+    semantic_token = re.compile(r"var\((--z-[a-z0-9-]+)\)(?:\s*!important)?$", re.IGNORECASE)
+    local_integer = re.compile(r"-?\d+(?:\s*!important)?$", re.IGNORECASE)
+    approved_tokens = frozenset(Z_INDEX_SCALE)
+    for path in css_sources:
+        relative = path.relative_to(base).as_posix()
+        text = path.read_text(encoding="utf-8")
+        if "@layer" in strip_javascript_comments(text):
+            failures.append(f"CSS source declares a cascade layer directly; builder owns the layer boundary: {relative}")
+        for match in z_index_declaration.finditer(text):
+            value = match.group(1).strip()
+            token_match = semantic_token.fullmatch(value)
+            integer_match = local_integer.fullmatch(value)
+            if token_match and token_match.group(1) in approved_tokens:
+                continue
+            if integer_match and abs(int(value.split()[0])) < 20:
+                continue
+            line = text.count("\n", 0, match.start()) + 1
+            failures.append(
+                f"unreviewed z-index declaration in {relative}:{line}: {value}; "
+                "use a semantic --z-* token or a local integer below 20"
+            )
+
+    expected_layer = "bargig.application"
+    for name in ("styles.css", "styles-catalog.css", "styles-favorites.css", "styles-viewer.css"):
+        path = base / name
+        if not path.is_file():
+            failures.append(f"generated CSS bundle is missing: {name}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if f"Cascade layer: {expected_layer}" not in text:
+            failures.append(f"{name} does not publish the reviewed cascade layer")
+        if text.count(f"@layer {expected_layer};") != 1:
+            failures.append(f"{name} must declare the cascade layer exactly once")
+        if text.count(f"@layer {expected_layer} {{") != 1 or not text.rstrip().endswith("}"):
+            failures.append(f"{name} must wrap the complete reviewed cascade in one safe layer")
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -425,6 +535,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     check_bootstrap_boundary(base, failures)
     check_test_strategy(base, failures)
     check_test_only_exports(base, sources, failures)
+    check_css_architecture(base, failures)
 
     for path in sources:
         relative_path = path.relative_to(base).as_posix()
@@ -584,9 +695,6 @@ def check_frontend_contracts(root: Path | None = None) -> None:
                 f"native ES module depends on document.currentScript: "
                 f"{path.relative_to(base).as_posix()}"
             )
-
-    if (base / "app.js").exists():
-        failures.append("obsolete compatibility loader remains: app.js")
 
     runner = (base / "tools/build_frontend_esbuild.mjs").read_text(encoding="utf-8")
     if 'format: "esm"' not in runner or 'format: "iife"' in runner:

@@ -26,7 +26,6 @@
     let text = String(value ?? "")
       .toLowerCase()
       .normalize("NFKD")
-      .replace(/[\u0591-\u05C7]/g, "")
       .replace(/\p{M}+/gu, "")
       .replace(/[״׳'\"“”]/g, "")
       .replace(/[־–—_]/g, " ")
@@ -277,7 +276,7 @@
       rawOffset += sourceChar.length;
       const decomposed = sourceChar.toLowerCase().normalize("NFKD");
       for (const char of decomposed) {
-        if (/[\u0591-\u05C7]/.test(char) || /\p{M}/u.test(char)) continue;
+        if (/\p{M}/u.test(char)) continue;
         if (/[״׳'\"“”]/.test(char)) continue;
         const normalizedChar = FINAL_LETTERS.get(char) || char;
         if (/^[\p{L}\p{N}]$/u.test(normalizedChar)) {
@@ -487,6 +486,7 @@
     searchIndex,
     excerptForField,
     testing: Object.freeze({
+      normalizeWithMap,
       diagnostics() {
         return { ...runtimeDiagnostics };
       },

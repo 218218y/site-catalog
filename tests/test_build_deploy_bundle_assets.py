@@ -58,6 +58,15 @@ def test_catalog_authoritative_sources_and_compiler_are_bundle_freshness_inputs(
         assert relative in inputs
 
 
+def test_catalog_snapshot_is_bundled_into_viewer_not_deployed_standalone() -> None:
+    inputs = {path.relative_to(ROOT).as_posix() for path in MODULE.discover_build_input_paths(ROOT)}
+
+    assert "catalog-snapshot.js" in inputs
+    assert "catalog-snapshot.js" not in MODULE.DEPLOY_FILES
+    assert "catalog-snapshot.js" not in MODULE.OPTIONAL_DEPLOY_FILES
+    assert "catalog-snapshot.js" not in MODULE.JSON_DEPLOY_FILES
+
+
 def test_manifest_assets_and_custom_icon_family_are_copied(tmp_path: Path) -> None:
     root = tmp_path / "project"
     out = tmp_path / "bundle"

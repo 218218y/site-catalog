@@ -443,7 +443,7 @@ tools/build_frontend_assets.py    בנייה אטומית ובדיקת עדכנ�
 catalog-search.js                  לקוח אסינכרוני לחיפוש בתוך הקטלוגים
 catalog-search-worker.js           מנוע החיפוש שרץ מחוץ ל־Main Thread
 catalogs.search-index.json         אינדקס הפוך ומנורמל שנבנה מראש בזמן Build
-catalog-snapshot.js                הורדת/צילום עמוד עם הלוגו
+catalog-snapshot.js                מקור ESM לצילום עמוד; מיובא רק מ־Viewer ואינו נפרס כקובץ עצמאי
 catalog-assets.config.js           כתובת בסיס התמונות ומדיניות responsive/full-only; בבאנדל R2 מוחלף רק URL ה-CDN
 social-share-default.png            תמונת ברירת המחדל לשיתוף קישור ותגיות Open Graph/Twitter (1200×630)
 catalogs.config.json               רשימת הקטלוגים לעריכה

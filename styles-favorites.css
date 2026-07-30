@@ -16,16 +16,20 @@
  *   - src/css/90-visual-polish.css
  *   - src/css/95-accessibility-consistency.css
  *   - src/css/97-seo-foundation.css
+ * Cascade layer: bargig.application
  * Build command: python tools/build_frontend_assets.py
  */
+@layer bargig.application;
+
+@layer bargig.application {
 
 /* ===== BEGIN SOURCE: src/css/00-foundation.css ===== */
-/**
- * Source stylesheet: 00-foundation.css
- * Design tokens, resets, document baseline, and global feedback surfaces.
- *
- * Concatenated in the declared order by tools/build_frontend_assets.py.
- */
+
+
+
+
+
+
 
 :root {
   --bg: #f6f0eb;
@@ -39,8 +43,8 @@
   --brand-dark: #755844;
   --brand-soft: #efe1d5;
   --accent: #d9baa3;
-  /* Shared selected-favorite treatment. Keep every surface that intentionally
-     mirrors the active favorite state on one reviewed gold palette. */
+
+
   --favorite-active-color: #8a590d;
   --favorite-active-background: linear-gradient(180deg, rgba(255,248,225,0.99), rgba(235,199,116,0.94));
   --favorite-active-border: rgba(165, 111, 22, 0.48);
@@ -82,6 +86,32 @@
   --image-swap-duration: 190ms;
   --image-swap-easing: var(--motion-easing);
   --image-swap-start-opacity: .58;
+
+
+
+
+  --z-sticky: 20;
+  --z-site-header: 30;
+  --z-viewer-hotspot: 34;
+  --z-viewer-shell: 35;
+  --z-viewer-progress: 36;
+  --z-search-results: 41;
+  --z-floating-control: 42;
+  --z-scroll-top: 46;
+  --z-mobile-menu: 48;
+  --z-viewer-root: 50;
+  --z-feature-panel: 70;
+  --z-feature-action: 74;
+  --z-search-popover: 80;
+  --z-dialog: 82;
+  --z-floating-menu: 120;
+  --z-elevated-menu: 130;
+  --z-toast: 140;
+  --z-tour: 145;
+  --z-transfer-dialog: 155;
+  --z-note-dialog: 180;
+  --z-skip-link: 1000;
+  --z-tooltip: 9999;
 }
 
 * {
@@ -91,8 +121,8 @@
 }
 html {
   scroll-behavior: smooth;
-  /* The site is RTL at the root as well, so native page scrolling follows the
-     Hebrew layout instead of forcing the browser scrollbar to the right. */
+
+
   direction: rtl;
   scrollbar-gutter: stable;
 }
@@ -139,7 +169,7 @@ body:not([data-page="viewer"]) > main {
 
 .skip-link {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-skip-link);
   top: max(10px, env(safe-area-inset-top));
   right: 12px;
   min-height: 44px;
@@ -165,7 +195,7 @@ body:not([data-page="viewer"]) > main {
 #main-content:focus { outline: none; }
 .site-action-toast {
   position: fixed;
-  z-index: 140;
+  z-index: var(--z-toast);
   right: 50%;
   top: max(16px, env(safe-area-inset-top));
   min-width: min(320px, calc(100vw - 32px));
@@ -193,13 +223,13 @@ body:not([data-page="viewer"]) > main {
 /* ===== END SOURCE: src/css/00-foundation.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/06-shell-components.css ===== */
-/**
- * Source stylesheet: 06-shell-components.css
- * Shared application shell, scroll containers, header controls, panels, buttons, and common sections.
- *
- * It follows the onboarding layer to preserve the reviewed cascade order that existed
- * before source extraction, while keeping the permanent site shell independently maintainable.
- */
+
+
+
+
+
+
+
 
 body:not([data-page="viewer"]) > .site-footer {
   margin-top: 0;
@@ -209,14 +239,14 @@ body[data-page="favorites"] > .favorites-panel.favorites-standalone-page {
 }
 body.no-scroll { overflow: hidden; }
 
-/*
-  The page normally reserves a stable root scrollbar gutter so the catalog list
-  does not jump when the document starts/stops overflowing. The fullscreen
-  catalog viewer is different: while it is open, the document itself is locked
-  and the modal must own the whole viewport. Leaving the root gutter active in
-  that state creates a thin, non-scrollable strip on the scrollbar edge and
-  pushes the real scroll area inward.
-*/
+
+
+
+
+
+
+
+
 html.viewer-open {
   overflow: hidden;
   scrollbar-gutter: auto;
@@ -232,8 +262,8 @@ html.viewer-open body {
   .reader-catalog-menu,
   .reader-search-results
 ) {
-  /* Keep ordinary Hebrew scrollable surfaces RTL. Grid auto-placement then
-     starts from the right, and native RTL scrollbars can sit on the left. */
+
+
   direction: rtl;
   scrollbar-gutter: stable;
 }
@@ -248,9 +278,9 @@ html.viewer-open body {
 
 #globalSearchResults,
 #lightboxSearchResults {
-  /* Search result order is a content-flow concern, not a scrollbar hack.
-     Keep the result grids explicitly RTL even if an outer scroll container is
-     forced LTR to move its scrollbar. */
+
+
+
   direction: rtl;
   unicode-bidi: isolate;
   text-align: right;
@@ -267,8 +297,8 @@ html.viewer-open body {
   .lightbox-page-thumbs,
   .reader-page-thumbs
 ) {
-  /* The opened page rails live on the physical right edge; keep their vertical
-     scrollbar on that same edge without letting the thumbnails become LTR. */
+
+
   direction: ltr;
   scrollbar-gutter: stable;
 }
@@ -296,9 +326,9 @@ html.viewer-open body {
   background-clip: content-box;
 }
 
-/* The viewer canvas remains dark, but its chrome surfaces are now warm and
-   light. Give those scroll containers their own semantic scrollbar treatment
-   instead of inheriting the former dark-viewer (light thumb) palette. */
+
+
+
 :where(
   .reader-catalog-menu,
   .reader-search-results,
@@ -368,7 +398,7 @@ img { max-width: 100%; display: block; }
   --top-nav-button-font-size: 1rem;
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: var(--z-site-header);
   min-height: var(--header-h);
   display: flex;
   flex-wrap: nowrap;
@@ -583,9 +613,9 @@ img[data-brand-logo="1"] {
   transform: none;
 }
 
-/* The favorites shortcut is part of the permanent site header, not the
-   standalone favorites route. Keep its geometry and badge in the shared shell
-   so home, catalog, favorites, and viewer documents render the same control. */
+
+
+
 .header-favorites-button {
   position: relative;
   order: 10;
@@ -650,9 +680,9 @@ main {
   margin-top: 48px;
   padding: clamp(18px, 3vw, 34px);
   border-radius: var(--radius-xl);
-  /* Solid panels are much cheaper to paint while scrolling than a large backdrop blur.
-     The page background is static, so this keeps the same soft card look without forcing
-     the browser to recalculate a blurred backdrop on every scroll frame. */
+
+
+
   background: rgba(255, 252, 249, 0.94);
   border: 1px solid rgba(255,255,255,0.88);
   box-shadow: 0 25px 80px rgba(62, 45, 34, 0.1);
@@ -671,19 +701,19 @@ main {
 /* ===== END SOURCE: src/css/06-shell-components.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/08-shared-floating-ui.css ===== */
-/**
- * Source stylesheet: 08-shared-floating-ui.css
- * Shared floating surfaces used by every interactive route.
- *
- * Owns the application tooltip presentation and the reusable catalog-switch
- * menu structure. Route-specific modules may refine these surfaces, but the
- * base behavior must not live inside the Viewer-only stylesheet.
- */
+
+
+
+
+
+
+
+
 
 .site-tooltip {
   position: fixed;
   inset: auto auto auto auto;
-  z-index: 9999;
+  z-index: var(--z-tooltip);
   max-width: min(320px, calc(100vw - 20px));
   padding: 9px 12px;
   border-radius: 13px;
@@ -736,7 +766,7 @@ main {
 
 .reader-catalog-menu {
   position: absolute;
-  z-index: 120;
+  z-index: var(--z-floating-menu);
   top: calc(100% + 9px);
   right: auto;
   left: 50%;
@@ -832,30 +862,30 @@ main {
 /* ===== END SOURCE: src/css/08-shared-floating-ui.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/10-catalog.css ===== */
-/**
- * Source stylesheet: 10-catalog.css
- * Catalog categories, cards, search surfaces, catalog details, and page grids.
- *
- * Concatenated in the declared order by tools/build_frontend_assets.py.
- */
+
+
+
+
+
+
 
 .catalog-category-list {
   --catalog-category-gap-x: 42px;
-  /* Gap between a category header that contains subcategory buttons and the
-     first subcategory row. 28px makes the focus outlines touch; 30px gives
-     ~2px air; 32px gives ~4px air. */
+
+
+
   --catalog-category-header-block-gap: 32px;
-  /* Horizontal gap between the main category title and its subcategory buttons.
-     This is the number to tune when you want the buttons closer/farther. */
+
+
   --catalog-category-title-to-subnav-gap: 16px;
-  /* Safety cap for very long category titles so the subcategory buttons still
-     keep usable space on the left. Short titles keep their natural width. */
+
+
   --catalog-category-header-title-max-width: 320px;
-  /* Main category title style inside a header that also has subcategory buttons. */
+
   --catalog-category-inline-title-color: #111111;
   --catalog-category-inline-title-size: clamp(1.42rem, 2.05vw, 2.18rem);
-  /* Vertical fine-tune for the subcategory button row: positive = lower,
-     negative = higher. This is visual only and does not affect the horizontal gap. */
+
+
   --catalog-subcategory-nav-y-offset: 4px;
   --catalog-card-gap: var(--catalog-category-gap-x);
   --catalog-layout-columns: 3;
@@ -1129,18 +1159,18 @@ main {
 .catalog-card .button { min-height: 40px; padding-inline: 16px; flex: 1; }
 
 
-/* Global search is detached from the page flow and opens as a floating panel.
-   Keep the existing search controls/results styles underneath so the search behavior stays shared. */
+
+
 .search-panel {
   position: relative;
-  z-index: 20;
+  z-index: var(--z-sticky);
   overflow: visible;
   margin-bottom: 26px;
 }
 .search-panel.global-search-popover {
   --global-search-results-max-height: max(220px, min(62vh, calc(100vh - var(--header-h) - 210px), 620px));
   position: fixed;
-  z-index: 80;
+  z-index: var(--z-search-popover);
   top: calc(var(--header-h) + 12px);
   left: clamp(12px, 3vw, 42px);
   right: auto;
@@ -1228,9 +1258,9 @@ main {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
-/* Grid rows use the tallest result in each row. Make the card a flex owner so
-   its single button grows with that visible frame and every empty-looking area
-   remains part of the same native button hit target. */
+
+
+
 .search-panel.global-search-popover .search-result-card {
   height: auto;
   min-height: 0;
@@ -1243,11 +1273,11 @@ main {
   grid-template-rows: auto auto;
 }
 .search-panel.global-search-popover .search-result-thumb-frame {
-  /* Search result thumbnails are generated from catalog pages that are mostly
-     landscape-ish. A portrait frame forced object-fit: contain to leave a large
-     blank area under many images, so keep the rows uniform with a horizontal
-     frame that matches the real thumbnail proportions instead of stretching the
-     card vertically. */
+
+
+
+
+
   aspect-ratio: 1.58 / 1;
   background: #fff;
 }
@@ -1304,7 +1334,7 @@ main {
 }
 .global-search-scope-wrap {
   position: absolute;
-  z-index: 70;
+  z-index: var(--z-feature-panel);
   top: 50%;
   left: var(--global-search-control-inset);
   width: var(--global-search-scope-width);
@@ -1388,7 +1418,7 @@ main {
 }
 .global-search-scope-menu {
   position: absolute;
-  z-index: 120;
+  z-index: var(--z-floating-menu);
   top: calc(100% + 10px);
   left: 0;
   width: min(270px, calc(100vw - 42px));
@@ -1536,12 +1566,12 @@ main {
   border-radius: 14px;
   background: linear-gradient(135deg, #ede2d9, #d8c1b0);
 }
-/* The preview must shrink-wrap the image instead of forcing every page into
-   one fixed-width box. Intrinsic image sizing plus viewport caps preserves the
-   real aspect ratio without letterbox space or additional resize listeners. */
+
+
+
 .search-floating-preview {
   position: fixed;
-  z-index: 120;
+  z-index: var(--z-floating-menu);
   top: 50%;
   left: 50%;
   width: fit-content;
@@ -1830,7 +1860,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   position: fixed;
   left: var(--catalog-scroll-top-left, max(14px, calc((100vw - 1180px) / 2 + 18px)));
   bottom: clamp(16px, 3.4vh, 28px);
-  z-index: 46;
+  z-index: var(--z-scroll-top);
   width: 46px;
   min-width: 46px;
   height: 46px;
@@ -1873,10 +1903,10 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .page-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  /* Catalog pages can legitimately mix portrait/square covers with landscape
-     spreads. Keep every card at its own intrinsic content height instead of
-     stretching the whole row to the tallest page and exposing a false white
-     tail below shorter thumbnails. */
+
+
+
+
   align-items: start;
   gap: 18px;
   margin-top: 0;
@@ -1907,9 +1937,9 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .page-thumb {
   display: block;
   width: 100%;
-  /* The HTML width/height attributes reserve intrinsic space before loading.
-     Once the grid fixes the rendered width, height must remain automatic;
-     otherwise the source-pixel height (often ~2000px) becomes the card height. */
+
+
+
   height: auto;
   aspect-ratio: var(--page-thumb-aspect-ratio, 1.42 / 1);
   object-fit: contain;
@@ -1962,7 +1992,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
-/* Worker-backed search results explain the match instead of showing an opaque thumbnail. */
+
 .search-result-copy {
   min-width: 0;
   display: grid;
@@ -2000,12 +2030,12 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 /* ===== END SOURCE: src/css/10-catalog.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/24-shared-inquiry.css ===== */
-/**
- * Source stylesheet: 24-shared-inquiry.css
- * Inquiry trigger and dialog shared by Viewer and favorites routes.
- *
- * Concatenated in the declared order by tools/build_frontend_assets.py.
- */
+
+
+
+
+
+
 
 .inquiry-trigger-button {
   min-height: 46px;
@@ -2058,7 +2088,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .viewer-inquiry-overlay {
   position: fixed;
   inset: 0;
-  z-index: 82;
+  z-index: var(--z-dialog);
   display: grid;
   place-items: center;
   padding: max(18px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
@@ -2278,14 +2308,14 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 /* ===== END SOURCE: src/css/24-shared-inquiry.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/30-media-components.css ===== */
-/**
- * Source stylesheet: 30-media-components.css
- * Shared branded image frames, placeholders, loading states, and media presentation.
- *
- * Concatenated in the declared order by tools/build_frontend_assets.py.
- */
 
-/* Bargig SVG branding */
+
+
+
+
+
+
+
 .catalog-image-frame,
 .catalog-cover-frame,
 .page-thumb-wrap,
@@ -2386,9 +2416,9 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .reader-search-thumb-frame {
   display: block;
   width: 100%;
-  /* Match the main search popover thumbnail behavior: catalog page previews are
-     landscape images, so the frame should be rectangular and the image must fit
-     inside it instead of being cropped into a fixed square-like crop. */
+
+
+
   aspect-ratio: 1.58 / 1;
   border-radius: 10px;
   overflow: hidden;
@@ -2441,7 +2471,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 .lightbox.is-zoomed .lightbox-image-frame { cursor: move; }
 
 .lightbox.is-page-loading .lightbox-image-frame {
-  /* Keep loading feedback perceptible without making the current page flash dark. */
+
   filter: brightness(.97);
 }
 
@@ -2452,14 +2482,14 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 /* ===== END SOURCE: src/css/30-media-components.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/40-catalog-refinements.css ===== */
-/**
- * Source stylesheet: 40-catalog-refinements.css
- * Catalog interaction refinements and unified viewer-search integration.
- *
- * Concatenated in the declared order by tools/build_frontend_assets.py.
- */
 
-/* Catalog interaction fixes */
+
+
+
+
+
+
+
 .search-panel:not(.global-search-popover) {
   margin-top: 26px;
 }
@@ -2578,7 +2608,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   text-align: inherit;
 }
 
-/* Search inside the unified viewer uses the reader search layout. */
+
 .lightbox-search {
   min-width: 0;
   width: 100%;
@@ -2598,12 +2628,12 @@ select:focus-visible, button:focus-visible, a:focus-visible {
 /* ===== END SOURCE: src/css/40-catalog-refinements.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/50-footer-legal.css ===== */
-/**
- * Source stylesheet: 50-footer-legal.css
- * Site footer, contact controls, and standalone legal document presentation.
- *
- * Concatenated in the declared order by tools/build_frontend_assets.py.
- */
+
+
+
+
+
+
 
 .site-footer {
   width: 100%;
@@ -2612,9 +2642,9 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   overflow-anchor: none;
 }
 
-/* Catalog and favorites content is rendered by JavaScript. Keep the footer out of
-   the paint tree until that first render is complete, so it appears once at its
-   final position instead of being pushed down through the viewport. */
+
+
+
 body:not([data-page="viewer"]):not([data-app-ready="true"]) > .site-footer {
   visibility: hidden;
   opacity: 0;
@@ -2885,7 +2915,7 @@ body[data-app-ready="true"] > .site-footer {
   font-weight: 820 !important;
 }
 
-/* Standalone legal documents share the same brand language without loading the catalog runtime. */
+
 .legal-site-header {
   width: min(1180px, calc(100% - 28px));
   min-height: 76px;
@@ -3016,12 +3046,12 @@ body[data-app-ready="true"] > .site-footer {
 /* ===== END SOURCE: src/css/50-footer-legal.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/80-responsive-shell.css ===== */
-/**
- * Source stylesheet: 90-responsive-polish.css
- * Responsive breakpoints, performance containment, accessibility motion rules, and final visual refinements.
- *
- * Concatenated in the declared order by tools/build_frontend_assets.py.
- */
+
+
+
+
+
+
 
 @media (max-width: 1180px) {
   .search-panel.global-search-popover .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3123,7 +3153,7 @@ body[data-app-ready="true"] > .site-footer {
   }
   .reader-header-search {
     position: absolute;
-    z-index: 42;
+    z-index: var(--z-floating-control);
     top: calc(100% + 8px);
     right: 8px;
     left: 8px;
@@ -3199,7 +3229,7 @@ body[data-app-ready="true"] > .site-footer {
   }
   .lightbox.mobile-search-open .lightbox-search-results {
     position: relative;
-    z-index: 41;
+    z-index: var(--z-search-results);
     width: min(calc(100% - 16px), var(--reader-search-results-width), 560px);
     max-height: calc(100vh - var(--reader-mobile-toolbar-height) - var(--reader-mobile-search-panel-space) - 12px);
     max-height: calc(100dvh - var(--reader-mobile-toolbar-height) - var(--reader-mobile-search-panel-space) - 12px);
@@ -3333,7 +3363,7 @@ body[data-app-ready="true"] > .site-footer {
   .reader-search-scope-toggle { overflow: hidden; text-overflow: ellipsis; }
 }
 
-/* Keep catalog surfaces isolated for painting without lazy layout activation during scroll. */
+
 .catalogs-section,
 .catalog-detail {
   isolation: isolate;
@@ -3406,9 +3436,9 @@ body[data-app-ready="true"] > .site-footer {
 .viewer-auto-zoom-button {
   position: fixed;
   z-index: 12;
-  /* Anchor the larger reset action to the canonical center line of the
-     left-side viewer controls. This keeps its extra width balanced equally
-     on both sides instead of aligning only the left edges. */
+
+
+
   top: max(
     calc(env(safe-area-inset-top, 0px) + clamp(68px, 9vh, 92px)),
     calc(var(--lightbox-top-safe-offset, 0px) + 18px)
@@ -3433,9 +3463,9 @@ body[data-app-ready="true"] > .site-footer {
   overflow: visible;
 }
 
-/* The reset action deliberately reuses the selected-favorite palette. Its
-   larger footprint and gold halo make the temporary recovery action visible
-   without inventing a second competing highlight language. */
+
+
+
 .viewer-auto-zoom-button:not(.hidden) {
   color: var(--favorite-active-color);
   background: var(--favorite-active-background) !important;
@@ -3492,7 +3522,7 @@ body[data-app-ready="true"] > .site-footer {
   }
 }
 
-/* 2026 UX refinement: clear hierarchy, single-action cards and mobile-first navigation. */
+
 .mobile-category-nav {
   display: none;
 }
@@ -3661,7 +3691,7 @@ body[data-app-ready="true"] > .site-footer {
   }
   .mobile-category-menu {
     position: fixed;
-    z-index: 42;
+    z-index: var(--z-floating-control);
     top: calc(var(--header-h) + 8px);
     right: 10px;
     left: 10px;
@@ -3775,7 +3805,7 @@ body[data-app-ready="true"] > .site-footer {
   }
 }
 
-/* Final mobile polish: keep the category sheet opaque and touch targets generous. */
+
 @media (max-width: 760px) {
   .mobile-category-menu {
     background: #fffaf7;
@@ -3799,14 +3829,14 @@ body[data-app-ready="true"] > .site-footer {
 /* ===== END SOURCE: src/css/80-responsive-shell.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/85-favorites-routing.css ===== */
-/**
- * Source stylesheet: 85-favorites-routing.css
- * Saved-page surfaces, standalone favorites layout, and multi-document route shell behavior.
- *
- * Kept after responsive shell rules to preserve the existing reviewed cascade exactly.
- */
 
-/* Saved catalog pages */
+
+
+
+
+
+
+
 .viewer-favorites-separator {
   order: 9;
 }
@@ -3841,7 +3871,7 @@ body[data-app-ready="true"] > .site-footer {
 .favorites-panel {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: var(--z-feature-panel);
   display: grid;
   place-items: center;
   padding: clamp(12px, 3vw, 34px);
@@ -4152,8 +4182,8 @@ body[data-app-ready="true"] > .site-footer {
   }
 }
 
-/* Multi-document application layout.
-   Each major workflow has its own URL/document while sharing one visual system. */
+
+
 body[data-page="catalog"] #catalogs,
 body[data-page="catalog"] .catalog-scroll-top-float:not([aria-hidden="false"]) {
   display: none;
@@ -4203,9 +4233,9 @@ body[data-page="favorites"] .favorites-standalone-page .favorites-grid {
   padding-top: 12px;
 }
 
-/* Hide only the inactive document shell in the standalone viewer.
-   Shared runtime overlays (notably .search-floating-preview) must remain
-   available because the viewer search reuses them for hover previews. */
+
+
+
 body[data-page="viewer"] > .site-header,
 body[data-page="viewer"] > #catalogSearch,
 body[data-page="viewer"] > main,
@@ -4239,10 +4269,10 @@ body[data-page="viewer"] {
 /* ===== END SOURCE: src/css/85-favorites-routing.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/87-favorites-workspace.css ===== */
-/*
- * Source stylesheet: 87-favorites-workspace.css
- * Favorites workspace controls, notes, ordering, focused selection, sharing, and bulk inquiry.
- */
+
+
+
+
 
 .favorites-header-workspace {
   min-width: 0;
@@ -4289,7 +4319,7 @@ body[data-page="viewer"] {
 
 .favorites-inquiry-button {
   position: fixed;
-  z-index: 74;
+  z-index: var(--z-feature-action);
   right: auto;
   left: max(18px, env(safe-area-inset-left));
   bottom: max(18px, env(safe-area-inset-bottom));
@@ -4536,7 +4566,7 @@ body[data-page="viewer"] {
 .favorite-note-overlay {
   position: fixed;
   inset: 0;
-  z-index: 180;
+  z-index: var(--z-note-dialog);
   display: grid;
   place-items: center;
   padding: 18px;
@@ -4710,14 +4740,14 @@ body[data-page="viewer"] {
 /* ===== END SOURCE: src/css/87-favorites-workspace.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/90-visual-polish.css ===== */
-/**
- * Source stylesheet: 90-visual-polish.css
- * Unified placeholders, action feedback, empty states, favorites sharing, and final responsive polish.
- *
- * This is intentionally the last source layer because it standardizes later feature additions.
- */
 
-/* Stage 12 — unified visual feedback, image loading and catalog-viewer polish. */
+
+
+
+
+
+
+
 .button,
 .small-button,
 .reader-button,
@@ -4764,9 +4794,9 @@ body[data-page="viewer"] {
   min-height: var(--control-height);
 }
 
-/* A shared placeholder surface keeps cards and the viewer composed while images decode.
-   The host frame owns its positioning; this rule must never replace the viewer's
-   absolute centering with relative positioning. */
+
+
+
 .image-placeholder-frame {
   isolation: isolate;
   overflow: hidden;
@@ -4796,9 +4826,9 @@ body[data-page="viewer"] {
   transition: opacity var(--motion-standard) ease, filter var(--motion-standard) ease;
 }
 
-/* Card/media placeholders may establish their image as a positioned stacking
-   layer. The viewer frame owns both image layers itself and must never inherit
-   a relative 50% offset from the legacy standalone .lightbox-image contract. */
+
+
+
 .image-placeholder-frame:not(.lightbox-image-frame) > img:not([data-placeholder-ignore="true"]) {
   position: relative;
 }
@@ -4828,12 +4858,12 @@ body[data-page="viewer"] {
   to { transform: translateX(-115%); }
 }
 
-/* The decoded target dimensions are applied before the source swap. Width and height
-   now ease to their next values instead of snapping after the load event. */
+
+
 .lightbox-image-frame {
-  /* Width/height animation was visually pleasant but produced real CLS when an
-     image finished decoding after the interaction window. Geometry now changes
-     atomically; the existing opacity/filter transition keeps the swap polished. */
+
+
+
   contain: layout paint style;
   will-change: transform, opacity, filter;
   transition:
@@ -4891,8 +4921,8 @@ body[data-page="viewer"] {
   }
 }
 
-/* The page counter appears briefly on open and page changes, then clears the
-   viewing area so it never sits over the catalog image permanently. */
+
+
 .viewer-page-indicator {
   position: fixed;
   z-index: 18;
@@ -4971,7 +5001,7 @@ body[data-page="viewer"] {
   transition: transform var(--motion-standard) var(--motion-easing);
 }
 
-/* Unified action confirmation: short copy, predictable placement and clear tone. */
+
 .site-action-toast {
   min-width: auto;
   min-height: 44px;
@@ -5023,7 +5053,7 @@ body[data-page="viewer"] {
     0 0 24px rgba(165,111,22,.2);
 }
 
-/* Empty states use the same structure in search and favorites. */
+
 .empty-state {
   display: grid;
   justify-items: center;
@@ -5166,7 +5196,7 @@ body[data-page="viewer"] {
   }
 }
 
-/* Favorites sharing — compact inline action and cross-device list transfer. */
+
 .favorites-title-row {
   min-width: 0;
   display: flex;
@@ -5237,7 +5267,7 @@ body[data-page="viewer"] {
 .favorites-transfer-overlay {
   position: fixed;
   inset: 0;
-  z-index: 155;
+  z-index: var(--z-transfer-dialog);
   display: grid;
   place-items: center;
   padding: 18px;
@@ -5419,8 +5449,8 @@ body[data-page="viewer"] {
   .legal-document-content section + section { margin-top: 26px; padding-top: 24px; }
 }
 
-/* Image recovery feedback is deliberately attached to the active page. It
-   stays compact, keyboard reachable, and readable above the single viewer frame. */
+
+
 .viewer-image-feedback {
   position: absolute;
   z-index: 14;
@@ -5480,13 +5510,13 @@ body[data-page="viewer"] {
 /* ===== END SOURCE: src/css/90-visual-polish.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/95-accessibility-consistency.css ===== */
-/**
- * Source stylesheet: 95-accessibility-consistency.css
- * Accessibility guarantees and the semantic icon, elevation and feedback system.
- *
- * This final layer intentionally standardizes components implemented across
- * independent feature modules without coupling their layout responsibilities.
- */
+
+
+
+
+
+
+
 
 :root {
   --focus-ring-color: #6f4f39;
@@ -5511,7 +5541,7 @@ body[data-page="viewer"] {
   --state-warning-surface: #fff8e9;
 }
 
-/* One visible and high-contrast keyboard focus language throughout the site. */
+
 :where(a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 0 !important;
   box-shadow: var(--focus-ring) !important;
@@ -5522,8 +5552,8 @@ body[data-page="viewer"] {
   --focus-ring-halo: rgba(40, 29, 23, .92);
 }
 
-/* Shared icon geometry. Filled symbols remain filled; line symbols share the
-   same optical size, cap style and stroke weight. */
+
+
 :where(
   .brand-copy-link,
   .top-search-button,
@@ -5571,7 +5601,7 @@ body[data-page="viewer"] {
   height: var(--icon-size-action);
 }
 
-/* Semantic elevation levels replace feature-specific one-off shadows. */
+
 .panel,
 .site-footer-shell,
 .legal-document { box-shadow: var(--shadow-panel); }
@@ -5614,7 +5644,7 @@ body[data-page="viewer"] {
   ):hover { box-shadow: var(--shadow-control-hover); }
 }
 
-/* Shared empty, warning and error surfaces. */
+
 .ui-state {
   --ui-state-ink: var(--muted);
   --ui-state-line: rgba(117, 88, 68, .28);
@@ -5701,7 +5731,7 @@ body[data-page="viewer"] {
   border-color: rgba(255, 224, 168, .46);
 }
 
-/* Legal accessibility content. */
+
 .legal-keyboard-table-wrap {
   max-width: 100%;
   overflow: auto;
@@ -5763,8 +5793,8 @@ body[data-page="viewer"] {
   .ui-state-icon { border: 1px solid CanvasText; }
 }
 
-/* Search feedback inside the dark viewer keeps a dark error surface so the
-   existing white heading remains readable; the light-page state remains pale. */
+
+
 .reader-search-empty.empty-state-dark.ui-state[data-state="error"] {
   --ui-state-ink: #ffe7e7;
   --ui-state-line: rgba(255, 196, 196, .34);
@@ -5788,10 +5818,10 @@ body[data-page="viewer"] {
 /* ===== END SOURCE: src/css/95-accessibility-consistency.css ===== */
 
 /* ===== BEGIN SOURCE: src/css/97-seo-foundation.css ===== */
-/**
- * Source module: 97-seo-foundation.css
- * Clean category/catalog routes, crawlable link controls and sharing fallbacks.
- */
+
+
+
+
 
 .catalog-cover-button,
 .page-button,
@@ -5808,7 +5838,7 @@ body[data-page="viewer"] {
 
 .seo-site-header {
   position: sticky;
-  z-index: 20;
+  z-index: var(--z-sticky);
   top: 0;
   display: grid;
   grid-template-columns: minmax(190px, auto) minmax(0, 1fr) auto;
@@ -6077,3 +6107,4 @@ body[data-page="viewer"] {
   }
 }
 /* ===== END SOURCE: src/css/97-seo-foundation.css ===== */
+}

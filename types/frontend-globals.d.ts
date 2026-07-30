@@ -54,11 +54,6 @@ interface BargigTooltipsApi {
   suppress(duration?: number, options?: Record<string, unknown>): void;
 }
 
-interface CatalogSnapshotApi {
-  buildSnapshotBlob(src: string): Promise<Blob>;
-  extension: string;
-}
-
 interface NetworkInformation extends EventTarget {
   effectiveType?: string;
   saveData?: boolean;
@@ -88,7 +83,6 @@ interface Window {
   BargigRoutes?: SiteRoutesApi;
   BargigFavorites?: FavoritesRuntimeApi;
   BargigTooltips?: BargigTooltipsApi;
-  CatalogSnapshot?: CatalogSnapshotApi;
   __BARGIG_RELEASE_ID__?: string;
   __BARGIG_DISABLE_TELEMETRY__?: boolean;
   __BARGIG_ENABLE_TELEMETRY__?: boolean;

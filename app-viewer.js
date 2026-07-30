@@ -38,6 +38,7 @@
  *   - src/js/70-viewer-input.js
  *   - src/js/80-app-shell.js
  *   - src/js/90-bootstrap.js
+ *   - catalog-snapshot.js
  * Compiler virtual inputs: <define:__BARGIG_FEATURE_CAPABILITIES__>
  * Output format: native browser ES module
  * Bundler: esbuild 0.28.1 (direct pinned devDependency)
@@ -1295,9 +1296,6 @@ function clampPage(page, catalog = activeCatalog()) {
   let maxPage = Math.max(1, Number(catalog?.pages || 1));
   return Math.min(Math.max(parsed, 1), maxPage);
 }
-function safeFilePart(value) {
-  return String(value || "catalog").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 72) || "catalog";
-}
 function getTooltipText(button) {
   return window.BargigTooltips?.getText?.(button || null) || button?.getAttribute?.("title") || "";
 }
@@ -1391,27 +1389,6 @@ function initImagePlaceholderObserver() {
     attributes: !0,
     attributeFilter: ["src", "data-src"]
   });
-}
-function saveBlob(blob, filename) {
-  let url = URL.createObjectURL(blob), link = document.createElement("a");
-  link.href = url, link.download = filename, document.body.appendChild(link), link.click(), link.remove(), window.setTimeout(() => URL.revokeObjectURL(url), 900);
-}
-async function downloadCatalogPageSnapshot(catalog, page, button) {
-  if (!catalog) return;
-  let currentPage = clampPage(page, catalog), src = pageSrc(catalog, currentPage);
-  try {
-    if (!window.CatalogSnapshot?.buildSnapshotBlob)
-      throw new Error("snapshot-exporter-missing");
-    let blob = await window.CatalogSnapshot.buildSnapshotBlob(src), extension = window.CatalogSnapshot.extension || "jpg";
-    saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pad(currentPage)}.${extension}`), flashActionButton(button, "נשמר"), showActionToast("התמונה נשמרה", { tone: "saved" });
-  } catch (error) {
-    console.error("[CatalogSnapshot] Failed to export catalog page", {
-      catalogId: catalog.id,
-      page: currentPage,
-      src,
-      error
-    }), window.alert("לא הצלחתי ליצור את תמונת העמוד. יש לוודא שמדיניות CORS של מאגר התמונות מאפשרת קריאה מהאתר.");
-  }
 }
 function hasHoverPointer() {
   if (typeof window.matchMedia != "function") return !0;
@@ -2058,10 +2035,112 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   viewerOnboardingShadeLeft: requiredElement("viewerOnboardingShadeLeft")
 });
 
+// catalog-snapshot.js
+var EXPORT_MIME = "image/jpeg";
+var LOGO_ASPECT_RATIO = 2.4794952681388014, LOGO_ASSET_PATH = "brand-logo.svg", SNAPSHOT_CORS_VERSION = "1";
+function resolveUrl(src) {
+  try {
+    return new URL(String(src || ""), document.baseURI || window.location.href);
+  } catch {
+    return null;
+  }
+}
+function isCrossOriginHttpUrl(src) {
+  var url = resolveUrl(src);
+  return !url || !/^https?:$/.test(url.protocol) ? !1 : url.origin !== window.location.origin;
+}
+function withSnapshotCorsVersion(src) {
+  var url = resolveUrl(src);
+  return url ? (url.searchParams.set("snapshot-cors", SNAPSHOT_CORS_VERSION), url.href) : src;
+}
+function loadSnapshotImage(src) {
+  return new Promise(function(resolve, reject) {
+    var img = new Image(), imageSrc = src;
+    isCrossOriginHttpUrl(src) && (img.crossOrigin = "anonymous", imageSrc = withSnapshotCorsVersion(src)), img.onload = function() {
+      resolve(img);
+    }, img.onerror = function() {
+      reject(new Error("image-load-failed"));
+    }, img.src = imageSrc;
+  });
+}
+function getNaturalImageSize(img) {
+  return {
+    width: Math.max(1, Math.round(img.naturalWidth || img.width || 1)),
+    height: Math.max(1, Math.round(img.naturalHeight || img.height || 1))
+  };
+}
+function getExportSize(img) {
+  var size = getNaturalImageSize(img), longestEdge = Math.max(size.width, size.height);
+  if (longestEdge <= 2200) return size;
+  var scale = 2200 / longestEdge;
+  return {
+    width: Math.max(1, Math.round(size.width * scale)),
+    height: Math.max(1, Math.round(size.height * scale))
+  };
+}
+function getLogoUri() {
+  var url = resolveUrl(LOGO_ASSET_PATH);
+  return url ? url.href : LOGO_ASSET_PATH;
+}
+function drawLogoOverlay(ctx, canvas) {
+  var uri = getLogoUri();
+  return uri ? loadSnapshotImage(uri).then(function(logo) {
+    var logoWidth = Math.max(1, Math.round(canvas.width * 0.13)), aspectRatio = logo.naturalWidth && logo.naturalHeight ? logo.naturalWidth / logo.naturalHeight : LOGO_ASPECT_RATIO, logoHeight = Math.max(1, Math.round(logoWidth / aspectRatio)), logoX = Math.round((canvas.width - logoWidth) / 2), logoY = Math.max(1, Math.round(canvas.height * 0.02));
+    return ctx.save(), ctx.shadowColor = "rgba(0,0,0,0.16)", ctx.shadowBlur = Math.max(8, Math.round(canvas.width * 0.01)), ctx.shadowOffsetY = Math.max(3, Math.round(canvas.height * 4e-3)), ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight), ctx.restore(), !0;
+  }).catch(function() {
+    return !1;
+  }) : Promise.resolve(!1);
+}
+function canvasToBlob(canvas) {
+  return new Promise(function(resolve, reject) {
+    canvas.toBlob(function(blob) {
+      blob ? resolve(blob) : reject(new Error("snapshot-blob-failed"));
+    }, EXPORT_MIME, 0.82);
+  });
+}
+function buildSnapshotBlob(src) {
+  return loadSnapshotImage(src).then(function(pageImage) {
+    var canvas = document.createElement("canvas"), size = getExportSize(pageImage);
+    canvas.width = size.width, canvas.height = size.height;
+    var ctx = canvas.getContext("2d", { alpha: !1 });
+    if (!ctx) throw new Error("snapshot-context-failed");
+    return ctx.fillStyle = "#fff", ctx.fillRect(0, 0, canvas.width, canvas.height), ctx.imageSmoothingEnabled = !0, "imageSmoothingQuality" in ctx && (ctx.imageSmoothingQuality = "high"), ctx.drawImage(pageImage, 0, 0, canvas.width, canvas.height), drawLogoOverlay(ctx, canvas).then(function() {
+      return canvasToBlob(canvas);
+    });
+  });
+}
+var catalogSnapshotApi = Object.freeze({
+  buildSnapshotBlob,
+  extension: "jpg"
+});
+var catalog_snapshot_default = catalogSnapshotApi;
+
 // src/js/31-viewer-share.js
+function safeFilePart(value) {
+  return String(value || "catalog").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 72) || "catalog";
+}
+function saveBlob(blob, filename) {
+  let url = URL.createObjectURL(blob), link = document.createElement("a");
+  link.href = url, link.download = filename, document.body.appendChild(link), link.click(), link.remove(), window.setTimeout(() => URL.revokeObjectURL(url), 900);
+}
+async function downloadCatalogPageSnapshot(catalog, page, button) {
+  let currentPage = clampPage(page, catalog), src = pageSrc(catalog, currentPage);
+  try {
+    let blob = await catalog_snapshot_default.buildSnapshotBlob(src), extension = catalog_snapshot_default.extension || "jpg", pageNumber = String(currentPage).padStart(3, "0");
+    saveBlob(blob, `${safeFilePart(catalog.title || catalog.id)}-page-${pageNumber}.${extension}`), flashActionButton(button, "נשמר"), showActionToast("התמונה נשמרה", { tone: "saved" });
+  } catch (error) {
+    console.error("[CatalogSnapshot] Failed to export catalog page", {
+      catalogId: catalog.id,
+      page: currentPage,
+      src,
+      error
+    }), window.alert("לא הצלחתי ליצור את תמונת העמוד. יש לוודא שמדיניות CORS של מאגר התמונות מאפשרת קריאה מהאתר.");
+  }
+}
 function downloadCurrentLightboxImage() {
-  activeCatalog() && downloadCatalogPageSnapshot(
-    activeCatalog(),
+  let catalog = activeCatalog();
+  catalog && downloadCatalogPageSnapshot(
+    catalog,
     activePage(),
     viewerElements.lightboxScreenshot
   );

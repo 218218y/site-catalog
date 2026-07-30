@@ -81,7 +81,6 @@ DEPLOY_FILES = [
     "tooltip-manager.js",
     "favorites-store.js",
     "site-routes.js",
-    "catalog-snapshot.js",
     "catalog-assets.config.js",
     "brand-logo.svg",
     "brand-logo-header.svg",

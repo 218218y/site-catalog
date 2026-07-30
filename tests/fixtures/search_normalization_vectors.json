@@ -1,0 +1,129 @@
+[
+  {
+    "name": "empty",
+    "input": "",
+    "normalized": "",
+    "loose": "",
+    "tokens": []
+  },
+  {
+    "name": "hebrew-finals",
+    "input": "מלך מים גן כף עץ",
+    "normalized": "מלכ מימ גנ כפ עצ",
+    "loose": "מלב מימ גנ בפ עצ",
+    "tokens": [
+      "מלכ",
+      "מימ",
+      "גנ",
+      "כפ",
+      "עצ"
+    ]
+  },
+  {
+    "name": "hebrew-marks",
+    "input": "שָׁלוֹם עוֹלָם",
+    "normalized": "שלומ עולמ",
+    "loose": "שלומ עולמ",
+    "tokens": [
+      "שלומ",
+      "עולמ"
+    ]
+  },
+  {
+    "name": "hebrew-maqaf",
+    "input": "חדרי־שינה דגם־B2",
+    "normalized": "חדרי שינה דגמ b2",
+    "loose": "חדרי שינה דגמ b2",
+    "tokens": [
+      "חדרי",
+      "שינה",
+      "דגמ",
+      "b2"
+    ]
+  },
+  {
+    "name": "quotes",
+    "input": "״ארון״ 'הזזה' “חדש”",
+    "normalized": "ארונ הזזה חדש",
+    "loose": "ארונ הזזה חדש",
+    "tokens": [
+      "ארונ",
+      "הזזה",
+      "חדש"
+    ]
+  },
+  {
+    "name": "separators",
+    "input": "חדרי_שינה—2026–חדש",
+    "normalized": "חדרי שינה 2026 חדש",
+    "loose": "חדרי שינה 2026 חדש",
+    "tokens": [
+      "חדרי",
+      "שינה",
+      "2026",
+      "חדש"
+    ]
+  },
+  {
+    "name": "latin-diacritics",
+    "input": "Café Déjà-vu",
+    "normalized": "cafe deja vu",
+    "loose": "cafe deja vu",
+    "tokens": [
+      "cafe",
+      "deja",
+      "vu"
+    ]
+  },
+  {
+    "name": "mixed-punctuation",
+    "input": "  דגם...A-12 / כחול  ",
+    "normalized": "דגמ a 12 כחול",
+    "loose": "דגמ a 12 בחול",
+    "tokens": [
+      "דגמ",
+      "a",
+      "12",
+      "כחול"
+    ]
+  },
+  {
+    "name": "whitespace",
+    "input": "ארון\tפתיחה\nלבן",
+    "normalized": "ארונ פתיחה לבנ",
+    "loose": "ארונ פתיחה לבנ",
+    "tokens": [
+      "ארונ",
+      "פתיחה",
+      "לבנ"
+    ]
+  },
+  {
+    "name": "numbers",
+    "input": "2026/03/17",
+    "normalized": "2026 03 17",
+    "loose": "2026 03 17",
+    "tokens": [
+      "2026",
+      "03",
+      "17"
+    ]
+  },
+  {
+    "name": "loose-kaf",
+    "input": "כורסא מלך",
+    "normalized": "כורסא מלכ",
+    "loose": "בורסא מלב",
+    "tokens": [
+      "כורסא",
+      "מלכ"
+    ]
+  },
+  {
+    "name": "symbols-only",
+    "input": "---___״״",
+    "normalized": "",
+    "loose": "",
+    "tokens": []
+  }
+]

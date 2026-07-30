@@ -10,7 +10,7 @@
 .site-tooltip {
   position: fixed;
   inset: auto auto auto auto;
-  z-index: 9999;
+  z-index: var(--z-tooltip);
   max-width: min(320px, calc(100vw - 20px));
   padding: 9px 12px;
   border-radius: 13px;
@@ -63,7 +63,7 @@
 
 .reader-catalog-menu {
   position: absolute;
-  z-index: 120;
+  z-index: var(--z-floating-menu);
   top: calc(100% + 9px);
   right: auto;
   left: 50%;

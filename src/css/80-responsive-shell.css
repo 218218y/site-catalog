@@ -105,7 +105,7 @@
   }
   .reader-header-search {
     position: absolute;
-    z-index: 42;
+    z-index: var(--z-floating-control);
     top: calc(100% + 8px);
     right: 8px;
     left: 8px;
@@ -181,7 +181,7 @@
   }
   .lightbox.mobile-search-open .lightbox-search-results {
     position: relative;
-    z-index: 41;
+    z-index: var(--z-search-results);
     width: min(calc(100% - 16px), var(--reader-search-results-width), 560px);
     max-height: calc(100vh - var(--reader-mobile-toolbar-height) - var(--reader-mobile-search-panel-space) - 12px);
     max-height: calc(100dvh - var(--reader-mobile-toolbar-height) - var(--reader-mobile-search-panel-space) - 12px);
@@ -643,7 +643,7 @@
   }
   .mobile-category-menu {
     position: fixed;
-    z-index: 42;
+    z-index: var(--z-floating-control);
     top: calc(var(--header-h) + 8px);
     right: 10px;
     left: 10px;

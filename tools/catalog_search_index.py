@@ -14,7 +14,6 @@ from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 FINAL_LETTERS = str.maketrans({"ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ"})
-HEBREW_MARKS_RE = re.compile(r"[\u0591-\u05C7]")
 QUOTE_CHARS = frozenset("״׳'\"“”")
 SEPARATOR_CHARS = frozenset("־–—_")
 SPACE_RE = re.compile(r"\s+")
@@ -27,7 +26,7 @@ def normalize_search_text(value: Any) -> str:
     output: list[str] = []
     pending_space = False
     for char in normalized:
-        if HEBREW_MARKS_RE.fullmatch(char) or unicodedata.category(char).startswith("M"):
+        if unicodedata.category(char).startswith("M"):
             continue
         if char in QUOTE_CHARS:
             continue

@@ -18,7 +18,7 @@
 
 .seo-site-header {
   position: sticky;
-  z-index: 20;
+  z-index: var(--z-sticky);
   top: 0;
   display: grid;
   grid-template-columns: minmax(190px, auto) minmax(0, 1fr) auto;

@@ -48,7 +48,7 @@
 
 .favorites-inquiry-button {
   position: fixed;
-  z-index: 74;
+  z-index: var(--z-feature-action);
   right: auto;
   left: max(18px, env(safe-area-inset-left));
   bottom: max(18px, env(safe-area-inset-bottom));
@@ -295,7 +295,7 @@
 .favorite-note-overlay {
   position: fixed;
   inset: 0;
-  z-index: 180;
+  z-index: var(--z-note-dialog);
   display: grid;
   place-items: center;
   padding: 18px;

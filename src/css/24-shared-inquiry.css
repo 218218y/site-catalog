@@ -56,7 +56,7 @@
 .viewer-inquiry-overlay {
   position: fixed;
   inset: 0;
-  z-index: 82;
+  z-index: var(--z-dialog);
   display: grid;
   place-items: center;
   padding: max(18px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));

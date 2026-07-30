@@ -21,6 +21,7 @@
   "include": [
     "src/js/**/*.js",
     "src/entries/**/*.js",
-    "src/control-panel/**/*.js"
+    "src/control-panel/**/*.js",
+    "catalog-snapshot.js"
   ]
 }

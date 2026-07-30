@@ -299,14 +299,14 @@
    Keep the existing search controls/results styles underneath so the search behavior stays shared. */
 .search-panel {
   position: relative;
-  z-index: 20;
+  z-index: var(--z-sticky);
   overflow: visible;
   margin-bottom: 26px;
 }
 .search-panel.global-search-popover {
   --global-search-results-max-height: max(220px, min(62vh, calc(100vh - var(--header-h) - 210px), 620px));
   position: fixed;
-  z-index: 80;
+  z-index: var(--z-search-popover);
   top: calc(var(--header-h) + 12px);
   left: clamp(12px, 3vw, 42px);
   right: auto;
@@ -470,7 +470,7 @@
 }
 .global-search-scope-wrap {
   position: absolute;
-  z-index: 70;
+  z-index: var(--z-feature-panel);
   top: 50%;
   left: var(--global-search-control-inset);
   width: var(--global-search-scope-width);
@@ -554,7 +554,7 @@
 }
 .global-search-scope-menu {
   position: absolute;
-  z-index: 120;
+  z-index: var(--z-floating-menu);
   top: calc(100% + 10px);
   left: 0;
   width: min(270px, calc(100vw - 42px));
@@ -707,7 +707,7 @@
    real aspect ratio without letterbox space or additional resize listeners. */
 .search-floating-preview {
   position: fixed;
-  z-index: 120;
+  z-index: var(--z-floating-menu);
   top: 50%;
   left: 50%;
   width: fit-content;
@@ -996,7 +996,7 @@ select:focus-visible, button:focus-visible, a:focus-visible {
   position: fixed;
   left: var(--catalog-scroll-top-left, max(14px, calc((100vw - 1180px) / 2 + 18px)));
   bottom: clamp(16px, 3.4vh, 28px);
-  z-index: 46;
+  z-index: var(--z-scroll-top);
   width: 46px;
   min-width: 46px;
   height: 46px;

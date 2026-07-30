@@ -25,7 +25,7 @@
   }
   .viewer-mobile-more-menu {
     position: absolute;
-    z-index: 48;
+    z-index: var(--z-mobile-menu);
     top: calc(100% + 10px);
     left: 0;
     width: min(268px, calc(100vw - 20px));

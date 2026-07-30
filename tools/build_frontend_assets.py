@@ -7,8 +7,8 @@ pinned esbuild dependency. The generated files keep their historical names but a
 browser ES modules. Existing fullscreen-safe in-document routing remains
 unchanged while every source dependency is explicit and statically validated.
 
-CSS remains a reviewed ordered concatenation because cascade order is part of
-its runtime contract. All generated files are written atomically. ``--check``
+CSS remains a reviewed ordered cascade inside one explicit application layer;
+source order remains part of its runtime contract. All generated files are written atomically. ``--check``
 performs no writes and fails when any generated asset is stale.
 """
 from __future__ import annotations
@@ -92,6 +92,7 @@ VIEWER_JS_INPUTS: tuple[str, ...] = (
     "src/js/58-viewer-navigation.js", "src/js/60-viewer.js",
     "src/js/62-viewer-actions.js", "src/js/65-viewer-onboarding.js",
     "src/js/70-viewer-input.js", "src/js/80-app-shell.js", "src/js/90-bootstrap.js",
+    "catalog-snapshot.js",
 )
 
 @dataclass(frozen=True)
@@ -124,7 +125,6 @@ DEPLOY_GENERATED_FILES = ROUTE_GENERATED_FILES
 GENERATED_FILES = ROUTE_GENERATED_FILES
 GENERATED_JS_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "js")
 GENERATED_CSS_FILES = tuple(spec.output_name for spec in BUNDLE_SPECS if spec.kind == "css")
-OBSOLETE_GENERATED_FILES: tuple[str, ...] = ("app.js",)
 ROUTE_ASSETS: Mapping[str, tuple[str, str]] = {
     "home": ("styles-catalog.css", "app-catalog.js"),
     "catalog": ("styles-catalog.css", "app-catalog.js"),
@@ -134,6 +134,7 @@ ROUTE_ASSETS: Mapping[str, tuple[str, str]] = {
 
 MODULE_NAME_PATTERN = re.compile(r"^(?P<order>\d{2})-[a-z0-9-]+\.(?P<extension>js|css)$")
 ESBUILD_RUNNER = Path(__file__).with_name("build_frontend_esbuild.mjs")
+CSS_CASCADE_LAYER = "bargig.application"
 
 @dataclass(frozen=True)
 class FrontendBuildResult:
@@ -192,15 +193,117 @@ def source_manifest_text(module_paths: Sequence[str]) -> str:
     return "\n".join(f" *   - {path}" for path in module_paths)
 
 
+def strip_internal_css_comments(source: str) -> str:
+    """Remove CSS comments outside strings while retaining license comments.
+
+    A regular expression is unsafe here because comment-looking text may be
+    intentional content inside a quoted string or data URL. This small scanner
+    follows CSS string escaping, keeps ``/*! ... */`` comments verbatim, and
+    preserves line breaks from removed review comments for useful diagnostics.
+    """
+
+    output: list[str] = []
+    index = 0
+    quote = ""
+    while index < len(source):
+        char = source[index]
+        if quote:
+            output.append(char)
+            if char == "\\" and index + 1 < len(source):
+                index += 1
+                output.append(source[index])
+            elif char == quote:
+                quote = ""
+            index += 1
+            continue
+
+        if char in {"'", '"'}:
+            quote = char
+            output.append(char)
+            index += 1
+            continue
+
+        if source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            if end < 0:
+                raise ValueError("Unterminated CSS comment")
+            comment = source[index:end + 2]
+            if comment.startswith("/*!"):
+                output.append(comment)
+            else:
+                line_breaks = comment.count("\n")
+                output.append("\n" * line_breaks if line_breaks else " ")
+            index = end + 2
+            continue
+
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
+def strip_css_line_end_whitespace(source: str) -> str:
+    """Remove line-end whitespace outside quoted CSS strings."""
+
+    output: list[str] = []
+    index = 0
+    quote = ""
+    while index < len(source):
+        char = source[index]
+        if quote:
+            output.append(char)
+            if char == "\\" and index + 1 < len(source):
+                index += 1
+                output.append(source[index])
+            elif char == quote:
+                quote = ""
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            output.append(char)
+            index += 1
+            continue
+        if char == "\n":
+            while output and output[-1] in {" ", "\t"}:
+                output.pop()
+            output.append(char)
+            index += 1
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
+def css_source_for_bundle(root: Path, relative_path: str) -> str:
+    """Remove internal review comments without changing executable CSS.
+
+    Source files remain fully documented. Generated bundles keep the signed
+    source boundary markers and any ``/*!`` license comments, but do not ship
+    implementation commentary or line-end whitespace to browsers.
+    """
+
+    source = read_source_module(root, relative_path)
+    stripped = strip_internal_css_comments(source)
+    return normalize_text(strip_css_line_end_whitespace(stripped))
+
+
 def render_css_bundle(root: Path, spec: FrontendBundleSpec) -> str:
     validate_module_manifest(spec.modules, expected_extension="css")
     sections = [
         "/*\n * GENERATED FILE — DO NOT EDIT DIRECTLY.\n"
         f" * Browser bundle: {spec.output_name}\n * Source modules:\n{source_manifest_text(spec.modules)}\n"
+        f" * Cascade layer: {CSS_CASCADE_LAYER}\n"
         " * Build command: python tools/build_frontend_assets.py\n */\n"
+        f"@layer {CSS_CASCADE_LAYER};\n\n"
+        f"@layer {CSS_CASCADE_LAYER} {{\n"
     ]
     for relative in spec.modules:
-        sections.append(f"\n/* ===== BEGIN SOURCE: {relative} ===== */\n{read_source_module(root, relative)}/* ===== END SOURCE: {relative} ===== */\n")
+        sections.append(
+            f"\n/* ===== BEGIN SOURCE: {relative} ===== */\n"
+            f"{css_source_for_bundle(root, relative)}"
+            f"/* ===== END SOURCE: {relative} ===== */\n"
+        )
+    sections.append("}\n")
     return normalize_text("".join(sections))
 
 
@@ -247,6 +350,7 @@ def _partition_metafile_inputs(
             relative = candidate.as_posix().removeprefix("./")
         physical.append(relative)
     return tuple(sorted(physical)), tuple(sorted(virtual))
+
 
 
 def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
@@ -303,11 +407,13 @@ def atomic_write_text(path: Path, content: str) -> bool:
     if path.is_file() and path.read_bytes() == encoded:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
+    target_mode = (path.stat().st_mode & 0o777) if path.exists() else 0o644
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as handle:
             handle.write(encoded); handle.flush(); os.fsync(handle.fileno())
+        os.chmod(temporary, target_mode)
         temporary.replace(path)
     except Exception:
         temporary.unlink(missing_ok=True); raise
@@ -326,28 +432,10 @@ def build_one(root: Path, spec: FrontendBundleSpec, *, check: bool) -> FrontendB
     return FrontendBuildResult(output, module_count, len(expected), changed, sha256_text(content))
 
 
-def remove_obsolete_generated_files(root: Path, *, check: bool) -> None:
-    stale = [name for name in OBSOLETE_GENERATED_FILES if (root / name).exists()]
-    if not stale:
-        return
-    if check:
-        names = ", ".join(stale)
-        raise RuntimeError(
-            f"Obsolete frontend compatibility asset remains: {names}. "
-            "Run: python tools/build_frontend_assets.py"
-        )
-    for name in stale:
-        (root / name).unlink()
-
 
 def build_frontend_assets(root: Path | None = None, *, check: bool = False) -> tuple[FrontendBuildResult, ...]:
     base = (root or project_root()).resolve()
-    # Build every reviewed route asset successfully before removing obsolete
-    # compatibility output. This keeps a failed build from mutating an otherwise
-    # usable working tree and makes cleanup part of the successful transaction.
-    results = tuple(build_one(base, spec, check=check) for spec in BUNDLE_SPECS)
-    remove_obsolete_generated_files(base, check=check)
-    return results
+    return tuple(build_one(base, spec, check=check) for spec in BUNDLE_SPECS)
 
 
 def main() -> int:
