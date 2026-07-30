@@ -135,6 +135,7 @@ Object.assign(globalThis, {
   setLightboxPage() {},
   moveLightbox: (...args) => moveCalls.push(args),
   consumeSingleViewerPanInput: () => boundaryPanResult,
+  isAutoViewerZoom: () => Math.abs(state.zoom - 1) <= 0.001,
   normalizeWheelDeltaToPixels: (delta) => Number(delta) || 0,
   isViewerSessionOpen: () => true,
   singleViewerUsesBoundaryPan: () => true
@@ -168,21 +169,52 @@ assert.deepEqual(moveCalls[1], [-1, {
   preservePointerInteraction: true
 }]);
 
-const boundaryResult = navigation.consumeSingleViewerBoundaryInput(0, 40, { pointerId: 91 });
+assert.deepEqual(
+  navigation.getViewerPageTurnNavigationOptions(1, "y", {
+    preservePointerInteraction: true,
+    resetViewOnPageTurn: true
+  }),
+  {
+    keepZoom: false,
+    resetZoom: true,
+    resetPosition: true,
+    positionMode: "auto",
+    preservePointerInteraction: true
+  },
+  "scroll-driven page turns must reset a manual zoom and its pan position"
+);
+
+const boundaryResult = navigation.consumeSingleViewerBoundaryInput(0, 40, {
+  pointerId: 91,
+  resetViewOnPageTurn: true
+});
 assert.equal(boundaryResult.turned, true);
 assert.deepEqual(moveCalls[2], [1, {
-  keepZoom: true,
-  positionMode: "page-turn",
-  pageTurnDirection: 1,
-  pageTurnAxis: "y",
+  keepZoom: false,
+  resetZoom: true,
+  resetPosition: true,
+  positionMode: "auto",
   preservePointerInteraction: true
-}], "a touch edge turn must preserve the live pointer stream on the next image");
+}], "a vertical touch-scroll edge turn resets the view while preserving the live pointer stream");
 
 boundaryPanResult = { moved: false, remainingDeltaX: 18, remainingDeltaY: 0 };
 const horizontalBoundaryResult = navigation.consumeSingleViewerBoundaryInput(40, 0, { pointerId: 92 });
 assert.equal(horizontalBoundaryResult.turned, false);
 assert.equal(horizontalBoundaryResult.intent, null);
 assert.equal(moveCalls.length, 3, "horizontal boundary overflow must stop without issuing another page command");
+
+state.zoom = 1;
+assert.deepEqual(
+  navigation.getViewerPageTurnNavigationOptions(1, "y", { resetViewOnPageTurn: true }),
+  {
+    keepZoom: true,
+    positionMode: "page-turn",
+    pageTurnDirection: 1,
+    pageTurnAxis: "y",
+    preservePointerInteraction: false
+  },
+  "ordinary scrolling at automatic zoom keeps the continuous-reading page origin"
+);
 
 // Continuous wheel/trackpad input must continue to reach boundary pan after a page turn.
 globalThis.consumeSingleViewerPanInput = () => {

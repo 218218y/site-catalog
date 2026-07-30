@@ -4679,15 +4679,25 @@ function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
     direction: Math.sign(remaining)
   };
 }
-function moveLightboxFromPageTurn(direction, axis = "y", options = {}) {
-  let step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
-  return !step || !canMoveLightbox(step) ? !1 : (moveLightbox(step, {
+function getViewerPageTurnNavigationOptions(direction, axis = "y", options = {}) {
+  let step = direction > 0 ? 1 : direction < 0 ? -1 : 0, preservePointerInteraction = options.preservePointerInteraction === !0;
+  return options.resetViewOnPageTurn === !0 && !isAutoViewerZoom() ? {
+    keepZoom: !1,
+    resetZoom: !0,
+    resetPosition: !0,
+    positionMode: "auto",
+    preservePointerInteraction
+  } : {
     keepZoom: !0,
     positionMode: "page-turn",
     pageTurnDirection: step,
-    pageTurnAxis: axis,
-    preservePointerInteraction: options.preservePointerInteraction === !0
-  }), !0);
+    pageTurnAxis: axis === "x" ? "x" : "y",
+    preservePointerInteraction
+  };
+}
+function moveLightboxFromPageTurn(direction, axis = "y", options = {}) {
+  let step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
+  return !step || !canMoveLightbox(step) ? !1 : (moveLightbox(step, getViewerPageTurnNavigationOptions(step, axis, options)), !0);
 }
 function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) {
   let result = consumeSingleViewerPanInput(deltaX, deltaY);
@@ -4696,7 +4706,8 @@ function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) 
   return {
     handled: !0,
     turned: !!(intent && moveLightboxFromPageTurn(intent.direction, intent.axis, {
-      preservePointerInteraction: Number.isFinite(options.pointerId)
+      preservePointerInteraction: Number.isFinite(options.pointerId),
+      resetViewOnPageTurn: options.resetViewOnPageTurn === !0
     })),
     moved: result.moved,
     intent,
@@ -4711,7 +4722,7 @@ function handleViewerPageWheel(event) {
   let { deltaX, deltaY } = normalizeViewerPageWheelDeltas(event);
   if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) return !1;
   if (event.preventDefault(), singleViewerUsesBoundaryPan())
-    return clearViewerPageWheelGesture(), consumeSingleViewerBoundaryInput(deltaX, deltaY), !0;
+    return clearViewerPageWheelGesture(), consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: !0 }), !0;
   let logicalDelta = getViewerPageWheelLogicalDelta(deltaX, deltaY);
   if (Math.abs(logicalDelta) < 0.01) return !0;
   if (!viewerState.viewerPageWheelBasePage) {
@@ -4726,12 +4737,14 @@ function handleViewerPageWheel(event) {
   ), previousTargetPosition = viewerState.viewerPageWheelTargetPage - 1;
   if (viewerState.viewerPageWheelTargetPage = targetPosition + 1, targetPosition !== previousTargetPosition) {
     let direction = Math.sign(targetPosition - previousTargetPosition) || Math.sign(targetPosition - basePosition) || Math.sign(logicalDelta);
-    setViewerNavigationPosition(targetPosition, {
-      keepZoom: !0,
-      positionMode: "page-turn",
-      pageTurnDirection: direction,
-      pageTurnAxis: Math.abs(deltaY) >= Math.abs(deltaX) ? "y" : "x"
-    });
+    setViewerNavigationPosition(
+      targetPosition,
+      getViewerPageTurnNavigationOptions(
+        direction,
+        Math.abs(deltaY) >= Math.abs(deltaX) ? "y" : "x",
+        { resetViewOnPageTurn: !0 }
+      )
+    );
   }
   return window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = window.setTimeout(
     settleViewerPageWheelGesture,
@@ -5602,7 +5615,8 @@ function consumeViewerPointerPanSamples(event, initialPoint) {
   if (viewerState.pointers.set(event.pointerId, point), Math.abs(totalDeltaX) < 0.01 && Math.abs(totalDeltaY) < 0.01)
     return { point, handled: !1, moved: !1, turned: !1 };
   let boundary = consumeSingleViewerBoundaryInput(totalDeltaX, totalDeltaY, {
-    pointerId: event.pointerId
+    pointerId: event.pointerId,
+    resetViewOnPageTurn: !0
   });
   return {
     point,
@@ -5646,7 +5660,8 @@ function runViewerTouchMomentumFrame(timestamp) {
   viewerState.viewerTouchMomentumLastTime = frameTime;
   let velocityX = viewerState.viewerTouchMomentumVelocityX, velocityY = viewerState.viewerTouchMomentumVelocityY, boundary = consumeSingleViewerBoundaryInput(
     velocityX * elapsed,
-    velocityY * elapsed
+    velocityY * elapsed,
+    { resetViewOnPageTurn: !0 }
   );
   if (!boundary.handled) {
     stopViewerTouchMomentum();
@@ -5728,12 +5743,12 @@ function handleViewerPageSwipe(event, startedX, startedY) {
     return !1;
   event.preventDefault();
   let direction = horizontal ? dx > 0 ? 1 : -1 : dy < 0 ? 1 : -1;
-  return moveLightbox(direction, {
+  return horizontal ? moveLightbox(direction, {
     keepZoom: !0,
     positionMode: "page-turn",
     pageTurnDirection: direction,
-    pageTurnAxis: horizontal ? "x" : "y"
-  }), !0;
+    pageTurnAxis: "x"
+  }) : moveLightboxFromPageTurn(direction, "y", { resetViewOnPageTurn: !0 }), !0;
 }
 function endPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;

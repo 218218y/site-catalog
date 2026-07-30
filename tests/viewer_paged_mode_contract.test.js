@@ -65,8 +65,10 @@ assert.match(navigation, /function getViewerPageWheelRequestedSteps\(accumulator
 assert.match(navigation, /function consumeSingleViewerBoundaryInput\(deltaX = 0, deltaY = 0, options = \{\}\)/);
 assert.match(navigation, /function getSingleViewerPageTurnIntent[\s\S]*?const remaining = result\.remainingDeltaY;[\s\S]*?axis: "y"/);
 assert.doesNotMatch(navigation, /remainingDeltaX[\s\S]{0,240}page-turn intent/);
-assert.match(navigation, /function moveLightboxFromPageTurn\(direction, axis = "y", options = \{\}\)[\s\S]*?keepZoom: true[\s\S]*?positionMode: "page-turn"[\s\S]*?preservePointerInteraction/);
-assert.match(navigation, /if \(singleViewerUsesBoundaryPan\(\)\)[\s\S]*?consumeSingleViewerBoundaryInput\(deltaX, deltaY\)/);
+assert.match(navigation, /function getViewerPageTurnNavigationOptions\(direction, axis = "y", options = \{\}\)[\s\S]*?resetViewOnPageTurn[\s\S]*?!isAutoViewerZoom\(\)[\s\S]*?keepZoom: false[\s\S]*?resetZoom: true[\s\S]*?resetPosition: true[\s\S]*?positionMode: "auto"/);
+assert.match(navigation, /function getViewerPageTurnNavigationOptions\(direction, axis = "y", options = \{\}\)[\s\S]*?keepZoom: true[\s\S]*?positionMode: "page-turn"[\s\S]*?pageTurnDirection: step/);
+assert.match(navigation, /function moveLightboxFromPageTurn\(direction, axis = "y", options = \{\}\)[\s\S]*?getViewerPageTurnNavigationOptions\(step, axis, options\)/);
+assert.match(navigation, /if \(singleViewerUsesBoundaryPan\(\)\)[\s\S]*?consumeSingleViewerBoundaryInput\(deltaX, deltaY, \{ resetViewOnPageTurn: true \}\)/);
 assert.doesNotMatch(navigation, /viewerPageWheelLocked|keepViewerPageWheelLockedUntilSettle|unlockViewerPageWheel/);
 assert.doesNotMatch(navigation, /renderViewerScrollPages|scrollTop|scrollIntoView|viewerScroll/);
 
@@ -76,7 +78,10 @@ assert.match(viewerSource, /const currentCatalog = activeCatalog\(\);[\s\S]*?con
 
 assert.match(input, /function handleViewerPageSwipe\(event, startedX, startedY\)[\s\S]*?isTouchLikePointer\(event\)/);
 assert.match(input, /const direction = horizontal[\s\S]*?dx > 0 \? 1 : -1[\s\S]*?dy < 0 \? 1 : -1/);
-assert.match(input, /positionMode: "page-turn"/);
+assert.match(input, /if \(horizontal\)[\s\S]*?keepZoom: true[\s\S]*?positionMode: "page-turn"[\s\S]*?pageTurnAxis: "x"/);
+assert.match(input, /else \{[\s\S]*?moveLightboxFromPageTurn\(direction, "y", \{ resetViewOnPageTurn: true \}\)/);
+assert.match(input, /consumeSingleViewerBoundaryInput\(totalDeltaX, totalDeltaY, \{[\s\S]*?pointerId: event\.pointerId,[\s\S]*?resetViewOnPageTurn: true/);
+assert.match(input, /consumeSingleViewerBoundaryInput\([\s\S]*?velocityX \* elapsed,[\s\S]*?velocityY \* elapsed,[\s\S]*?\{ resetViewOnPageTurn: true \}/);
 assert.match(input, /viewerState\.pointerGestureConsumedPan/);
 assert.match(input, /function getViewerPointerMoveSamples\(event\)/);
 assert.match(input, /getCoalescedEvents\(\)/);

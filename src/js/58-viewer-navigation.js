@@ -14,7 +14,7 @@ import { clampValue } from "./20-shared-ui.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
 import { isViewerSessionOpen } from "./52-viewer-session.js";
 import { showSingleLightboxImage, viewerPageImageRequest } from "./53-viewer-image.js";
-import { consumeSingleViewerPanInput, singleViewerUsesBoundaryPan } from "./54-viewer-geometry.js";
+import { consumeSingleViewerPanInput, isAutoViewerZoom, singleViewerUsesBoundaryPan } from "./54-viewer-geometry.js";
 import { normalizeWheelDeltaToPixels } from "./56-viewer-shell.js";
 import { moveLightbox, setFavoriteViewerIndex, setLightboxPage } from "./60-viewer.js";
 
@@ -130,29 +130,61 @@ function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
   };
 }
 
-/** @param {number} direction @param {string} [axis] @param {{preservePointerInteraction?:boolean}} [options] */
+/**
+ * @param {number} direction
+ * @param {string} [axis]
+ * @param {{preservePointerInteraction?:boolean, resetViewOnPageTurn?:boolean}} [options]
+ */
+function getViewerPageTurnNavigationOptions(direction, axis = "y", options = {}) {
+  const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
+  const preservePointerInteraction = options.preservePointerInteraction === true;
+  const shouldResetView = options.resetViewOnPageTurn === true && !isAutoViewerZoom();
+
+  if (shouldResetView) {
+    return {
+      keepZoom: false,
+      resetZoom: true,
+      resetPosition: true,
+      positionMode: "auto",
+      preservePointerInteraction
+    };
+  }
+
+  return {
+    keepZoom: true,
+    positionMode: "page-turn",
+    pageTurnDirection: step,
+    pageTurnAxis: axis === "x" ? "x" : "y",
+    preservePointerInteraction
+  };
+}
+
+/**
+ * @param {number} direction
+ * @param {string} [axis]
+ * @param {{preservePointerInteraction?:boolean, resetViewOnPageTurn?:boolean}} [options]
+ */
 function moveLightboxFromPageTurn(direction, axis = "y", options = {}) {
   const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
   if (!step || !canMoveLightbox(step)) return false;
 
-  moveLightbox(step, {
-    keepZoom: true,
-    positionMode: "page-turn",
-    pageTurnDirection: step,
-    pageTurnAxis: axis,
-    preservePointerInteraction: options.preservePointerInteraction === true
-  });
+  moveLightbox(step, getViewerPageTurnNavigationOptions(step, axis, options));
   return true;
 }
 
-/** @param {number} [deltaX] @param {number} [deltaY] @param {{pointerId?:number}} [options] */
+/**
+ * @param {number} [deltaX]
+ * @param {number} [deltaY]
+ * @param {{pointerId?:number, resetViewOnPageTurn?:boolean}} [options]
+ */
 function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) {
   const result = consumeSingleViewerPanInput(deltaX, deltaY);
   if (!result) return { handled: false, turned: false, moved: false };
 
   const intent = getSingleViewerPageTurnIntent(result, deltaX, deltaY);
   const turned = Boolean(intent && moveLightboxFromPageTurn(intent.direction, intent.axis, {
-    preservePointerInteraction: Number.isFinite(options.pointerId)
+    preservePointerInteraction: Number.isFinite(options.pointerId),
+    resetViewOnPageTurn: options.resetViewOnPageTurn === true
   }));
 
   return {
@@ -179,7 +211,7 @@ function handleViewerPageWheel(event) {
 
   if (singleViewerUsesBoundaryPan()) {
     clearViewerPageWheelGesture();
-    consumeSingleViewerBoundaryInput(deltaX, deltaY);
+    consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: true });
     return true;
   }
 
@@ -210,12 +242,14 @@ function handleViewerPageWheel(event) {
     const direction = Math.sign(targetPosition - previousTargetPosition)
       || Math.sign(targetPosition - basePosition)
       || Math.sign(logicalDelta);
-    setViewerNavigationPosition(targetPosition, {
-      keepZoom: true,
-      positionMode: "page-turn",
-      pageTurnDirection: direction,
-      pageTurnAxis: Math.abs(deltaY) >= Math.abs(deltaX) ? "y" : "x"
-    });
+    setViewerNavigationPosition(
+      targetPosition,
+      getViewerPageTurnNavigationOptions(
+        direction,
+        Math.abs(deltaY) >= Math.abs(deltaX) ? "y" : "x",
+        { resetViewOnPageTurn: true }
+      )
+    );
   }
 
   window.clearTimeout(viewerState.viewerPageWheelSettleTimer);
@@ -234,6 +268,7 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     getViewerPageWheelLogicalDelta,
     getViewerPageWheelRequestedSteps,
     getSingleViewerPageTurnIntent,
+    getViewerPageTurnNavigationOptions,
     moveLightboxFromPageTurn,
     consumeSingleViewerBoundaryInput,
     handleViewerPageWheel
@@ -241,4 +276,4 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
 }
 /* TEST-ONLY EXPORTS: END */
 
-export { clearViewerPageWheelGesture, consumeSingleViewerBoundaryInput, handleViewerPageWheel, retryCurrentViewerImage };
+export { clearViewerPageWheelGesture, consumeSingleViewerBoundaryInput, handleViewerPageWheel, moveLightboxFromPageTurn, retryCurrentViewerImage };

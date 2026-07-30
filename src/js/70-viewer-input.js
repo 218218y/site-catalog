@@ -14,7 +14,7 @@ import { hideLightboxSearchResults } from "./50-search-ui.js";
 import { isViewerSessionOpen } from "./52-viewer-session.js";
 import { getPointerList, pointerDistance, pointerMidpoint, setZoom, singleViewerUsesBoundaryPan, toggleZoomAtPoint } from "./54-viewer-geometry.js";
 import { normalizeWheelDeltaToPixels } from "./56-viewer-shell.js";
-import { consumeSingleViewerBoundaryInput, handleViewerPageWheel } from "./58-viewer-navigation.js";
+import { consumeSingleViewerBoundaryInput, handleViewerPageWheel, moveLightboxFromPageTurn } from "./58-viewer-navigation.js";
 import { moveLightbox } from "./60-viewer.js";
 
 /** @param {EventTarget|null} surface */
@@ -173,7 +173,8 @@ function consumeViewerPointerPanSamples(event, initialPoint) {
   }
 
   const boundary = consumeSingleViewerBoundaryInput(totalDeltaX, totalDeltaY, {
-    pointerId: event.pointerId
+    pointerId: event.pointerId,
+    resetViewOnPageTurn: true
   });
   return {
     point,
@@ -237,7 +238,8 @@ function runViewerTouchMomentumFrame(timestamp) {
   let velocityY = viewerState.viewerTouchMomentumVelocityY;
   const boundary = consumeSingleViewerBoundaryInput(
     velocityX * elapsed,
-    velocityY * elapsed
+    velocityY * elapsed,
+    { resetViewOnPageTurn: true }
   );
   if (!boundary.handled) {
     stopViewerTouchMomentum();
@@ -437,12 +439,16 @@ function handleViewerPageSwipe(event, startedX, startedY) {
   const direction = horizontal
     ? (dx > 0 ? 1 : -1)
     : (dy < 0 ? 1 : -1);
-  moveLightbox(direction, {
-    keepZoom: true,
-    positionMode: "page-turn",
-    pageTurnDirection: direction,
-    pageTurnAxis: horizontal ? "x" : "y"
-  });
+  if (horizontal) {
+    moveLightbox(direction, {
+      keepZoom: true,
+      positionMode: "page-turn",
+      pageTurnDirection: direction,
+      pageTurnAxis: "x"
+    });
+  } else {
+    moveLightboxFromPageTurn(direction, "y", { resetViewOnPageTurn: true });
+  }
   return true;
 }
 
@@ -637,6 +643,7 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     clampViewerTouchMomentumVelocity,
     runViewerTouchMomentumFrame,
     startViewerTouchMomentum,
+    handleViewerPageSwipe,
     getWheelZoomFactor,
     handleZoomSurfaceWheel
   });
