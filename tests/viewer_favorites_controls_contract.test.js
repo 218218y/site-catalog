@@ -11,6 +11,8 @@ const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const app = readAllBundles();
 const css = readAllCssBundles();
 const viewerCss = readCssBundle('viewer');
+const favoritesStateSource = fs.readFileSync(path.join(root, 'src/js/14-favorites-state.js'), 'utf8');
+const favoritesShareSource = fs.readFileSync(path.join(root, 'src/js/30-favorites-share.js'), 'utf8');
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxFavoritesButton"[^>]*href="favorites\.html"/);
@@ -21,13 +23,13 @@ for (const html of [template, viewer]) {
   assert.doesNotMatch(toolbar, /id="fullscreenToggle"/);
 }
 
-assert.match(app, /lightboxFavoritesButton: \$requiredAnchor\("lightboxFavoritesButton"\)/);
-assert.match(app, /lightboxFavoritesCount: requiredElement\("lightboxFavoritesCount"\)/);
-assert.match(app, /lightboxFavoritesSeparator: requiredElement\("lightboxFavoritesSeparator"\)/);
-assert.match(app, /function syncFavoritesShortcut\(button, countElement, count\)/);
-assert.match(app, /syncFavoritesShortcut\(favoritesElements\.headerFavoritesButton, favoritesElements\.headerFavoritesCount, count\)/);
-assert.match(app, /syncFavoritesShortcut\(favoritesElements\.lightboxFavoritesButton, favoritesElements\.lightboxFavoritesCount, count\)/);
-assert.match(app, /favoritesElements\.lightboxFavoritesSeparator\?\.classList\.toggle\("hidden", count === 0\)/);
+assert.match(favoritesStateSource, /lightboxFavoritesButton: \$requiredAnchor\("lightboxFavoritesButton"\)/);
+assert.match(favoritesStateSource, /lightboxFavoritesCount: requiredElement\("lightboxFavoritesCount"\)/);
+assert.match(favoritesStateSource, /lightboxFavoritesSeparator: requiredElement\("lightboxFavoritesSeparator"\)/);
+assert.match(favoritesShareSource, /function syncFavoritesShortcut\(button, countElement, count\)/);
+assert.match(favoritesShareSource, /syncFavoritesShortcut\(favoritesElements\.headerFavoritesButton, favoritesElements\.headerFavoritesCount, count\)/);
+assert.match(favoritesShareSource, /syncFavoritesShortcut\(favoritesElements\.lightboxFavoritesButton, favoritesElements\.lightboxFavoritesCount, count\)/);
+assert.match(favoritesShareSource, /favoritesElements\.lightboxFavoritesSeparator\?\.classList\.toggle\("hidden", count === 0\)/);
 
 assert.match(css, /--viewer-side-control-radius:\s*23px;/);
 assert.match(css, /--viewer-side-control-left-edge:\s*max\(\s*var\(--viewer-side-control-edge\),\s*calc\(env\(safe-area-inset-left, 0px\) \+ 12px\)\s*\);/);

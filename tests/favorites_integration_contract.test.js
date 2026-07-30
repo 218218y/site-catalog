@@ -12,6 +12,9 @@ const viewerHtml = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const app = readAllBundles();
 const css = readAllCssBundles();
 const bundleBuilder = fs.readFileSync(path.join(root, 'tools', 'build_deploy_bundle.py'), 'utf8');
+const favoritesShareSource = fs.readFileSync(path.join(root, 'src/js/30-favorites-share.js'), 'utf8');
+const favoritesWorkspaceSource = fs.readFileSync(path.join(root, 'src/js/35-favorites-workspace.js'), 'utf8');
+const viewerSource = fs.readFileSync(path.join(root, 'src/js/60-viewer.js'), 'utf8');
 
 assert.match(html, /<a[^>]*class="[^"]*header-favorites-button[^"]*hidden[^"]*"[^>]*id="headerFavoritesButton"[^>]*href="favorites\.html"/);
 assert.match(html, /<div[^>]*id="favoritesPanel"[^>]*role="dialog"[^>]*aria-modal="true"/);
@@ -25,25 +28,25 @@ assert.match(html, /id="prevPageBtn"[\s\S]*?<\/button>\s*<\/div>\s*<button class
 assert.match(html, /id="favoriteOpenCatalogButton"[\s\S]*?id="lightboxPageRail"/);
 assert.doesNotMatch(html, /id="thumbsHotspot"|id="lightboxThumbs"/);
 assert.match(html, /id="lightboxPageRailTitle">עמודים</);
-assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script src="app-catalog\.js"><\/script>/);
-assert.match(favoritesHtml, /<script src="app-favorites\.js"><\/script>/);
-assert.match(viewerHtml, /<script src="app-viewer\.js"><\/script>/);
+assert.match(html, /<script src="favorites-store\.js"><\/script>\s*<script src="site-routes\.js"><\/script>\s*<script type="module" data-bargig-route-module src="app-catalog\.js"><\/script>/);
+assert.match(favoritesHtml, /<script type="module" data-bargig-route-module src="app-favorites\.js"><\/script>/);
+assert.match(viewerHtml, /<script type="module" data-bargig-route-module src="app-viewer\.js"><\/script>/);
 
-assert.match(app, /favoritesStore\.toggleDetailed\(\{ \.\.\.identity, savedAt: Date\.now\(\) \}\)/);
-assert.match(app, /favoritesStore\.replaceDetailed\(/);
-assert.match(app, /favoritesStore\.setNoteDetailed\(/);
-assert.match(app, /showFavoritePersistenceFeedback/);
-assert.match(app, /persisted/);
-assert.match(app, /window\.addEventListener\("storage", handleFavoritesStorageChange\)/);
-assert.match(app, /openFavoriteViewer\(catalogId, page\)/);
-assert.match(app, /source: LIGHTBOX_SOURCE_FAVORITES/);
-assert.match(app, /setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)/);
-assert.match(app, /openCurrentFavoriteInCatalog/);
-assert.match(app, /openFavoritesPanel\(\{ allowEmpty: true, captureReturnFocus: false \}\)/);
-assert.match(app, /window\.confirm\("למחוק את כל העמודים מהמועדפים\?"\)/);
-assert.match(app, /handleFavoritesPanelKeydown/);
+assert.match(favoritesShareSource, /favoritesStore\.toggleDetailed\(\{ \.\.\.identity, savedAt: Date\.now\(\) \}\)/);
+assert.match(favoritesShareSource + favoritesWorkspaceSource, /favoritesStore\.replaceDetailed\(/);
+assert.match(favoritesWorkspaceSource, /favoritesStore\.setNoteDetailed\(/);
+assert.match(favoritesShareSource, /showFavoritePersistenceFeedback/);
+assert.match(favoritesShareSource, /persisted/);
+assert.match(favoritesShareSource, /window\.addEventListener\("storage", handleFavoritesStorageChange\)/);
+assert.match(favoritesShareSource, /openFavoriteViewer\(catalogId, page\)/);
+assert.match(favoritesShareSource, /source: LIGHTBOX_SOURCE_FAVORITES/);
+assert.match(viewerSource, /setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)/);
+assert.match(favoritesShareSource, /openCurrentFavoriteInCatalogFromViewer/);
+assert.match(favoritesShareSource, /openFavoritesPanel\(\{ allowEmpty: true, captureReturnFocus: false \}\)/);
+assert.match(favoritesShareSource, /window\.confirm\("למחוק את כל העמודים מהמועדפים\?"\)/);
+assert.match(favoritesShareSource, /handleFavoritesPanelKeydown/);
 
-const favoritesClickHandler = app.match(/function handleFavoritesGridClick\(event\) \{[\s\S]*?\n\}/)?.[0] || '';
+const favoritesClickHandler = favoritesShareSource.match(/function handleFavoritesGridClick\(event\) \{[\s\S]*?\n\}/)?.[0] || '';
 assert.doesNotMatch(favoritesClickHandler, /openCatalogInViewer/);
 assert.match(favoritesClickHandler, /openFavoriteViewer\(catalogId, page\)/);
 

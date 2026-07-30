@@ -14,6 +14,8 @@ const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const app = readAllBundles();
 const css = readAllCssBundles();
 const favoritesWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'js', '35-favorites-workspace.js'), 'utf8');
+const favoritesStateSource = fs.readFileSync(path.join(root, 'src', 'js', '14-favorites-state.js'), 'utf8');
+const favoritesShareSource = fs.readFileSync(path.join(root, 'src', 'js', '30-favorites-share.js'), 'utf8');
 const portabilitySource = fs.readFileSync(path.join(root, 'src', 'js', '29-favorites-portability.js'), 'utf8');
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 
@@ -38,18 +40,18 @@ assert.doesNotMatch(template, /HEADER_FULLSCREEN_BUTTON|headerFullscreenToggle|b
 assert.doesNotMatch(pageBuilder, /HEADER_FULLSCREEN_BUTTON|show_header_fullscreen|headerFullscreenToggle/);
 assert.doesNotMatch(app, /headerFullscreenToggle/);
 
-assert.match(app, /const FAVORITES_SHARE_VERSION = 2;/);
-assert.match(app, /function analyzeFavoriteItemMerge\([\s\S]*?newItems[\s\S]*?alreadyExistingItems[\s\S]*?mergedItems/);
-assert.match(app, /function syncFavoritesTransferDialogUi\([\s\S]*?favoritesPortabilityDomain\.favoritesTransferSummary\([\s\S]*?pending,[\s\S]*?existingItems/);
+assert.match(favoritesStateSource, /const FAVORITES_SHARE_VERSION = 2;/);
+assert.match(portabilitySource, /function analyzeFavoriteItemMerge\([\s\S]*?newItems[\s\S]*?alreadyExistingItems[\s\S]*?mergedItems/);
+assert.match(favoritesShareSource, /function syncFavoritesTransferDialogUi\([\s\S]*?favoritesPortabilityDomain\.favoritesTransferSummary\([\s\S]*?pending,[\s\S]*?existingItems/);
 assert.match(portabilitySource, /function favoritesTransferSummary\([\s\S]*?analyzeFavoriteItemMerge\(pending\.items, existing\)[\s\S]*?alreadyExistingCount > 0[\s\S]*?מתוכם[\s\S]*?פריטים ברשימה שהתקבלה/);
 assert.doesNotMatch(app, /FAVORITES_SHARE_LEGACY_VERSION|parseLegacyFavoritesShareToken/);
-assert.match(app, /function shareFavoritesList\([\s\S]*?getFeatureInterface\("favorites-workspace"\)[\s\S]*?workspace\.copyShareLink\([\s\S]*?workspace\.shareLinkEntries\(\)/);
-assert.match(app, /function copyFavoriteWorkspaceLink\([\s\S]*?copyTextToClipboard\(selectionUrl\)[\s\S]*?קישור המועדפים הועתק/);
+assert.match(favoritesShareSource, /function shareFavoritesList\([\s\S]*?getFeatureInterface\("favorites-workspace"\)[\s\S]*?workspace\.copyShareLink\([\s\S]*?workspace\.shareLinkEntries\(\)/);
+assert.match(favoritesWorkspaceSource, /function copyFavoriteWorkspaceLink\([\s\S]*?copyTextToClipboard\(selectionUrl\)[\s\S]*?קישור המועדפים הועתק/);
 assert.doesNotMatch(favoritesWorkspaceSource, /function shareFavoriteWorkspaceEntries|navigator\.share\(shareData\)/);
 assert.doesNotMatch(app, /FAVORITES_MAX_SAFE_SHARE_URL_LENGTH|exportFavoritesList|parseFavoritesImportDocument|requestFavoritesImport|handleFavoritesImportFile/);
-assert.match(app, /function moveFavoriteWithinVisibleOrder\(/);
-assert.match(app, /data-drag-favorite/);
-assert.match(app, /function openFavoriteNoteEditor\(/);
+assert.match(favoritesWorkspaceSource, /function moveFavoriteWithinVisibleOrder\(/);
+assert.match(favoritesWorkspaceSource, /data-drag-favorite/);
+assert.match(favoritesWorkspaceSource, /function openFavoriteNoteEditor\(/);
 assert.doesNotMatch(app, /openFavoritesCompare|favoritesCompare/);
 
 assert.match(css, /\.favorites-title-row\s*\{[\s\S]*?flex-wrap:\s*wrap;/);

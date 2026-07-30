@@ -44,7 +44,7 @@ function createHarness(layerResults) {
 
 assert.match(appShell, /if \(event\.defaultPrevented\) return;\s*if \(handleTopLayerEscape\(event\)\) return;/);
 assert.doesNotMatch(bootstrap, /addEventListener|handleTopLayerEscape/, 'bootstrap must remain a startup-only composition entry');
-assert.match(app, /function handleTopLayerEscape\(event\)/);
+assert.match(hierarchySource, /function handleTopLayerEscape\(event\)/);
 assert.match(hierarchySource, /for \(const api of featureInterfacesByEscapePriority\(\)\)/);
 assert.match(favoriteWorkspace, /event\.key === "Escape"[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeCallback\(\)/);
 assert.match(favoritesShare, /function handleFavoritesTransferKeydown\(event\)[\s\S]*?event\.key === "Escape"[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeFavoritesTransferDialog/);

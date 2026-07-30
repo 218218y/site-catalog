@@ -7,7 +7,7 @@
 - עורכים JavaScript תחת `src/js`, נקודות כניסה תחת `src/entries`, ו־CSS תחת `src/css`.
 - `app-catalog.js`, `app-favorites.js`, `app-viewer.js` וקובצי `styles-*.css` הם תוצרים אוטומטיים.
 - אין `app.js` או loader תאימות. כל מסלול טוען ES Module ייעודי באמצעות `type="module"`.
-- כל קובץ runtime הוא ES Module אמיתי. כל Route מתחיל ב־entrypoint קטן תחת `src/entries`, ו־esbuild אורז את גרף ה־imports ל־ES Module יחיד וייעודי למסלול. התוצר נטען ישירות באמצעות `type="module"`, ללא מעטפת IIFE וללא loader תאימות.
+- כל קובץ runtime הוא ES Module אמיתי. כל Route מתחיל ב־entrypoint קטן תחת `src/entries`, ו־esbuild אורז את גרף ה־imports ל־ES Module יחיד וייעודי למסלול. התוצר נטען ישירות באמצעות `type="module"`, ללא מעטפת IIFE ברמת ה־bundle וללא loader תאימות. IIFE מקומי המשמש לאתחול ערך פנימי אינו שכבת תאימות ואינו משנה את גבול המודול.
 - Feature אינו קורא state או DOM שבבעלות Feature אחר. תקשורת חוצת־Features נעשית דרך `registerFeatureInterface()` ו־`getFeatureInterface()`.
 - כל שם Feature וכל API שלו מוגדרים במפת `FeatureRegistry`; אין registry פתוח של strings ואין חוזה־על שבו כל הפעולות אופציונליות.
 - state, הפניות DOM ורישום אירועים נמצאים בבעלות תחומית מפורשת.
@@ -81,7 +81,7 @@
 - `esbuild` הוא `devDependency` ישיר ומקובע בדיוק ל־`0.28.1`; גם `package-lock.json` מקבע את חבילת הליבה ואת הבינארי הפלטפורמי. `tools/build_frontend_esbuild.mjs` מסרב לעבוד עם גרסה אחרת.
 - נקודות הכניסה הן `src/entries/catalog.js`, `src/entries/favorites.js` ו־`src/entries/viewer.js`. הן מכילות imports סטטיים בלבד ואינן מחזיקות state או לוגיקה עסקית.
 - `tools/build_frontend_assets.py` מחזיק manifest נבדק לכל Route. לאחר bundling הוא מפריד בין קובצי מקור פיזיים לבין קלטי compiler וירטואליים כגון `<define:...>`. הגרף הפיזי מושווה במדויק ל־manifest המאושר, וקלט וירטואלי שאינו ברשימת ה־defines המוכרת מכשיל את הבנייה.
-- שמות התוצרים נשמרים: `app-catalog.js`, `app-favorites.js`, `app-viewer.js`. הפורמט הוא `esm`, וה־HTML טוען אותם באמצעות `<script type="module">`; אין IIFE ואין loader היסטורי.
+- שמות התוצרים נשמרים: `app-catalog.js`, `app-favorites.js`, `app-viewer.js`. הפורמט הוא `esm`, וה־HTML טוען אותם באמצעות `<script type="module">`; אין מעטפת IIFE סביב התוצר ואין loader היסטורי. בדיקת החוזה בוחנת את המבנה החיצוני בלבד כדי לא לפסול ביטויי אתחול מקומיים תקינים.
 - route capability flags מוזרקים בזמן build דרך `01-route-capabilities.js`, אבל הם אינם תחליף ל־tree shaking: Feature שאינו במסלול חייב להיעדר פיזית מהגרף.
 - אין `dynamic import` בשלב זה. `catalog` ו־`favorites` כבר מפוצלים לפי מסלול, ולכן טעינה דינמית הייתה מוסיפה latency ומסלול כשל בלי חיסכון משמעותי. ב־Viewer היא אף מסוכנת יותר: Search, Catalog Grid ו־Favorites Workspace חייבים להיות זמינים באותו document כדי שמעבר בזמן fullscreen לא יגרום ליציאה ממסך מלא. החלטה זו נבחנת מחדש רק אם מדידה תראה חיסכון ממשי שמצדיק את המורכבות.
 - גרף ה־imports נבדק באמצעות strongly connected components. מחזור בין תחומים או בין Features אסור. המחזור היחיד המאושר הוא בתוך תת־המודולים הקוהרנטיים של Viewer, שבהם אין הפעלת lifecycle ברמת top-level; TypeScript, esbuild ובדיקות הדפדפן משמשים יחד כשער נגד TDZ או סדר אתחול שגוי.
@@ -134,6 +134,7 @@
 - לוגיקה טהורה נמצאת במודולי domain כגון `19-shared-pure.js`, `29-favorites-portability.js` ו־`39-search-catalog-domain.js`. ה־owners של ה־UI מאצילים אליהם במקום לשכפל אלגוריתם בבדיקה.
 - כאשר owner ותיק עדיין תלוי ב־DOM או ב־state, הוא רשאי לפרסם API בדיקה קטן בתוך גבול `TEST-ONLY EXPORTS`. `tests/frontend_test_module.js` טוען את קובץ המקור האמיתי ומקבל את ה־API הזה; ה־builder מסיר את הגבול כולו מכל bundle ייצור.
 - source-text tests נשארים רק לחוזים שבהם מבנה הקוד הוא המוצר הנבדק: manifest, היעדר Feature ממסלול, markup/CSS נדרש, CSP או wiring של build. הם אינם מחלצים או מבצעים לוגיקה עסקית.
+- תוצרי `app-*.js` נבדקים רק כחוזי build/route: banner, entrypoint, מודולים נדרשים או אסורים והיעדר runtime היסטורי. בדיקות מימוש אינן מחפשות פונקציות או הצהרות בתוך פלט esbuild, משום ש־`minifySyntax` רשאי לשנות `const` ל־`var`, ערכי boolean ל־`!0` וצורות שקולות נוספות.
 - seams בין Features נבדקים דרך ports מחייבים. לדוגמה, `Search` אינו רשאי לדווח הצלחה כאשר `Catalog Grid` או `Viewer` חסרים; אינטגרציה נדרשת נפתרת באמצעות `requireFeatureInterface()` ונכשלת בקול ברור.
 - `tools/check_frontend_contracts.py` דוחה חזרה ל־dynamic source execution ומוודא ש־test-only exports אינם מגיעים ל־`app-catalog.js`, `app-favorites.js` או `app-viewer.js`.
 

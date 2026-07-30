@@ -23,13 +23,38 @@ const telemetrySource = fs.readFileSync(path.join(root, 'src', 'js', '15-telemet
 
 const sourceMarker = (relativePath) => ` *   - ${relativePath}`;
 
+function stripLeadingJavaScriptComments(source) {
+  let remaining = source.replace(/^\uFEFF/, '').trimStart();
+  for (;;) {
+    if (remaining.startsWith('/*')) {
+      const end = remaining.indexOf('*/', 2);
+      if (end < 0) return remaining;
+      remaining = remaining.slice(end + 2).trimStart();
+      continue;
+    }
+    if (remaining.startsWith('//')) {
+      const newline = remaining.indexOf('\n', 2);
+      if (newline < 0) return '';
+      remaining = remaining.slice(newline + 1).trimStart();
+      continue;
+    }
+    return remaining;
+  }
+}
+
+function hasLegacyTopLevelIifeWrapper(source) {
+  const body = stripLeadingJavaScriptComments(source);
+  const beginsWithWrapper = /^(?:\(\(\)\s*=>\s*\{|\(function(?:\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\(\)\s*\{)/.test(body);
+  return beginsWithWrapper && /\}\)\(\);?\s*$/.test(body);
+}
+
 for (const bundle of [catalogBundle, favoritesBundle, viewerBundle]) {
   assert.match(bundle, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
   assert.match(bundle, /Bundler: esbuild 0\.28\.1 \(direct pinned devDependency\)/);
   assert.match(bundle, /Output format: native browser ES module/);
-  assert.equal((bundle.match(/let initResult = true;/g) || []).length, 1);
-  assert.equal((bundle.match(/initResult = init\(\);/g) || []).length, 1);
-  assert.doesNotMatch(bundle, /\(\(\) => \{/);
+  assert.equal((bundle.match(/\binitResult\s*=\s*(?:true|!0)\s*;/g) || []).length, 1);
+  assert.equal((bundle.match(/\binitResult\s*=\s*init\(\)\s*;/g) || []).length, 1);
+  assert.equal(hasLegacyTopLevelIifeWrapper(bundle), false);
   assert.doesNotMatch(bundle, /__BARGIG_TEST_EXPORTS__/);
 }
 for (const css of [catalogCss, favoritesCss, viewerCss]) {
@@ -116,6 +141,8 @@ assert.match(contractChecker, /unapproved ES-module dependency cycle/);
 assert.match(contractChecker, /Viewer implementation reaches into search internals/);
 assert.match(contractChecker, /Search implementation reaches into Viewer internals/);
 assert.match(contractChecker, /obsolete compatibility loader remains/);
+assert.match(contractChecker, /_has_legacy_top_level_iife_wrapper/);
+assert.doesNotMatch(contractChecker, /if \"\(\(\) => \\{\" in text/);
 assert.match(contractChecker, /native ES module depends on document\.currentScript/);
 assert.doesNotMatch(telemetrySource, /document\.currentScript/);
 assert.match(telemetrySource, /script\[type=module\]\[data-bargig-route-module\]/);

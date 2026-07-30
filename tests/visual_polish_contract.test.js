@@ -12,6 +12,14 @@ const catalogCssSource = fs.readFileSync(path.join(root, 'src/css/10-catalog.css
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const favorites = fs.readFileSync(path.join(root, 'favorites.html'), 'utf8');
+const viewerStateSource = fs.readFileSync(path.join(root, 'src/js/16-viewer-state.js'), 'utf8');
+const sharedUiSource = fs.readFileSync(path.join(root, 'src/js/20-shared-ui.js'), 'utf8');
+const favoritesShareSource = fs.readFileSync(path.join(root, 'src/js/30-favorites-share.js'), 'utf8');
+const searchUiSource = fs.readFileSync(path.join(root, 'src/js/50-search-ui.js'), 'utf8');
+const viewerImageSource = fs.readFileSync(path.join(root, 'src/js/53-viewer-image.js'), 'utf8');
+const viewerGeometrySource = fs.readFileSync(path.join(root, 'src/js/54-viewer-geometry.js'), 'utf8');
+const viewerShellSource = fs.readFileSync(path.join(root, 'src/js/56-viewer-shell.js'), 'utf8');
+const viewerSource = fs.readFileSync(path.join(root, 'src/js/60-viewer.js'), 'utf8');
 
 for (const html of [template, viewer]) {
   assert.match(html, /class="skip-link" href="#main-content"/);
@@ -24,21 +32,21 @@ for (const html of [template, favorites]) {
   assert.match(html, /id="favoritesEmpty"[\s\S]*?empty-state-icon[\s\S]*?לצפייה בקטלוגים/);
 }
 
-assert.match(app, /function singleImageFitLayout\(/);
-assert.match(app, /function applyLightboxFrameGeometry\(/);
-assert.match(app, /applyLightboxFrameGeometry\(image\.naturalWidth, image\.naturalHeight/);
-assert.match(app, /loadCatalogImageWithRecovery\(image, \{/);
-assert.match(app, /function initImagePlaceholderObserver\(/);
-assert.match(app, /new MutationObserver/);
-assert.match(app, /showFavoritePersistenceFeedback/);
-assert.match(app, /נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן/);
-assert.match(app, /הוסר מהמועדפים/);
-assert.match(app, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
-assert.match(app, /aria-valuetext/);
-assert.match(app, /viewerPageIndicatorCurrent\.textContent/);
-assert.match(app, /function searchEmptyStateMarkup\(/);
-assert.match(app, /data-empty-search-clear/);
-assert.match(app, /data-lightbox-empty-search-clear/);
+assert.match(viewerGeometrySource, /function singleImageFitLayout\(/);
+assert.match(viewerGeometrySource, /function applyLightboxFrameGeometry\(/);
+assert.match(viewerImageSource, /applyLightboxFrameGeometry\(image\.naturalWidth, image\.naturalHeight/);
+assert.match(viewerImageSource, /loadCatalogImageWithRecovery\(image, \{/);
+assert.match(sharedUiSource, /function initImagePlaceholderObserver\(/);
+assert.match(sharedUiSource, /new MutationObserver/);
+assert.match(favoritesShareSource, /showFavoritePersistenceFeedback/);
+assert.match(favoritesShareSource, /נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן/);
+assert.match(favoritesShareSource, /הוסר מהמועדפים/);
+assert.match(favoritesShareSource, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
+assert.match(viewerShellSource, /aria-valuetext/);
+assert.match(viewerShellSource, /viewerPageIndicatorCurrent\.textContent/);
+assert.match(searchUiSource, /function searchEmptyStateMarkup\(/);
+assert.match(searchUiSource, /data-empty-search-clear/);
+assert.match(searchUiSource, /data-lightbox-empty-search-clear/);
 
 assert.match(css, /--radius-card:\s*22px/);
 assert.match(css, /--brand:\s*#8f6d55/);
@@ -74,11 +82,11 @@ assert.match(css, /\.favorite-image-frame\s*\{[\s\S]*?position:\s*relative/);
 assert.match(css, /\.viewer-page-indicator\.visible\s*\{[\s\S]*?opacity:\s*1/);
 assert.match(css, /\.viewer-page-indicator\s*\{[\s\S]*?font-family:\s*Tahoma, "Segoe UI", Arial, sans-serif;[\s\S]*?align-items:\s*center;/);
 assert.match(css, /\.viewer-page-indicator > span,[\s\S]*?\.viewer-page-indicator > strong\s*\{[\s\S]*?display:\s*inline-grid;[\s\S]*?place-items:\s*center;[\s\S]*?line-height:\s*1;/);
-assert.match(app, /const VIEWER_PAGE_INDICATOR_HIDE_MS\s*=\s*1000/);
-assert.match(app, /function showViewerPageIndicatorTemporarily\(/);
-assert.match(app, /function hideViewerPageIndicator\(/);
-assert.match(app, /showViewerPageIndicatorTemporarily\(\)/);
-assert.match(app, /hideViewerPageIndicator\(\)/);
+assert.match(viewerStateSource, /const VIEWER_PAGE_INDICATOR_HIDE_MS\s*=\s*1000/);
+assert.match(viewerShellSource, /function showViewerPageIndicatorTemporarily\(/);
+assert.match(viewerShellSource, /function hideViewerPageIndicator\(/);
+assert.match(viewerShellSource, /showViewerPageIndicatorTemporarily\(\)/);
+assert.match(viewerSource, /hideViewerPageIndicator\(\)/);
 assert.match(css, /\.catalog-progress\s*\{[\s\S]*?height:\s*5px/);
 assert.match(css, /\.site-action-toast\[data-tone="removed"\]::before/);
 assert.match(css, /\.site-action-toast\[data-tone="warning"\]::before/);

@@ -7,6 +7,7 @@ const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
 const app = readAllBundles();
+const appState = fs.readFileSync(path.join(root, 'src/js/10-app-state.js'), 'utf8');
 const sharedUi = fs.readFileSync(path.join(root, 'src/js/20-shared-ui.js'), 'utf8');
 const viewerImage = fs.readFileSync(path.join(root, 'src/js/53-viewer-image.js'), 'utf8');
 const viewerNavigation = fs.readFileSync(path.join(root, 'src/js/58-viewer-navigation.js'), 'utf8');
@@ -37,14 +38,14 @@ const retry = sourceBetween(
   'function getViewerNavigationPosition()'
 );
 
-assert.match(app, /const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";/);
-assert.match(app, /function catalogImageRecoveryCandidates\(/);
+assert.match(appState, /const CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";/);
+assert.match(sharedUi, /function catalogImageRecoveryCandidates\(/);
 assert.match(recovery, /setCatalogImageSource\(img, candidate\.src\);/);
 assert.match(recovery, /onExhausted/);
 assert.match(recovery, /telemetryTrackImageAttemptFailure/);
 assert.match(recovery, /telemetryTrackImageRecovery/);
 assert.match(recovery, /telemetryTrackImageTerminalFailure/);
-assert.match(app, /fallback: role\.startsWith\("fallback"\)/);
+assert.match(sharedUi, /fallback: role\.startsWith\("fallback"\)/);
 assert.match(single, /fallbackCandidates: request\.fallbackCandidates/);
 assert.match(single, /image\.dataset\.loadedTier/);
 assert.match(single, /telemetryDetail: "viewer-single"/);
@@ -65,9 +66,9 @@ assert.match(css, /\.viewer-image-feedback\s*\{/);
 assert.doesNotMatch(css, /\.viewer-scroll-image-feedback\s*\{/);
 assert.match(css, /\.lightbox-image-frame\.image-terminal-error/);
 assert.match(css, /\.lightbox\.is-page-loading \.lightbox-image-frame\s*\{[\s\S]*?brightness\(\.97\)/);
-assert.match(app, /function prepareSingleViewerResolutionUpgrade\(/);
-assert.match(app, /telemetryDetail: "viewer-resolution-upgrade"/);
-assert.match(app, /activeSingleViewerImageLogicalSrc\(\)/);
+assert.match(viewerImage, /function prepareSingleViewerResolutionUpgrade\(/);
+assert.match(viewerImage, /telemetryDetail: "viewer-resolution-upgrade"/);
+assert.match(viewerImage, /activeSingleViewerImageLogicalSrc\(\)/);
 assert.match(css, /\.lightbox-image-frame > \.lightbox-image:not\(\.lightbox-image-resolution\)\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?display:\s*block;[\s\S]*?width:\s*100%;[\s\S]*?height:\s*100%;/);
 assert.match(css, /\.image-placeholder-frame:not\(\.lightbox-image-frame\) > img:not\(\[data-placeholder-ignore=\"true\"\]\)\s*\{[\s\S]*?position:\s*relative;/);
 assert.match(css, /\.lightbox-image-frame \.lightbox-image-resolution/);

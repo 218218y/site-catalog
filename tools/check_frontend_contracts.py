@@ -302,6 +302,19 @@ def check_test_strategy(base: Path, failures: list[str]) -> None:
                 f"{relative} imports JavaScript reconstructed from source text; import the module file directly"
             )
 
+        bundle_variables = re.findall(
+            r"\b(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*readAllBundles\(\s*\)",
+            text,
+        )
+        for variable in bundle_variables:
+            if re.search(rf"\bassert\.match\(\s*{re.escape(variable)}\s*,", text) or re.search(
+                rf"\b{re.escape(variable)}\.match\s*\(", text
+            ):
+                failures.append(
+                    f"{relative} asserts implementation syntax against generated bundles; "
+                    "inspect the owning source module or import its runtime test API"
+                )
+
     required_behavior_tests = (
         "tests/search_catalog_domain_logic.test.js",
         "tests/search_catalog_viewer_integration.test.js",
@@ -342,6 +355,7 @@ def check_test_only_exports(base: Path, sources: list[Path], failures: list[str]
         if "__BARGIG_TEST_EXPORTS__" in text or "TEST-ONLY EXPORTS" in text:
             failures.append(f"{output} ships test-only source exports")
 
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -352,6 +366,49 @@ def declared_properties(root: Path, owner: str, relative_path: str) -> set[str]:
     if not match:
         raise RuntimeError(f"Could not find declared object for {owner} in {relative_path}")
     return set(DECLARED_PROPERTY_RE.findall(match.group("body")))
+
+
+def _strip_leading_javascript_comments(source: str) -> str:
+    """Return JavaScript after removing only leading whitespace/comments.
+
+    The generated bundle starts with a build banner and may contain additional
+    esbuild source comments. Removing only the leading trivia lets the contract
+    inspect the actual outermost construct without treating a nested initializer
+    as a bundle wrapper.
+    """
+
+    remaining = source.lstrip("\ufeff \t\r\n")
+    while True:
+        if remaining.startswith("/*"):
+            end = remaining.find("*/", 2)
+            if end < 0:
+                return remaining
+            remaining = remaining[end + 2:].lstrip()
+            continue
+        if remaining.startswith("//"):
+            newline = remaining.find("\n", 2)
+            if newline < 0:
+                return ""
+            remaining = remaining[newline + 1:].lstrip()
+            continue
+        return remaining
+
+
+def _has_legacy_top_level_iife_wrapper(source: str) -> bool:
+    """Detect the obsolete whole-bundle IIFE, not nested local IIFEs.
+
+    Native ES-module bundles may legitimately contain a local IIFE used to
+    initialize one value. The historical compatibility output wrapped the
+    entire generated file, so the wrapper must be the first non-comment token
+    and its invocation must close the file.
+    """
+
+    body = _strip_leading_javascript_comments(source)
+    arrow_wrapper = re.match(r"^\(\(\)\s*=>\s*\{", body)
+    function_wrapper = re.match(r"^\(function(?:\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\(\)\s*\{", body)
+    if not (arrow_wrapper or function_wrapper):
+        return False
+    return re.search(r"\}\)\(\);?\s*$", body) is not None
 
 
 def check_frontend_contracts(root: Path | None = None) -> None:
@@ -495,8 +552,8 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         text = path.read_text(encoding="utf-8")
         if "Output format: native browser ES module" not in text:
             failures.append(f"{output} is not marked as a native browser ES module")
-        if "(() => {" in text:
-            failures.append(f"{output} still contains an IIFE compatibility wrapper")
+        if _has_legacy_top_level_iife_wrapper(text):
+            failures.append(f"{output} still contains a top-level IIFE compatibility wrapper")
         for source in expectation["required"]:
             if f" *   - {source}" not in text:
                 failures.append(f"{output} is missing required feature source {source}")

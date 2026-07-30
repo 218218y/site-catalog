@@ -10,6 +10,7 @@ const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const app = readAllBundles();
 const css = readAllCssBundles();
+const searchUiSource = fs.readFileSync(path.join(root, 'src/js/50-search-ui.js'), 'utf8');
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxSearchResults"/);
@@ -28,9 +29,9 @@ assert.doesNotMatch(
   'viewer shell cleanup must not hide the shared search preview overlay'
 );
 
-assert.match(app, /bindSearchFloatingPreviewEvents\(searchElements\.lightboxSearchResults\)/);
-assert.match(app, /searchElements\.lightboxSearchResults\?\.addEventListener\("wheel", handleSearchPreviewScrollIntent/);
-assert.match(app, /searchElements\.lightboxSearchResults\?\.addEventListener\("scroll", \(\) => suppressSearchFloatingPreview\(\)/);
-assert.match(app, /function restoreSearchFloatingPreviewAfterSuppression\(\)/);
+assert.match(searchUiSource, /bindSearchFloatingPreviewEvents\(searchElements\.lightboxSearchResults\)/);
+assert.match(searchUiSource, /searchElements\.lightboxSearchResults\?\.addEventListener\("wheel", handleSearchPreviewScrollIntent/);
+assert.match(searchUiSource, /searchElements\.lightboxSearchResults\?\.addEventListener\("scroll", \(\) => suppressSearchFloatingPreview\(\)/);
+assert.match(searchUiSource, /function restoreSearchFloatingPreviewAfterSuppression\(\)/);
 
 console.log('viewer_search_preview_contract.test.js: PASS');
