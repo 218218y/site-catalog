@@ -61,7 +61,7 @@ VIEWER_CSS_MODULES: tuple[str, ...] = (
 
 CATALOG_JS_INPUTS: tuple[str, ...] = (
     "src/entries/catalog.js", "src/js/00-navigation.js", "src/js/01-route-capabilities.js",
-    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
+    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/06-catalog-page-numbering.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
     "src/js/13-search-state.js", "src/js/14-favorites-state.js", "src/js/15-telemetry.js",
     "src/js/17-catalog-asset-urls.js", "src/js/18-navigation-feature.js", "src/js/20-shared-ui.js",
     "src/js/29-favorites-portability.js", "src/js/30-favorites-share.js",
@@ -70,7 +70,7 @@ CATALOG_JS_INPUTS: tuple[str, ...] = (
 )
 FAVORITES_JS_INPUTS: tuple[str, ...] = (
     "src/entries/favorites.js", "src/js/00-navigation.js", "src/js/01-route-capabilities.js",
-    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
+    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/06-catalog-page-numbering.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
     "src/js/13-search-state.js", "src/js/14-favorites-state.js", "src/js/15-telemetry.js",
     "src/js/17-catalog-asset-urls.js", "src/js/18-navigation-feature.js", "src/js/19-shared-pure.js", "src/js/20-shared-ui.js",
     "src/js/29-favorites-portability.js", "src/js/30-favorites-share.js",
@@ -80,7 +80,7 @@ FAVORITES_JS_INPUTS: tuple[str, ...] = (
 )
 VIEWER_JS_INPUTS: tuple[str, ...] = (
     "src/entries/viewer.js", "src/js/00-navigation.js", "src/js/01-route-capabilities.js",
-    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
+    "src/js/02-dom-contracts.js", "src/js/03-runtime-context.js", "src/js/06-catalog-page-numbering.js", "src/js/10-app-state.js", "src/js/11-navigation-state.js", "src/js/12-catalog-state.js",
     "src/js/13-search-state.js", "src/js/14-favorites-state.js", "src/js/15-telemetry.js",
     "src/js/16-viewer-state.js", "src/js/17-catalog-asset-urls.js", "src/js/18-navigation-feature.js", "src/js/19-shared-pure.js",
     "src/js/20-shared-ui.js", "src/js/29-favorites-portability.js",

@@ -7,6 +7,7 @@
  */
 
 import { featureCapabilities } from "./01-route-capabilities.js";
+import { catalogLastPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { catalogSearch, catalogs, siteRoutes } from "./03-runtime-context.js";
@@ -149,7 +150,9 @@ function favoritesDocumentUrl() {
 
 /** @param {string} catalogId @param {number} [page] @param {Record<string, unknown>} [options] */
 function viewerDocumentUrl(catalogId, page = 1, options = {}) {
-  return siteRoutes?.viewerUrl?.(catalogId, page, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${Math.max(1, Number.parseInt(String(page), 10) || 1)}/`;
+  const parsedPage = Number.parseInt(String(page), 10);
+  const routePage = Number.isFinite(parsedPage) && parsedPage >= 0 ? parsedPage : 1;
+  return siteRoutes?.viewerUrl?.(catalogId, routePage, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${routePage}/`;
 }
 
 /** @param {string} categorySlugValue @param {string} [subcategorySlugValue] */
@@ -183,7 +186,7 @@ function currentDocumentMetadata(catalog = navigationState?.catalog || null) {
   if (isAppPage("viewer") && catalog) {
     return {
       title: `${catalog.title} — עמוד ${navigationState.page} | ${brand}`,
-      description: `צפייה בעמוד ${navigationState.page} מתוך ${catalog.pages} בקטלוג ${catalog.title}.`,
+      description: `צפייה בעמוד ${navigationState.page} מתוך ${catalogLastPage(catalog)} בקטלוג ${catalog.title}.`,
       url: absoluteDocumentUrl(viewerDocumentUrl(catalog.id, navigationState.page)),
       image: pageSrc(catalog, navigationState.page),
       imageAlt: `${catalog.title} — עמוד ${navigationState.page}`

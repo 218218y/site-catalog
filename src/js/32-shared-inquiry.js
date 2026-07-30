@@ -11,6 +11,7 @@ import { $requiredAnchor, $requiredButton, $requiredImage, requiredElement } fro
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { telemetryTrack } from "./15-telemetry.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
+import { catalogLastPage } from "./06-catalog-page-numbering.js";
 import { buildViewerInquiryMailtoUrl } from "./19-shared-pure.js";
 import { clampPage, focusHtmlElement, isHtmlElement, pageSrc, showActionToast, syncDocumentLock, thumbSrc } from "./20-shared-ui.js";
 import { copyTextToClipboard } from "./30-favorites-share.js";
@@ -59,7 +60,7 @@ function viewerPageInquiryReference() {
   const page = clampPage(activePage(), catalog);
   const url = absoluteDocumentUrl(viewerDocumentUrl(catalog.id, page));
   const title = String(catalog.title || "קטלוג").trim() || "קטלוג";
-  const pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(catalog.pages) || 1)}`;
+  const pageLabel = `עמוד ${page} מתוך ${catalogLastPage(catalog)}`;
   const subject = `בירור על דגם – ${title}, עמוד ${page}`;
   const shareText = [
     "שלום,",
@@ -121,7 +122,7 @@ function viewerInquiryTelemetryFields(reference, action, detail = "") {
     detail,
     source: telemetry.source || reference?.source || "viewer-inquiry",
     catalogId: telemetry.catalogId || reference?.catalog?.id || "",
-    pageNumber: telemetry.pageNumber || reference?.page || 0,
+    pageNumber: telemetry.pageNumber ?? reference?.page ?? 0,
     value: telemetry.value || reference?.count || 0
   };
 }
@@ -146,7 +147,7 @@ function syncViewerInquiryContactLink(link, href, reference, action) {
   link.dataset.contactAction = action;
   if (telemetry.catalogId) link.dataset.contactCatalogId = telemetry.catalogId;
   else delete link.dataset.contactCatalogId;
-  if (telemetry.pageNumber) link.dataset.contactPage = String(telemetry.pageNumber);
+  if (Number.isFinite(Number(telemetry.pageNumber))) link.dataset.contactPage = String(telemetry.pageNumber);
   else delete link.dataset.contactPage;
 }
 
@@ -167,7 +168,8 @@ function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   }
 
   const previewCatalog = reference.previewCatalog || reference.catalog;
-  const previewPage = Number(reference.previewPage || reference.page) || 1;
+  const rawPreviewPage = reference.previewPage ?? reference.page;
+  const previewPage = Number.isFinite(Number(rawPreviewPage)) ? Number(rawPreviewPage) : 1;
   if (inquiryElements.viewerInquiryPreview && previewCatalog) {
     const preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
     if (inquiryElements.viewerInquiryPreview.getAttribute("src") !== preview) {

@@ -11,6 +11,7 @@ import { catalogs } from "./03-runtime-context.js";
 import { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_EAGER_COVER_COUNT, CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY, CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE, CATALOG_IMAGE_PRELOAD_CACHE_LIMIT, CATALOG_IMAGE_RETRY_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, DEFAULT_CATALOG_MEDIUM_MAX_SIDE, catalogAssetState, featureInterfacesByEscapePriority, getFeatureInterface, uiRuntime } from "./10-app-state.js";
 import { telemetryCatalogImageContext, telemetryCleanText, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure } from "./15-telemetry.js";
 import { activeCatalog } from "./18-navigation-feature.js";
+import { catalogFirstPage, clampCatalogPage, displayPageToAssetPage, isCatalogPage } from "./06-catalog-page-numbering.js";
 import { catalogDir, coverThumbSrc, imageExt, pageSrc, resolveCatalogAssetUrl, thumbSrc, withAssetVersion } from "./17-catalog-asset-urls.js";
 
 /** @type {Readonly<{siteActionToast:HTMLElement}>} */
@@ -524,7 +525,7 @@ function catalogImageVariant(catalog, tier) {
   }
   if (tier === CATALOG_IMAGE_TIER_THUMB) return { directory: "thumbs", maxSide: 420 };
   if (tier === CATALOG_IMAGE_TIER_FULL) {
-    const size = pageSize(catalog, 1);
+    const size = pageSize(catalog, catalogFirstPage(catalog));
     return { directory: "", maxSide: size ? Math.max(size.width, size.height) : 2800 };
   }
   return null;
@@ -548,7 +549,7 @@ function mediumSrc(catalog, page) {
   if (!variant) return "";
   const directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
   return withAssetVersion(
-    `${catalogDir(catalog)}/${directory}/page-${pad(page)}.${imageExt(catalog)}`,
+    `${catalogDir(catalog)}/${directory}/page-${pad(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
     catalog,
     CATALOG_IMAGE_TIER_MEDIUM
   );
@@ -563,14 +564,14 @@ function catalogPageImageSrc(catalog, page, tier) {
 
 /** @param {CatalogRecord} catalog */
 function catalogCoverSrc(catalog) {
-  return catalog?.cover ? withAssetVersion(resolveCatalogAssetUrl(catalog.cover), catalog) : pageSrc(catalog, 1);
+  return catalog?.cover ? withAssetVersion(resolveCatalogAssetUrl(catalog.cover), catalog) : pageSrc(catalog, catalogFirstPage(catalog));
 }
 
 /** @param {CatalogRecord|null|undefined} catalog @param {number|string} page */
 function pageSize(catalog, page) {
   const sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [];
-  const pageNumber = Number.parseInt(String(page), 10);
-  const size = sizes[pageNumber - 1];
+  const assetPage = displayPageToAssetPage(catalog, page);
+  const size = sizes[assetPage - 1];
   if (!Array.isArray(size) || size.length < 2) return null;
   const width = Number(size[0]);
   const height = Number(size[1]);
@@ -644,10 +645,10 @@ function applyLoadedPageAspect(img) {
 
   const page = Number.parseInt(frame.dataset.page || "", 10);
   const catalog = activeCatalog();
-  if (!catalog || !Number.isFinite(page) || page < 1) return;
+  if (!catalog || !isCatalogPage(catalog, page)) return;
 
   if (!Array.isArray(catalog.pageSizes)) catalog.pageSizes = [];
-  catalog.pageSizes[page - 1] = [width, height];
+  catalog.pageSizes[displayPageToAssetPage(catalog, page) - 1] = [width, height];
 
 }
 
@@ -665,10 +666,7 @@ function watchLoadedPageAspect(img) {
 
 /** @param {unknown} page @param {CatalogRecord|null} [catalog] */
 function clampPage(page, catalog = activeCatalog()) {
-  const parsed = Number.parseInt(String(page), 10);
-  if (!Number.isFinite(parsed)) return 1;
-  const maxPage = Math.max(1, Number(catalog?.pages || 1));
-  return Math.min(Math.max(parsed, 1), maxPage);
+  return clampCatalogPage(page, catalog);
 }
 
 /** @param {Element|null|undefined} button */

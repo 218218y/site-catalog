@@ -8,6 +8,7 @@
 
 import { canReturnToSameSite, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
+import { isCatalogPage } from "./06-catalog-page-numbering.js";
 import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { FAVORITES_SHARE_PARAM, FAVORITES_SHARE_VERSION, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
@@ -31,8 +32,7 @@ function getFavoriteEntries() {
   return favoritesStore.read().flatMap((item) => {
     const catalog = findCatalogById(item.catalogId);
     const page = Number.parseInt(String(item.page), 10);
-    const maxPage = Number.parseInt(String(catalog?.pages || 0), 10);
-    if (!catalog || !Number.isFinite(page) || page < 1 || !Number.isFinite(maxPage) || page > maxPage) return [];
+    if (!catalog || !isCatalogPage(catalog, page)) return [];
     return [{ ...item, catalog, page }];
   });
 }

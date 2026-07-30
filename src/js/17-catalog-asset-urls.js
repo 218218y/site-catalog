@@ -3,6 +3,7 @@
  * Pure catalog asset URL construction shared by metadata and media owners.
  */
 
+import { displayPageToAssetPage, catalogFirstPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_THUMB } from "./10-app-state.js";
 
 function catalogAssetBaseUrl() {
@@ -65,7 +66,7 @@ function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
 /** @param {CatalogRecord} catalog @param {number|string} page */
 function pageSrc(catalog, page) {
   return withAssetVersion(
-    `${catalogDir(catalog)}/page-${padCatalogPage(page)}.${imageExt(catalog)}`,
+    `${catalogDir(catalog)}/page-${padCatalogPage(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
     catalog,
     CATALOG_IMAGE_TIER_FULL
   );
@@ -74,7 +75,7 @@ function pageSrc(catalog, page) {
 /** @param {CatalogRecord} catalog @param {number|string} page */
 function thumbSrc(catalog, page) {
   return withAssetVersion(
-    `${catalogDir(catalog)}/thumbs/page-${padCatalogPage(page)}.${imageExt(catalog)}`,
+    `${catalogDir(catalog)}/thumbs/page-${padCatalogPage(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
     catalog,
     CATALOG_IMAGE_TIER_THUMB
   );
@@ -82,7 +83,7 @@ function thumbSrc(catalog, page) {
 
 /** @param {CatalogRecord} catalog */
 function coverThumbSrc(catalog) {
-  return thumbSrc(catalog, 1);
+  return thumbSrc(catalog, catalogFirstPage(catalog));
 }
 
 export { catalogDir, coverThumbSrc, imageExt, pageSrc, resolveCatalogAssetUrl, thumbSrc, withAssetVersion };

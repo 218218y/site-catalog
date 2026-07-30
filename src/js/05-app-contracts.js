@@ -12,6 +12,7 @@
  * @property {string} [subcategory]
  * @property {string|string[]} [subCategory]
  * @property {number} pages
+ * @property {0|1} [pageNumberStart]
  * @property {string} [dir]
  * @property {string} [format]
  * @property {string} [thumbDir]

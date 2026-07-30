@@ -8,6 +8,7 @@
 
 import { canReturnToSameSite, catalogDocumentUrl, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
+import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { telemetryTrackCatalogOpen } from "./15-telemetry.js";
@@ -69,12 +70,12 @@ function updateLightbox(options = {}) {
     viewerElements.prevPageBtn.disabled = favoriteViewerIndex <= 0;
     viewerElements.nextPageBtn.disabled = favoriteViewerIndex >= total - 1;
   } else {
-    viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalog.pages}`;
-    syncLightboxProgress(activePage(), catalog.pages, `עמוד ${activePage()} מתוך ${catalog.pages}`, {
+    viewerElements.lightboxMeta.textContent = `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`;
+    syncLightboxProgress(activePage() - catalogFirstPage(catalog) + 1, catalog.pages, `עמוד ${activePage()} מתוך ${catalogLastPage(catalog)}`, {
       label: "עמוד"
     });
-    viewerElements.prevPageBtn.disabled = activePage() <= 1;
-    viewerElements.nextPageBtn.disabled = activePage() >= catalog.pages;
+    viewerElements.prevPageBtn.disabled = activePage() <= catalogFirstPage(catalog);
+    viewerElements.nextPageBtn.disabled = activePage() >= catalogLastPage(catalog);
   }
 
   favorites?.syncViewerButton();
@@ -101,7 +102,7 @@ function updateLightbox(options = {}) {
 }
 
 /** @param {number} [page] @param {ViewerOpenOptions} [options] */
-function openLightbox(page = 1, options = {}) {
+function openLightbox(page = undefined, options = {}) {
   const catalog = activeCatalog();
   if (!catalog) return;
   const source = options.source === LIGHTBOX_SOURCE_FAVORITES
@@ -332,7 +333,7 @@ function moveLightbox(delta, options = {}) {
 }
 
 /** @param {string} id @param {number} [page] @param {ViewerOpenOptions} [options] */
-function openCatalogInViewer(id, page = 1, options = {}) {
+function openCatalogInViewer(id, page = undefined, options = {}) {
   const catalog = catalogs.find((item) => item.id === id) || null;
   if (!catalog) return;
   const source = options.source === LIGHTBOX_SOURCE_FAVORITES
@@ -454,14 +455,14 @@ function handleViewerGlobalKeydown(event) {
     moveLightbox(1);
   } else if (event.key === "Home") {
     if (isFavoritesLightboxMode()) setFavoriteViewerIndex(0);
-    else setLightboxPage(1);
+    else setLightboxPage(catalogFirstPage(activeCatalog()));
   } else if (event.key === "End") {
     const catalog = activeCatalog();
     if (!catalog) return false;
     if (isFavoritesLightboxMode()) {
       setFavoriteViewerIndex((getFeatureInterface("favorites")?.entries().length || 0) - 1);
     }
-    else setLightboxPage(catalog.pages);
+    else setLightboxPage(catalogLastPage(catalog));
   } else {
     return false;
   }
@@ -487,7 +488,7 @@ registerFeatureInterface("viewer", {
   handleResize: handleViewerResize,
   handleGlobalKeydown: handleViewerGlobalKeydown,
   prepareRoute: prepareViewerRoute,
-  openCatalog: (catalogId, page = 1, options = {}) => openCatalogInViewer(catalogId, page, options),
+  openCatalog: (catalogId, page = undefined, options = {}) => openCatalogInViewer(catalogId, page, options),
   close: (options = {}) => closeLightbox(options),
   refresh: (options = {}) => updateLightbox(options),
   renderPageRail: renderLightboxPageRail,

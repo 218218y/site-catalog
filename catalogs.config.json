@@ -6,7 +6,8 @@
     "category": "ארונות פתיחה",
     "subcategory": "",
     "pdf": "assets/pdfs/opening-tbi-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 0
   },
   {
     "id": "opening-fredi-2026",
@@ -24,7 +25,8 @@
     "category": "ארונות הזזה",
     "subcategory": "",
     "pdf": "assets/pdfs/sliding-tbi-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 0
   },
   {
     "id": "kids-tbi-2026",
@@ -33,7 +35,8 @@
     "category": "חדרי ילדים",
     "subcategory": "חדרי ילדים קומפלט",
     "pdf": "assets/pdfs/kids-tbi-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 0
   },
   {
     "id": "kids-fredi-2026",
@@ -114,7 +117,8 @@
     "category": "חדרי שינה",
     "subcategory": "חדרי שינה",
     "pdf": "assets/pdfs/bedrooms-tbi-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 0
   },
   {
     "id": "bedrooms-guber-gallery",
@@ -132,7 +136,8 @@
     "category": "ספריות קודש",
     "subcategory": "",
     "pdf": "assets/pdfs/libraries-tbi-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 0
   },
   {
     "id": "libraries-fredi-2026",

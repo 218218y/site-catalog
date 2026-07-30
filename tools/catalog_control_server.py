@@ -72,6 +72,7 @@ from catalog_compiler import (
 )
 
 from catalog_conversion_profiles import conversion_profile_command
+from catalog_page_numbering import page_number_start
 
 from catalog_control_api import (
     API_VERSION,
@@ -477,7 +478,15 @@ def build_catalog_rename_map(config: list[dict[str, Any]]) -> dict[str, str]:
 
 
 def config_for_file(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [strip_control_panel_fields(item) for item in config]
+    rows: list[dict[str, Any]] = []
+    for item in config:
+        row = strip_control_panel_fields(item)
+        if page_number_start(row) == 1:
+            row.pop("pageNumberStart", None)
+        else:
+            row["pageNumberStart"] = 0
+        rows.append(row)
+    return rows
 
 
 def apply_pages_dir_renames(
@@ -649,6 +658,7 @@ def normalize_catalog_for_ui(item: dict[str, Any]) -> dict[str, Any]:
     row = dict(item)
     row["originalId"] = str(row.get("id", ""))
     row["ocr"] = catalog_ocr_enabled(row)
+    row["pageNumberStart"] = page_number_start(row)
     row["status"] = catalog_output_status(str(row.get("id", "")))
     return row
 
@@ -1241,6 +1251,7 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
         row["subcategory"] = group_value(row.get("subcategory", row.get("subCategory", "")))
         row["pdf"] = normalized_pdf
         row["ocr"] = catalog_ocr_enabled(row)
+        row["pageNumberStart"] = page_number_start(row)
         row.pop("shareSlug", None)
         row.pop("status", None)
         seen.add(catalog_id)

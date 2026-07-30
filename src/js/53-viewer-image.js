@@ -3,6 +3,7 @@
  * Viewer-only image swaps, resolution selection, and progressive upgrade lifecycle.
  */
 
+import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, getFeatureInterface } from "./10-app-state.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_PAGE_SWAP_CLEANUP_MS, viewerElements, viewerState } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
@@ -523,7 +524,7 @@ function preloadNeighbors() {
       ? activePage() - (radius - index)
       : activePage() + (index - radius + 1)
   ))
-    .filter((page) => page >= 1 && page <= catalog.pages)
+    .filter((page) => page >= catalogFirstPage(catalog) && page <= catalogLastPage(catalog))
     .forEach((page) => {
       prepareCatalogImage(viewerPageSrc(catalog, page, requestOptions), { priority: "low" }).catch(() => {});
     });

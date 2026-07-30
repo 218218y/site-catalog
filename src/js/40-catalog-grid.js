@@ -13,6 +13,7 @@ import { catalogElements, catalogState } from "./12-catalog-state.js";
 import { activeCatalog, activeViewerSource, setActiveLocation } from "./18-navigation-feature.js";
 import { applyCatalogImageDimensions, buildCategoryShareRouteHash, catalogCategorySharePath, catalogCoverLoadingAttributes, catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, catalogSubcategorySharePath, categorySectionId, categoryShareSlug, clampValue, coverThumbSrc, decodeHashRouteSegment, encodeHashRouteSegment, escapeHtml, focusHtmlElement, getCatalogCategoryGroups, isHtmlElement, normalizeShareRoutePath, pageAspectVariableStyle, setCatalogImageSource, setTooltipText, subcategorySectionId, subcategoryShareSlug, thumbSrc } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
+import { catalogFirstPage, catalogPageNumbers } from "./06-catalog-page-numbering.js";
 import { searchCatalogDomain } from "./39-search-catalog-domain.js";
 import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-search-ui.js";
 
@@ -641,14 +642,17 @@ function renderCatalogCategorySegment(segment, columns) {
 }
 
 /** @param {string|null|undefined} catalogId @param {number} [page] */
-function openCatalogEntry(catalogId, page = 1) {
+function openCatalogEntry(catalogId, page = undefined) {
   if (!catalogId) return;
+  const catalog = catalogs.find((item) => item.id === catalogId) || null;
+  if (!catalog) return;
+  const targetPage = page === undefined ? catalogFirstPage(catalog) : page;
   const viewer = getFeatureInterface("viewer");
   if (viewer?.openCatalog) {
-    viewer.openCatalog(catalogId, page);
+    viewer.openCatalog(catalogId, targetPage);
     return;
   }
-  navigateTo(viewerDocumentUrl(catalogId, page));
+  navigateTo(viewerDocumentUrl(catalogId, targetPage));
 }
 
 function bindCatalogCardEvents() {
@@ -718,7 +722,7 @@ function renderPageGrid() {
   // and thumb activation; that caused work exactly when a card entered view.
 
   const cards = [];
-  for (let page = 1; page <= catalog.pages; page += 1) {
+  for (const page of catalogPageNumbers(catalog)) {
     cards.push(`
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
@@ -877,7 +881,7 @@ function renderCatalogDetail() {
   catalogElements.catalogDescription.textContent = catalog.description || "";
   updateDetailCatalogMenuLabel(catalog);
   if (catalogElements.catalogCoverPreview) {
-    applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, 1);
+    applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, catalogFirstPage(catalog));
     setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog));
     catalogElements.catalogCoverPreview.loading = "lazy";
     catalogElements.catalogCoverPreview.decoding = "async";
@@ -902,7 +906,7 @@ function openCatalog(id, options = {}) {
     return;
   }
 
-  setActiveLocation(catalog, 1, activeViewerSource());
+  setActiveLocation(catalog, catalogFirstPage(catalog), activeViewerSource());
   renderCatalogDetail();
   history.replaceState(history.state, "", catalogDocumentUrl(catalog.id));
 
@@ -977,7 +981,7 @@ function attachCatalogGridEvents() {
   catalogElements.openCatalogEntryFromDetail?.addEventListener("click", () => {
     const catalog = activeCatalog();
     if (!catalog) return;
-    navigateTo(viewerDocumentUrl(catalog.id, 1));
+    navigateTo(viewerDocumentUrl(catalog.id, catalogFirstPage(catalog)));
   });
   catalogElements.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView());
 

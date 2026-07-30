@@ -1,3 +1,5 @@
+import { clampCatalogPage } from "./06-catalog-page-numbering.js";
+
 /**
  * Source module: 39-search-catalog-domain.js
  * Pure catalog layout and Search/Catalog/Viewer integration policies.
@@ -224,9 +226,15 @@ const searchCatalogDomain = (() => {
     return markup + escapeSearchMarkup(raw.slice(cursor));
   }
 
+  /** @param {unknown} value */
+  function searchResultPage(value) {
+    const page = Number.parseInt(String(value), 10);
+    return Number.isFinite(page) && page >= 0 ? page : 1;
+  }
+
   /** @param {CatalogSearchResult} result */
   function searchResultDetailsMarkup(result) {
-    const page = Math.max(1, Number(result?.page) || 1);
+    const page = searchResultPage(result?.page);
     const reason = String(result?.matchReason || "התאמה בטקסט הקטלוג");
     const excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
     return `
@@ -250,7 +258,7 @@ const searchCatalogDomain = (() => {
     const catalogId = String(result.catalogId || "").trim();
     if (!catalogId) return null;
     if (result.resultType === "catalog") return { type: "catalog", catalogId };
-    return { type: "viewer", catalogId, page: Math.max(1, Number(result.page) || 1) };
+    return { type: "viewer", catalogId, page: searchResultPage(result.page) };
   }
 
   /** @param {CatalogSearchResult|null|undefined} result @param {GlobalSearchResultPorts} ports */
@@ -272,10 +280,10 @@ const searchCatalogDomain = (() => {
     if (!result) return false;
     const targetCatalogId = String(result.catalogId || activeCatalog?.id || "").trim();
     if (!targetCatalogId) return false;
-    const pageCount = Math.max(1, Number(activeCatalog?.pages) || 1);
-    const page = Math.min(pageCount, Math.max(1, Number(result.page) || 1));
+    const requestedPage = searchResultPage(result.page);
+    const page = clampCatalogPage(requestedPage, activeCatalog);
     if (!activeCatalog || String(activeCatalog.id) !== targetCatalogId) {
-      ports.openCatalog(targetCatalogId, Math.max(1, Number(result.page) || 1));
+      ports.openCatalog(targetCatalogId, requestedPage);
       return true;
     }
     ports.setPage(page);

@@ -26,6 +26,11 @@ from typing import Any, Iterable, Mapping, Sequence
 from urllib.parse import quote, urlparse
 from xml.etree import ElementTree as ET
 
+try:
+    from tools.catalog_page_numbering import display_to_asset_page
+except ModuleNotFoundError:  # Direct execution from tools/
+    from catalog_page_numbering import display_to_asset_page
+
 SEO_CONFIG_FILE = "seo.config.json"
 TAXONOMY_CONFIG_FILE = "catalog-taxonomy.config.json"
 TAXONOMY_GENERATED_JS = "catalog-taxonomy.generated.js"
@@ -294,7 +299,7 @@ def catalog_path(catalog_id: str) -> str:
 
 
 def catalog_page_path(catalog_id: str, page: int) -> str:
-    return f"catalog/{quote(str(catalog_id), safe='-')}/page/{max(1, int(page))}/"
+    return f"catalog/{quote(str(catalog_id), safe='-')}/page/{max(0, int(page))}/"
 
 
 def category_path(category: TaxonomyCategory) -> str:
@@ -341,7 +346,7 @@ def catalog_cover_url(config: SeoConfig, catalog: Mapping[str, Any]) -> str:
 
 
 def catalog_page_image_url(config: SeoConfig, catalog: Mapping[str, Any], page: int, *, thumb: bool = False) -> str:
-    safe_page = max(1, int(page))
+    safe_page = display_to_asset_page(catalog, page)
     directory = str(catalog.get("dir") or f"assets/pages/{catalog.get('id', '')}").strip().rstrip("/")
     extension = str(catalog.get("imageExt", "webp")).strip().lstrip(".") or "webp"
     segment = "thumbs/" if thumb else ""
@@ -355,8 +360,9 @@ def catalog_page_image_url(config: SeoConfig, catalog: Mapping[str, Any], page: 
 
 def catalog_page_dimensions(catalog: Mapping[str, Any], page: int) -> tuple[int, int]:
     sizes = catalog.get("pageSizes")
-    if isinstance(sizes, list) and 0 < page <= len(sizes):
-        value = sizes[page - 1]
+    asset_page = display_to_asset_page(catalog, page)
+    if isinstance(sizes, list) and 0 < asset_page <= len(sizes):
+        value = sizes[asset_page - 1]
         if isinstance(value, list) and len(value) >= 2:
             try:
                 width, height = int(value[0]), int(value[1])

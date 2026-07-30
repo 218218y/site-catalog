@@ -3,6 +3,9 @@
 const assert = require("node:assert/strict");
 const { importFrontendTestModule } = require("./frontend_test_module");
 
+const pageNumbering = importFrontendTestModule("src/js/06-catalog-page-numbering.js", "catalog-page-numbering");
+Object.assign(globalThis, pageNumbering);
+
 const domain = importFrontendTestModule("src/js/39-search-catalog-domain.js", "search-catalog");
 const registry = importFrontendTestModule("src/js/10-app-state.js", "feature-registry");
 assert.throws(

@@ -13,6 +13,7 @@ interface ControlCatalogDto {
   subcategory: string;
   pdf: string;
   ocr: boolean;
+  pageNumberStart: 0 | 1;
   status?: ControlCatalogStatusDto;
 }
 

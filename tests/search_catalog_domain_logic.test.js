@@ -3,7 +3,14 @@
 const assert = require("node:assert/strict");
 const { importFrontendTestModule } = require("./frontend_test_module");
 
-const domain = importFrontendTestModule("src/js/39-search-catalog-domain.js", "search-catalog");
+const domain = importFrontendTestModule("src/js/39-search-catalog-domain.js", "search-catalog", {
+  clampCatalogPage: (page, catalog) => {
+    const first = catalog?.pageNumberStart === 0 ? 0 : 1;
+    const last = first + Math.max(1, Number(catalog?.pages || 1)) - 1;
+    const parsed = Number.parseInt(String(page), 10);
+    return Math.min(Math.max(Number.isFinite(parsed) ? parsed : first, first), last);
+  }
+});
 
 assert.equal(domain.decodeCatalogHashTargetId("#beds%20premium"), "beds premium");
 assert.equal(domain.decodeCatalogHashTargetId("beds"), "");
@@ -57,6 +64,7 @@ const details = domain.searchResultDetailsMarkup({
 assert.match(details, /עמוד 4/);
 assert.match(details, /שם &lt;דגם&gt;/);
 assert.match(details, /<mark class="search-match-highlight">מיטה<\/mark> &amp; ארון/);
+assert.match(domain.searchResultDetailsMarkup({ page: 0 }), /עמוד 0/);
 
 assert.equal(domain.lightboxSearchColumnLimit(5, 400), 3);
 assert.equal(domain.lightboxSearchColumnLimit(undefined, 1180), 3);

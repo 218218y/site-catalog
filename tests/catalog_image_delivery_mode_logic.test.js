@@ -3,6 +3,9 @@
 const assert = require('node:assert/strict');
 const { importFrontendTestModule } = require('./frontend_test_module');
 
+const pageNumbering = importFrontendTestModule('src/js/06-catalog-page-numbering.js', 'catalog-page-numbering');
+Object.assign(globalThis, pageNumbering);
+
 const network = { saveData: false, effectiveType: '4g' };
 Object.defineProperty(globalThis, 'navigator', {
   value: { connection: network }, writable: true, configurable: true

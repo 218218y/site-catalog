@@ -38,6 +38,10 @@ function run() {
     { catalogId: 'chairs', page: 3, savedAt: 20 },
     { catalogId: 'tables', page: 4, savedAt: 30, note: 'לבדוק רוחב 180' }
   ]);
+  assert.deepEqual(
+    parsePayload(serializePayload([{ catalogId: 'cover-catalog', page: 0, savedAt: 5 }])),
+    [{ catalogId: 'cover-catalog', page: 0, savedAt: 5 }]
+  );
 
   const storage = createMemoryStorage();
   const store = createStore({ storage });

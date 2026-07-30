@@ -8,6 +8,7 @@
  *   - src/js/01-route-capabilities.js
  *   - src/js/02-dom-contracts.js
  *   - src/js/03-runtime-context.js
+ *   - src/js/06-catalog-page-numbering.js
  *   - src/js/10-app-state.js
  *   - src/js/11-navigation-state.js
  *   - src/js/12-catalog-state.js
@@ -37,6 +38,41 @@ var define_BARGIG_FEATURE_CAPABILITIES_default = { viewer: !1, favoritesWorkspac
 
 // src/js/01-route-capabilities.js
 var resolvedFeatureCapabilities = typeof define_BARGIG_FEATURE_CAPABILITIES_default == "object" ? define_BARGIG_FEATURE_CAPABILITIES_default : { viewer: !1, favoritesWorkspace: !1, catalogGrid: !1, search: !1 }, featureCapabilities = Object.freeze(resolvedFeatureCapabilities);
+
+// src/js/06-catalog-page-numbering.js
+function catalogPageNumberStart(catalog) {
+  return catalog?.pageNumberStart === 0 ? 0 : 1;
+}
+function catalogPageCount(catalog) {
+  let count = Number.parseInt(String(catalog?.pages ?? 0), 10);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+function catalogFirstPage(catalog) {
+  return catalogPageNumberStart(catalog);
+}
+function catalogLastPage(catalog) {
+  let firstPage = catalogFirstPage(catalog), count = catalogPageCount(catalog);
+  return count > 0 ? firstPage + count - 1 : firstPage;
+}
+function integerOr(value, fallback) {
+  let parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+function clampCatalogPage(page, catalog) {
+  let firstPage = catalogFirstPage(catalog), lastPage = catalogLastPage(catalog);
+  return Math.min(Math.max(integerOr(page, firstPage), firstPage), lastPage);
+}
+function isCatalogPage(catalog, page) {
+  let parsed = integerOr(page, Number.NaN);
+  return Number.isFinite(parsed) && parsed >= catalogFirstPage(catalog) && parsed <= catalogLastPage(catalog);
+}
+function displayPageToAssetPage(catalog, displayPage) {
+  return clampCatalogPage(displayPage, catalog) - catalogFirstPage(catalog) + 1;
+}
+function catalogPageNumbers(catalog) {
+  let firstPage = catalogFirstPage(catalog);
+  return Array.from({ length: catalogPageCount(catalog) }, (_unused, index) => firstPage + index);
+}
 
 // src/js/10-app-state.js
 var CATALOG_IMAGE_TIER_THUMB = "thumb", CATALOG_IMAGE_TIER_MEDIUM = "medium", CATALOG_IMAGE_TIER_FULL = "full", CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE = "responsive", CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY = "full-only";
@@ -185,20 +221,20 @@ function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
 }
 function pageSrc(catalog, page) {
   return withAssetVersion(
-    `${catalogDir(catalog)}/page-${padCatalogPage(page)}.${imageExt(catalog)}`,
+    `${catalogDir(catalog)}/page-${padCatalogPage(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
     catalog,
     CATALOG_IMAGE_TIER_FULL
   );
 }
 function thumbSrc(catalog, page) {
   return withAssetVersion(
-    `${catalogDir(catalog)}/thumbs/page-${padCatalogPage(page)}.${imageExt(catalog)}`,
+    `${catalogDir(catalog)}/thumbs/page-${padCatalogPage(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
     catalog,
     CATALOG_IMAGE_TIER_THUMB
   );
 }
 function coverThumbSrc(catalog) {
-  return thumbSrc(catalog, 1);
+  return thumbSrc(catalog, catalogFirstPage(catalog));
 }
 
 // src/js/00-navigation.js
@@ -280,7 +316,8 @@ function favoritesDocumentUrl() {
   return siteRoutes?.favoritesUrl?.() || "favorites.html";
 }
 function viewerDocumentUrl(catalogId, page = 1, options = {}) {
-  return siteRoutes?.viewerUrl?.(catalogId, page, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${Math.max(1, Number.parseInt(String(page), 10) || 1)}/`;
+  let parsedPage = Number.parseInt(String(page), 10), routePage = Number.isFinite(parsedPage) && parsedPage >= 0 ? parsedPage : 1;
+  return siteRoutes?.viewerUrl?.(catalogId, routePage, options) || `/catalog/${encodeURIComponent(String(catalogId || ""))}/page/${routePage}/`;
 }
 function categoryDocumentUrl(categorySlugValue, subcategorySlugValue = "") {
   return siteRoutes?.categoryUrl?.(categorySlugValue, subcategorySlugValue) || homeDocumentUrl();
@@ -302,7 +339,7 @@ function currentDocumentMetadata(catalog = navigationState?.catalog || null) {
     imageAlt: `שער ${catalog.title}`
   } : isAppPage("viewer") && catalog ? {
     title: `${catalog.title} — עמוד ${navigationState.page} | ${brand}`,
-    description: `צפייה בעמוד ${navigationState.page} מתוך ${catalog.pages} בקטלוג ${catalog.title}.`,
+    description: `צפייה בעמוד ${navigationState.page} מתוך ${catalogLastPage(catalog)} בקטלוג ${catalog.title}.`,
     url: absoluteDocumentUrl(viewerDocumentUrl(catalog.id, navigationState.page)),
     image: pageSrc(catalog, navigationState.page),
     imageAlt: `${catalog.title} — עמוד ${navigationState.page}`
@@ -350,11 +387,11 @@ registerFeatureInterface("navigation", {
   catalog: () => navigationState.catalog,
   page: () => navigationState.page,
   source: () => navigationState.lightboxSource,
-  setLocation: (catalog, page = 1, source = navigationState.lightboxSource) => {
-    navigationState.catalog = catalog, navigationState.page = Math.max(1, Number.parseInt(String(page), 10) || 1), navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
+  setLocation: (catalog, page = void 0, source = navigationState.lightboxSource) => {
+    navigationState.catalog = catalog, navigationState.page = clampCatalogPage(page, catalog), navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
   },
   setPage: (page) => {
-    navigationState.page = Math.max(1, Number.parseInt(String(page), 10) || 1);
+    navigationState.page = clampCatalogPage(page, navigationState.catalog);
   },
   setSource: (source) => {
     navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
@@ -382,7 +419,7 @@ function activePage() {
 function activeViewerSource() {
   return navigationFeature().source();
 }
-function setActiveLocation(catalog, page = 1, source = activeViewerSource()) {
+function setActiveLocation(catalog, page = void 0, source = activeViewerSource()) {
   navigationFeature().setLocation(catalog, page, source);
 }
 function clearActiveLocation() {
@@ -1158,7 +1195,7 @@ function catalogImageVariant(catalog, tier) {
     return variants[tier];
   if (tier === CATALOG_IMAGE_TIER_THUMB) return { directory: "thumbs", maxSide: 420 };
   if (tier === CATALOG_IMAGE_TIER_FULL) {
-    let size = pageSize(catalog, 1);
+    let size = pageSize(catalog, catalogFirstPage(catalog));
     return { directory: "", maxSide: size ? Math.max(size.width, size.height) : 2800 };
   }
   return null;
@@ -1168,13 +1205,13 @@ function mediumSrc(catalog, page) {
   if (!variant) return "";
   let directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
   return withAssetVersion(
-    `${catalogDir(catalog)}/${directory}/page-${pad(page)}.${imageExt(catalog)}`,
+    `${catalogDir(catalog)}/${directory}/page-${pad(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
     catalog,
     CATALOG_IMAGE_TIER_MEDIUM
   );
 }
 function pageSize(catalog, page) {
-  let sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [], pageNumber = Number.parseInt(String(page), 10), size = sizes[pageNumber - 1];
+  let sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [], assetPage = displayPageToAssetPage(catalog, page), size = sizes[assetPage - 1];
   if (!Array.isArray(size) || size.length < 2) return null;
   let width = Number(size[0]), height = Number(size[1]);
   return !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 ? null : { width, height };
@@ -1205,10 +1242,7 @@ function pageAspectVariableStyle(catalog, page, variableName = "--page-aspect-ra
   return size ? ` style="${variableName}: ${size.width} / ${size.height}"` : "";
 }
 function clampPage(page, catalog = activeCatalog()) {
-  let parsed = Number.parseInt(String(page), 10);
-  if (!Number.isFinite(parsed)) return 1;
-  let maxPage = Math.max(1, Number(catalog?.pages || 1));
-  return Math.min(Math.max(parsed, 1), maxPage);
+  return clampCatalogPage(page, catalog);
 }
 function getTooltipText(button) {
   return window.BargigTooltips?.getText?.(button || null) || button?.getAttribute?.("title") || "";
@@ -1359,13 +1393,13 @@ function createFavoritesPortabilityDomain(dependencies) {
   } = dependencies;
   function favoriteItemKey(item) {
     let catalogId = String(item?.catalogId || item?.catalog?.id || "").trim(), page = Number.parseInt(String(item?.page ?? ""), 10);
-    return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\0${page}` : "";
+    return catalogId && Number.isFinite(page) && page >= 0 ? `${catalogId}\0${page}` : "";
   }
   function normalizeFavoriteTransferItems(values) {
     let normalized = normalizeItems(values), accepted = [], rejected = Math.max(0, Array.isArray(values) ? values.length - normalized.length : 0);
     return normalized.forEach((item) => {
-      let catalog = findCatalog(item.catalogId), pageCount = Number.parseInt(String(catalog?.pages || 0), 10);
-      if (!catalog || !Number.isFinite(pageCount) || item.page > pageCount) {
+      let catalog = findCatalog(item.catalogId);
+      if (!catalog || !isCatalogPage(catalog, item.page)) {
         rejected += 1;
         return;
       }
@@ -1411,7 +1445,7 @@ function createFavoritesPortabilityDomain(dependencies) {
     });
   }
   function encodeFavoritePageRanges(pages) {
-    let sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page > 0))].sort((first, second) => first - second), ranges = [];
+    let sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page >= 0))].sort((first, second) => first - second), ranges = [];
     for (let index = 0; index < sorted.length; ) {
       let start = sorted[index], end = start;
       for (; index + 1 < sorted.length && sorted[index + 1] === end + 1; )
@@ -1426,7 +1460,7 @@ function createFavoritesPortabilityDomain(dependencies) {
     return String(value || "").split(",").forEach((part) => {
       if (!part) return;
       let [rawStart, rawEnd = rawStart] = part.split("-", 2), start = Number.parseInt(rawStart, 36), end = Number.parseInt(rawEnd, 36);
-      if (!(!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end - start > 1e3))
+      if (!(!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || end - start > 1e3))
         for (let page = start; page <= end; page += 1) pages.push(page);
     }), pages;
   }
@@ -1480,8 +1514,8 @@ function favoriteIdentity(catalog = activeCatalog(), page = activePage()) {
 }
 function getFavoriteEntries() {
   return favoritesStore ? favoritesStore.read().flatMap((item) => {
-    let catalog = findCatalogById(item.catalogId), page = Number.parseInt(String(item.page), 10), maxPage = Number.parseInt(String(catalog?.pages || 0), 10);
-    return !catalog || !Number.isFinite(page) || page < 1 || !Number.isFinite(maxPage) || page > maxPage ? [] : [{ ...item, catalog, page }];
+    let catalog = findCatalogById(item.catalogId), page = Number.parseInt(String(item.page), 10);
+    return !catalog || !isCatalogPage(catalog, page) ? [] : [{ ...item, catalog, page }];
   }) : [];
 }
 function showFavoritePersistenceFeedback(result, messages) {
@@ -1861,7 +1895,7 @@ function viewerInquiryEmailAddress() {
 function viewerPageInquiryReference() {
   let catalog = activeCatalog();
   if (!catalog) return null;
-  let page = clampPage(activePage(), catalog), url = absoluteDocumentUrl(viewerDocumentUrl(catalog.id, page)), title = String(catalog.title || "קטלוג").trim() || "קטלוג", pageLabel = `עמוד ${page} מתוך ${Math.max(1, Number(catalog.pages) || 1)}`, subject = `בירור על דגם – ${title}, עמוד ${page}`, shareText = [
+  let page = clampPage(activePage(), catalog), url = absoluteDocumentUrl(viewerDocumentUrl(catalog.id, page)), title = String(catalog.title || "קטלוג").trim() || "קטלוג", pageLabel = `עמוד ${page} מתוך ${catalogLastPage(catalog)}`, subject = `בירור על דגם – ${title}, עמוד ${page}`, shareText = [
     "שלום,",
     "רציתי לברר לגבי הדגם הבא:",
     `קטלוג: ${title}`,
@@ -1914,7 +1948,7 @@ function viewerInquiryTelemetryFields(reference, action, detail = "") {
     detail,
     source: telemetry.source || reference?.source || "viewer-inquiry",
     catalogId: telemetry.catalogId || reference?.catalog?.id || "",
-    pageNumber: telemetry.pageNumber || reference?.page || 0,
+    pageNumber: telemetry.pageNumber ?? reference?.page ?? 0,
     value: telemetry.value || reference?.count || 0
   };
 }
@@ -1926,7 +1960,7 @@ function syncViewerInquiryContactLink(link, href, reference, action) {
     return;
   }
   let telemetry = viewerInquiryTelemetryFields(reference, action);
-  link.href = href, link.dataset.contactSource = telemetry.source, link.dataset.contactAction = action, telemetry.catalogId ? link.dataset.contactCatalogId = telemetry.catalogId : delete link.dataset.contactCatalogId, telemetry.pageNumber ? link.dataset.contactPage = String(telemetry.pageNumber) : delete link.dataset.contactPage;
+  link.href = href, link.dataset.contactSource = telemetry.source, link.dataset.contactAction = action, telemetry.catalogId ? link.dataset.contactCatalogId = telemetry.catalogId : delete link.dataset.contactCatalogId, Number.isFinite(Number(telemetry.pageNumber)) ? link.dataset.contactPage = String(telemetry.pageNumber) : delete link.dataset.contactPage;
 }
 function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   if (!reference) return;
@@ -1934,7 +1968,7 @@ function syncViewerInquiryUi(reference = viewerInquiryReference()) {
     let label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
     inquiryElements.viewerInquiryButton.setAttribute("aria-label", label);
   }
-  let previewCatalog = reference.previewCatalog || reference.catalog, previewPage = Number(reference.previewPage || reference.page) || 1;
+  let previewCatalog = reference.previewCatalog || reference.catalog, rawPreviewPage = reference.previewPage ?? reference.page, previewPage = Number.isFinite(Number(rawPreviewPage)) ? Number(rawPreviewPage) : 1;
   if (inquiryElements.viewerInquiryPreview && previewCatalog) {
     let preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
     inquiryElements.viewerInquiryPreview.getAttribute("src") !== preview && (inquiryElements.viewerInquiryPreview.src = preview), inquiryElements.viewerInquiryPreview.alt = reference.kind === "favorites" ? `תצוגה מקדימה של ${reference.referenceTitle}` : `${reference.referenceTitle}, עמוד ${previewPage}`;
@@ -2490,8 +2524,12 @@ var searchCatalogDomain = (() => {
       range.start < cursor || (markup += escapeSearchMarkup(raw.slice(cursor, range.start)), markup += `<mark class="search-match-highlight">${escapeSearchMarkup(raw.slice(range.start, range.end))}</mark>`, cursor = range.end);
     }), markup + escapeSearchMarkup(raw.slice(cursor));
   }
+  function searchResultPage(value) {
+    let page = Number.parseInt(String(value), 10);
+    return Number.isFinite(page) && page >= 0 ? page : 1;
+  }
   function searchResultDetailsMarkup(result) {
-    let page = Math.max(1, Number(result?.page) || 1), reason = String(result?.matchReason || "התאמה בטקסט הקטלוג"), excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
+    let page = searchResultPage(result?.page), reason = String(result?.matchReason || "התאמה בטקסט הקטלוג"), excerpt = highlightedSearchText(result?.excerpt || "", result?.highlights || []);
     return `
       <span class="search-result-meta">עמוד ${page} · ${escapeSearchMarkup(reason)}</span>
       ${excerpt ? `<span class="search-result-excerpt">${excerpt}</span>` : ""}
@@ -2507,7 +2545,7 @@ var searchCatalogDomain = (() => {
     if (!result) return null;
     if (result.targetId) return { type: "category", targetId: String(result.targetId) };
     let catalogId = String(result.catalogId || "").trim();
-    return catalogId ? result.resultType === "catalog" ? { type: "catalog", catalogId } : { type: "viewer", catalogId, page: Math.max(1, Number(result.page) || 1) } : null;
+    return catalogId ? result.resultType === "catalog" ? { type: "catalog", catalogId } : { type: "viewer", catalogId, page: searchResultPage(result.page) } : null;
   }
   function executeGlobalSearchResultAction(result, ports) {
     let action = resolveGlobalSearchResultAction(result);
@@ -2517,8 +2555,8 @@ var searchCatalogDomain = (() => {
     if (!result) return !1;
     let targetCatalogId = String(result.catalogId || activeCatalog2?.id || "").trim();
     if (!targetCatalogId) return !1;
-    let pageCount = Math.max(1, Number(activeCatalog2?.pages) || 1), page = Math.min(pageCount, Math.max(1, Number(result.page) || 1));
-    return !activeCatalog2 || String(activeCatalog2.id) !== targetCatalogId ? (ports.openCatalog(targetCatalogId, Math.max(1, Number(result.page) || 1)), !0) : (ports.setPage(page), ports.showTopUi(), !0);
+    let requestedPage = searchResultPage(result.page), page = clampCatalogPage(requestedPage, activeCatalog2);
+    return !activeCatalog2 || String(activeCatalog2.id) !== targetCatalogId ? (ports.openCatalog(targetCatalogId, requestedPage), !0) : (ports.setPage(page), ports.showTopUi(), !0);
   }
   return Object.freeze({
     decodeCatalogHashTargetId,
@@ -2994,7 +3032,7 @@ async function renderLightboxSearchResults(query) {
 function renderLightboxCatalogMenu() {
   getFeatureInterface("catalog-grid")?.renderCatalogMenu(searchElements.lightboxCatalogMenu, {
     onSelect: (catalogId) => {
-      closeLightboxCatalogMenu(), catalogId !== activeCatalog()?.id && getFeatureInterface("viewer")?.openCatalog(catalogId, 1);
+      closeLightboxCatalogMenu(), catalogId !== activeCatalog()?.id && getFeatureInterface("viewer")?.openCatalog(catalogId);
     }
   });
 }
@@ -3544,14 +3582,16 @@ function renderCatalogCategorySegment(segment, columns) {
     </section>
   `;
 }
-function openCatalogEntry(catalogId, page = 1) {
+function openCatalogEntry(catalogId, page = void 0) {
   if (!catalogId) return;
-  let viewer = getFeatureInterface("viewer");
+  let catalog = catalogs.find((item) => item.id === catalogId) || null;
+  if (!catalog) return;
+  let targetPage = page === void 0 ? catalogFirstPage(catalog) : page, viewer = getFeatureInterface("viewer");
   if (viewer?.openCatalog) {
-    viewer.openCatalog(catalogId, page);
+    viewer.openCatalog(catalogId, targetPage);
     return;
   }
-  navigateTo(viewerDocumentUrl(catalogId, page));
+  navigateTo(viewerDocumentUrl(catalogId, targetPage));
 }
 function bindCatalogCardEvents() {
   catalogElements.catalogGrid && (Array.from(catalogElements.catalogGrid.querySelectorAll("[data-open-catalog-entry]")).filter(isHtmlElement).forEach((control) => {
@@ -3593,7 +3633,7 @@ function renderPageGrid() {
   let catalog = activeCatalog();
   if (!catalog) return;
   let cards = [];
-  for (let page = 1; page <= catalog.pages; page += 1)
+  for (let page of catalogPageNumbers(catalog))
     cards.push(`
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
@@ -3684,7 +3724,7 @@ function renderDetailCatalogMenu() {
 }
 function renderCatalogDetail() {
   let catalog = activeCatalog();
-  catalog && (showCatalogDetail(), catalogElements.catalogTitle.textContent = catalog.title, catalogElements.catalogDescription.textContent = catalog.description || "", updateDetailCatalogMenuLabel(catalog), catalogElements.catalogCoverPreview && (applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, 1), setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog)), catalogElements.catalogCoverPreview.loading = "lazy", catalogElements.catalogCoverPreview.decoding = "async", catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`), catalogElements.openCatalogEntryFromDetail && (catalogElements.openCatalogEntryFromDetail.disabled = catalog.pages < 1), catalogElements.catalogMenu && !catalogElements.catalogMenu.classList.contains("hidden") && renderDetailCatalogMenu(), renderPageGrid(), scheduleCatalogScrollTopButtonUpdate());
+  catalog && (showCatalogDetail(), catalogElements.catalogTitle.textContent = catalog.title, catalogElements.catalogDescription.textContent = catalog.description || "", updateDetailCatalogMenuLabel(catalog), catalogElements.catalogCoverPreview && (applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, catalogFirstPage(catalog)), setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog)), catalogElements.catalogCoverPreview.loading = "lazy", catalogElements.catalogCoverPreview.decoding = "async", catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`), catalogElements.openCatalogEntryFromDetail && (catalogElements.openCatalogEntryFromDetail.disabled = catalog.pages < 1), catalogElements.catalogMenu && !catalogElements.catalogMenu.classList.contains("hidden") && renderDetailCatalogMenu(), renderPageGrid(), scheduleCatalogScrollTopButtonUpdate());
 }
 function openCatalog(id, options = {}) {
   let { scroll = !1, openPage = null, scrollBehavior = "smooth" } = options, catalog = catalogs.find((item) => item.id === id) || null;
@@ -3693,7 +3733,7 @@ function openCatalog(id, options = {}) {
       navigateTo(openPage != null ? viewerDocumentUrl(catalog.id, openPage) : catalogDocumentUrl(catalog.id));
       return;
     }
-    setActiveLocation(catalog, 1, activeViewerSource()), renderCatalogDetail(), history.replaceState(history.state, "", catalogDocumentUrl(catalog.id)), scroll && scrollCatalogDetailIntoView({ behavior: scrollBehavior }), openPage != null && navigateTo(viewerDocumentUrl(catalog.id, openPage));
+    setActiveLocation(catalog, catalogFirstPage(catalog), activeViewerSource()), renderCatalogDetail(), history.replaceState(history.state, "", catalogDocumentUrl(catalog.id)), scroll && scrollCatalogDetailIntoView({ behavior: scrollBehavior }), openPage != null && navigateTo(viewerDocumentUrl(catalog.id, openPage));
   }
 }
 function closeDetailCatalogMenu() {
@@ -3728,7 +3768,7 @@ function attachCatalogGridEvents() {
     catalogElements.catalogMenu?.classList.toggle("hidden", isOpen), catalogElements.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
   }), catalogElements.catalogMenu?.addEventListener("click", (event) => event.stopPropagation()), catalogElements.openCatalogEntryFromDetail?.addEventListener("click", () => {
     let catalog = activeCatalog();
-    catalog && navigateTo(viewerDocumentUrl(catalog.id, 1));
+    catalog && navigateTo(viewerDocumentUrl(catalog.id, catalogFirstPage(catalog)));
   }), catalogElements.scrollToTopBtn?.addEventListener("click", () => scrollCatalogDetailIntoView()), catalogElements.categoryNav?.addEventListener("click", (event) => {
     let link = eventTargetElement(event.target)?.closest(".category-nav-link");
     !(link instanceof HTMLAnchorElement) || !catalogElements.categoryNav.contains(link) || (closeMobileCategoryMenu(), handleCatalogFocusLinkClick(link, event));

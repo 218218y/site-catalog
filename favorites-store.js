@@ -18,7 +18,7 @@
     const catalogId = String(value.catalogId || "").trim();
     const page = Number.parseInt(value.page, 10);
     const savedAt = Number(value.savedAt);
-    if (!catalogId || !Number.isFinite(page) || page < 1) return null;
+    if (!catalogId || !Number.isFinite(page) || page < 0) return null;
     const item = {
       catalogId,
       page,

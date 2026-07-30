@@ -160,6 +160,7 @@ td input[type="text"] { padding: 8px 10px; border-radius: 10px; }
 .icon-btn:disabled { opacity: .38; }
 .delete-btn { background: #fff1f0; color: var(--danger); border-color: #ffccc7; }
 .delete-btn:hover { background: #ffe4e0; }
+.page-number-start-select { min-width: 220px; }
 .title-input { min-width: 320px; }
 .description-input { min-width: 450px; min-height: 76px; }
 .category-input { min-width: 190px; }

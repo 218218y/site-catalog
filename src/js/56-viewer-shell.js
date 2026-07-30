@@ -6,6 +6,7 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+import { catalogPageNumbers } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface } from "./10-app-state.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
@@ -431,7 +432,7 @@ function renderLightboxPageRail() {
     if (viewerElements.lightboxPageRailTitle) viewerElements.lightboxPageRailTitle.textContent = "עמודים";
     viewerElements.lightboxPageRail?.setAttribute("aria-label", "מעבר מהיר בין עמודי הקטלוג");
 
-    for (let page = 1; page <= catalog.pages; page += 1) {
+    for (const page of catalogPageNumbers(catalog)) {
       const thumb = escapeHtml(thumbSrc(catalog, page));
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === activePage() ? " active" : ""}" type="button" data-page="${page}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר לעמוד ${page}"${page === activePage() ? ' aria-current="page"' : ""}>

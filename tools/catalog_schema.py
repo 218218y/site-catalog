@@ -15,6 +15,11 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+try:
+    from tools.catalog_page_numbering import first_display_page, last_display_page, page_number_start
+except ModuleNotFoundError:  # Direct execution from tools/
+    from catalog_page_numbering import first_display_page, last_display_page, page_number_start
+
 SCHEMA_DIRNAME = "schemas"
 CATALOG_CONFIG_SCHEMA = "catalogs.config.schema.json"
 TAXONOMY_SCHEMA = "catalog-taxonomy.config.schema.json"
@@ -196,6 +201,7 @@ def validate_catalog_config(value: Any, project_root: Path) -> list[dict[str, An
         row["category"] = str(row.get("category", "קטלוג")).strip() or "קטלוג"
         row["subcategory"] = str(row.get("subcategory", "")).strip()
         row["ocr"] = bool(row.get("ocr", True))
+        row["pageNumberStart"] = page_number_start(row)
     _ensure_unique(rows, "id", label="catalog id")
     return rows
 
@@ -392,9 +398,12 @@ def validate_compiled_pair(
             raise SchemaValidationError(
                 f"Search title for {catalog_id} must match generated catalog title"
             )
-        pages = int(generated_item["pages"])
+        first_page = first_display_page(generated_item)
+        last_page = last_display_page(generated_item)
         for page in item["pages"]:
-            if int(page["page"]) > pages:
+            page_number = int(page["page"])
+            if page_number < first_page or page_number > last_page:
                 raise SchemaValidationError(
-                    f"Search page {page['page']} for {catalog_id} exceeds generated page count {pages}"
+                    f"Search page {page_number} for {catalog_id} is outside "
+                    f"the generated display range {first_page}..{last_page}"
                 )

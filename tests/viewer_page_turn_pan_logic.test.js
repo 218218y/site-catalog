@@ -3,6 +3,9 @@
 const assert = require("node:assert/strict");
 const { importFrontendTestModule } = require("./frontend_test_module");
 
+const pageNumbering = importFrontendTestModule("src/js/06-catalog-page-numbering.js", "catalog-page-numbering");
+Object.assign(globalThis, pageNumbering);
+
 const clampValue = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 const state = {
   page: 1,

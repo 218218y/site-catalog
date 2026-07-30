@@ -17,7 +17,7 @@
           "additionalProperties": false,
           "required": ["page", "text"],
           "properties": {
-            "page": {"type": "integer", "minimum": 1},
+            "page": {"type": "integer", "minimum": 0},
             "text": {"type": "string"}
           }
         }

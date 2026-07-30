@@ -1,3 +1,5 @@
+import { isCatalogPage } from "./06-catalog-page-numbering.js";
+
 /**
  * Source module: 29-favorites-portability.js
  * Pure favorites transfer, merge, and portable-link domain logic.
@@ -30,7 +32,7 @@ function createFavoritesPortabilityDomain(dependencies) {
   function favoriteItemKey(item) {
     const catalogId = String(item?.catalogId || item?.catalog?.id || "").trim();
     const page = Number.parseInt(String(item?.page ?? ""), 10);
-    return catalogId && Number.isFinite(page) && page > 0 ? `${catalogId}\u0000${page}` : "";
+    return catalogId && Number.isFinite(page) && page >= 0 ? `${catalogId}\u0000${page}` : "";
   }
 
   /** @param {unknown} values @returns {FavoritesTransfer} */
@@ -42,8 +44,7 @@ function createFavoritesPortabilityDomain(dependencies) {
 
     normalized.forEach((item) => {
       const catalog = findCatalog(item.catalogId);
-      const pageCount = Number.parseInt(String(catalog?.pages || 0), 10);
-      if (!catalog || !Number.isFinite(pageCount) || item.page > pageCount) {
+      if (!catalog || !isCatalogPage(catalog, item.page)) {
         rejected += 1;
         return;
       }
@@ -123,7 +124,7 @@ function createFavoritesPortabilityDomain(dependencies) {
 
   /** @param {Array<number>} pages */
   function encodeFavoritePageRanges(pages) {
-    const sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page > 0))]
+    const sorted = [...new Set(pages.map((page) => Number.parseInt(String(page), 10)).filter((page) => Number.isFinite(page) && page >= 0))]
       .sort((first, second) => first - second);
     /** @type {string[]} */
     const ranges = [];
@@ -150,7 +151,7 @@ function createFavoritesPortabilityDomain(dependencies) {
       const [rawStart, rawEnd = rawStart] = part.split("-", 2);
       const start = Number.parseInt(rawStart, 36);
       const end = Number.parseInt(rawEnd, 36);
-      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end - start > 1000) return;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || end - start > 1000) return;
       for (let page = start; page <= end; page += 1) pages.push(page);
     });
     return pages;

@@ -963,7 +963,7 @@ function renderLightboxCatalogMenu() {
     onSelect: (catalogId) => {
       closeLightboxCatalogMenu();
       if (catalogId === activeCatalog()?.id) return;
-      getFeatureInterface("viewer")?.openCatalog(catalogId, 1);
+      getFeatureInterface("viewer")?.openCatalog(catalogId);
     }
   });
 }

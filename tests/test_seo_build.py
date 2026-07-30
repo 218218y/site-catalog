@@ -337,3 +337,28 @@ def test_empty_taxonomy_branches_are_omitted_from_generated_site(
     assert not (tmp_path / "category" / category.slug / "index.html").exists()
     home = read(tmp_path / "index.html")
     assert f'href="/category/{category.slug}/"' not in home
+
+
+def test_zero_based_catalog_routes_map_display_pages_to_one_based_assets(tmp_path: Path) -> None:
+    catalog = compact_catalog(MODULE.read_catalogs(ROOT)[0], pages=3)
+    catalog["id"] = "zero-based-cover"
+    catalog["pageNumberStart"] = 0
+
+    def render() -> None:
+        MODULE.render_site_pages(
+            ROOT,
+            tmp_path,
+            build_assets=False,
+            seo_mode="private",
+            include_seo_routes=True,
+        )
+
+    render_with_catalogs((catalog,), render)
+
+    page_zero = tmp_path / "catalog" / "zero-based-cover" / "page" / "0" / "index.html"
+    page_two = tmp_path / "catalog" / "zero-based-cover" / "page" / "2" / "index.html"
+    assert page_zero.is_file()
+    assert page_two.is_file()
+    assert not (tmp_path / "catalog" / "zero-based-cover" / "page" / "3" / "index.html").exists()
+    assert "page-001.webp" in read(page_zero)
+    assert "page-003.webp" in read(page_two)

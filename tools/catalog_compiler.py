@@ -22,6 +22,11 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol, Sequence
 
 try:
+    from tools.catalog_page_numbering import asset_to_display_page, page_number_start
+except ModuleNotFoundError:  # Direct execution from tools/
+    from catalog_page_numbering import asset_to_display_page, page_number_start
+
+try:
     from tools.catalog_schema import (
         validate_build_state,
         validate_catalog_config,
@@ -416,6 +421,7 @@ def compile_catalog_data(
             "description": str(source.get("description", "")),
             "category": str(source["category"]),
             "pages": int(artifact["pages"]),
+            "pageNumberStart": page_number_start(source),
             "dir": directory,
             "cover": f"{directory}/page-001.{image_format}",
             "imageExt": image_format,
@@ -431,10 +437,20 @@ def compile_catalog_data(
             if key in source:
                 entry[key] = deepcopy(source[key])
         generated.append(entry)
+        page_mapping_catalog = {
+            "pages": int(artifact["pages"]),
+            "pageNumberStart": page_number_start(source),
+        }
         search.append({
             "catalogId": catalog_id,
             "title": str(source["title"]),
-            "pages": deepcopy(artifact["searchPages"]),
+            "pages": [
+                {
+                    **deepcopy(dict(page)),
+                    "page": asset_to_display_page(page_mapping_catalog, page.get("page")),
+                }
+                for page in artifact["searchPages"]
+            ],
         })
 
     normalized_state = {"version": 1, "catalogs": retained_artifacts}

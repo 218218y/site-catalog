@@ -131,6 +131,29 @@ def test_search_index_keeps_pages_without_extractable_text_searchable_by_metadat
     title_token = "unique"
     assert compiled.search_index["terms"][title_token] == [0, 1, 2]
 
+
+def test_zero_based_display_numbering_preserves_one_based_physical_assets(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    source = source_catalog("cover", "Cover catalog", pdf="assets/pdfs/cover.pdf")
+    source["pageNumberStart"] = 0
+    state_artifact = artifact("cover", text="cover text")
+    state_artifact["pages"] = 3
+    state_artifact["pageSizes"] = [[1200, 900], [1200, 900], [1200, 900]]
+    state_artifact["searchPages"] = [
+        {"page": 1, "text": "cover"},
+        {"page": 2, "text": "first numbered page"},
+        {"page": 3, "text": "second numbered page"},
+    ]
+    write_sources(root, [source], {"version": 1, "catalogs": [state_artifact]})
+
+    compiled = COMPILER.compile_catalog_data([source], taxonomy(), {"version": 1, "catalogs": [state_artifact]}, root)
+
+    assert compiled.generated[0]["pageNumberStart"] == 0
+    assert compiled.generated[0]["cover"] == "assets/pages/cover/page-001.webp"
+    assert [page["page"] for page in compiled.search[0]["pages"]] == [0, 1, 2]
+    assert [document["page"] for document in compiled.search_index["documents"]] == [0, 1, 2]
+
 def test_compiler_is_byte_deterministic_and_second_write_is_a_noop(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()

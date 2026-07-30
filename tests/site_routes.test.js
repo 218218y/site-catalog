@@ -19,6 +19,7 @@ assert.equal(
   routes.viewerUrl('opening-tbi-2026', 7, { source: 'favorites' }),
   '/catalog/opening-tbi-2026/page/7/?source=favorites'
 );
+assert.equal(routes.viewerUrl('opening-tbi-2026', 0), '/catalog/opening-tbi-2026/page/0/');
 
 assert.deepEqual(
   JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog/opening-tbi-2026/', search: '' }))),
@@ -27,6 +28,10 @@ assert.deepEqual(
 assert.deepEqual(
   JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog/opening-tbi-2026/page/9/', search: '?source=favorites' }))),
   { page: 'viewer', catalogId: 'opening-tbi-2026', currentPage: 9, source: 'favorites' }
+);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog/opening-tbi-2026/page/0/', search: '' }))),
+  { page: 'viewer', catalogId: 'opening-tbi-2026', currentPage: 0, source: 'catalog' }
 );
 assert.deepEqual(
   JSON.parse(JSON.stringify(routes.parseLocation({ pathname: '/catalog.html', search: '?catalog=ignored' }, 'catalog'))),

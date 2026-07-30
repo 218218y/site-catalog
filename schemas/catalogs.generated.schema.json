@@ -24,7 +24,7 @@
     "catalog": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "description", "category", "pages", "dir", "cover", "imageExt", "assetVersion", "imageVariants"],
+      "required": ["id", "title", "description", "category", "pages", "pageNumberStart", "dir", "cover", "imageExt", "assetVersion", "imageVariants"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"},
         "title": {"type": "string", "minLength": 1},
@@ -32,6 +32,7 @@
         "category": {"type": "string", "minLength": 1},
         "subcategory": {"type": "string"},
         "pages": {"type": "integer", "minimum": 1},
+        "pageNumberStart": {"type": "integer", "enum": [0, 1]},
         "dir": {"type": "string", "pattern": "^assets/pages/[a-z0-9][a-z0-9-]{0,79}$"},
         "cover": {"type": "string", "pattern": "^assets/pages/[a-z0-9][a-z0-9-]{0,79}/page-001\\.(webp|jpg|png)$"},
         "imageExt": {"enum": ["webp", "jpg", "png"]},

@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from catalog_page_numbering import first_display_page, iter_display_pages, last_display_page
+
 from build_frontend_assets import ROUTE_ASSETS, build_frontend_assets
 from catalog_compiler import verify_managed_outputs_reconstructable
 from footer_content import read_footer_content, render_footer_template, validate_footer_content
@@ -513,7 +515,7 @@ def catalog_card(
     description = str(catalog.get("description", "")).strip()
     page_count = max(0, int(catalog.get("pages", 0) or 0))
     image = catalog_cover_url(config, catalog)
-    width, height = catalog_page_dimensions(catalog, 1)
+    width, height = catalog_page_dimensions(catalog, first_display_page(catalog))
     loading = "eager" if eager else "lazy"
     priority = "high" if eager else "low"
     href = f"/{catalog_path(catalog_id)}"
@@ -653,7 +655,7 @@ def static_page_grid(catalog: Mapping[str, Any], config: SeoConfig) -> str:
     catalog_id = str(catalog.get("id", "")).strip()
     title = str(catalog.get("title", "קטלוג")).strip()
     cards: list[str] = []
-    for page in range(1, int(catalog.get("pages", 0) or 0) + 1):
+    for page in iter_display_pages(catalog):
         image = catalog_page_image_url(config, catalog, page, thumb=True)
         width, height = catalog_page_dimensions(catalog, page)
         cards.append(f"""
@@ -691,7 +693,7 @@ def render_catalog_route(
     title = f"{title_text} | קטלוג ריהוט | {config.site_name}"
     description = f"{description_text}. צפייה נוחה ב־{pages} עמודי הקטלוג, חיפוש דגמים וקישורים ישירים לכל עמוד."
     image = catalog_cover_url(config, catalog)
-    width, height = catalog_page_dimensions(catalog, 1)
+    width, height = catalog_page_dimensions(catalog, first_display_page(catalog))
     canonical = absolute_url(config, route_path)
     breadcrumbs = [("כל הקטלוגים", f"{config.site_url}/"), (category.name, absolute_url(config, category_path(category))), (title_text, canonical)]
     seo = create_seo_page(
@@ -758,7 +760,7 @@ def render_catalog_page_route(
     image = catalog_page_image_url(config, catalog, page_number)
     width, height = catalog_page_dimensions(catalog, page_number)
     title = f"{title_text} — עמוד {page_number} | {config.site_name}"
-    description = f"צפייה בעמוד {page_number} מתוך {pages} בקטלוג {title_text}, עם קישור ישיר לשיתוף ולבירור על הדגם."
+    description = f"צפייה בעמוד {page_number} מתוך {last_display_page(catalog)} בקטלוג {title_text}, עם קישור ישיר לשיתוף ולבירור על הדגם."
     canonical = absolute_url(config, route_path)
     seo = create_seo_page(
         config,
@@ -866,7 +868,7 @@ def render_seo_routes(
         )
         written.append(path)
         sitemap_entries.append(entry)
-        for page_number in range(1, int(catalog.get("pages", 0) or 0) + 1):
+        for page_number in iter_display_pages(catalog):
             written.append(
                 render_catalog_page_route(
                     target_root,

@@ -43,6 +43,13 @@
       },
       "badge": {
         "type": "string"
+      },
+      "pageNumberStart": {
+        "type": "integer",
+        "enum": [
+          0,
+          1
+        ]
       }
     }
   }

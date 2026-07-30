@@ -13,6 +13,11 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
+try:
+    from tools.catalog_page_numbering import iter_display_pages
+except ModuleNotFoundError:  # Direct execution from tools/
+    from catalog_page_numbering import iter_display_pages
+
 FINAL_LETTERS = str.maketrans({"ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ"})
 QUOTE_CHARS = frozenset("״׳'\"“”")
 SEPARATOR_CHARS = frozenset("־–—_")
@@ -96,7 +101,7 @@ def build_normalized_search_index(
                 " ", str(page_entry.get("text", ""))
             ).strip()
             for page_entry in search_pages if isinstance(search_pages, list) and isinstance(page_entry, Mapping)
-            if int(page_entry.get("page", 0) or 0) >= 1
+            if int(page_entry.get("page", 0) or 0) >= 0
         }
         metadata_text = " ".join(
             value for value in (
@@ -110,8 +115,7 @@ def build_normalized_search_index(
         # Every generated page is a searchable document, even when the PDF has
         # no extractable/OCR text. Metadata searches must still be able to open
         # those pages, and corpus/page counts must match the public catalog.
-        page_count = max(0, int(source.get("pages", 0) or 0))
-        for page in range(1, page_count + 1):
+        for page in iter_display_pages(source):
             raw_text = text_by_page.get(page, "")
             normalized_text = normalize_search_text(raw_text)
             document_id = len(documents)

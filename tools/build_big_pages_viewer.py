@@ -28,6 +28,7 @@ CATALOG_FIELDS = (
     "category",
     "subcategory",
     "pages",
+    "pageNumberStart",
     "dir",
     "cover",
     "imageExt",

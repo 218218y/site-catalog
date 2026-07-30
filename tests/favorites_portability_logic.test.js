@@ -6,10 +6,16 @@ const { importFrontendTestModule } = require('./frontend_test_module');
 
 const { createFavoritesPortabilityDomain } = importFrontendTestModule(
   'src/js/29-favorites-portability.js',
-  'favorites-portability'
+  'favorites-portability',
+  {
+    isCatalogPage: (catalog, page) => {
+      const first = catalog?.pageNumberStart === 0 ? 0 : 1;
+      return Number.isInteger(page) && page >= first && page < first + Number(catalog?.pages || 0);
+    }
+  }
 );
 const catalogs = [
-  { id: 'catalog-a', pages: 40 },
+  { id: 'catalog-a', pages: 40, pageNumberStart: 0 },
   { id: 'catalog-b', pages: 20 }
 ];
 const catalogMap = new Map(catalogs.map((catalog) => [catalog.id, catalog]));
@@ -25,6 +31,7 @@ const domain = createFavoritesPortabilityDomain({
 const firstOrder = [
   { catalogId: 'catalog-b', page: 7, savedAt: 30 },
   { catalogId: 'catalog-a', page: 4, savedAt: 20 },
+  { catalogId: 'catalog-a', page: 0, savedAt: 15 },
   { catalogId: 'catalog-a', page: 2, savedAt: 10, note: 'הערה מקומית' },
   { catalogId: 'catalog-a', page: 3, savedAt: 5 }
 ];
@@ -32,6 +39,7 @@ const token = domain.buildFavoritesShareToken(firstOrder);
 assert.match(token, /^v2\.[A-Za-z0-9_-]+$/);
 assert.equal(token, domain.buildFavoritesShareToken([...firstOrder].reverse()), 'the shared token must not encode local item order');
 assert.deepEqual(domain.parseFavoritesShareToken(token).items, [
+  { catalogId: 'catalog-a', page: 0, savedAt: 0 },
   { catalogId: 'catalog-a', page: 2, savedAt: 0 },
   { catalogId: 'catalog-a', page: 3, savedAt: 0 },
   { catalogId: 'catalog-a', page: 4, savedAt: 0 },

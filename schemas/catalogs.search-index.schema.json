@@ -54,7 +54,7 @@
         "required": ["catalog", "page", "text", "normalized"],
         "properties": {
           "catalog": {"type": "integer", "minimum": 0},
-          "page": {"type": "integer", "minimum": 1},
+          "page": {"type": "integer", "minimum": 0},
           "text": {"type": "string"},
           "normalized": {"type": "string"}
         }

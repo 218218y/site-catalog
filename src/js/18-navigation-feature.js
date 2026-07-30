@@ -7,6 +7,7 @@
  */
 
 import { attachNavigationEvents, currentAppPage, setCurrentAppPage } from "./00-navigation.js";
+import { clampCatalogPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, navigationState, shellElements } from "./11-navigation-state.js";
 
@@ -36,13 +37,13 @@ registerFeatureInterface("navigation", {
   catalog: () => navigationState.catalog,
   page: () => navigationState.page,
   source: () => navigationState.lightboxSource,
-  setLocation: (catalog, page = 1, source = navigationState.lightboxSource) => {
+  setLocation: (catalog, page = undefined, source = navigationState.lightboxSource) => {
     navigationState.catalog = catalog;
-    navigationState.page = Math.max(1, Number.parseInt(String(page), 10) || 1);
+    navigationState.page = clampCatalogPage(page, catalog);
     navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
   },
   setPage: (page) => {
-    navigationState.page = Math.max(1, Number.parseInt(String(page), 10) || 1);
+    navigationState.page = clampCatalogPage(page, navigationState.catalog);
   },
   setSource: (source) => {
     navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
@@ -82,7 +83,7 @@ function activeViewerSource() {
 }
 
 /** @param {CatalogRecord|null} catalog @param {number} [page] @param {string} [source] */
-function setActiveLocation(catalog, page = 1, source = activeViewerSource()) {
+function setActiveLocation(catalog, page = undefined, source = activeViewerSource()) {
   navigationFeature().setLocation(catalog, page, source);
 }
 

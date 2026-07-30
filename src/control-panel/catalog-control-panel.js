@@ -658,7 +658,7 @@ function separatorRow(type, block, blockIndex, blockCount, showSubcategory, pare
   const disabledDown = blockIndex === blockCount - 1 || isFilterActive() ? 'disabled' : '';
   const parentAttr = !isCategory && Number.isInteger(parentCategoryBlockIndex) ? ` data-parent-category-block-index="${parentCategoryBlockIndex}"` : '';
   return `<tr class="group-separator ${isCategory ? 'category-separator' : 'subcategory-separator'}"${hiddenAttribute}>
-    <td colspan="10">
+    <td colspan="11">
       <div class="group-strip ${className}">
         <div class="group-title">
           <span class="group-kicker">${escapeHtml(kicker)}</span>
@@ -695,6 +695,12 @@ function catalogRow(catalog, index) {
         <span>${catalog.ocr !== false ? 'כן' : 'לא'}</span>
       </label>
     </td>
+    <td>
+      <select class="page-number-start-select" data-field="pageNumberStart" title="בחר 0 כאשר תמונת השער אינה ממוספרת והעמוד שאחריה הוא עמוד 1">
+        <option value="1" ${catalog.pageNumberStart === 0 ? '' : 'selected'}>מתחיל ב־1 (ברירת מחדל)</option>
+        <option value="0" ${catalog.pageNumberStart === 0 ? 'selected' : ''}>מתחיל ב־0 (שער לא ממוספר)</option>
+      </select>
+    </td>
     <td><input class="title-input" type="text" data-field="title" value="${escapeHtml(catalog.title || '')}" /></td>
     <td><textarea class="description-input" data-field="description" placeholder="תיאור קצר שיופיע באתר">${escapeHtml(catalog.description || '')}</textarea></td>
     <td><input class="category-input" type="text" data-field="category" value="${escapeHtml(catalog.category || '')}" /></td>
@@ -720,7 +726,7 @@ function renderCatalogs() {
       .filter(({catalog}) => [catalog.id, catalog.title, catalog.description, catalog.category, catalog.subcategory, catalog.pdf].join(' ').toLowerCase().includes(query))
       .map(({catalog, index}) => catalogRow(catalog, index))
       .join('');
-    els.rows.innerHTML = rows || '<tr><td colspan="10">לא נמצאו קטלוגים.</td></tr>';
+    els.rows.innerHTML = rows || '<tr><td colspan="11">לא נמצאו קטלוגים.</td></tr>';
     return;
   }
 
@@ -738,7 +744,7 @@ function renderCatalogs() {
       }
     });
   });
-  els.rows.innerHTML = rows.join('') || '<tr><td colspan="10">לא נמצאו קטלוגים.</td></tr>';
+  els.rows.innerHTML = rows.join('') || '<tr><td colspan="11">לא נמצאו קטלוגים.</td></tr>';
 }
 
 /** @param {File} file @returns {Promise<ControlApiResponse>} */
@@ -829,7 +835,7 @@ async function uploadSelectedPdf() {
   }
 }
 
-/** @param {HTMLInputElement | HTMLTextAreaElement} input */
+/** @param {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} input */
 function syncCatalogFromInput(input) {
   const row = input.closest('tr');
   if (!row) return;
@@ -841,6 +847,9 @@ function syncCatalogFromInput(input) {
     state.catalogs[index].ocr = input.checked;
     const label = input.parentElement?.querySelector('span:last-child');
     if (label) label.textContent = input.checked ? 'כן' : 'לא';
+  } else if (field === 'pageNumberStart') {
+    if (!(input instanceof HTMLSelectElement)) return;
+    state.catalogs[index].pageNumberStart = input.value === '0' ? 0 : 1;
   } else {
     state.catalogs[index][field] = input.value;
   }
@@ -848,6 +857,8 @@ function syncCatalogFromInput(input) {
     markUnsaved('יש שינוי ID. בשמירה תתבצע החלפת שם לתיקיית assets/pages ועדכון search-overrides אם צריך. ה-ID חייב להיות באנגלית קטנה, מספרים ומקפים.');
   } else if (field === 'category' || field === 'subcategory') {
     markUnsaved('יש שינוי קטגוריה/תת־קטגוריה. בשמירה הקטלוגים יקובצו מחדש לפי הסדר המעודכן.');
+  } else if (field === 'pageNumberStart') {
+    markUnsaved('מספור העמודים השתנה. התמונות נשארות ללא שינוי, ובשמירה האתר ימפה מחדש את הכתובות, החיפוש והצגת העמודים.');
   } else {
     markUnsaved('יש שינויים שלא נשמרו.');
   }
@@ -1152,12 +1163,12 @@ function renderJobHistory(jobs) {
 }
 
 els.rows.addEventListener('input', event => {
-  const input = eventElement(event)?.closest('input, textarea');
-  if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) syncCatalogFromInput(input);
+  const input = eventElement(event)?.closest('input, textarea, select');
+  if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement || input instanceof HTMLSelectElement) syncCatalogFromInput(input);
 });
 els.rows.addEventListener('change', event => {
-  const input = eventElement(event)?.closest('input, textarea');
-  if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
+  const input = eventElement(event)?.closest('input, textarea, select');
+  if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement || input instanceof HTMLSelectElement)) return;
   syncCatalogFromInput(input);
   if (input.dataset.field === 'category' || input.dataset.field === 'subcategory') {
     reconcileTaxonomyDraftFromCatalogs();
@@ -1255,7 +1266,7 @@ function showLoadError(error) {
   const message = errorMessage(error) || 'שגיאה בטעינת מצב';
   setServerAlert(message);
   els.stats.innerHTML = '';
-  els.rows.innerHTML = '<tr><td colspan="10">לא ניתן לטעון קטלוגים כי שרת ה־API של לוח השליטה לא פעיל.</td></tr>';
+  els.rows.innerHTML = '<tr><td colspan="11">לא ניתן לטעון קטלוגים כי שרת ה־API של לוח השליטה לא פעיל.</td></tr>';
   els.actions.innerHTML = '<div class="notice">הפעל <span dir="ltr">.04-catalog-control-panel.bat</span> מתוך תיקיית הפרויקט, ואז הדף ייטען עם כל הקטלוגים והכפתורים.</div>';
   setTaxonomySaveStatus('לא ניתן לטעון או לשמור טקסונומיה בלי שרת לוח השליטה.', 'err');
   els.taxonomySave.disabled = true;

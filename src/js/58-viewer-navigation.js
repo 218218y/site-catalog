@@ -6,6 +6,7 @@
  * same paged navigation contract used by buttons, keyboard, and touch input.
  */
 
+import { catalogFirstPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface } from "./10-app-state.js";
 import { VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_SETTLE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
@@ -30,7 +31,7 @@ function retryCurrentViewerImage() {
 function getViewerNavigationPosition() {
   return isFavoritesLightboxMode()
     ? (getFeatureInterface("favorites")?.viewerIndex() ?? 0)
-    : activePage() - 1;
+    : activePage() - catalogFirstPage(activeCatalog());
 }
 
 function getViewerNavigationMaximumPosition() {
@@ -49,7 +50,7 @@ function setViewerNavigationPosition(position, options = {}) {
   if (isFavoritesLightboxMode()) {
     setFavoriteViewerIndex(target, options);
   } else {
-    setLightboxPage(target + 1, options);
+    setLightboxPage(target + catalogFirstPage(activeCatalog()), options);
   }
   return true;
 }

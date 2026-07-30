@@ -199,7 +199,7 @@
       : (type === "catalog" ? ` · ${[result?.category, result?.subcategory].filter(Boolean).join(" · ")}` : "");
     const catalog = type === "catalog" ? findCatalog(result?.catalogId) : null;
     if (catalog) {
-      const page = 1;
+      const page = catalogFirstPage(catalog);
       const title = String(result?.label || catalog.title || "קטלוג").trim() || "קטלוג";
       const thumb = thumbSrc(catalog, page);
       const preview = mediumSrc(catalog, page) || pageSrc(catalog, page) || thumb;
@@ -250,6 +250,19 @@
     return String(num).padStart(3, "0");
   }
 
+  function catalogFirstPage(catalog) {
+    return catalog?.pageNumberStart === 0 ? 0 : 1;
+  }
+
+  function displayPageToAssetPage(catalog, page) {
+    const firstPage = catalogFirstPage(catalog);
+    const pageCount = Math.max(1, Number.parseInt(String(catalog?.pages || 1), 10) || 1);
+    const parsed = Number.parseInt(String(page), 10);
+    const displayPage = Number.isFinite(parsed) ? parsed : firstPage;
+    const lastPage = firstPage + pageCount - 1;
+    return Math.min(Math.max(displayPage, firstPage), lastPage) - firstPage + 1;
+  }
+
   function catalogAssetBaseUrl() {
     const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
     if (!rawBase) return "";
@@ -294,11 +307,13 @@
   }
 
   function pageSrc(catalog, page) {
-    return withAssetVersion(`${catalogDir(catalog)}/page-${pad(page)}.${imageExt(catalog)}`, catalog, "full");
+    const assetPage = displayPageToAssetPage(catalog, page);
+    return withAssetVersion(`${catalogDir(catalog)}/page-${pad(assetPage)}.${imageExt(catalog)}`, catalog, "full");
   }
 
   function thumbSrc(catalog, page) {
-    return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(page)}.${imageExt(catalog)}`, catalog, "thumb");
+    const assetPage = displayPageToAssetPage(catalog, page);
+    return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(assetPage)}.${imageExt(catalog)}`, catalog, "thumb");
   }
 
   function mediumSrc(catalog, page) {
@@ -306,11 +321,13 @@
     const variant = catalog?.imageVariants?.medium;
     if (!variant || typeof variant !== "object") return "";
     const directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
-    return withAssetVersion(`${catalogDir(catalog)}/${directory}/page-${pad(page)}.${imageExt(catalog)}`, catalog, "medium");
+    const assetPage = displayPageToAssetPage(catalog, page);
+    return withAssetVersion(`${catalogDir(catalog)}/${directory}/page-${pad(assetPage)}.${imageExt(catalog)}`, catalog, "medium");
   }
 
   function navigationImageDimensionAttributes(catalog, page) {
-    const size = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes[page - 1] : null;
+    const assetPage = displayPageToAssetPage(catalog, page);
+    const size = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes[assetPage - 1] : null;
     const width = Number(size?.[0]);
     const height = Number(size?.[1]);
     return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0

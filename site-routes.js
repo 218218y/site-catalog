@@ -22,9 +22,9 @@
     return Object.prototype.hasOwnProperty.call(DOCUMENTS, page) ? page : PAGE_HOME;
   }
 
-  function positiveInteger(value, fallback = 1) {
+  function nonNegativeInteger(value, fallback = 1) {
     const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
   }
 
   function safeRouteToken(value) {
@@ -62,7 +62,7 @@
       return {
         page: PAGE_VIEWER,
         catalogId,
-        currentPage: positiveInteger(trailing[1], 1),
+        currentPage: nonNegativeInteger(trailing[1], 1),
         baseSegments: segments.slice(0, catalogIndex)
       };
     }
@@ -163,7 +163,7 @@
   function viewerUrl(catalogId, page = 1, options = {}) {
     const normalizedCatalogId = safeRouteToken(catalogId);
     if (!normalizedCatalogId) return homeUrl();
-    const currentPage = positiveInteger(page);
+    const currentPage = nonNegativeInteger(page);
     const base = joinBasePath(`${CLEAN_CATALOG_SEGMENT}/${normalizedCatalogId}/${CLEAN_PAGE_SEGMENT}/${currentPage}/`);
     return options.source === FAVORITES_SOURCE ? `${base}?source=${FAVORITES_SOURCE}` : base;
   }
