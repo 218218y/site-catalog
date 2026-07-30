@@ -74,6 +74,8 @@ from catalog_compiler import (
 from catalog_conversion_profiles import conversion_profile_command
 from catalog_page_numbering import page_number_start
 
+from control_panel_api_schema import ControlPanelSchemaError, validate_control_panel_payload
+
 from catalog_control_api import (
     API_VERSION,
     MAX_PDF_UPLOAD_BYTES,
@@ -84,6 +86,7 @@ from catalog_control_api import (
     TaxonomySaveRequest,
     content_length,
     read_json_object,
+    validate_request_payload,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -97,10 +100,14 @@ CATALOG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 PAGE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
+CONTROL_PANEL_STATIC_ROOT = PROJECT_ROOT / "src" / "control-panel"
 STATIC_FILES = {
     "/catalog-control-panel.html": PROJECT_ROOT / "catalog-control-panel.html",
-    "/src/control-panel/catalog-control-panel.css": PROJECT_ROOT / "src/control-panel/catalog-control-panel.css",
-    "/src/control-panel/catalog-control-panel.js": PROJECT_ROOT / "src/control-panel/catalog-control-panel.js",
+    **{
+        f"/{path.relative_to(PROJECT_ROOT).as_posix()}": path
+        for path in CONTROL_PANEL_STATIC_ROOT.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".js", ".css"}
+    },
 }
 
 
@@ -1180,7 +1187,7 @@ def state_payload() -> dict[str, Any]:
             "disabled": not enabled,
             "disabledReason": reason,
         })
-    return {
+    payload = {
         "apiVersion": API_VERSION,
         "catalogs": [normalize_catalog_for_ui(item) for item in config],
         "taxonomy": taxonomy,
@@ -1214,6 +1221,8 @@ def state_payload() -> dict[str, Any]:
         "actions": actions,
         "jobs": job_summaries,
     }
+    validate_control_panel_payload("ControlPanelStateDto", payload)
+    return payload
 
 
 def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
@@ -1831,15 +1840,15 @@ class ControlHandler(BaseHTTPRequestHandler):
                 self.redirect("/catalog-control-panel.html")
                 return
             if path == "/api/state":
-                self.send_json(state_payload())
+                self.send_contract_json("ControlPanelStateDto", state_payload())
                 return
             if path == "/api/pdfs":
-                self.send_json({"pdfs": pdf_files_payload(), "pdfDir": rel_to_root(PDF_DIR)})
+                self.send_contract_json("PdfListResponseDto", {"pdfs": pdf_files_payload(), "pdfDir": rel_to_root(PDF_DIR)})
                 return
             if path == "/api/jobs":
                 with jobs_lock:
                     payload = [serialize_job(job, include_log=False) for job in sorted(jobs.values(), key=lambda item: item.started_at, reverse=True)]
-                self.send_json({"jobs": payload})
+                self.send_contract_json("JobListResponseDto", {"jobs": payload})
                 return
             if path.startswith("/api/jobs/"):
                 job_id = path.rsplit("/", 1)[-1]
@@ -1849,7 +1858,7 @@ class ControlHandler(BaseHTTPRequestHandler):
                 if not payload:
                     self.send_error_json(HTTPStatus.NOT_FOUND, "Job not found")
                     return
-                self.send_json(payload)
+                self.send_contract_json("ControlJobDto", payload)
                 return
             self.serve_static(path)
         except ApiRequestError as exc:
@@ -1864,24 +1873,26 @@ class ControlHandler(BaseHTTPRequestHandler):
             self._validate_request_security(require_origin=True)
             path = unquote(parsed.path)
             if path == "/api/pdf-pick-native":
-                read_json_body(self)
+                pick_request = read_json_body(self)
+                validate_request_payload("PdfPickRequestDto", pick_request)
                 picked = pick_native_pdf_file()
                 if picked.get("canceled"):
-                    self.send_json({"ok": True, "canceled": True, "errors": picked.get("errors", [])})
+                    self.send_contract_json("PdfPickResponseDto", {"ok": True, "canceled": True, "errors": picked.get("errors", [])})
                     return
-                self.send_json({"ok": True, "pdf": picked["pdf"], "pdfFiles": pdf_files_payload(), "state": state_payload()})
+                self.send_contract_json("PdfPickResponseDto", {"ok": True, "pdf": picked["pdf"], "pdfFiles": pdf_files_payload(), "state": state_payload()})
                 return
             if path == "/api/pdf-upload":
                 filename, content = read_multipart_pdf_upload(self)
                 upload = save_uploaded_pdf(filename, content)
-                self.send_json({"ok": True, "pdf": upload, "pdfFiles": pdf_files_payload(), "state": state_payload()})
+                self.send_contract_json("PdfUploadResponseDto", {"ok": True, "pdf": upload, "pdfFiles": pdf_files_payload(), "state": state_payload()})
                 return
 
             cancel_match = re.fullmatch(r"/api/jobs/([a-z0-9]+)/cancel", path)
             if cancel_match:
-                read_json_body(self)
+                cancel_request = read_json_body(self)
+                validate_request_payload("EmptyRequestDto", cancel_request)
                 job = cancel_job(cancel_match.group(1))
-                self.send_json({"ok": True, "job": serialize_job(job)})
+                self.send_contract_json("CancelJobResponseDto", {"ok": True, "job": serialize_job(job)})
                 return
 
             payload = read_json_body(self)
@@ -1890,7 +1901,7 @@ class ControlHandler(BaseHTTPRequestHandler):
                 with footer_save_lock:
                     with ProjectMutationLock(PROJECT_ROOT, "שמירת הפוטר מלוח השליטה"):
                         footer = save_footer_content_and_render_pages(request.footer)
-                self.send_json({"ok": True, "footer": footer, "state": state_payload(), "updatedPages": [page.filename for page in PAGE_DOCUMENTS]})
+                self.send_contract_json("FooterSaveResponseDto", {"ok": True, "footer": footer, "state": state_payload(), "updatedPages": [page.filename for page in PAGE_DOCUMENTS]})
                 return
             if path == "/api/catalogs":
                 request = CatalogSaveRequest.parse(payload)
@@ -1900,7 +1911,7 @@ class ControlHandler(BaseHTTPRequestHandler):
                         request.taxonomy,
                         request.asset_deletes,
                     )
-                self.send_json({
+                self.send_contract_json("CatalogSaveResponseDto", {
                     "ok": True,
                     "state": state_payload(),
                     "warnings": result["warnings"],
@@ -1914,7 +1925,7 @@ class ControlHandler(BaseHTTPRequestHandler):
                 request = TaxonomySaveRequest.parse(payload)
                 with taxonomy_save_lock:
                     result = save_taxonomy_transactionally(request.taxonomy)
-                self.send_json({
+                self.send_contract_json("TaxonomySaveResponseDto", {
                     "ok": True,
                     "state": state_payload(),
                     "warnings": result["warnings"],
@@ -1930,7 +1941,7 @@ class ControlHandler(BaseHTTPRequestHandler):
                     prune_missing_pdfs=request.prune_missing_pdfs,
                     confirmed_missing_pdf_ids=request.confirmed_missing_pdf_ids,
                 )
-                self.send_json({"ok": True, "job": serialize_job(job)})
+                self.send_contract_json("RunActionResponseDto", {"ok": True, "job": serialize_job(job)})
                 return
             self.send_error_json(HTTPStatus.NOT_FOUND, "Unknown API route")
         except ApiRequestError as exc:
@@ -1967,6 +1978,12 @@ class ControlHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
 
+    def send_contract_json(self, contract: str, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
+        try:
+            validate_control_panel_payload(contract, payload)
+        except ControlPanelSchemaError as exc:
+            raise RuntimeError(f"Control-panel response violates {contract}: {exc}") from exc
+        self.send_json(payload, status=status)
 
     def send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -1979,7 +1996,7 @@ class ControlHandler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def send_error_json(self, status: HTTPStatus, message: str) -> None:
-        self.send_json({"ok": False, "error": message}, status=status)
+        self.send_contract_json("ErrorResponseDto", {"ok": False, "error": message}, status=status)
 
     def redirect(self, location: str) -> None:
         self.send_response(HTTPStatus.FOUND)

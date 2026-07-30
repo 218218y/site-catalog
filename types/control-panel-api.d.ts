@@ -1,12 +1,13 @@
+// Generated from schemas/control-panel-api.schema.json. Do not edit manually.
+
 interface ControlCatalogStatusDto {
   state: string;
   label: string;
 }
 
 interface ControlCatalogDto {
-  [key: string]: unknown;
   id: string;
-  originalId?: string;
+  originalId: string;
   title: string;
   description: string;
   category: string;
@@ -14,11 +15,10 @@ interface ControlCatalogDto {
   pdf: string;
   ocr: boolean;
   pageNumberStart: 0 | 1;
-  status?: ControlCatalogStatusDto;
+  status: ControlCatalogStatusDto;
 }
 
 interface ControlTaxonomyItemDto {
-  [key: string]: string | undefined;
   name: string;
   slug: string;
   description: string;
@@ -27,17 +27,22 @@ interface ControlTaxonomyItemDto {
   originalCategory?: string;
 }
 
+type ControlTaxonomyIssueDto = string | {
+  label?: string;
+};
+
 interface ControlTaxonomyAutoAddedDto {
-  categories: string[];
-  subcategories: string[];
+  categories: Array<string>;
+  subcategories: Array<string>;
 }
 
 interface ControlTaxonomyStateDto {
-  categories: ControlTaxonomyItemDto[];
-  subcategories: ControlTaxonomyItemDto[];
-  issues: Array<string | { label?: string }>;
+  categories: Array<ControlTaxonomyItemDto>;
+  subcategories: Array<ControlTaxonomyItemDto>;
+  issues: Array<ControlTaxonomyIssueDto>;
   complete: boolean;
   autoAdded: ControlTaxonomyAutoAddedDto;
+  usage: ControlTaxonomyUsageDto;
 }
 
 interface ControlActionDto {
@@ -49,20 +54,32 @@ interface ControlActionDto {
 }
 
 interface ControlCountsDto {
-  catalogs?: number;
-  pdfs?: number;
-  missingPdfs?: number;
-  configuredMissingPdfs?: number;
-  converted?: number;
-  ocrDisabled?: number;
-  taxonomyMissing?: number;
+  catalogs: number;
+  pdfs: number;
+  missingPdfs: number;
+  configuredMissingPdfs: number;
+  converted: number;
+  ocrDisabled: number;
+  taxonomyMissing: number;
+}
+
+interface ControlFilesDto {
+  config: string;
+  taxonomy: string;
+  generated: boolean;
+  search: boolean;
+  pdfDir: string;
+  pagesDir: string;
+  footerContent: string;
 }
 
 interface ControlPdfFileDto {
   name: string;
   path: string;
   folder?: string;
+  label?: string;
   size?: number;
+  modifiedAt?: number;
   status?: string;
 }
 
@@ -73,9 +90,9 @@ interface ControlMissingPdfDto {
 }
 
 interface ControlMutationDto {
-  active?: boolean;
-  action?: string;
-  startedAt?: number | null;
+  active: boolean;
+  action: string;
+  startedAt: number | null;
 }
 
 interface ControlFooterFieldDto {
@@ -91,14 +108,14 @@ interface ControlFooterFieldDto {
 }
 
 interface ControlFooterGroupDto {
-  id?: string;
-  title?: string;
-  description?: string;
-  fields?: ControlFooterFieldDto[];
+  id: string;
+  title: string;
+  description: string;
+  fields: Array<ControlFooterFieldDto>;
 }
 
 interface ControlFooterEditorDto {
-  groups: ControlFooterGroupDto[];
+  groups: Array<ControlFooterGroupDto>;
 }
 
 interface ControlJobDto {
@@ -106,103 +123,142 @@ interface ControlJobDto {
   actionKey: string;
   label: string;
   status: string;
-  returncode?: number | null;
+  returncode: number | null;
   startedAt: number;
-  finishedAt?: number | null;
-  cancelRequested?: boolean;
-  cancelRequestedAt?: number | null;
-  log?: string[];
+  finishedAt: number | null;
+  cancelRequested: boolean;
+  cancelRequestedAt: number | null;
+  log?: Array<string>;
 }
 
 interface ControlAssetDeleteDto {
   id: string;
-  originalId?: string;
-  pdf?: string;
-  deletePdf?: boolean;
-  deletePages?: boolean;
+  originalId: string;
+  pdf: string;
+  deletePdf: boolean;
+  deletePages: boolean;
 }
 
 interface ControlPanelStateDto {
   apiVersion: 1;
-  catalogs: ControlCatalogDto[];
+  catalogs: Array<ControlCatalogDto>;
   taxonomy: ControlTaxonomyStateDto;
   footer: Record<string, string>;
   footerEditor: ControlFooterEditorDto;
-  actions: ControlActionDto[];
+  actions: Array<ControlActionDto>;
   counts: ControlCountsDto;
-  pdfFiles: ControlPdfFileDto[];
-  configuredMissingPdfs: ControlMissingPdfDto[];
+  files: ControlFilesDto;
+  pdfFiles: Array<ControlPdfFileDto>;
+  configuredMissingPdfs: Array<ControlMissingPdfDto>;
   mutation: ControlMutationDto;
-  jobs: ControlJobDto[];
+  jobs: Array<ControlJobDto>;
 }
 
-interface ControlPanelState extends Omit<ControlPanelStateDto, "jobs"> {
-  pendingAssetDeletes: ControlAssetDeleteDto[];
-  pdfUploadCatalogIndex: number | null;
-  deleteDialogIndex: number | null;
-  activeJobId: string | null;
-  polling: ReturnType<typeof setTimeout> | null;
+interface ControlTaxonomyDraftDto {
+  categories: Array<ControlTaxonomyItemDto>;
+  subcategories: Array<ControlTaxonomyItemDto>;
 }
 
-interface ControlApiResponse extends Partial<ControlPanelStateDto> {
-  ok?: boolean;
-  error?: string;
-  state?: ControlPanelStateDto;
-  job?: ControlJobDto;
-  jobs?: ControlJobDto[];
-  warnings?: string[];
-  routeLockUpdates?: string[];
-  deletedAssets?: string[];
-  updatedPages?: string[];
-  footer?: Record<string, string>;
-  pdf?: ControlPdfFileDto;
-  pdfFiles?: ControlPdfFileDto[];
-  canceled?: boolean;
-  errors?: string[];
+interface CatalogSaveRequestDto {
+  catalogs: Array<ControlCatalogDto>;
+  taxonomy: ControlTaxonomyDraftDto;
+  assetDeletes?: Array<ControlAssetDeleteDto>;
 }
 
-interface ControlElements {
-  stats: HTMLElement;
-  rows: HTMLTableSectionElement;
-  actions: HTMLElement;
-  filter: HTMLInputElement;
-  save: HTMLButtonElement;
-  saveStatus: HTMLElement;
-  footerSave: HTMLButtonElement;
-  footerSaveStatus: HTMLElement;
-  footerEditorGroups: HTMLElement;
-  taxonomySummary: HTMLElement;
-  taxonomyAlert: HTMLElement;
-  taxonomyCategories: HTMLElement;
-  taxonomySubcategories: HTMLElement;
-  taxonomySave: HTMLButtonElement;
-  taxonomySaveStatus: HTMLElement;
-  taxonomyAddCategory: HTMLButtonElement;
-  taxonomyAddSubcategory: HTMLButtonElement;
-  jobStatus: HTMLElement;
-  cancelJob: HTMLButtonElement;
-  jobLog: HTMLElement;
-  jobHistory: HTMLElement;
-  refresh: HTMLButtonElement;
-  serverAlert: HTMLElement;
-  pdfFileInput: HTMLInputElement;
-  deleteCatalogBackdrop: HTMLElement;
-  deleteCatalogTitle: HTMLElement;
-  deleteCatalogSummary: HTMLElement;
-  deleteCatalogCancel: HTMLButtonElement;
-  deleteCatalogListOnly: HTMLButtonElement;
-  deleteCatalogWithAssets: HTMLButtonElement;
+interface TaxonomySaveRequestDto {
+  taxonomy: ControlTaxonomyDraftDto;
 }
 
-interface CatalogBlock {
-  key: string;
-  label: string;
-  start: number;
-  end: number;
+interface FooterSaveRequestDto {
+  footer: Record<string, string>;
+}
+
+interface RunActionRequestDto {
+  action: string;
+  pruneMissingPdfs?: boolean;
+  confirmedMissingPdfIds?: Array<string>;
+}
+
+interface PdfPickRequestDto {
+  currentPdf: string;
+}
+
+interface EmptyRequestDto {
+}
+
+interface ErrorResponseDto {
+  ok: false;
+  error: string;
+}
+
+interface PdfListResponseDto {
+  pdfs: Array<ControlPdfFileDto>;
+  pdfDir: string;
+}
+
+interface JobListResponseDto {
+  jobs: Array<ControlJobDto>;
+}
+
+interface PdfPickCanceledResponseDto {
+  ok: true;
+  canceled: true;
+  errors: Array<string>;
+}
+
+interface PdfSelectionResponseDto {
+  ok: true;
+  pdf: ControlPdfFileDto;
+  pdfFiles: Array<ControlPdfFileDto>;
+  state: ControlPanelStateDto;
+}
+
+type PdfPickResponseDto = PdfPickCanceledResponseDto | PdfSelectionResponseDto;
+
+type PdfUploadResponseDto = PdfSelectionResponseDto;
+
+interface CancelJobResponseDto {
+  ok: true;
+  job: ControlJobDto;
+}
+
+interface FooterSaveResponseDto {
+  ok: true;
+  footer: Record<string, string>;
+  state: ControlPanelStateDto;
+  updatedPages: Array<string>;
+}
+
+interface CatalogSaveResponseDto {
+  ok: true;
+  state: ControlPanelStateDto;
+  warnings: Array<string>;
+  autoAddedTaxonomy: ControlTaxonomyAutoAddedDto;
+  grouped: true;
+  deletedAssets: Array<string>;
+  routeLockUpdates: Array<string>;
+}
+
+interface TaxonomySaveResponseDto {
+  ok: true;
+  state: ControlPanelStateDto;
+  warnings: Array<string>;
+  autoAddedTaxonomy: ControlTaxonomyAutoAddedDto;
+  routeLockUpdates: Array<string>;
+}
+
+interface RunActionResponseDto {
+  ok: true;
+  job: ControlJobDto;
+}
+
+interface ControlTaxonomyUsageSubcategoryDto {
+  category: string;
+  name: string;
   count: number;
 }
 
-interface SubcategoryBlock extends CatalogBlock {
-  categoryStart: number;
-  categoryEnd: number;
+interface ControlTaxonomyUsageDto {
+  categories: Record<string, number>;
+  subcategories: Array<ControlTaxonomyUsageSubcategoryDto>;
 }

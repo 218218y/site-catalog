@@ -460,8 +460,10 @@ catalogs.search.js                 תוצר חיפוש תאימות שנוצר �
 catalogs.search-index.json         אינדקס החיפוש הפעיל והדטרמיניסטי עבור ה־Worker
 .04-catalog-control-panel.bat          פתיחת לוח השליטה המקומי
 catalog-control-panel.html         מעטפת HTML דקה של לוח השליטה המקומי
-src/control-panel/                 JavaScript ו-CSS של לוח השליטה; נכללים ב-TypeScript strict
-types/control-panel-api.d.ts       חוזי DTO של לוח השליטה בצד הדפדפן
+src/control-panel/                 יישום ESM מודולרי של לוח השליטה: core, Features ו-composition root
+schemas/control-panel-api.schema.json  מקור האמת לבקשות ולתגובות של לוח השליטה
+types/control-panel-api.d.ts       חוזי DTO generated מה-schema; אין לערוך ידנית
+tools/control_panel_api_schema.py  ולידציה בצד Python מול אותו schema קנוני
 .02-bundle-site-r2-upload cloudflare.bat      העלאת dist/site-upload-r2 ל-Cloudflare Pages בלבד
 configure-r2-cors.bat               החלה ואימות של מדיניות CORS בלבד
 r2-cors.json                        מדיניות קריאת GET/HEAD מהדפדפן עבור bucket התמונות הציבורי

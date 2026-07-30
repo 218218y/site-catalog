@@ -210,6 +210,20 @@ def test_http_boundary_serves_extracted_assets_with_security_headers() -> None:
         assert " style=" not in body
         connection.close()
 
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+        connection.request(
+            "GET",
+            "/src/control-panel/features/catalogs.js",
+            headers={"Host": f"127.0.0.1:{port}"},
+        )
+        module_response = connection.getresponse()
+        module_body = module_response.read().decode("utf-8")
+        assert module_response.status == HTTPStatus.OK
+        assert module_response.headers["Content-Type"] == "text/javascript; charset=utf-8"
+        assert module_response.headers["Cache-Control"] == "no-store"
+        assert "export function createCatalogsFeature" in module_body
+        connection.close()
+
 
 def test_http_boundary_rejects_host_header_injection() -> None:
     port = _free_loopback_port()

@@ -5,39 +5,86 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const html = fs.readFileSync(path.join(root, "catalog-control-panel.html"), "utf8");
-const app = fs.readFileSync(path.join(root, "src", "control-panel", "catalog-control-panel.js"), "utf8");
-const server = fs.readFileSync(path.join(root, "tools", "catalog_control_server.py"), "utf8");
-const profiles = fs.readFileSync(path.join(root, "tools", "catalog_conversion_profiles.py"), "utf8");
-const jsconfig = JSON.parse(fs.readFileSync(path.join(root, "jsconfig.json"), "utf8"));
-const functionsPackage = JSON.parse(fs.readFileSync(path.join(root, "functions", "package.json"), "utf8"));
+const read = (...parts) => fs.readFileSync(path.join(root, ...parts), "utf8");
+const html = read("catalog-control-panel.html");
+const bootstrap = read("src", "control-panel", "catalog-control-panel.js");
+const api = read("src", "control-panel", "core", "api.js");
+const state = read("src", "control-panel", "core", "state.js");
+const server = read("tools", "catalog_control_server.py");
+const requestBoundary = read("tools", "catalog_control_api.py");
+const schema = JSON.parse(read("schemas", "control-panel-api.schema.json"));
+const generatedTypes = read("types", "control-panel-api.d.ts");
+const profiles = read("tools", "catalog_conversion_profiles.py");
+const verifier = read("tools", "verify_project.py");
+const packageJson = JSON.parse(read("package.json"));
+const jsconfig = JSON.parse(read("jsconfig.json"));
+const functionsPackage = JSON.parse(read("functions", "package.json"));
 
 assert.match(html, /catalog-control-panel\.css/);
-assert.match(html, /catalog-control-panel\.js/);
+assert.match(html, /<script type="module" src="\/src\/control-panel\/catalog-control-panel\.js"><\/script>/);
 assert.doesNotMatch(html, /<style>|<script(?![^>]*src=)|\sstyle=/);
+
 assert.ok(jsconfig.include.includes("src/control-panel/**/*.js"));
 assert.ok(jsconfig.files.includes("types/control-panel-api.d.ts"));
+assert.ok(jsconfig.files.includes("types/control-panel-client.d.ts"));
 
-assert.match(app, /function applyServerState/);
-assert.match(app, /return error instanceof Error \? error\.message/);
-assert.doesNotMatch(app, /return error instanceof Error \? errorMessage\(error\)/);
-assert.doesNotMatch(app, /style=/);
-assert.match(app, /applyServerState\(payload\.state/);
-assert.doesNotMatch(app, /state\.catalogs\s*=\s*groupCatalogsByCategorySubcategory/);
-assert.match(app, /confirmedMissingPdfIds/);
-assert.match(server, /CatalogSaveRequest\.parse/);
-assert.match(server, /TaxonomySaveRequest\.parse/);
-assert.match(server, /FooterSaveRequest\.parse/);
-assert.match(server, /RunActionRequest\.parse/);
+assert.match(bootstrap, /import \{ applyServerState, state \} from "\.\/core\/state\.js"/);
+assert.match(bootstrap, /function applyCanonicalState/);
+assert.match(bootstrap, /applyServerState\(data, options\)/);
+assert.match(bootstrap, /renderCanonicalState\(\)/);
+assert.doesNotMatch(bootstrap, /function (?:renderCatalogs|renderTaxonomyEditor|footerFieldMarkup|cancelActiveJob)/);
+assert.ok(bootstrap.split(/\r?\n/).length <= 120, "Control-panel bootstrap must remain a small composition root");
+
+assert.match(state, /export function applyServerState/);
+assert.match(state, /state\.catalogs = data\.catalogs\.map/);
+assert.match(state, /state\.taxonomy = \{[\s\S]*?categories: data\.taxonomy\.categories\.map[\s\S]*?subcategories: data\.taxonomy\.subcategories\.map/);
+assert.match(api, /saveCatalogs\(request\)/);
+assert.match(api, /saveTaxonomy\(request\)/);
+assert.match(api, /saveFooter\(request\)/);
+assert.match(api, /runAction\(request\)/);
+assert.doesNotMatch(api, /ControlApiResponse/);
+
+assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
+for (const definition of [
+  "ControlPanelStateDto",
+  "CatalogSaveRequestDto",
+  "CatalogSaveResponseDto",
+  "TaxonomySaveRequestDto",
+  "TaxonomySaveResponseDto",
+  "FooterSaveRequestDto",
+  "FooterSaveResponseDto",
+  "RunActionRequestDto",
+  "RunActionResponseDto"
+]) {
+  assert.ok(schema.$defs[definition], `Missing canonical API definition: ${definition}`);
+}
+assert.match(generatedTypes, /^\/\/ Generated from schemas\/control-panel-api\.schema\.json\. Do not edit manually\./);
+assert.match(generatedTypes, /interface ControlPanelStateDto/);
+assert.match(generatedTypes, /interface CatalogSaveRequestDto/);
+
+assert.match(requestBoundary, /validate_control_panel_payload/);
+assert.match(requestBoundary, /validate_request_payload\("CatalogSaveRequestDto", normalized\)/);
+assert.match(requestBoundary, /validate_request_payload\("TaxonomySaveRequestDto", payload\)/);
+assert.match(requestBoundary, /validate_request_payload\("FooterSaveRequestDto", payload\)/);
+assert.match(requestBoundary, /validate_request_payload\("RunActionRequestDto", normalized\)/);
+assert.match(server, /def send_contract_json\(/);
+assert.match(server, /validate_control_panel_payload\(contract, payload\)/);
+assert.match(server, /send_contract_json\("ControlPanelStateDto", state_payload\(\)\)/);
+assert.match(server, /CONTROL_PANEL_STATIC_ROOT\.rglob\("\*"\)/);
 assert.match(server, /MAX_PDF_UPLOAD_BYTES/);
 assert.match(server, /Content-Security-Policy/);
 assert.match(server, /--allow-remote/);
 assert.match(server, /validate_missing_pdf_confirmation/);
+
 assert.match(profiles, /"production": ConversionProfile/);
 assert.match(profiles, /"force": ConversionProfile/);
 assert.match(profiles, /"ocr-refresh": ConversionProfile/);
 
+assert.equal(packageJson.scripts["build:control-panel-api-types"], "python tools/generate_control_panel_api_types.py");
+assert.equal(packageJson.scripts["check:control-panel-api-types"], "python tools/generate_control_panel_api_types.py --check");
+assert.match(verifier, /Control-panel API types are current/);
+assert.match(verifier, /tools\/generate_control_panel_api_types\.py", "--check"/);
 assert.deepEqual(functionsPackage, { private: true, type: "module" });
-assert.notEqual(JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).type, "module");
+assert.notEqual(packageJson.type, "module");
 
 console.log("catalog_control_panel_boundary_contract.test.js: PASS");

@@ -1,0 +1,1022 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bargig.local/schemas/control-panel-api.schema.json",
+  "title": "Catalog Control Panel API",
+  "$defs": {
+    "ControlCatalogStatusDto": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "ControlCatalogDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "originalId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "subcategory": {
+          "type": "string"
+        },
+        "pdf": {
+          "type": "string"
+        },
+        "ocr": {
+          "type": "boolean"
+        },
+        "pageNumberStart": {
+          "enum": [
+            0,
+            1
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ControlCatalogStatusDto"
+        }
+      },
+      "required": [
+        "id",
+        "originalId",
+        "title",
+        "description",
+        "category",
+        "subcategory",
+        "pdf",
+        "ocr",
+        "pageNumberStart",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "ControlTaxonomyItemDto": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "originalName": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "originalCategory": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "slug",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "ControlTaxonomyIssueDto": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ControlTaxonomyAutoAddedDto": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subcategories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "categories",
+        "subcategories"
+      ],
+      "additionalProperties": false
+    },
+    "ControlTaxonomyStateDto": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlTaxonomyItemDto"
+          }
+        },
+        "subcategories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlTaxonomyItemDto"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlTaxonomyIssueDto"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "autoAdded": {
+          "$ref": "#/$defs/ControlTaxonomyAutoAddedDto"
+        },
+        "usage": {
+          "$ref": "#/$defs/ControlTaxonomyUsageDto"
+        }
+      },
+      "required": [
+        "categories",
+        "subcategories",
+        "usage",
+        "issues",
+        "complete",
+        "autoAdded"
+      ],
+      "additionalProperties": false
+    },
+    "ControlActionDto": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "disabledReason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "description",
+        "disabled",
+        "disabledReason"
+      ],
+      "additionalProperties": false
+    },
+    "ControlCountsDto": {
+      "type": "object",
+      "properties": {
+        "catalogs": {
+          "type": "integer"
+        },
+        "pdfs": {
+          "type": "integer"
+        },
+        "missingPdfs": {
+          "type": "integer"
+        },
+        "configuredMissingPdfs": {
+          "type": "integer"
+        },
+        "converted": {
+          "type": "integer"
+        },
+        "ocrDisabled": {
+          "type": "integer"
+        },
+        "taxonomyMissing": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "catalogs",
+        "pdfs",
+        "missingPdfs",
+        "configuredMissingPdfs",
+        "converted",
+        "ocrDisabled",
+        "taxonomyMissing"
+      ],
+      "additionalProperties": false
+    },
+    "ControlFilesDto": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "type": "string"
+        },
+        "taxonomy": {
+          "type": "string"
+        },
+        "generated": {
+          "type": "boolean"
+        },
+        "search": {
+          "type": "boolean"
+        },
+        "pdfDir": {
+          "type": "string"
+        },
+        "pagesDir": {
+          "type": "string"
+        },
+        "footerContent": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "config",
+        "taxonomy",
+        "generated",
+        "search",
+        "pdfDir",
+        "pagesDir",
+        "footerContent"
+      ],
+      "additionalProperties": false
+    },
+    "ControlPdfFileDto": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "modifiedAt": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "ControlMissingPdfDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "pdf": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "pdf"
+      ],
+      "additionalProperties": false
+    },
+    "ControlMutationDto": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "action": {
+          "type": "string"
+        },
+        "startedAt": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "active",
+        "action",
+        "startedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ControlFooterFieldDto": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "help": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "integer"
+        },
+        "maxLength": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "ControlFooterGroupDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlFooterFieldDto"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "fields"
+      ],
+      "additionalProperties": false
+    },
+    "ControlFooterEditorDto": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlFooterGroupDto"
+          }
+        }
+      },
+      "required": [
+        "groups"
+      ],
+      "additionalProperties": false
+    },
+    "ControlJobDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "actionKey": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "returncode": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startedAt": {
+          "type": "number"
+        },
+        "finishedAt": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cancelRequested": {
+          "type": "boolean"
+        },
+        "cancelRequestedAt": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "log": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "actionKey",
+        "label",
+        "status",
+        "returncode",
+        "startedAt",
+        "finishedAt",
+        "cancelRequested",
+        "cancelRequestedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ControlAssetDeleteDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "originalId": {
+          "type": "string"
+        },
+        "pdf": {
+          "type": "string"
+        },
+        "deletePdf": {
+          "type": "boolean"
+        },
+        "deletePages": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "originalId",
+        "pdf",
+        "deletePdf",
+        "deletePages"
+      ],
+      "additionalProperties": false
+    },
+    "ControlPanelStateDto": {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": 1
+        },
+        "catalogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlCatalogDto"
+          }
+        },
+        "taxonomy": {
+          "$ref": "#/$defs/ControlTaxonomyStateDto"
+        },
+        "footer": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "footerEditor": {
+          "$ref": "#/$defs/ControlFooterEditorDto"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlActionDto"
+          }
+        },
+        "counts": {
+          "$ref": "#/$defs/ControlCountsDto"
+        },
+        "files": {
+          "$ref": "#/$defs/ControlFilesDto"
+        },
+        "pdfFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlPdfFileDto"
+          }
+        },
+        "configuredMissingPdfs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlMissingPdfDto"
+          }
+        },
+        "mutation": {
+          "$ref": "#/$defs/ControlMutationDto"
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlJobDto"
+          }
+        }
+      },
+      "required": [
+        "apiVersion",
+        "catalogs",
+        "taxonomy",
+        "footer",
+        "footerEditor",
+        "actions",
+        "counts",
+        "files",
+        "pdfFiles",
+        "configuredMissingPdfs",
+        "mutation",
+        "jobs"
+      ],
+      "additionalProperties": false
+    },
+    "ControlTaxonomyDraftDto": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlTaxonomyItemDto"
+          }
+        },
+        "subcategories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlTaxonomyItemDto"
+          }
+        }
+      },
+      "required": [
+        "categories",
+        "subcategories"
+      ],
+      "additionalProperties": false
+    },
+    "CatalogSaveRequestDto": {
+      "type": "object",
+      "properties": {
+        "catalogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlCatalogDto"
+          }
+        },
+        "taxonomy": {
+          "$ref": "#/$defs/ControlTaxonomyDraftDto"
+        },
+        "assetDeletes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlAssetDeleteDto"
+          }
+        }
+      },
+      "required": [
+        "catalogs",
+        "taxonomy"
+      ],
+      "additionalProperties": false
+    },
+    "TaxonomySaveRequestDto": {
+      "type": "object",
+      "properties": {
+        "taxonomy": {
+          "$ref": "#/$defs/ControlTaxonomyDraftDto"
+        }
+      },
+      "required": [
+        "taxonomy"
+      ],
+      "additionalProperties": false
+    },
+    "FooterSaveRequestDto": {
+      "type": "object",
+      "properties": {
+        "footer": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "footer"
+      ],
+      "additionalProperties": false
+    },
+    "RunActionRequestDto": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pruneMissingPdfs": {
+          "type": "boolean"
+        },
+        "confirmedMissingPdfIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "PdfPickRequestDto": {
+      "type": "object",
+      "properties": {
+        "currentPdf": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "currentPdf"
+      ],
+      "additionalProperties": false
+    },
+    "EmptyRequestDto": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "ErrorResponseDto": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "PdfListResponseDto": {
+      "type": "object",
+      "properties": {
+        "pdfs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlPdfFileDto"
+          }
+        },
+        "pdfDir": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pdfs",
+        "pdfDir"
+      ],
+      "additionalProperties": false
+    },
+    "JobListResponseDto": {
+      "type": "object",
+      "properties": {
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlJobDto"
+          }
+        }
+      },
+      "required": [
+        "jobs"
+      ],
+      "additionalProperties": false
+    },
+    "PdfPickCanceledResponseDto": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "canceled": {
+          "const": true
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "canceled",
+        "errors"
+      ],
+      "additionalProperties": false
+    },
+    "PdfSelectionResponseDto": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "pdf": {
+          "$ref": "#/$defs/ControlPdfFileDto"
+        },
+        "pdfFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlPdfFileDto"
+          }
+        },
+        "state": {
+          "$ref": "#/$defs/ControlPanelStateDto"
+        }
+      },
+      "required": [
+        "ok",
+        "pdf",
+        "pdfFiles",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "PdfPickResponseDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PdfPickCanceledResponseDto"
+        },
+        {
+          "$ref": "#/$defs/PdfSelectionResponseDto"
+        }
+      ]
+    },
+    "PdfUploadResponseDto": {
+      "$ref": "#/$defs/PdfSelectionResponseDto"
+    },
+    "CancelJobResponseDto": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "job": {
+          "$ref": "#/$defs/ControlJobDto"
+        }
+      },
+      "required": [
+        "ok",
+        "job"
+      ],
+      "additionalProperties": false
+    },
+    "FooterSaveResponseDto": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "footer": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "state": {
+          "$ref": "#/$defs/ControlPanelStateDto"
+        },
+        "updatedPages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "footer",
+        "state",
+        "updatedPages"
+      ],
+      "additionalProperties": false
+    },
+    "CatalogSaveResponseDto": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "state": {
+          "$ref": "#/$defs/ControlPanelStateDto"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "autoAddedTaxonomy": {
+          "$ref": "#/$defs/ControlTaxonomyAutoAddedDto"
+        },
+        "grouped": {
+          "const": true
+        },
+        "deletedAssets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "routeLockUpdates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "state",
+        "warnings",
+        "autoAddedTaxonomy",
+        "grouped",
+        "deletedAssets",
+        "routeLockUpdates"
+      ],
+      "additionalProperties": false
+    },
+    "TaxonomySaveResponseDto": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "state": {
+          "$ref": "#/$defs/ControlPanelStateDto"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "autoAddedTaxonomy": {
+          "$ref": "#/$defs/ControlTaxonomyAutoAddedDto"
+        },
+        "routeLockUpdates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "state",
+        "warnings",
+        "autoAddedTaxonomy",
+        "routeLockUpdates"
+      ],
+      "additionalProperties": false
+    },
+    "RunActionResponseDto": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "job": {
+          "$ref": "#/$defs/ControlJobDto"
+        }
+      },
+      "required": [
+        "ok",
+        "job"
+      ],
+      "additionalProperties": false
+    },
+    "ControlTaxonomyUsageSubcategoryDto": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "category",
+        "name",
+        "count"
+      ],
+      "additionalProperties": false
+    },
+    "ControlTaxonomyUsageDto": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "subcategories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ControlTaxonomyUsageSubcategoryDto"
+          }
+        }
+      },
+      "required": [
+        "categories",
+        "subcategories"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

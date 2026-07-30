@@ -16,7 +16,8 @@
   },
   "files": [
     "types/frontend-globals.d.ts",
-    "types/control-panel-api.d.ts"
+    "types/control-panel-api.d.ts",
+    "types/control-panel-client.d.ts"
   ],
   "include": [
     "src/js/**/*.js",

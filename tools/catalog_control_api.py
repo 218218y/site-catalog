@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from http import HTTPStatus
+from pathlib import Path
 from typing import Any, Protocol
+
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+from control_panel_api_schema import ControlPanelSchemaError, validate_control_panel_payload
 
 API_VERSION = 1
 MAX_JSON_BODY_BYTES = 1_000_000
@@ -21,6 +29,13 @@ class ApiRequestError(ValueError):
     def __init__(self, status: HTTPStatus, message: str) -> None:
         super().__init__(message)
         self.status = status
+
+
+def validate_request_payload(name: str, payload: dict[str, Any]) -> None:
+    try:
+        validate_control_panel_payload(name, payload)
+    except ControlPanelSchemaError as exc:
+        raise ApiRequestError(HTTPStatus.BAD_REQUEST, str(exc)) from exc
 
 
 def content_length(handler: RequestBodyReader, *, maximum: int) -> int:
@@ -77,14 +92,15 @@ class CatalogSaveRequest:
 
     @classmethod
     def parse(cls, payload: dict[str, Any]) -> "CatalogSaveRequest":
+        catalogs = _require_list(payload, "catalogs")
+        taxonomy = _require_object(payload, "taxonomy")
         deletes = payload.get("assetDeletes", [])
         if not isinstance(deletes, list):
             raise ApiRequestError(HTTPStatus.BAD_REQUEST, "assetDeletes must be an array")
-        return cls(
-            catalogs=_require_list(payload, "catalogs"),
-            taxonomy=_require_object(payload, "taxonomy"),
-            asset_deletes=deletes,
-        )
+        normalized = dict(payload)
+        normalized["assetDeletes"] = deletes
+        validate_request_payload("CatalogSaveRequestDto", normalized)
+        return cls(catalogs=catalogs, taxonomy=taxonomy, asset_deletes=deletes)
 
 
 @dataclass(frozen=True)
@@ -93,7 +109,9 @@ class TaxonomySaveRequest:
 
     @classmethod
     def parse(cls, payload: dict[str, Any]) -> "TaxonomySaveRequest":
-        return cls(taxonomy=_require_object(payload, "taxonomy"))
+        taxonomy = _require_object(payload, "taxonomy")
+        validate_request_payload("TaxonomySaveRequestDto", payload)
+        return cls(taxonomy=taxonomy)
 
 
 @dataclass(frozen=True)
@@ -102,7 +120,9 @@ class FooterSaveRequest:
 
     @classmethod
     def parse(cls, payload: dict[str, Any]) -> "FooterSaveRequest":
-        return cls(footer=_require_object(payload, "footer"))
+        footer = _require_object(payload, "footer")
+        validate_request_payload("FooterSaveRequestDto", payload)
+        return cls(footer=footer)
 
 
 @dataclass(frozen=True)
@@ -128,4 +148,9 @@ class RunActionRequest:
                 HTTPStatus.BAD_REQUEST,
                 "confirmedMissingPdfIds requires pruneMissingPdfs=true",
             )
+        normalized = dict(payload)
+        normalized["action"] = action.strip()
+        normalized["pruneMissingPdfs"] = prune
+        normalized["confirmedMissingPdfIds"] = list(confirmed)
+        validate_request_payload("RunActionRequestDto", normalized)
         return cls(action=action.strip(), prune_missing_pdfs=prune, confirmed_missing_pdf_ids=confirmed)

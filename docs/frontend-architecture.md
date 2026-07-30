@@ -152,6 +152,21 @@
 
 בשלב הניקוי נבדקו פונקציות orchestration ארוכות ב־Search, Favorites, Viewer ו־App Shell. לא בוצע פיצול לפי מספר שורות בלבד: הפונקציות שנשארו ארוכות מרכזות lifecycle קוהרנטי, והוצאת wrappers ללא owner עצמאי הייתה מוסיפה indirection בלי להקטין coupling. פיצול עתידי נדרש רק כאשר שינוי התנהגותי יוצר boundary בעל state, חוזה או בדיקות עצמאיים.
 
+## ארכיטקטורת לוח השליטה
+
+לוח השליטה הוא יישום ESM נפרד שאינו חלק מחבילות האתר הציבורי. `catalog-control-panel.html` טוען entry יחיד באמצעות `type="module"`, והשרת המקומי מגיש את גרף המקור תחת `src/control-panel` עם `no-store` ו־CSP סגור.
+
+- `catalog-control-panel.js` הוא composition root בלבד: יצירת Features, חיבור callbacks, החלפת state קנוני ו־startup. אין בו markup, קריאות endpoint או לוגיקה של Catalogs, Taxonomy, Footer, Jobs או PDF.
+- `core/api.js` הוא ה־HTTP port היחיד ומחזיר DTO מדויק לכל endpoint; אין response כללי שמסתיר שינוי צורה.
+- `core/state.js` הוא owner יחיד של המצב המשותף ושל `applyServerState()`. תגובת שרת מחליפה את המצב הקנוני במקום למזג ידנית חלקים שונים בכל Feature.
+- `core/dom.js` הוא המקום היחיד שמאתר IDs גלובליים ומחלק לכל Feature רק את האלמנטים שבבעלותו. Feature רשאי לבצע query מקומי בתוך container שקיבל, אך אינו מחפש DOM של תחום אחר.
+- `features/catalogs.js`, `taxonomy.js`, `footer.js`, `jobs.js`, `pdf.js` ו־`system.js` אינם מייבאים זה את זה. תיאום חוצה־תחומים עובר דרך callbacks או ports שה־composition root מזריק.
+- `schemas/control-panel-api.schema.json` הוא מקור האמת היחיד לחוזי הבקשות והתגובות. `tools/generate_control_panel_api_types.py` מייצר ממנו את `types/control-panel-api.d.ts`; `--check` נכשל כאשר הקובץ stale.
+- `tools/control_panel_api_schema.py` מאמת את אותו schema בצד Python. parsers מאמתים בקשות לפני שימוש, ו־`send_contract_json()` מאמת תגובות לפני כתיבה לרשת. שינוי DTO שאינו מסונכרן נכשל בבדיקת החוזה, לא רק בזמן פתיחת הדפדפן.
+- השרת, הנעילות והעסקאות נשארים owners של normalization, validation וכתיבה אטומית. הפיצול בצד הדפדפן אינו משכפל לוגיקת שרת ואינו מחליש את גבול העסקה.
+
+`tests/control_panel_modular_architecture_contract.test.js` אוכף גרף ESM ללא מחזורים, איסור imports בין Features, owner יחיד ל־DOM ול־state, ו־entry קטן. `tests/test_control_panel_api_schema.py` מוכיח שהטיפוסים generated עדכניים ושהחוזה דוחה שדות חסרים, שדות לא מוכרים וסטייה בין state חי ל־schema.
+
 ## שכבות CSS וטעינה לפי מסלול
 
 CSS נשמר בשכבות אחריות קיימות, אך builder מרכיב manifest שונה לכל Route. אין לפצל selector רק כדי להקטין קובץ; שכבה נכללת במסלול כאשר הרכיבים שלה באמת קיימים בו.
@@ -173,11 +188,12 @@ CSS נשמר בשכבות אחריות קיימות, אך builder מרכיב man
 
 1. `python tools/build_frontend_assets.py --check` — דטרמיניזם ועדכניות התוצרים.
 2. `python tools/check_frontend_contracts.py` — בעלות state/DOM וגבולות Route/Feature.
-3. `tsc -p jsconfig.json --noEmit` — strict מלא על כל `src/js/**/*.js`, globals מוכרזים, DOM מדויק ו־Feature Registry ממופה.
-4. `node tools/check_frontend_runtime_symbols.js` — כל Route bundle נבדק לסמלים בלתי־פתורים. כך קריאה ל־Viewer מתוך חבילת הבית אינה יכולה להסתתר מאחורי תנאי runtime.
-5. בדיקות JavaScript — unit tests שמייבאים מודולי ייצור, בדיקות integration ל־Feature ports, ו־source-text רק לחוזים מבניים.
-6. בדיקות Python — יצירת דפים, fingerprinting, פריסה ותקציבי גודל.
-7. Playwright — מסעות דפדפן, שגיאות runtime וטעינה לפי מסלול.
+3. `python tools/generate_control_panel_api_types.py --check` — schema קנוני וטיפוסי DTO generated מסונכרנים.
+4. `tsc -p jsconfig.json --noEmit` — strict מלא על כל `src/js/**/*.js`, `src/runtime/**/*.js` ו־`src/control-panel/**/*.js`, עם DOM ו־DTO מדויקים.
+5. `node tools/check_frontend_runtime_symbols.js` — כל Route bundle נבדק לסמלים בלתי־פתורים. כך קריאה ל־Viewer מתוך חבילת הבית אינה יכולה להסתתר מאחורי תנאי runtime.
+6. בדיקות JavaScript — unit tests שמייבאים מודולי ייצור, בדיקות integration ל־Feature ports, ו־source-text רק לחוזים מבניים.
+7. בדיקות Python — schema של לוח השליטה, יצירת דפים, fingerprinting, פריסה ותקציבי גודל.
+8. Playwright — מסעות דפדפן, שגיאות runtime וטעינה לפי מסלול.
 
 שגיאות מבנה של נתוני הקטלוג נתפסות בנוסף על ידי JSON Schemas וה־Catalog Compiler לפני כתיבת תוצרי האתר.
 

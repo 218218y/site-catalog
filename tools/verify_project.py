@@ -137,6 +137,10 @@ def verification_steps(
                 (python, "tools/check_frontend_contracts.py"),
             ),
             VerificationStep(
+                "Control-panel API types are current",
+                (python, "tools/generate_control_panel_api_types.py", "--check"),
+            ),
+            VerificationStep(
                 "Frontend JSDoc type contracts",
                 ("node", "node_modules/typescript/bin/tsc", "-p", "jsconfig.json", "--pretty", "false"),
             ),

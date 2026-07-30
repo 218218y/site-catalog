@@ -53,6 +53,8 @@
     "verify:r2:origin": "python tools/verify_remote_catalog_assets.py --base-url https://cdn.bargig-furniture.com --all-tiers",
     "test:search-performance": "node tests/catalog_search_worker.test.js",
     "check:frontend-contracts": "python tools/check_frontend_contracts.py",
+    "build:control-panel-api-types": "python tools/generate_control_panel_api_types.py",
+    "check:control-panel-api-types": "python tools/generate_control_panel_api_types.py --check",
     "check:types": "tsc -p jsconfig.json --pretty false",
     "check:runtime-symbols": "node tools/check_frontend_runtime_symbols.js"
   },
