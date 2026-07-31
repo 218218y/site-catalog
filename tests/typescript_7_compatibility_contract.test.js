@@ -3,6 +3,10 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  analyzeCompilerResult,
+  parseCompilerDiagnostics,
+} = require("../tools/check_frontend_runtime_symbols.js");
 
 const root = path.join(__dirname, "..");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
@@ -10,10 +14,8 @@ const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.jso
 const jsconfig = JSON.parse(fs.readFileSync(path.join(root, "jsconfig.json"), "utf8"));
 const contracts = fs.readFileSync(path.join(root, "src", "js", "05-app-contracts.js"), "utf8");
 const navigation = fs.readFileSync(path.join(root, "src", "js", "00-navigation.js"), "utf8");
-const compilerBoundary = fs.readFileSync(path.join(root, "tools", "typescript_compiler_api.js"), "utf8");
 const runtimeSymbolChecker = fs.readFileSync(path.join(root, "tools", "check_frontend_runtime_symbols.js"), "utf8");
 const frontendTestModule = fs.readFileSync(path.join(root, "tests", "frontend_test_module.js"), "utf8");
-const { extractDiagnosticCodes } = require("../tools/typescript_compiler_api.js");
 
 assert.equal(packageJson.devDependencies.typescript, "7.0.2");
 assert.equal(packageJson.devDependencies.esbuild, "0.28.1");
@@ -30,19 +32,27 @@ assert.match(contracts, /@typedef \{\{replace\?:boolean\}\} AppNavigationOptions
 assert.doesNotMatch(contracts, /@typedef \{\{replace\?:boolean\}\} NavigationOptions/);
 assert.equal((navigation.match(/@param \{AppNavigationOptions\} \[options\]/g) || []).length, 2);
 
-assert.match(compilerBoundary, /node_modules", "typescript", "bin", "tsc"/);
-assert.match(compilerBoundary, /spawnSync\(process\.execPath/);
-assert.doesNotMatch(compilerBoundary, /require\(["']typescript(?:-legacy-api)?["']\)/);
-assert.doesNotMatch(compilerBoundary, /\bcreateProgram\b|\bScriptTarget\b|\btranspileModule\b/);
+assert.equal(fs.existsSync(path.join(root, "tools", "typescript_compiler_api.js")), false);
+assert.match(runtimeSymbolChecker, /node_modules", "typescript", "package\.json"/);
+assert.match(runtimeSymbolChecker, /packageJson\.bin/);
+assert.match(runtimeSymbolChecker, /spawnSync\(process\.execPath/);
+assert.match(runtimeSymbolChecker, /"--ignoreConfig"/);
+assert.match(runtimeSymbolChecker, /diagnostic\.code === 2304/);
+assert.doesNotMatch(runtimeSymbolChecker, /require\(["']typescript(?:-legacy-api)?["']\)/);
+assert.doesNotMatch(runtimeSymbolChecker, /\bcreateProgram\b|\bScriptTarget\b|\btranspileModule\b/);
+
 assert.deepEqual(
-  extractDiagnosticCodes("a.js(1,2): error TS2304: Missing\nerror TS6053: File not found"),
+  parseCompilerDiagnostics("a.js(1,2): error TS2304: Missing\nerror TS6053: File not found").map((item) => item.code),
   [2304, 6053],
 );
-
-assert.match(runtimeSymbolChecker, /runTypeScriptCompiler/);
-assert.match(runtimeSymbolChecker, /error TS2304:/);
-assert.doesNotMatch(runtimeSymbolChecker, /\bcreateProgram\b|\bScriptTarget\b|\bModuleKind\b/);
-assert.doesNotMatch(runtimeSymbolChecker, /require\(["']typescript(?:-legacy-api)?["']\)/);
+assert.equal(
+  analyzeCompilerResult(1, "a.js(1,2): error TS18047: Value is possibly null").infrastructureFailure,
+  false,
+);
+assert.equal(
+  analyzeCompilerResult(1, "error TS6053: File not found").infrastructureFailure,
+  true,
+);
 
 assert.match(frontendTestModule, /require\("esbuild"\)/);
 assert.match(frontendTestModule, /esbuild\.transformSync/);
