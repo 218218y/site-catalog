@@ -10,7 +10,7 @@ chmod +x setup-linux.sh site.sh
 ./site.sh help
 ```
 
-שתי המערכות מפעילות את אותו מנגנון קנוני תחת `tools/project_tasks.js`; אין העתק נפרד של לוגיקת הבנייה ללינוקס. גם פקודות npm שמפעילות Python מאתרות כעת `python3`/`python`/`py` ומשתמשות אוטומטית ב־`.venv`, בלי `activate` ידני. הוראות מלאות ומפת BAT מול Linux נמצאות ב־[`docs/linux-development.md`](docs/linux-development.md).
+שתי המערכות מפעילות את אותו מנגנון קנוני תחת `tools/project_tasks.js`; אין העתק נפרד של לוגיקת הבנייה ללינוקס. ב־Ubuntu/Debian ההתקנה בודקת ומתקינה אוטומטית גם את Tesseract ואת נתוני השפה האנגלית והעברית רק כאשר הם חסרים. גם פקודות npm שמפעילות Python מאתרות כעת `python3`/`python`/`py` ומשתמשות אוטומטית ב־`.venv`, בלי `activate` ידני. הוראות מלאות ומפת BAT מול Linux נמצאות ב־[`docs/linux-development.md`](docs/linux-development.md).
 
 הפרויקט מוגדר למסלול עבודה אחד וברור:
 

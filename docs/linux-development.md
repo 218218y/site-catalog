@@ -10,15 +10,19 @@ Windows ו־`site.sh` של Linux הם מעטפות דקות לאותו מנגנ�
 - Linux על `x64` או `arm64`.
 - Node.js בגרסה הראשית הרשומה ב־`.nvmrc`; הגרסה המדויקת המועדפת נקראת מהקובץ.
 - Python 3.10 ומעלה, כולל תמיכה ביצירת `venv`.
-- חיבור אינטרנט להתקנת חבילות npm, חבילות Python ודפדפן Chromium של Playwright.
-- Tesseract עם עברית נדרש רק למסלולי OCR של הקטלוגים.
+- חיבור אינטרנט להתקנת חבילות npm, חבילות Python, חבילות מערכת ודפדפן Chromium של Playwright.
+- ב־Ubuntu/Debian נדרשים `apt-get` ו־`sudo` למשתמש שאינו root, כדי שההתקנה תוכל להשלים אוטומטית את חבילות המערכת.
 
-ב־Ubuntu/Debian אפשר להכין את דרישות Python ו־OCR כך:
+אם Python עדיין אינו מוכן ליצירת סביבה וירטואלית, התקן פעם אחת:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip tesseract-ocr tesseract-ocr-heb
+sudo apt install -y python3 python3-venv python3-pip
 ```
+
+את Tesseract ואת נתוני השפה אין צורך להתקין ידנית: `setup-linux.sh` בודק אותם
+ומתקין אוטומטית רק כאשר חסרים `tesseract-ocr`, ‏`tesseract-ocr-eng` או
+`tesseract-ocr-heb`.
 
 מומלץ להשתמש ב־nvm עבור Node. מתוך תיקיית הפרויקט, לאחר התקנת nvm:
 
@@ -42,10 +46,13 @@ chmod +x setup-linux.sh site.sh
 
 הפקודה מבצעת, לפי הסדר:
 
-1. `npm ci` לפי `package-lock.json`.
-2. ניקוי cache ו־bytecode ישן מעץ המקור.
-3. יצירה או תיקון של `.venv` והתקנת גרסאות Python הנעולות בפרויקט.
-4. התקנת Chromium התואם לגרסת Playwright הנעולה.
+1. ב־Linux, בדיקה של Tesseract ושל השפות `eng` ו־`heb`. רק אם משהו חסר היא
+   מריצה `apt-get update`, מתקינה את חבילות ה־OCR דרך `sudo` ומאמתת שוב את
+   קובץ ההרצה ואת שתי השפות.
+2. `npm ci` לפי `package-lock.json`.
+3. ניקוי cache ו־bytecode ישן מעץ המקור.
+4. יצירה או תיקון של `.venv` והתקנת גרסאות Python הנעולות בפרויקט.
+5. התקנת Chromium התואם לגרסת Playwright הנעולה.
 
 ב־Ubuntu/Debian נקי, כאשר חסרות גם ספריות המערכת של Chromium, השתמש:
 
@@ -65,6 +72,17 @@ chmod +x setup-linux.sh site.sh
 ```bash
 ./setup-linux.sh --skip-browsers
 ```
+
+בהפצת Linux שאינה מבוססת Ubuntu/Debian, או כאשר חבילות ה־OCR מנוהלות ידנית,
+אפשר לדלג במכוון רק על התקנת חבילות המערכת:
+
+```bash
+./setup-linux.sh --skip-ocr-system-deps
+```
+
+הדגל אינו מבטל OCR בקוד. הוא רק מונע מ־setup להשתמש ב־`apt-get`; אם Tesseract
+או `eng`/`heb` חסרים, פקודות ההמרה עדיין ידווחו על כך. ב־Ubuntu מומלץ להשאיר
+את ברירת המחדל ולא להשתמש בדגל.
 
 אין צורך להריץ `source .venv/bin/activate`. מפעיל הפרויקט מאתר `python3` או
 `python`, בודק שמדובר ב־Python 3.10 ומעלה, ומריץ כל כלי דרך ה־Python המדויק של
@@ -226,8 +244,8 @@ npm ci
 ./setup-linux.sh --with-browser-deps
 ```
 
-הודעה שמזכירה Playwright `1.55.1` פירושה שעדיין מותקנת גרסת פרויקט ישנה;
-הגרסה הנעולה בפרויקט צריכה להיות `1.61.1` ומעלה.
+הודעה שמזכירה Playwright `1.55.1` או `1.61.1` פירושה שעדיין מותקנת
+גרסת פרויקט ישנה; הגרסה הנעולה בפרויקט היא `1.62.0`.
 
 ### Playwright מותקן אך Chromium אינו עולה
 
@@ -235,10 +253,26 @@ npm ci
 ./setup-linux.sh --with-browser-deps
 ```
 
-### OCR נכשל עם הודעה ש־Tesseract חסר
+### OCR נכשל עם הודעה ש־Tesseract או שפה חסרים
+
+הרץ שוב את ההתקנה בלי להוריד מחדש את הדפדפן:
 
 ```bash
-sudo apt install -y tesseract-ocr tesseract-ocr-heb
+./setup-linux.sh --skip-browsers
+```
+
+לאימות ידני:
+
+```bash
+tesseract --version
+tesseract --list-langs
+```
+
+ברשימת השפות צריכים להופיע `eng` ו־`heb`. רק אם נדרש תיקון ידני:
+
+```bash
+sudo apt update
+sudo apt install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-heb
 ```
 
 ### אין צורך ב־activate

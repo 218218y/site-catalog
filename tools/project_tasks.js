@@ -14,7 +14,7 @@ const path = require("node:path");
 const { ROOT } = require("./run_project_python.js");
 
 const TASKS = Object.freeze({
-  setup: "Install Node/Python dependencies and Playwright Chromium",
+  setup: "Install Linux OCR, Node/Python dependencies and Playwright Chromium",
   "sync-catalog-pdfs": "Add unregistered PDFs to catalogs.config.json",
   "convert-catalogs": "Convert changed catalogs with the production profile",
   "convert-catalogs-force": "Force conversion of every configured catalog",
@@ -122,12 +122,17 @@ function validateNodeVersion({ allowMismatch = false } = {}) {
   }
 }
 
+function shouldInstallLinuxOcr(platform = process.platform, flags = new Set()) {
+  return platform === "linux" && !flags.has("--skip-ocr-system-deps");
+}
+
 function setupTask(arguments_, context) {
   const flags = new Set(arguments_);
   const allowed = new Set([
     "--skip-browsers",
     "--with-browser-deps",
     "--allow-node-version-mismatch",
+    "--skip-ocr-system-deps",
   ]);
   const unknown = [...flags].filter((flag) => !allowed.has(flag));
   if (unknown.length) {
@@ -144,7 +149,14 @@ function setupTask(arguments_, context) {
   const browserArgs = flags.has("--with-browser-deps")
     ? ["run", "setup:browsers:linux"]
     : ["run", "setup:browsers"];
-  const steps = [
+  const steps = [];
+  if (shouldInstallLinuxOcr(process.platform, flags)) {
+    steps.push({
+      message: "Installing or validating Tesseract OCR with Hebrew and English language data...",
+      run: (ctx) => runNode("tools/setup_linux_ocr.js", [], ctx),
+    });
+  }
+  steps.push(
     {
       message: "Installing the exact Node.js dependency lockfile...",
       run: (ctx) => runNpm(["ci"], ctx),
@@ -157,7 +169,7 @@ function setupTask(arguments_, context) {
       message: "Creating or validating the isolated Python environment...",
       run: (ctx) => runPython("tools/setup_python_env.py", [], ctx, { system: true }),
     },
-  ];
+  );
   if (!flags.has("--skip-browsers")) {
     steps.push({
       message: flags.has("--with-browser-deps")
@@ -270,6 +282,7 @@ function printHelp() {
   console.log("\nUseful examples:");
   console.log("  ./setup-linux.sh");
   console.log("  ./setup-linux.sh --with-browser-deps");
+  console.log("  ./setup-linux.sh --skip-ocr-system-deps");
   console.log("  ./site.sh convert-catalogs");
   console.log("  ./site.sh r2-sync --no-delete");
   console.log("  ./site.sh deploy-cloudflare --preview-branch test-name");
@@ -316,6 +329,7 @@ module.exports = {
   npmCommand,
   parseCommandLine,
   printHelp,
+  shouldInstallLinuxOcr,
   validateNodeVersion,
 };
 

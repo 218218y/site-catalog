@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const supportedPlaywrightVersion = "1.61.1";
+const supportedPlaywrightVersion = "1.62.1";
 const windowsLaunchers = Object.freeze({
   bundleSite: ".01-bundle-site-r2.bat",
   convertCatalogsForce: ".011-convert-catalogs-force.bat",
@@ -51,6 +51,7 @@ const controlPanelJobs = fs.readFileSync(path.join(root, "src", "control-panel",
 const controlPanelApi = fs.readFileSync(path.join(root, "src", "control-panel", "core", "api.js"), "utf8");
 const controlServer = fs.readFileSync(path.join(root, "tools", "catalog_control_server.py"), "utf8");
 const projectTasks = fs.readFileSync(path.join(root, "tools", "project_tasks.js"), "utf8");
+const linuxOcrSetup = fs.readFileSync(path.join(root, "tools", "setup_linux_ocr.js"), "utf8");
 const pythonLauncher = fs.readFileSync(path.join(root, "tools", "run_project_python.js"), "utf8");
 const linuxLauncher = fs.readFileSync(path.join(root, "site.sh"), "utf8");
 const linuxSetup = fs.readFileSync(path.join(root, "setup-linux.sh"), "utf8");
@@ -68,7 +69,7 @@ assert.equal(packageJson.scripts.dev, "node tools/run_project_python.js tools/se
 assert.equal(packageJson.scripts.serve, "node tools/run_project_python.js tools/serve_site.py");
 assert.equal(packageJson.scripts["dev:check"], "node tools/run_project_python.js tools/serve_site.py --ensure-current ask");
 assert.equal(packageJson.devDependencies["@playwright/test"], supportedPlaywrightVersion);
-assert.equal(packageJson.devDependencies.wrangler, "4.112.0");
+assert.equal(packageJson.devDependencies.wrangler, "4.116.0");
 assert.equal(packageJson.scripts.postinstall, "node tools/check_node_install_scripts.js");
 assert.equal(packageJson.scripts["check:node-tools"], "node tools/check_node_install_scripts.js");
 assert.deepEqual(packageJson.allowScripts, {
@@ -83,10 +84,17 @@ assert.equal(lockfile.packages["node_modules/@playwright/test"].dependencies.pla
 assert.equal(lockfile.packages["node_modules/playwright"].version, supportedPlaywrightVersion);
 assert.equal(lockfile.packages["node_modules/playwright"].dependencies["playwright-core"], supportedPlaywrightVersion);
 assert.equal(lockfile.packages["node_modules/playwright-core"].version, supportedPlaywrightVersion);
-assert.equal(lockfile.packages[""].devDependencies.wrangler, "4.112.0");
+for (const packagePath of [
+  "node_modules/@playwright/test",
+  "node_modules/playwright",
+  "node_modules/playwright-core",
+]) {
+  assert.equal(lockfile.packages[packagePath].engines.node, ">=20");
+}
+assert.equal(lockfile.packages[""].devDependencies.wrangler, "4.116.0");
 assert.equal(lockfile.packages["node_modules/esbuild"].version, "0.28.1");
-assert.equal(lockfile.packages["node_modules/sharp"].version, "0.34.5");
-assert.equal(lockfile.packages["node_modules/workerd"].version, "1.20260714.1");
+assert.equal(lockfile.packages["node_modules/sharp"].version, "0.35.2");
+assert.equal(lockfile.packages["node_modules/workerd"].version, "1.20260730.1");
 assert.equal(fs.readFileSync(path.join(root, ".npmrc"), "utf8").trim(), "save-exact=true");
 assert.equal(fs.readFileSync(path.join(root, ".nvmrc"), "utf8").trim(), "24.18.0");
 assert.equal(fs.existsSync(path.join(root, "tools", "check_node_install_scripts.js")), true);
@@ -172,6 +180,7 @@ assert.match(controlServer, /BARGIG_CONTROL_E2E/);
 assert.equal(fs.existsSync(path.join(root, "tests", "fixtures", "control_panel_interruptible_job.py")), true);
 
 assert.equal(fs.existsSync(path.join(root, "tools", "project_tasks.js")), true);
+assert.equal(fs.existsSync(path.join(root, "tools", "setup_linux_ocr.js")), true);
 assert.equal(fs.existsSync(path.join(root, "tools", "run_project_python.js")), true);
 assert.equal(fs.existsSync(path.join(root, "site.sh")), true);
 assert.equal(fs.existsSync(path.join(root, "setup-linux.sh")), true);
@@ -184,10 +193,21 @@ assert.match(projectTasks, /case "deploy-cloudflare":/);
 assert.match(projectTasks, /runPython\("tools\/verify_r2_catalog_sync_state\.py"/);
 assert.match(projectTasks, /runPython\("tools\/build_deploy_bundle\.py"/);
 assert.match(projectTasks, /runPython\("tools\/deploy_cloudflare_pages\.py"/);
+assert.match(projectTasks, /tools\/setup_linux_ocr\.js/);
+assert.match(projectTasks, /--skip-ocr-system-deps/);
+assert.match(linuxOcrSetup, /"tesseract-ocr"/);
+assert.match(linuxOcrSetup, /"tesseract-ocr-eng"/);
+assert.match(linuxOcrSetup, /"tesseract-ocr-heb"/);
+assert.match(linuxOcrSetup, /--no-install-recommends/);
+assert.match(linuxOcrSetup, /shell: false/);
 assert.match(pythonLauncher, /Python 3 interpreter/);
 assert.match(pythonLauncher, /tools\/run_with_project_python\.py/);
 assert.match(pythonLauncher, /shell: false/);
 assert.match(pythonLauncher, /PYTHONDONTWRITEBYTECODE/);
+assert.match(linuxDocs, /Tesseract[\s\S]*אוטומט/);
+assert.match(linuxDocs, /tesseract-ocr-eng/);
+assert.match(linuxDocs, /tesseract-ocr-heb/);
+assert.match(linuxDocs, /--skip-ocr-system-deps/);
 assert.match(linuxDocs, /אין צורך להריץ `source \.venv\/bin\/activate`/);
 assert.match(linuxDocs, /\.\/site\.sh deploy-cloudflare --preview-branch test-name/);
 assert.equal(packageJson.scripts.tasks, "node tools/project_tasks.js");

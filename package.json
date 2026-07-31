@@ -71,10 +71,10 @@
     "site:configure-r2-cors": "node tools/project_tasks.js configure-r2-cors"
   },
   "devDependencies": {
-    "@playwright/test": "1.61.1",
+    "@playwright/test": "1.62.1",
     "esbuild": "0.28.1",
     "typescript": "5.8.3",
-    "wrangler": "4.112.0"
+    "wrangler": "4.116.0"
   },
   "allowScripts": {
     "esbuild": true,
