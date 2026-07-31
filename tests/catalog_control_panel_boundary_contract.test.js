@@ -80,8 +80,8 @@ assert.match(profiles, /"production": ConversionProfile/);
 assert.match(profiles, /"force": ConversionProfile/);
 assert.match(profiles, /"ocr-refresh": ConversionProfile/);
 
-assert.equal(packageJson.scripts["build:control-panel-api-types"], "python tools/generate_control_panel_api_types.py");
-assert.equal(packageJson.scripts["check:control-panel-api-types"], "python tools/generate_control_panel_api_types.py --check");
+assert.equal(packageJson.scripts["build:control-panel-api-types"], "node tools/run_project_python.js tools/generate_control_panel_api_types.py");
+assert.equal(packageJson.scripts["check:control-panel-api-types"], "node tools/run_project_python.js tools/generate_control_panel_api_types.py --check");
 assert.match(verifier, /Control-panel API types are current/);
 assert.match(verifier, /tools\/generate_control_panel_api_types\.py", "--check"/);
 assert.deepEqual(functionsPackage, { private: true, type: "module" });

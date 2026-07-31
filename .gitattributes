@@ -15,3 +15,6 @@ _headers* text eol=lf
 # core.autocrlf from rewriting them on Windows checkouts.
 catalog-big-pages-viewer-netfree/README.txt text eol=lf
 robots.txt text eol=lf
+# Platform launchers keep their native line endings in every checkout.
+*.sh text eol=lf
+*.bat text eol=crlf

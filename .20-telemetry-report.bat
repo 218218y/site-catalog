@@ -3,20 +3,22 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-if exist ".venv\Scripts\python.exe" (
-  set "PYTHON_EXE=.venv\Scripts\python.exe"
-) else (
-  set "PYTHON_EXE=python"
+where node >nul 2>&1
+if errorlevel 1 (
+  echo Node.js is required. Install the version pinned in .nvmrc and run this file again.
+  goto error
 )
 
-%PYTHON_EXE% tools\telemetry_report.py --open %*
-if errorlevel 1 (
-  echo.
-  echo The telemetry report could not be created. Read the error above.
-  pause
-  exit /b 1
-)
+node tools\project_tasks.js telemetry-report %*
+if errorlevel 1 goto error
 
 echo.
-echo The report was saved under reports\telemetry and opened in your browser.
+echo The telemetry report was saved under reports\telemetry.
 pause
+exit /b 0
+
+:error
+echo.
+echo Command failed: telemetry-report. Read the exact error above.
+pause
+exit /b 1

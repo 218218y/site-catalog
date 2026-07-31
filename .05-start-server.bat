@@ -3,25 +3,18 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-if exist ".venv\Scripts\python.exe" (
-  set "PYTHON_EXE=.venv\Scripts\python.exe"
-) else (
-  where py >nul 2>nul
-  if not errorlevel 1 (
-    set "PYTHON_EXE=py -3"
-  ) else (
-    set "PYTHON_EXE=python"
-  )
+where node >nul 2>&1
+if errorlevel 1 (
+  echo Node.js is required. Install the version pinned in .nvmrc and run this file again.
+  goto error
 )
 
-echo Starting the existing local site without rebuilding...
-echo Web root: dist\site-local
-echo.
-%PYTHON_EXE% tools\serve_site.py --port 8080
-if errorlevel 1 (
-  echo.
-  echo The local site could not be started. Run .01-bundle-site-r2.bat once if dist\site-local is missing.
-  pause
-  exit /b 1
-)
+node tools\project_tasks.js server %*
+if errorlevel 1 goto error
 exit /b 0
+
+:error
+echo.
+echo Command failed: server. Read the exact error above.
+pause
+exit /b 1

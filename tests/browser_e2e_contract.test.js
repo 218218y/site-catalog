@@ -41,12 +41,12 @@ assert.equal(packageJson.scripts["test:e2e"], "playwright test");
 assert.equal(packageJson.scripts["test:e2e:update"], "node tools/update_visual_snapshots.js");
 assert.equal(packageJson.scripts["pretest:e2e:update"], "node tools/check_playwright_browser.js");
 assert.doesNotMatch(packageLock, /applied-caas-gateway|internal\.api\.openai/i);
-assert.equal(packageJson.scripts["test:js"], "python tools/verify_project.py --javascript-only");
-assert.equal(packageJson.scripts["test:python"], "python tools/verify_project.py --python-only");
+assert.equal(packageJson.scripts["test:js"], "node tools/run_project_python.js tools/verify_project.py --javascript-only");
+assert.equal(packageJson.scripts["test:python"], "node tools/run_project_python.js tools/verify_project.py --python-only");
 assert.equal(packageJson.scripts.build, "npm run build:local");
 
 assert.match(config, /webServer/);
-assert.equal(packageJson.scripts["build:e2e"], "python tools/build_deploy_bundle.py --out dist/site-local --seo-mode private --skip-if-current --clean-legacy-artifacts");
+assert.equal(packageJson.scripts["build:e2e"], "node tools/run_project_python.js tools/build_deploy_bundle.py --out dist/site-local --seo-mode private --skip-if-current --clean-legacy-artifacts");
 assert.match(config, /npm run build:e2e/);
 assert.match(config, /--root dist\/site-local/);
 assert.doesNotMatch(config, /dist\/site-e2e/);

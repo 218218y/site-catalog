@@ -30,8 +30,8 @@ for (const name of schemaNames) {
 }
 
 assert.equal(fs.existsSync(path.join(root, "catalogs.build-state.json")), true);
-assert.equal(packageJson.scripts["build:catalog-data"], "python tools/catalog_compiler.py");
-assert.equal(packageJson.scripts["check:catalog-data"], "python tools/catalog_compiler.py --check");
+assert.equal(packageJson.scripts["build:catalog-data"], "node tools/run_project_python.js tools/catalog_compiler.py");
+assert.equal(packageJson.scripts["check:catalog-data"], "node tools/run_project_python.js tools/catalog_compiler.py --check");
 
 assert.match(compiler, /class CompiledCatalogData/);
 assert.match(compiler, /def compile_catalog_data\(/);

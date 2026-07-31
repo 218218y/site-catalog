@@ -21,6 +21,11 @@ try {
     path.join(root, "tools", "check_node_install_scripts.js"),
     path.join(fixtureRoot, "tools", "check_node_install_scripts.js"),
   );
+  fs.copyFileSync(
+    path.join(root, "tools", "run_project_python.js"),
+    path.join(fixtureRoot, "tools", "run_project_python.js"),
+  );
+  write("tools/python_probe.py", 'print("python-launcher-ok")\n');
   write("package.json", JSON.stringify({
     devDependencies: { wrangler: "4.112.0" },
     allowScripts: { esbuild: true, sharp: true, workerd: true },
@@ -64,6 +69,23 @@ try {
   );
   assert.match(completed.stdout, /Node install-script runtimes verified/);
   assert.match(completed.stdout, /wrangler 4\.112\.0/);
+
+  const pythonCompleted = spawnSync(
+    process.execPath,
+    [path.join(fixtureRoot, "tools", "run_project_python.js"), "--system", "tools/python_probe.py"],
+    {
+      cwd: fixtureRoot,
+      encoding: "utf8",
+      shell: false,
+      windowsHide: true,
+    },
+  );
+  assert.equal(
+    pythonCompleted.status,
+    0,
+    `Python launcher failed in a Unicode path:\n${pythonCompleted.stderr}\n${pythonCompleted.stdout}`,
+  );
+  assert.match(pythonCompleted.stdout, /python-launcher-ok/);
 } finally {
   fs.rmSync(fixtureRoot, { recursive: true, force: true });
 }

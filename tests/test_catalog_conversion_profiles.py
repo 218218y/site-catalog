@@ -79,17 +79,27 @@ def test_control_panel_uses_the_same_thin_profile_commands() -> None:
     assert SERVER.ACTIONS["refresh_ocr"].command == PROFILES.conversion_profile_command("ocr-refresh")
 
 
-def test_windows_wrappers_only_select_a_canonical_profile() -> None:
+def test_windows_wrappers_delegate_to_the_cross_platform_profile_tasks() -> None:
     expected = {
-        ".10-convert-catalogs.bat": "python tools\\build_catalogs.py --profile production",
-        ".011-convert-catalogs-force.bat": "python tools\\build_catalogs.py --profile force",
-        ".012-refresh-ocr-search.bat": "python tools\\build_catalogs.py --profile ocr-refresh",
+        ".10-convert-catalogs.bat": "node tools\\project_tasks.js convert-catalogs %*",
+        ".011-convert-catalogs-force.bat": "node tools\\project_tasks.js convert-catalogs-force %*",
+        ".012-refresh-ocr-search.bat": "node tools\\project_tasks.js refresh-ocr-search %*",
     }
     legacy_flags = ("--dpi", "--quality", "--thumb-size", "--ocr-dpi", "--sharpen")
     for filename, command in expected.items():
         source = (ROOT / filename).read_text(encoding="utf-8-sig")
         assert command in source
+        assert "activate.bat" not in source
+        assert "build_catalogs.py" not in source
         assert not any(flag in source for flag in legacy_flags)
+
+    task_source = (TOOLS / "project_tasks.js").read_text(encoding="utf-8")
+    assert 'case "convert-catalogs":' in task_source
+    assert '["--profile", "production"]' in task_source
+    assert 'case "convert-catalogs-force":' in task_source
+    assert '["--profile", "force"]' in task_source
+    assert 'case "refresh-ocr-search":' in task_source
+    assert '["--profile", "ocr-refresh"]' in task_source
 
 
 def test_confirmed_missing_pdf_ids_are_revalidated_by_the_converter() -> None:

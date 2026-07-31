@@ -144,3 +144,24 @@ window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "responsive";
 אם פותחים תמונות בינוניות לבדוק אם להוסיף פתיחה של יותר תמונות סמוכות ולא רק 2 הסמוכות
 תמונות גדולות בלבד
 window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";
+
+לינוקס
+------
+התקנה ראשונה (ב-Ubuntu/Debian כולל ספריות המערכת של Chromium):
+chmod +x setup-linux.sh site.sh
+./setup-linux.sh --with-browser-deps
+
+רשימת כל פקודות התחזוקה:
+./site.sh help
+
+דוגמאות מקבילות ל-BAT:
+./site.sh sync-catalog-pdfs
+./site.sh convert-catalogs
+./site.sh r2-preview
+./site.sh r2-sync
+./site.sh bundle-site-r2
+./site.sh server
+./site.sh deploy-cloudflare
+
+אין צורך להפעיל source .venv/bin/activate. כל פקודות npm וכל פקודות site.sh משתמשות אוטומטית ב-.venv המנוהל.
+הסבר מלא: docs/linux-development.md

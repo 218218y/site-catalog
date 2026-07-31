@@ -49,17 +49,23 @@ const controlPanel = fs.readFileSync(path.join(root, "catalog-control-panel.html
 const controlPanelJobs = fs.readFileSync(path.join(root, "src", "control-panel", "features", "jobs.js"), "utf8");
 const controlPanelApi = fs.readFileSync(path.join(root, "src", "control-panel", "core", "api.js"), "utf8");
 const controlServer = fs.readFileSync(path.join(root, "tools", "catalog_control_server.py"), "utf8");
+const projectTasks = fs.readFileSync(path.join(root, "tools", "project_tasks.js"), "utf8");
+const pythonLauncher = fs.readFileSync(path.join(root, "tools", "run_project_python.js"), "utf8");
+const linuxLauncher = fs.readFileSync(path.join(root, "site.sh"), "utf8");
+const linuxSetup = fs.readFileSync(path.join(root, "setup-linux.sh"), "utf8");
+const linuxDocs = fs.readFileSync(path.join(root, "docs", "linux-development.md"), "utf8");
 
 assert.equal(packageJson.private, true);
-assert.equal(packageJson.scripts["setup:python"], "python tools/setup_python_env.py");
+assert.equal(packageJson.scripts["setup:python"], "node tools/run_project_python.js --system tools/setup_python_env.py");
 assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
+assert.equal(packageJson.scripts["setup:browsers:linux"], "playwright install --with-deps chromium");
 assert.equal(packageJson.scripts.build, "npm run build:local");
 assert.match(packageJson.scripts["build:local"], /--out dist\/site-upload-r2/);
 assert.match(packageJson.scripts["build:local"], /--skip-if-current/);
 assert.match(packageJson.scripts["build:local"], /--mirror-to dist\/site-local/);
-assert.equal(packageJson.scripts.dev, "python tools/serve_site.py");
-assert.equal(packageJson.scripts.serve, "python tools/serve_site.py");
-assert.equal(packageJson.scripts["dev:check"], "python tools/serve_site.py --ensure-current ask");
+assert.equal(packageJson.scripts.dev, "node tools/run_project_python.js tools/serve_site.py");
+assert.equal(packageJson.scripts.serve, "node tools/run_project_python.js tools/serve_site.py");
+assert.equal(packageJson.scripts["dev:check"], "node tools/run_project_python.js tools/serve_site.py --ensure-current ask");
 assert.equal(packageJson.devDependencies["@playwright/test"], "1.55.1");
 assert.equal(packageJson.devDependencies.wrangler, "4.112.0");
 assert.equal(packageJson.scripts.postinstall, "node tools/check_node_install_scripts.js");
@@ -93,36 +99,36 @@ assert.match(devRequirements, /^colorama==0\.4\.6; sys_platform == "win32"$/m);
 assert.match(localServer, /--build-first/);
 assert.match(localServer, /--ensure-current/);
 assert.match(localServer, /dist\/site-local/);
-assert.match(startServer, /tools\\serve_site\.py --port 8080/);
+assert.match(startServer, /node tools\\project_tasks\.js server %\*/);
 assert.doesNotMatch(startServer, /--ensure-current|--build-first/);
-assert.match(checkedStartServer, /tools\\serve_site\.py --port 8080 --ensure-current ask/);
+assert.match(checkedStartServer, /node tools\\project_tasks\.js server-check %\*/);
 assert.doesNotMatch(startServer, /catalog-control-panel/);
 assert.doesNotMatch(startServer, /build_deploy_bundle/);
 assert.doesNotMatch(startServer, /python -m http\.server/);
-assert.match(bundleSite, /--skip-if-current/);
-assert.match(bundleSite, /--mirror-to dist\/site-local/);
-assert.match(bundleSite, /--clean-legacy-artifacts/);
-assert.match(bundleSite, /tools\\clean_project_artifacts\.py/);
-assert.match(cleanArtifactsBat, /tools\\clean_project_artifacts\.py/);
-assert.match(uploadSite, /deploy_cloudflare_pages\.py/);
+assert.match(bundleSite, /node tools\\project_tasks\.js bundle-site-r2 %\*/);
+assert.doesNotMatch(bundleSite, /build_deploy_bundle|verify_r2_catalog_sync_state/);
+assert.match(projectTasks, /"--clean-legacy-artifacts"/);
+assert.match(projectTasks, /tools\/clean_project_artifacts\.py/);
+assert.match(cleanArtifactsBat, /node tools\\project_tasks\.js clean %\*/);
+assert.match(uploadSite, /node tools\\project_tasks\.js deploy-cloudflare %\*/);
 assert.doesNotMatch(uploadSite, /--build-first/);
 assert.doesNotMatch(uploadSite, /build_deploy_bundle/);
-assert.equal(packageJson.scripts["test:js"], "python tools/verify_project.py --javascript-only");
-assert.equal(packageJson.scripts["test:python"], "python tools/verify_project.py --python-only");
+assert.equal(packageJson.scripts["test:js"], "node tools/run_project_python.js tools/verify_project.py --javascript-only");
+assert.equal(packageJson.scripts["test:python"], "node tools/run_project_python.js tools/verify_project.py --python-only");
 assert.equal(packageJson.scripts["test:e2e"], "playwright test");
-assert.equal(packageJson.scripts.pretest, "python tools/setup_python_env.py --quiet");
-assert.equal(packageJson.scripts.test, "python tools/verify_project.py --quick");
+assert.equal(packageJson.scripts.pretest, "node tools/run_project_python.js --system tools/setup_python_env.py --quiet");
+assert.equal(packageJson.scripts.test, "node tools/run_project_python.js tools/verify_project.py --quick");
 assert.match(packageJson.scripts.preverify, /check_playwright_browser\.js/);
-assert.equal(packageJson.scripts.verify, "python tools/verify_project.py");
-assert.equal(packageJson.scripts["check:seo-routes"], "python tools/seo_route_lock.py --check");
-assert.equal(packageJson.scripts["seo:routes:update"], "python tools/seo_route_lock.py --update");
-assert.equal(packageJson.scripts["verify:seo:public"], "python tools/run_with_project_python.py tools/verify_public_seo.py --out dist/site-public-preview --clean-legacy-artifacts");
+assert.equal(packageJson.scripts.verify, "node tools/run_project_python.js tools/verify_project.py");
+assert.equal(packageJson.scripts["check:seo-routes"], "node tools/run_project_python.js tools/seo_route_lock.py --check");
+assert.equal(packageJson.scripts["seo:routes:update"], "node tools/run_project_python.js tools/seo_route_lock.py --update");
+assert.equal(packageJson.scripts["verify:seo:public"], "node tools/run_project_python.js tools/verify_public_seo.py --out dist/site-public-preview --clean-legacy-artifacts");
 assert.match(packageJson.scripts["verify:seo:public:full"], /--force-audit/);
 assert.match(packageJson.scripts["verify:seo:public:rebuild"], /--force-rebuild/);
 assert.match(packageJson.scripts["build:deploy:public"], /verify_public_seo\.py/);
 assert.match(packageJson.scripts["build:deploy:public"], /--mirror-to dist\/site-upload-r2/);
 assert.match(packageJson.scripts["build:deploy:public"], /--mirror-to dist\/site-local/);
-assert.equal(packageJson.scripts["verify:seo:live"], "python tools/run_with_project_python.py tools/audit_public_seo.py --live");
+assert.equal(packageJson.scripts["verify:seo:live"], "node tools/run_project_python.js tools/audit_public_seo.py --live");
 assert.match(builder, /def validate_js_spec/);
 assert.match(builder, /CAPABILITY_BOUNDARIES/);
 assert.match(builder, /Disabled capability/);
@@ -157,6 +163,57 @@ assert.match(controlServer, /cancel_requested/);
 assert.match(controlServer, /_recover_after_canceled_job/);
 assert.match(controlServer, /BARGIG_CONTROL_E2E/);
 assert.equal(fs.existsSync(path.join(root, "tests", "fixtures", "control_panel_interruptible_job.py")), true);
+
+assert.equal(fs.existsSync(path.join(root, "tools", "project_tasks.js")), true);
+assert.equal(fs.existsSync(path.join(root, "tools", "run_project_python.js")), true);
+assert.equal(fs.existsSync(path.join(root, "site.sh")), true);
+assert.equal(fs.existsSync(path.join(root, "setup-linux.sh")), true);
+assert.equal(fs.existsSync(path.join(root, "docs", "linux-development.md")), true);
+assert.match(linuxLauncher, /exec node tools\/project_tasks\.js "\$@"/);
+assert.match(linuxSetup, /exec "\$SCRIPT_DIR\/site\.sh" setup "\$@"/);
+assert.match(projectTasks, /const TASKS = Object\.freeze/);
+assert.match(projectTasks, /case "bundle-site-r2":/);
+assert.match(projectTasks, /case "deploy-cloudflare":/);
+assert.match(projectTasks, /runPython\("tools\/verify_r2_catalog_sync_state\.py"/);
+assert.match(projectTasks, /runPython\("tools\/build_deploy_bundle\.py"/);
+assert.match(projectTasks, /runPython\("tools\/deploy_cloudflare_pages\.py"/);
+assert.match(pythonLauncher, /Python 3 interpreter/);
+assert.match(pythonLauncher, /tools\/run_with_project_python\.py/);
+assert.match(pythonLauncher, /shell: false/);
+assert.match(pythonLauncher, /PYTHONDONTWRITEBYTECODE/);
+assert.match(linuxDocs, /אין צורך להריץ `source \.venv\/bin\/activate`/);
+assert.match(linuxDocs, /\.\/site\.sh deploy-cloudflare --preview-branch test-name/);
+assert.equal(packageJson.scripts.tasks, "node tools/project_tasks.js");
+assert.equal(packageJson.scripts["catalogs:convert"], "node tools/project_tasks.js convert-catalogs");
+assert.equal(packageJson.scripts["site:bundle:r2"], "node tools/project_tasks.js bundle-site-r2");
+for (const [name, command] of Object.entries(packageJson.scripts)) {
+  assert.doesNotMatch(command, /^python(?:3)?\s/u, `${name} must use the cross-platform Python launcher`);
+}
+for (const [taskName, launcherName] of Object.entries({
+  "bundle-site-r2": windowsLaunchers.bundleSite,
+  "deploy-cloudflare": windowsLaunchers.uploadSite,
+  clean: windowsLaunchers.cleanArtifacts,
+  "server-check": windowsLaunchers.checkedStartServer,
+  "control-panel": windowsLaunchers.catalogControlPanel,
+  server: windowsLaunchers.startServer,
+  "r2-preview": windowsLaunchers.previewR2Sync,
+  "r2-sync": windowsLaunchers.syncR2Images,
+  "convert-catalogs": windowsLaunchers.convertCatalogs,
+  "convert-catalogs-force": windowsLaunchers.convertCatalogsForce,
+  "refresh-ocr-search": windowsLaunchers.refreshOcrSearch,
+  setup: windowsLaunchers.setupWindows,
+  "telemetry-report": windowsLaunchers.telemetryReport,
+  "configure-r2-cors": windowsLaunchers.configureR2Cors,
+  "sync-catalog-pdfs": windowsLaunchers.syncCatalogPdfs,
+})) {
+  const source = readLauncher(launcherName);
+  assert.equal(
+    source.includes(`node tools\\project_tasks.js ${taskName} %*`),
+    true,
+    `${launcherName} must delegate to ${taskName}`,
+  );
+  assert.doesNotMatch(source, /activate\.bat|\.venv\\Scripts|py -3|python tools\\/i);
+}
 
 assert.equal(fs.existsSync(path.join(root, "wp_logo_data.js")), false);
 assert.equal(fs.existsSync(path.join(root, "brand-logo.js")), false);

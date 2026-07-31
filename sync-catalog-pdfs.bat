@@ -1,24 +1,24 @@
 @echo off
 chcp 65001 >nul
+setlocal
 cd /d "%~dp0"
-if not exist .venv\Scripts\activate.bat (
-  echo Local Python environment was not found.
-  echo Run .20-setup-windows.bat first.
-  pause
-  exit /b 1
+
+where node >nul 2>&1
+if errorlevel 1 (
+  echo Node.js is required. Install the version pinned in .nvmrc and run this file again.
+  goto error
 )
-call .venv\Scripts\activate.bat
-python tools\sync_catalog_pdfs.py
+
+node tools\project_tasks.js sync-catalog-pdfs %*
 if errorlevel 1 goto error
+
 echo.
 echo PDF scan finished. New PDFs were added only to catalogs.config.json.
-echo Edit the catalog details and OCR setting, then run .10-convert-catalogs.bat to convert images.
-echo You can also use .04-catalog-control-panel.bat for this.
-echo.
 pause
 exit /b 0
+
 :error
 echo.
-echo PDF scan failed. Check assets\pdfs and catalogs.config.json
+echo Command failed: sync-catalog-pdfs. Read the exact error above.
 pause
 exit /b 1

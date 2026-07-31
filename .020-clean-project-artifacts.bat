@@ -3,26 +3,22 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-if exist ".venv\Scripts\python.exe" (
-  set "PYTHON_EXE=.venv\Scripts\python.exe"
-) else (
-  where py >nul 2>nul
-  if not errorlevel 1 (
-    set "PYTHON_EXE=py -3"
-  ) else (
-    set "PYTHON_EXE=python"
-  )
+where node >nul 2>&1
+if errorlevel 1 (
+  echo Node.js is required. Install the version pinned in .nvmrc and run this file again.
+  goto error
 )
 
-%PYTHON_EXE% tools\clean_project_artifacts.py
-if errorlevel 1 (
-  echo.
-  echo Project cleanup failed. Read the exact error above.
-  pause
-  exit /b 1
-)
+node tools\project_tasks.js clean %*
+if errorlevel 1 goto error
 
 echo.
 echo Project caches and obsolete duplicate artifacts were cleaned.
 pause
 exit /b 0
+
+:error
+echo.
+echo Command failed: clean. Read the exact error above.
+pause
+exit /b 1

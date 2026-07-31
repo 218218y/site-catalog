@@ -1,5 +1,17 @@
 # אתר קטלוגים — Cloudflare Pages + Cloudflare R2
 
+## התחלה מהירה: Windows ו־Linux
+
+ב־Windows ממשיכים להשתמש בקובצי ה־BAT הקיימים. ב־Linux מריצים התקנה אחת ומאותו רגע משתמשים בממשק פקודות יחיד:
+
+```bash
+chmod +x setup-linux.sh site.sh
+./setup-linux.sh --with-browser-deps
+./site.sh help
+```
+
+שתי המערכות מפעילות את אותו מנגנון קנוני תחת `tools/project_tasks.js`; אין העתק נפרד של לוגיקת הבנייה ללינוקס. גם פקודות npm שמפעילות Python מאתרות כעת `python3`/`python`/`py` ומשתמשות אוטומטית ב־`.venv`, בלי `activate` ידני. הוראות מלאות ומפת BAT מול Linux נמצאות ב־[`docs/linux-development.md`](docs/linux-development.md).
+
 הפרויקט מוגדר למסלול עבודה אחד וברור:
 
 - האתר נבנה כאתר סטטי מלא עם כתובות נקיות. תיקיית המקור אינה משמשת כשרת; preview מקומי נוצר ב־`dist/site-local` ובאנדל הפריסה ב־`dist/site-upload-r2`.
