@@ -73,7 +73,7 @@
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "esbuild": "0.28.1",
-    "typescript": "5.8.3",
+    "typescript": "7.0.2",
     "wrangler": "4.116.0"
   },
   "allowScripts": {

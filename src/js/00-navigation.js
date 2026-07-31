@@ -59,7 +59,7 @@ function canNavigateWithinCurrentDocument(url) {
   );
 }
 
-/** @param {URL} url @param {{replace?:boolean}} [options] */
+/** @param {URL} url @param {AppNavigationOptions} [options] */
 function navigateWithinCurrentDocument(url, options = {}) {
   hasInDocumentRouteSession = true;
   saveCurrentRouteScrollPosition();
@@ -72,7 +72,7 @@ function navigateWithinCurrentDocument(url, options = {}) {
   requireFeatureInterface("app-shell").renderRoute({ scrollPosition: { x: 0, y: 0 } });
 }
 
-/** @param {string} relativeUrl @param {{replace?:boolean}} [options] */
+/** @param {string} relativeUrl @param {AppNavigationOptions} [options] */
 function navigateTo(relativeUrl, options = {}) {
   const target = String(relativeUrl || "").trim();
   if (!target) return;

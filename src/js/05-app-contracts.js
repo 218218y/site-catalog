@@ -230,7 +230,7 @@
 /** @typedef {{restoreFocus?:boolean, preserveReturnFocus?:boolean}} FavoritesPanelCloseOptions */
 /** @typedef {FavoriteItem & {catalog:CatalogRecord}} FavoriteEntry */
 /** @typedef {{x?:number, y?:number}} ScrollPosition */
-/** @typedef {{replace?:boolean}} NavigationOptions */
+/** @typedef {{replace?:boolean}} AppNavigationOptions */
 /** @typedef {{scroll?:boolean, openPage?:number|null, scrollBehavior?:ScrollBehavior}} CatalogOpenOptions */
 /** @typedef {{animate?:boolean, scroll?:boolean, clearHash?:boolean, targetId?:string}} CatalogFocusOptions */
 /** @typedef {{toggle?:boolean}} CatalogTargetOptions */

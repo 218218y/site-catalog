@@ -5018,6 +5018,17 @@ body[data-app-ready="true"] > .site-footer {
   backdrop-filter: blur(18px);
 }
 .legal-site-brand { min-width: 0; }
+.legal-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+}
+.payment-share-link {
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+}
 .legal-back-link {
   flex: 0 0 auto;
   min-height: var(--control-height);
@@ -5437,6 +5448,7 @@ body[data-app-ready="true"] > .site-footer {
 }
 
 @media (max-width: 700px) {
+  .legal-header-actions { gap: 7px; }
   .payment-main { width: calc(100% - 18px); margin-top: 24px; }
   .payment-intro-card,
   .payment-form-card { border-radius: 25px; }
@@ -5453,6 +5465,13 @@ body[data-app-ready="true"] > .site-footer {
 }
 
 @media (max-width: 460px) {
+  .legal-header-actions .legal-back-link {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
+  .legal-header-actions .legal-back-link span { display: none; }
   .payment-safety-note { grid-template-columns: 40px minmax(0, 1fr); }
   .payment-safety-note svg { width: 40px; height: 40px; padding: 8px; }
   .payment-contact-actions { grid-template-columns: 1fr; }

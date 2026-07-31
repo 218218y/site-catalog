@@ -73,6 +73,7 @@ const controlPanelFooter = fs.readFileSync(path.join(root, 'src', 'control-panel
 const controlPanelApi = fs.readFileSync(path.join(root, 'src', 'control-panel', 'core', 'api.js'), 'utf8');
 const controlServer = fs.readFileSync(path.join(root, 'tools', 'catalog_control_server.py'), 'utf8');
 const deployTool = fs.readFileSync(path.join(root, 'tools', 'deploy_cloudflare_pages.py'), 'utf8');
+const footerLegalCssSource = fs.readFileSync(path.join(root, 'src', 'css', '50-footer-legal.css'), 'utf8');
 const css = readAllCssBundles();
 
 assert.match(template, /\{\{SITE_FOOTER\}\}/);
@@ -106,6 +107,12 @@ assert.match(pageBuilder, /"accessibility\.html"[\s\S]*?content_filename="legal\
 assert.match(pageBuilder, /"payment\.html"[\s\S]*?template_filename="payment\.template\.html"/);
 assert.match(paymentTemplate, /data-payment-enabled="\{\{PAYMENT_ENABLED\}\}"/);
 assert.match(paymentTemplate, /data-payment-url="\{\{PAYMENT_URL\}\}"/);
+assert.match(paymentTemplate, /id="paymentShareLink"[\s\S]*?aria-label="שיתוף או העתקת קישור לעמוד התשלום"/);
+assert.match(paymentTemplate, /class="brand-copy-link payment-share-link"/);
+assert.match(paymentTemplate, /id="paymentShareToast" role="status" aria-live="polite" aria-atomic="true"/);
+assert.match(footerLegalCssSource, /\.legal-header-actions\s*\{[\s\S]*?display:\s*inline-flex;[\s\S]*?gap:\s*9px;/);
+assert.match(footerLegalCssSource, /\.payment-share-link\s*\{[\s\S]*?min-width:\s*40px;[\s\S]*?min-height:\s*40px;/);
+assert.match(footerLegalCssSource, /@media \(max-width: 460px\)[\s\S]*?\.legal-header-actions \.legal-back-link span\s*\{\s*display:\s*none;/);
 assert.match(controlPanel, /<h2>עריכת טקסט הפוטר<\/h2>/);
 assert.match(controlPanel, /id="footerEditorGroups"/);
 assert.match(controlPanelFooter, /function footerFieldMarkup/);
@@ -187,6 +194,12 @@ assert.doesNotMatch(payment, /name="(?:card|cardNumber|cvv|cvc|expiry)"/i);
 assert.doesNotMatch(paymentSource, /localStorage|sessionStorage|fetch\(/);
 assert.match(paymentSource, /parsedUrl\?\.protocol === "https:"/);
 assert.match(paymentSource, /form\.reportValidity\(\)/);
+assert.match(paymentSource, /function isMobileShareEnvironment\(\)/);
+assert.match(paymentSource, /navigator\.share\(\{[\s\S]*?url: link/);
+assert.match(paymentSource, /navigator\.clipboard\?\.writeText/);
+assert.match(paymentSource, /document\.execCommand\("copy"\)/);
+assert.match(paymentSource, /showShareToast\("הקישור הועתק"\)/);
+assert.match(paymentSource, /shareButton\.addEventListener\("click"/);
 
 
 console.log('footer_legal_contract.test.js: PASS');

@@ -8,6 +8,83 @@ const statusElement = /** @type {HTMLElement | null} */ (document.getElementById
 const customerNameInput = /** @type {HTMLInputElement | null} */ (document.getElementById("paymentCustomerName"));
 const orderNumberInput = /** @type {HTMLInputElement | null} */ (document.getElementById("paymentOrderNumber"));
 const termsCheckbox = /** @type {HTMLInputElement | null} */ (document.getElementById("paymentTermsAccepted"));
+const shareButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("paymentShareLink"));
+const shareToast = /** @type {HTMLElement | null} */ (document.getElementById("paymentShareToast"));
+let shareToastTimer = 0;
+
+/** @param {string} value @returns {Promise<void>} */
+async function copyTextToClipboard(value) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.insetInlineStart = "-1000px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  try {
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    if (!document.execCommand("copy")) throw new Error("Clipboard copy command failed");
+  } finally {
+    textarea.remove();
+  }
+}
+
+/** @returns {boolean} */
+function isMobileShareEnvironment() {
+  if (typeof navigator.share !== "function") return false;
+  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+  const iPadDesktopMode = navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1;
+  const userAgentDataMobile = navigator.userAgentData?.mobile === true;
+  return Boolean(mobileUserAgent || iPadDesktopMode || userAgentDataMobile);
+}
+
+/** @param {string} message @param {string} [tone] */
+function showShareToast(message, tone = "link") {
+  if (!(shareToast instanceof HTMLElement) || !message) return;
+  window.clearTimeout(shareToastTimer);
+  shareToast.textContent = message;
+  shareToast.dataset.tone = tone;
+  shareToast.classList.remove("hidden", "visible");
+  void shareToast.offsetWidth;
+  window.requestAnimationFrame(() => shareToast.classList.add("visible"));
+  shareToastTimer = window.setTimeout(() => {
+    shareToast.classList.remove("visible");
+    window.setTimeout(() => {
+      if (!shareToast.classList.contains("visible")) shareToast.classList.add("hidden");
+    }, 180);
+  }, 1400);
+}
+
+async function shareOrCopyPaymentLink() {
+  const link = window.location.href;
+
+  if (isMobileShareEnvironment()) {
+    try {
+      await navigator.share({
+        title: document.title,
+        text: "תשלום חוב קיים · רהיטי ברגיג",
+        url: link,
+      });
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+    }
+  }
+
+  try {
+    await copyTextToClipboard(link);
+    showShareToast("הקישור הועתק");
+  } catch (_error) {
+    showShareToast("לא ניתן להעתיק אוטומטית", "warning");
+    window.prompt("אפשר להעתיק את הקישור מכאן:", link);
+  }
+}
 
 /** @param {unknown} value @returns {boolean} */
 function parseBoolean(value) {
@@ -124,6 +201,12 @@ if (form instanceof HTMLFormElement) {
   form.addEventListener("input", updateSubmitState);
   form.addEventListener("change", updateSubmitState);
   form.addEventListener("submit", submitPayment);
+}
+
+if (shareButton instanceof HTMLButtonElement) {
+  shareButton.addEventListener("click", () => {
+    void shareOrCopyPaymentLink();
+  });
 }
 
 updateSubmitState();

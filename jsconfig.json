@@ -12,7 +12,8 @@
     ],
     "strict": true,
     "skipLibCheck": true,
-    "moduleResolution": "Bundler"
+    "moduleResolution": "Bundler",
+    "types": []
   },
   "files": [
     "types/frontend-globals.d.ts",

@@ -46,10 +46,23 @@
         <small>גלריית קטלוגים</small>
       </span>
     </a>
-    <a class="button soft legal-back-link" href="index.html">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg>
-      <span>חזרה לקטלוגים</span>
-    </a>
+    <div class="legal-header-actions">
+      <button
+        class="brand-copy-link payment-share-link"
+        id="paymentShareLink"
+        type="button"
+        aria-label="שיתוף או העתקת קישור לעמוד התשלום"
+        title="שיתוף הקישור"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M18 8.2a3.1 3.1 0 1 0-2.94-4.08L8.87 7.56a3.1 3.1 0 1 0 0 4.88l6.19 3.44A3.1 3.1 0 1 0 16 14.2l-6.2-3.45a3.2 3.2 0 0 0 0-1.5L16 5.8A3.1 3.1 0 0 0 18 8.2Z"/>
+        </svg>
+      </button>
+      <a class="button soft legal-back-link" href="index.html" aria-label="חזרה לקטלוגים">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 9 12l5.5 5.5"/></svg>
+        <span>חזרה לקטלוגים</span>
+      </a>
+    </div>
   </header>
 
   <main class="payment-main" id="main-content" tabindex="-1">
@@ -252,6 +265,7 @@
     </div>
   </div>
 </footer>
+  <div class="site-action-toast hidden" id="paymentShareToast" role="status" aria-live="polite" aria-atomic="true"></div>
   <script type="module" data-bargig-route-module src="app-payment.js"></script>
 </body>
 </html>
