@@ -44,7 +44,7 @@ assert.equal(
 );
 assert.equal(
   packageJson.scripts["test:js"],
-  "node tools/run_project_python.js --system tools/verify_project.py --javascript-only",
+  "node tools/run_project_python.js tools/verify_project.py --javascript-only",
 );
 assert.match(offlineBootstrap, /TYPESCRIPT_VERSION: Final = "7\.0\.2"/);
 assert.match(offlineBootstrap, /package-lock\.json/);
@@ -69,6 +69,8 @@ assert.match(runtimeSymbolChecker, /shell: false/);
 assert.match(runtimeSymbolChecker, /packageJson\.bin/);
 assert.match(runtimeSymbolChecker, /spawnSync\(process\.execPath/);
 assert.match(runtimeSymbolChecker, /"--ignoreConfig"/);
+assert.match(runtimeSymbolChecker, /sharedTypeContracts = path\.join\(root, "src", "js", "05-app-contracts\.js"\)/);
+assert.match(runtimeSymbolChecker, /ambientGlobals, sharedTypeContracts, bundle/);
 assert.match(runtimeSymbolChecker, /diagnostic\.code === 2304/);
 assert.doesNotMatch(runtimeSymbolChecker, /require\(["']typescript(?:-legacy-api)?["']\)/);
 assert.doesNotMatch(runtimeSymbolChecker, /\bcreateProgram\b|\bScriptTarget\b|\btranspileModule\b/);

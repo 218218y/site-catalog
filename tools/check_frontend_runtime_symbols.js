@@ -17,6 +17,7 @@ const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 const defaultTargets = ["app-catalog.js", "app-favorites.js", "app-viewer.js", "app-payment.js"];
 const ambientGlobals = path.join(root, "types", "frontend-runtime-globals.d.ts");
+const sharedTypeContracts = path.join(root, "src", "js", "05-app-contracts.js");
 const compilerPackagePath = path.join(root, "node_modules", "typescript", "package.json");
 const projectPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const expectedCompilerVersion = projectPackage.devDependencies.typescript;
@@ -178,6 +179,9 @@ function checkRuntimeSymbols(requestedTargets) {
   if (!fs.existsSync(ambientGlobals)) {
     throw new Error(`Runtime globals declaration file is missing: ${ambientGlobals}`);
   }
+  if (!fs.existsSync(sharedTypeContracts)) {
+    throw new Error(`Shared frontend type contracts are missing: ${sharedTypeContracts}`);
+  }
 
   const compilerEntry = resolveCompilerEntry();
   const targets = requestedTargets.length ? requestedTargets : defaultTargets;
@@ -189,7 +193,14 @@ function checkRuntimeSymbols(requestedTargets) {
       throw new Error(`Frontend route bundle is missing: ${relativeBundle}`);
     }
 
-    const completed = runCompiler(compilerEntry, [...compilerArgs, ambientGlobals, bundle]);
+    // The generated bundle retains JSDoc references but esbuild correctly omits
+    // the type-only contracts module from runtime output. Include that canonical
+    // source contract in the isolated compiler program so TypeScript validates
+    // real missing identifiers without misclassifying project-owned type names.
+    const completed = runCompiler(
+      compilerEntry,
+      [...compilerArgs, ambientGlobals, sharedTypeContracts, bundle],
+    );
     const analysis = analyzeCompilerResult(completed.status, completed.output);
 
     if (analysis.infrastructureFailure) {

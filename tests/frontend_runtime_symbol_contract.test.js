@@ -25,6 +25,8 @@ assert.equal(jsconfig.compilerOptions.checkJs, true);
 assert.equal(jsconfig.compilerOptions.noEmit, true);
 assert.match(checker, /\["app-catalog\.js", "app-favorites\.js", "app-viewer\.js", "app-payment\.js"\]/);
 assert.match(checker, /"--ignoreConfig"/);
+assert.match(checker, /sharedTypeContracts = path\.join\(root, "src", "js", "05-app-contracts\.js"\)/);
+assert.match(checker, /ambientGlobals, sharedTypeContracts, bundle/);
 assert.match(checker, /spawnSync\(process\.execPath/);
 assert.match(checker, /diagnostic\.code === 2304/);
 assert.doesNotMatch(checker, /typescript_compiler_api|\bcreateProgram\b|\bScriptTarget\b|\bModuleKind\b/);
@@ -56,6 +58,19 @@ assert.equal(analyzeCompilerResult(1, "native compiler crashed").infrastructureF
 
 const fixtureDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bargig-runtime-symbols-"));
 try {
+  const knownTypeFixture = path.join(fixtureDirectory, "known-project-type.js");
+  fs.writeFileSync(
+    knownTypeFixture,
+    "/** @param {CatalogImageCandidate} candidate */\nfunction consumeCandidate(candidate) { return candidate.src; }\nconsumeCandidate({ src: '/page.webp', tier: 'full' });\n",
+    "utf8",
+  );
+  const knownTypeCheck = spawnSync(
+    process.execPath,
+    ["tools/check_frontend_runtime_symbols.js", knownTypeFixture],
+    { cwd: root, encoding: "utf8" },
+  );
+  assert.equal(knownTypeCheck.status, 0, knownTypeCheck.stderr || knownTypeCheck.stdout);
+
   const missingSymbolFixture = path.join(fixtureDirectory, "missing-runtime-symbol.js");
   fs.writeFileSync(missingSymbolFixture, "console.log(MISSING_RUNTIME_SYMBOL);\n", "utf8");
   const missingSymbolCheck = spawnSync(

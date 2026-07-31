@@ -32,7 +32,7 @@
     "build:deploy": "node tools/run_project_python.js tools/build_deploy_bundle.py --out dist/site-upload-r2 --seo-mode private --skip-if-current --mirror-to dist/site-local --clean-legacy-artifacts",
     "build:deploy:private": "node tools/run_project_python.js tools/build_deploy_bundle.py --out dist/site-upload-r2 --seo-mode private --skip-if-current --mirror-to dist/site-local --clean-legacy-artifacts",
     "build:deploy:public": "node tools/run_project_python.js tools/verify_public_seo.py --out dist/site-public-preview --mirror-to dist/site-upload-r2 --mirror-to dist/site-local --clean-legacy-artifacts",
-    "test:js": "node tools/run_project_python.js --system tools/verify_project.py --javascript-only",
+    "test:js": "node tools/run_project_python.js tools/verify_project.py --javascript-only",
     "pretest:python": "node tools/run_project_python.js --system tools/setup_python_env.py --quiet",
     "test:python": "node tools/run_project_python.js tools/verify_project.py --python-only",
     "pretest:e2e": "node tools/check_playwright_browser.js",

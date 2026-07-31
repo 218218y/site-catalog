@@ -128,7 +128,7 @@ assert.match(cleanArtifactsBat, /node tools\\project_tasks\.js clean %\*/);
 assert.match(uploadSite, /node tools\\project_tasks\.js deploy-cloudflare %\*/);
 assert.doesNotMatch(uploadSite, /--build-first/);
 assert.doesNotMatch(uploadSite, /build_deploy_bundle/);
-assert.equal(packageJson.scripts["test:js"], "node tools/run_project_python.js --system tools/verify_project.py --javascript-only");
+assert.equal(packageJson.scripts["test:js"], "node tools/run_project_python.js tools/verify_project.py --javascript-only");
 assert.equal(packageJson.scripts["test:python"], "node tools/run_project_python.js tools/verify_project.py --python-only");
 assert.equal(packageJson.scripts["test:e2e"], "playwright test");
 assert.equal(packageJson.scripts.pretest, "node tools/run_project_python.js --system tools/setup_python_env.py --quiet");
