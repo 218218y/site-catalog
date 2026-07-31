@@ -40,9 +40,11 @@ def test_vendored_archives_match_the_pinned_integrities() -> None:
 def test_platform_selection_is_explicit_and_rejects_unvendored_targets() -> None:
     assert MODULE.current_platform_key(system="Linux", machine="x86_64") == "linux-x64"
     assert MODULE.current_platform_key(system="Linux", machine="aarch64") == "linux-arm64"
-    assert MODULE.current_platform_key(system="Windows", machine="AMD64") == "win32-x64"
-    with pytest.raises(MODULE.BootstrapError, match="No vendored esbuild binary"):
+    with pytest.raises(MODULE.BootstrapError, match="Linux-only"):
+        MODULE.current_platform_key(system="Windows", machine="AMD64")
+    with pytest.raises(MODULE.BootstrapError, match="Linux-only"):
         MODULE.current_platform_key(system="Darwin", machine="arm64")
+    assert all(not key.startswith("win32-") for key in MODULE.PLATFORM_ARCHIVES)
 
 
 def test_offline_install_extracts_only_the_selected_runtime(tmp_path: Path) -> None:
@@ -119,3 +121,37 @@ def test_modified_installed_javascript_is_repaired_from_the_archive(tmp_path: Pa
         quiet=True,
     ) is True
     assert main_js.read_bytes() == original
+
+
+def test_valid_local_runtime_is_accepted_without_any_vendor_archives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    monkeypatch.setattr(MODULE.shutil, "which", lambda name: "/usr/bin/node")
+    monkeypatch.setattr(MODULE, "verify_node_runtime", lambda base: None)
+
+    assert MODULE.ensure_esbuild_available(root, quiet=True) is False
+
+
+def test_non_linux_missing_runtime_points_to_npm_instead_of_a_windows_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    monkeypatch.setattr(MODULE.shutil, "which", lambda name: "C:/Program Files/nodejs/node.exe")
+    monkeypatch.setattr(
+        MODULE,
+        "verify_node_runtime",
+        lambda base: (_ for _ in ()).throw(MODULE.BootstrapError("missing runtime")),
+    )
+    monkeypatch.setattr(
+        MODULE,
+        "current_platform_key",
+        lambda: (_ for _ in ()).throw(MODULE.BootstrapError("Linux-only")),
+    )
+
+    with pytest.raises(MODULE.BootstrapError, match=r"Linux-only.*npm ci") as captured:
+        MODULE.ensure_esbuild_available(root, quiet=True)
+    assert "win32-x64" not in str(captured.value)
+    assert "Missing offline archive" not in str(captured.value)

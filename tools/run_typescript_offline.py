@@ -8,12 +8,12 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from bootstrap_typescript_offline import BootstrapError, install_typescript, project_root
+from bootstrap_typescript_offline import BootstrapError, ensure_typescript_available, project_root
 
 
 def run_typescript(arguments: Sequence[str], *, root: Path | None = None) -> int:
     base = (root or project_root()).resolve()
-    install_typescript(base, quiet=True)
+    ensure_typescript_available(base, quiet=True)
     node = shutil.which("node")
     if node is None:
         raise BootstrapError("Node.js is not available on PATH; install the version pinned in .nvmrc.")

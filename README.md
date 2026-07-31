@@ -545,7 +545,7 @@ python tools/verify_project.py --javascript-only
 # או: npm run test:js
 ```
 
-מנגנון esbuild תומך ב־Linux x64, Linux ARM64 ו־Windows x64 ומאתחל את עצמו אוטומטית בזמן בניית frontend. מנגנון TypeScript מתקין את חבילת `typescript` ‏7.0.2 ואת חבילת ה־compiler native המדויקת למערכת הנוכחית; `check:types` ומסלול `test:js` משתמשים בו אוטומטית ואינם נופלים ל־`tsc` גלובלי או לגרסה ישנה שנמצאה במקרה במחשב. `test:js` משתמש בכוונה ב־Python המערכתי, משום שכל כלי הבדיקה במסלול הזה מבוססים על הספרייה הסטנדרטית; הוא אינו יוצר `.venv` ואינו מפעיל pip.
+ארכיוני האופליין של esbuild ו־TypeScript מיועדים בכוונה ל־Linux x64 ול־Linux ARM64 בלבד, עבור סביבת הצ'אט או CI מנותק. ב־Windows הכלים משתמשים קודם בהתקנת `node_modules` הרגילה והמדויקת שנוצרה מ־`package-lock.json`; הם אינם מחפשים ארכיון Windows בתוך `vendor`. אם esbuild או TypeScript חסרים או פגומים ב־Windows, יש להריץ `npm ci` כדי לשחזר את החבילה והבינארי המתאימים למערכת. אין לדלג על בניית ה־frontend ואין לנסות להפעיל בינארי Linux ב־Windows. מנגנון TypeScript נועל בדיוק את גרסה ‏7.0.2, ו־`check:types` ומסלול `test:js` אינם נופלים ל־`tsc` גלובלי או לגרסה ישנה שנמצאה במקרה במחשב. `test:js` משתמש בכוונה ב־Python המערכתי, משום שכל כלי הבדיקה במסלול הזה מבוססים על הספרייה הסטנדרטית; הוא אינו יוצר `.venv` ואינו מפעיל pip.
 
 כל ארכיון מאומת מול כתובת ההורדה, הגרסה וחתימת SHA-512 שב־`package-lock.json`. הכלים אינם פונים לרשת, אינם מפעילים npm או lifecycle scripts ואינם מוחקים חבילות אחרות מתוך `node_modules`. את קובצי TypeScript יש להניח ללא חילוץ תחת `vendor/npm/typescript` לפי השמות והקישורים שב־`vendor/npm/typescript/README.md`.
 
@@ -555,6 +555,14 @@ python tools/verify_project.py --javascript-only
 python tools/bootstrap_esbuild_offline.py --check
 python tools/bootstrap_typescript_offline.py --check
 ```
+
+הפקודות `bootstrap_*_offline.py` עצמן מיועדות ללינוקס. ב־Windows, לאחר מחיקת ארכיוני Windows מהפרויקט, יש להריץ פעם אחת:
+
+```bat
+npm ci
+```
+
+לאחר מכן `npm run verify`, `npm run check:frontend` ו־`npm run check:types` משתמשים בהתקנה המקומית התקינה ואינם דורשים קובצי `win32-*.tgz`.
 
 התקנת npm מלאה עדיין נדרשת לעבודות שמשתמשות ב־Wrangler או Playwright. בדיקות Python דורשות בנפרד את סביבת `.venv` והחבילות הנעולות ב־`tools/requirements*.txt`.
 

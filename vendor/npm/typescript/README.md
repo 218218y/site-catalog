@@ -1,7 +1,8 @@
 # Offline TypeScript 7 archives
 
-Place the exact npm tarballs required by the current machine in this directory.
-Do not extract or rename them.
+Place the exact Linux npm tarballs required by the offline chat/CI machine in
+this directory. Do not extract or rename them. Windows uses the normal `npm ci`
+installation and must not require a vendored Windows compiler archive.
 
 Always required:
 
@@ -12,11 +13,6 @@ Linux x64 (the usual chat/CI container):
 
 - `typescript-linux-x64-7.0.2.tgz`
   - https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.2.tgz
-
-Windows x64:
-
-- `typescript-win32-x64-7.0.2.tgz`
-  - https://registry.npmjs.org/@typescript/typescript-win32-x64/-/typescript-win32-x64-7.0.2.tgz
 
 Linux ARM64, only when needed:
 

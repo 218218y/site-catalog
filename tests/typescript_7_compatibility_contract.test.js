@@ -27,7 +27,6 @@ assert.equal(packageLock.packages[""].devDependencies.typescript, "7.0.2");
 assert.equal(packageLock.packages[""].devDependencies["typescript-legacy-api"], undefined);
 assert.equal(packageLock.packages["node_modules/typescript"].version, "7.0.2");
 assert.equal(packageLock.packages["node_modules/typescript-legacy-api"], undefined);
-assert.equal(packageLock.packages["node_modules/@typescript/typescript-win32-x64"].version, "7.0.2");
 assert.equal(packageLock.packages["node_modules/@typescript/typescript-linux-x64"].version, "7.0.2");
 assert.deepEqual(jsconfig.compilerOptions.types, []);
 assert.equal(
@@ -52,7 +51,10 @@ assert.match(offlineBootstrap, /sri_sha512/);
 assert.match(offlineBootstrap, /Unsafe npm archive member/);
 assert.match(offlineBootstrap, /Path\("node_modules\/typescript"\)/);
 assert.match(offlineBootstrap, /Path\("bin\/tsc"\)/);
-assert.match(offlineRunner, /install_typescript\(base, quiet=True\)/);
+assert.doesNotMatch(offlineBootstrap, /typescript-win32-x64|win32-x64-7\.0\.2\.tgz/);
+assert.match(offlineBootstrap, /Offline TypeScript archives are intentionally Linux-only/);
+assert.match(runtimeSymbolChecker, /process\.platform !== "linux"/);
+assert.match(offlineRunner, /ensure_typescript_available\(base, quiet=True\)/);
 assert.doesNotMatch(offlineRunner, /\bnpx\b|npm install|npm ci|shell=True/);
 assert.match(verifier, /tools\/run_typescript_offline\.py/);
 

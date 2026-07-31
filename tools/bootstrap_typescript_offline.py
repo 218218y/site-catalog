@@ -2,10 +2,11 @@
 """Install the pinned TypeScript 7 compiler from repository-local npm tarballs.
 
 The bootstrap deliberately does not invoke npm. It installs only the
-``typescript`` launcher package and the native compiler package for the current
-platform, leaving every unrelated dependency in ``node_modules`` untouched.
-Every archive is checked against the exact URL and SHA-512 integrity pinned in
-``package-lock.json`` before extraction.
+``typescript`` launcher package and the matching Linux native compiler, leaving
+every unrelated dependency in ``node_modules`` untouched. Windows uses the
+normal package-lock-managed npm installation. Every archive is checked against
+the exact URL and SHA-512 integrity pinned in ``package-lock.json`` before
+extraction.
 """
 from __future__ import annotations
 
@@ -73,18 +74,6 @@ PLATFORM_ARCHIVES: Final[dict[str, ArchiveSpec]] = {
         required_files=(Path("lib/tsc"),),
         executable_path=Path("lib/tsc"),
     ),
-    "win32-x64": ArchiveSpec(
-        filename="typescript-win32-x64-7.0.2.tgz",
-        package_name="@typescript/typescript-win32-x64",
-        resolved=(
-            "https://registry.npmjs.org/@typescript/typescript-win32-x64/"
-            "-/typescript-win32-x64-7.0.2.tgz"
-        ),
-        integrity="sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==",
-        install_path=Path("node_modules/@typescript/typescript-win32-x64"),
-        required_files=(Path("lib/tsc.exe"),),
-        executable_path=Path("lib/tsc.exe"),
-    ),
 }
 
 
@@ -118,12 +107,11 @@ def current_platform_key(*, system: str | None = None, machine: str | None = Non
     architecture = normalize_architecture(machine or platform.machine())
     if detected_system == "linux" and architecture in {"x64", "arm64"}:
         return f"linux-{architecture}"
-    if detected_system == "windows" and architecture == "x64":
-        return "win32-x64"
     raise BootstrapError(
-        "No vendored TypeScript compiler matches "
-        f"system={system or platform.system()!r}, architecture={machine or platform.machine()!r}. "
-        "Add the matching @typescript archive or use npm ci on that platform."
+        "The verified offline TypeScript compiler archives are Linux-only; "
+        f"detected system={system or platform.system()!r}, "
+        f"architecture={machine or platform.machine()!r}. "
+        "Use the package-lock-managed installation (`npm ci`) on this platform."
     )
 
 
@@ -406,6 +394,45 @@ def verify_core_platform_contract(root: Path, platform_spec: ArchiveSpec) -> Non
         raise BootstrapError(
             f"The TypeScript launcher does not pin {platform_spec.package_name} to {TYPESCRIPT_VERSION}."
         )
+
+
+def verify_installed_typescript(root: Path | None = None) -> None:
+    """Validate the exact local compiler without requiring a vendored archive."""
+
+    base = (root or project_root()).resolve()
+    validate_package_directory(base / CORE_ARCHIVE.install_path, CORE_ARCHIVE)
+    verify_node_runtime(base)
+
+
+def ensure_typescript_available(root: Path | None = None, *, quiet: bool = True) -> bool:
+    """Use a valid local compiler, bootstrapping only from Linux archives.
+
+    Windows continues to use the normal package-lock-managed npm installation.
+    This keeps the repository's offline payload Linux-only without weakening the
+    exact TypeScript version check.
+    """
+
+    base = (root or project_root()).resolve()
+    if shutil.which("node") is None:
+        raise BootstrapError(
+            "Node.js is not available on PATH; install the version pinned in .nvmrc."
+        )
+
+    try:
+        verify_installed_typescript(base)
+        return False
+    except BootstrapError as installed_error:
+        try:
+            current_platform_key()
+        except BootstrapError:
+            raise BootstrapError(
+                f"Local TypeScript {TYPESCRIPT_VERSION} is missing or unusable. "
+                "Offline TypeScript archives are intentionally Linux-only; run `npm ci` "
+                "on Windows to restore the package-lock-managed native compiler."
+            ) from installed_error
+
+        install_typescript(base, quiet=quiet)
+        return True
 
 
 def install_typescript(

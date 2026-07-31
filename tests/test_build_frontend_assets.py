@@ -369,6 +369,7 @@ def test_render_javascript_bundle_accepts_esbuild_define_virtual_inputs(
         }), encoding="utf-8")
         return type("Completed", (), {"returncode": 0, "stderr": "", "stdout": ""})()
 
+    monkeypatch.setattr(MODULE, "ensure_local_esbuild", lambda: None)
     monkeypatch.setattr(MODULE.subprocess, "run", fake_esbuild)
     output = MODULE.render_javascript_bundle(root, spec)
 

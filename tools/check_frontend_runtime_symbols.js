@@ -114,6 +114,14 @@ function compilerProbeIsValid(compilerEntry) {
 }
 
 function bootstrapCompiler() {
+  if (process.platform !== "linux") {
+    throw new Error(
+      `Local TypeScript ${expectedCompilerVersion} is missing or unusable. ` +
+      "Offline TypeScript archives are intentionally Linux-only; run `npm ci` on Windows " +
+      "to restore the package-lock-managed native compiler.",
+    );
+  }
+
   const completed = spawnSync(
     process.execPath,
     [pythonLauncher, "--system", offlineBootstrap, "--quiet"],

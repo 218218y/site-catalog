@@ -27,10 +27,12 @@ launcher and native compiler automatically. Both bootstraps verify the pinned
 SHA-512 archives and modify only their own package paths under `node_modules`.
 They never invoke npm or lifecycle scripts.
 
-Offline TypeScript requires the core archive plus the current platform archive
-under `vendor/npm/typescript`; see that directory's README for exact filenames
-and download URLs. Supported offline targets are Linux x64, Linux ARM64, and
-Windows x64.
+Offline archives are intentionally Linux-only: Linux x64 and Linux ARM64.
+On Windows, use the exact package-lock-managed `node_modules` installation from
+`npm ci`; the build and typecheck runners accept that valid local installation
+without looking for vendored Windows archives. If the Windows native package is
+missing or damaged, repair it with `npm ci` rather than adding a Windows tarball
+to the repository.
 
 Install the complete npm dependency tree only when the requested work genuinely
 needs Wrangler, Playwright, browser binaries, or another dependency not covered

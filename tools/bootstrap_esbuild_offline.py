@@ -2,9 +2,10 @@
 """Install the pinned esbuild runtime from repository-local npm tarballs.
 
 This deliberately does not invoke npm. It installs only ``esbuild`` and the
-platform binary needed by the current machine, leaving every other package in
-``node_modules`` untouched. The vendored archives are verified against the
-SHA-512 integrity values pinned in ``package-lock.json`` before extraction.
+matching Linux platform binary, leaving every other package in ``node_modules``
+untouched. Windows uses the normal package-lock-managed npm installation. The
+vendored archives are verified against the SHA-512 integrity values pinned in
+``package-lock.json`` before extraction.
 """
 from __future__ import annotations
 
@@ -16,7 +17,6 @@ import os
 import platform
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 import uuid
@@ -62,14 +62,6 @@ PLATFORM_ARCHIVES: Final[dict[str, ArchiveSpec]] = {
         binary_path=Path("bin/esbuild"),
         binary_sha256="51e829ba36f36be6d9aea6e329ddc4f9350302339b16aaca96a3cb97f64a8ebb",
     ),
-    "win32-x64": ArchiveSpec(
-        filename="win32-x64-0.28.1.tgz",
-        package_name="@esbuild/win32-x64",
-        integrity="sha512-bm4Mowrv+GXMlpWX++EcXw/iLyd1o3+bJkC2DkWXYVvgZCqD/bSj9ctZeAMC3cIxgjRVR2Dufaiu4YPxr5gW1A==",
-        install_path=Path("node_modules/@esbuild/win32-x64"),
-        binary_path=Path("esbuild.exe"),
-        binary_sha256="ec02ee9b14ab332416fedd10614dfb80eed5304d94f67745067c011934a8c3c3",
-    ),
 }
 
 
@@ -101,12 +93,11 @@ def current_platform_key(*, system: str | None = None, machine: str | None = Non
     architecture = normalize_architecture(machine or platform.machine())
     if detected_system == "linux" and architecture in {"x64", "arm64"}:
         return f"linux-{architecture}"
-    if detected_system == "windows" and architecture == "x64":
-        return "win32-x64"
     raise BootstrapError(
-        "No vendored esbuild binary matches "
-        f"system={system or platform.system()!r}, architecture={machine or platform.machine()!r}. "
-        "Run npm ci on this platform or add its matching @esbuild archive."
+        "The verified offline esbuild archives are Linux-only; "
+        f"detected system={system or platform.system()!r}, "
+        f"architecture={machine or platform.machine()!r}. "
+        "Use the package-lock-managed installation (`npm ci`) on this platform."
     )
 
 
@@ -374,6 +365,36 @@ def verify_node_runtime(root: Path) -> None:
     if probe.returncode:
         details = (probe.stderr or probe.stdout).strip()
         raise BootstrapError(f"The installed offline esbuild runtime failed its Node.js probe: {details}")
+
+
+def ensure_esbuild_available(root: Path | None = None, *, quiet: bool = True) -> bool:
+    """Use a valid local esbuild install, bootstrapping only on vendored Linux hosts.
+
+    Normal Windows development uses the package-lock-managed ``node_modules``
+    installation.  The repository intentionally vendors only Linux binaries for
+    offline chat/CI work, so a missing Windows runtime must be repaired with
+    ``npm ci`` instead of searching for a non-existent Windows archive.
+    """
+
+    base = (root or project_root()).resolve()
+    if shutil.which("node") is None:
+        raise BootstrapError("Node.js is not available on PATH; install Node.js 18 or newer.")
+
+    try:
+        verify_node_runtime(base)
+        return False
+    except BootstrapError as installed_error:
+        try:
+            current_platform_key()
+        except BootstrapError:
+            raise BootstrapError(
+                f"Local esbuild {ESBUILD_VERSION} is missing or unusable. "
+                "Offline esbuild archives are intentionally Linux-only; run `npm ci` "
+                "on Windows to restore the package-lock-managed native runtime."
+            ) from installed_error
+
+        install_esbuild(base, quiet=quiet)
+        return True
 
 
 def install_esbuild(

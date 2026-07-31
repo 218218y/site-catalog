@@ -176,32 +176,17 @@ CSS_CASCADE_LAYER = "bargig.application"
 
 
 def ensure_local_esbuild() -> None:
-    """Provision only the pinned local esbuild packages when they are absent."""
+    """Use exact local esbuild; bootstrap only from vendored Linux archives."""
 
     try:
-        from bootstrap_esbuild_offline import (
-            CORE_ARCHIVE,
-            PLATFORM_ARCHIVES,
-            current_platform_key,
-            install_esbuild,
-            installation_is_current,
-        )
+        from bootstrap_esbuild_offline import ensure_esbuild_available
     except ImportError as error:
         raise RuntimeError("Cannot load the repository-local esbuild bootstrap") from error
 
-    root = project_root()
     try:
-        platform_spec = PLATFORM_ARCHIVES[current_platform_key()]
+        ensure_esbuild_available(project_root(), quiet=True)
     except RuntimeError as error:
-        raise RuntimeError(str(error)) from error
-    if installation_is_current(root, CORE_ARCHIVE) and installation_is_current(root, platform_spec):
-        return
-    try:
-        install_esbuild(root, verify_runtime=False, quiet=True)
-    except RuntimeError as error:
-        raise RuntimeError(
-            "esbuild is unavailable and the verified offline bootstrap failed: " + str(error)
-        ) from error
+        raise RuntimeError(f"esbuild is unavailable: {error}") from error
 
 @dataclass(frozen=True)
 class FrontendBuildResult:
