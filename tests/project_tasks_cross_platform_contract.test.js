@@ -10,6 +10,10 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), 
 const projectTasks = require(path.join(root, "tools", "project_tasks.js"));
 const pythonLauncher = require(path.join(root, "tools", "run_project_python.js"));
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
 const expectedTasks = [
   "setup",
   "sync-catalog-pdfs",
@@ -36,6 +40,9 @@ assert.deepEqual(projectTasks.parseCommandLine(["--dry-run", "r2-sync", "--no-de
 });
 assert.equal(projectTasks.parseCommandLine(["build"]).task, "bundle-site-r2");
 assert.equal(projectTasks.parseCommandLine(["deploy"]).task, "deploy-cloudflare");
+assert.equal(projectTasks.npmCommand("win32"), "npm.cmd");
+assert.equal(projectTasks.npmCommand("linux"), "npm");
+assert.equal(projectTasks.npmCommand("darwin"), "npm");
 
 const dryRunBundle = spawnSync(
   process.execPath,
@@ -72,10 +79,17 @@ const dryRunSetup = spawnSync(
   { cwd: root, encoding: "utf8", shell: false, windowsHide: true },
 );
 assert.equal(dryRunSetup.status, 0, dryRunSetup.stderr);
-assert.match(dryRunSetup.stdout, /npm ci/);
+const npmExecutablePattern = escapeRegExp(projectTasks.npmCommand());
+assert.match(
+  dryRunSetup.stdout,
+  new RegExp(`\\[dry-run\\] ${npmExecutablePattern} ci(?:\\r?\\n|$)`, "u"),
+);
 assert.match(dryRunSetup.stdout, /--system tools\/clean_project_artifacts\.py/);
 assert.match(dryRunSetup.stdout, /--system tools\/setup_python_env\.py/);
-assert.match(dryRunSetup.stdout, /npm run setup:browsers:linux/);
+assert.match(
+  dryRunSetup.stdout,
+  new RegExp(`\\[dry-run\\] ${npmExecutablePattern} run setup:browsers:linux(?:\\r?\\n|$)`, "u"),
+);
 
 const invocation = pythonLauncher.buildInvocation({
   system: true,

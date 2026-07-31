@@ -83,8 +83,8 @@ function runPython(script, args, context, { system = false } = {}) {
   );
 }
 
-function npmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
+function npmCommand(platform = process.platform) {
+  return platform === "win32" ? "npm.cmd" : "npm";
 }
 
 function runNpm(args, context) {
@@ -313,6 +313,7 @@ module.exports = {
   executeTask,
   expectedNodeVersion,
   main,
+  npmCommand,
   parseCommandLine,
   printHelp,
   validateNodeVersion,
