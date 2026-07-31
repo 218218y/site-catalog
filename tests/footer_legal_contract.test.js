@@ -109,6 +109,16 @@ assert.match(paymentTemplate, /data-payment-enabled="\{\{PAYMENT_ENABLED\}\}"/);
 assert.match(paymentTemplate, /data-payment-url="\{\{PAYMENT_URL\}\}"/);
 assert.match(paymentTemplate, /id="paymentShareLink"[\s\S]*?aria-label="שיתוף או העתקת קישור לעמוד התשלום"/);
 assert.match(paymentTemplate, /class="brand-copy-link payment-share-link"/);
+assert.match(
+  paymentTemplate,
+  /<div class="brand-lockup legal-brand-lockup">[\s\S]*?<a class="brand legal-site-brand"[\s\S]*?<strong>רהיטי ברגיג<\/strong>[\s\S]*?<small>גלריית קטלוגים<\/small>[\s\S]*?<button[\s\S]*?id="paymentShareLink"[\s\S]*?<\/button>[\s\S]*?<\/div>[\s\S]*?<div class="legal-header-actions">[\s\S]*?class="button soft legal-back-link"/,
+  "payment share control must stay beside the brand lockup, matching the main header",
+);
+assert.doesNotMatch(
+  paymentTemplate,
+  /<div class="legal-header-actions">[\s\S]*?id="paymentShareLink"/,
+  "payment share control must not drift back into the opposite-side action group",
+);
 assert.match(paymentTemplate, /id="paymentShareToast" role="status" aria-live="polite" aria-atomic="true"/);
 assert.match(footerLegalCssSource, /\.legal-header-actions\s*\{[\s\S]*?display:\s*inline-flex;[\s\S]*?gap:\s*9px;/);
 assert.match(footerLegalCssSource, /\.payment-share-link\s*\{[\s\S]*?min-width:\s*40px;[\s\S]*?min-height:\s*40px;/);

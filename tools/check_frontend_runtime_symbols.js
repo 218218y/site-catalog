@@ -7,7 +7,7 @@
  * tree-shaking mistakes, and feature-boundary errors in the exact browser artifact.
  */
 const path = require("node:path");
-const ts = require("typescript");
+const ts = require("./typescript_compiler_api.js");
 
 const root = path.resolve(__dirname, "..");
 const bundles = process.argv.slice(2);

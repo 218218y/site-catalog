@@ -7,22 +7,7 @@ const path = require("node:path");
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const SOURCE_ROOT = path.join(PROJECT_ROOT, "src", "js");
 
-function loadTypeScript() {
-  try {
-    return require("typescript");
-  } catch (error) {
-    const globalRoot = require("node:child_process")
-      .execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["root", "-g"], { encoding: "utf8" })
-      .trim();
-    try {
-      return require(path.join(globalRoot, "typescript"));
-    } catch {
-      throw error;
-    }
-  }
-}
-
-const ts = loadTypeScript();
+const ts = require("../tools/typescript_compiler_api.js");
 
 /**
  * Compile one complete source-owned ES module as a CommonJS test harness.
