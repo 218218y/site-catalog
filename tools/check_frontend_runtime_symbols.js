@@ -18,6 +18,10 @@ const root = path.resolve(__dirname, "..");
 const defaultTargets = ["app-catalog.js", "app-favorites.js", "app-viewer.js", "app-payment.js"];
 const ambientGlobals = path.join(root, "types", "frontend-runtime-globals.d.ts");
 const compilerPackagePath = path.join(root, "node_modules", "typescript", "package.json");
+const projectPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const expectedCompilerVersion = projectPackage.devDependencies.typescript;
+const offlineBootstrap = "tools/bootstrap_typescript_offline.py";
+const pythonLauncher = path.join(root, "tools", "run_project_python.js");
 
 const compilerArgs = [
   "--ignoreConfig",
@@ -75,30 +79,74 @@ function analyzeCompilerResult(status, output) {
   return Object.freeze({ diagnostics, unresolved, globalDiagnostics, infrastructureFailure });
 }
 
-function resolveCompilerEntry() {
-  if (!fs.existsSync(compilerPackagePath)) {
-    throw new Error("TypeScript 7 is not installed. Run `npm ci` before executing project tools.");
-  }
+function readCompilerEntry() {
+  if (!fs.existsSync(compilerPackagePath)) return null;
 
   let packageJson;
   try {
     packageJson = JSON.parse(fs.readFileSync(compilerPackagePath, "utf8"));
-  } catch (error) {
-    throw new Error("Could not read the installed TypeScript package metadata.", { cause: error });
+  } catch {
+    return null;
   }
 
-  if (!/^7\./.test(String(packageJson.version || ""))) {
-    throw new Error(`Expected TypeScript 7, but found ${packageJson.version || "an unknown version"}. Run \`npm ci\`.`);
-  }
-
+  if (packageJson.version !== expectedCompilerVersion) return null;
   const bin = typeof packageJson.bin === "string" ? packageJson.bin : packageJson.bin?.tsc;
-  if (typeof bin !== "string" || !bin) {
-    throw new Error("The installed TypeScript package does not expose its `tsc` command.");
-  }
-
+  if (typeof bin !== "string" || !bin) return null;
   const compilerEntry = path.resolve(path.dirname(compilerPackagePath), bin);
-  if (!fs.existsSync(compilerEntry)) {
-    throw new Error(`The installed TypeScript compiler entry is missing: ${compilerEntry}`);
+  return fs.existsSync(compilerEntry) ? compilerEntry : null;
+}
+
+/** @param {string} compilerEntry */
+function compilerProbeIsValid(compilerEntry) {
+  const completed = spawnSync(process.execPath, [compilerEntry, "--version"], {
+    cwd: root,
+    encoding: "utf8",
+    shell: false,
+    windowsHide: true,
+  });
+  return (
+    !completed.error &&
+    !completed.signal &&
+    completed.status === 0 &&
+    String(completed.stdout || "").trim() === `Version ${expectedCompilerVersion}`
+  );
+}
+
+function bootstrapCompiler() {
+  const completed = spawnSync(
+    process.execPath,
+    [pythonLauncher, "--system", offlineBootstrap, "--quiet"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      shell: false,
+      windowsHide: true,
+    },
+  );
+  if (completed.error) {
+    throw new Error("Could not start the offline TypeScript bootstrap.", { cause: completed.error });
+  }
+  if (completed.signal) {
+    throw new Error(`Offline TypeScript bootstrap stopped by signal ${completed.signal}.`);
+  }
+  if (completed.status !== 0) {
+    const details = [completed.stdout, completed.stderr].filter(Boolean).join("\n").trim();
+    throw new Error(
+      `TypeScript ${expectedCompilerVersion} is unavailable and the offline bootstrap failed:\n${details}`,
+    );
+  }
+}
+
+function resolveCompilerEntry() {
+  let compilerEntry = readCompilerEntry();
+  if (!compilerEntry || !compilerProbeIsValid(compilerEntry)) {
+    bootstrapCompiler();
+    compilerEntry = readCompilerEntry();
+  }
+  if (!compilerEntry || !compilerProbeIsValid(compilerEntry)) {
+    throw new Error(
+      `Offline TypeScript bootstrap did not provide the exact compiler version ${expectedCompilerVersion}.`,
+    );
   }
   return compilerEntry;
 }

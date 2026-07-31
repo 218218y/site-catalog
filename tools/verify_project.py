@@ -142,7 +142,14 @@ def verification_steps(
             ),
             VerificationStep(
                 "Frontend JSDoc type contracts",
-                ("node", "node_modules/typescript/bin/tsc", "-p", "jsconfig.json", "--pretty", "false"),
+                (
+                    python,
+                    "tools/run_typescript_offline.py",
+                    "-p",
+                    "jsconfig.json",
+                    "--pretty",
+                    "false",
+                ),
             ),
             VerificationStep(
                 "Frontend route runtime symbols",

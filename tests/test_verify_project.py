@@ -35,6 +35,14 @@ def test_quick_verification_reuses_the_guarded_public_build() -> None:
     assert titles[0] == "Frontend bundles are current"
     assert "Generated site pages are current" in titles
     assert commands[0][0] == "project-python"
+    assert (
+        "project-python",
+        "tools/run_typescript_offline.py",
+        "-p",
+        "jsconfig.json",
+        "--pretty",
+        "false",
+    ) in commands
     assert any(command[:2] == ("node", "--check") for command in commands)
     assert ("project-python", "-m", "pytest", "-q") in commands
     assert (

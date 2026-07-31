@@ -17,7 +17,10 @@ const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), 
 const jsconfig = JSON.parse(fs.readFileSync(path.join(root, "jsconfig.json"), "utf8"));
 
 assert.equal(packageJson.scripts["check:runtime-symbols"], "node tools/check_frontend_runtime_symbols.js");
-assert.equal(packageJson.scripts["check:types"], "tsc -p jsconfig.json --pretty false");
+assert.equal(
+  packageJson.scripts["check:types"],
+  "node tools/run_project_python.js --system tools/run_typescript_offline.py -p jsconfig.json --pretty false",
+);
 assert.equal(jsconfig.compilerOptions.checkJs, true);
 assert.equal(jsconfig.compilerOptions.noEmit, true);
 assert.match(checker, /\["app-catalog\.js", "app-favorites\.js", "app-viewer\.js", "app-payment\.js"\]/);

@@ -532,22 +532,31 @@ npm run setup
 `npm run setup` מכין את סביבת Python המקומית `.venv` ומתקין את Chromium המבודד של Playwright. אפשר במקום זאת להריץ את `.20-setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
 גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`, ו־Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`. גרסת Node המומלצת ל־CI ולפיתוח נשמרת ב־`.nvmrc`.
 
-### סביבת esbuild מקומית ללא התקנת npm מלאה
+### סביבת esbuild ו-TypeScript 7 מקומית ללא התקנת npm מלאה
 
-לבדיקת קוד, עבודה בצ'אט ובניית קובצי ה־frontend אין צורך להתקין Playwright, Wrangler ושאר עץ התלויות. הפרויקט כולל ארכיונים נעולים תחת `vendor/npm/esbuild` ומתקין מהם רק את `esbuild` ואת הבינארי המתאים למערכת:
+לבדיקת קוד, עבודה בצ'אט, בניית קובצי ה־frontend, בדיקת חוזי JSDoc והרצת בדיקות ה־JavaScript אין צורך להתקין Playwright, Wrangler ושאר עץ התלויות. הפרויקט כולל מנגנוני bootstrap מצומצמים שמתקינים רק את הכלים הנדרשים מתוך ארכיונים נעולים:
 
 ```bash
 python tools/bootstrap_esbuild_offline.py
+python tools/bootstrap_typescript_offline.py
 python tools/build_frontend_assets.py --check
+python tools/run_typescript_offline.py -p jsconfig.json --pretty false
+python tools/verify_project.py --javascript-only
+# או: npm run test:js
 ```
 
-המנגנון תומך ב־Linux x64, Linux ARM64 ו־Windows x64, מאמת את חתימות SHA-512 מה־lockfile ואינו פונה לרשת או מפעיל `npm`. כלי בניית ה־frontend מפעיל את ה־bootstrap הזה אוטומטית כאשר `esbuild` חסר. אפשר לבדוק התקנה קיימת ללא שינוי באמצעות:
+מנגנון esbuild תומך ב־Linux x64, Linux ARM64 ו־Windows x64 ומאתחל את עצמו אוטומטית בזמן בניית frontend. מנגנון TypeScript מתקין את חבילת `typescript` ‏7.0.2 ואת חבילת ה־compiler native המדויקת למערכת הנוכחית; `check:types` ומסלול `test:js` משתמשים בו אוטומטית ואינם נופלים ל־`tsc` גלובלי או לגרסה ישנה שנמצאה במקרה במחשב. `test:js` משתמש בכוונה ב־Python המערכתי, משום שכל כלי הבדיקה במסלול הזה מבוססים על הספרייה הסטנדרטית; הוא אינו יוצר `.venv` ואינו מפעיל pip.
+
+כל ארכיון מאומת מול כתובת ההורדה, הגרסה וחתימת SHA-512 שב־`package-lock.json`. הכלים אינם פונים לרשת, אינם מפעילים npm או lifecycle scripts ואינם מוחקים חבילות אחרות מתוך `node_modules`. את קובצי TypeScript יש להניח ללא חילוץ תחת `vendor/npm/typescript` לפי השמות והקישורים שב־`vendor/npm/typescript/README.md`.
+
+אפשר לבדוק התקנה קיימת ללא שינוי באמצעות:
 
 ```bash
 python tools/bootstrap_esbuild_offline.py --check
+python tools/bootstrap_typescript_offline.py --check
 ```
 
-ההתקנה המלאה באמצעות `npm ci` עדיין נדרשת לעבודות שבאמת משתמשות ב־TypeScript, Wrangler, Playwright או במסלול האימות המלא.
+התקנת npm מלאה עדיין נדרשת לעבודות שמשתמשות ב־Wrangler או Playwright. בדיקות Python דורשות בנפרד את סביבת `.venv` והחבילות הנעולות ב־`tools/requirements*.txt`.
 
 גרסאות npm חדשות חוסמות install scripts של תלויות שלא נבדקו. `package.json` מאשר במפורש רק את `esbuild`, `sharp` ו־`workerd`; הגרסאות המדויקות שלהן עדיין נעולות ב־`package-lock.json`. בסוף `npm ci` רץ `tools/check_node_install_scripts.js`, שמפעיל בפועל את הבינאריים ואת Wrangler ונכשל בהודעה ברורה אם סקריפט נדרש נחסם או התקנה בינארית נפגמה. אין לאשר חבילות נוספות אוטומטית בלי לבדוק מדוע הן מבקשות install script.
 

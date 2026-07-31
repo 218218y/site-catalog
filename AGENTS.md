@@ -1,27 +1,40 @@
 # Repository execution guidance
 
-This repository includes a verified, offline `esbuild` runtime under
-`vendor/npm/esbuild`. For source review, focused frontend changes, and ordinary
-frontend builds, **do not run `npm install`, `npm ci`, `npm run setup`, or any
-Playwright browser installation**.
+This repository includes verified offline runtimes for `esbuild` and
+TypeScript 7. For source review, focused frontend changes, JSDoc type checking,
+ordinary frontend builds, and the JavaScript contract suite, **do not run
+`npm install`, `npm ci`, `npm run setup`, or any Playwright browser
+installation**.
 
-Use the repository-local bootstrap instead:
+Provision only the required local packages:
 
 ```bash
 python tools/bootstrap_esbuild_offline.py
-python tools/build_frontend_assets.py --check
+python tools/bootstrap_typescript_offline.py
 ```
 
-`tools/build_frontend_assets.py` also bootstraps the matching local `esbuild`
-binary automatically when it is missing. The bootstrap verifies the pinned
-SHA-512 archives, selects Linux x64, Linux ARM64, or Windows x64, and modifies
-only these paths:
+Useful focused commands:
 
-- `node_modules/esbuild`
-- `node_modules/@esbuild/<current-platform>`
-- `node_modules/.bin/esbuild*`
+```bash
+python tools/build_frontend_assets.py --check
+python tools/run_typescript_offline.py -p jsconfig.json --pretty false
+python tools/verify_project.py --javascript-only
+```
+
+The frontend builder bootstraps `esbuild` automatically. The TypeScript runner
+and the JavaScript verification workflow bootstrap the exact TypeScript 7
+launcher and native compiler automatically. Both bootstraps verify the pinned
+SHA-512 archives and modify only their own package paths under `node_modules`.
+They never invoke npm or lifecycle scripts.
+
+Offline TypeScript requires the core archive plus the current platform archive
+under `vendor/npm/typescript`; see that directory's README for exact filenames
+and download URLs. Supported offline targets are Linux x64, Linux ARM64, and
+Windows x64.
 
 Install the complete npm dependency tree only when the requested work genuinely
-needs TypeScript, Wrangler, Playwright, or the full verification pipeline. Do
-not install Playwright browsers unless browser tests are explicitly requested.
-Prefer focused tests that cover the files changed in the current task.
+needs Wrangler, Playwright, browser binaries, or another dependency not covered
+by the focused offline toolchain. Python tests still require the pinned Python
+packages from `tools/requirements*.txt`. Do not install Playwright browsers
+unless browser tests are explicitly requested. Prefer focused tests that cover
+the files changed in the current task.
