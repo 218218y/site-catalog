@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const { importFrontendTestModule } = require("./frontend_test_module");
 
 const warnings = [];
+let fullscreenLayoutRefreshes = 0;
 const documentValue = {
   body: { dataset: {} },
   documentElement: { dataset: {} },
@@ -30,7 +31,9 @@ Object.assign(globalThis, {
   document: documentValue,
   viewerElements: { fullscreenToggle: null },
   setTooltipText() {},
-  refreshLightboxLayoutForTopUiChange() {},
+  getFeatureInterface: (name) => name === "viewer"
+    ? { handleResize: () => { fullscreenLayoutRefreshes += 1; } }
+    : null,
   showTopUiTemporarily() {},
   closeLightboxSearchScopeMenu() {},
   closeLightboxCatalogMenu() {},
@@ -61,10 +64,13 @@ assert.equal(stateApi.isViewerSessionVisible(), false);
 
 const browserApi = importFrontendTestModule("src/js/52-viewer-session.js", "viewer-browser-session");
 assert.equal(browserApi.viewerUsesInDocumentFullscreenNavigation(), false);
+assert.equal(stateApi.transitionViewerPhase("opening", "fullscreen-open"), true);
+assert.equal(stateApi.transitionViewerPhase("open", "fullscreen-ready"), true);
 assert.equal(stateApi.transitionViewerFullscreenPhase("entering", "request"), true);
 documentValue.fullscreenElement = documentValue.documentElement;
-browserApi.reconcileViewerFullscreenPhase("browser-entered");
+browserApi.handleBrowserFullscreenChange();
 assert.equal(viewerState.viewerFullscreenPhase, "active");
+assert.equal(fullscreenLayoutRefreshes, 1, "fullscreen changes must flow through the canonical viewer resize path");
 assert.equal(documentValue.documentElement.dataset.viewerFullscreenPhase, "active");
 assert.equal(browserApi.viewerUsesInDocumentFullscreenNavigation(), true);
 assert.equal(stateApi.transitionViewerFullscreenPhase("exiting", "exit"), true);

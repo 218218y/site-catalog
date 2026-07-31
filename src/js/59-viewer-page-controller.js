@@ -27,13 +27,15 @@ import {
 import {
   applyZoom,
   captureSingleImageRelativePosition,
+  getAutomaticViewerFitMode,
   isAutoViewerZoom,
   primeLightboxFrameForCatalogPage,
   queueSingleImagePageTurnOrigin,
   queueSingleImageRelativePosition,
   resetImagePosition,
   shouldPreserveSingleManualPosition,
-  updateHash
+  updateHash,
+  viewerUsesAutomaticFitMode
 } from "./54-viewer-geometry.js";
 import {
   hideLightboxFloatingPreview,
@@ -57,6 +59,14 @@ function catalogPageProgress(catalog, page) {
       displayTotal
     }
   };
+}
+
+function reconcileAutomaticViewerFitModeForActivePage() {
+  if (!viewerUsesAutomaticFitMode()) return false;
+  const nextFitMode = getAutomaticViewerFitMode();
+  if (nextFitMode === viewerState.imageFitMode) return false;
+  viewerState.imageFitMode = nextFitMode;
+  return true;
 }
 
 /** @param {ViewerRefreshOptions} [options] */
@@ -83,6 +93,7 @@ function updateLightbox(options = {}) {
   const catalog = activeCatalog();
   if (!catalog) return;
   setActivePage(clampPage(activePage(), catalog));
+  reconcileAutomaticViewerFitModeForActivePage();
   syncLightboxModeUi();
   syncViewerInquiryUi();
   syncViewerMobileMoreMenuState();
@@ -169,6 +180,7 @@ function setLightboxPage(page, options = {}) {
   const previousCatalog = activeCatalog();
   const previousPage = activePage();
   setActivePage(nextPage);
+  reconcileAutomaticViewerFitModeForActivePage();
   const currentCatalog = activeCatalog();
   const preserveCurrentGeometry = Boolean(
     currentCatalog
@@ -231,6 +243,7 @@ function setFavoriteViewerIndex(index, options = {}) {
   const previousCatalog = activeCatalog();
   const previousPage = activePage();
   favorites?.selectViewerEntry(entries, nextIndex);
+  reconcileAutomaticViewerFitModeForActivePage();
   const currentCatalog = activeCatalog();
   const preserveCurrentGeometry = Boolean(
     currentCatalog

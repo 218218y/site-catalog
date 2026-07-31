@@ -35,6 +35,10 @@ import { attachViewerActionEvents, closeViewerMobileMoreMenu } from "./62-viewer
 import { attachViewerOnboardingEvents, closeViewerOnboarding, handleViewerOnboardingKeydown, scheduleViewerOnboardingLayout, showViewerOnboardingIfNeeded } from "./65-viewer-onboarding.js";
 import { attachViewerGestures, handleLightboxPointerDownCapture, handleViewerSurfacePointerDown, stopViewerTouchMomentum } from "./70-viewer-input.js";
 
+let viewerLayoutRefreshRaf = 0;
+/** @type {ResizeObserver|null} */
+let viewerStageResizeObserver = null;
+
 /** @param {number} [page] @param {ViewerOpenOptions} [options] */
 function openLightbox(page = undefined, options = {}) {
   const catalog = activeCatalog();
@@ -55,13 +59,13 @@ function openLightbox(page = undefined, options = {}) {
   } else {
     favorites?.resetViewerSession();
   }
+  setActivePage(clampPage(page, catalog));
   viewerState.imageFitModeSource = normalizeViewerFitModeSource(viewerState.imageFitModeSource);
   viewerState.imageFitMode = viewerUsesAutomaticFitMode()
     ? getAutomaticViewerFitMode()
     : normalizeViewerFitMode(viewerState.imageFitMode);
   stopViewerTouchMomentum();
   clearViewerPageWheelGesture();
-  setActivePage(clampPage(page, catalog));
   viewerState.zoom = AUTO_VIEWER_ZOOM;
   resetImagePosition({ queueSingleFitOrigin: true });
   viewerState.pointers.clear();
@@ -229,6 +233,7 @@ function attachViewerEvents() {
   viewerElements.lightboxImage?.addEventListener("load", () => {
     setViewerLoading(false);
     viewerElements.lightbox?.classList.remove("is-page-loading");
+    syncAutomaticViewerFitMode({ showUi: false, refreshLayout: false });
     applyZoom();
   });
 
@@ -236,16 +241,28 @@ function attachViewerEvents() {
     document.addEventListener(eventName, handleBrowserFullscreenChange);
   });
 
+  window.visualViewport?.addEventListener("resize", handleViewerResize, { passive: true });
+  if (typeof ResizeObserver === "function" && viewerElements.stageCanvas && !viewerStageResizeObserver) {
+    viewerStageResizeObserver = new ResizeObserver(() => handleViewerResize());
+    viewerStageResizeObserver.observe(viewerElements.stageCanvas);
+  }
+
   reconcileViewerFullscreenPhase("viewer-events-attached");
   syncFullscreenButtonUi();
 }
 
-function handleViewerResize() {
+function flushViewerLayoutRefresh() {
+  viewerLayoutRefreshRaf = 0;
   if (!isViewerSessionOpen()) return;
   hideLightboxFloatingPreview();
   syncAutomaticViewerFitMode({ showUi: false, refreshLayout: false });
   refreshLightboxLayoutForTopUiChange();
   if (viewerState.viewerOnboardingOpen) scheduleViewerOnboardingLayout(40);
+}
+
+function handleViewerResize() {
+  if (!isViewerSessionOpen() || viewerLayoutRefreshRaf) return;
+  viewerLayoutRefreshRaf = window.requestAnimationFrame(flushViewerLayoutRefresh);
 }
 
 /** @param {KeyboardEvent} event */

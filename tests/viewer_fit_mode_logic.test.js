@@ -27,9 +27,12 @@ function fakeButton() {
   };
 }
 
+let activePageSize = { width: 1200, height: 1800 };
+const activeCatalogValue = { id: "fit-test" };
 const viewerElements = {
   stageCanvas: { clientWidth: 1440, clientHeight: 900 },
   lightbox: { classList: fakeClassList() },
+  lightboxImage: { naturalWidth: 0, naturalHeight: 0 },
   fitAutoBtn: fakeButton(),
   fitHeightBtn: fakeButton(),
   fitWidthBtn: fakeButton()
@@ -49,6 +52,9 @@ Object.assign(globalThis, {
     visualViewport: { width: 1440, height: 900 }
   },
   document: { documentElement: { clientWidth: 1440, clientHeight: 900 } },
+  activeCatalog: () => activeCatalogValue,
+  activePage: () => 1,
+  pageSize: () => activePageSize,
   clearViewerPageWheelGesture() {},
   resetImagePosition() {},
   syncViewerAutoZoomButtonUi() {},
@@ -70,7 +76,10 @@ const fitController = importFrontendTestModule("src/js/57-viewer-fit-controller.
 const shell = importFrontendTestModule("src/js/56-viewer-shell.js", "viewer-shell");
 globalThis.syncViewerFitModeUi = shell.syncViewerFitModeUi;
 
-assert.equal(geometry.getAutomaticViewerFitMode(), "height");
+assert.equal(geometry.getAutomaticViewerFitMode(), "height", "portrait page should prefer height when its width remains visible");
+activePageSize = { width: 2400, height: 1000 };
+assert.equal(geometry.getAutomaticViewerFitMode(), "width", "wide page must switch to width even in a landscape viewport");
+activePageSize = { width: 1200, height: 1800 };
 viewerElements.stageCanvas.clientWidth = 390;
 viewerElements.stageCanvas.clientHeight = 844;
 assert.equal(geometry.getAutomaticViewerFitMode(), "width");
@@ -79,6 +88,9 @@ viewerElements.stageCanvas.clientHeight = 0;
 window.visualViewport.width = 844;
 window.visualViewport.height = 390;
 assert.equal(geometry.getAutomaticViewerFitMode(), "height");
+activePageSize = null;
+assert.equal(geometry.getAutomaticViewerFitMode(), "height", "orientation fallback remains available before image dimensions are known");
+activePageSize = { width: 1200, height: 1800 };
 
 viewerElements.stageCanvas.clientWidth = 390;
 viewerElements.stageCanvas.clientHeight = 844;

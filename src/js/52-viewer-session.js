@@ -8,6 +8,7 @@
  */
 
 import { homeDocumentUrl, navigateTo } from "./00-navigation.js";
+import { getFeatureInterface } from "./10-app-state.js";
 import {
   VIEWER_FULLSCREEN_ACTIVE,
   VIEWER_FULLSCREEN_ENTERING,
@@ -24,7 +25,6 @@ import {
   transitionViewerFullscreenPhase
 } from "./51-viewer-session-state.js";
 import { showTopUiTemporarily } from "./56-viewer-shell.js";
-import { refreshLightboxLayoutForTopUiChange } from "./61-viewer-layout-controller.js";
 
 function getBrowserFullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || null;
@@ -102,7 +102,7 @@ function handleBrowserFullscreenChange() {
   reconcileViewerFullscreenPhase("fullscreenchange");
   syncFullscreenButtonUi();
   if (isViewerSessionOpen()) {
-    refreshLightboxLayoutForTopUiChange({ resetAutoSingleOrigin: false });
+    getFeatureInterface("viewer")?.handleResize?.();
     showTopUiTemporarily(1400);
   }
 }
@@ -148,6 +148,7 @@ function returnToMainSiteFromLightbox(event = null) {
 /* TEST-ONLY EXPORTS: BEGIN */
 if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
   __BARGIG_TEST_EXPORTS__["viewer-browser-session"] = Object.freeze({
+    handleBrowserFullscreenChange,
     isBrowserFullscreenActive,
     reconcileViewerFullscreenPhase,
     viewerUsesInDocumentFullscreenNavigation

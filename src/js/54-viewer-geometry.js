@@ -95,6 +95,25 @@ function getViewerFitViewportSize() {
 
 function getAutomaticViewerFitMode() {
   const viewport = getViewerFitViewportSize();
+  const naturalSize = getActiveSingleImageNaturalSize();
+  if (
+    naturalSize
+    && viewport.width > 0
+    && viewport.height > 0
+    && naturalSize.width > 0
+    && naturalSize.height > 0
+  ) {
+    const availableWidth = Math.max(1, viewport.width - 18);
+    const availableHeight = Math.max(1, viewport.height - 18);
+    const renderedWidthAtHeightFit = naturalSize.width * (availableHeight / naturalSize.height);
+    return renderedWidthAtHeightFit <= availableWidth + 0.5
+      ? VIEWER_FIT_HEIGHT
+      : VIEWER_FIT_WIDTH;
+  }
+
+  // Before catalog/image dimensions are available, retain the historical
+  // orientation fallback. A later page/image/layout reconciliation replaces it
+  // with the dimension-aware decision above.
   return viewport.height > viewport.width ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
 }
 

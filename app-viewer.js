@@ -4260,7 +4260,11 @@ function getViewerFitViewportSize() {
   };
 }
 function getAutomaticViewerFitMode() {
-  let viewport = getViewerFitViewportSize();
+  let viewport = getViewerFitViewportSize(), naturalSize = getActiveSingleImageNaturalSize();
+  if (naturalSize && viewport.width > 0 && viewport.height > 0 && naturalSize.width > 0 && naturalSize.height > 0) {
+    let availableWidth = Math.max(1, viewport.width - 18), availableHeight = Math.max(1, viewport.height - 18);
+    return naturalSize.width * (availableHeight / naturalSize.height) <= availableWidth + 0.5 ? VIEWER_FIT_HEIGHT : VIEWER_FIT_WIDTH;
+  }
   return viewport.height > viewport.width ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
 }
 function getActiveSingleImageNaturalSize() {
@@ -4696,6 +4700,78 @@ function syncViewerLayoutModeUi() {
   viewerElements.lightbox?.classList.add("viewer-layout-paged"), viewerElements.lightbox?.classList.remove("viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated"), viewerElements.lightboxImageFrame?.classList.remove("hidden");
 }
 
+// src/js/52-viewer-session.js
+function getBrowserFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || null;
+}
+function isBrowserFullscreenActive() {
+  return !!getBrowserFullscreenElement();
+}
+function isBrowserFullscreenSupported() {
+  let root = document.documentElement;
+  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled || document.mozFullScreenEnabled || document.msFullscreenEnabled || root?.requestFullscreen || root?.webkitRequestFullscreen || root?.mozRequestFullScreen || root?.msRequestFullscreen);
+}
+function reconcileViewerFullscreenPhase(reason = "browser-state") {
+  transitionViewerFullscreenPhase(
+    isBrowserFullscreenActive() ? VIEWER_FULLSCREEN_ACTIVE : VIEWER_FULLSCREEN_INACTIVE,
+    reason
+  );
+}
+function viewerUsesInDocumentFullscreenNavigation() {
+  return isBrowserFullscreenActive();
+}
+function requestBrowserFullscreen() {
+  let root = document.documentElement, request = root?.requestFullscreen || root?.webkitRequestFullscreen || root?.mozRequestFullScreen || root?.msRequestFullscreen;
+  if (!request) return Promise.reject(new Error("fullscreen-unsupported"));
+  let result = request.call(root);
+  return result && typeof result.then == "function" ? result : Promise.resolve();
+}
+function exitBrowserFullscreen() {
+  let exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+  if (!exit) return Promise.reject(new Error("fullscreen-exit-unsupported"));
+  let result = exit.call(document);
+  return result && typeof result.then == "function" ? result : Promise.resolve();
+}
+function getFullscreenToggleButtons() {
+  return viewerElements.fullscreenToggle ? [viewerElements.fullscreenToggle] : [];
+}
+function syncFullscreenButtonUi() {
+  let buttons = getFullscreenToggleButtons();
+  if (!buttons.length) return;
+  let isActive = isBrowserFullscreenActive(), isSupported = isBrowserFullscreenSupported(), isPending = isViewerFullscreenPending(), label = isActive ? "יציאה ממסך מלא" : "כניסה למסך מלא";
+  buttons.forEach((button) => {
+    button.dataset.fullscreenActive = isActive ? "true" : "false", button.dataset.fullscreenPhase = viewerState.viewerFullscreenPhase, button.setAttribute("aria-pressed", isActive ? "true" : "false"), button.setAttribute("aria-label", label), setTooltipText(button, label, { updateDefault: !0 }), button.disabled = isPending || !isSupported && !isActive, button.classList.toggle("hidden", !isSupported && !isActive);
+  });
+}
+function handleBrowserFullscreenChange() {
+  reconcileViewerFullscreenPhase("fullscreenchange"), syncFullscreenButtonUi(), isViewerSessionOpen() && (getFeatureInterface("viewer")?.handleResize?.(), showTopUiTemporarily(1400));
+}
+async function toggleBrowserFullscreen(sourceButton = null) {
+  let button = sourceButton || viewerElements.fullscreenToggle;
+  if (isViewerFullscreenPending()) return;
+  let wasActive = isBrowserFullscreenActive();
+  transitionViewerFullscreenPhase(
+    wasActive ? VIEWER_FULLSCREEN_EXITING : VIEWER_FULLSCREEN_ENTERING,
+    wasActive ? "toggle-exit" : "toggle-enter"
+  ), syncFullscreenButtonUi();
+  try {
+    if (wasActive)
+      await exitBrowserFullscreen();
+    else {
+      if (!isBrowserFullscreenSupported()) throw new Error("fullscreen-unsupported");
+      await requestBrowserFullscreen();
+    }
+  } catch (error) {
+    let message = wasActive ? "לא הצלחתי לצאת ממסך מלא" : "הדפדפן חסם מסך מלא";
+    console.warn("Fullscreen toggle failed", error), flashActionButton(button, message);
+  } finally {
+    reconcileViewerFullscreenPhase("toggle-settled"), syncFullscreenButtonUi(), isViewerSessionOpen() && showTopUiTemporarily(1400);
+  }
+}
+function returnToMainSiteFromLightbox(event = null) {
+  event?.preventDefault?.(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), navigateTo(homeDocumentUrl());
+}
+
 // src/js/53-viewer-image.js
 function setViewerLoading(isLoading) {
   viewerElements.viewerLoading.classList.toggle("hidden", !isLoading);
@@ -4900,94 +4976,6 @@ function preloadNeighbors() {
   }
 }
 
-// src/js/61-viewer-layout-controller.js
-function refreshLightboxLayoutForTopUiChange(options = {}) {
-  if (!isViewerSessionOpen()) {
-    syncLightboxTopSafeArea();
-    return;
-  }
-  let { resetAutoSingleOrigin = !0 } = options;
-  syncLightboxTopSafeArea(), resetAutoSingleOrigin && isAutoViewerZoom() && resetImagePosition({ queueSingleFitOrigin: !0 }), applyZoom(), refreshSingleViewerImageResolution();
-}
-function setTopUiPinned(pinned) {
-  viewerState.topUiPinned = !!pinned, syncTopUiPinnedUi(), refreshLightboxLayoutForTopUiChange(), viewerState.topUiPinned || showTopUiTemporarily(1400);
-}
-function toggleTopUiPinned() {
-  setTopUiPinned(!viewerState.topUiPinned);
-}
-
-// src/js/52-viewer-session.js
-function getBrowserFullscreenElement() {
-  return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || null;
-}
-function isBrowserFullscreenActive() {
-  return !!getBrowserFullscreenElement();
-}
-function isBrowserFullscreenSupported() {
-  let root = document.documentElement;
-  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled || document.mozFullScreenEnabled || document.msFullscreenEnabled || root?.requestFullscreen || root?.webkitRequestFullscreen || root?.mozRequestFullScreen || root?.msRequestFullscreen);
-}
-function reconcileViewerFullscreenPhase(reason = "browser-state") {
-  transitionViewerFullscreenPhase(
-    isBrowserFullscreenActive() ? VIEWER_FULLSCREEN_ACTIVE : VIEWER_FULLSCREEN_INACTIVE,
-    reason
-  );
-}
-function viewerUsesInDocumentFullscreenNavigation() {
-  return isBrowserFullscreenActive();
-}
-function requestBrowserFullscreen() {
-  let root = document.documentElement, request = root?.requestFullscreen || root?.webkitRequestFullscreen || root?.mozRequestFullScreen || root?.msRequestFullscreen;
-  if (!request) return Promise.reject(new Error("fullscreen-unsupported"));
-  let result = request.call(root);
-  return result && typeof result.then == "function" ? result : Promise.resolve();
-}
-function exitBrowserFullscreen() {
-  let exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-  if (!exit) return Promise.reject(new Error("fullscreen-exit-unsupported"));
-  let result = exit.call(document);
-  return result && typeof result.then == "function" ? result : Promise.resolve();
-}
-function getFullscreenToggleButtons() {
-  return viewerElements.fullscreenToggle ? [viewerElements.fullscreenToggle] : [];
-}
-function syncFullscreenButtonUi() {
-  let buttons = getFullscreenToggleButtons();
-  if (!buttons.length) return;
-  let isActive = isBrowserFullscreenActive(), isSupported = isBrowserFullscreenSupported(), isPending = isViewerFullscreenPending(), label = isActive ? "יציאה ממסך מלא" : "כניסה למסך מלא";
-  buttons.forEach((button) => {
-    button.dataset.fullscreenActive = isActive ? "true" : "false", button.dataset.fullscreenPhase = viewerState.viewerFullscreenPhase, button.setAttribute("aria-pressed", isActive ? "true" : "false"), button.setAttribute("aria-label", label), setTooltipText(button, label, { updateDefault: !0 }), button.disabled = isPending || !isSupported && !isActive, button.classList.toggle("hidden", !isSupported && !isActive);
-  });
-}
-function handleBrowserFullscreenChange() {
-  reconcileViewerFullscreenPhase("fullscreenchange"), syncFullscreenButtonUi(), isViewerSessionOpen() && (refreshLightboxLayoutForTopUiChange({ resetAutoSingleOrigin: !1 }), showTopUiTemporarily(1400));
-}
-async function toggleBrowserFullscreen(sourceButton = null) {
-  let button = sourceButton || viewerElements.fullscreenToggle;
-  if (isViewerFullscreenPending()) return;
-  let wasActive = isBrowserFullscreenActive();
-  transitionViewerFullscreenPhase(
-    wasActive ? VIEWER_FULLSCREEN_EXITING : VIEWER_FULLSCREEN_ENTERING,
-    wasActive ? "toggle-exit" : "toggle-enter"
-  ), syncFullscreenButtonUi();
-  try {
-    if (wasActive)
-      await exitBrowserFullscreen();
-    else {
-      if (!isBrowserFullscreenSupported()) throw new Error("fullscreen-unsupported");
-      await requestBrowserFullscreen();
-    }
-  } catch (error) {
-    let message = wasActive ? "לא הצלחתי לצאת ממסך מלא" : "הדפדפן חסם מסך מלא";
-    console.warn("Fullscreen toggle failed", error), flashActionButton(button, message);
-  } finally {
-    reconcileViewerFullscreenPhase("toggle-settled"), syncFullscreenButtonUi(), isViewerSessionOpen() && showTopUiTemporarily(1400);
-  }
-}
-function returnToMainSiteFromLightbox(event = null) {
-  event?.preventDefault?.(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), navigateTo(homeDocumentUrl());
-}
-
 // src/js/55-viewer-zoom-controller.js
 function clampViewerZoom(value) {
   return getSafeViewerZoom(value);
@@ -5067,6 +5055,11 @@ function catalogPageProgress(catalog, page) {
     }
   };
 }
+function reconcileAutomaticViewerFitModeForActivePage() {
+  if (!viewerUsesAutomaticFitMode()) return !1;
+  let nextFitMode = getAutomaticViewerFitMode();
+  return nextFitMode === viewerState.imageFitMode ? !1 : (viewerState.imageFitMode = nextFitMode, !0);
+}
 function updateLightbox(options = {}) {
   if (!activeCatalog()) return;
   let { thumbScrollIntoView = !0, preserveCurrentImage = !1 } = options, favoriteEntries = null, favorites = getFeatureInterface("favorites");
@@ -5083,7 +5076,7 @@ function updateLightbox(options = {}) {
   }
   let catalog = activeCatalog();
   if (!catalog) return;
-  if (setActivePage(clampPage(activePage(), catalog)), syncLightboxModeUi(), syncViewerInquiryUi(), syncViewerMobileMoreMenuState(), viewerElements.lightboxTitle.textContent = catalog.title, favoriteEntries) {
+  if (setActivePage(clampPage(activePage(), catalog)), reconcileAutomaticViewerFitModeForActivePage(), syncLightboxModeUi(), syncViewerInquiryUi(), syncViewerMobileMoreMenuState(), viewerElements.lightboxTitle.textContent = catalog.title, favoriteEntries) {
     let favoriteViewerIndex = favorites?.viewerIndex() ?? 0, current = favoriteViewerIndex + 1, total = favoriteEntries.length;
     viewerElements.lightboxMeta.textContent = `מועדף ${current} מתוך ${total} · עמוד ${activePage()}`, syncLightboxProgress(current, total, `מועדף ${current} מתוך ${total} · עמוד ${activePage()}`, {
       label: "מועדף",
@@ -5115,7 +5108,7 @@ function setLightboxPage(page, options = {}) {
   } = options, shouldResetZoom = resetZoom || keepZoom === !1, shouldResetPosition = shouldResetZoom || resetPosition, relativePosition = positionMode !== "page-turn" && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition }) ? captureSingleImageRelativePosition() : null;
   hideLightboxFloatingPreview(), shouldResetZoom && (viewerState.zoom = AUTO_VIEWER_ZOOM), positionMode === "page-turn" ? queueSingleImagePageTurnOrigin(nextPage, pageTurnDirection, pageTurnAxis) : shouldResetPosition ? resetImagePosition({ queueSingleFitOrigin: !0 }) : relativePosition && queueSingleImageRelativePosition(nextPage, relativePosition), preservePointerInteraction || viewerState.pointers.clear();
   let previousCatalog = activeCatalog(), previousPage = activePage();
-  setActivePage(nextPage);
+  setActivePage(nextPage), reconcileAutomaticViewerFitModeForActivePage();
   let currentCatalog = activeCatalog(), preserveCurrentGeometry = !!(currentCatalog && viewerElements.lightboxImage?.complete && viewerElements.lightboxImage.naturalWidth > 0 && catalogPagesShareAspectRatio(previousCatalog, previousPage, currentCatalog, activePage()));
   currentCatalog && !preserveCurrentGeometry && primeLightboxFrameForCatalogPage(currentCatalog, activePage()) && applyZoom(), updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
 }
@@ -5140,7 +5133,7 @@ function setFavoriteViewerIndex(index, options = {}) {
   let shouldResetZoom = resetZoom || keepZoom === !1, shouldResetPosition = shouldResetZoom || resetPosition, relativePosition = positionMode !== "page-turn" && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition }) ? captureSingleImageRelativePosition() : null;
   hideLightboxFloatingPreview(), shouldResetZoom && (viewerState.zoom = AUTO_VIEWER_ZOOM), positionMode === "page-turn" ? queueSingleImagePageTurnOrigin(entry.page, pageTurnDirection, pageTurnAxis) : shouldResetPosition ? resetImagePosition({ queueSingleFitOrigin: !0 }) : relativePosition && queueSingleImageRelativePosition(entry.page, relativePosition), preservePointerInteraction || viewerState.pointers.clear();
   let previousCatalog = activeCatalog(), previousPage = activePage();
-  favorites?.selectViewerEntry(entries, nextIndex);
+  favorites?.selectViewerEntry(entries, nextIndex), reconcileAutomaticViewerFitModeForActivePage();
   let currentCatalog = activeCatalog(), preserveCurrentGeometry = !!(currentCatalog && viewerElements.lightboxImage?.complete && viewerElements.lightboxImage.naturalWidth > 0 && catalogPagesShareAspectRatio(previousCatalog, previousPage, currentCatalog, activePage()));
   currentCatalog && !preserveCurrentGeometry && primeLightboxFrameForCatalogPage(currentCatalog, activePage()) && applyZoom(), updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
 }
@@ -5348,6 +5341,22 @@ function setViewerAutomaticFitMode(options = {}) {
 }
 function syncAutomaticViewerFitMode(options = {}) {
   return !viewerUsesAutomaticFitMode() || getAutomaticViewerFitMode() === viewerState.imageFitMode ? !1 : (setViewerAutomaticFitMode(options), !0);
+}
+
+// src/js/61-viewer-layout-controller.js
+function refreshLightboxLayoutForTopUiChange(options = {}) {
+  if (!isViewerSessionOpen()) {
+    syncLightboxTopSafeArea();
+    return;
+  }
+  let { resetAutoSingleOrigin = !0 } = options;
+  syncLightboxTopSafeArea(), resetAutoSingleOrigin && isAutoViewerZoom() && resetImagePosition({ queueSingleFitOrigin: !0 }), applyZoom(), refreshSingleViewerImageResolution();
+}
+function setTopUiPinned(pinned) {
+  viewerState.topUiPinned = !!pinned, syncTopUiPinnedUi(), refreshLightboxLayoutForTopUiChange(), viewerState.topUiPinned || showTopUiTemporarily(1400);
+}
+function toggleTopUiPinned() {
+  setTopUiPinned(!viewerState.topUiPinned);
 }
 
 // src/js/62-viewer-actions.js
@@ -5974,6 +5983,7 @@ function handleLightboxPointerDownCapture(event) {
 }
 
 // src/js/60-viewer.js
+var viewerLayoutRefreshRaf = 0, viewerStageResizeObserver = null;
 function openLightbox(page = void 0, options = {}) {
   let catalog = activeCatalog();
   if (!catalog) return;
@@ -5984,7 +5994,7 @@ function openLightbox(page = void 0, options = {}) {
   }
   setActiveViewerSource(source);
   let favorites = getFeatureInterface("favorites");
-  source === LIGHTBOX_SOURCE_FAVORITES ? favorites?.setViewerIndex(Math.max(0, Number.parseInt(String(options.favoriteIndex ?? ""), 10) || 0)) : favorites?.resetViewerSession(), viewerState.imageFitModeSource = normalizeViewerFitModeSource(viewerState.imageFitModeSource), viewerState.imageFitMode = viewerUsesAutomaticFitMode() ? getAutomaticViewerFitMode() : normalizeViewerFitMode(viewerState.imageFitMode), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), setActivePage(clampPage(page, catalog)), viewerState.zoom = AUTO_VIEWER_ZOOM, resetImagePosition({ queueSingleFitOrigin: !0 }), viewerState.pointers.clear(), hideViewerZoomIndicator(), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox"), telemetryTrackCatalogOpen(catalog, activePage(), activeViewerSource()), primeLightboxFrameForCatalogPage(catalog, activePage());
+  source === LIGHTBOX_SOURCE_FAVORITES ? favorites?.setViewerIndex(Math.max(0, Number.parseInt(String(options.favoriteIndex ?? ""), 10) || 0)) : favorites?.resetViewerSession(), setActivePage(clampPage(page, catalog)), viewerState.imageFitModeSource = normalizeViewerFitModeSource(viewerState.imageFitModeSource), viewerState.imageFitMode = viewerUsesAutomaticFitMode() ? getAutomaticViewerFitMode() : normalizeViewerFitMode(viewerState.imageFitMode), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), viewerState.zoom = AUTO_VIEWER_ZOOM, resetImagePosition({ queueSingleFitOrigin: !0 }), viewerState.pointers.clear(), hideViewerZoomIndicator(), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox"), telemetryTrackCatalogOpen(catalog, activePage(), activeViewerSource()), primeLightboxFrameForCatalogPage(catalog, activePage());
   let initialSrc = viewerPageSrc(catalog, activePage());
   viewerElements.lightboxImage?.getAttribute("src") !== initialSrc && (viewerElements.lightboxImage?.removeAttribute("src"), prepareImagePlaceholder(viewerElements.lightboxImage), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter")), viewerElements.lightbox.classList.remove("hidden"), viewerElements.lightbox.classList.remove("show-ui", "show-page-rail"), syncTopUiPinnedUi(), syncDocumentLock(), renderLightboxPageRail(), isFavoritesLightboxMode() || renderLightboxCatalogMenu(), resetLightboxSearch(), syncLightboxModeUi(), syncFullscreenButtonUi(), showTopUiTemporarily(1700), updateLightbox(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), transitionViewerPhase(VIEWER_PHASE_OPEN, "lightbox-ready"), window.requestAnimationFrame(showViewerOnboardingIfNeeded);
 }
@@ -6028,13 +6038,16 @@ function attachViewerEvents() {
   }), viewerElements.viewerAutoZoomBtn?.addEventListener("pointerdown", (event) => event.stopPropagation()), viewerElements.stageCanvas?.addEventListener("pointerdown", handleViewerSurfacePointerDown), viewerElements.viewerImageRetry?.addEventListener("click", retryCurrentViewerImage), attachViewerGestures(), viewerElements.lightboxSideHotspot?.addEventListener("pointerdown", openPageRailFromTouch, { passive: !1 }), viewerElements.lightboxSideHotspot?.addEventListener("mouseenter", showPageRailFromHover), viewerElements.lightboxSideHotspot?.addEventListener("mouseleave", schedulePageRailClose), viewerElements.lightboxSideHotspot?.addEventListener("click", openPageRailFromHotspot), viewerElements.lightboxPageRail?.addEventListener("pointerdown", markTouchLikeRailInput), viewerElements.lightboxPageRail?.addEventListener("mouseenter", keepPageRailOpenFromHover), viewerElements.lightboxPageRail?.addEventListener("mouseleave", (event) => {
     hideLightboxFloatingPreview(), schedulePageRailClose(event);
   }), viewerElements.lightbox?.addEventListener("pointerdown", handlePageRailPointerOutside), viewerElements.lightboxPageRail?.addEventListener("focusin", () => keepPageRailOpen({ scrollIntoView: !1 })), viewerElements.lightboxPageRail?.addEventListener("focusout", schedulePageRailClose), viewerElements.topHotspot?.addEventListener("pointerdown", openTopUiFromHotspot), viewerElements.topHotspot?.addEventListener("mouseenter", openTopUiFromHotspot), viewerElements.topHotspot?.addEventListener("click", openTopUiFromHotspot), viewerElements.lightboxBar?.addEventListener("mouseenter", () => showTopUiTemporarily(0)), viewerElements.lightboxBar?.addEventListener("mouseleave", scheduleTopUiClose), document.addEventListener("pointerdown", markTouchLikeViewportInput, { passive: !0 }), document.addEventListener("touchstart", markTouchLikeViewportInput, { passive: !0 }), document.addEventListener("mousemove", handleLightboxEdgeHoverMove, { passive: !0 }), document.addEventListener("mouseout", handleLightboxEdgeHoverViewportExit, { passive: !0 }), document.documentElement?.addEventListener("mouseleave", handleLightboxEdgeHoverViewportExit, { passive: !0 }), viewerElements.lightboxImage?.addEventListener("load", () => {
-    setViewerLoading(!1), viewerElements.lightbox?.classList.remove("is-page-loading"), applyZoom();
+    setViewerLoading(!1), viewerElements.lightbox?.classList.remove("is-page-loading"), syncAutomaticViewerFitMode({ showUi: !1, refreshLayout: !1 }), applyZoom();
   }), ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"].forEach((eventName) => {
     document.addEventListener(eventName, handleBrowserFullscreenChange);
-  }), reconcileViewerFullscreenPhase("viewer-events-attached"), syncFullscreenButtonUi();
+  }), window.visualViewport?.addEventListener("resize", handleViewerResize, { passive: !0 }), typeof ResizeObserver == "function" && viewerElements.stageCanvas && !viewerStageResizeObserver && (viewerStageResizeObserver = new ResizeObserver(() => handleViewerResize()), viewerStageResizeObserver.observe(viewerElements.stageCanvas)), reconcileViewerFullscreenPhase("viewer-events-attached"), syncFullscreenButtonUi();
+}
+function flushViewerLayoutRefresh() {
+  viewerLayoutRefreshRaf = 0, isViewerSessionOpen() && (hideLightboxFloatingPreview(), syncAutomaticViewerFitMode({ showUi: !1, refreshLayout: !1 }), refreshLightboxLayoutForTopUiChange(), viewerState.viewerOnboardingOpen && scheduleViewerOnboardingLayout(40));
 }
 function handleViewerResize() {
-  isViewerSessionOpen() && (hideLightboxFloatingPreview(), syncAutomaticViewerFitMode({ showUi: !1, refreshLayout: !1 }), refreshLightboxLayoutForTopUiChange(), viewerState.viewerOnboardingOpen && scheduleViewerOnboardingLayout(40));
+  !isViewerSessionOpen() || viewerLayoutRefreshRaf || (viewerLayoutRefreshRaf = window.requestAnimationFrame(flushViewerLayoutRefresh));
 }
 function handleViewerGlobalKeydown(event) {
   if (!isViewerSessionOpen()) return !1;
