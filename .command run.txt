@@ -151,6 +151,10 @@ window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";
 chmod +x setup-linux.sh site.sh
 ./setup-linux.sh --with-browser-deps
 
+התקנת ocr
+sudo apt update
+sudo apt install -y tesseract-ocr tesseract-ocr-heb
+
 רשימת כל פקודות התחזוקה:
 ./site.sh help
 

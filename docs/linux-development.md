@@ -54,7 +54,10 @@ chmod +x setup-linux.sh site.sh
 ```
 
 אפשרות זו מפעילה את מתקין Playwright עם `--with-deps` ועלולה לבקש `sudo`.
-בהפצות Linux שאינן נתמכות על ידי מתקין התלויות של Playwright, מריצים תחילה
+הפרויקט נועל את Playwright לגרסה שתומכת רשמית גם ב־Ubuntu 26.04. אין לעקוף
+שגיאת מערכת לא נתמכת באמצעות Chromium חיצוני או `executablePath`; יש לעדכן יחד
+את `package.json`, את `package-lock.json` ואת חוזה התחזוקה לגרסת Playwright נתמכת.
+בהפצות Linux שאינן נתמכות רשמית על ידי Playwright, מריצים תחילה
 `./setup-linux.sh` ומתקינים ידנית את ספריות הדפדפן שהבדיקה מדווחת שחסרות.
 
 להתקנה ללא דפדפן, למשל במחשב שמבצע רק המרות ובנייה:
@@ -212,6 +215,19 @@ nvm use
 ```bash
 sudo apt install -y python3-venv
 ```
+
+### Playwright מדווח ש־Ubuntu 26.04 אינו נתמך
+
+בדוק שהתקנת את התלויות מחדש לפי קובץ הנעילה המעודכן:
+
+```bash
+rm -rf node_modules
+npm ci
+./setup-linux.sh --with-browser-deps
+```
+
+הודעה שמזכירה Playwright `1.55.1` פירושה שעדיין מותקנת גרסת פרויקט ישנה;
+הגרסה הנעולה בפרויקט צריכה להיות `1.61.1` ומעלה.
 
 ### Playwright מותקן אך Chromium אינו עולה
 

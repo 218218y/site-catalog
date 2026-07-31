@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
+const supportedPlaywrightVersion = "1.61.1";
 const windowsLaunchers = Object.freeze({
   bundleSite: ".01-bundle-site-r2.bat",
   convertCatalogsForce: ".011-convert-catalogs-force.bat",
@@ -66,7 +67,7 @@ assert.match(packageJson.scripts["build:local"], /--mirror-to dist\/site-local/)
 assert.equal(packageJson.scripts.dev, "node tools/run_project_python.js tools/serve_site.py");
 assert.equal(packageJson.scripts.serve, "node tools/run_project_python.js tools/serve_site.py");
 assert.equal(packageJson.scripts["dev:check"], "node tools/run_project_python.js tools/serve_site.py --ensure-current ask");
-assert.equal(packageJson.devDependencies["@playwright/test"], "1.55.1");
+assert.equal(packageJson.devDependencies["@playwright/test"], supportedPlaywrightVersion);
 assert.equal(packageJson.devDependencies.wrangler, "4.112.0");
 assert.equal(packageJson.scripts.postinstall, "node tools/check_node_install_scripts.js");
 assert.equal(packageJson.scripts["check:node-tools"], "node tools/check_node_install_scripts.js");
@@ -76,6 +77,12 @@ assert.deepEqual(packageJson.allowScripts, {
   workerd: true,
 });
 const lockfile = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
+assert.equal(lockfile.packages[""].devDependencies["@playwright/test"], supportedPlaywrightVersion);
+assert.equal(lockfile.packages["node_modules/@playwright/test"].version, supportedPlaywrightVersion);
+assert.equal(lockfile.packages["node_modules/@playwright/test"].dependencies.playwright, supportedPlaywrightVersion);
+assert.equal(lockfile.packages["node_modules/playwright"].version, supportedPlaywrightVersion);
+assert.equal(lockfile.packages["node_modules/playwright"].dependencies["playwright-core"], supportedPlaywrightVersion);
+assert.equal(lockfile.packages["node_modules/playwright-core"].version, supportedPlaywrightVersion);
 assert.equal(lockfile.packages[""].devDependencies.wrangler, "4.112.0");
 assert.equal(lockfile.packages["node_modules/esbuild"].version, "0.28.1");
 assert.equal(lockfile.packages["node_modules/sharp"].version, "0.34.5");
