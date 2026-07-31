@@ -1,55 +1,62 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const projectRoot = path.resolve(__dirname, "..");
+const compilerEntry = path.join(projectRoot, "node_modules", "typescript", "bin", "tsc");
+
 /**
- * TypeScript 7 is the project compiler used by the `tsc` CLI, but it does not
- * currently expose the stable JavaScript Compiler API used by these build/test
- * tools. Keep that API behind one explicit, pinned compatibility dependency so
- * application type-checking remains on TypeScript 7 without relying on its
- * private native implementation details.
+ * Run the TypeScript 7 native compiler through its supported command-line
+ * boundary. TypeScript 7.0 intentionally does not expose the JavaScript
+ * Compiler API, so project tooling must not import `typescript` as a library.
+ *
+ * @param {string[]} args
+ * @param {{cwd?:string, maxBuffer?:number}} [options]
  */
-let ts;
-try {
-  ts = require("typescript-legacy-api");
-} catch (error) {
-  const wrapped = new Error(
-    "The pinned TypeScript Compiler API compatibility package is missing. Run `npm ci` before executing project tools.",
-    { cause: error },
-  );
-  throw wrapped;
+function runTypeScriptCompiler(args, options = {}) {
+  if (!fs.existsSync(compilerEntry)) {
+    throw new Error(
+      "TypeScript 7 is not installed. Run `npm ci` before executing project tools.",
+    );
+  }
+
+  const completed = spawnSync(process.execPath, [compilerEntry, ...args], {
+    cwd: options.cwd || projectRoot,
+    encoding: "utf8",
+    maxBuffer: options.maxBuffer || 16 * 1024 * 1024,
+    windowsHide: true,
+  });
+
+  if (completed.error) {
+    throw new Error("Could not start the TypeScript 7 compiler.", {
+      cause: completed.error,
+    });
+  }
+  if (completed.signal) {
+    throw new Error(`TypeScript 7 was terminated by signal ${completed.signal}.`);
+  }
+
+  return Object.freeze({
+    status: completed.status ?? 1,
+    stdout: completed.stdout || "",
+    stderr: completed.stderr || "",
+    output: [completed.stdout, completed.stderr].filter(Boolean).join("\n"),
+  });
 }
 
-const requiredFunctions = [
-  "createProgram",
-  "createSourceFile",
-  "flattenDiagnosticMessageText",
-  "formatDiagnosticsWithColorAndContext",
-  "getPreEmitDiagnostics",
-  "isExportAssignment",
-  "isExportDeclaration",
-  "isImportDeclaration",
-  "isNamespaceImport",
-  "transpileModule",
-  "canHaveModifiers",
-  "getModifiers",
-];
-const missingFunctions = requiredFunctions.filter((name) => typeof ts[name] !== "function");
-const requiredEnumMembers = [
-  ["ModuleKind", "CommonJS"],
-  ["ModuleKind", "ESNext"],
-  ["ModuleResolutionKind", "Bundler"],
-  ["ScriptKind", "JS"],
-  ["ScriptTarget", "ES2022"],
-  ["SyntaxKind", "ExportKeyword"],
-];
-const missingEnumMembers = requiredEnumMembers
-  .filter(([enumName, memberName]) => ts[enumName]?.[memberName] === undefined)
-  .map(([enumName, memberName]) => `${enumName}.${memberName}`);
-
-if (missingFunctions.length || missingEnumMembers.length) {
-  const missing = [...missingFunctions, ...missingEnumMembers].join(", ");
-  throw new TypeError(
-    `typescript-legacy-api does not expose the required stable Compiler API members: ${missing}`,
-  );
+/**
+ * Extract numeric TypeScript diagnostic codes from non-pretty compiler output.
+ *
+ * @param {string} output
+ * @returns {number[]}
+ */
+function extractDiagnosticCodes(output) {
+  return Array.from(String(output || "").matchAll(/\berror TS(\d+):/g), (match) => Number(match[1]));
 }
 
-module.exports = ts;
+module.exports = {
+  extractDiagnosticCodes,
+  runTypeScriptCompiler,
+};

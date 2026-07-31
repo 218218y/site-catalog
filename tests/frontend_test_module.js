@@ -3,74 +3,59 @@
 const fs = require("node:fs");
 const Module = require("node:module");
 const path = require("node:path");
+const esbuild = require("esbuild");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const SOURCE_ROOT = path.join(PROJECT_ROOT, "src", "js");
 
-const ts = require("../tools/typescript_compiler_api.js");
-
 /**
  * Compile one complete source-owned ES module as a CommonJS test harness.
- * Static imports are replaced by same-named explicit test ports on globalThis;
- * no function bodies are extracted and no production implementation is copied.
- * Production integration is separately verified through the real route bundles.
+ * esbuild is already the production bundler, so tests exercise the same parser
+ * and JavaScript lowering boundary instead of depending on a legacy TypeScript
+ * Compiler API. Production integration is separately verified through the real
+ * route bundles.
  *
  * @param {string} source
  * @param {string} filename
  */
 function compileFrontendModuleForTest(source, filename) {
-  const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
-  /** @type {{start:number,end:number,text:string}[]} */
-  const edits = [];
-
-  for (const statement of sourceFile.statements) {
-    if (ts.isImportDeclaration(statement)) {
-      const clause = statement.importClause;
-      const portDeclarations = [];
-      if (clause?.name) portDeclarations.push(`const ${clause.name.text} = __frontendTestPort("default");`);
-      if (clause?.namedBindings) {
-        if (ts.isNamespaceImport(clause.namedBindings)) {
-          portDeclarations.push(`const ${clause.namedBindings.name.text} = __frontendTestPort("default");`);
-        } else {
-          for (const element of clause.namedBindings.elements) {
-            const imported = element.propertyName?.text || element.name.text;
-            portDeclarations.push(`const ${element.name.text} = __frontendTestPort(${JSON.stringify(imported)});`);
-          }
-        }
-      }
-      edits.push({
-        start: statement.getFullStart(),
-        end: statement.end,
-        text: portDeclarations.length ? `\n${portDeclarations.join("\n")}` : "",
-      });
-      continue;
-    }
-    if (ts.isExportDeclaration(statement) || ts.isExportAssignment(statement)) {
-      edits.push({ start: statement.getFullStart(), end: statement.end, text: "" });
-      continue;
-    }
-    const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) : undefined;
-    const exportModifier = modifiers?.find((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
-    if (exportModifier) {
-      edits.push({ start: exportModifier.getStart(sourceFile), end: exportModifier.end, text: "" });
-    }
+  try {
+    return esbuild.transformSync(source, {
+      sourcefile: filename,
+      loader: "js",
+      format: "cjs",
+      platform: "node",
+      target: "es2022",
+      legalComments: "none",
+      sourcemap: false,
+    }).code;
+  } catch (error) {
+    throw new Error(`Could not compile frontend test module ${filename}.`, {
+      cause: error,
+    });
   }
+}
 
-  let transformed = source;
-  for (const edit of edits.sort((left, right) => right.start - left.start)) {
-    transformed = transformed.slice(0, edit.start) + edit.text + transformed.slice(edit.end);
-  }
-  const portHelper = `
-function __frontendTestPort(name) {
+/**
+ * Resolve one named test port lazily from globalThis. Function ports remain
+ * live bindings so tests may replace them after the owner module is loaded.
+ *
+ * @param {string} name
+ */
+function frontendTestPort(name) {
   const hasOwnPort = Object.prototype.hasOwnProperty.call(globalThis, name);
   if (hasOwnPort && typeof globalThis[name] !== "function") return globalThis[name];
+
   const callable = function (...args) {
     const target = globalThis[name];
-    if (typeof target !== "function") throw new TypeError("Missing frontend test port: " + name);
+    if (typeof target !== "function") throw new TypeError(`Missing frontend test port: ${name}`);
     return Reflect.apply(target, this, args);
   };
+
   return new Proxy(callable, {
-    get(_target, property) { return globalThis[name]?.[property]; },
+    get(_target, property) {
+      return globalThis[name]?.[property];
+    },
     set(_target, property, value) {
       if (globalThis[name] == null) globalThis[name] = {};
       globalThis[name][property] = value;
@@ -78,22 +63,51 @@ function __frontendTestPort(name) {
     },
     apply(_target, thisArg, args) {
       const target = globalThis[name];
-      if (typeof target !== "function") throw new TypeError("Missing frontend test port: " + name);
+      if (typeof target !== "function") throw new TypeError(`Missing frontend test port: ${name}`);
       return Reflect.apply(target, thisArg, args);
     },
     construct(_target, args, newTarget) {
       const target = globalThis[name];
-      if (typeof target !== "function") throw new TypeError("Missing frontend test port: " + name);
+      if (typeof target !== "function") throw new TypeError(`Missing frontend test port: ${name}`);
       return Reflect.construct(target, args, newTarget);
-    }
+    },
   });
-}
-`;
-  return `${portHelper}\n${transformed}`;
 }
 
 /**
- * Load an explicit source-owned test API without parsing out or evaluating
+ * Build a virtual CommonJS dependency namespace for transformed static imports.
+ * Source tests intentionally resolve imports by exported symbol name rather than
+ * loading neighboring production modules, preserving explicit test ports.
+ */
+function createFrontendTestPortModule() {
+  return new Proxy(Object.create(null), {
+    get(_target, property) {
+      if (property === "__esModule") return true;
+      if (property === Symbol.toStringTag) return "Module";
+      return frontendTestPort(String(property));
+    },
+    has(_target, property) {
+      return property === "__esModule" || Object.prototype.hasOwnProperty.call(globalThis, property);
+    },
+    ownKeys() {
+      return Array.from(new Set(["__esModule", "default", ...Object.getOwnPropertyNames(globalThis)]));
+    },
+    getOwnPropertyDescriptor(_target, property) {
+      if (property === "__esModule") {
+        return { configurable: true, enumerable: false, value: true };
+      }
+      if (typeof property === "symbol") return undefined;
+      return {
+        configurable: true,
+        enumerable: true,
+        value: frontendTestPort(property),
+      };
+    },
+  });
+}
+
+/**
+ * Load an explicit source-owned test API without extracting or copying
  * individual functions. The whole owner module remains the implementation under
  * test, while imported dependencies are supplied as explicit test ports.
  *
@@ -124,6 +138,7 @@ function importFrontendTestModule(relativePath, exportKey, globals = {}) {
     const testModule = new Module(`${absolutePath}.test-harness`, module);
     testModule.filename = absolutePath;
     testModule.paths = Module._nodeModulePaths(path.dirname(absolutePath));
+    testModule.require = () => createFrontendTestPortModule();
     testModule._compile(compiledSource, absolutePath);
   } finally {
     delete globalThis.__BARGIG_TEST_EXPORTS__;
@@ -137,10 +152,9 @@ function importFrontendTestModule(relativePath, exportKey, globals = {}) {
 }
 
 /**
- * Import a standalone source ES module through TypeScript's CommonJS
- * transpilation. This is reserved for dependency-free runtime owners under
- * src/runtime; route integration is still verified against the real ESM
- * bundles and deployment artifact.
+ * Import a standalone dependency-free ESM owner under src/runtime. esbuild
+ * performs the ESM-to-CommonJS lowering through the same supported transform
+ * API already used by this project.
  *
  * @param {string} relativePath
  * @param {Record<string, unknown>} [globals]
@@ -157,33 +171,15 @@ function importStandaloneRuntimeModule(relativePath, globals = {}) {
   }
 
   const source = fs.readFileSync(absolutePath, "utf8");
-  const sourceFile = ts.createSourceFile(absolutePath, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
-  if (sourceFile.statements.some((statement) => ts.isImportDeclaration(statement))) {
+  const compiledSource = compileFrontendModuleForTest(source, absolutePath);
+  if (/\brequire\s*\(/.test(compiledSource)) {
     throw new Error(`Standalone runtime module must not have source imports: ${relativePath}`);
-  }
-  const transpiled = ts.transpileModule(source, {
-    fileName: absolutePath,
-    reportDiagnostics: true,
-    compilerOptions: {
-      allowJs: true,
-      checkJs: false,
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
-    },
-  });
-  if (transpiled.diagnostics?.length) {
-    const diagnostics = ts.formatDiagnosticsWithColorAndContext(transpiled.diagnostics, {
-      getCanonicalFileName: (name) => name,
-      getCurrentDirectory: () => PROJECT_ROOT,
-      getNewLine: () => "\n",
-    });
-    throw new Error(`Could not transpile runtime module ${relativePath}:\n${diagnostics}`);
   }
 
   const runtimeModule = new Module(`${absolutePath}.test-runtime`, module);
   runtimeModule.filename = absolutePath;
   runtimeModule.paths = Module._nodeModulePaths(path.dirname(absolutePath));
-  runtimeModule._compile(transpiled.outputText, absolutePath);
+  runtimeModule._compile(compiledSource, absolutePath);
   return runtimeModule.exports;
 }
 
