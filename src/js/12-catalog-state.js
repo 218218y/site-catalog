@@ -3,6 +3,8 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+/** @import { CatalogState } from "../../types/frontend-contracts.js" */
+
 import { $, $image, $requiredButton, requiredElement } from "./02-dom-contracts.js";
 
 /** @type {CatalogState} */

@@ -6,6 +6,9 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { CatalogCategoryGroup, CatalogMenuRenderOptions, CatalogOpenOptions, CatalogSubcategoryGroup, CatalogTargetOptions } from "../../types/frontend-contracts.js" */
+
 import { catalogDocumentUrl, categoryDocumentUrl, homeDocumentUrl, isAppPage, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";

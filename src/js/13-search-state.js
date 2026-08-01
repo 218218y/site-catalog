@@ -3,6 +3,8 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+/** @import { SearchState } from "../../types/frontend-contracts.js" */
+
 import { $requiredButton, $requiredImage, $requiredInput, requiredElement } from "./02-dom-contracts.js";
 import { catalogSearch } from "./03-runtime-context.js";
 

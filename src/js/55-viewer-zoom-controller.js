@@ -7,6 +7,8 @@
  * whenever a user action actually changes the zoom state.
  */
 
+/** @import { PointLike, ViewerZoomChangeOptions, ViewerZoomOptions } from "../../types/frontend-contracts.js" */
+
 import { AUTO_VIEWER_ZOOM, viewerElements, viewerState } from "./16-viewer-state.js";
 import {
   refreshSingleViewerImageResolution,

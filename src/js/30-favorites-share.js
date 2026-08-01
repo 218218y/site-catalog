@@ -6,6 +6,8 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { DialogCloseOptions, FavoriteEntry, FavoriteItem, FavoriteMutationResult, FavoriteViewerSyncOptions, FavoritesPanelCloseOptions, FavoritesPanelOpenOptions, FavoritesSyncOptions, FavoritesTransfer, FavoritesTransferPrepareOptions } from "../../types/frontend-contracts.js" */
+
 import { normalizeItems as normalizeFavoriteItems } from "../runtime/favorites-store.js";
 import { canReturnToSameSite, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";

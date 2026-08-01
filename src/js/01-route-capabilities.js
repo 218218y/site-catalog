@@ -3,6 +3,8 @@
  * Compile-time route capabilities injected by the frontend bundler.
  */
 
+/** @import { FeatureCapabilities } from "../../types/frontend-contracts.js" */
+
 /** @type {FeatureCapabilities} */
 const resolvedFeatureCapabilities = typeof __BARGIG_FEATURE_CAPABILITIES__ === "object"
   ? __BARGIG_FEATURE_CAPABILITIES__

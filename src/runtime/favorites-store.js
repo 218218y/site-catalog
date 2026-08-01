@@ -1,5 +1,7 @@
 /** Typed external ESM runtime: favorites persistence and normalization. */
 
+/** @import { FavoriteItem, FavoriteMutationResult, FavoritesStore } from "../../types/frontend-contracts.js" */
+
 /** @typedef {{getItem?:(key:string)=>string|null, setItem?:(key:string, value:string)=>void}} FavoritesStorage */
 /** @typedef {{storageKey?:string, storage?:FavoritesStorage|null}} FavoritesStoreOptions */
 /** @typedef {{persisted:boolean, reason:string}} PersistenceState */

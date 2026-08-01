@@ -5,6 +5,8 @@
  * while a catalog may expose its first page as either 0 or 1.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+
 const DEFAULT_CATALOG_PAGE_NUMBER_START = 1;
 
 /** @param {CatalogRecord|null|undefined} catalog */

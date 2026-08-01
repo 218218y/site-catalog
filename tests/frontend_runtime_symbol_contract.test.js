@@ -8,6 +8,7 @@ const { spawnSync } = require("node:child_process");
 const {
   analyzeCompilerResult,
   parseCompilerDiagnostics,
+  stripJSDocTypeComments,
 } = require("../tools/check_frontend_runtime_symbols.js");
 
 const root = path.join(__dirname, "..");
@@ -19,17 +20,17 @@ const jsconfig = JSON.parse(fs.readFileSync(path.join(root, "jsconfig.json"), "u
 assert.equal(packageJson.scripts["check:runtime-symbols"], "node tools/check_frontend_runtime_symbols.js");
 assert.equal(
   packageJson.scripts["check:types"],
-  "node tools/run_project_python.js --system tools/run_typescript_offline.py -p jsconfig.json --pretty false",
+  "node tools/run_project_python.js --system tools/run_typescript_matrix.py -p jsconfig.json --pretty false",
 );
 assert.equal(jsconfig.compilerOptions.checkJs, true);
 assert.equal(jsconfig.compilerOptions.noEmit, true);
 assert.match(checker, /\["app-catalog\.js", "app-favorites\.js", "app-viewer\.js", "app-payment\.js"\]/);
 assert.match(checker, /"--ignoreConfig"/);
-assert.match(checker, /sharedTypeContracts = path\.join\(root, "src", "js", "05-app-contracts\.js"\)/);
-assert.match(checker, /ambientGlobals, sharedTypeContracts, bundle/);
+assert.match(checker, /stripJSDocTypeComments/);
+assert.match(checker, /ambientGlobals, sanitizedBundle/);
 assert.match(checker, /spawnSync\(process\.execPath/);
 assert.match(checker, /diagnostic\.code === 2304/);
-assert.doesNotMatch(checker, /typescript_compiler_api|\bcreateProgram\b|\bScriptTarget\b|\bModuleKind\b/);
+assert.doesNotMatch(checker, /src", "js", "05-app-contracts\.js"|typescript_compiler_api|\bcreateProgram\b|\bScriptTarget\b|\bModuleKind\b/);
 assert.equal(fs.existsSync(path.join(root, "tools", "typescript_compiler_api.js")), false);
 assert.match(verifier, /Frontend route runtime symbols/);
 
@@ -50,6 +51,7 @@ const unresolved = analyzeCompilerResult(
 assert.equal(unresolved.infrastructureFailure, false);
 assert.equal(unresolved.unresolved.length, 1);
 assert.equal(unresolved.unresolved[0].message, "Cannot find name 'MISSING_RUNTIME_SYMBOL'.");
+assert.equal(stripJSDocTypeComments("/** @import { Missing } from './types.js' */\nconsole.log(value);").split("\n")[1], "console.log(value);");
 
 const invalidInvocation = analyzeCompilerResult(1, "error TS5023: Unknown compiler option '--broken'.");
 assert.equal(invalidInvocation.infrastructureFailure, true);
@@ -58,18 +60,18 @@ assert.equal(analyzeCompilerResult(1, "native compiler crashed").infrastructureF
 
 const fixtureDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bargig-runtime-symbols-"));
 try {
-  const knownTypeFixture = path.join(fixtureDirectory, "known-project-type.js");
+  const sourceOnlyTypeFixture = path.join(fixtureDirectory, "source-only-type.js");
   fs.writeFileSync(
-    knownTypeFixture,
-    "/** @param {CatalogImageCandidate} candidate */\nfunction consumeCandidate(candidate) { return candidate.src; }\nconsumeCandidate({ src: '/page.webp', tier: 'full' });\n",
+    sourceOnlyTypeFixture,
+    "/** @param {ProjectOnlySourceType} candidate */\nfunction consumeCandidate(candidate) { return candidate.src; }\nconsumeCandidate({ src: '/page.webp' });\n",
     "utf8",
   );
-  const knownTypeCheck = spawnSync(
+  const sourceOnlyTypeCheck = spawnSync(
     process.execPath,
-    ["tools/check_frontend_runtime_symbols.js", knownTypeFixture],
+    ["tools/check_frontend_runtime_symbols.js", sourceOnlyTypeFixture],
     { cwd: root, encoding: "utf8" },
   );
-  assert.equal(knownTypeCheck.status, 0, knownTypeCheck.stderr || knownTypeCheck.stdout);
+  assert.equal(sourceOnlyTypeCheck.status, 0, sourceOnlyTypeCheck.stderr || sourceOnlyTypeCheck.stdout);
 
   const missingSymbolFixture = path.join(fixtureDirectory, "missing-runtime-symbol.js");
   fs.writeFileSync(missingSymbolFixture, "console.log(MISSING_RUNTIME_SYMBOL);\n", "utf8");

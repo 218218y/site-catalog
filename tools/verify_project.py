@@ -137,14 +137,18 @@ def verification_steps(
                 (python, "tools/check_frontend_contracts.py"),
             ),
             VerificationStep(
+                "Catalog data types are current",
+                (python, "tools/generate_catalog_data_types.py", "--check"),
+            ),
+            VerificationStep(
                 "Control-panel API types are current",
                 (python, "tools/generate_control_panel_api_types.py", "--check"),
             ),
             VerificationStep(
-                "Frontend JSDoc type contracts",
+                "Frontend JSDoc type compatibility matrix",
                 (
                     python,
-                    "tools/run_typescript_offline.py",
+                    "tools/run_typescript_matrix.py",
                     "-p",
                     "jsconfig.json",
                     "--pretty",

@@ -3,6 +3,8 @@
  * Pure catalog asset URL construction shared by metadata and media owners.
  */
 
+/** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
+
 import { displayPageToAssetPage, catalogFirstPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_THUMB } from "./10-app-state.js";
 
@@ -50,6 +52,7 @@ function catalogDir(catalog) {
 /** @param {CatalogRecord|null|undefined} catalog @param {unknown} tier */
 function catalogAssetVersionForTier(catalog, tier) {
   const normalizedTier = String(tier || CATALOG_IMAGE_TIER_FULL);
+  // @ts-expect-error Dynamic legacy tier input is normalized to the public tier key at this compatibility boundary.
   const variantVersion = String(catalog?.imageVariants?.[normalizedTier]?.version || "").trim();
   const baseVersion = variantVersion || String(catalog?.assetVersion || "").trim();
   if (!baseVersion) return "";

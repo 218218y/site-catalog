@@ -6,6 +6,8 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { PointLike, RectLike, ViewerPageIndicatorOptions, ViewerRailRenderOptions } from "../../types/frontend-contracts.js" */
+
 import { catalogPageNumbers } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface } from "./10-app-state.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerElements, viewerState } from "./16-viewer-state.js";

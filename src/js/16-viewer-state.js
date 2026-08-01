@@ -3,6 +3,8 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+/** @import { ViewerState } from "../../types/frontend-contracts.js" */
+
 import { $requiredAnchor, $requiredButton, $requiredImage, requiredElement } from "./02-dom-contracts.js";
 
 const AUTO_VIEWER_ZOOM = 1;

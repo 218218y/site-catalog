@@ -3,6 +3,8 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+/** @import { NavigationState } from "../../types/frontend-contracts.js" */
+
 import { $, requiredElement } from "./02-dom-contracts.js";
 
 const LIGHTBOX_SOURCE_CATALOG = "catalog";

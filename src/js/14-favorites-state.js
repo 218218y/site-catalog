@@ -3,6 +3,8 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
+/** @import { FavoritesState, FavoritesStore } from "../../types/frontend-contracts.js" */
+
 import { createStore } from "../runtime/favorites-store.js";
 import { $requiredAnchor, $requiredButton, $requiredSelect, $requiredTextarea, requiredElement } from "./02-dom-contracts.js";
 

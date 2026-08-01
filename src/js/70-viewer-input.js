@@ -6,6 +6,8 @@
  * testable without mixing them into page loading, layout, or route behavior.
  */
 
+/** @import { ViewerPointerPoint } from "../../types/frontend-contracts.js" */
+
 import { getFeatureInterface } from "./10-app-state.js";
 import { DOUBLE_TAP_DELAY, DOUBLE_TAP_DISTANCE, TAP_MOVE_TOLERANCE, VIEWER_PAGE_SWIPE_AXIS_RATIO, VIEWER_PAGE_SWIPE_MIN_DISTANCE, VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS, VIEWER_TOUCH_VELOCITY_BLEND, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
 import { clampValue, isTouchLikePointer } from "./20-shared-ui.js";

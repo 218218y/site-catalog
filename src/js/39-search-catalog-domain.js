@@ -1,3 +1,6 @@
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { CatalogCategoryGroup, CatalogSearchResult, CatalogSubcategoryGroup, SearchHighlightRange } from "../../types/frontend-contracts.js" */
+
 import { clampCatalogPage } from "./06-catalog-page-numbering.js";
 
 /**

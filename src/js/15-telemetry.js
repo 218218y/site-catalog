@@ -7,6 +7,8 @@
  * Respect for Global Privacy Control and Do Not Track is built in.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+
 import { currentAppPage } from "./00-navigation.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { CATALOG_IMAGE_RETRY_PARAM } from "./10-app-state.js";

@@ -7,6 +7,8 @@
  * without forcing any of them to import each other.
  */
 
+/** @import { ViewerUiVisibilityOptions } from "../../types/frontend-contracts.js" */
+
 import { viewerState } from "./16-viewer-state.js";
 import { isViewerSessionOpen } from "./51-viewer-session-state.js";
 import { refreshSingleViewerImageResolution } from "./53-viewer-image.js";

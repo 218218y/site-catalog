@@ -11,13 +11,13 @@
  * behavior: only TS2304 ("Cannot find name") is a runtime-symbol failure.
  */
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
 const defaultTargets = ["app-catalog.js", "app-favorites.js", "app-viewer.js", "app-payment.js"];
 const ambientGlobals = path.join(root, "types", "frontend-runtime-globals.d.ts");
-const sharedTypeContracts = path.join(root, "src", "js", "05-app-contracts.js");
 const compilerPackagePath = path.join(root, "node_modules", "typescript", "package.json");
 const projectPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const expectedCompilerVersion = projectPackage.devDependencies.typescript;
@@ -78,6 +78,19 @@ function analyzeCompilerResult(status, output) {
   const globalDiagnostics = diagnostics.filter((diagnostic) => !diagnostic.file);
   const infrastructureFailure = status !== 0 && (!diagnostics.length || globalDiagnostics.length > 0);
   return Object.freeze({ diagnostics, unresolved, globalDiagnostics, infrastructureFailure });
+}
+
+/**
+ * Remove JSDoc type blocks from a generated bundle while preserving line
+ * breaks. The runtime-symbol pass validates executable identifiers, not the
+ * source-only type imports that esbuild intentionally omits.
+ *
+ * @param {string} source
+ */
+function stripJSDocTypeComments(source) {
+  return String(source || "").replace(/\/\*\*[\s\S]*?\*\//g, (comment) =>
+    comment.replace(/[^\r\n]/g, " "),
+  );
 }
 
 function readCompilerEntry() {
@@ -187,41 +200,45 @@ function checkRuntimeSymbols(requestedTargets) {
   if (!fs.existsSync(ambientGlobals)) {
     throw new Error(`Runtime globals declaration file is missing: ${ambientGlobals}`);
   }
-  if (!fs.existsSync(sharedTypeContracts)) {
-    throw new Error(`Shared frontend type contracts are missing: ${sharedTypeContracts}`);
-  }
 
   const compilerEntry = resolveCompilerEntry();
   const targets = requestedTargets.length ? requestedTargets : defaultTargets;
   const failures = [];
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "bargig-runtime-symbol-check-"));
 
-  for (const relativeBundle of targets) {
-    const bundle = path.resolve(root, relativeBundle);
-    if (!fs.existsSync(bundle) || !fs.statSync(bundle).isFile()) {
-      throw new Error(`Frontend route bundle is missing: ${relativeBundle}`);
+  try {
+    for (const [index, relativeBundle] of targets.entries()) {
+      const bundle = path.resolve(root, relativeBundle);
+      if (!fs.existsSync(bundle) || !fs.statSync(bundle).isFile()) {
+        throw new Error(`Frontend route bundle is missing: ${relativeBundle}`);
+      }
+
+      const sanitizedBundle = path.join(temporaryDirectory, `${index}-${path.basename(bundle)}`);
+      fs.writeFileSync(
+        sanitizedBundle,
+        stripJSDocTypeComments(fs.readFileSync(bundle, "utf8")),
+        "utf8",
+      );
+      const completed = runCompiler(
+        compilerEntry,
+        [...compilerArgs, ambientGlobals, sanitizedBundle],
+      );
+      const analysis = analyzeCompilerResult(completed.status, completed.output);
+
+      if (analysis.infrastructureFailure) {
+        const details = completed.output.trim() || `TypeScript exited with status ${completed.status}.`;
+        throw new Error(`TypeScript 7 could not validate ${relativeBundle}:\n${details}`);
+      }
+
+      failures.push(...analysis.unresolved.map((diagnostic) => {
+        const location = diagnostic.file
+          ? `${diagnostic.file}:${diagnostic.row}:${diagnostic.column}`
+          : relativeBundle;
+        return `${location.replaceAll(`${temporaryDirectory}${path.sep}`, "")} ${diagnostic.message}`;
+      }));
     }
-
-    // The generated bundle retains JSDoc references but esbuild correctly omits
-    // the type-only contracts module from runtime output. Include that canonical
-    // source contract in the isolated compiler program so TypeScript validates
-    // real missing identifiers without misclassifying project-owned type names.
-    const completed = runCompiler(
-      compilerEntry,
-      [...compilerArgs, ambientGlobals, sharedTypeContracts, bundle],
-    );
-    const analysis = analyzeCompilerResult(completed.status, completed.output);
-
-    if (analysis.infrastructureFailure) {
-      const details = completed.output.trim() || `TypeScript exited with status ${completed.status}.`;
-      throw new Error(`TypeScript 7 could not validate ${relativeBundle}:\n${details}`);
-    }
-
-    failures.push(...analysis.unresolved.map((diagnostic) => {
-      const location = diagnostic.file
-        ? `${diagnostic.file}:${diagnostic.row}:${diagnostic.column}`
-        : relativeBundle;
-      return `${location.replaceAll(`${root}${path.sep}`, "")} ${diagnostic.message}`;
-    }));
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 
   if (failures.length) {
@@ -243,4 +260,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { analyzeCompilerResult, checkRuntimeSymbols, parseCompilerDiagnostics };
+module.exports = { analyzeCompilerResult, checkRuntimeSymbols, parseCompilerDiagnostics, stripJSDocTypeComments };

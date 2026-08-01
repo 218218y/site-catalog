@@ -6,6 +6,9 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { PointLike, ViewerFrameGeometryOptions, ViewerGeometryResetOptions, ViewerPanBoundsOptions, ViewerPointerPoint } from "../../types/frontend-contracts.js" */
+
 import { catalogDocumentUrl, isAppPage, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { AUTO_VIEWER_ZOOM, MAX_VIEWER_ZOOM, MIN_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_TURN_BUFFER_MAX_PX, VIEWER_PAGE_TURN_BUFFER_MIN_PX, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO, viewerElements, viewerState } from "./16-viewer-state.js";

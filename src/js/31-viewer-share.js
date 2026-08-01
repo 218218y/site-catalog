@@ -6,6 +6,8 @@
  * this bridge owns only Viewer DOM bindings and is absent from catalog routes.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+
 import { viewerElements } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { clampPage, flashActionButton, pageSrc, showActionToast } from "./20-shared-ui.js";

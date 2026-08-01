@@ -7,6 +7,8 @@
  * 56-viewer-shell.js as a presentation owner and avoids reverse dependencies.
  */
 
+/** @import { ViewerFitModeOptions } from "../../types/frontend-contracts.js" */
+
 import {
   AUTO_VIEWER_ZOOM,
   VIEWER_FIT_SOURCE_AUTO,

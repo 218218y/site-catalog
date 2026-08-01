@@ -532,20 +532,24 @@ npm run setup
 `npm run setup` מכין את סביבת Python המקומית `.venv` ומתקין את Chromium המבודד של Playwright. אפשר במקום זאת להריץ את `.20-setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
 גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`, ו־Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`. גרסת Node המומלצת ל־CI ולפיתוח נשמרת ב־`.nvmrc`.
 
-### סביבת esbuild ו-TypeScript 7 מקומית ללא התקנת npm מלאה
+### סביבת esbuild ומטריצת TypeScript מקומית ללא התקנת npm מלאה
 
 לבדיקת קוד, עבודה בצ'אט, בניית קובצי ה־frontend, בדיקת חוזי JSDoc והרצת בדיקות ה־JavaScript אין צורך להתקין Playwright, Wrangler ושאר עץ התלויות. הפרויקט כולל מנגנוני bootstrap מצומצמים שמתקינים רק את הכלים הנדרשים מתוך ארכיונים נעולים:
 
 ```bash
 python tools/bootstrap_esbuild_offline.py
+python tools/bootstrap_typescript_5_8_offline.py
 python tools/bootstrap_typescript_offline.py
+python tools/generate_catalog_data_types.py --check
 python tools/build_frontend_assets.py --check
-python tools/run_typescript_offline.py -p jsconfig.json --pretty false
+python tools/run_typescript_matrix.py -p jsconfig.json --pretty false
 python tools/verify_project.py --javascript-only
 # או: npm run test:js
 ```
 
-ארכיוני האופליין של esbuild ו־TypeScript מיועדים בכוונה ל־Linux x64 ול־Linux ARM64 בלבד, עבור סביבת הצ'אט או CI מנותק. ב־Windows הכלים משתמשים קודם בהתקנת `node_modules` הרגילה והמדויקת שנוצרה מ־`package-lock.json`; הם אינם מחפשים ארכיון Windows בתוך `vendor`. אם esbuild או TypeScript חסרים או פגומים ב־Windows, יש להריץ `npm ci` כדי לשחזר את החבילה והבינארי המתאימים למערכת. אין לדלג על בניית ה־frontend ואין לנסות להפעיל בינארי Linux ב־Windows. מנגנון TypeScript נועל בדיוק את גרסה ‏7.0.2, ו־`check:types` ומסלול `test:js` אינם נופלים ל־`tsc` גלובלי או לגרסה ישנה שנמצאה במקרה במחשב. `test:js` משתמש בכוונה ב־Python המערכתי, משום שכל כלי הבדיקה במסלול הזה מבוססים על הספרייה הסטנדרטית; הוא אינו יוצר `.venv` ואינו מפעיל pip.
+ארכיוני האופליין של esbuild ושל TypeScript מיועדים בכוונה לסביבת הצ'אט או CI מנותק. ב־Windows הכלים משתמשים קודם בהתקנת `node_modules` הרגילה והמדויקת שנוצרה מ־`package-lock.json`; הם אינם מחפשים ארכיון Windows בתוך `vendor`. אם esbuild או TypeScript חסרים או פגומים ב־Windows, יש להריץ `npm ci` כדי לשחזר את החבילה והבינארי המתאימים למערכת. אין לדלג על בניית ה־frontend ואין לנסות להפעיל בינארי Linux ב־Windows. שער `check:types` מריץ כעת את אותם חוזי JSDoc גם ב־TypeScript ‏5.8.3 וגם ב־TypeScript ‏7.0.2, ואינו נופל ל־`tsc` גלובלי או לגרסה שנמצאה במקרה במחשב. `test:js` משתמש בכוונה ב־Python המערכתי, משום שכל כלי הבדיקה במסלול הזה מבוססים על הספרייה הסטנדרטית; הוא אינו יוצר `.venv` ואינו מפעיל pip.
+
+מודל `CatalogRecord` אינו נכתב עוד ידנית: `types/catalog-data.generated.d.ts` נוצר מתוך `schemas/catalogs.generated.schema.json`. שדות תאימות ישנים מבודדים ב־`types/catalog-legacy-input.d.ts`, ואינם חלק מהמודל הקנוני. כל מודול JavaScript מייבא את חוזי הטיפוסים שלו במפורש באמצעות JSDoc `@import`; הקובץ `src/js/05-app-contracts.js` נשמר רק כסמן תאימות ואינו מכריז שמות ambient.
 
 כל ארכיון מאומת מול כתובת ההורדה, הגרסה וחתימת SHA-512 שב־`package-lock.json`. הכלים אינם פונים לרשת, אינם מפעילים npm או lifecycle scripts ואינם מוחקים חבילות אחרות מתוך `node_modules`. את קובצי TypeScript יש להניח ללא חילוץ תחת `vendor/npm/typescript` לפי השמות והקישורים שב־`vendor/npm/typescript/README.md`.
 
@@ -553,6 +557,7 @@ python tools/verify_project.py --javascript-only
 
 ```bash
 python tools/bootstrap_esbuild_offline.py --check
+python tools/bootstrap_typescript_5_8_offline.py --check
 python tools/bootstrap_typescript_offline.py --check
 ```
 

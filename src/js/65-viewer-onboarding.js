@@ -6,6 +6,8 @@
  * from explicit ES module imports and does not perform runtime module requests.
  */
 
+/** @import { PositionedPoint, RectLike, ViewerOnboardingCloseOptions, ViewerOnboardingPlacement, ViewerOnboardingStep, ViewerOnboardingStepOptions, ViewerOnboardingTargetDefinition } from "../../types/frontend-contracts.js" */
+
 import { getFeatureInterface } from "./10-app-state.js";
 import { VIEWER_ONBOARDING_STORAGE_KEY, viewerElements, viewerState } from "./16-viewer-state.js";
 import { clampValue, focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";

@@ -6,6 +6,9 @@
  * than reaching into navigationState or shellElements directly.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { NavigationFeatureApi, ScrollPosition } from "../../types/frontend-contracts.js" */
+
 import { attachNavigationEvents, currentAppPage, setCurrentAppPage } from "./00-navigation.js";
 import { clampCatalogPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";

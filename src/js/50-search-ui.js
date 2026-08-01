@@ -6,6 +6,8 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { CatalogSearchResult } from "../../types/frontend-contracts.js" */
+
 import { tooltips } from "../runtime/tooltip-manager.js";
 import { catalogDocumentUrl, currentAppPage, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogSearch, catalogs } from "./03-runtime-context.js";

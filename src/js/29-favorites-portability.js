@@ -1,3 +1,6 @@
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { FavoriteItem, FavoriteKeySource, FavoriteMergeAnalysis, FavoritesTransfer } from "../../types/frontend-contracts.js" */
+
 import { isCatalogPage } from "./06-catalog-page-numbering.js";
 
 /**

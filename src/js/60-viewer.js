@@ -7,6 +7,8 @@
  * this file; reusable commands live in their dedicated lower-level owners.
  */
 
+/** @import { ViewerCloseOptions, ViewerOpenOptions } from "../../types/frontend-contracts.js" */
+
 import { canReturnToSameSite, catalogDocumentUrl, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
 import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";

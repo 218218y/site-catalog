@@ -6,6 +6,9 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { AppNavigationOptions } from "../../types/frontend-contracts.js" */
+
 import { featureCapabilities } from "./01-route-capabilities.js";
 import { catalogLastPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface, requireFeatureInterface } from "./10-app-state.js";

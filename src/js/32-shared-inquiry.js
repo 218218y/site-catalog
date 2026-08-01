@@ -6,6 +6,8 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { DialogCloseOptions, InquiryOpenOptions, InquiryReference } from "../../types/frontend-contracts.js" */
+
 import { absoluteDocumentUrl, viewerDocumentUrl } from "./00-navigation.js";
 import { $requiredAnchor, $requiredButton, $requiredImage, requiredElement } from "./02-dom-contracts.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";

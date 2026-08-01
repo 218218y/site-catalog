@@ -7,6 +7,8 @@
  * omit the Viewer implementation completely rather than merely disable it.
  */
 
+/** @import { CatalogAssetState, EscapeFeatureApi, FeatureName, FeatureRegistry, RegisteredFeatureInterface, UiRuntimeState } from "../../types/frontend-contracts.js" */
+
 const CATALOG_IMAGE_TIER_THUMB = "thumb";
 const CATALOG_IMAGE_TIER_MEDIUM = "medium";
 const CATALOG_IMAGE_TIER_FULL = "full";

@@ -3,6 +3,9 @@
  * Viewer-only image swaps, resolution selection, and progressive upgrade lifecycle.
  */
 
+/** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { CatalogImageCandidate, CatalogImageRequest, ViewerImageRequestOptions, ViewerImageSwapOptions, ViewerPageSwapAnimationOptions, ViewerResolutionUpgradeOptions } from "../../types/frontend-contracts.js" */
+
 import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, getFeatureInterface } from "./10-app-state.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_PAGE_SWAP_CLEANUP_MS, viewerElements, viewerState } from "./16-viewer-state.js";
@@ -437,6 +440,7 @@ function preferredViewerImageTier(catalog, page, options = {}) {
 /** @param {CatalogRecord} catalog @param {number} page @param {ViewerImageRequestOptions} [options] @returns {CatalogImageRequest} */
 function viewerPageImageRequest(catalog, page, options = {}) {
   const primaryTier = preferredViewerImageTier(catalog, page, options);
+  /** @type {Array<CatalogImageTier>} */
   const tierOrder = primaryTier === CATALOG_IMAGE_TIER_FULL
     ? [CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB]
     : [CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_THUMB];

@@ -7,6 +7,9 @@
  * module, while this module never imports 60-viewer.js.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { ViewerRefreshOptions, ViewerSetPageOptions } from "../../types/frontend-contracts.js" */
+
 import { catalogFirstPage, catalogLastPage, catalogPageOrdinal } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, getFeatureInterface } from "./10-app-state.js";
 import { AUTO_VIEWER_ZOOM, viewerElements, viewerState } from "./16-viewer-state.js";

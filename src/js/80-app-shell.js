@@ -6,6 +6,8 @@
  * route transitions, global browser events, and startup order.
  */
 
+/** @import { ScrollPosition } from "../../types/frontend-contracts.js" */
+
 import { favoritesDocumentUrl, homeDocumentUrl, navigateTo, updateDocumentMetadata } from "./00-navigation.js";
 import { catalogs, siteRoutes } from "./03-runtime-context.js";
 import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";

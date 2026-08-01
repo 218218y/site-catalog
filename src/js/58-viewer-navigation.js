@@ -6,6 +6,8 @@
  * same paged navigation contract used by buttons, keyboard, and touch input.
  */
 
+/** @import { ViewerPanInputResult, ViewerSetPageOptions } from "../../types/frontend-contracts.js" */
+
 import { catalogFirstPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface } from "./10-app-state.js";
 import { VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS, VIEWER_PAGE_WHEEL_SETTLE_MS, viewerElements, viewerState } from "./16-viewer-state.js";

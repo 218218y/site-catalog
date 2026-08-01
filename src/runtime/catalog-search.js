@@ -1,5 +1,8 @@
 /** Typed external ESM runtime: catalog navigation and worker-backed OCR search client. */
 
+/** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { CatalogCategoryGroup, CatalogSearchResult } from "../../types/frontend-contracts.js" */
+
 /** @typedef {"category"|"subcategory"|"catalog"} NavigationResultType */
 /** @typedef {CatalogSearchResult & {resultType:NavigationResultType, label:string, category:string, score:number, sourceOrder:number}} NavigationSearchResult */
 /** @typedef {{category?:string, limit?:number}} NavigationSearchOptions */
@@ -334,7 +337,7 @@ function catalogDir(catalog) {
   return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
 }
 
-/** @param {CatalogRecord} catalog @param {string} tier */
+/** @param {CatalogRecord} catalog @param {CatalogImageTier} tier */
 function assetVersionForTier(catalog, tier) {
   const variantVersion = String(catalog?.imageVariants?.[tier]?.version || "").trim();
   const baseVersion = variantVersion || String(catalog?.assetVersion || "").trim();
@@ -342,7 +345,7 @@ function assetVersionForTier(catalog, tier) {
   return `${baseVersion}-${tier}-u${ASSET_URL_SCHEMA_VERSION}`;
 }
 
-/** @param {string} url @param {CatalogRecord} catalog @param {string} tier */
+/** @param {string} url @param {CatalogRecord} catalog @param {CatalogImageTier} tier */
 function withAssetVersion(url, catalog, tier) {
   const version = assetVersionForTier(catalog, tier);
   if (!version) return url;

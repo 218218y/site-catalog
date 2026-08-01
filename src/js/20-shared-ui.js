@@ -6,6 +6,10 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { CatalogImageCandidate, CatalogImageReadiness } from "../../types/frontend-contracts.js" */
+/** @import { LegacyCatalogRecordInput } from "../../types/catalog-legacy-input.js" */
+
 import { tooltips } from "../runtime/tooltip-manager.js";
 import { eventTargetElement, requiredElement } from "./02-dom-contracts.js";
 import { catalogs } from "./03-runtime-context.js";
@@ -42,6 +46,7 @@ const uiElements = Object.freeze({
 /** @typedef {{categories?:Array<CatalogTaxonomyItem>, subcategories?:Array<CatalogTaxonomyItem>}} CatalogTaxonomy */
 /** @typedef {{subcategory:string, items:Array<CatalogRecord>}} CatalogSubcategoryGroup */
 /** @typedef {{category:string, items:Array<CatalogRecord>, directItems:Array<CatalogRecord>, subcategories:Array<CatalogSubcategoryGroup>, subcategoryMap?:Map<string, CatalogSubcategoryGroup>, hasSubcategories?:boolean}} CatalogCategoryGroup */
+/** @typedef {{directory:string, maxSide:number, version?:string}} CatalogImageVariantView */
 /** @typedef {{duration?:number, tone?:string}} ActionToastOptions */
 
 /** @param {unknown} value @returns {value is HTMLElement} */
@@ -388,7 +393,7 @@ function catalogCategoryName(catalog) {
   return category || "קטלוגים";
 }
 
-/** @param {CatalogRecord|null|undefined} catalog */
+/** @param {(CatalogRecord & Partial<LegacyCatalogRecordInput>)|null|undefined} catalog */
 function catalogSubcategoryName(catalog) {
   const legacyCatalog = /** @type {(CatalogRecord & Record<string, unknown>)|null|undefined} */ (catalog);
   const value = catalog?.subcategory ?? catalog?.subCategory ?? legacyCatalog?.sub_category ?? legacyCatalog?.subcategories ?? legacyCatalog?.["תת קטגוריה"] ?? legacyCatalog?.["תת_קטגוריה"] ?? "";
@@ -517,7 +522,7 @@ function getCatalogCategoryGroups() {
   return groups;
 }
 
-/** @param {CatalogRecord|null|undefined} catalog @param {string} tier @returns {CatalogImageVariant|null} */
+/** @param {CatalogRecord|null|undefined} catalog @param {CatalogImageTier} tier @returns {CatalogImageVariantView|null} */
 function catalogImageVariant(catalog, tier) {
   if (tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled()) return null;
   const variants = catalog?.imageVariants;
@@ -532,12 +537,12 @@ function catalogImageVariant(catalog, tier) {
   return null;
 }
 
-/** @param {CatalogRecord|null|undefined} catalog @param {string} tier */
+/** @param {CatalogRecord|null|undefined} catalog @param {CatalogImageTier} tier */
 function catalogSupportsImageTier(catalog, tier) {
   return Boolean(catalogImageVariant(catalog, tier));
 }
 
-/** @param {CatalogRecord|null|undefined} catalog @param {string} tier */
+/** @param {CatalogRecord|null|undefined} catalog @param {CatalogImageTier} tier */
 function catalogImageTierMaxSide(catalog, tier) {
   const value = Number(catalogImageVariant(catalog, tier)?.maxSide);
   if (Number.isFinite(value) && value > 0) return value;

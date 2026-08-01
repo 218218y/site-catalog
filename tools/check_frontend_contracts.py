@@ -294,9 +294,9 @@ def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]
 
 
 def check_feature_registry(base: Path, sources: list[Path], failures: list[str]) -> None:
-    contracts = (base / "src/js/05-app-contracts.js").read_text(encoding="utf-8")
+    contracts = (base / "types/frontend-contracts.d.ts").read_text(encoding="utf-8")
     registry = (base / "src/js/10-app-state.js").read_text(encoding="utf-8")
-    if "FeatureRegistry" not in contracts or "keyof FeatureRegistry" not in contracts:
+    if not re.search(r"export\s+(?:type|interface)\s+FeatureRegistry\b", contracts) or "keyof FeatureRegistry" not in contracts:
         failures.append("frontend contracts do not define an exact FeatureRegistry")
     if re.search(r"@typedef\s+\{Object\}\s+FeatureInterface\b", contracts):
         failures.append("legacy generic FeatureInterface contract remains")

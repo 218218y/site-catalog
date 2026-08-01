@@ -37,11 +37,16 @@ def test_quick_verification_reuses_the_guarded_public_build() -> None:
     assert commands[0][0] == "project-python"
     assert (
         "project-python",
-        "tools/run_typescript_offline.py",
+        "tools/run_typescript_matrix.py",
         "-p",
         "jsconfig.json",
         "--pretty",
         "false",
+    ) in commands
+    assert (
+        "project-python",
+        "tools/generate_catalog_data_types.py",
+        "--check",
     ) in commands
     assert any(command[:2] == ("node", "--check") for command in commands)
     assert ("project-python", "-m", "pytest", "-q") in commands

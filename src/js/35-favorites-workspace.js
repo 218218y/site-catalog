@@ -6,6 +6,9 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
+/** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
+/** @import { FavoriteEntry, FavoriteWorkspaceInquiryOptions, FavoriteWorkspaceMessageOptions, InquiryReference, NoteEditorCloseOptions } from "../../types/frontend-contracts.js" */
+
 import { absoluteDocumentUrl, viewerDocumentUrl } from "./00-navigation.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { FAVORITES_NOTE_MAX_LENGTH, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
