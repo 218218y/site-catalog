@@ -47,11 +47,11 @@ assert.doesNotMatch(onboardingSource, /function getViewerOnboardingSteps\([\s\S]
 assert.match(onboardingSource, /function viewerNavigationOnboardingCopy\([\s\S]*?החליקו למעלה, למטה, ימינה או שמאלה[\s\S]*?מקשי החצים ו־Page Up\/Down/);
 assert.match(onboardingSource, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTargets: \(\) => \[[\s\S]*?viewerElements\.nextPageBtn[\s\S]*?viewerElements\.prevPageBtn[\s\S]*?gesture: "swipe-both"/);
 assert.match(onboardingSource, /id: "inquiry"[\s\S]*?target: \(\) => getFeatureInterface\("inquiry"\)\?\.onboardingTarget\(\) \|\| null[\s\S]*?floatingTargets: \(\) => \{[\s\S]*?getFeatureInterface\("inquiry"\)\?\.onboardingTarget\(\)[\s\S]*?getFeatureInterface\("favorites"\)\?\.onboardingTarget\(\)/);
-assert.match(onboardingSource, /viewerOnboardingNext\.textContent = viewerState\.viewerOnboardingStep === steps\.length - 1 \? "סיום" : "הבא"/);
+assert.match(onboardingSource, /viewerOnboardingNext\.textContent = viewerOnboardingState\.viewerOnboardingStep === steps\.length - 1 \? "סיום" : "הבא"/);
 assert.match(onboardingSource, /function syncViewerOnboardingFloatingTargetState\([\s\S]*?"data-favorite-active"/);
 assert.match(onboardingSource, /function updateViewerOnboardingFloatingTargets\([\s\S]*?cloneNode\(true\)[\s\S]*?clone\.dataset\.tourTarget = id[\s\S]*?source\.click\(\)/);
 assert.match(onboardingSource, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
-assert.match(onboardingSource, /function scheduleViewerOnboardingLayout\(delay = 0\)[\s\S]*?if \(delay > 0\) \{[\s\S]*?window\.clearTimeout\(viewerState\.viewerOnboardingLayoutTimer\)[\s\S]*?return;[\s\S]*?run\(\);/);
+assert.match(onboardingSource, /function scheduleViewerOnboardingLayout\(delay = 0\)[\s\S]*?if \(delay > 0\) \{[\s\S]*?window\.clearTimeout\(viewerOnboardingState\.viewerOnboardingLayoutTimer\)[\s\S]*?return;[\s\S]*?run\(\);/);
 assert.doesNotMatch(onboardingSource, /thumbsHotspot|lightboxThumbs|show-thumbs|thumbsHideTimer/);
 assert.match(onboardingSource, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardingWasSeen\(\)[\s\S]*?viewer-tour-active[\s\S]*?renderViewerOnboardingStep\(\{ focus: false, scheduleLayout: false \}\)[\s\S]*?layoutViewerOnboarding\(\)[\s\S]*?layout-ready[\s\S]*?classList\.add\("visible"\)/);
 assert.match(onboardingSource, /function closeViewerOnboarding\([\s\S]*?markViewerOnboardingSeen\(\)[\s\S]*?restoreViewerUiAfterOnboarding/);

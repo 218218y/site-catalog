@@ -3,7 +3,7 @@
  * Feature-owned runtime state. Do not add properties owned by another feature.
  */
 
-/** @import { ViewerState } from "../../types/frontend-contracts.js" */
+/** @import { ViewerChromeState, ViewerGestureState, ViewerImageState, ViewerNavigationState, ViewerOnboardingState, ViewerSessionState, ViewerViewportState } from "../../types/frontend-contracts.js" */
 
 import { $requiredAnchor, $requiredButton, $requiredImage, requiredElement } from "./02-dom-contracts.js";
 
@@ -49,9 +49,17 @@ const VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 0.0048;
 const VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS = 34;
 const VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS = 80;
 const VIEWER_TOUCH_VELOCITY_BLEND = 0.45;
-/** @type {ViewerState} */
-const viewerState = {
-  zoom: 1,
+/** @type {ViewerSessionState} */
+const viewerSessionState = {
+  viewerPhase: VIEWER_PHASE_CLOSED,
+  viewerPhaseReason: "initial",
+  viewerFullscreenPhase: VIEWER_FULLSCREEN_INACTIVE,
+  viewerFullscreenReason: "initial",
+};
+
+/** @type {ViewerViewportState} */
+const viewerViewportState = {
+  zoom: AUTO_VIEWER_ZOOM,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
   imageFitModeSource: VIEWER_FIT_SOURCE_AUTO,
@@ -60,6 +68,10 @@ const viewerState = {
   singleImagePendingPageTurnOrigin: null,
   panX: 0,
   panY: 0,
+};
+
+/** @type {ViewerGestureState} */
+const viewerGestureState = {
   dragStartX: 0,
   dragStartY: 0,
   dragStartPanX: 0,
@@ -70,7 +82,7 @@ const viewerState = {
   lastTapSurface: "",
   suppressNextDblClickUntil: 0,
   pinchStartDistance: 0,
-  pinchStartZoom: 1,
+  pinchStartZoom: AUTO_VIEWER_ZOOM,
   pinchLastMidX: 0,
   pinchLastMidY: 0,
   pointerGestureHadMultiplePointers: false,
@@ -80,10 +92,10 @@ const viewerState = {
   viewerTouchMomentumVelocityX: 0,
   viewerTouchMomentumVelocityY: 0,
   viewerTouchMomentumLastTime: 0,
-  viewerPhase: VIEWER_PHASE_CLOSED,
-  viewerPhaseReason: "initial",
-  viewerFullscreenPhase: VIEWER_FULLSCREEN_INACTIVE,
-  viewerFullscreenReason: "initial",
+};
+
+/** @type {ViewerChromeState} */
+const viewerChromeState = {
   topUiPinned: false,
   uiHideTimer: 0,
   pageRailHideTimer: 0,
@@ -92,6 +104,10 @@ const viewerState = {
   zoomIndicatorHideTimer: 0,
   pageIndicatorHideTimer: 0,
   viewerMobileMoreOpen: false,
+};
+
+/** @type {ViewerImageState} */
+const viewerImageState = {
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
   singleImageResolutionLoadToken: 0,
@@ -103,6 +119,10 @@ const viewerState = {
   singleImageResolutionVisible: false,
   singleImageResolutionCommitPending: false,
   singleImageResolutionRetainedForSwap: false,
+};
+
+/** @type {ViewerNavigationState} */
+const viewerNavigationState = {
   viewerPageWheelAccumulator: 0,
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,
@@ -111,6 +131,10 @@ const viewerState = {
   viewerPageWheelResetLastEventAt: 0,
   viewerPageWheelResetLastDelta: 0,
   viewerPageWheelResetDirection: 0,
+};
+
+/** @type {ViewerOnboardingState} */
+const viewerOnboardingState = {
   viewerOnboardingOpen: false,
   viewerOnboardingShownThisSession: false,
   viewerOnboardingStep: 0,
@@ -244,4 +268,4 @@ const viewerElements = Object.freeze({
   viewerOnboardingShadeLeft: requiredElement("viewerOnboardingShadeLeft"),
 });
 
-export { AUTO_VIEWER_ZOOM, DOUBLE_TAP_DELAY, DOUBLE_TAP_DISTANCE, MAX_VIEWER_ZOOM, MIN_VIEWER_ZOOM, TAP_MOVE_TOLERANCE, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_ONBOARDING_STORAGE_KEY, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_PAGE_SWAP_CLEANUP_MS, VIEWER_PAGE_SWIPE_AXIS_RATIO, VIEWER_PAGE_SWIPE_MIN_DISTANCE, VIEWER_PAGE_TURN_BUFFER_MAX_PX, VIEWER_PAGE_TURN_BUFFER_MIN_PX, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO, VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS, VIEWER_PAGE_WHEEL_SETTLE_MS, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS, VIEWER_TOUCH_VELOCITY_BLEND, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerElements, viewerState };
+export { AUTO_VIEWER_ZOOM, DOUBLE_TAP_DELAY, DOUBLE_TAP_DISTANCE, MAX_VIEWER_ZOOM, MIN_VIEWER_ZOOM, TAP_MOVE_TOLERANCE, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_ONBOARDING_STORAGE_KEY, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_PAGE_SWAP_CLEANUP_MS, VIEWER_PAGE_SWIPE_AXIS_RATIO, VIEWER_PAGE_SWIPE_MIN_DISTANCE, VIEWER_PAGE_TURN_BUFFER_MAX_PX, VIEWER_PAGE_TURN_BUFFER_MIN_PX, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO, VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS, VIEWER_PAGE_WHEEL_SETTLE_MS, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS, VIEWER_TOUCH_VELOCITY_BLEND, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerChromeState, viewerElements, viewerGestureState, viewerImageState, viewerNavigationState, viewerOnboardingState, viewerSessionState, viewerViewportState };

@@ -49,6 +49,13 @@ Object.assign(globalThis, {
   VIEWER_PAGE_TURN_BUFFER_MAX_PX: 330,
   clampValue(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); },
   viewerState,
+  viewerSessionState: viewerState,
+  viewerViewportState: viewerState,
+  viewerGestureState: viewerState,
+  viewerChromeState: viewerState,
+  viewerImageState: viewerState,
+  viewerNavigationState: viewerState,
+  viewerOnboardingState: viewerState,
   viewerElements: {
     stageCanvas,
     lightboxImageFrame: { style: frameStyle },

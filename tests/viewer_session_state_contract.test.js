@@ -41,7 +41,7 @@ assert.match(navigation, /getFeatureInterface\("viewer"\)\?\.usesInDocumentFulls
 assert.doesNotMatch(allFeatureSources, /state\.lightboxOpen/);
 assert.doesNotMatch(allFeatureSources, /viewerPhase\s*=/);
 assert.doesNotMatch(allFeatureSources, /viewerFullscreenPhase\s*=/);
-assert.match(sessionState, /viewerState\.viewerPhase = nextPhase/);
-assert.match(sessionState, /viewerState\.viewerFullscreenPhase = nextPhase/);
+assert.match(sessionState, /viewerSessionState\.viewerPhase = nextPhase/);
+assert.match(sessionState, /viewerSessionState\.viewerFullscreenPhase = nextPhase/);
 
 console.log("viewer_session_state_contract.test.js: PASS");

@@ -9,14 +9,7 @@
 
 import { homeDocumentUrl, navigateTo } from "./00-navigation.js";
 import { getFeatureInterface } from "./10-app-state.js";
-import {
-  VIEWER_FULLSCREEN_ACTIVE,
-  VIEWER_FULLSCREEN_ENTERING,
-  VIEWER_FULLSCREEN_EXITING,
-  VIEWER_FULLSCREEN_INACTIVE,
-  viewerElements,
-  viewerState
-} from "./16-viewer-state.js";
+import { VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, viewerElements, viewerSessionState } from "./16-viewer-state.js";
 import { flashActionButton, setTooltipText } from "./20-shared-ui.js";
 import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-search-ui.js";
 import {
@@ -89,7 +82,7 @@ function syncFullscreenButtonUi() {
 
   buttons.forEach((button) => {
     button.dataset.fullscreenActive = isActive ? "true" : "false";
-    button.dataset.fullscreenPhase = viewerState.viewerFullscreenPhase;
+    button.dataset.fullscreenPhase = viewerSessionState.viewerFullscreenPhase;
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
     button.setAttribute("aria-label", label);
     setTooltipText(button, label, { updateDefault: true });

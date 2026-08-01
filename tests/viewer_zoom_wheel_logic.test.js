@@ -17,6 +17,13 @@ Object.assign(globalThis, {
     return delta;
   },
   viewerState,
+  viewerSessionState: viewerState,
+  viewerViewportState: viewerState,
+  viewerGestureState: viewerState,
+  viewerChromeState: viewerState,
+  viewerImageState: viewerState,
+  viewerNavigationState: viewerState,
+  viewerOnboardingState: viewerState,
   viewerElements: { stageCanvas: surface },
   isViewerSessionOpen: () => viewerState.viewerPhase === 'open',
   setZoom: (...args) => zoomCalls.push(args),

@@ -12,7 +12,8 @@
 
 import { catalogFirstPage, catalogLastPage, catalogPageOrdinal } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, getFeatureInterface } from "./10-app-state.js";
-import { AUTO_VIEWER_ZOOM, viewerElements, viewerState } from "./16-viewer-state.js";
+import { viewerElements, viewerViewportState } from "./16-viewer-state.js";
+import { VIEWER_NAVIGATION_SOURCE_PAGE_RAIL, VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC, beginViewerPageTransitionCommand, createViewerNavigationCommand } from "./17-viewer-state-transitions.js";
 import { activeCatalog, activePage, setActivePage } from "./18-navigation-feature.js";
 import { catalogPagesShareAspectRatio, clampPage, clampValue } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
@@ -33,10 +34,6 @@ import {
   getAutomaticViewerFitMode,
   isAutoViewerZoom,
   primeLightboxFrameForCatalogPage,
-  queueSingleImagePageTurnOrigin,
-  queueSingleImageRelativePosition,
-  resetImagePosition,
-  shouldPreserveSingleManualPosition,
   updateHash,
   viewerUsesAutomaticFitMode
 } from "./54-viewer-geometry.js";
@@ -67,8 +64,8 @@ function catalogPageProgress(catalog, page) {
 function reconcileAutomaticViewerFitModeForActivePage() {
   if (!viewerUsesAutomaticFitMode()) return false;
   const nextFitMode = getAutomaticViewerFitMode();
-  if (nextFitMode === viewerState.imageFitMode) return false;
-  viewerState.imageFitMode = nextFitMode;
+  if (nextFitMode === viewerViewportState.imageFitMode) return false;
+  viewerViewportState.imageFitMode = nextFitMode;
   return true;
 }
 
@@ -144,44 +141,36 @@ function updateLightbox(options = {}) {
   updateHash();
 }
 
+/**
+ * @param {number} targetPage
+ * @param {number} direction
+ * @param {ViewerSetPageOptions} options
+ */
+function beginPageControllerTransition(targetPage, direction, options) {
+  const command = options.navigationCommand || createViewerNavigationCommand(
+    options.navigationSource || VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC,
+    direction
+  );
+  const relativePosition = command.positionMode === "relative"
+    ? captureSingleImageRelativePosition()
+    : null;
+  beginViewerPageTransitionCommand(targetPage, command, relativePosition);
+  return command;
+}
+
 /** @param {number} page @param {ViewerSetPageOptions} [options] */
 function setLightboxPage(page, options = {}) {
   if (!activeCatalog()) return;
   const nextPage = clampPage(page, activeCatalog());
   if (nextPage === activePage()) return;
 
-  const {
-    thumbScrollIntoView = true,
-    keepZoom = true,
-    resetZoom = false,
-    resetPosition = isAutoViewerZoom(),
-    positionMode = "auto",
-    pageTurnDirection = Math.sign(nextPage - activePage()),
-    pageTurnAxis = "y",
-    preservePointerInteraction = false
-  } = options;
-  const shouldResetZoom = resetZoom || keepZoom === false;
-  const shouldResetPosition = shouldResetZoom || resetPosition;
-  const preserveRelativePosition = positionMode !== "page-turn"
-    && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition });
-  const relativePosition = preserveRelativePosition
-    ? captureSingleImageRelativePosition()
-    : null;
-
-  hideLightboxFloatingPreview();
-  if (shouldResetZoom) viewerState.zoom = AUTO_VIEWER_ZOOM;
-
-  if (positionMode === "page-turn") {
-    queueSingleImagePageTurnOrigin(nextPage, pageTurnDirection, pageTurnAxis);
-  } else if (shouldResetPosition) {
-    resetImagePosition({ queueSingleFitOrigin: true });
-  } else if (relativePosition) {
-    queueSingleImageRelativePosition(nextPage, relativePosition);
-  }
-
-  if (!preservePointerInteraction) viewerState.pointers.clear();
+  const thumbScrollIntoView = options.thumbScrollIntoView !== false;
   const previousCatalog = activeCatalog();
   const previousPage = activePage();
+  const direction = Math.sign(nextPage - previousPage);
+
+  hideLightboxFloatingPreview();
+  beginPageControllerTransition(nextPage, direction, options);
   setActivePage(nextPage);
   reconcileAutomaticViewerFitModeForActivePage();
   const currentCatalog = activeCatalog();
@@ -208,43 +197,18 @@ function setFavoriteViewerIndex(index, options = {}) {
   }
 
   const currentFavoriteIndex = favorites?.viewerIndex() ?? 0;
-  const {
-    thumbScrollIntoView = true,
-    keepZoom = true,
-    resetZoom = false,
-    resetPosition = isAutoViewerZoom(),
-    positionMode = "auto",
-    pageTurnDirection = Math.sign((Number.parseInt(String(index), 10) || 0) - currentFavoriteIndex),
-    pageTurnAxis = "y",
-    preservePointerInteraction = false
-  } = options;
   const nextIndex = clampValue(Number.parseInt(String(index), 10) || 0, 0, entries.length - 1);
   const entry = entries[nextIndex];
   const itemChanged = nextIndex !== currentFavoriteIndex || activeCatalog() !== entry.catalog || activePage() !== entry.page;
   if (!itemChanged) return;
 
-  const shouldResetZoom = resetZoom || keepZoom === false;
-  const shouldResetPosition = shouldResetZoom || resetPosition;
-  const preserveRelativePosition = positionMode !== "page-turn"
-    && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition });
-  const relativePosition = preserveRelativePosition
-    ? captureSingleImageRelativePosition()
-    : null;
-
-  hideLightboxFloatingPreview();
-  if (shouldResetZoom) viewerState.zoom = AUTO_VIEWER_ZOOM;
-
-  if (positionMode === "page-turn") {
-    queueSingleImagePageTurnOrigin(entry.page, pageTurnDirection, pageTurnAxis);
-  } else if (shouldResetPosition) {
-    resetImagePosition({ queueSingleFitOrigin: true });
-  } else if (relativePosition) {
-    queueSingleImageRelativePosition(entry.page, relativePosition);
-  }
-  if (!preservePointerInteraction) viewerState.pointers.clear();
-
+  const thumbScrollIntoView = options.thumbScrollIntoView !== false;
   const previousCatalog = activeCatalog();
   const previousPage = activePage();
+  const direction = Math.sign(nextIndex - currentFavoriteIndex);
+
+  hideLightboxFloatingPreview();
+  beginPageControllerTransition(entry.page, direction, options);
   favorites?.selectViewerEntry(entries, nextIndex);
   reconcileAutomaticViewerFitModeForActivePage();
   const currentCatalog = activeCatalog();
@@ -279,11 +243,11 @@ function handleViewerPageRailClick(event) {
   hideLightboxFloatingPreview();
 
   if (isFavoritesLightboxMode()) {
-    setFavoriteViewerIndex(Number(button.dataset.favoriteIndex), { thumbScrollIntoView: false });
+    setFavoriteViewerIndex(Number(button.dataset.favoriteIndex), { thumbScrollIntoView: false, navigationSource: VIEWER_NAVIGATION_SOURCE_PAGE_RAIL });
   } else {
     const targetPage = Number(button.dataset.page);
     if (!Number.isFinite(targetPage)) return;
-    setLightboxPage(targetPage, { thumbScrollIntoView: false });
+    setLightboxPage(targetPage, { thumbScrollIntoView: false, navigationSource: VIEWER_NAVIGATION_SOURCE_PAGE_RAIL });
   }
 
   showPageRailTemporarily(1800, { scrollIntoView: false });

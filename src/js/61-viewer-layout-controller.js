@@ -9,7 +9,7 @@
 
 /** @import { ViewerUiVisibilityOptions } from "../../types/frontend-contracts.js" */
 
-import { viewerState } from "./16-viewer-state.js";
+import { viewerChromeState } from "./16-viewer-state.js";
 import { isViewerSessionOpen } from "./51-viewer-session-state.js";
 import { refreshSingleViewerImageResolution } from "./53-viewer-image.js";
 import { applyZoom, isAutoViewerZoom, resetImagePosition } from "./54-viewer-geometry.js";
@@ -39,14 +39,14 @@ function refreshLightboxLayoutForTopUiChange(options = {}) {
 
 /** @param {boolean} pinned */
 function setTopUiPinned(pinned) {
-  viewerState.topUiPinned = Boolean(pinned);
+  viewerChromeState.topUiPinned = Boolean(pinned);
   syncTopUiPinnedUi();
   refreshLightboxLayoutForTopUiChange();
-  if (!viewerState.topUiPinned) showTopUiTemporarily(1400);
+  if (!viewerChromeState.topUiPinned) showTopUiTemporarily(1400);
 }
 
 function toggleTopUiPinned() {
-  setTopUiPinned(!viewerState.topUiPinned);
+  setTopUiPinned(!viewerChromeState.topUiPinned);
 }
 
 export {

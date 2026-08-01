@@ -68,6 +68,13 @@ assert.deepEqual(shared.catalogImageVariant(catalog, 'full'), catalog.imageVaria
 const viewerState = { zoom: 1, imageFitMode: 'height' };
 Object.assign(globalThis, {
   viewerState,
+  viewerSessionState: viewerState,
+  viewerViewportState: viewerState,
+  viewerGestureState: viewerState,
+  viewerChromeState: viewerState,
+  viewerImageState: viewerState,
+  viewerNavigationState: viewerState,
+  viewerOnboardingState: viewerState,
   viewerElements: { stageCanvas: { clientWidth: 800, clientHeight: 600 }, lightboxImageFrame: null },
   AUTO_VIEWER_ZOOM: 1,
   VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON: 0.01,

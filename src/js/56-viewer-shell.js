@@ -10,7 +10,7 @@
 
 import { catalogPageNumbers } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface } from "./10-app-state.js";
-import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
+import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerChromeState, viewerElements, viewerOnboardingState, viewerViewportState } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, clampValue, escapeHtml, findCatalogById, hasHoverPointer, isTouchLikePointer, pageSrc, setCatalogImageSource, setTooltipText, thumbSrc } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
@@ -20,19 +20,19 @@ import { getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, viewerUses
 
 function showTopUiTemporarily(delay = 2200) {
   if (!viewerElements.lightbox) return;
-  window.clearTimeout(viewerState.uiHideTimer);
+  window.clearTimeout(viewerChromeState.uiHideTimer);
   viewerElements.lightbox.classList.add("show-ui");
-  if (viewerState.topUiPinned || viewerState.viewerMobileMoreOpen) return;
+  if (viewerChromeState.topUiPinned || viewerChromeState.viewerMobileMoreOpen) return;
   if (delay > 0) {
-    viewerState.uiHideTimer = window.setTimeout(() => {
-      if (!viewerState.topUiPinned && !viewerState.viewerMobileMoreOpen) viewerElements.lightbox.classList.remove("show-ui");
+    viewerChromeState.uiHideTimer = window.setTimeout(() => {
+      if (!viewerChromeState.topUiPinned && !viewerChromeState.viewerMobileMoreOpen) viewerElements.lightbox.classList.remove("show-ui");
     }, delay);
   }
 }
 
 
 function getLightboxPinnedTopOffset() {
-  if (!viewerState.topUiPinned || !viewerElements.lightboxBar) return 0;
+  if (!viewerChromeState.topUiPinned || !viewerElements.lightboxBar) return 0;
 
   const rect = viewerElements.lightboxBar.getBoundingClientRect?.();
   const measuredHeight = rect ? Math.max(rect.height || 0, rect.bottom > 0 ? rect.bottom : 0) : 0;
@@ -50,10 +50,10 @@ function syncLightboxTopSafeArea() {
 }
 
 function syncTopUiPinnedUi() {
-  const pinned = Boolean(viewerState.topUiPinned);
+  const pinned = Boolean(viewerChromeState.topUiPinned);
   const label = pinned ? "ביטול נעיצת הסרגל העליון" : "נעיצת הסרגל העליון";
 
-  window.clearTimeout(viewerState.uiHideTimer);
+  window.clearTimeout(viewerChromeState.uiHideTimer);
   viewerElements.lightbox?.classList.toggle("top-ui-pinned", pinned);
   if (pinned) viewerElements.lightbox?.classList.add("show-ui");
   syncLightboxTopSafeArea();
@@ -82,7 +82,7 @@ function pointInRect(point, rect, padding = 0) {
 
 /** @param {Event|null} [event] */
 function shouldKeepTopUiOpenForPointer(event = null) {
-  if (viewerState.topUiPinned || viewerState.viewerMobileMoreOpen) return true;
+  if (viewerChromeState.topUiPinned || viewerChromeState.viewerMobileMoreOpen) return true;
   const point = getViewportPointer(event);
   if (!point || !viewerElements.lightboxBar) return false;
 
@@ -102,11 +102,11 @@ function shouldKeepTopUiOpenForPointer(event = null) {
 
 /** @param {Event|null} [event] */
 function scheduleTopUiClose(event = null) {
-  if (!viewerElements.lightbox || !isViewerSessionOpen() || viewerState.topUiPinned || viewerState.viewerMobileMoreOpen) return;
+  if (!viewerElements.lightbox || !isViewerSessionOpen() || viewerChromeState.topUiPinned || viewerChromeState.viewerMobileMoreOpen) return;
   if (shouldKeepTopUiOpenForPointer(event)) return;
-  window.clearTimeout(viewerState.uiHideTimer);
-  viewerState.uiHideTimer = window.setTimeout(() => {
-    if (!viewerState.topUiPinned && !viewerState.viewerMobileMoreOpen) viewerElements.lightbox?.classList.remove("show-ui");
+  window.clearTimeout(viewerChromeState.uiHideTimer);
+  viewerChromeState.uiHideTimer = window.setTimeout(() => {
+    if (!viewerChromeState.topUiPinned && !viewerChromeState.viewerMobileMoreOpen) viewerElements.lightbox?.classList.remove("show-ui");
   }, 420);
 }
 
@@ -162,7 +162,7 @@ function getViewportSize() {
 
 /** @param {PointLike|null} point */
 function isPointInTopEdgeActivationZone(point) {
-  if (!point || viewerState.topUiPinned) return false;
+  if (!point || viewerChromeState.topUiPinned) return false;
   const { width } = getViewportSize();
   const hotspotRect = viewerElements.topHotspot?.getBoundingClientRect?.();
   const hotspotHeight = Math.max(2, Math.round(hotspotRect?.height || 34));
@@ -392,7 +392,7 @@ function renderLightboxPageRail() {
 function syncViewerMobileMoreMenuState() {
   const menu = viewerElements.viewerMobileMoreMenu;
   if (!menu) return;
-  const fitMode = normalizeViewerFitMode(viewerState.imageFitMode);
+  const fitMode = normalizeViewerFitMode(viewerViewportState.imageFitMode);
   const automatic = viewerUsesAutomaticFitMode();
   const pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]');
   const autoItem = menu.querySelector('[data-viewer-mobile-action="fit-auto"]');
@@ -400,9 +400,9 @@ function syncViewerMobileMoreMenuState() {
   const widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]');
   const pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
 
-  pinItem?.setAttribute("aria-checked", viewerState.topUiPinned ? "true" : "false");
-  pinItem?.classList.toggle("active", viewerState.topUiPinned);
-  if (pinLabel) pinLabel.textContent = viewerState.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
+  pinItem?.setAttribute("aria-checked", viewerChromeState.topUiPinned ? "true" : "false");
+  pinItem?.classList.toggle("active", viewerChromeState.topUiPinned);
+  if (pinLabel) pinLabel.textContent = viewerChromeState.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל";
   autoItem?.setAttribute("aria-checked", automatic ? "true" : "false");
   autoItem?.classList.toggle("active", automatic);
   heightItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_HEIGHT ? "true" : "false");
@@ -412,9 +412,9 @@ function syncViewerMobileMoreMenuState() {
 }
 
 function syncViewerFitModeUi() {
-  const fitMode = normalizeViewerFitMode(viewerState.imageFitMode);
+  const fitMode = normalizeViewerFitMode(viewerViewportState.imageFitMode);
   const automatic = viewerUsesAutomaticFitMode();
-  viewerState.imageFitMode = fitMode;
+  viewerViewportState.imageFitMode = fitMode;
 
   viewerElements.lightbox?.classList.toggle("fit-height", fitMode === VIEWER_FIT_HEIGHT);
   viewerElements.lightbox?.classList.toggle("fit-width", fitMode === VIEWER_FIT_WIDTH);
@@ -459,27 +459,27 @@ function syncViewerAutoZoomButtonUi() {
   setTooltipText(viewerElements.viewerAutoZoomBtn, "חזרה לזום אוטומטי", { updateDefault: true });
 }
 
-function formatViewerZoomPercent(value = viewerState.zoom) {
+function formatViewerZoomPercent(value = viewerViewportState.zoom) {
   return `${Math.round(getSafeViewerZoom(value) * 100)}%`;
 }
 
 function hideViewerZoomIndicator() {
-  window.clearTimeout(viewerState.zoomIndicatorHideTimer);
-  viewerState.zoomIndicatorHideTimer = 0;
+  window.clearTimeout(viewerChromeState.zoomIndicatorHideTimer);
+  viewerChromeState.zoomIndicatorHideTimer = 0;
   viewerElements.viewerZoomIndicator?.classList.remove("visible");
 }
 
-function showViewerZoomIndicator(value = viewerState.zoom) {
+function showViewerZoomIndicator(value = viewerViewportState.zoom) {
   const indicator = viewerElements.viewerZoomIndicator;
   if (!indicator || !isViewerSessionOpen()) return;
 
   indicator.textContent = formatViewerZoomPercent(value);
   indicator.classList.add("visible");
 
-  window.clearTimeout(viewerState.zoomIndicatorHideTimer);
-  viewerState.zoomIndicatorHideTimer = window.setTimeout(() => {
+  window.clearTimeout(viewerChromeState.zoomIndicatorHideTimer);
+  viewerChromeState.zoomIndicatorHideTimer = window.setTimeout(() => {
     indicator.classList.remove("visible");
-    viewerState.zoomIndicatorHideTimer = 0;
+    viewerChromeState.zoomIndicatorHideTimer = 0;
   }, VIEWER_ZOOM_INDICATOR_HIDE_MS);
 }
 
@@ -509,17 +509,17 @@ function isObservedMouseHoverEvent(event = null) {
 /** @param {Event|null|undefined} event */
 function markTouchLikeViewportInput(event) {
   if (isTouchLikePointer(event) || event?.type === "touchstart") {
-    viewerState.lastTouchLikeViewportInputAt = Date.now();
+    viewerChromeState.lastTouchLikeViewportInputAt = Date.now();
   }
 }
 
 function hasRecentTouchLikeViewportInput(timeout = 900) {
-  return Date.now() - viewerState.lastTouchLikeViewportInputAt < timeout;
+  return Date.now() - viewerChromeState.lastTouchLikeViewportInputAt < timeout;
 }
 
 /** @param {Event|null} [event] */
 function openTopUiFromHotspot(event = null) {
-  if (!isViewerSessionOpen() || viewerState.viewerOnboardingOpen) return;
+  if (!isViewerSessionOpen() || viewerOnboardingState.viewerOnboardingOpen) return;
   markTouchLikeViewportInput(event);
   showTopUiTemporarily(0);
 }
@@ -527,13 +527,13 @@ function openTopUiFromHotspot(event = null) {
 /** @param {Event|null|undefined} event */
 function markTouchLikeRailInput(event) {
   if (isTouchLikePointer(event)) {
-    viewerState.lastTouchLikeRailInputAt = Date.now();
+    viewerChromeState.lastTouchLikeRailInputAt = Date.now();
   }
   markTouchLikeViewportInput(event);
 }
 
 function hasRecentTouchLikeRailInput(timeout = 900) {
-  return Date.now() - viewerState.lastTouchLikeRailInputAt < timeout;
+  return Date.now() - viewerChromeState.lastTouchLikeRailInputAt < timeout;
 }
 
 /** @param {Event|null} [event] */
@@ -560,11 +560,11 @@ function shouldUsePageRailHover(event = null) {
 function showPageRailTemporarily(delay = 2600, options = {}) {
   const { scrollIntoView = true } = options;
   if (!viewerElements.lightbox || !isViewerSessionOpen()) return;
-  window.clearTimeout(viewerState.pageRailHideTimer);
+  window.clearTimeout(viewerChromeState.pageRailHideTimer);
   viewerElements.lightbox.classList.add("show-page-rail");
   updateLightboxThumbs({ scrollIntoView });
   if (delay > 0) {
-    viewerState.pageRailHideTimer = window.setTimeout(() => {
+    viewerChromeState.pageRailHideTimer = window.setTimeout(() => {
       viewerElements.lightbox?.classList.remove("show-page-rail");
     }, delay);
   }
@@ -574,7 +574,7 @@ function showPageRailTemporarily(delay = 2600, options = {}) {
 function keepPageRailOpen(options = {}) {
   const { scrollIntoView = true } = options;
   if (!isViewerSessionOpen()) return;
-  window.clearTimeout(viewerState.pageRailHideTimer);
+  window.clearTimeout(viewerChromeState.pageRailHideTimer);
   viewerElements.lightbox?.classList.add("show-page-rail");
   updateLightboxThumbs({ scrollIntoView });
 }
@@ -583,8 +583,8 @@ function keepPageRailOpen(options = {}) {
 function schedulePageRailClose(event = null) {
   if (!shouldUsePageRailHover(event)) return;
   if (shouldKeepPageRailOpenForPointer(event)) return;
-  window.clearTimeout(viewerState.pageRailHideTimer);
-  viewerState.pageRailHideTimer = window.setTimeout(() => {
+  window.clearTimeout(viewerChromeState.pageRailHideTimer);
+  viewerChromeState.pageRailHideTimer = window.setTimeout(() => {
     viewerElements.lightbox?.classList.remove("show-page-rail");
   }, 420);
 }
@@ -599,7 +599,7 @@ function openPageRailFromTouch(event) {
 
 /** @param {PointerEvent} event */
 function handleLightboxPageRailEdgePointerDown(event) {
-  if (!isTouchLikePointer(event) || !isViewerSessionOpen() || viewerState.viewerOnboardingOpen) return;
+  if (!isTouchLikePointer(event) || !isViewerSessionOpen() || viewerOnboardingState.viewerOnboardingOpen) return;
   if (viewerElements.lightboxPageRail?.contains(eventTargetElement(event.target))) return;
 
   const point = getViewportPointer(event);
@@ -640,7 +640,7 @@ function handlePageRailPointerOutside(event) {
   if (viewerElements.lightboxPageRail?.contains(target) || viewerElements.lightboxSideHotspot?.contains(target)) return;
   if (!isTouchLikePointer(event) && shouldUsePageRailHover(event)) return;
 
-  window.clearTimeout(viewerState.pageRailHideTimer);
+  window.clearTimeout(viewerChromeState.pageRailHideTimer);
   hideLightboxFloatingPreview();
   viewerElements.lightbox.classList.remove("show-page-rail");
 }
@@ -661,21 +661,21 @@ function handlePageRailPointerOutside(event) {
 
 
 function hideViewerPageIndicator() {
-  window.clearTimeout(viewerState.pageIndicatorHideTimer);
-  viewerState.pageIndicatorHideTimer = 0;
+  window.clearTimeout(viewerChromeState.pageIndicatorHideTimer);
+  viewerChromeState.pageIndicatorHideTimer = 0;
   viewerElements.viewerPageIndicator?.classList.remove("visible");
 }
 
 function showViewerPageIndicatorTemporarily(delay = VIEWER_PAGE_INDICATOR_HIDE_MS) {
   if (!isViewerSessionOpen() || !viewerElements.viewerPageIndicator) return;
 
-  window.clearTimeout(viewerState.pageIndicatorHideTimer);
+  window.clearTimeout(viewerChromeState.pageIndicatorHideTimer);
   viewerElements.viewerPageIndicator.classList.add("visible");
   if (delay <= 0) return;
 
-  viewerState.pageIndicatorHideTimer = window.setTimeout(() => {
+  viewerChromeState.pageIndicatorHideTimer = window.setTimeout(() => {
     viewerElements.viewerPageIndicator?.classList.remove("visible");
-    viewerState.pageIndicatorHideTimer = 0;
+    viewerChromeState.pageIndicatorHideTimer = 0;
   }, delay);
 }
 

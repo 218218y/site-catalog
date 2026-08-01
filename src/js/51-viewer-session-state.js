@@ -8,17 +8,7 @@
  * same state contract without creating an architectural cycle.
  */
 
-import {
-  VIEWER_FULLSCREEN_ACTIVE,
-  VIEWER_FULLSCREEN_ENTERING,
-  VIEWER_FULLSCREEN_EXITING,
-  VIEWER_FULLSCREEN_INACTIVE,
-  VIEWER_PHASE_CLOSED,
-  VIEWER_PHASE_CLOSING,
-  VIEWER_PHASE_OPEN,
-  VIEWER_PHASE_OPENING,
-  viewerState
-} from "./16-viewer-state.js";
+import { VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, viewerSessionState } from "./16-viewer-state.js";
 
 const VIEWER_PHASE_TRANSITIONS = Object.freeze({
   [VIEWER_PHASE_CLOSED]: new Set([VIEWER_PHASE_CLOSED, VIEWER_PHASE_OPENING]),
@@ -48,7 +38,7 @@ function transitionStatePhase({ current, next, transitions, label, reason }) {
 
 /** @param {string} nextPhase @param {string} [reason] */
 function transitionViewerPhase(nextPhase, reason = "unspecified") {
-  const currentPhase = viewerState.viewerPhase || VIEWER_PHASE_CLOSED;
+  const currentPhase = viewerSessionState.viewerPhase || VIEWER_PHASE_CLOSED;
   if (!transitionStatePhase({
     current: currentPhase,
     next: nextPhase,
@@ -57,23 +47,23 @@ function transitionViewerPhase(nextPhase, reason = "unspecified") {
     reason
   })) return false;
 
-  viewerState.viewerPhase = nextPhase;
-  viewerState.viewerPhaseReason = String(reason || "unspecified");
+  viewerSessionState.viewerPhase = nextPhase;
+  viewerSessionState.viewerPhaseReason = String(reason || "unspecified");
   if (document.body) document.body.dataset.viewerPhase = nextPhase;
   return true;
 }
 
 function isViewerSessionOpen() {
-  return viewerState.viewerPhase === VIEWER_PHASE_OPENING || viewerState.viewerPhase === VIEWER_PHASE_OPEN;
+  return viewerSessionState.viewerPhase === VIEWER_PHASE_OPENING || viewerSessionState.viewerPhase === VIEWER_PHASE_OPEN;
 }
 
 function isViewerSessionVisible() {
-  return isViewerSessionOpen() || viewerState.viewerPhase === VIEWER_PHASE_CLOSING;
+  return isViewerSessionOpen() || viewerSessionState.viewerPhase === VIEWER_PHASE_CLOSING;
 }
 
 /** @param {string} nextPhase @param {string} [reason] */
 function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
-  const currentPhase = viewerState.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
+  const currentPhase = viewerSessionState.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
   if (!transitionStatePhase({
     current: currentPhase,
     next: nextPhase,
@@ -82,15 +72,15 @@ function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
     reason
   })) return false;
 
-  viewerState.viewerFullscreenPhase = nextPhase;
-  viewerState.viewerFullscreenReason = String(reason || "unspecified");
+  viewerSessionState.viewerFullscreenPhase = nextPhase;
+  viewerSessionState.viewerFullscreenReason = String(reason || "unspecified");
   if (document.documentElement) document.documentElement.dataset.viewerFullscreenPhase = nextPhase;
   return true;
 }
 
 function isViewerFullscreenPending() {
-  return viewerState.viewerFullscreenPhase === VIEWER_FULLSCREEN_ENTERING
-    || viewerState.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
+  return viewerSessionState.viewerFullscreenPhase === VIEWER_FULLSCREEN_ENTERING
+    || viewerSessionState.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
 }
 
 /* TEST-ONLY EXPORTS: BEGIN */

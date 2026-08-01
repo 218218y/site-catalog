@@ -29,6 +29,20 @@ function createFixture(overrides = {}) {
     removeAttribute(name) { if (name === "src") this.src = ""; }
   };
   const state = {
+    viewerPhase: "open",
+    zoom: 1,
+    fitScale: 1,
+    panX: 0,
+    panY: 0,
+    pointers: new Map(),
+    viewerTouchMomentumRaf: 0,
+    viewerTouchMomentumVelocityX: 0,
+    viewerTouchMomentumVelocityY: 0,
+    viewerTouchMomentumLastTime: 0,
+    singleImageFitOriginPending: false,
+    singleImagePendingRelativePosition: null,
+    singleImagePendingPageTurnOrigin: null,
+    singleImageLoadToken: 0,
     singleImageResolutionImage: image,
     singleImageResolutionRetainedForSwap: false,
     singleImageResolutionVisible: true,
@@ -40,7 +54,21 @@ function createFixture(overrides = {}) {
     singleImageResolutionCommitPending: true,
     ...overrides
   };
-  Object.assign(globalThis, { viewerState: state, viewerElements: { lightboxImageFrame: { classList } } });
+  Object.assign(globalThis, {
+    AUTO_VIEWER_ZOOM: 1,
+    viewerSessionState: state,
+    viewerViewportState: state,
+    viewerGestureState: state,
+    viewerChromeState: state,
+    viewerImageState: state,
+    viewerNavigationState: state,
+    viewerOnboardingState: state,
+    viewerElements: { lightboxImageFrame: { classList } }
+  });
+  Object.assign(globalThis, importFrontendTestModule(
+    "src/js/17-viewer-state-transitions.js",
+    "viewer-state-transitions"
+  ));
   const api = importFrontendTestModule("src/js/53-viewer-image.js", "viewer-image");
   return { api, state, image, classList, getStopCalls: () => stopCalls };
 }

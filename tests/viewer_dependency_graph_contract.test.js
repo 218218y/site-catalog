@@ -64,6 +64,8 @@ assert.deepEqual(cycles, [], "the frontend ES-module graph must remain acyclic w
 const viewerRootImporters = sourceNames.filter((name) => graph.get(name).has("60-viewer.js"));
 assert.deepEqual(viewerRootImporters, [], "no source module may import the Viewer composition root");
 
+const state = sources.get("16-viewer-state.js");
+const transitions = sources.get("17-viewer-state-transitions.js");
 const sessionState = sources.get("51-viewer-session-state.js");
 const browserSession = sources.get("52-viewer-session.js");
 const image = sources.get("53-viewer-image.js");
@@ -74,10 +76,15 @@ const pageController = sources.get("59-viewer-page-controller.js");
 const viewerRoot = sources.get("60-viewer.js");
 const layoutController = sources.get("61-viewer-layout-controller.js");
 
+assert.doesNotMatch(state, /\bconst viewerState\s*=/);
+assert.match(transitions, /function createViewerNavigationCommand\(/);
+assert.match(transitions, /function beginViewerPageTransitionCommand\(/);
+assert.match(transitions, /function assertViewerStateInvariants\(/);
+assert.doesNotMatch(transitions, /from "\.\/5[1-9]-viewer/);
 assert.match(sessionState, /function transitionViewerPhase\(/);
 assert.match(sessionState, /function transitionViewerFullscreenPhase\(/);
 assert.doesNotMatch(browserSession, /function transitionViewerPhase\(/);
-assert.doesNotMatch(browserSession, /viewerState\.viewerPhase\s*=/);
+assert.doesNotMatch(browserSession, /viewerSessionState\.viewerPhase\s*=/);
 
 assert.doesNotMatch(image, /from "\.\/56-viewer-shell\.js"/);
 assert.doesNotMatch(geometry, /from "\.\/(?:53-viewer-image|56-viewer-shell)\.js"/);

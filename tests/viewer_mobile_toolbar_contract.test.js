@@ -31,7 +31,7 @@ assert.match(viewerSource, /syncMobileSearchUi: \(isOpen\) => viewerElements\.li
 assert.match(searchStateSource, /lightboxMobileSearchToggle: \$requiredButton\("lightboxMobileSearchToggle"\)/);
 assert.match(searchStateSource, /lightboxMobileSearchClose: \$requiredButton\("lightboxMobileSearchClose"\)/);
 assert.match(sharedUiSource, /function handleTopLayerEscape\(event\)[\s\S]*?featureInterfacesByEscapePriority\(\)[\s\S]*?api\.closeTopLayer\(event\)/);
-assert.match(viewerSource, /closeTopLayer: \(event\) => \{[\s\S]*?viewerState\.viewerMobileMoreOpen[\s\S]*?closeViewerMobileMoreMenu\(\{ returnFocus: true \}\)/);
+assert.match(viewerSource, /closeTopLayer: \(event\) => \{[\s\S]*?viewerChromeState\.viewerMobileMoreOpen[\s\S]*?closeViewerMobileMoreMenu\(\{ returnFocus: true \}\)/);
 assert.match(viewerActionsSource, /function setViewerMobileMoreOpen\(open, options = \{\}\)/);
 assert.match(viewerShellSource, /function openTopUiFromHotspot\(event = null\)[\s\S]*?markTouchLikeViewportInput\(event\);[\s\S]*?showTopUiTemporarily\(0\);/);
 assert.match(viewerSource, /viewerElements\.topHotspot\?\.addEventListener\("pointerdown", openTopUiFromHotspot\)/);

@@ -14,7 +14,13 @@ STATE_OWNERS: Mapping[str, str] = {
     "catalogState": "src/js/12-catalog-state.js",
     "searchState": "src/js/13-search-state.js",
     "favoritesState": "src/js/14-favorites-state.js",
-    "viewerState": "src/js/16-viewer-state.js",
+    "viewerSessionState": "src/js/16-viewer-state.js",
+    "viewerViewportState": "src/js/16-viewer-state.js",
+    "viewerGestureState": "src/js/16-viewer-state.js",
+    "viewerChromeState": "src/js/16-viewer-state.js",
+    "viewerImageState": "src/js/16-viewer-state.js",
+    "viewerNavigationState": "src/js/16-viewer-state.js",
+    "viewerOnboardingState": "src/js/16-viewer-state.js",
     "inquiryState": "src/js/32-shared-inquiry.js",
 }
 ELEMENT_OWNERS: Mapping[str, str] = {
@@ -45,22 +51,55 @@ DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
     "favoritesElements": ("src/js/14-favorites-state.js", "src/js/30-favorites-share.js", "src/js/35-favorites-workspace.js"),
     "inquiryState": ("src/js/32-shared-inquiry.js",),
     "inquiryElements": ("src/js/32-shared-inquiry.js",),
-    "viewerState": (
+    "viewerSessionState": (
         "src/js/16-viewer-state.js",
+        "src/js/17-viewer-state-transitions.js",
         "src/js/51-viewer-session-state.js",
         "src/js/52-viewer-session.js",
+    ),
+    "viewerViewportState": (
+        "src/js/16-viewer-state.js",
+        "src/js/17-viewer-state-transitions.js",
         "src/js/53-viewer-image.js",
         "src/js/54-viewer-geometry.js",
         "src/js/55-viewer-zoom-controller.js",
         "src/js/56-viewer-shell.js",
         "src/js/57-viewer-fit-controller.js",
-        "src/js/58-viewer-navigation.js",
         "src/js/59-viewer-page-controller.js",
+        "src/js/60-viewer.js",
+        "src/js/61-viewer-layout-controller.js",
+        "src/js/70-viewer-input.js",
+    ),
+    "viewerGestureState": (
+        "src/js/16-viewer-state.js",
+        "src/js/17-viewer-state-transitions.js",
+        "src/js/54-viewer-geometry.js",
+        "src/js/70-viewer-input.js",
+    ),
+    "viewerChromeState": (
+        "src/js/16-viewer-state.js",
+        "src/js/56-viewer-shell.js",
         "src/js/60-viewer.js",
         "src/js/61-viewer-layout-controller.js",
         "src/js/62-viewer-actions.js",
         "src/js/65-viewer-onboarding.js",
-        "src/js/70-viewer-input.js",
+    ),
+    "viewerImageState": (
+        "src/js/16-viewer-state.js",
+        "src/js/17-viewer-state-transitions.js",
+        "src/js/53-viewer-image.js",
+        "src/js/60-viewer.js",
+    ),
+    "viewerNavigationState": (
+        "src/js/16-viewer-state.js",
+        "src/js/17-viewer-state-transitions.js",
+        "src/js/58-viewer-navigation.js",
+    ),
+    "viewerOnboardingState": (
+        "src/js/16-viewer-state.js",
+        "src/js/56-viewer-shell.js",
+        "src/js/60-viewer.js",
+        "src/js/65-viewer-onboarding.js",
     ),
     "viewerElements": (
         "src/js/16-viewer-state.js",
@@ -660,6 +699,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             ),
             "forbidden": (
                 "src/js/16-viewer-state.js",
+                "src/js/17-viewer-state-transitions.js",
                 "src/js/31-viewer-share.js",
                 "src/js/51-viewer-session-state.js",
                 "src/js/52-viewer-session.js",
@@ -687,6 +727,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             ),
             "forbidden": (
                 "src/js/16-viewer-state.js",
+                "src/js/17-viewer-state-transitions.js",
                 "src/js/31-viewer-share.js",
                 "src/js/51-viewer-session-state.js",
                 "src/js/52-viewer-session.js",
@@ -707,6 +748,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         "app-viewer.js": {
             "required": (
                 "src/js/16-viewer-state.js",
+                "src/js/17-viewer-state-transitions.js",
                 "src/js/31-viewer-share.js",
                 "src/js/32-shared-inquiry.js",
                 "src/js/35-favorites-workspace.js",
@@ -733,6 +775,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             "required": ("src/entries/payment.js",),
             "forbidden": (
                 "src/js/16-viewer-state.js",
+                "src/js/17-viewer-state-transitions.js",
                 "src/js/35-favorites-workspace.js",
                 "src/js/40-catalog-grid.js",
                 "src/js/60-viewer.js",
@@ -770,7 +813,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
             )
 
     search_source = (base / "src/js/50-search-ui.js").read_text(encoding="utf-8")
-    if re.search(r"\b(?:viewerState|viewerElements)\b", search_source):
+    if re.search(r"\b(?:viewer(?:Session|Viewport|Gesture|Chrome|Image|Navigation|Onboarding)State|viewerElements)\b", search_source):
         failures.append("Search implementation reaches into Viewer internals instead of the feature interface")
 
     for path in sources:

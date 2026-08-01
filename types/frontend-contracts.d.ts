@@ -88,7 +88,13 @@ export type FavoritesState = {
     favoriteNoteEditingKey: string;
     favoriteNoteReturnFocus: HTMLElement | null;
 };
-export type ViewerState = {
+export type ViewerSessionState = {
+    viewerPhase: string;
+    viewerPhaseReason: string;
+    viewerFullscreenPhase: string;
+    viewerFullscreenReason: string;
+};
+export type ViewerViewportState = {
     zoom: number;
     fitScale: number;
     imageFitMode: string;
@@ -98,6 +104,8 @@ export type ViewerState = {
     singleImagePendingPageTurnOrigin: ViewerPageTurnOrigin | null;
     panX: number;
     panY: number;
+};
+export type ViewerGestureState = {
     dragStartX: number;
     dragStartY: number;
     dragStartPanX: number;
@@ -118,10 +126,8 @@ export type ViewerState = {
     viewerTouchMomentumVelocityX: number;
     viewerTouchMomentumVelocityY: number;
     viewerTouchMomentumLastTime: number;
-    viewerPhase: string;
-    viewerPhaseReason: string;
-    viewerFullscreenPhase: string;
-    viewerFullscreenReason: string;
+};
+export type ViewerChromeState = {
     topUiPinned: boolean;
     uiHideTimer: number;
     pageRailHideTimer: number;
@@ -130,6 +136,8 @@ export type ViewerState = {
     zoomIndicatorHideTimer: number;
     pageIndicatorHideTimer: number;
     viewerMobileMoreOpen: boolean;
+};
+export type ViewerImageState = {
     singleImageLoadToken: number;
     singleImageAnimationTimer: number;
     singleImageResolutionLoadToken: number;
@@ -141,6 +149,8 @@ export type ViewerState = {
     singleImageResolutionVisible: boolean;
     singleImageResolutionCommitPending: boolean;
     singleImageResolutionRetainedForSwap: boolean;
+};
+export type ViewerNavigationState = {
     viewerPageWheelAccumulator: number;
     viewerPageWheelBasePage: number;
     viewerPageWheelTargetPage: number;
@@ -149,6 +159,8 @@ export type ViewerState = {
     viewerPageWheelResetLastEventAt: number;
     viewerPageWheelResetLastDelta: number;
     viewerPageWheelResetDirection: number;
+};
+export type ViewerOnboardingState = {
     viewerOnboardingOpen: boolean;
     viewerOnboardingShownThisSession: boolean;
     viewerOnboardingStep: number;
@@ -165,8 +177,8 @@ export type ViewerRelativePosition = {
 };
 export type ViewerPageTurnOrigin = {
     page: number;
-    direction: number;
-    axis: string;
+    direction: -1 | 1;
+    axis: "x" | "y";
 };
 export type ViewerPointerPoint = {
     x: number;
@@ -248,9 +260,6 @@ export type ViewerPanBoundsOptions = {
 };
 export type ViewerGeometryResetOptions = {
     queueSingleFitOrigin?: boolean;
-    keepZoom?: boolean;
-    resetZoom?: boolean;
-    resetPosition?: boolean;
 };
 export type ViewerFrameGeometryOptions = {
     updateFitScale?: boolean;
@@ -448,15 +457,35 @@ export type ViewerRefreshOptions = {
     thumbScrollIntoView?: boolean;
     preserveCurrentImage?: boolean;
 };
+export type ViewerNavigationSource = "button" | "continuous-reading" | "keyboard" | "home-end" | "page-rail" | "programmatic" | "horizontal-swipe" | "vertical-swipe" | "wheel" | "boundary-pan" | "momentum";
+export type ViewerNavigationCommand = Readonly<{
+    source: ViewerNavigationSource;
+    direction: -1 | 0 | 1;
+    axis: "x" | "y";
+    zoomMode: "preserve" | "reset";
+    positionMode: "relative" | "page-turn" | "fit-origin";
+    preservePointerInteraction: boolean;
+}>;
 export type ViewerSetPageOptions = {
     thumbScrollIntoView?: boolean;
-    keepZoom?: boolean;
-    resetZoom?: boolean;
-    resetPosition?: boolean;
-    positionMode?: string;
-    pageTurnDirection?: number;
-    pageTurnAxis?: string;
-    preservePointerInteraction?: boolean;
+    navigationCommand?: ViewerNavigationCommand;
+    navigationSource?: ViewerNavigationSource;
+};
+export type ViewerStateInvariantSnapshot = {
+    phase: string;
+    pointerCount: number;
+    momentumActive: boolean;
+    pendingViewportModes: number;
+    resolution: {
+        hasImage: boolean;
+        hasTarget: boolean;
+        hasTier: boolean;
+        ready: boolean;
+        visible: boolean;
+        commitPending: boolean;
+        retainedForSwap: boolean;
+        loading: boolean;
+    };
 };
 export type InquiryTelemetry = {
     source?: string;

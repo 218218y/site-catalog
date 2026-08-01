@@ -9,7 +9,7 @@
 
 /** @import { PointLike, ViewerZoomChangeOptions, ViewerZoomOptions } from "../../types/frontend-contracts.js" */
 
-import { AUTO_VIEWER_ZOOM, viewerElements, viewerState } from "./16-viewer-state.js";
+import { AUTO_VIEWER_ZOOM, viewerElements, viewerViewportState } from "./16-viewer-state.js";
 import {
   refreshSingleViewerImageResolution,
   shouldWarmSingleViewerFullResolution
@@ -51,11 +51,11 @@ function adjustSinglePanForZoom(nextZoom, focal) {
   const currentZoom = getSafeViewerZoom();
   const centerX = rect.left + rect.width / 2;
   const centerY = rect.top + rect.height / 2;
-  const contentX = (focal.x - centerX - viewerState.panX) / currentZoom;
-  const contentY = (focal.y - centerY - viewerState.panY) / currentZoom;
+  const contentX = (focal.x - centerX - viewerViewportState.panX) / currentZoom;
+  const contentY = (focal.y - centerY - viewerViewportState.panY) / currentZoom;
 
-  viewerState.panX = focal.x - centerX - contentX * nextZoom;
-  viewerState.panY = focal.y - centerY - contentY * nextZoom;
+  viewerViewportState.panX = focal.x - centerX - contentX * nextZoom;
+  viewerViewportState.panY = focal.y - centerY - contentY * nextZoom;
 }
 
 /** @param {number} clientX @param {number} clientY @returns {PointLike|null} */
@@ -69,8 +69,8 @@ function getSingleContentPointFromClientPoint(clientX, clientY) {
   const centerY = rect.top + rect.height / 2;
 
   return {
-    x: (clientX - centerX - viewerState.panX) / currentZoom,
-    y: (clientY - centerY - viewerState.panY) / currentZoom
+    x: (clientX - centerX - viewerViewportState.panX) / currentZoom,
+    y: (clientY - centerY - viewerViewportState.panY) / currentZoom
   };
 }
 
@@ -80,8 +80,8 @@ function finalizeSingleViewerZoomChange(previousZoom, options = {}) {
   applyZoom();
   syncViewerAutoZoomButtonUi();
 
-  if (Math.abs(getSafeViewerZoom(viewerState.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
-    showViewerZoomIndicator(viewerState.zoom);
+  if (Math.abs(getSafeViewerZoom(viewerViewportState.zoom) - getSafeViewerZoom(previousZoom)) > 0.001) {
+    showViewerZoomIndicator(viewerViewportState.zoom);
   }
   refreshSingleViewerImageResolution({
     warmFull: shouldWarmSingleViewerFullResolution(previousZoom)
@@ -92,7 +92,7 @@ function finalizeSingleViewerZoomChange(previousZoom, options = {}) {
 /** @param {PointLike|null} point @param {number} nextZoom */
 function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   if (!point) return false;
-  const previousZoom = viewerState.zoom;
+  const previousZoom = viewerViewportState.zoom;
   const zoom = clampViewerZoom(nextZoom);
   if (isAutoViewerZoom(zoom)) {
     setZoom(AUTO_VIEWER_ZOOM, { showUi: false });
@@ -100,9 +100,9 @@ function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   }
 
   clearSingleImagePendingPosition();
-  viewerState.zoom = zoom;
-  viewerState.panX = -point.x * zoom;
-  viewerState.panY = -point.y * zoom;
+  viewerViewportState.zoom = zoom;
+  viewerViewportState.panX = -point.x * zoom;
+  viewerViewportState.panY = -point.y * zoom;
   finalizeSingleViewerZoomChange(previousZoom, { showUi: false });
   return true;
 }
@@ -122,7 +122,7 @@ function setZoom(nextZoom, options = {}) {
     focalClientX = null,
     focalClientY = null
   } = options;
-  const previousZoom = viewerState.zoom;
+  const previousZoom = viewerViewportState.zoom;
   const zoom = clampViewerZoom(nextZoom);
   const hasFocal = typeof focalClientX === "number" && Number.isFinite(focalClientX)
     && typeof focalClientY === "number" && Number.isFinite(focalClientY);
@@ -131,14 +131,14 @@ function setZoom(nextZoom, options = {}) {
     : getDefaultZoomFocalPoint();
 
   if (isAutoViewerZoom(zoom)) {
-    viewerState.zoom = AUTO_VIEWER_ZOOM;
+    viewerViewportState.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: true });
   } else {
     clearSingleImagePendingPosition();
     if (focal && Math.abs(zoom - previousZoom) > 0.001) {
       adjustSinglePanForZoom(zoom, focal);
     }
-    viewerState.zoom = zoom;
+    viewerViewportState.zoom = zoom;
   }
   finalizeSingleViewerZoomChange(previousZoom, { showUi });
 }

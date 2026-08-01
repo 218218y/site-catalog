@@ -18,6 +18,7 @@
  *   - src/js/15-telemetry.js
  *   - src/js/16-viewer-state.js
  *   - src/js/17-catalog-asset-urls.js
+ *   - src/js/17-viewer-state-transitions.js
  *   - src/js/18-navigation-feature.js
  *   - src/js/19-shared-pure.js
  *   - src/js/20-shared-ui.js
@@ -1949,8 +1950,13 @@ registerFeatureInterface("favorites", {
 });
 
 // src/js/16-viewer-state.js
-var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FIT_HEIGHT = "height", VIEWER_FIT_WIDTH = "width", VIEWER_FIT_SOURCE_AUTO = "auto", VIEWER_FIT_SOURCE_MANUAL = "manual", VIEWER_PHASE_CLOSED = "closed", VIEWER_PHASE_OPENING = "opening", VIEWER_PHASE_OPEN = "open", VIEWER_PHASE_CLOSING = "closing", VIEWER_FULLSCREEN_INACTIVE = "inactive", VIEWER_FULLSCREEN_ENTERING = "entering", VIEWER_FULLSCREEN_ACTIVE = "active", VIEWER_FULLSCREEN_EXITING = "exiting", VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON = 0.01, VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2", DOUBLE_TAP_DELAY = 320, DOUBLE_TAP_DISTANCE = 34, TAP_MOVE_TOLERANCE = 14, VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46, VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35, VIEWER_ZOOM_INDICATOR_HIDE_MS = 760, VIEWER_PAGE_INDICATOR_HIDE_MS = 1e3, VIEWER_PAGE_SWAP_CLEANUP_MS = 240, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100, VIEWER_PAGE_WHEEL_SETTLE_MS = 150, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS = 48, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO = 1.4, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36, VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144, VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330, VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0.08, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS = 2.6, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 48e-4, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS = 34, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS = 80, VIEWER_TOUCH_VELOCITY_BLEND = 0.45, viewerState = {
-  zoom: 1,
+var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FIT_HEIGHT = "height", VIEWER_FIT_WIDTH = "width", VIEWER_FIT_SOURCE_AUTO = "auto", VIEWER_FIT_SOURCE_MANUAL = "manual", VIEWER_PHASE_CLOSED = "closed", VIEWER_PHASE_OPENING = "opening", VIEWER_PHASE_OPEN = "open", VIEWER_PHASE_CLOSING = "closing", VIEWER_FULLSCREEN_INACTIVE = "inactive", VIEWER_FULLSCREEN_ENTERING = "entering", VIEWER_FULLSCREEN_ACTIVE = "active", VIEWER_FULLSCREEN_EXITING = "exiting", VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON = 0.01, VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2", DOUBLE_TAP_DELAY = 320, DOUBLE_TAP_DISTANCE = 34, TAP_MOVE_TOLERANCE = 14, VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46, VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35, VIEWER_ZOOM_INDICATOR_HIDE_MS = 760, VIEWER_PAGE_INDICATOR_HIDE_MS = 1e3, VIEWER_PAGE_SWAP_CLEANUP_MS = 240, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100, VIEWER_PAGE_WHEEL_SETTLE_MS = 150, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS = 48, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO = 1.4, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36, VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144, VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330, VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0.08, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS = 2.6, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 48e-4, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS = 34, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS = 80, VIEWER_TOUCH_VELOCITY_BLEND = 0.45, viewerSessionState = {
+  viewerPhase: VIEWER_PHASE_CLOSED,
+  viewerPhaseReason: "initial",
+  viewerFullscreenPhase: VIEWER_FULLSCREEN_INACTIVE,
+  viewerFullscreenReason: "initial"
+}, viewerViewportState = {
+  zoom: AUTO_VIEWER_ZOOM,
   fitScale: 1,
   imageFitMode: VIEWER_FIT_HEIGHT,
   imageFitModeSource: VIEWER_FIT_SOURCE_AUTO,
@@ -1958,7 +1964,8 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   singleImagePendingRelativePosition: null,
   singleImagePendingPageTurnOrigin: null,
   panX: 0,
-  panY: 0,
+  panY: 0
+}, viewerGestureState = {
   dragStartX: 0,
   dragStartY: 0,
   dragStartPanX: 0,
@@ -1969,7 +1976,7 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   lastTapSurface: "",
   suppressNextDblClickUntil: 0,
   pinchStartDistance: 0,
-  pinchStartZoom: 1,
+  pinchStartZoom: AUTO_VIEWER_ZOOM,
   pinchLastMidX: 0,
   pinchLastMidY: 0,
   pointerGestureHadMultiplePointers: !1,
@@ -1978,11 +1985,8 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   viewerTouchMomentumRaf: 0,
   viewerTouchMomentumVelocityX: 0,
   viewerTouchMomentumVelocityY: 0,
-  viewerTouchMomentumLastTime: 0,
-  viewerPhase: VIEWER_PHASE_CLOSED,
-  viewerPhaseReason: "initial",
-  viewerFullscreenPhase: VIEWER_FULLSCREEN_INACTIVE,
-  viewerFullscreenReason: "initial",
+  viewerTouchMomentumLastTime: 0
+}, viewerChromeState = {
   topUiPinned: !1,
   uiHideTimer: 0,
   pageRailHideTimer: 0,
@@ -1990,7 +1994,8 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   lastTouchLikeRailInputAt: 0,
   zoomIndicatorHideTimer: 0,
   pageIndicatorHideTimer: 0,
-  viewerMobileMoreOpen: !1,
+  viewerMobileMoreOpen: !1
+}, viewerImageState = {
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
   singleImageResolutionLoadToken: 0,
@@ -2001,7 +2006,8 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   singleImageResolutionReady: !1,
   singleImageResolutionVisible: !1,
   singleImageResolutionCommitPending: !1,
-  singleImageResolutionRetainedForSwap: !1,
+  singleImageResolutionRetainedForSwap: !1
+}, viewerNavigationState = {
   viewerPageWheelAccumulator: 0,
   viewerPageWheelBasePage: 0,
   viewerPageWheelTargetPage: 0,
@@ -2009,7 +2015,8 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
   viewerPageWheelResetGestureActive: !1,
   viewerPageWheelResetLastEventAt: 0,
   viewerPageWheelResetLastDelta: 0,
-  viewerPageWheelResetDirection: 0,
+  viewerPageWheelResetDirection: 0
+}, viewerOnboardingState = {
   viewerOnboardingOpen: !1,
   viewerOnboardingShownThisSession: !1,
   viewerOnboardingStep: 0,
@@ -4164,6 +4171,210 @@ registerFeatureInterface("catalog-detail", {
   closeTopLayer: () => catalogElements.catalogMenu.classList.contains("hidden") ? !1 : (closeDetailCatalogMenu(), !0)
 });
 
+// src/js/17-viewer-state-transitions.js
+var VIEWER_NAVIGATION_SOURCE_BUTTON = "button", VIEWER_NAVIGATION_SOURCE_KEYBOARD = "keyboard", VIEWER_NAVIGATION_SOURCE_HOME_END = "home-end", VIEWER_NAVIGATION_SOURCE_PAGE_RAIL = "page-rail", VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC = "programmatic", VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE = "horizontal-swipe", VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING = "continuous-reading", VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE = "vertical-swipe", VIEWER_NAVIGATION_SOURCE_WHEEL = "wheel", VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN = "boundary-pan", VIEWER_NAVIGATION_SOURCE_MOMENTUM = "momentum", DIRECT_NAVIGATION_SOURCES = /* @__PURE__ */ new Set([
+  VIEWER_NAVIGATION_SOURCE_BUTTON,
+  VIEWER_NAVIGATION_SOURCE_KEYBOARD,
+  VIEWER_NAVIGATION_SOURCE_HOME_END,
+  VIEWER_NAVIGATION_SOURCE_PAGE_RAIL,
+  VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC
+]), RESETTABLE_READING_SOURCES = /* @__PURE__ */ new Set([
+  VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE,
+  VIEWER_NAVIGATION_SOURCE_WHEEL,
+  VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN,
+  VIEWER_NAVIGATION_SOURCE_MOMENTUM
+]), VIEWER_NAVIGATION_SOURCES = /* @__PURE__ */ new Set([
+  ...DIRECT_NAVIGATION_SOURCES,
+  ...RESETTABLE_READING_SOURCES,
+  VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING,
+  VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE
+]), VIEWER_NAVIGATION_POSITION_MODES = /* @__PURE__ */ new Set(["relative", "page-turn", "fit-origin"]), VIEWER_NAVIGATION_ZOOM_MODES = /* @__PURE__ */ new Set(["preserve", "reset"]);
+function viewerInvariant(condition, message, context) {
+  if (!condition)
+    throw new Error(`Viewer state invariant failed (${context}): ${message}`);
+}
+function captureViewerStateInvariantSnapshot() {
+  return viewerInvariant(viewerGestureState.pointers instanceof Map, "gesture pointers are not Map-owned", "capture-state"), {
+    phase: viewerSessionState.viewerPhase,
+    pointerCount: viewerGestureState.pointers.size,
+    momentumActive: !!(viewerGestureState.viewerTouchMomentumRaf || viewerGestureState.viewerTouchMomentumVelocityX || viewerGestureState.viewerTouchMomentumVelocityY || viewerGestureState.viewerTouchMomentumLastTime),
+    pendingViewportModes: [
+      viewerViewportState.singleImageFitOriginPending,
+      !!viewerViewportState.singleImagePendingRelativePosition,
+      !!viewerViewportState.singleImagePendingPageTurnOrigin
+    ].filter(Boolean).length,
+    resolution: {
+      hasImage: !!viewerImageState.singleImageResolutionImage,
+      hasTarget: !!viewerImageState.singleImageResolutionTargetSrc,
+      hasTier: !!viewerImageState.singleImageResolutionTargetTier,
+      ready: viewerImageState.singleImageResolutionReady,
+      visible: viewerImageState.singleImageResolutionVisible,
+      commitPending: viewerImageState.singleImageResolutionCommitPending,
+      retainedForSwap: viewerImageState.singleImageResolutionRetainedForSwap,
+      loading: !!viewerImageState.singleImageResolutionStop
+    }
+  };
+}
+function assertViewerStateInvariants(context = "unspecified") {
+  let snapshot = captureViewerStateInvariantSnapshot();
+  if (viewerInvariant(Number.isFinite(viewerViewportState.zoom) && viewerViewportState.zoom > 0, "viewport zoom is invalid", context), viewerInvariant(Number.isFinite(viewerViewportState.fitScale) && viewerViewportState.fitScale > 0, "viewport fit scale is invalid", context), viewerInvariant(Number.isFinite(viewerViewportState.panX) && Number.isFinite(viewerViewportState.panY), "viewport pan is not finite", context), viewerInvariant(snapshot.pendingViewportModes <= 1, "viewport has multiple pending position modes", context), viewerViewportState.singleImagePendingRelativePosition) {
+    let pending = viewerViewportState.singleImagePendingRelativePosition;
+    viewerInvariant(Number.isInteger(pending.page) && pending.page >= 0, "relative viewport target page is invalid", context), viewerInvariant(Number.isFinite(pending.xRatio) && Number.isFinite(pending.yRatio), "relative viewport ratios are not finite", context), viewerInvariant(Math.abs(pending.xRatio) <= 1 && Math.abs(pending.yRatio) <= 1, "relative viewport ratios exceed normalized bounds", context);
+  }
+  if (viewerViewportState.singleImagePendingPageTurnOrigin) {
+    let pending = viewerViewportState.singleImagePendingPageTurnOrigin;
+    viewerInvariant(Number.isInteger(pending.page) && pending.page >= 0, "page-turn target page is invalid", context), viewerInvariant(pending.axis === "x" || pending.axis === "y", "page-turn axis is invalid", context), viewerInvariant(pending.direction === -1 || pending.direction === 1, "page-turn direction is invalid", context);
+  }
+  viewerInvariant(
+    Number.isFinite(viewerGestureState.viewerTouchMomentumVelocityX) && Number.isFinite(viewerGestureState.viewerTouchMomentumVelocityY) && Number.isFinite(viewerGestureState.viewerTouchMomentumLastTime),
+    "touch momentum contains non-finite values",
+    context
+  ), viewerInvariant(!(snapshot.momentumActive && snapshot.pointerCount > 0), "touch momentum and active pointers overlap", context), snapshot.phase === "closed" && (viewerInvariant(snapshot.pointerCount === 0, "closed session retains active pointers", context), viewerInvariant(!snapshot.momentumActive, "closed session retains touch momentum", context)), viewerInvariant(
+    Number.isInteger(viewerImageState.singleImageLoadToken) && viewerImageState.singleImageLoadToken >= 0,
+    "image swap token is invalid",
+    context
+  ), viewerInvariant(
+    Number.isInteger(viewerImageState.singleImageResolutionLoadToken) && viewerImageState.singleImageResolutionLoadToken >= 0,
+    "resolution token is invalid",
+    context
+  );
+  let resolution = snapshot.resolution;
+  return snapshot.phase === "closed" && viewerInvariant(
+    !resolution.hasTarget && !resolution.ready && !resolution.visible && !resolution.commitPending && !resolution.retainedForSwap && !resolution.loading,
+    "closed session retains an active resolution lifecycle",
+    context
+  ), viewerInvariant(resolution.hasTarget === resolution.hasTier, "resolution target source/tier ownership diverged", context), (resolution.ready || resolution.visible || resolution.commitPending || resolution.loading) && (viewerInvariant(resolution.hasTarget, "active resolution lifecycle has no target", context), viewerInvariant(resolution.hasImage, "active resolution lifecycle has no image layer", context)), resolution.visible && viewerInvariant(resolution.ready, "visible resolution layer is not ready", context), resolution.retainedForSwap && (viewerInvariant(resolution.hasImage, "retained resolution layer has no image", context), viewerInvariant(!resolution.hasTarget, "retained resolution layer still owns a target", context), viewerInvariant(
+    !resolution.ready && !resolution.visible && !resolution.commitPending && !resolution.loading,
+    "retained resolution layer overlaps an active resolution request",
+    context
+  )), snapshot;
+}
+function clearViewerPendingViewportPosition() {
+  viewerViewportState.singleImageFitOriginPending = !1, viewerViewportState.singleImagePendingRelativePosition = null, viewerViewportState.singleImagePendingPageTurnOrigin = null;
+}
+function resetViewerGestureCommand(options = {}) {
+  options.clearPointers !== !1 && viewerGestureState.pointers.clear(), viewerGestureState.dragStartX = 0, viewerGestureState.dragStartY = 0, viewerGestureState.dragStartPanX = 0, viewerGestureState.dragStartPanY = 0, viewerGestureState.pinchStartDistance = 0, viewerGestureState.pinchStartZoom = AUTO_VIEWER_ZOOM, viewerGestureState.pinchLastMidX = 0, viewerGestureState.pinchLastMidY = 0, viewerGestureState.pointerGestureHadMultiplePointers = !1, viewerGestureState.pointerGestureConsumedPan = !1, options.clearTapHistory && (viewerGestureState.lastTapAt = 0, viewerGestureState.lastTapX = 0, viewerGestureState.lastTapY = 0, viewerGestureState.lastTapSurface = "", viewerGestureState.suppressNextDblClickUntil = 0);
+}
+function resetViewerNavigationGestureCommand() {
+  viewerNavigationState.viewerPageWheelSettleTimer = 0, viewerNavigationState.viewerPageWheelAccumulator = 0, viewerNavigationState.viewerPageWheelBasePage = 0, viewerNavigationState.viewerPageWheelTargetPage = 0, viewerNavigationState.viewerPageWheelResetGestureActive = !1, viewerNavigationState.viewerPageWheelResetLastEventAt = 0, viewerNavigationState.viewerPageWheelResetLastDelta = 0, viewerNavigationState.viewerPageWheelResetDirection = 0;
+}
+function initializeViewerOpenStateCommand() {
+  viewerViewportState.zoom = AUTO_VIEWER_ZOOM, viewerViewportState.panX = 0, viewerViewportState.panY = 0, clearViewerPendingViewportPosition(), viewerViewportState.singleImageFitOriginPending = !0, resetViewerGestureCommand({ clearTapHistory: !0 }), resetViewerNavigationGestureCommand(), assertViewerStateInvariants("initialize-viewer-open");
+}
+function finalizeViewerClosedStateCommand() {
+  clearViewerPendingViewportPosition(), resetViewerGestureCommand({ clearTapHistory: !0 }), resetViewerNavigationGestureCommand(), assertViewerStateInvariants("finalize-viewer-closed");
+}
+function createViewerNavigationCommand(source, direction, options = {}) {
+  if (!VIEWER_NAVIGATION_SOURCES.has(source))
+    throw new TypeError(`Unknown Viewer navigation source: ${String(source)}`);
+  if (!Number.isFinite(direction))
+    throw new TypeError("Viewer navigation direction must be finite.");
+  if (options.axis !== void 0 && options.axis !== "x" && options.axis !== "y")
+    throw new TypeError(`Invalid Viewer navigation axis: ${String(options.axis)}`);
+  if (options.manualZoom !== void 0 && typeof options.manualZoom != "boolean")
+    throw new TypeError("Viewer navigation manualZoom must be boolean when provided.");
+  if (options.preservePointerInteraction !== void 0 && typeof options.preservePointerInteraction != "boolean")
+    throw new TypeError("Viewer navigation preservePointerInteraction must be boolean when provided.");
+  let step = direction > 0 ? 1 : direction < 0 ? -1 : 0, axis = source === VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE ? "x" : options.axis || "y", preservePointerInteraction = options.preservePointerInteraction === !0, manualZoom = options.manualZoom ?? Math.abs(viewerViewportState.zoom - AUTO_VIEWER_ZOOM) > 1e-3;
+  return source === VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE ? Object.freeze({ source, direction: step, axis, zoomMode: "preserve", positionMode: "page-turn", preservePointerInteraction }) : source === VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING ? Object.freeze({ source, direction: step, axis, zoomMode: "preserve", positionMode: "page-turn", preservePointerInteraction }) : RESETTABLE_READING_SOURCES.has(source) ? Object.freeze(manualZoom ? { source, direction: step, axis, zoomMode: "reset", positionMode: "fit-origin", preservePointerInteraction } : { source, direction: step, axis, zoomMode: "preserve", positionMode: "page-turn", preservePointerInteraction }) : Object.freeze(manualZoom ? { source, direction: step, axis, zoomMode: "preserve", positionMode: "relative", preservePointerInteraction } : { source, direction: step, axis, zoomMode: "preserve", positionMode: "fit-origin", preservePointerInteraction });
+}
+function assertViewerNavigationCommand(command) {
+  if (viewerInvariant(!!(command && typeof command == "object"), "navigation command is missing", "navigation-command"), viewerInvariant(VIEWER_NAVIGATION_SOURCES.has(command.source), "navigation source is invalid", "navigation-command"), viewerInvariant(
+    command.direction === -1 || command.direction === 0 || command.direction === 1,
+    "navigation direction is not normalized",
+    "navigation-command"
+  ), viewerInvariant(command.axis === "x" || command.axis === "y", "navigation axis is invalid", "navigation-command"), viewerInvariant(VIEWER_NAVIGATION_ZOOM_MODES.has(command.zoomMode), "navigation zoom mode is invalid", "navigation-command"), viewerInvariant(VIEWER_NAVIGATION_POSITION_MODES.has(command.positionMode), "navigation position mode is invalid", "navigation-command"), viewerInvariant(typeof command.preservePointerInteraction == "boolean", "pointer preservation flag is invalid", "navigation-command"), command.positionMode === "page-turn" && viewerInvariant(command.direction === -1 || command.direction === 1, "page-turn direction must be non-zero", "navigation-command"), command.source === VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE)
+    viewerInvariant(
+      command.axis === "x" && command.zoomMode === "preserve" && command.positionMode === "page-turn",
+      "horizontal swipe policy was overridden",
+      "navigation-command"
+    );
+  else if (command.source === VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING)
+    viewerInvariant(
+      command.zoomMode === "preserve" && command.positionMode === "page-turn",
+      "continuous-reading policy was overridden",
+      "navigation-command"
+    );
+  else if (RESETTABLE_READING_SOURCES.has(command.source)) {
+    let preservesAutomaticReading = command.zoomMode === "preserve" && command.positionMode === "page-turn", resetsManualReading = command.zoomMode === "reset" && command.positionMode === "fit-origin";
+    viewerInvariant(
+      preservesAutomaticReading || resetsManualReading,
+      "scroll navigation policy was overridden",
+      "navigation-command"
+    );
+  } else
+    viewerInvariant(
+      command.zoomMode === "preserve" && (command.positionMode === "relative" || command.positionMode === "fit-origin"),
+      "direct navigation policy was overridden",
+      "navigation-command"
+    );
+  return command;
+}
+function beginViewerPageTransitionCommand(targetPage, command, relativePosition = null) {
+  if (!Number.isInteger(targetPage) || targetPage < 0)
+    throw new TypeError("Viewer page transition requires a non-negative integer target.");
+  let nextPage = targetPage;
+  assertViewerNavigationCommand(command);
+  let normalizedRelativePosition = null;
+  if (command.positionMode === "relative") {
+    if (!relativePosition || !Number.isFinite(relativePosition.xRatio) || !Number.isFinite(relativePosition.yRatio))
+      throw new TypeError("Relative Viewer navigation requires finite position ratios.");
+    normalizedRelativePosition = {
+      page: nextPage,
+      xRatio: Math.max(-1, Math.min(1, relativePosition.xRatio)),
+      yRatio: Math.max(-1, Math.min(1, relativePosition.yRatio))
+    };
+  }
+  clearViewerPendingViewportPosition(), command.zoomMode === "reset" && (viewerViewportState.zoom = AUTO_VIEWER_ZOOM), command.positionMode === "fit-origin" ? (viewerViewportState.panX = 0, viewerViewportState.panY = 0, viewerViewportState.singleImageFitOriginPending = !0) : command.positionMode === "page-turn" ? (viewerViewportState.panX = 0, viewerViewportState.panY = 0, viewerViewportState.singleImagePendingPageTurnOrigin = {
+    page: nextPage,
+    direction: command.direction > 0 ? 1 : -1,
+    axis: command.axis
+  }) : viewerViewportState.singleImagePendingRelativePosition = normalizedRelativePosition, command.preservePointerInteraction || resetViewerGestureCommand(), assertViewerStateInvariants(`begin-page-transition:${command.source}`);
+}
+function beginViewerImageSwapCommand() {
+  return viewerImageState.singleImageLoadToken += 1, viewerImageState.singleImageLoadToken;
+}
+function invalidateViewerImageSwapCommand() {
+  return viewerImageState.singleImageLoadToken += 1, viewerImageState.singleImageLoadToken;
+}
+function isViewerImageSwapCurrent(token) {
+  return token === viewerImageState.singleImageLoadToken;
+}
+function cancelViewerResolutionCommand() {
+  viewerImageState.singleImageResolutionLoadToken += 1, viewerImageState.singleImageResolutionStop?.(), viewerImageState.singleImageResolutionStop = null, viewerImageState.singleImageResolutionTargetSrc = "", viewerImageState.singleImageResolutionTargetTier = "", viewerImageState.singleImageResolutionReady = !1, viewerImageState.singleImageResolutionVisible = !1, viewerImageState.singleImageResolutionCommitPending = !1, viewerImageState.singleImageResolutionRetainedForSwap = !1, assertViewerStateInvariants("cancel-resolution");
+}
+function beginViewerResolutionCommand(targetSrc, targetTier, commitPending) {
+  if (typeof targetSrc != "string" || typeof targetTier != "string" || typeof commitPending != "boolean")
+    throw new TypeError("Viewer resolution transition requires string targets and a boolean commit policy.");
+  let normalizedTargetSrc = targetSrc.trim(), normalizedTargetTier = targetTier.trim();
+  if (!normalizedTargetSrc || !normalizedTargetTier)
+    throw new TypeError("Viewer resolution transition requires a target source and tier.");
+  cancelViewerResolutionCommand();
+  let token = viewerImageState.singleImageResolutionLoadToken;
+  return viewerImageState.singleImageResolutionTargetSrc = normalizedTargetSrc, viewerImageState.singleImageResolutionTargetTier = normalizedTargetTier, viewerImageState.singleImageResolutionCommitPending = !!commitPending, assertViewerStateInvariants("begin-resolution"), token;
+}
+function attachViewerResolutionStopCommand(token, stop) {
+  if (stop !== null && typeof stop != "function")
+    throw new TypeError("Viewer resolution stop handle must be a function or null.");
+  return token !== viewerImageState.singleImageResolutionLoadToken ? (stop?.(), !1) : (viewerImageState.singleImageResolutionStop = stop, assertViewerStateInvariants("attach-resolution-stop"), !0);
+}
+function markViewerResolutionReadyCommand(token) {
+  return token !== viewerImageState.singleImageResolutionLoadToken ? !1 : (viewerImageState.singleImageResolutionStop = null, viewerImageState.singleImageResolutionReady = !0, assertViewerStateInvariants("resolution-ready"), !0);
+}
+function commitViewerResolutionCommand(token) {
+  return token !== viewerImageState.singleImageResolutionLoadToken || !viewerImageState.singleImageResolutionReady ? (token === viewerImageState.singleImageResolutionLoadToken && (viewerImageState.singleImageResolutionCommitPending = !0), !1) : (viewerImageState.singleImageResolutionCommitPending = !1, viewerImageState.singleImageResolutionVisible = !0, assertViewerStateInvariants("resolution-visible"), !0);
+}
+function retainViewerResolutionForSwapCommand() {
+  viewerInvariant(
+    viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionReady && !!viewerImageState.singleImageResolutionImage,
+    "resolution layer cannot be retained before it is visible and ready",
+    "retain-resolution-for-swap"
+  ), viewerImageState.singleImageResolutionLoadToken += 1, viewerImageState.singleImageResolutionStop?.(), viewerImageState.singleImageResolutionStop = null, viewerImageState.singleImageResolutionTargetSrc = "", viewerImageState.singleImageResolutionTargetTier = "", viewerImageState.singleImageResolutionReady = !1, viewerImageState.singleImageResolutionVisible = !1, viewerImageState.singleImageResolutionCommitPending = !1, viewerImageState.singleImageResolutionRetainedForSwap = !0, assertViewerStateInvariants("retain-resolution-for-swap");
+}
+function releaseViewerRetainedResolutionCommand() {
+  return viewerImageState.singleImageResolutionRetainedForSwap ? (viewerImageState.singleImageResolutionRetainedForSwap = !1, assertViewerStateInvariants("release-retained-resolution"), !0) : !1;
+}
+
 // src/js/51-viewer-session-state.js
 var VIEWER_PHASE_TRANSITIONS = Object.freeze({
   [VIEWER_PHASE_CLOSED]: /* @__PURE__ */ new Set([VIEWER_PHASE_CLOSED, VIEWER_PHASE_OPENING]),
@@ -4180,30 +4391,30 @@ function transitionStatePhase({ current, next, transitions, label, reason }) {
   return transitions[current]?.has(next) ? !0 : (console.warn(`Ignored invalid ${label} transition`, { current, next, reason }), !1);
 }
 function transitionViewerPhase(nextPhase, reason = "unspecified") {
-  let currentPhase = viewerState.viewerPhase || VIEWER_PHASE_CLOSED;
+  let currentPhase = viewerSessionState.viewerPhase || VIEWER_PHASE_CLOSED;
   return transitionStatePhase({
     current: currentPhase,
     next: nextPhase,
     transitions: VIEWER_PHASE_TRANSITIONS,
     label: "viewer phase",
     reason
-  }) ? (viewerState.viewerPhase = nextPhase, viewerState.viewerPhaseReason = String(reason || "unspecified"), document.body && (document.body.dataset.viewerPhase = nextPhase), !0) : !1;
+  }) ? (viewerSessionState.viewerPhase = nextPhase, viewerSessionState.viewerPhaseReason = String(reason || "unspecified"), document.body && (document.body.dataset.viewerPhase = nextPhase), !0) : !1;
 }
 function isViewerSessionOpen() {
-  return viewerState.viewerPhase === VIEWER_PHASE_OPENING || viewerState.viewerPhase === VIEWER_PHASE_OPEN;
+  return viewerSessionState.viewerPhase === VIEWER_PHASE_OPENING || viewerSessionState.viewerPhase === VIEWER_PHASE_OPEN;
 }
 function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
-  let currentPhase = viewerState.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
+  let currentPhase = viewerSessionState.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
   return transitionStatePhase({
     current: currentPhase,
     next: nextPhase,
     transitions: VIEWER_FULLSCREEN_TRANSITIONS,
     label: "viewer fullscreen phase",
     reason
-  }) ? (viewerState.viewerFullscreenPhase = nextPhase, viewerState.viewerFullscreenReason = String(reason || "unspecified"), document.documentElement && (document.documentElement.dataset.viewerFullscreenPhase = nextPhase), !0) : !1;
+  }) ? (viewerSessionState.viewerFullscreenPhase = nextPhase, viewerSessionState.viewerFullscreenReason = String(reason || "unspecified"), document.documentElement && (document.documentElement.dataset.viewerFullscreenPhase = nextPhase), !0) : !1;
 }
 function isViewerFullscreenPending() {
-  return viewerState.viewerFullscreenPhase === VIEWER_FULLSCREEN_ENTERING || viewerState.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
+  return viewerSessionState.viewerFullscreenPhase === VIEWER_FULLSCREEN_ENTERING || viewerSessionState.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
 }
 
 // src/js/54-viewer-geometry.js
@@ -4214,7 +4425,7 @@ function updateHash() {
   })), updateDocumentMetadata(catalog);
 }
 function getPointerList() {
-  return Array.from(viewerState.pointers.values());
+  return Array.from(viewerGestureState.pointers.values());
 }
 function pointerDistance(first, second) {
   return Math.hypot(second.x - first.x, second.y - first.y);
@@ -4228,11 +4439,11 @@ function pointerMidpoint(first, second) {
 function getMinimumViewerZoom() {
   return MIN_VIEWER_ZOOM;
 }
-function isAutoViewerZoom(value = viewerState.zoom) {
+function isAutoViewerZoom(value = viewerViewportState.zoom) {
   let numeric = Number(value);
   return Number.isFinite(numeric) && Math.abs(numeric - AUTO_VIEWER_ZOOM) <= 1e-3;
 }
-function getSafeViewerZoom(value = viewerState.zoom) {
+function getSafeViewerZoom(value = viewerViewportState.zoom) {
   let numeric = Number(value);
   return Number.isFinite(numeric) ? clampValue(numeric, getMinimumViewerZoom(), MAX_VIEWER_ZOOM) : AUTO_VIEWER_ZOOM;
 }
@@ -4243,7 +4454,7 @@ function normalizeViewerFitModeSource(source) {
   return source === VIEWER_FIT_SOURCE_AUTO ? VIEWER_FIT_SOURCE_AUTO : VIEWER_FIT_SOURCE_MANUAL;
 }
 function viewerUsesAutomaticFitMode() {
-  return normalizeViewerFitModeSource(viewerState.imageFitModeSource) === VIEWER_FIT_SOURCE_AUTO;
+  return normalizeViewerFitModeSource(viewerViewportState.imageFitModeSource) === VIEWER_FIT_SOURCE_AUTO;
 }
 function getViewerFitViewportSize() {
   let stageWidth = Number(viewerElements.stageCanvas?.clientWidth) || 0, stageHeight = Number(viewerElements.stageCanvas?.clientHeight) || 0;
@@ -4272,7 +4483,7 @@ function getActiveSingleImageNaturalSize() {
 function getSingleImageDisplayMetrics() {
   let naturalSize = getActiveSingleImageNaturalSize(), stage = viewerElements.stageCanvas;
   if (!naturalSize || !stage) return null;
-  let safeZoom = getSafeViewerZoom(), width = naturalSize.width * viewerState.fitScale * safeZoom, height = naturalSize.height * viewerState.fitScale * safeZoom;
+  let safeZoom = getSafeViewerZoom(), width = naturalSize.width * viewerViewportState.fitScale * safeZoom, height = naturalSize.height * viewerViewportState.fitScale * safeZoom;
   return {
     width,
     height,
@@ -4314,55 +4525,34 @@ function getSinglePanBounds(options = {}) {
 }
 function clampSinglePan(options = {}) {
   let bounds = getSinglePanBounds(options);
-  return bounds ? (viewerState.panX = bounds.limitX <= 1 ? 0 : clampValue(viewerState.panX, -bounds.limitX, bounds.limitX), viewerState.panY = bounds.limitY <= 1 ? 0 : clampValue(viewerState.panY, -bounds.limitY, bounds.limitY), bounds) : null;
+  return bounds ? (viewerViewportState.panX = bounds.limitX <= 1 ? 0 : clampValue(viewerViewportState.panX, -bounds.limitX, bounds.limitX), viewerViewportState.panY = bounds.limitY <= 1 ? 0 : clampValue(viewerViewportState.panY, -bounds.limitY, bounds.limitY), bounds) : null;
 }
 function clearSingleImagePendingPosition() {
-  viewerState.singleImageFitOriginPending = !1, viewerState.singleImagePendingRelativePosition = null, viewerState.singleImagePendingPageTurnOrigin = null;
+  viewerViewportState.singleImageFitOriginPending = !1, viewerViewportState.singleImagePendingRelativePosition = null, viewerViewportState.singleImagePendingPageTurnOrigin = null;
 }
 function captureSingleImageRelativePosition() {
   let metrics = getSingleImageDisplayMetrics();
   return metrics ? {
-    xRatio: metrics.overflowX > 1 ? clampValue(viewerState.panX / metrics.overflowX, -1, 1) : 0,
-    yRatio: metrics.overflowY > 1 ? clampValue(viewerState.panY / metrics.overflowY, -1, 1) : 0
+    xRatio: metrics.overflowX > 1 ? clampValue(viewerViewportState.panX / metrics.overflowX, -1, 1) : 0,
+    yRatio: metrics.overflowY > 1 ? clampValue(viewerViewportState.panY / metrics.overflowY, -1, 1) : 0
   } : { xRatio: 0, yRatio: 0 };
 }
-function queueSingleImageRelativePosition(page, position = null) {
-  let nextPage = Number.parseInt(String(page), 10);
-  if (!Number.isFinite(nextPage)) return;
-  let normalized = position || captureSingleImageRelativePosition();
-  viewerState.singleImageFitOriginPending = !1, viewerState.singleImagePendingPageTurnOrigin = null, viewerState.singleImagePendingRelativePosition = {
-    page: nextPage,
-    xRatio: clampValue(Number(normalized.xRatio) || 0, -1, 1),
-    yRatio: clampValue(Number(normalized.yRatio) || 0, -1, 1)
-  };
-}
-function queueSingleImagePageTurnOrigin(page, direction, axis = "y") {
-  let nextPage = Number.parseInt(String(page), 10), step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
-  !Number.isFinite(nextPage) || !step || (viewerState.singleImageFitOriginPending = !1, viewerState.singleImagePendingRelativePosition = null, viewerState.singleImagePendingPageTurnOrigin = {
-    page: nextPage,
-    direction: step,
-    axis: axis === "x" ? "x" : "y"
-  }, viewerState.panX = 0, viewerState.panY = 0);
-}
 function resetImagePosition(options = {}) {
-  viewerState.panX = 0, viewerState.panY = 0, clearSingleImagePendingPosition(), options.queueSingleFitOrigin && (viewerState.singleImageFitOriginPending = !0);
+  viewerViewportState.panX = 0, viewerViewportState.panY = 0, clearSingleImagePendingPosition(), options.queueSingleFitOrigin && (viewerViewportState.singleImageFitOriginPending = !0);
 }
 function applyPendingSingleImagePosition() {
   let metrics = getSingleImageDisplayMetrics();
   if (!metrics) return !1;
-  let pageTurnOrigin = viewerState.singleImagePendingPageTurnOrigin;
+  let pageTurnOrigin = viewerViewportState.singleImagePendingPageTurnOrigin;
   if (pageTurnOrigin?.page === activePage())
-    return viewerState.panX = 0, viewerState.panY = pageTurnOrigin.direction > 0 ? metrics.overflowY : -metrics.overflowY, viewerState.singleImagePendingPageTurnOrigin = null, viewerState.singleImagePendingRelativePosition = null, viewerState.singleImageFitOriginPending = !1, !0;
-  let relativePosition = viewerState.singleImagePendingRelativePosition;
-  return relativePosition?.page === activePage() ? (viewerState.panX = metrics.overflowX * relativePosition.xRatio, viewerState.panY = metrics.overflowY * relativePosition.yRatio, viewerState.singleImagePendingRelativePosition = null, viewerState.singleImagePendingPageTurnOrigin = null, viewerState.singleImageFitOriginPending = !1, !0) : viewerState.singleImageFitOriginPending ? (viewerState.panX = 0, viewerState.panY = 0, viewerState.imageFitMode === VIEWER_FIT_WIDTH && metrics.overflowY > 1 && (viewerState.panY = metrics.overflowY), viewerState.singleImageFitOriginPending = !1, viewerState.singleImagePendingRelativePosition = null, viewerState.singleImagePendingPageTurnOrigin = null, !0) : !1;
-}
-function shouldPreserveSingleManualPosition(options = {}) {
-  return options.keepZoom !== !1 && options.resetZoom !== !0 && options.resetPosition !== !0 && !isAutoViewerZoom();
+    return viewerViewportState.panX = 0, viewerViewportState.panY = pageTurnOrigin.direction > 0 ? metrics.overflowY : -metrics.overflowY, viewerViewportState.singleImagePendingPageTurnOrigin = null, viewerViewportState.singleImagePendingRelativePosition = null, viewerViewportState.singleImageFitOriginPending = !1, !0;
+  let relativePosition = viewerViewportState.singleImagePendingRelativePosition;
+  return relativePosition?.page === activePage() ? (viewerViewportState.panX = metrics.overflowX * relativePosition.xRatio, viewerViewportState.panY = metrics.overflowY * relativePosition.yRatio, viewerViewportState.singleImagePendingRelativePosition = null, viewerViewportState.singleImagePendingPageTurnOrigin = null, viewerViewportState.singleImageFitOriginPending = !1, !0) : viewerViewportState.singleImageFitOriginPending ? (viewerViewportState.panX = 0, viewerViewportState.panY = 0, viewerViewportState.imageFitMode === VIEWER_FIT_WIDTH && metrics.overflowY > 1 && (viewerViewportState.panY = metrics.overflowY), viewerViewportState.singleImageFitOriginPending = !1, viewerViewportState.singleImagePendingRelativePosition = null, viewerViewportState.singleImagePendingPageTurnOrigin = null, !0) : !1;
 }
 function singleImageFitLayout(naturalWidth, naturalHeight) {
   let stage = viewerElements.stageCanvas, width = Number(naturalWidth), height = Number(naturalHeight);
   if (!stage || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
-  let availableWidth = Math.max(260, stage.clientWidth - 18), availableHeight = Math.max(260, stage.clientHeight - 18), widthScale = availableWidth / width, heightScale = availableHeight / height, fitScale = viewerState.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
+  let availableWidth = Math.max(260, stage.clientWidth - 18), availableHeight = Math.max(260, stage.clientHeight - 18), widthScale = availableWidth / width, heightScale = availableHeight / height, fitScale = viewerViewportState.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
   return {
     fitScale,
     width: Math.max(220, Math.round(width * fitScale)),
@@ -4372,7 +4562,7 @@ function singleImageFitLayout(naturalWidth, naturalHeight) {
 function applyLightboxFrameGeometry(naturalWidth, naturalHeight, options = {}) {
   let frame = viewerElements.lightboxImageFrame, image = viewerElements.lightboxImage, layout = singleImageFitLayout(naturalWidth, naturalHeight);
   if (!frame || !image || !layout) return null;
-  options.updateFitScale !== !1 && (viewerState.fitScale = layout.fitScale);
+  options.updateFitScale !== !1 && (viewerViewportState.fitScale = layout.fitScale);
   let nextWidth = `${layout.width}px`, nextHeight = `${layout.height}px`, nextAspectRatio = `${naturalWidth} / ${naturalHeight}`;
   return frame.style.width !== nextWidth && (frame.style.width = nextWidth), frame.style.height !== nextHeight && (frame.style.height = nextHeight), frame.style.aspectRatio !== nextAspectRatio && (frame.style.aspectRatio = nextAspectRatio), image.style.width !== "100%" && (image.style.width = "100%"), image.style.height !== "100%" && (image.style.height = "100%"), layout;
 }
@@ -4382,7 +4572,7 @@ function primeLightboxFrameForCatalogPage(catalog, page) {
 }
 function applySingleZoom() {
   let frame = viewerElements.lightboxImageFrame, naturalSize = getActiveSingleImageNaturalSize();
-  !naturalSize || !frame || (applyLightboxFrameGeometry(naturalSize.width, naturalSize.height), !applyPendingSingleImagePosition() && isAutoViewerZoom() && !singleImageCanPan() && (viewerState.panX = 0, viewerState.panY = 0), clampSinglePan(), frame.style.setProperty("--single-pan-x", `${viewerState.panX}px`), frame.style.setProperty("--single-pan-y", `${viewerState.panY}px`), frame.style.setProperty("--single-zoom", String(viewerState.zoom)), frame.style.transform = `translate(-50%, -50%) translate(${viewerState.panX}px, ${viewerState.panY}px) scale(${viewerState.zoom})`);
+  !naturalSize || !frame || (applyLightboxFrameGeometry(naturalSize.width, naturalSize.height), !applyPendingSingleImagePosition() && isAutoViewerZoom() && !singleImageCanPan() && (viewerViewportState.panX = 0, viewerViewportState.panY = 0), clampSinglePan(), frame.style.setProperty("--single-pan-x", `${viewerViewportState.panX}px`), frame.style.setProperty("--single-pan-y", `${viewerViewportState.panY}px`), frame.style.setProperty("--single-zoom", String(viewerViewportState.zoom)), frame.style.transform = `translate(-50%, -50%) translate(${viewerViewportState.panX}px, ${viewerViewportState.panY}px) scale(${viewerViewportState.zoom})`);
 }
 function applyZoom() {
   applySingleZoom();
@@ -4391,13 +4581,13 @@ function applyZoom() {
 }
 function consumeSingleViewerPanInput(deltaX = 0, deltaY = 0) {
   if (!singleViewerUsesBoundaryPan()) return null;
-  let safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0, safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0, previousPanX = viewerState.panX, previousPanY = viewerState.panY;
-  viewerState.panX = previousPanX - safeDeltaX, viewerState.panY = previousPanY - safeDeltaY;
+  let safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0, safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0, previousPanX = viewerViewportState.panX, previousPanY = viewerViewportState.panY;
+  viewerViewportState.panX = previousPanX - safeDeltaX, viewerViewportState.panY = previousPanY - safeDeltaY;
   let bounds = clampSinglePan({ allowPageTurnBuffer: !0 });
   if (!bounds) return null;
-  let moved = Math.abs(viewerState.panX - previousPanX) > 0.01 || Math.abs(viewerState.panY - previousPanY) > 0.01;
+  let moved = Math.abs(viewerViewportState.panX - previousPanX) > 0.01 || Math.abs(viewerViewportState.panY - previousPanY) > 0.01;
   moved && (clearSingleImagePendingPosition(), applySingleZoom());
-  let consumedDeltaX = previousPanX - viewerState.panX, consumedDeltaY = previousPanY - viewerState.panY;
+  let consumedDeltaX = previousPanX - viewerViewportState.panX, consumedDeltaY = previousPanY - viewerViewportState.panY;
   return {
     moved,
     bounds,
@@ -4412,12 +4602,12 @@ function normalizeWheelDeltaToPixels(delta, deltaMode, pageSize2 = 0) {
 
 // src/js/56-viewer-shell.js
 function showTopUiTemporarily(delay = 2200) {
-  viewerElements.lightbox && (window.clearTimeout(viewerState.uiHideTimer), viewerElements.lightbox.classList.add("show-ui"), !(viewerState.topUiPinned || viewerState.viewerMobileMoreOpen) && delay > 0 && (viewerState.uiHideTimer = window.setTimeout(() => {
-    !viewerState.topUiPinned && !viewerState.viewerMobileMoreOpen && viewerElements.lightbox.classList.remove("show-ui");
+  viewerElements.lightbox && (window.clearTimeout(viewerChromeState.uiHideTimer), viewerElements.lightbox.classList.add("show-ui"), !(viewerChromeState.topUiPinned || viewerChromeState.viewerMobileMoreOpen) && delay > 0 && (viewerChromeState.uiHideTimer = window.setTimeout(() => {
+    !viewerChromeState.topUiPinned && !viewerChromeState.viewerMobileMoreOpen && viewerElements.lightbox.classList.remove("show-ui");
   }, delay)));
 }
 function getLightboxPinnedTopOffset() {
-  if (!viewerState.topUiPinned || !viewerElements.lightboxBar) return 0;
+  if (!viewerChromeState.topUiPinned || !viewerElements.lightboxBar) return 0;
   let rect = viewerElements.lightboxBar.getBoundingClientRect?.(), measuredHeight = rect ? Math.max(rect.height || 0, rect.bottom > 0 ? rect.bottom : 0) : 0, viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0, maxReasonableOffset = Math.max(0, viewportHeight * 0.42);
   return Math.round(clampValue(measuredHeight, 0, maxReasonableOffset));
 }
@@ -4427,8 +4617,8 @@ function syncLightboxTopSafeArea() {
   return viewerElements.lightbox.style.setProperty("--lightbox-top-safe-offset", `${offset}px`), offset;
 }
 function syncTopUiPinnedUi() {
-  let pinned = !!viewerState.topUiPinned, label = pinned ? "ביטול נעיצת הסרגל העליון" : "נעיצת הסרגל העליון";
-  window.clearTimeout(viewerState.uiHideTimer), viewerElements.lightbox?.classList.toggle("top-ui-pinned", pinned), pinned && viewerElements.lightbox?.classList.add("show-ui"), syncLightboxTopSafeArea(), viewerElements.lightboxPinTopBar && (viewerElements.lightboxPinTopBar.dataset.pinned = pinned ? "true" : "false", viewerElements.lightboxPinTopBar.setAttribute("aria-pressed", pinned ? "true" : "false"), viewerElements.lightboxPinTopBar.setAttribute("aria-label", label), setTooltipText(viewerElements.lightboxPinTopBar, label, { updateDefault: !0 }));
+  let pinned = !!viewerChromeState.topUiPinned, label = pinned ? "ביטול נעיצת הסרגל העליון" : "נעיצת הסרגל העליון";
+  window.clearTimeout(viewerChromeState.uiHideTimer), viewerElements.lightbox?.classList.toggle("top-ui-pinned", pinned), pinned && viewerElements.lightbox?.classList.add("show-ui"), syncLightboxTopSafeArea(), viewerElements.lightboxPinTopBar && (viewerElements.lightboxPinTopBar.dataset.pinned = pinned ? "true" : "false", viewerElements.lightboxPinTopBar.setAttribute("aria-pressed", pinned ? "true" : "false"), viewerElements.lightboxPinTopBar.setAttribute("aria-label", label), setTooltipText(viewerElements.lightboxPinTopBar, label, { updateDefault: !0 }));
 }
 function getViewportPointer(event) {
   if (!(event instanceof MouseEvent)) return null;
@@ -4439,7 +4629,7 @@ function pointInRect(point, rect, padding = 0) {
   return !point || !rect ? !1 : point.x >= rect.left - padding && point.x <= rect.right + padding && point.y >= rect.top - padding && point.y <= rect.bottom + padding;
 }
 function shouldKeepTopUiOpenForPointer(event = null) {
-  if (viewerState.topUiPinned || viewerState.viewerMobileMoreOpen) return !0;
+  if (viewerChromeState.topUiPinned || viewerChromeState.viewerMobileMoreOpen) return !0;
   let point = getViewportPointer(event);
   if (!point || !viewerElements.lightboxBar) return !1;
   let barRect = viewerElements.lightboxBar.getBoundingClientRect(), hotspotRect = viewerElements.topHotspot?.getBoundingClientRect?.();
@@ -4448,8 +4638,8 @@ function shouldKeepTopUiOpenForPointer(event = null) {
   return point.y <= topHoldBottom;
 }
 function scheduleTopUiClose(event = null) {
-  !viewerElements.lightbox || !isViewerSessionOpen() || viewerState.topUiPinned || viewerState.viewerMobileMoreOpen || shouldKeepTopUiOpenForPointer(event) || (window.clearTimeout(viewerState.uiHideTimer), viewerState.uiHideTimer = window.setTimeout(() => {
-    !viewerState.topUiPinned && !viewerState.viewerMobileMoreOpen && viewerElements.lightbox?.classList.remove("show-ui");
+  !viewerElements.lightbox || !isViewerSessionOpen() || viewerChromeState.topUiPinned || viewerChromeState.viewerMobileMoreOpen || shouldKeepTopUiOpenForPointer(event) || (window.clearTimeout(viewerChromeState.uiHideTimer), viewerChromeState.uiHideTimer = window.setTimeout(() => {
+    !viewerChromeState.topUiPinned && !viewerChromeState.viewerMobileMoreOpen && viewerElements.lightbox?.classList.remove("show-ui");
   }, 420));
 }
 function shouldKeepPageRailOpenForPointer(event = null) {
@@ -4470,7 +4660,7 @@ function getViewportSize() {
   };
 }
 function isPointInTopEdgeActivationZone(point) {
-  if (!point || viewerState.topUiPinned) return !1;
+  if (!point || viewerChromeState.topUiPinned) return !1;
   let { width } = getViewportSize(), hotspotRect = viewerElements.topHotspot?.getBoundingClientRect?.(), hotspotHeight = Math.max(2, Math.round(hotspotRect?.height || 34)), activationBottom = Math.max(hotspotRect?.bottom || 0, hotspotHeight);
   return point.x >= 0 && point.x <= width && point.y >= 0 && point.y <= activationBottom;
 }
@@ -4578,12 +4768,12 @@ function renderLightboxPageRail() {
 function syncViewerMobileMoreMenuState() {
   let menu = viewerElements.viewerMobileMoreMenu;
   if (!menu) return;
-  let fitMode = normalizeViewerFitMode(viewerState.imageFitMode), automatic = viewerUsesAutomaticFitMode(), pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]'), autoItem = menu.querySelector('[data-viewer-mobile-action="fit-auto"]'), heightItem = menu.querySelector('[data-viewer-mobile-action="fit-height"]'), widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]'), pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
-  pinItem?.setAttribute("aria-checked", viewerState.topUiPinned ? "true" : "false"), pinItem?.classList.toggle("active", viewerState.topUiPinned), pinLabel && (pinLabel.textContent = viewerState.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל"), autoItem?.setAttribute("aria-checked", automatic ? "true" : "false"), autoItem?.classList.toggle("active", automatic), heightItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_HEIGHT ? "true" : "false"), heightItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_HEIGHT), widthItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_WIDTH ? "true" : "false"), widthItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_WIDTH);
+  let fitMode = normalizeViewerFitMode(viewerViewportState.imageFitMode), automatic = viewerUsesAutomaticFitMode(), pinItem = menu.querySelector('[data-viewer-mobile-action="pin"]'), autoItem = menu.querySelector('[data-viewer-mobile-action="fit-auto"]'), heightItem = menu.querySelector('[data-viewer-mobile-action="fit-height"]'), widthItem = menu.querySelector('[data-viewer-mobile-action="fit-width"]'), pinLabel = menu.querySelector("[data-viewer-mobile-pin-label]");
+  pinItem?.setAttribute("aria-checked", viewerChromeState.topUiPinned ? "true" : "false"), pinItem?.classList.toggle("active", viewerChromeState.topUiPinned), pinLabel && (pinLabel.textContent = viewerChromeState.topUiPinned ? "ביטול נעיצת הסרגל" : "נעיצת הסרגל"), autoItem?.setAttribute("aria-checked", automatic ? "true" : "false"), autoItem?.classList.toggle("active", automatic), heightItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_HEIGHT ? "true" : "false"), heightItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_HEIGHT), widthItem?.setAttribute("aria-checked", !automatic && fitMode === VIEWER_FIT_WIDTH ? "true" : "false"), widthItem?.classList.toggle("active", !automatic && fitMode === VIEWER_FIT_WIDTH);
 }
 function syncViewerFitModeUi() {
-  let fitMode = normalizeViewerFitMode(viewerState.imageFitMode), automatic = viewerUsesAutomaticFitMode();
-  if (viewerState.imageFitMode = fitMode, viewerElements.lightbox?.classList.toggle("fit-height", fitMode === VIEWER_FIT_HEIGHT), viewerElements.lightbox?.classList.toggle("fit-width", fitMode === VIEWER_FIT_WIDTH), viewerElements.fitAutoBtn && (viewerElements.fitAutoBtn.setAttribute("aria-pressed", automatic ? "true" : "false"), viewerElements.fitAutoBtn.setAttribute("aria-label", "התאמת תצוגה אוטומטי"), setTooltipText(viewerElements.fitAutoBtn, "התאמת תצוגה אוטומטי", { updateDefault: !0 })), viewerElements.fitHeightBtn) {
+  let fitMode = normalizeViewerFitMode(viewerViewportState.imageFitMode), automatic = viewerUsesAutomaticFitMode();
+  if (viewerViewportState.imageFitMode = fitMode, viewerElements.lightbox?.classList.toggle("fit-height", fitMode === VIEWER_FIT_HEIGHT), viewerElements.lightbox?.classList.toggle("fit-width", fitMode === VIEWER_FIT_WIDTH), viewerElements.fitAutoBtn && (viewerElements.fitAutoBtn.setAttribute("aria-pressed", automatic ? "true" : "false"), viewerElements.fitAutoBtn.setAttribute("aria-label", "התאמת תצוגה אוטומטי"), setTooltipText(viewerElements.fitAutoBtn, "התאמת תצוגה אוטומטי", { updateDefault: !0 })), viewerElements.fitHeightBtn) {
     let isActive = !automatic && fitMode === VIEWER_FIT_HEIGHT;
     viewerElements.fitHeightBtn.setAttribute("aria-pressed", isActive ? "true" : "false"), viewerElements.fitHeightBtn.setAttribute("aria-label", "התאמת התמונה לגובה"), setTooltipText(viewerElements.fitHeightBtn, "התאמה לגובה", { updateDefault: !0 });
   }
@@ -4598,16 +4788,16 @@ function syncViewerAutoZoomButtonUi() {
   let showButton = !!(isViewerSessionOpen() && !isAutoViewerZoom());
   viewerElements.viewerAutoZoomBtn.classList.toggle("hidden", !showButton), viewerElements.viewerAutoZoomBtn.setAttribute("aria-hidden", showButton ? "false" : "true"), viewerElements.viewerAutoZoomBtn.setAttribute("tabindex", showButton ? "0" : "-1"), viewerElements.viewerAutoZoomBtn.setAttribute("aria-label", "חזרה לזום אוטומטי"), setTooltipText(viewerElements.viewerAutoZoomBtn, "חזרה לזום אוטומטי", { updateDefault: !0 });
 }
-function formatViewerZoomPercent(value = viewerState.zoom) {
+function formatViewerZoomPercent(value = viewerViewportState.zoom) {
   return `${Math.round(getSafeViewerZoom(value) * 100)}%`;
 }
 function hideViewerZoomIndicator() {
-  window.clearTimeout(viewerState.zoomIndicatorHideTimer), viewerState.zoomIndicatorHideTimer = 0, viewerElements.viewerZoomIndicator?.classList.remove("visible");
+  window.clearTimeout(viewerChromeState.zoomIndicatorHideTimer), viewerChromeState.zoomIndicatorHideTimer = 0, viewerElements.viewerZoomIndicator?.classList.remove("visible");
 }
-function showViewerZoomIndicator(value = viewerState.zoom) {
+function showViewerZoomIndicator(value = viewerViewportState.zoom) {
   let indicator = viewerElements.viewerZoomIndicator;
-  !indicator || !isViewerSessionOpen() || (indicator.textContent = formatViewerZoomPercent(value), indicator.classList.add("visible"), window.clearTimeout(viewerState.zoomIndicatorHideTimer), viewerState.zoomIndicatorHideTimer = window.setTimeout(() => {
-    indicator.classList.remove("visible"), viewerState.zoomIndicatorHideTimer = 0;
+  !indicator || !isViewerSessionOpen() || (indicator.textContent = formatViewerZoomPercent(value), indicator.classList.add("visible"), window.clearTimeout(viewerChromeState.zoomIndicatorHideTimer), viewerChromeState.zoomIndicatorHideTimer = window.setTimeout(() => {
+    indicator.classList.remove("visible"), viewerChromeState.zoomIndicatorHideTimer = 0;
   }, VIEWER_ZOOM_INDICATOR_HIDE_MS));
 }
 function syncLightboxModeUi() {
@@ -4618,19 +4808,19 @@ function isObservedMouseHoverEvent(event = null) {
   return event && "pointerType" in event && event.pointerType === "mouse" ? !0 : String(event?.type || "").startsWith("mouse");
 }
 function markTouchLikeViewportInput(event) {
-  (isTouchLikePointer(event) || event?.type === "touchstart") && (viewerState.lastTouchLikeViewportInputAt = Date.now());
+  (isTouchLikePointer(event) || event?.type === "touchstart") && (viewerChromeState.lastTouchLikeViewportInputAt = Date.now());
 }
 function hasRecentTouchLikeViewportInput(timeout = 900) {
-  return Date.now() - viewerState.lastTouchLikeViewportInputAt < timeout;
+  return Date.now() - viewerChromeState.lastTouchLikeViewportInputAt < timeout;
 }
 function openTopUiFromHotspot(event = null) {
-  !isViewerSessionOpen() || viewerState.viewerOnboardingOpen || (markTouchLikeViewportInput(event), showTopUiTemporarily(0));
+  !isViewerSessionOpen() || viewerOnboardingState.viewerOnboardingOpen || (markTouchLikeViewportInput(event), showTopUiTemporarily(0));
 }
 function markTouchLikeRailInput(event) {
-  isTouchLikePointer(event) && (viewerState.lastTouchLikeRailInputAt = Date.now()), markTouchLikeViewportInput(event);
+  isTouchLikePointer(event) && (viewerChromeState.lastTouchLikeRailInputAt = Date.now()), markTouchLikeViewportInput(event);
 }
 function hasRecentTouchLikeRailInput(timeout = 900) {
-  return Date.now() - viewerState.lastTouchLikeRailInputAt < timeout;
+  return Date.now() - viewerChromeState.lastTouchLikeRailInputAt < timeout;
 }
 function shouldUseLightboxHoverPointer(event = null) {
   return !isViewerSessionOpen() || isTouchLikePointer(event) || hasRecentTouchLikeViewportInput() ? !1 : isObservedMouseHoverEvent(event) ? !0 : hasHoverPointer();
@@ -4640,16 +4830,16 @@ function shouldUsePageRailHover(event = null) {
 }
 function showPageRailTemporarily(delay = 2600, options = {}) {
   let { scrollIntoView = !0 } = options;
-  !viewerElements.lightbox || !isViewerSessionOpen() || (window.clearTimeout(viewerState.pageRailHideTimer), viewerElements.lightbox.classList.add("show-page-rail"), updateLightboxThumbs({ scrollIntoView }), delay > 0 && (viewerState.pageRailHideTimer = window.setTimeout(() => {
+  !viewerElements.lightbox || !isViewerSessionOpen() || (window.clearTimeout(viewerChromeState.pageRailHideTimer), viewerElements.lightbox.classList.add("show-page-rail"), updateLightboxThumbs({ scrollIntoView }), delay > 0 && (viewerChromeState.pageRailHideTimer = window.setTimeout(() => {
     viewerElements.lightbox?.classList.remove("show-page-rail");
   }, delay)));
 }
 function keepPageRailOpen(options = {}) {
   let { scrollIntoView = !0 } = options;
-  isViewerSessionOpen() && (window.clearTimeout(viewerState.pageRailHideTimer), viewerElements.lightbox?.classList.add("show-page-rail"), updateLightboxThumbs({ scrollIntoView }));
+  isViewerSessionOpen() && (window.clearTimeout(viewerChromeState.pageRailHideTimer), viewerElements.lightbox?.classList.add("show-page-rail"), updateLightboxThumbs({ scrollIntoView }));
 }
 function schedulePageRailClose(event = null) {
-  shouldUsePageRailHover(event) && (shouldKeepPageRailOpenForPointer(event) || (window.clearTimeout(viewerState.pageRailHideTimer), viewerState.pageRailHideTimer = window.setTimeout(() => {
+  shouldUsePageRailHover(event) && (shouldKeepPageRailOpenForPointer(event) || (window.clearTimeout(viewerChromeState.pageRailHideTimer), viewerChromeState.pageRailHideTimer = window.setTimeout(() => {
     viewerElements.lightbox?.classList.remove("show-page-rail");
   }, 420)));
 }
@@ -4657,7 +4847,7 @@ function openPageRailFromTouch(event) {
   isTouchLikePointer(event) && (markTouchLikeRailInput(event), event.preventDefault?.(), keepPageRailOpen());
 }
 function handleLightboxPageRailEdgePointerDown(event) {
-  if (!isTouchLikePointer(event) || !isViewerSessionOpen() || viewerState.viewerOnboardingOpen || viewerElements.lightboxPageRail?.contains(eventTargetElement(event.target))) return;
+  if (!isTouchLikePointer(event) || !isViewerSessionOpen() || viewerOnboardingState.viewerOnboardingOpen || viewerElements.lightboxPageRail?.contains(eventTargetElement(event.target))) return;
   let point = getViewportPointer(event);
   isPointInPageRailEdgeActivationZone(point) && (markTouchLikeRailInput(event), event.preventDefault?.(), event.stopImmediatePropagation?.(), event.stopPropagation?.(), keepPageRailOpen());
 }
@@ -4677,14 +4867,14 @@ function keepPageRailOpenFromHover(event = null) {
 function handlePageRailPointerOutside(event) {
   if (!viewerElements.lightbox || !isViewerSessionOpen() || !viewerElements.lightbox.classList.contains("show-page-rail")) return;
   let target = eventTargetElement(event.target);
-  viewerElements.lightboxPageRail?.contains(target) || viewerElements.lightboxSideHotspot?.contains(target) || !isTouchLikePointer(event) && shouldUsePageRailHover(event) || (window.clearTimeout(viewerState.pageRailHideTimer), hideLightboxFloatingPreview(), viewerElements.lightbox.classList.remove("show-page-rail"));
+  viewerElements.lightboxPageRail?.contains(target) || viewerElements.lightboxSideHotspot?.contains(target) || !isTouchLikePointer(event) && shouldUsePageRailHover(event) || (window.clearTimeout(viewerChromeState.pageRailHideTimer), hideLightboxFloatingPreview(), viewerElements.lightbox.classList.remove("show-page-rail"));
 }
 function hideViewerPageIndicator() {
-  window.clearTimeout(viewerState.pageIndicatorHideTimer), viewerState.pageIndicatorHideTimer = 0, viewerElements.viewerPageIndicator?.classList.remove("visible");
+  window.clearTimeout(viewerChromeState.pageIndicatorHideTimer), viewerChromeState.pageIndicatorHideTimer = 0, viewerElements.viewerPageIndicator?.classList.remove("visible");
 }
 function showViewerPageIndicatorTemporarily(delay = VIEWER_PAGE_INDICATOR_HIDE_MS) {
-  !isViewerSessionOpen() || !viewerElements.viewerPageIndicator || (window.clearTimeout(viewerState.pageIndicatorHideTimer), viewerElements.viewerPageIndicator.classList.add("visible"), !(delay <= 0) && (viewerState.pageIndicatorHideTimer = window.setTimeout(() => {
-    viewerElements.viewerPageIndicator?.classList.remove("visible"), viewerState.pageIndicatorHideTimer = 0;
+  !isViewerSessionOpen() || !viewerElements.viewerPageIndicator || (window.clearTimeout(viewerChromeState.pageIndicatorHideTimer), viewerElements.viewerPageIndicator.classList.add("visible"), !(delay <= 0) && (viewerChromeState.pageIndicatorHideTimer = window.setTimeout(() => {
+    viewerElements.viewerPageIndicator?.classList.remove("visible"), viewerChromeState.pageIndicatorHideTimer = 0;
   }, delay)));
 }
 function syncLightboxProgress(current, total, title, options = {}) {
@@ -4736,7 +4926,7 @@ function syncFullscreenButtonUi() {
   if (!buttons.length) return;
   let isActive = isBrowserFullscreenActive(), isSupported = isBrowserFullscreenSupported(), isPending = isViewerFullscreenPending(), label = isActive ? "יציאה ממסך מלא" : "כניסה למסך מלא";
   buttons.forEach((button) => {
-    button.dataset.fullscreenActive = isActive ? "true" : "false", button.dataset.fullscreenPhase = viewerState.viewerFullscreenPhase, button.setAttribute("aria-pressed", isActive ? "true" : "false"), button.setAttribute("aria-label", label), setTooltipText(button, label, { updateDefault: !0 }), button.disabled = isPending || !isSupported && !isActive, button.classList.toggle("hidden", !isSupported && !isActive);
+    button.dataset.fullscreenActive = isActive ? "true" : "false", button.dataset.fullscreenPhase = viewerSessionState.viewerFullscreenPhase, button.setAttribute("aria-pressed", isActive ? "true" : "false"), button.setAttribute("aria-label", label), setTooltipText(button, label, { updateDefault: !0 }), button.disabled = isPending || !isSupported && !isActive, button.classList.toggle("hidden", !isSupported && !isActive);
   });
 }
 function handleBrowserFullscreenChange() {
@@ -4777,8 +4967,8 @@ function runViewerPageSwapAnimation(element, options = (
   { timerKey: "singleImageAnimationTimer" }
 )) {
   let { timerKey, root = element?.parentElement } = options;
-  !element || !timerKey || !(timerKey in viewerState) || (window.clearTimeout(viewerState[timerKey]), root?.querySelectorAll?.(".page-swap-enter").forEach((animatedElement) => animatedElement.classList.remove("page-swap-enter")), element.offsetWidth, element.classList.add("page-swap-enter"), viewerState[timerKey] = window.setTimeout(() => {
-    element.classList.remove("page-swap-enter"), viewerState[timerKey] = 0;
+  !element || !timerKey || !(timerKey in viewerImageState) || (window.clearTimeout(viewerImageState[timerKey]), root?.querySelectorAll?.(".page-swap-enter").forEach((animatedElement) => animatedElement.classList.remove("page-swap-enter")), element.offsetWidth, element.classList.add("page-swap-enter"), viewerImageState[timerKey] = window.setTimeout(() => {
+    element.classList.remove("page-swap-enter"), viewerImageState[timerKey] = 0;
   }, VIEWER_PAGE_SWAP_CLEANUP_MS));
 }
 function runSingleImageSwapAnimation() {
@@ -4788,79 +4978,80 @@ function runSingleImageSwapAnimation() {
   });
 }
 function finishSingleImageSwap(token) {
-  token === viewerState.singleImageLoadToken && (setViewerLoading(!1), viewerElements.lightbox?.classList.remove("is-page-loading"), viewerElements.lightboxImageFrame?.classList.remove("is-preparing-swap"), syncImagePlaceholderState(viewerElements.lightboxImage), applyZoom());
+  isViewerImageSwapCurrent(token) && (setViewerLoading(!1), viewerElements.lightbox?.classList.remove("is-page-loading"), viewerElements.lightboxImageFrame?.classList.remove("is-preparing-swap"), syncImagePlaceholderState(viewerElements.lightboxImage), applyZoom());
 }
 function ensureSingleViewerResolutionImage() {
-  if (viewerState.singleImageResolutionImage?.isConnected) return viewerState.singleImageResolutionImage;
+  if (viewerImageState.singleImageResolutionImage?.isConnected) return viewerImageState.singleImageResolutionImage;
   if (!viewerElements.lightboxImageFrame) return null;
   let image = new Image();
-  return image.className = "lightbox-image lightbox-image-resolution", image.alt = "", image.draggable = !1, image.decoding = "async", image.fetchPriority = "high", image.setAttribute("aria-hidden", "true"), image.dataset.placeholderIgnore = "true", viewerElements.lightboxImageFrame.append(image), viewerState.singleImageResolutionImage = image, image;
+  return image.className = "lightbox-image lightbox-image-resolution", image.alt = "", image.draggable = !1, image.decoding = "async", image.fetchPriority = "high", image.setAttribute("aria-hidden", "true"), image.dataset.placeholderIgnore = "true", viewerElements.lightboxImageFrame.append(image), viewerImageState.singleImageResolutionImage = image, image;
 }
 function clearSingleViewerResolutionUpgrade() {
-  viewerState.singleImageResolutionLoadToken += 1, viewerState.singleImageResolutionStop?.(), viewerState.singleImageResolutionStop = null, viewerState.singleImageResolutionTargetSrc = "", viewerState.singleImageResolutionTargetTier = "", viewerState.singleImageResolutionReady = !1, viewerState.singleImageResolutionVisible = !1, viewerState.singleImageResolutionCommitPending = !1, viewerState.singleImageResolutionRetainedForSwap = !1, viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready");
-  let image = viewerState.singleImageResolutionImage;
+  cancelViewerResolutionCommand(), viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready");
+  let image = viewerImageState.singleImageResolutionImage;
   image && (image.removeAttribute("src"), delete image.dataset.resolutionRetainedForSwap, delete image.dataset.logicalSrc, delete image.dataset.loadedTier, delete image.dataset.loadedQuality, delete image.dataset.imageLoadPending);
 }
 function retainSingleViewerResolutionLayerForSwap() {
-  let image = viewerState.singleImageResolutionImage;
-  return viewerState.singleImageResolutionRetainedForSwap ? !!(image?.isConnected && image.naturalWidth > 0) : !viewerState.singleImageResolutionVisible || !viewerState.singleImageResolutionReady || !image?.isConnected || image.naturalWidth <= 0 ? !1 : (viewerState.singleImageResolutionLoadToken += 1, viewerState.singleImageResolutionStop?.(), viewerState.singleImageResolutionStop = null, viewerState.singleImageResolutionTargetSrc = "", viewerState.singleImageResolutionTargetTier = "", viewerState.singleImageResolutionReady = !1, viewerState.singleImageResolutionVisible = !1, viewerState.singleImageResolutionCommitPending = !1, viewerState.singleImageResolutionRetainedForSwap = !0, image.dataset.resolutionRetainedForSwap = "true", viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading"), viewerElements.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready"), !0);
+  let image = viewerImageState.singleImageResolutionImage;
+  return viewerImageState.singleImageResolutionRetainedForSwap ? !!(image?.isConnected && image.naturalWidth > 0) : !viewerImageState.singleImageResolutionVisible || !viewerImageState.singleImageResolutionReady || !image?.isConnected || image.naturalWidth <= 0 ? !1 : (retainViewerResolutionForSwapCommand(), image.dataset.resolutionRetainedForSwap = "true", viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading"), viewerElements.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready"), !0);
 }
 function releaseSingleViewerRetainedResolutionLayer() {
-  if (!viewerState.singleImageResolutionRetainedForSwap) return !1;
-  viewerState.singleImageResolutionRetainedForSwap = !1, viewerElements.lightboxImageFrame?.classList.remove("is-resolution-upgrade-ready");
-  let image = viewerState.singleImageResolutionImage;
+  if (!viewerImageState.singleImageResolutionRetainedForSwap) return !1;
+  releaseViewerRetainedResolutionCommand(), viewerElements.lightboxImageFrame?.classList.remove("is-resolution-upgrade-ready");
+  let image = viewerImageState.singleImageResolutionImage;
   return image && (image.removeAttribute("src"), delete image.dataset.resolutionRetainedForSwap, delete image.dataset.logicalSrc, delete image.dataset.loadedTier, delete image.dataset.loadedQuality, delete image.dataset.imageLoadPending), !0;
 }
 function activeSingleViewerImageLogicalSrc() {
-  return viewerState.singleImageResolutionVisible && viewerState.singleImageResolutionTargetSrc ? viewerState.singleImageResolutionTargetSrc : normalizeCatalogImageUrl(viewerElements.lightboxImage?.dataset.logicalSrc || viewerElements.lightboxImage?.getAttribute("src") || "");
+  return viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionTargetSrc ? viewerImageState.singleImageResolutionTargetSrc : normalizeCatalogImageUrl(viewerElements.lightboxImage?.dataset.logicalSrc || viewerElements.lightboxImage?.getAttribute("src") || "");
 }
 function activeSingleViewerImageTier() {
-  return viewerState.singleImageResolutionRetainedForSwap ? CATALOG_IMAGE_TIER_FULL : viewerState.singleImageResolutionVisible && viewerState.singleImageResolutionTargetTier ? viewerState.singleImageResolutionTargetTier : String(viewerElements.lightboxImage?.dataset.loadedTier || "");
+  return viewerImageState.singleImageResolutionRetainedForSwap ? CATALOG_IMAGE_TIER_FULL : viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionTargetTier ? viewerImageState.singleImageResolutionTargetTier : String(viewerElements.lightboxImage?.dataset.loadedTier || "");
 }
-function shouldWarmSingleViewerFullResolution(previousZoom = viewerState.zoom) {
+function shouldWarmSingleViewerFullResolution(previousZoom = viewerViewportState.zoom) {
   if (isSaveDataEnabled()) return !1;
   let effectiveType = networkEffectiveType();
   if (effectiveType === "slow-2g" || effectiveType === "2g" || effectiveType === "3g") return !1;
-  let zoom = Number(viewerState.zoom) || AUTO_VIEWER_ZOOM, previous = Number(previousZoom) || AUTO_VIEWER_ZOOM;
+  let zoom = Number(viewerViewportState.zoom) || AUTO_VIEWER_ZOOM, previous = Number(previousZoom) || AUTO_VIEWER_ZOOM;
   return zoom > AUTO_VIEWER_ZOOM + VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON && zoom > previous + 1e-3;
 }
-function commitSingleViewerResolutionUpgrade(token = viewerState.singleImageResolutionLoadToken) {
-  return token !== viewerState.singleImageResolutionLoadToken || !viewerState.singleImageResolutionReady ? (viewerState.singleImageResolutionCommitPending = !0, !1) : (viewerState.singleImageResolutionCommitPending = !1, viewerState.singleImageResolutionVisible = !0, requestAnimationFrame(() => {
-    token !== viewerState.singleImageResolutionLoadToken || !viewerState.singleImageResolutionVisible || viewerElements.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready");
-  }), !0);
+function commitSingleViewerResolutionUpgrade(token = viewerImageState.singleImageResolutionLoadToken) {
+  return commitViewerResolutionCommand(token) ? (requestAnimationFrame(() => {
+    token !== viewerImageState.singleImageResolutionLoadToken || !viewerImageState.singleImageResolutionVisible || viewerElements.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready");
+  }), !0) : !1;
 }
 function prepareSingleViewerResolutionUpgrade(catalog, page, request, options = {}) {
   if (!catalog || !request?.primarySrc || request.primaryTier !== CATALOG_IMAGE_TIER_FULL) return !1;
   let targetSrc = normalizeCatalogImageUrl(request.primarySrc);
   if (!targetSrc) return !1;
-  if (viewerState.singleImageResolutionTargetSrc === targetSrc && viewerState.singleImageResolutionTargetTier === request.primaryTier)
-    return options.commit && (viewerState.singleImageResolutionCommitPending = !0, viewerState.singleImageResolutionReady && commitSingleViewerResolutionUpgrade()), !0;
-  clearSingleViewerResolutionUpgrade();
+  if (viewerImageState.singleImageResolutionTargetSrc === targetSrc && viewerImageState.singleImageResolutionTargetTier === request.primaryTier)
+    return options.commit && commitSingleViewerResolutionUpgrade(), !0;
   let image = ensureSingleViewerResolutionImage();
   if (!image) return !1;
-  let token = ++viewerState.singleImageResolutionLoadToken;
-  return viewerState.singleImageResolutionTargetSrc = targetSrc, viewerState.singleImageResolutionTargetTier = request.primaryTier, viewerState.singleImageResolutionCommitPending = !!options.commit, viewerElements.lightboxImageFrame?.classList.add("is-resolution-loading"), viewerState.singleImageResolutionStop = loadCatalogImageWithRecovery(image, {
+  let token = beginViewerResolutionCommand(targetSrc, request.primaryTier, !!options.commit);
+  viewerElements.lightboxImageFrame?.classList.add("is-resolution-loading");
+  let stop = loadCatalogImageWithRecovery(image, {
     primarySrc: targetSrc,
     primaryTier: request.primaryTier,
-    isCurrent: () => token === viewerState.singleImageResolutionLoadToken && isViewerSessionOpen() && activeCatalog() === catalog && activePage() === page && viewerState.singleImageResolutionTargetSrc === targetSrc,
+    isCurrent: () => token === viewerImageState.singleImageResolutionLoadToken && isViewerSessionOpen() && activeCatalog() === catalog && activePage() === page && viewerImageState.singleImageResolutionTargetSrc === targetSrc,
     telemetryDetail: "viewer-resolution-upgrade",
     onSuccess: (
       /** @param {CatalogImageCandidate} candidate */
       (candidate) => {
         let finishReady = () => {
-          if (token !== viewerState.singleImageResolutionLoadToken || !image.naturalWidth) return;
-          viewerState.singleImageResolutionStop = null, viewerState.singleImageResolutionReady = !0, image.dataset.logicalSrc = targetSrc, image.dataset.loadedTier = candidate.tier || request.primaryTier, image.dataset.loadedQuality = image.dataset.loadedTier, viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading");
+          if (token !== viewerImageState.singleImageResolutionLoadToken || !image.naturalWidth || !markViewerResolutionReadyCommand(token)) return;
+          image.dataset.logicalSrc = targetSrc, image.dataset.loadedTier = candidate.tier || request.primaryTier, image.dataset.loadedQuality = image.dataset.loadedTier, viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading");
           let preferredTier = preferredViewerImageTier(catalog, page);
-          (viewerState.singleImageResolutionCommitPending || preferredTier === CATALOG_IMAGE_TIER_FULL) && commitSingleViewerResolutionUpgrade(token);
+          (viewerImageState.singleImageResolutionCommitPending || preferredTier === CATALOG_IMAGE_TIER_FULL) && commitSingleViewerResolutionUpgrade(token);
         };
         typeof image.decode == "function" ? image.decode().catch(() => {
         }).then(finishReady) : finishReady();
       }
     ),
     onExhausted: () => {
-      token === viewerState.singleImageResolutionLoadToken && (viewerState.singleImageResolutionStop = null, viewerState.singleImageResolutionTargetSrc = "", viewerState.singleImageResolutionTargetTier = "", viewerState.singleImageResolutionReady = !1, viewerState.singleImageResolutionVisible = !1, viewerState.singleImageResolutionCommitPending = !1, viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready"), image.removeAttribute("src"));
+      token === viewerImageState.singleImageResolutionLoadToken && (cancelViewerResolutionCommand(), viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready"), image.removeAttribute("src"));
     }
-  }), !0;
+  });
+  return attachViewerResolutionStopCommand(token, stop), !0;
 }
 function setSingleViewerImageFeedback(mode = "", message = "") {
   let visible = !!(mode && message), isError = mode === "error";
@@ -4868,7 +5059,7 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
 }
 function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!viewerElements.lightboxImage || !catalog) return;
-  let token = ++viewerState.singleImageLoadToken, image = viewerElements.lightboxImage, request = options.imageRequest || viewerPageImageRequest(catalog, page, {
+  let token = beginViewerImageSwapCommand(), image = viewerElements.lightboxImage, request = options.imageRequest || viewerPageImageRequest(catalog, page, {
     forceFull: !!options.forceFull
   }), primarySrc = normalizeCatalogImageUrl(src || request.primarySrc);
   if (!primarySrc) return;
@@ -4879,7 +5070,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   }
   let preserveCurrentImage = !!(options.preserveCurrentImage && image.complete && image.naturalWidth > 0 && !viewerElements.lightboxImageFrame?.classList.contains("image-terminal-error"));
   preserveCurrentImage && retainSingleViewerResolutionLayerForSwap() || clearSingleViewerResolutionUpgrade(), setViewerLoading(!0), viewerElements.lightboxImageFrame?.setAttribute("aria-busy", "true"), setSingleViewerImageFeedback(), viewerElements.lightbox?.classList.add("is-page-loading"), viewerElements.lightboxImageFrame?.classList.toggle("is-preparing-swap", !preserveCurrentImage), viewerElements.lightboxImageFrame?.classList.remove("image-terminal-error"), preserveCurrentImage ? image.dataset.placeholderIgnore = "true" : prepareImagePlaceholder(image), image.alt = `${catalog.title} - עמוד ${page}`, applyCatalogImageDimensions(image, catalog, page), image.decoding = "async", image.fetchPriority = "high", image.dataset.logicalSrc = primarySrc;
-  let requestIsCurrent = () => token === viewerState.singleImageLoadToken && isViewerSessionOpen() && activeCatalog() === catalog && activePage() === page, commitImageRequest = () => {
+  let requestIsCurrent = () => isViewerImageSwapCurrent(token) && isViewerSessionOpen() && activeCatalog() === catalog && activePage() === page, commitImageRequest = () => {
     requestIsCurrent() && loadCatalogImageWithRecovery(image, {
       primarySrc,
       primaryTier: request.primaryTier,
@@ -4902,19 +5093,19 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   };
   preserveCurrentImage ? prepareCatalogImage(primarySrc, { priority: "high", detail: "viewer-page-stage" }).catch(() => null).then(commitImageRequest) : commitImageRequest();
 }
-function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zoom) {
+function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerViewportState.zoom) {
   let rect = (viewerElements.lightboxImageFrame || null)?.getBoundingClientRect?.(), dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
   if (rect?.width && rect?.height) return Math.max(rect.width, rect.height) * dpr;
   let size = pageSize(catalog, page), stageWidth = Math.max(1, viewerElements.stageCanvas?.clientWidth || window.innerWidth || 1), stageHeight = Math.max(1, viewerElements.stageCanvas?.clientHeight || window.innerHeight || 1);
   if (!size) return Math.max(stageWidth, stageHeight) * dpr;
-  let fitMode = String(viewerState.imageFitMode || VIEWER_FIT_HEIGHT), scale = fitMode === VIEWER_FIT_WIDTH ? stageWidth / size.width : fitMode === VIEWER_FIT_HEIGHT ? stageHeight / size.height : Math.min(stageWidth / size.width, stageHeight / size.height);
+  let fitMode = String(viewerViewportState.imageFitMode || VIEWER_FIT_HEIGHT), scale = fitMode === VIEWER_FIT_WIDTH ? stageWidth / size.width : fitMode === VIEWER_FIT_HEIGHT ? stageHeight / size.height : Math.min(stageWidth / size.width, stageHeight / size.height);
   return Math.max(size.width, size.height) * Math.max(0.01, scale) * dpr * Math.max(1, Number(zoom) || 1);
 }
 function preferredViewerImageTier(catalog, page, options = {}) {
   if (options.forceFull || !catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM))
     return CATALOG_IMAGE_TIER_FULL;
   if (options.preferMedium) return CATALOG_IMAGE_TIER_MEDIUM;
-  let zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(viewerState.zoom || 1);
+  let zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(viewerViewportState.zoom || 1);
   if (zoom >= VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD) return CATALOG_IMAGE_TIER_FULL;
   if (!isSaveDataEnabled()) {
     let mediumMaxSide = catalogImageTierMaxSide(catalog, CATALOG_IMAGE_TIER_MEDIUM);
@@ -4942,14 +5133,14 @@ function catalogImageTierRank(tier) {
 }
 function refreshSingleViewerImageResolution(options = {}) {
   let catalog = activeCatalog();
-  if (!isViewerSessionOpen() || !catalog || !viewerElements.lightboxImage || viewerState.singleImageResolutionRetainedForSwap) return !1;
+  if (!isViewerSessionOpen() || !catalog || !viewerElements.lightboxImage || viewerImageState.singleImageResolutionRetainedForSwap) return !1;
   let page = activePage(), request = viewerPageImageRequest(catalog, page, options);
   if (options.warmFull && request.primaryTier !== CATALOG_IMAGE_TIER_FULL) {
     let fullRequest = viewerPageImageRequest(catalog, page, { forceFull: !0 });
     prepareSingleViewerResolutionUpgrade(catalog, page, fullRequest, { commit: !1 });
   }
   let currentSrc = activeSingleViewerImageLogicalSrc(), nextSrc = normalizeCatalogImageUrl(request.primarySrc), loadedTier = activeSingleViewerImageTier();
-  return currentSrc === nextSrc ? !!options.warmFull : catalogImageTierRank(loadedTier) > catalogImageTierRank(request.primaryTier) ? !1 : request.primaryTier === CATALOG_IMAGE_TIER_FULL ? prepareSingleViewerResolutionUpgrade(catalog, page, request, { commit: !0 }) : (!viewerState.singleImageResolutionVisible && !viewerState.singleImageResolutionReady && clearSingleViewerResolutionUpgrade(), !1);
+  return currentSrc === nextSrc ? !!options.warmFull : catalogImageTierRank(loadedTier) > catalogImageTierRank(request.primaryTier) ? !1 : request.primaryTier === CATALOG_IMAGE_TIER_FULL ? prepareSingleViewerResolutionUpgrade(catalog, page, request, { commit: !0 }) : (!viewerImageState.singleImageResolutionVisible && !viewerImageState.singleImageResolutionReady && clearSingleViewerResolutionUpgrade(), !1);
 }
 function preloadNeighbors() {
   let catalog = activeCatalog();
@@ -4986,28 +5177,28 @@ function getDefaultZoomFocalPoint() {
 function adjustSinglePanForZoom(nextZoom, focal) {
   let rect = viewerElements.stageCanvas?.getBoundingClientRect?.();
   if (!rect || !focal) return;
-  let currentZoom = getSafeViewerZoom(), centerX = rect.left + rect.width / 2, centerY = rect.top + rect.height / 2, contentX = (focal.x - centerX - viewerState.panX) / currentZoom, contentY = (focal.y - centerY - viewerState.panY) / currentZoom;
-  viewerState.panX = focal.x - centerX - contentX * nextZoom, viewerState.panY = focal.y - centerY - contentY * nextZoom;
+  let currentZoom = getSafeViewerZoom(), centerX = rect.left + rect.width / 2, centerY = rect.top + rect.height / 2, contentX = (focal.x - centerX - viewerViewportState.panX) / currentZoom, contentY = (focal.y - centerY - viewerViewportState.panY) / currentZoom;
+  viewerViewportState.panX = focal.x - centerX - contentX * nextZoom, viewerViewportState.panY = focal.y - centerY - contentY * nextZoom;
 }
 function getSingleContentPointFromClientPoint(clientX, clientY) {
   let rect = viewerElements.stageCanvas?.getBoundingClientRect?.();
   if (!rect || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
   let currentZoom = getSafeViewerZoom(), centerX = rect.left + rect.width / 2, centerY = rect.top + rect.height / 2;
   return {
-    x: (clientX - centerX - viewerState.panX) / currentZoom,
-    y: (clientY - centerY - viewerState.panY) / currentZoom
+    x: (clientX - centerX - viewerViewportState.panX) / currentZoom,
+    y: (clientY - centerY - viewerViewportState.panY) / currentZoom
   };
 }
 function finalizeSingleViewerZoomChange(previousZoom, options = {}) {
   let { showUi = !0 } = options;
-  applyZoom(), syncViewerAutoZoomButtonUi(), Math.abs(getSafeViewerZoom(viewerState.zoom) - getSafeViewerZoom(previousZoom)) > 1e-3 && showViewerZoomIndicator(viewerState.zoom), refreshSingleViewerImageResolution({
+  applyZoom(), syncViewerAutoZoomButtonUi(), Math.abs(getSafeViewerZoom(viewerViewportState.zoom) - getSafeViewerZoom(previousZoom)) > 1e-3 && showViewerZoomIndicator(viewerViewportState.zoom), refreshSingleViewerImageResolution({
     warmFull: shouldWarmSingleViewerFullResolution(previousZoom)
   }), showUi && showTopUiTemporarily(1600);
 }
 function zoomSingleContentPointToViewportCenter(point, nextZoom) {
   if (!point) return !1;
-  let previousZoom = viewerState.zoom, zoom = clampViewerZoom(nextZoom);
-  return isAutoViewerZoom(zoom) ? (setZoom(AUTO_VIEWER_ZOOM, { showUi: !1 }), !0) : (clearSingleImagePendingPosition(), viewerState.zoom = zoom, viewerState.panX = -point.x * zoom, viewerState.panY = -point.y * zoom, finalizeSingleViewerZoomChange(previousZoom, { showUi: !1 }), !0);
+  let previousZoom = viewerViewportState.zoom, zoom = clampViewerZoom(nextZoom);
+  return isAutoViewerZoom(zoom) ? (setZoom(AUTO_VIEWER_ZOOM, { showUi: !1 }), !0) : (clearSingleImagePendingPosition(), viewerViewportState.zoom = zoom, viewerViewportState.panX = -point.x * zoom, viewerViewportState.panY = -point.y * zoom, finalizeSingleViewerZoomChange(previousZoom, { showUi: !1 }), !0);
 }
 function zoomClientPointToViewportCenter(nextZoom, clientX, clientY) {
   return zoomSingleContentPointToViewportCenter(
@@ -5020,14 +5211,14 @@ function setZoom(nextZoom, options = {}) {
     showUi = !0,
     focalClientX = null,
     focalClientY = null
-  } = options, previousZoom = viewerState.zoom, zoom = clampViewerZoom(nextZoom), focal = typeof focalClientX == "number" && Number.isFinite(focalClientX) && typeof focalClientY == "number" && Number.isFinite(focalClientY) ? { x: (
+  } = options, previousZoom = viewerViewportState.zoom, zoom = clampViewerZoom(nextZoom), focal = typeof focalClientX == "number" && Number.isFinite(focalClientX) && typeof focalClientY == "number" && Number.isFinite(focalClientY) ? { x: (
     /** @type {number} */
     focalClientX
   ), y: (
     /** @type {number} */
     focalClientY
   ) } : getDefaultZoomFocalPoint();
-  isAutoViewerZoom(zoom) ? (viewerState.zoom = AUTO_VIEWER_ZOOM, resetImagePosition({ queueSingleFitOrigin: !0 })) : (clearSingleImagePendingPosition(), focal && Math.abs(zoom - previousZoom) > 1e-3 && adjustSinglePanForZoom(zoom, focal), viewerState.zoom = zoom), finalizeSingleViewerZoomChange(previousZoom, { showUi });
+  isAutoViewerZoom(zoom) ? (viewerViewportState.zoom = AUTO_VIEWER_ZOOM, resetImagePosition({ queueSingleFitOrigin: !0 })) : (clearSingleImagePendingPosition(), focal && Math.abs(zoom - previousZoom) > 1e-3 && adjustSinglePanForZoom(zoom, focal), viewerViewportState.zoom = zoom), finalizeSingleViewerZoomChange(previousZoom, { showUi });
 }
 function toggleZoomAtPoint(clientX, clientY) {
   if (!isAutoViewerZoom()) {
@@ -5054,7 +5245,7 @@ function catalogPageProgress(catalog, page) {
 function reconcileAutomaticViewerFitModeForActivePage() {
   if (!viewerUsesAutomaticFitMode()) return !1;
   let nextFitMode = getAutomaticViewerFitMode();
-  return nextFitMode === viewerState.imageFitMode ? !1 : (viewerState.imageFitMode = nextFitMode, !0);
+  return nextFitMode === viewerViewportState.imageFitMode ? !1 : (viewerViewportState.imageFitMode = nextFitMode, !0);
 }
 function updateLightbox(options = {}) {
   if (!activeCatalog()) return;
@@ -5088,23 +5279,19 @@ function updateLightbox(options = {}) {
   }), src = request.primarySrc;
   activeSingleViewerImageLogicalSrc() !== src ? showSingleLightboxImage(catalog, activePage(), src, { imageRequest: request, preserveCurrentImage }) : (setViewerLoading(!1), viewerElements.lightbox?.classList.remove("is-page-loading"), applyZoom()), updateLightboxThumbs({ scrollIntoView: thumbScrollIntoView }), preloadNeighbors(), updateHash();
 }
+function beginPageControllerTransition(targetPage, direction, options) {
+  let command = options.navigationCommand || createViewerNavigationCommand(
+    options.navigationSource || VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC,
+    direction
+  ), relativePosition = command.positionMode === "relative" ? captureSingleImageRelativePosition() : null;
+  return beginViewerPageTransitionCommand(targetPage, command, relativePosition), command;
+}
 function setLightboxPage(page, options = {}) {
   if (!activeCatalog()) return;
   let nextPage = clampPage(page, activeCatalog());
   if (nextPage === activePage()) return;
-  let {
-    thumbScrollIntoView = !0,
-    keepZoom = !0,
-    resetZoom = !1,
-    resetPosition = isAutoViewerZoom(),
-    positionMode = "auto",
-    pageTurnDirection = Math.sign(nextPage - activePage()),
-    pageTurnAxis = "y",
-    preservePointerInteraction = !1
-  } = options, shouldResetZoom = resetZoom || keepZoom === !1, shouldResetPosition = shouldResetZoom || resetPosition, relativePosition = positionMode !== "page-turn" && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition }) ? captureSingleImageRelativePosition() : null;
-  hideLightboxFloatingPreview(), shouldResetZoom && (viewerState.zoom = AUTO_VIEWER_ZOOM), positionMode === "page-turn" ? queueSingleImagePageTurnOrigin(nextPage, pageTurnDirection, pageTurnAxis) : shouldResetPosition ? resetImagePosition({ queueSingleFitOrigin: !0 }) : relativePosition && queueSingleImageRelativePosition(nextPage, relativePosition), preservePointerInteraction || viewerState.pointers.clear();
-  let previousCatalog = activeCatalog(), previousPage = activePage();
-  setActivePage(nextPage), reconcileAutomaticViewerFitModeForActivePage();
+  let thumbScrollIntoView = options.thumbScrollIntoView !== !1, previousCatalog = activeCatalog(), previousPage = activePage(), direction = Math.sign(nextPage - previousPage);
+  hideLightboxFloatingPreview(), beginPageControllerTransition(nextPage, direction, options), setActivePage(nextPage), reconcileAutomaticViewerFitModeForActivePage();
   let currentCatalog = activeCatalog(), preserveCurrentGeometry = !!(currentCatalog && viewerElements.lightboxImage?.complete && viewerElements.lightboxImage.naturalWidth > 0 && catalogPagesShareAspectRatio(previousCatalog, previousPage, currentCatalog, activePage()));
   currentCatalog && !preserveCurrentGeometry && primeLightboxFrameForCatalogPage(currentCatalog, activePage()) && applyZoom(), updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
 }
@@ -5115,21 +5302,10 @@ function setFavoriteViewerIndex(index, options = {}) {
     getFeatureInterface("viewer")?.close({ restoreFavorites: !0 });
     return;
   }
-  let currentFavoriteIndex = favorites?.viewerIndex() ?? 0, {
-    thumbScrollIntoView = !0,
-    keepZoom = !0,
-    resetZoom = !1,
-    resetPosition = isAutoViewerZoom(),
-    positionMode = "auto",
-    pageTurnDirection = Math.sign((Number.parseInt(String(index), 10) || 0) - currentFavoriteIndex),
-    pageTurnAxis = "y",
-    preservePointerInteraction = !1
-  } = options, nextIndex = clampValue(Number.parseInt(String(index), 10) || 0, 0, entries.length - 1), entry = entries[nextIndex];
+  let currentFavoriteIndex = favorites?.viewerIndex() ?? 0, nextIndex = clampValue(Number.parseInt(String(index), 10) || 0, 0, entries.length - 1), entry = entries[nextIndex];
   if (!(nextIndex !== currentFavoriteIndex || activeCatalog() !== entry.catalog || activePage() !== entry.page)) return;
-  let shouldResetZoom = resetZoom || keepZoom === !1, shouldResetPosition = shouldResetZoom || resetPosition, relativePosition = positionMode !== "page-turn" && shouldPreserveSingleManualPosition({ keepZoom, resetZoom, resetPosition }) ? captureSingleImageRelativePosition() : null;
-  hideLightboxFloatingPreview(), shouldResetZoom && (viewerState.zoom = AUTO_VIEWER_ZOOM), positionMode === "page-turn" ? queueSingleImagePageTurnOrigin(entry.page, pageTurnDirection, pageTurnAxis) : shouldResetPosition ? resetImagePosition({ queueSingleFitOrigin: !0 }) : relativePosition && queueSingleImageRelativePosition(entry.page, relativePosition), preservePointerInteraction || viewerState.pointers.clear();
-  let previousCatalog = activeCatalog(), previousPage = activePage();
-  favorites?.selectViewerEntry(entries, nextIndex), reconcileAutomaticViewerFitModeForActivePage();
+  let thumbScrollIntoView = options.thumbScrollIntoView !== !1, previousCatalog = activeCatalog(), previousPage = activePage(), direction = Math.sign(nextIndex - currentFavoriteIndex);
+  hideLightboxFloatingPreview(), beginPageControllerTransition(entry.page, direction, options), favorites?.selectViewerEntry(entries, nextIndex), reconcileAutomaticViewerFitModeForActivePage();
   let currentCatalog = activeCatalog(), preserveCurrentGeometry = !!(currentCatalog && viewerElements.lightboxImage?.complete && viewerElements.lightboxImage.naturalWidth > 0 && catalogPagesShareAspectRatio(previousCatalog, previousPage, currentCatalog, activePage()));
   currentCatalog && !preserveCurrentGeometry && primeLightboxFrameForCatalogPage(currentCatalog, activePage()) && applyZoom(), updateLightbox({ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry });
 }
@@ -5146,11 +5322,11 @@ function handleViewerPageRailClick(event) {
   let button = eventTargetElement(event.target)?.closest(".lightbox-page-thumb");
   if (!(!(button instanceof HTMLButtonElement) || !viewerElements.lightboxPageThumbs?.contains(button))) {
     if (event.preventDefault(), hideLightboxFloatingPreview(), isFavoritesLightboxMode())
-      setFavoriteViewerIndex(Number(button.dataset.favoriteIndex), { thumbScrollIntoView: !1 });
+      setFavoriteViewerIndex(Number(button.dataset.favoriteIndex), { thumbScrollIntoView: !1, navigationSource: VIEWER_NAVIGATION_SOURCE_PAGE_RAIL });
     else {
       let targetPage = Number(button.dataset.page);
       if (!Number.isFinite(targetPage)) return;
-      setLightboxPage(targetPage, { thumbScrollIntoView: !1 });
+      setLightboxPage(targetPage, { thumbScrollIntoView: !1, navigationSource: VIEWER_NAVIGATION_SOURCE_PAGE_RAIL });
     }
     showPageRailTemporarily(1800, { scrollIntoView: !1 });
   }
@@ -5186,28 +5362,28 @@ function canMoveLightbox(direction) {
   return current + step >= 0 && current + step <= getViewerNavigationMaximumPosition();
 }
 function clearViewerPageWheelGesture() {
-  window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = 0, viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0, viewerState.viewerPageWheelResetGestureActive = !1, viewerState.viewerPageWheelResetLastEventAt = 0, viewerState.viewerPageWheelResetLastDelta = 0, viewerState.viewerPageWheelResetDirection = 0;
+  window.clearTimeout(viewerNavigationState.viewerPageWheelSettleTimer), resetViewerNavigationGestureCommand();
 }
 function scheduleViewerPageWheelSettle() {
-  window.clearTimeout(viewerState.viewerPageWheelSettleTimer), viewerState.viewerPageWheelSettleTimer = window.setTimeout(
+  window.clearTimeout(viewerNavigationState.viewerPageWheelSettleTimer), viewerNavigationState.viewerPageWheelSettleTimer = window.setTimeout(
     settleViewerPageWheelGesture,
     VIEWER_PAGE_WHEEL_SETTLE_MS
   );
 }
 function holdViewerPageWheelAfterManualReset(logicalDelta, eventTime) {
-  viewerState.viewerPageWheelAccumulator = 0, viewerState.viewerPageWheelBasePage = 0, viewerState.viewerPageWheelTargetPage = 0, viewerState.viewerPageWheelResetGestureActive = !0, viewerState.viewerPageWheelResetLastEventAt = eventTime, viewerState.viewerPageWheelResetLastDelta = Math.abs(logicalDelta), viewerState.viewerPageWheelResetDirection = Math.sign(logicalDelta), scheduleViewerPageWheelSettle();
+  viewerNavigationState.viewerPageWheelAccumulator = 0, viewerNavigationState.viewerPageWheelBasePage = 0, viewerNavigationState.viewerPageWheelTargetPage = 0, viewerNavigationState.viewerPageWheelResetGestureActive = !0, viewerNavigationState.viewerPageWheelResetLastEventAt = eventTime, viewerNavigationState.viewerPageWheelResetLastDelta = Math.abs(logicalDelta), viewerNavigationState.viewerPageWheelResetDirection = Math.sign(logicalDelta), scheduleViewerPageWheelSettle();
 }
 function getViewerPageWheelEventTime(event) {
   let eventTime = Number(event?.timeStamp);
   return Number.isFinite(eventTime) && eventTime >= 0 ? eventTime : typeof performance < "u" && typeof performance.now == "function" ? performance.now() : Date.now();
 }
 function consumeViewerPageWheelResetContinuation(logicalDelta, eventTime) {
-  if (!viewerState.viewerPageWheelResetGestureActive) return !1;
-  let direction = Math.sign(logicalDelta), magnitude = Math.abs(logicalDelta), previousDirection = viewerState.viewerPageWheelResetDirection, previousMagnitude = viewerState.viewerPageWheelResetLastDelta, elapsed = Math.max(0, eventTime - viewerState.viewerPageWheelResetLastEventAt), sameDirection = direction !== 0 && direction === previousDirection, accelerated = magnitude >= Math.max(
+  if (!viewerNavigationState.viewerPageWheelResetGestureActive) return !1;
+  let direction = Math.sign(logicalDelta), magnitude = Math.abs(logicalDelta), previousDirection = viewerNavigationState.viewerPageWheelResetDirection, previousMagnitude = viewerNavigationState.viewerPageWheelResetLastDelta, elapsed = Math.max(0, eventTime - viewerNavigationState.viewerPageWheelResetLastEventAt), sameDirection = direction !== 0 && direction === previousDirection, accelerated = magnitude >= Math.max(
     previousMagnitude * VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO,
     previousMagnitude + VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX
   ), restartedAfterCadenceBreak = elapsed >= VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS;
-  return !sameDirection || accelerated || restartedAfterCadenceBreak ? (clearViewerPageWheelGesture(), !1) : (viewerState.viewerPageWheelResetLastEventAt = eventTime, viewerState.viewerPageWheelResetLastDelta = magnitude, scheduleViewerPageWheelSettle(), !0);
+  return !sameDirection || accelerated || restartedAfterCadenceBreak ? (clearViewerPageWheelGesture(), !1) : (viewerNavigationState.viewerPageWheelResetLastEventAt = eventTime, viewerNavigationState.viewerPageWheelResetLastDelta = magnitude, scheduleViewerPageWheelSettle(), !0);
 }
 function normalizeViewerPageWheelAxisDelta(rawDelta, deltaMode, viewportSize = 0) {
   let pageMode = typeof WheelEvent < "u" ? WheelEvent.DOM_DELTA_PAGE : 2;
@@ -5242,28 +5418,24 @@ function getSingleViewerPageTurnIntent(result, deltaX = 0, deltaY = 0) {
   let remaining = result.remainingDeltaY;
   return Math.abs(remaining) <= VIEWER_PAGE_TURN_REMAINDER_EPSILON ? null : {
     axis: "y",
-    direction: Math.sign(remaining)
+    direction: remaining > 0 ? 1 : -1
   };
 }
-function getViewerPageTurnNavigationOptions(direction, axis = "y", options = {}) {
-  let step = direction > 0 ? 1 : direction < 0 ? -1 : 0, preservePointerInteraction = options.preservePointerInteraction === !0;
-  return options.resetViewOnPageTurn === !0 && !isAutoViewerZoom() ? {
-    keepZoom: !1,
-    resetZoom: !0,
-    resetPosition: !0,
-    positionMode: "auto",
-    preservePointerInteraction
-  } : {
-    keepZoom: !0,
-    positionMode: "page-turn",
-    pageTurnDirection: step,
-    pageTurnAxis: axis === "x" ? "x" : "y",
-    preservePointerInteraction
-  };
+function getViewerPageTurnNavigationCommand(direction, axis = "y", options = {}) {
+  return createViewerNavigationCommand(
+    options.navigationSource || VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING,
+    direction,
+    {
+      axis,
+      preservePointerInteraction: options.preservePointerInteraction === !0
+    }
+  );
 }
 function moveLightboxFromPageTurn(direction, axis = "y", options = {}) {
   let step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
-  return !step || !canMoveLightbox(step) ? !1 : (moveLightbox(step, getViewerPageTurnNavigationOptions(step, axis, options)), !0);
+  return !step || !canMoveLightbox(step) ? !1 : (moveLightbox(step, {
+    navigationCommand: getViewerPageTurnNavigationCommand(step, axis, options)
+  }), !0);
 }
 function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) {
   let result = consumeSingleViewerPanInput(deltaX, deltaY);
@@ -5273,7 +5445,7 @@ function consumeSingleViewerBoundaryInput(deltaX = 0, deltaY = 0, options = {}) 
     handled: !0,
     turned: !!(intent && moveLightboxFromPageTurn(intent.direction, intent.axis, {
       preservePointerInteraction: Number.isFinite(options.pointerId),
-      resetViewOnPageTurn: options.resetViewOnPageTurn === !0
+      navigationSource: options.navigationSource || VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN
     })),
     moved: result.moved,
     intent,
@@ -5293,28 +5465,30 @@ function handleViewerPageWheel(event) {
     return !0;
   if (singleViewerUsesBoundaryPan()) {
     let resetManualView = !isAutoViewerZoom();
-    return clearViewerPageWheelGesture(), consumeSingleViewerBoundaryInput(deltaX, deltaY, { resetViewOnPageTurn: !0 }).turned && resetManualView && holdViewerPageWheelAfterManualReset(logicalDelta, eventTime), !0;
+    return clearViewerPageWheelGesture(), consumeSingleViewerBoundaryInput(deltaX, deltaY, { navigationSource: VIEWER_NAVIGATION_SOURCE_WHEEL }).turned && resetManualView && holdViewerPageWheelAfterManualReset(logicalDelta, eventTime), !0;
   }
   if (Math.abs(logicalDelta) < 0.01) return !0;
-  if (!viewerState.viewerPageWheelBasePage) {
+  if (!viewerNavigationState.viewerPageWheelBasePage) {
     let currentPosition = getViewerNavigationPosition();
-    viewerState.viewerPageWheelBasePage = currentPosition + 1, viewerState.viewerPageWheelTargetPage = currentPosition + 1, viewerState.viewerPageWheelAccumulator = 0;
+    viewerNavigationState.viewerPageWheelBasePage = currentPosition + 1, viewerNavigationState.viewerPageWheelTargetPage = currentPosition + 1, viewerNavigationState.viewerPageWheelAccumulator = 0;
   }
-  viewerState.viewerPageWheelAccumulator += logicalDelta;
-  let requestedSteps = getViewerPageWheelRequestedSteps(viewerState.viewerPageWheelAccumulator), basePosition = viewerState.viewerPageWheelBasePage - 1, targetPosition = clampValue(
+  viewerNavigationState.viewerPageWheelAccumulator += logicalDelta;
+  let requestedSteps = getViewerPageWheelRequestedSteps(viewerNavigationState.viewerPageWheelAccumulator), basePosition = viewerNavigationState.viewerPageWheelBasePage - 1, targetPosition = clampValue(
     basePosition + requestedSteps,
     0,
     getViewerNavigationMaximumPosition()
-  ), previousTargetPosition = viewerState.viewerPageWheelTargetPage - 1;
-  if (viewerState.viewerPageWheelTargetPage = targetPosition + 1, targetPosition !== previousTargetPosition) {
+  ), previousTargetPosition = viewerNavigationState.viewerPageWheelTargetPage - 1;
+  if (viewerNavigationState.viewerPageWheelTargetPage = targetPosition + 1, targetPosition !== previousTargetPosition) {
     let direction = Math.sign(targetPosition - previousTargetPosition) || Math.sign(targetPosition - basePosition) || Math.sign(logicalDelta);
     setViewerNavigationPosition(
       targetPosition,
-      getViewerPageTurnNavigationOptions(
-        direction,
-        Math.abs(deltaY) >= Math.abs(deltaX) ? "y" : "x",
-        { resetViewOnPageTurn: !0 }
-      )
+      {
+        navigationCommand: getViewerPageTurnNavigationCommand(
+          direction,
+          Math.abs(deltaY) >= Math.abs(deltaX) ? "y" : "x",
+          { navigationSource: VIEWER_NAVIGATION_SOURCE_WHEEL }
+        )
+      }
     );
   }
   return scheduleViewerPageWheelSettle(), !0;
@@ -5326,8 +5500,8 @@ function setViewerFitMode(fitMode, options = {}) {
     showUi = !0,
     source = VIEWER_FIT_SOURCE_MANUAL,
     refreshLayout = !0
-  } = options, shouldResetView = nextFitMode !== viewerState.imageFitMode;
-  viewerState.imageFitModeSource = normalizeViewerFitModeSource(source), viewerState.imageFitMode = nextFitMode, shouldResetView && (clearViewerPageWheelGesture(), viewerState.zoom = AUTO_VIEWER_ZOOM, resetImagePosition({ queueSingleFitOrigin: !0 }), viewerState.pointers.clear()), syncViewerFitModeUi(), refreshLayout && (applyZoom(), refreshSingleViewerImageResolution()), showUi && showTopUiTemporarily(1600);
+  } = options, shouldResetView = nextFitMode !== viewerViewportState.imageFitMode;
+  viewerViewportState.imageFitModeSource = normalizeViewerFitModeSource(source), viewerViewportState.imageFitMode = nextFitMode, shouldResetView && (clearViewerPageWheelGesture(), viewerViewportState.zoom = AUTO_VIEWER_ZOOM, resetImagePosition({ queueSingleFitOrigin: !0 }), resetViewerGestureCommand()), syncViewerFitModeUi(), refreshLayout && (applyZoom(), refreshSingleViewerImageResolution()), showUi && showTopUiTemporarily(1600);
 }
 function setViewerAutomaticFitMode(options = {}) {
   setViewerFitMode(getAutomaticViewerFitMode(), {
@@ -5336,7 +5510,7 @@ function setViewerAutomaticFitMode(options = {}) {
   });
 }
 function syncAutomaticViewerFitMode(options = {}) {
-  return !viewerUsesAutomaticFitMode() || getAutomaticViewerFitMode() === viewerState.imageFitMode ? !1 : (setViewerAutomaticFitMode(options), !0);
+  return !viewerUsesAutomaticFitMode() || getAutomaticViewerFitMode() === viewerViewportState.imageFitMode ? !1 : (setViewerAutomaticFitMode(options), !0);
 }
 
 // src/js/61-viewer-layout-controller.js
@@ -5349,10 +5523,10 @@ function refreshLightboxLayoutForTopUiChange(options = {}) {
   syncLightboxTopSafeArea(), resetAutoSingleOrigin && isAutoViewerZoom() && resetImagePosition({ queueSingleFitOrigin: !0 }), applyZoom(), refreshSingleViewerImageResolution();
 }
 function setTopUiPinned(pinned) {
-  viewerState.topUiPinned = !!pinned, syncTopUiPinnedUi(), refreshLightboxLayoutForTopUiChange(), viewerState.topUiPinned || showTopUiTemporarily(1400);
+  viewerChromeState.topUiPinned = !!pinned, syncTopUiPinnedUi(), refreshLightboxLayoutForTopUiChange(), viewerChromeState.topUiPinned || showTopUiTemporarily(1400);
 }
 function toggleTopUiPinned() {
-  setTopUiPinned(!viewerState.topUiPinned);
+  setTopUiPinned(!viewerChromeState.topUiPinned);
 }
 
 // src/js/62-viewer-actions.js
@@ -5362,7 +5536,7 @@ function isMobileViewerToolbarMode() {
 }
 function setViewerMobileMoreOpen(open, options = {}) {
   let shouldOpen = !!(open && isViewerSessionOpen() && isMobileViewerToolbarMode());
-  viewerState.viewerMobileMoreOpen = shouldOpen, syncViewerMobileMoreMenuState(), viewerElements.viewerMobileMoreMenu?.classList.toggle("hidden", !shouldOpen), viewerElements.viewerMobileMoreMenu?.classList.toggle("visible", shouldOpen), viewerElements.viewerMobileMoreToggle?.setAttribute("aria-expanded", shouldOpen ? "true" : "false"), viewerElements.viewerMobileMoreToggle?.classList.toggle("is-active", shouldOpen), viewerElements.lightbox?.classList.toggle("mobile-more-open", shouldOpen), shouldOpen ? (showTopUiTemporarily(0), window.requestAnimationFrame(() => {
+  viewerChromeState.viewerMobileMoreOpen = shouldOpen, syncViewerMobileMoreMenuState(), viewerElements.viewerMobileMoreMenu?.classList.toggle("hidden", !shouldOpen), viewerElements.viewerMobileMoreMenu?.classList.toggle("visible", shouldOpen), viewerElements.viewerMobileMoreToggle?.setAttribute("aria-expanded", shouldOpen ? "true" : "false"), viewerElements.viewerMobileMoreToggle?.classList.toggle("is-active", shouldOpen), viewerElements.lightbox?.classList.toggle("mobile-more-open", shouldOpen), shouldOpen ? (showTopUiTemporarily(0), window.requestAnimationFrame(() => {
     focusHtmlElement(viewerElements.viewerMobileMoreMenu?.querySelector('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'), { preventScroll: !0 });
   })) : options.returnFocus && viewerElements.viewerMobileMoreToggle?.focus?.({ preventScroll: !0 });
 }
@@ -5375,7 +5549,7 @@ function getViewerMobileMoreItems() {
   )).filter(isHtmlElement).filter((item) => !item.classList.contains("hidden") && item.getAttribute("aria-hidden") !== "true") : [];
 }
 function handleViewerMobileMoreKeydown(event) {
-  if (!viewerState.viewerMobileMoreOpen) return;
+  if (!viewerChromeState.viewerMobileMoreOpen) return;
   let items = getViewerMobileMoreItems();
   if (!items.length) return;
   let currentIndex = Math.max(0, isHtmlElement(document.activeElement) ? items.indexOf(document.activeElement) : 0), nextIndex = -1;
@@ -5395,9 +5569,9 @@ function handleViewerMobileMoreAction(event) {
 }
 function attachViewerActionEvents() {
   viewerElements.viewerMobileMoreToggle?.addEventListener("click", (event) => {
-    event.preventDefault(), event.stopPropagation(), setViewerMobileMoreOpen(!viewerState.viewerMobileMoreOpen, { returnFocus: viewerState.viewerMobileMoreOpen });
+    event.preventDefault(), event.stopPropagation(), setViewerMobileMoreOpen(!viewerChromeState.viewerMobileMoreOpen, { returnFocus: viewerChromeState.viewerMobileMoreOpen });
   }), viewerElements.viewerMobileMoreMenu?.addEventListener("click", handleViewerMobileMoreAction), viewerElements.viewerMobileMoreMenu?.addEventListener("keydown", handleViewerMobileMoreKeydown), document.addEventListener("pointerdown", (event) => {
-    if (!viewerState.viewerMobileMoreOpen) return;
+    if (!viewerChromeState.viewerMobileMoreOpen) return;
     let target = event.target instanceof Node ? event.target : null;
     viewerElements.viewerMobileMoreMenu?.contains(target) || viewerElements.viewerMobileMoreToggle?.contains(target) || closeViewerMobileMoreMenu();
   }, { passive: !0 }), window.addEventListener("resize", () => {
@@ -5518,8 +5692,8 @@ function getViewerOnboardingFocusableElements() {
   let controls = Array.from(viewerElements.viewerOnboarding.querySelectorAll(
     'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )).filter(isHtmlElement).filter((element) => !element.closest(".hidden")), targetControls = [
-    ...(viewerState.viewerOnboardingFloatingTargets || []).map((entry) => entry.clone),
-    viewerState.viewerOnboardingTarget
+    ...(viewerOnboardingState.viewerOnboardingFloatingTargets || []).map((entry) => entry.clone),
+    viewerOnboardingState.viewerOnboardingTarget
   ].filter(isHtmlElement).flatMap((target) => [
     ...target.matches?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') ? [target] : [],
     ...Array.from(target.querySelectorAll?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') || [])
@@ -5566,7 +5740,7 @@ function calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, prefe
   };
 }
 function removeViewerOnboardingFloatingTargets() {
-  (viewerState.viewerOnboardingFloatingTargets || []).forEach((entry) => entry.clone?.remove?.()), viewerState.viewerOnboardingFloatingTargets = [];
+  (viewerOnboardingState.viewerOnboardingFloatingTargets || []).forEach((entry) => entry.clone?.remove?.()), viewerOnboardingState.viewerOnboardingFloatingTargets = [];
 }
 function sanitizeViewerOnboardingFloatingTarget(clone) {
   clone.removeAttribute("id"), clone.removeAttribute("aria-controls"), clone.removeAttribute("aria-describedby"), clone.querySelectorAll?.("[id]").forEach((element) => element.removeAttribute("id")), clone.querySelectorAll?.("[aria-controls]").forEach((element) => element.removeAttribute("aria-controls")), clone.classList.remove("hidden"), clone.removeAttribute("hidden");
@@ -5584,7 +5758,7 @@ function getViewerOnboardingFloatingTargetDefinitions(step) {
   }));
 }
 function viewerOnboardingFloatingTargetsMatch(step, definitions) {
-  let current = viewerState.viewerOnboardingFloatingTargets || [];
+  let current = viewerOnboardingState.viewerOnboardingFloatingTargets || [];
   return current.length === definitions.length && current.every((entry, index) => entry.source === definitions[index].source && entry.id === definitions[index].id && entry.stepId === step.id);
 }
 function updateViewerOnboardingFloatingTargets(step) {
@@ -5593,29 +5767,29 @@ function updateViewerOnboardingFloatingTargets(step) {
     removeViewerOnboardingFloatingTargets();
     return;
   }
-  viewerOnboardingFloatingTargetsMatch(step, definitions) || (removeViewerOnboardingFloatingTargets(), viewerState.viewerOnboardingFloatingTargets = definitions.map(({ source, id }) => {
+  viewerOnboardingFloatingTargetsMatch(step, definitions) || (removeViewerOnboardingFloatingTargets(), viewerOnboardingState.viewerOnboardingFloatingTargets = definitions.map(({ source, id }) => {
     let clone = (
       /** @type {HTMLButtonElement} */
       source.cloneNode(!0)
     );
     return sanitizeViewerOnboardingFloatingTarget(clone), clone.classList.add("viewer-onboarding-floating-target"), clone.dataset.tourStep = step.id, clone.dataset.tourTarget = id, clone.addEventListener("click", (event) => {
       event.preventDefault(), event.stopPropagation(), source.click(), window.requestAnimationFrame(() => {
-        let isCurrentClone = (viewerState.viewerOnboardingFloatingTargets || []).some((entry) => entry.clone === clone);
-        !viewerState.viewerOnboardingOpen || !isCurrentClone || (syncViewerOnboardingFloatingTargetState(source, clone), scheduleViewerOnboardingLayout(30));
+        let isCurrentClone = (viewerOnboardingState.viewerOnboardingFloatingTargets || []).some((entry) => entry.clone === clone);
+        !viewerOnboardingState.viewerOnboardingOpen || !isCurrentClone || (syncViewerOnboardingFloatingTargetState(source, clone), scheduleViewerOnboardingLayout(30));
       });
     }), viewerElements.viewerOnboarding.appendChild(clone), { source, clone, id, stepId: step.id };
-  })), viewerState.viewerOnboardingFloatingTargets.forEach(({ source, clone }) => {
+  })), viewerOnboardingState.viewerOnboardingFloatingTargets.forEach(({ source, clone }) => {
     syncViewerOnboardingFloatingTargetState(source, clone);
     let rect = source.getBoundingClientRect();
     clone.style.left = `${rect.left}px`, clone.style.top = `${rect.top}px`, clone.style.width = `${rect.width}px`, clone.style.height = `${rect.height}px`;
   });
 }
 function layoutViewerOnboarding() {
-  if (!viewerState.viewerOnboardingOpen || !viewerElements.viewerOnboarding || !viewerElements.viewerOnboardingCard || !viewerElements.viewerOnboardingSpotlight) return;
-  let step = getViewerOnboardingSteps()[viewerState.viewerOnboardingStep];
+  if (!viewerOnboardingState.viewerOnboardingOpen || !viewerElements.viewerOnboarding || !viewerElements.viewerOnboardingCard || !viewerElements.viewerOnboardingSpotlight) return;
+  let step = getViewerOnboardingSteps()[viewerOnboardingState.viewerOnboardingStep];
   if (!step) return;
   let target = step.target?.() || null;
-  viewerState.viewerOnboardingTarget = target;
+  viewerOnboardingState.viewerOnboardingTarget = target;
   let rawRect = step.targetRect?.() || target?.getBoundingClientRect?.(), targetRect = normalizeViewerOnboardingRect(
     rawRect,
     Number(step.padding || 0),
@@ -5632,56 +5806,56 @@ function layoutViewerOnboarding() {
 }
 function scheduleViewerOnboardingLayout(delay = 0) {
   let run = () => {
-    window.cancelAnimationFrame(viewerState.viewerOnboardingLayoutRaf), viewerState.viewerOnboardingLayoutRaf = window.requestAnimationFrame(layoutViewerOnboarding);
+    window.cancelAnimationFrame(viewerOnboardingState.viewerOnboardingLayoutRaf), viewerOnboardingState.viewerOnboardingLayoutRaf = window.requestAnimationFrame(layoutViewerOnboarding);
   };
   if (delay > 0) {
-    window.clearTimeout(viewerState.viewerOnboardingLayoutTimer), viewerState.viewerOnboardingLayoutTimer = window.setTimeout(run, delay);
+    window.clearTimeout(viewerOnboardingState.viewerOnboardingLayoutTimer), viewerOnboardingState.viewerOnboardingLayoutTimer = window.setTimeout(run, delay);
     return;
   }
   run();
 }
 function renderViewerOnboardingStep(options = {}) {
-  if (!viewerState.viewerOnboardingOpen) return;
+  if (!viewerOnboardingState.viewerOnboardingOpen) return;
   let { focus = !0, scheduleLayout = !0 } = options, steps = getViewerOnboardingSteps();
-  viewerState.viewerOnboardingStep = clampValue(viewerState.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
-  let step = steps[viewerState.viewerOnboardingStep];
+  viewerOnboardingState.viewerOnboardingStep = clampValue(viewerOnboardingState.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
+  let step = steps[viewerOnboardingState.viewerOnboardingStep];
   if (!step) return;
-  (viewerState.viewerOnboardingFloatingTargets || []).every((entry) => entry.stepId === step.id) || removeViewerOnboardingFloatingTargets(), viewerElements.lightbox?.classList.toggle("viewer-tour-show-top-ui", !!step.revealTopBar), viewerElements.lightbox?.classList.toggle("viewer-tour-show-page-rail", !!step.revealPageRail), step.revealTopBar && window.clearTimeout(viewerState.uiHideTimer), step.revealPageRail && window.clearTimeout(viewerState.pageRailHideTimer), viewerElements.viewerOnboardingEyebrow && (viewerElements.viewerOnboardingEyebrow.textContent = step.eyebrow || "סיור קצר"), viewerElements.viewerOnboardingTitle && (viewerElements.viewerOnboardingTitle.textContent = step.title), viewerElements.viewerOnboardingDescription && (viewerElements.viewerOnboardingDescription.textContent = step.description), viewerElements.viewerOnboardingCounter && (viewerElements.viewerOnboardingCounter.textContent = `${viewerState.viewerOnboardingStep + 1} מתוך ${steps.length}`), viewerElements.viewerOnboardingNote && (viewerElements.viewerOnboardingNote.textContent = step.note || "", viewerElements.viewerOnboardingNote.classList.toggle("hidden", !step.note)), viewerElements.viewerOnboardingPrevious && (viewerElements.viewerOnboardingPrevious.disabled = viewerState.viewerOnboardingStep === 0), viewerElements.viewerOnboardingNext && (viewerElements.viewerOnboardingNext.textContent = viewerState.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא"), viewerElements.viewerOnboardingDots && (viewerElements.viewerOnboardingDots.innerHTML = steps.map((_, index) => `<span${index === viewerState.viewerOnboardingStep ? ' class="active"' : ""}></span>`).join("")), scheduleLayout && (scheduleViewerOnboardingLayout(), scheduleViewerOnboardingLayout(260)), focus && window.requestAnimationFrame(() => viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: !0 }));
+  (viewerOnboardingState.viewerOnboardingFloatingTargets || []).every((entry) => entry.stepId === step.id) || removeViewerOnboardingFloatingTargets(), viewerElements.lightbox?.classList.toggle("viewer-tour-show-top-ui", !!step.revealTopBar), viewerElements.lightbox?.classList.toggle("viewer-tour-show-page-rail", !!step.revealPageRail), step.revealTopBar && window.clearTimeout(viewerChromeState.uiHideTimer), step.revealPageRail && window.clearTimeout(viewerChromeState.pageRailHideTimer), viewerElements.viewerOnboardingEyebrow && (viewerElements.viewerOnboardingEyebrow.textContent = step.eyebrow || "סיור קצר"), viewerElements.viewerOnboardingTitle && (viewerElements.viewerOnboardingTitle.textContent = step.title), viewerElements.viewerOnboardingDescription && (viewerElements.viewerOnboardingDescription.textContent = step.description), viewerElements.viewerOnboardingCounter && (viewerElements.viewerOnboardingCounter.textContent = `${viewerOnboardingState.viewerOnboardingStep + 1} מתוך ${steps.length}`), viewerElements.viewerOnboardingNote && (viewerElements.viewerOnboardingNote.textContent = step.note || "", viewerElements.viewerOnboardingNote.classList.toggle("hidden", !step.note)), viewerElements.viewerOnboardingPrevious && (viewerElements.viewerOnboardingPrevious.disabled = viewerOnboardingState.viewerOnboardingStep === 0), viewerElements.viewerOnboardingNext && (viewerElements.viewerOnboardingNext.textContent = viewerOnboardingState.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא"), viewerElements.viewerOnboardingDots && (viewerElements.viewerOnboardingDots.innerHTML = steps.map((_, index) => `<span${index === viewerOnboardingState.viewerOnboardingStep ? ' class="active"' : ""}></span>`).join("")), scheduleLayout && (scheduleViewerOnboardingLayout(), scheduleViewerOnboardingLayout(260)), focus && window.requestAnimationFrame(() => viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: !0 }));
 }
 function moveViewerOnboardingStep(delta) {
-  if (!viewerState.viewerOnboardingOpen) return;
-  let steps = getViewerOnboardingSteps(), nextStep = viewerState.viewerOnboardingStep + delta;
+  if (!viewerOnboardingState.viewerOnboardingOpen) return;
+  let steps = getViewerOnboardingSteps(), nextStep = viewerOnboardingState.viewerOnboardingStep + delta;
   if (nextStep >= steps.length) {
     closeViewerOnboarding();
     return;
   }
-  viewerState.viewerOnboardingStep = clampValue(nextStep, 0, Math.max(0, steps.length - 1)), renderViewerOnboardingStep();
+  viewerOnboardingState.viewerOnboardingStep = clampValue(nextStep, 0, Math.max(0, steps.length - 1)), renderViewerOnboardingStep();
 }
 function restoreViewerUiAfterOnboarding() {
-  let restore = viewerState.viewerOnboardingRestoreUi || { showUi: !1, showPageRail: !1 };
-  viewerElements.lightbox?.classList.remove("viewer-tour-active", "viewer-tour-show-top-ui", "viewer-tour-show-page-rail"), viewerElements.lightbox && (viewerState.topUiPinned || restore.showUi ? viewerElements.lightbox.classList.add("show-ui") : viewerElements.lightbox.classList.remove("show-ui"), restore.showPageRail ? viewerElements.lightbox.classList.add("show-page-rail") : viewerElements.lightbox.classList.remove("show-page-rail")), viewerState.viewerOnboardingRestoreUi = null;
+  let restore = viewerOnboardingState.viewerOnboardingRestoreUi || { showUi: !1, showPageRail: !1 };
+  viewerElements.lightbox?.classList.remove("viewer-tour-active", "viewer-tour-show-top-ui", "viewer-tour-show-page-rail"), viewerElements.lightbox && (viewerChromeState.topUiPinned || restore.showUi ? viewerElements.lightbox.classList.add("show-ui") : viewerElements.lightbox.classList.remove("show-ui"), restore.showPageRail ? viewerElements.lightbox.classList.add("show-page-rail") : viewerElements.lightbox.classList.remove("show-page-rail")), viewerOnboardingState.viewerOnboardingRestoreUi = null;
 }
 function closeViewerOnboarding(options = {}) {
-  if (!viewerState.viewerOnboardingOpen) return;
+  if (!viewerOnboardingState.viewerOnboardingOpen) return;
   let { restoreFocus = !0, remember = !0 } = options;
-  viewerState.viewerOnboardingOpen = !1, viewerState.viewerOnboardingTarget = null, removeViewerOnboardingFloatingTargets(), window.cancelAnimationFrame(viewerState.viewerOnboardingLayoutRaf), window.clearTimeout(viewerState.viewerOnboardingLayoutTimer), remember && markViewerOnboardingSeen(), restoreViewerUiAfterOnboarding(), viewerElements.viewerOnboarding?.classList.remove("visible"), viewerElements.viewerOnboarding?.setAttribute("aria-hidden", "true"), window.setTimeout(() => {
-    viewerState.viewerOnboardingOpen || (viewerElements.viewerOnboarding?.classList.add("hidden"), viewerElements.viewerOnboarding?.classList.remove("layout-ready"));
+  viewerOnboardingState.viewerOnboardingOpen = !1, viewerOnboardingState.viewerOnboardingTarget = null, removeViewerOnboardingFloatingTargets(), window.cancelAnimationFrame(viewerOnboardingState.viewerOnboardingLayoutRaf), window.clearTimeout(viewerOnboardingState.viewerOnboardingLayoutTimer), remember && markViewerOnboardingSeen(), restoreViewerUiAfterOnboarding(), viewerElements.viewerOnboarding?.classList.remove("visible"), viewerElements.viewerOnboarding?.setAttribute("aria-hidden", "true"), window.setTimeout(() => {
+    viewerOnboardingState.viewerOnboardingOpen || (viewerElements.viewerOnboarding?.classList.add("hidden"), viewerElements.viewerOnboarding?.classList.remove("layout-ready"));
   }, 220), restoreFocus && viewerElements.stageCanvas?.focus?.({ preventScroll: !0 });
 }
 function showViewerOnboardingIfNeeded() {
-  !isViewerSessionOpen() || !viewerElements.viewerOnboarding || viewerState.viewerOnboardingOpen || viewerState.viewerOnboardingShownThisSession || viewerOnboardingWasSeen() || (viewerState.viewerOnboardingShownThisSession = !0, viewerState.viewerOnboardingOpen = !0, viewerState.viewerOnboardingStep = 0, viewerState.viewerOnboardingRestoreUi = {
+  !isViewerSessionOpen() || !viewerElements.viewerOnboarding || viewerOnboardingState.viewerOnboardingOpen || viewerOnboardingState.viewerOnboardingShownThisSession || viewerOnboardingWasSeen() || (viewerOnboardingState.viewerOnboardingShownThisSession = !0, viewerOnboardingState.viewerOnboardingOpen = !0, viewerOnboardingState.viewerOnboardingStep = 0, viewerOnboardingState.viewerOnboardingRestoreUi = {
     showUi: !!viewerElements.lightbox?.classList.contains("show-ui"),
     showPageRail: !!viewerElements.lightbox?.classList.contains("show-page-rail")
   }, viewerElements.lightbox?.classList.add("viewer-tour-active"), viewerElements.viewerOnboarding.classList.remove("hidden", "visible", "layout-ready"), viewerElements.viewerOnboarding.setAttribute("aria-hidden", "false"), window.requestAnimationFrame(() => {
-    viewerState.viewerOnboardingOpen && (renderViewerOnboardingStep({ focus: !1, scheduleLayout: !1 }), window.requestAnimationFrame(() => {
-      viewerState.viewerOnboardingOpen && (layoutViewerOnboarding(), viewerElements.viewerOnboarding.classList.add("layout-ready"), window.requestAnimationFrame(() => {
-        viewerState.viewerOnboardingOpen && (viewerElements.viewerOnboarding.classList.add("visible"), viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: !0 }), scheduleViewerOnboardingLayout(260));
+    viewerOnboardingState.viewerOnboardingOpen && (renderViewerOnboardingStep({ focus: !1, scheduleLayout: !1 }), window.requestAnimationFrame(() => {
+      viewerOnboardingState.viewerOnboardingOpen && (layoutViewerOnboarding(), viewerElements.viewerOnboarding.classList.add("layout-ready"), window.requestAnimationFrame(() => {
+        viewerOnboardingState.viewerOnboardingOpen && (viewerElements.viewerOnboarding.classList.add("visible"), viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: !0 }), scheduleViewerOnboardingLayout(260));
       }));
     }));
   }));
 }
 function handleViewerOnboardingKeydown(event) {
-  if (!viewerState.viewerOnboardingOpen) return !1;
+  if (!viewerOnboardingState.viewerOnboardingOpen) return !1;
   if (event.key === "Escape")
     return event.preventDefault(), closeViewerOnboarding(), !0;
   if (event.key !== "Tab") return !0;
@@ -5729,7 +5903,7 @@ function getViewerPointerEventTime(event) {
   return Number.isFinite(eventTime) && eventTime > 0 ? eventTime : Date.now();
 }
 function stopViewerTouchMomentum() {
-  viewerState.viewerTouchMomentumRaf && window.cancelAnimationFrame(viewerState.viewerTouchMomentumRaf), viewerState.viewerTouchMomentumRaf = 0, viewerState.viewerTouchMomentumVelocityX = 0, viewerState.viewerTouchMomentumVelocityY = 0, viewerState.viewerTouchMomentumLastTime = 0;
+  viewerGestureState.viewerTouchMomentumRaf && window.cancelAnimationFrame(viewerGestureState.viewerTouchMomentumRaf), viewerGestureState.viewerTouchMomentumRaf = 0, viewerGestureState.viewerTouchMomentumVelocityX = 0, viewerGestureState.viewerTouchMomentumVelocityY = 0, viewerGestureState.viewerTouchMomentumLastTime = 0;
 }
 function getViewerPointerMoveSamples(event) {
   let samples = [];
@@ -5765,11 +5939,11 @@ function consumeViewerPointerPanSamples(event, initialPoint) {
       ...velocity
     };
   }
-  if (viewerState.pointers.set(event.pointerId, point), Math.abs(totalDeltaX) < 0.01 && Math.abs(totalDeltaY) < 0.01)
+  if (viewerGestureState.pointers.set(event.pointerId, point), Math.abs(totalDeltaX) < 0.01 && Math.abs(totalDeltaY) < 0.01)
     return { point, handled: !1, moved: !1, turned: !1 };
   let boundary = consumeSingleViewerBoundaryInput(totalDeltaX, totalDeltaY, {
     pointerId: event.pointerId,
-    resetViewOnPageTurn: !0
+    navigationSource: VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN
   });
   return {
     point,
@@ -5789,10 +5963,10 @@ function clampViewerTouchMomentumVelocity(velocityX, velocityY) {
   };
 }
 function scheduleViewerTouchMomentumFrame() {
-  viewerState.viewerTouchMomentumRaf = window.requestAnimationFrame(runViewerTouchMomentumFrame);
+  viewerGestureState.viewerTouchMomentumRaf = window.requestAnimationFrame(runViewerTouchMomentumFrame), assertViewerStateInvariants("schedule-touch-momentum");
 }
 function runViewerTouchMomentumFrame(timestamp) {
-  if (viewerState.viewerTouchMomentumRaf = 0, !isViewerSessionOpen() || viewerState.pointers.size > 0 || !singleViewerUsesBoundaryPan()) {
+  if (viewerGestureState.viewerTouchMomentumRaf = 0, !isViewerSessionOpen() || viewerGestureState.pointers.size > 0 || !singleViewerUsesBoundaryPan()) {
     stopViewerTouchMomentum();
     return;
   }
@@ -5801,20 +5975,20 @@ function runViewerTouchMomentumFrame(timestamp) {
     stopViewerTouchMomentum();
     return;
   }
-  if (!viewerState.viewerTouchMomentumLastTime) {
-    viewerState.viewerTouchMomentumLastTime = frameTime, scheduleViewerTouchMomentumFrame();
+  if (!viewerGestureState.viewerTouchMomentumLastTime) {
+    viewerGestureState.viewerTouchMomentumLastTime = frameTime, scheduleViewerTouchMomentumFrame();
     return;
   }
   let elapsed = clampValue(
-    frameTime - viewerState.viewerTouchMomentumLastTime,
+    frameTime - viewerGestureState.viewerTouchMomentumLastTime,
     1,
     VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS
   );
-  viewerState.viewerTouchMomentumLastTime = frameTime;
-  let velocityX = viewerState.viewerTouchMomentumVelocityX, velocityY = viewerState.viewerTouchMomentumVelocityY, boundary = consumeSingleViewerBoundaryInput(
+  viewerGestureState.viewerTouchMomentumLastTime = frameTime;
+  let velocityX = viewerGestureState.viewerTouchMomentumVelocityX, velocityY = viewerGestureState.viewerTouchMomentumVelocityY, boundary = consumeSingleViewerBoundaryInput(
     velocityX * elapsed,
     velocityY * elapsed,
-    { resetViewOnPageTurn: !0 }
+    { navigationSource: VIEWER_NAVIGATION_SOURCE_MOMENTUM }
   );
   if (!boundary.handled) {
     stopViewerTouchMomentum();
@@ -5823,20 +5997,20 @@ function runViewerTouchMomentumFrame(timestamp) {
   let remainingDeltaX = boundary.result?.remainingDeltaX || 0, remainingDeltaY = boundary.result?.remainingDeltaY || 0;
   Math.abs(remainingDeltaX) > VIEWER_PAGE_TURN_REMAINDER_EPSILON && Math.sign(remainingDeltaX) === Math.sign(velocityX) && (velocityX = 0), !boundary.turned && Math.abs(remainingDeltaY) > VIEWER_PAGE_TURN_REMAINDER_EPSILON && Math.sign(remainingDeltaY) === Math.sign(velocityY) && (velocityY = 0);
   let decay = Math.exp(-VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS * elapsed);
-  if (velocityX *= decay, velocityY *= decay, Math.abs(velocityX) < VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS && (velocityX = 0), Math.abs(velocityY) < VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS && (velocityY = 0), viewerState.viewerTouchMomentumVelocityX = velocityX, viewerState.viewerTouchMomentumVelocityY = velocityY, !velocityX && !velocityY) {
+  if (velocityX *= decay, velocityY *= decay, Math.abs(velocityX) < VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS && (velocityX = 0), Math.abs(velocityY) < VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS && (velocityY = 0), viewerGestureState.viewerTouchMomentumVelocityX = velocityX, viewerGestureState.viewerTouchMomentumVelocityY = velocityY, !velocityX && !velocityY) {
     stopViewerTouchMomentum();
     return;
   }
   scheduleViewerTouchMomentumFrame();
 }
 function startViewerTouchMomentum(velocityX, velocityY) {
-  stopViewerTouchMomentum();
+  if (stopViewerTouchMomentum(), viewerGestureState.pointers.size > 0) return !1;
   let velocity = clampViewerTouchMomentumVelocity(velocityX, velocityY);
-  return Math.hypot(velocity.velocityX, velocity.velocityY) < VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS ? !1 : (viewerState.viewerTouchMomentumVelocityX = velocity.velocityX, viewerState.viewerTouchMomentumVelocityY = velocity.velocityY, scheduleViewerTouchMomentumFrame(), !0);
+  return Math.hypot(velocity.velocityX, velocity.velocityY) < VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS ? !1 : (viewerGestureState.viewerTouchMomentumVelocityX = velocity.velocityX, viewerGestureState.viewerTouchMomentumVelocityY = velocity.velocityY, scheduleViewerTouchMomentumFrame(), !0);
 }
 function startPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
-  stopViewerTouchMomentum(), viewerState.pointers.size === 0 && (viewerState.pointerGestureHadMultiplePointers = !1, viewerState.pointerGestureConsumedPan = !1), viewerState.pointers.set(event.pointerId, {
+  stopViewerTouchMomentum(), viewerGestureState.pointers.size === 0 && (viewerGestureState.pointerGestureHadMultiplePointers = !1, viewerGestureState.pointerGestureConsumedPan = !1), viewerGestureState.pointers.set(event.pointerId, {
     x: event.clientX,
     y: event.clientY,
     startX: event.clientX,
@@ -5844,25 +6018,26 @@ function startPointerInteraction(event) {
     velocityX: 0,
     velocityY: 0,
     lastTime: getViewerPointerEventTime(event)
-  }), viewerState.pointers.size >= 2 && (viewerState.pointerGestureHadMultiplePointers = !0), (singleViewerUsesBoundaryPan() || viewerState.pointers.size >= 2) && captureViewerPointer(event.currentTarget, event.pointerId);
+  }), viewerGestureState.pointers.size >= 2 && (viewerGestureState.pointerGestureHadMultiplePointers = !0), (singleViewerUsesBoundaryPan() || viewerGestureState.pointers.size >= 2) && captureViewerPointer(event.currentTarget, event.pointerId);
   let pointers = getPointerList();
   if (pointers.length === 1)
-    viewerState.dragStartX = event.clientX, viewerState.dragStartY = event.clientY, viewerState.dragStartPanX = viewerState.panX, viewerState.dragStartPanY = viewerState.panY;
+    viewerGestureState.dragStartX = event.clientX, viewerGestureState.dragStartY = event.clientY, viewerGestureState.dragStartPanX = viewerViewportState.panX, viewerGestureState.dragStartPanY = viewerViewportState.panY;
   else if (pointers.length === 2) {
     let [first, second] = pointers, mid = pointerMidpoint(first, second);
-    viewerState.pinchStartDistance = Math.max(1, pointerDistance(first, second)), viewerState.pinchStartZoom = viewerState.zoom, viewerState.pinchLastMidX = mid.x, viewerState.pinchLastMidY = mid.y;
-    for (let pointerId of viewerState.pointers.keys())
+    viewerGestureState.pinchStartDistance = Math.max(1, pointerDistance(first, second)), viewerGestureState.pinchStartZoom = viewerViewportState.zoom, viewerGestureState.pinchLastMidX = mid.x, viewerGestureState.pinchLastMidY = mid.y;
+    for (let pointerId of viewerGestureState.pointers.keys())
       captureViewerPointer(event.currentTarget, pointerId);
     event.preventDefault();
   }
+  assertViewerStateInvariants("start-pointer-interaction");
 }
 function movePointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
-  let previousPoint = viewerState.pointers.get(event.pointerId);
+  let previousPoint = viewerGestureState.pointers.get(event.pointerId);
   if (!previousPoint) return;
-  let pointerCount = viewerState.pointers.size;
+  let pointerCount = viewerGestureState.pointers.size;
   if (pointerCount >= 2) {
-    viewerState.pointers.set(event.pointerId, {
+    viewerGestureState.pointers.set(event.pointerId, {
       ...previousPoint,
       x: event.clientX,
       y: event.clientY,
@@ -5871,58 +6046,59 @@ function movePointerInteraction(event) {
       velocityY: 0
     });
     let pointers = getPointerList();
-    event.preventDefault(), viewerState.pointerGestureConsumedPan = !0;
+    event.preventDefault(), viewerGestureState.pointerGestureConsumedPan = !0;
     let [first, second] = pointers, distance = Math.max(1, pointerDistance(first, second)), mid = pointerMidpoint(first, second);
-    viewerState.panX += mid.x - viewerState.pinchLastMidX, viewerState.panY += mid.y - viewerState.pinchLastMidY, viewerState.pinchLastMidX = mid.x, viewerState.pinchLastMidY = mid.y, setZoom(viewerState.pinchStartZoom * (distance / viewerState.pinchStartDistance), {
+    viewerViewportState.panX += mid.x - viewerGestureState.pinchLastMidX, viewerViewportState.panY += mid.y - viewerGestureState.pinchLastMidY, viewerGestureState.pinchLastMidX = mid.x, viewerGestureState.pinchLastMidY = mid.y, setZoom(viewerGestureState.pinchStartZoom * (distance / viewerGestureState.pinchStartDistance), {
       showUi: !1,
       focalClientX: mid.x,
       focalClientY: mid.y
     });
     return;
   }
-  pointerCount === 1 && singleViewerUsesBoundaryPan() && (event.preventDefault(), consumeViewerPointerPanSamples(event, previousPoint).handled && (viewerState.pointerGestureConsumedPan = !0));
+  pointerCount === 1 && singleViewerUsesBoundaryPan() && (event.preventDefault(), consumeViewerPointerPanSamples(event, previousPoint).handled && (viewerGestureState.pointerGestureConsumedPan = !0));
 }
 function handlePotentialDoubleTap(event, startedX, startedY) {
-  if (event.pointerType !== "touch" && event.pointerType !== "pen" || viewerState.pointers.size > 0 || viewerState.pointerGestureConsumedPan) return !1;
+  if (event.pointerType !== "touch" && event.pointerType !== "pen" || viewerGestureState.pointers.size > 0 || viewerGestureState.pointerGestureConsumedPan) return !1;
   if (Math.hypot(event.clientX - startedX, event.clientY - startedY) > TAP_MOVE_TOLERANCE)
-    return viewerState.lastTapAt = 0, !1;
-  let now = Date.now(), surface = getZoomSurfaceName(event.currentTarget), closeToLastTap = Math.hypot(event.clientX - viewerState.lastTapX, event.clientY - viewerState.lastTapY) <= DOUBLE_TAP_DISTANCE, isDoubleTap = surface === viewerState.lastTapSurface && now - viewerState.lastTapAt <= DOUBLE_TAP_DELAY && closeToLastTap;
-  return viewerState.lastTapAt = now, viewerState.lastTapX = event.clientX, viewerState.lastTapY = event.clientY, viewerState.lastTapSurface = surface, isDoubleTap ? (event.preventDefault(), viewerState.lastTapAt = 0, viewerState.suppressNextDblClickUntil = now + 550, toggleZoomAtPoint(event.clientX, event.clientY), !0) : !1;
+    return viewerGestureState.lastTapAt = 0, !1;
+  let now = Date.now(), surface = getZoomSurfaceName(event.currentTarget), closeToLastTap = Math.hypot(event.clientX - viewerGestureState.lastTapX, event.clientY - viewerGestureState.lastTapY) <= DOUBLE_TAP_DISTANCE, isDoubleTap = surface === viewerGestureState.lastTapSurface && now - viewerGestureState.lastTapAt <= DOUBLE_TAP_DELAY && closeToLastTap;
+  return viewerGestureState.lastTapAt = now, viewerGestureState.lastTapX = event.clientX, viewerGestureState.lastTapY = event.clientY, viewerGestureState.lastTapSurface = surface, isDoubleTap ? (event.preventDefault(), viewerGestureState.lastTapAt = 0, viewerGestureState.suppressNextDblClickUntil = now + 550, toggleZoomAtPoint(event.clientX, event.clientY), !0) : !1;
 }
 function handleViewerPageSwipe(event, startedX, startedY) {
-  if (!isTouchLikePointer(event) || viewerState.pointers.size > 0 || viewerState.pointerGestureHadMultiplePointers || viewerState.pointerGestureConsumedPan) return !1;
+  if (!isTouchLikePointer(event) || viewerGestureState.pointers.size > 0 || viewerGestureState.pointerGestureHadMultiplePointers || viewerGestureState.pointerGestureConsumedPan) return !1;
   let dx = event.clientX - startedX, dy = event.clientY - startedY, horizontal = Math.abs(dx) > Math.abs(dy), primaryDistance = Math.abs(horizontal ? dx : dy), secondaryDistance = Math.abs(horizontal ? dy : dx);
   if (primaryDistance <= VIEWER_PAGE_SWIPE_MIN_DISTANCE || primaryDistance <= secondaryDistance * VIEWER_PAGE_SWIPE_AXIS_RATIO)
     return !1;
   event.preventDefault();
   let direction = horizontal ? dx > 0 ? 1 : -1 : dy < 0 ? 1 : -1;
   return horizontal ? moveLightbox(direction, {
-    keepZoom: !0,
-    positionMode: "page-turn",
-    pageTurnDirection: direction,
-    pageTurnAxis: "x"
-  }) : moveLightboxFromPageTurn(direction, "y", { resetViewOnPageTurn: !0 }), !0;
+    navigationCommand: createViewerNavigationCommand(
+      VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE,
+      direction,
+      { axis: "x" }
+    )
+  }) : moveLightboxFromPageTurn(direction, "y", { navigationSource: VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE }), !0;
 }
 function endPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
-  let tracked = viewerState.pointers.get(event.pointerId);
+  let tracked = viewerGestureState.pointers.get(event.pointerId);
   if (!tracked) return;
-  if (viewerState.pointers.size === 1 && singleViewerUsesBoundaryPan() && (Math.abs(tracked.x - event.clientX) >= 0.01 || Math.abs(tracked.y - event.clientY) >= 0.01)) {
+  if (viewerGestureState.pointers.size === 1 && singleViewerUsesBoundaryPan() && (Math.abs(tracked.x - event.clientX) >= 0.01 || Math.abs(tracked.y - event.clientY) >= 0.01)) {
     event.preventDefault();
     let finalPan = consumeViewerPointerPanSamples(event, tracked);
-    tracked = finalPan.point, finalPan.handled && (viewerState.pointerGestureConsumedPan = !0);
+    tracked = finalPan.point, finalPan.handled && (viewerGestureState.pointerGestureConsumedPan = !0);
   }
-  let velocityAge = getViewerPointerEventTime(event) - tracked.lastTime, velocityIsFresh = velocityAge >= 0 && velocityAge <= VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, shouldStartMomentum = !!(isTouchLikePointer(event) && viewerState.pointers.size === 1 && !viewerState.pointerGestureHadMultiplePointers && viewerState.pointerGestureConsumedPan && velocityIsFresh);
-  viewerState.pointers.delete(event.pointerId), handlePotentialDoubleTap(event, tracked.startX, tracked.startY) || handleViewerPageSwipe(event, tracked.startX, tracked.startY);
+  let velocityAge = getViewerPointerEventTime(event) - tracked.lastTime, velocityIsFresh = velocityAge >= 0 && velocityAge <= VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, shouldStartMomentum = !!(isTouchLikePointer(event) && viewerGestureState.pointers.size === 1 && !viewerGestureState.pointerGestureHadMultiplePointers && viewerGestureState.pointerGestureConsumedPan && velocityIsFresh);
+  viewerGestureState.pointers.delete(event.pointerId), handlePotentialDoubleTap(event, tracked.startX, tracked.startY) || handleViewerPageSwipe(event, tracked.startX, tracked.startY);
   let pointers = getPointerList();
   if (pointers.length === 1) {
     let only = pointers[0];
-    viewerState.dragStartX = only.x, viewerState.dragStartY = only.y, viewerState.dragStartPanX = viewerState.panX, viewerState.dragStartPanY = viewerState.panY;
-  } else pointers.length === 0 && (viewerState.pointerGestureHadMultiplePointers = !1, viewerState.pointerGestureConsumedPan = !1);
-  releaseViewerPointerCapture(event.currentTarget, event.pointerId), shouldStartMomentum && startViewerTouchMomentum(tracked.velocityX, tracked.velocityY);
+    viewerGestureState.dragStartX = only.x, viewerGestureState.dragStartY = only.y, viewerGestureState.dragStartPanX = viewerViewportState.panX, viewerGestureState.dragStartPanY = viewerViewportState.panY;
+  } else pointers.length === 0 && (viewerGestureState.pointerGestureHadMultiplePointers = !1, viewerGestureState.pointerGestureConsumedPan = !1);
+  releaseViewerPointerCapture(event.currentTarget, event.pointerId), shouldStartMomentum && startViewerTouchMomentum(tracked.velocityX, tracked.velocityY), assertViewerStateInvariants("end-pointer-interaction");
 }
 function cancelPointerInteraction(event) {
-  viewerState.pointers.has(event.pointerId) && (viewerState.pointers.delete(event.pointerId), viewerState.pointers.size === 0 && (viewerState.pointerGestureHadMultiplePointers = !1, viewerState.pointerGestureConsumedPan = !1, stopViewerTouchMomentum()));
+  viewerGestureState.pointers.has(event.pointerId) && (viewerGestureState.pointers.delete(event.pointerId), viewerGestureState.pointers.size === 0 && (viewerGestureState.pointerGestureHadMultiplePointers = !1, viewerGestureState.pointerGestureConsumedPan = !1, stopViewerTouchMomentum()), assertViewerStateInvariants("cancel-pointer-interaction"));
 }
 function getWheelZoomFactor(event) {
   let pixelMode = typeof WheelEvent < "u" ? WheelEvent.DOM_DELTA_PIXEL : 0, lineMode = typeof WheelEvent < "u" ? WheelEvent.DOM_DELTA_LINE : 1, pageMode = typeof WheelEvent < "u" ? WheelEvent.DOM_DELTA_PAGE : 2, rawDelta = Number(event.deltaY), currentTarget = event.currentTarget, pageSize2 = currentTarget && "clientHeight" in currentTarget && Number(currentTarget.clientHeight) || 0, delta = normalizeWheelDeltaToPixels(rawDelta, event.deltaMode, pageSize2);
@@ -5941,7 +6117,7 @@ function handleZoomSurfaceWheel(event) {
       event.preventDefault(), event.stopPropagation();
       let factor = getWheelZoomFactor(event);
       if (factor === 1) return;
-      setZoom(viewerState.zoom * factor, {
+      setZoom(viewerViewportState.zoom * factor, {
         showUi: !1,
         focalClientX: event.clientX,
         focalClientY: event.clientY
@@ -5952,7 +6128,7 @@ function handleZoomSurfaceWheel(event) {
   }
 }
 function handleZoomSurfaceDoubleClick(event) {
-  !isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || Date.now() < viewerState.suppressNextDblClickUntil || (event.preventDefault(), event.stopPropagation(), toggleZoomAtPoint(event.clientX, event.clientY));
+  !isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget) || Date.now() < viewerGestureState.suppressNextDblClickUntil || (event.preventDefault(), event.stopPropagation(), toggleZoomAtPoint(event.clientX, event.clientY));
 }
 function attachZoomSurfaceGestures(surface) {
   surface && (surface.addEventListener("pointerdown", startPointerInteraction), surface.addEventListener("pointermove", movePointerInteraction), surface.addEventListener("pointerup", endPointerInteraction), surface.addEventListener("pointercancel", cancelPointerInteraction), surface.addEventListener("wheel", handleZoomSurfaceWheel, { passive: !1 }), surface.addEventListener("dblclick", handleZoomSurfaceDoubleClick));
@@ -5990,12 +6166,12 @@ function openLightbox(page = void 0, options = {}) {
   }
   setActiveViewerSource(source);
   let favorites = getFeatureInterface("favorites");
-  source === LIGHTBOX_SOURCE_FAVORITES ? favorites?.setViewerIndex(Math.max(0, Number.parseInt(String(options.favoriteIndex ?? ""), 10) || 0)) : favorites?.resetViewerSession(), setActivePage(clampPage(page, catalog)), viewerState.imageFitModeSource = normalizeViewerFitModeSource(viewerState.imageFitModeSource), viewerState.imageFitMode = viewerUsesAutomaticFitMode() ? getAutomaticViewerFitMode() : normalizeViewerFitMode(viewerState.imageFitMode), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), viewerState.zoom = AUTO_VIEWER_ZOOM, resetImagePosition({ queueSingleFitOrigin: !0 }), viewerState.pointers.clear(), hideViewerZoomIndicator(), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox"), telemetryTrackCatalogOpen(catalog, activePage(), activeViewerSource()), primeLightboxFrameForCatalogPage(catalog, activePage());
+  source === LIGHTBOX_SOURCE_FAVORITES ? favorites?.setViewerIndex(Math.max(0, Number.parseInt(String(options.favoriteIndex ?? ""), 10) || 0)) : favorites?.resetViewerSession(), setActivePage(clampPage(page, catalog)), viewerViewportState.imageFitModeSource = normalizeViewerFitModeSource(viewerViewportState.imageFitModeSource), viewerViewportState.imageFitMode = viewerUsesAutomaticFitMode() ? getAutomaticViewerFitMode() : normalizeViewerFitMode(viewerViewportState.imageFitMode), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), initializeViewerOpenStateCommand(), hideViewerZoomIndicator(), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox"), telemetryTrackCatalogOpen(catalog, activePage(), activeViewerSource()), primeLightboxFrameForCatalogPage(catalog, activePage());
   let initialSrc = viewerPageSrc(catalog, activePage());
   viewerElements.lightboxImage?.getAttribute("src") !== initialSrc && (viewerElements.lightboxImage?.removeAttribute("src"), prepareImagePlaceholder(viewerElements.lightboxImage), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter")), viewerElements.lightbox.classList.remove("hidden"), viewerElements.lightbox.classList.remove("show-ui", "show-page-rail"), syncTopUiPinnedUi(), syncDocumentLock(), renderLightboxPageRail(), isFavoritesLightboxMode() || renderLightboxCatalogMenu(), resetLightboxSearch(), syncLightboxModeUi(), syncFullscreenButtonUi(), showTopUiTemporarily(1700), updateLightbox(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), transitionViewerPhase(VIEWER_PHASE_OPEN, "lightbox-ready"), window.requestAnimationFrame(showViewerOnboardingIfNeeded);
 }
 function hideLightboxUi() {
-  transitionViewerPhase(VIEWER_PHASE_CLOSING, "hide-lightbox"), closeViewerOnboarding({ restoreFocus: !1 }), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0 }), viewerState.singleImageLoadToken += 1, stopViewerTouchMomentum(), clearViewerPageWheelGesture(), clearSingleImagePendingPosition(), clearSingleViewerResolutionUpgrade(), window.clearTimeout(viewerState.singleImageAnimationTimer), viewerElements.lightbox?.classList.add("hidden"), viewerElements.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed"), syncViewerAutoZoomButtonUi(), hideViewerZoomIndicator(), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter"), setViewerLoading(!1), hideLightboxFloatingPreview(), window.clearTimeout(viewerState.uiHideTimer), window.clearTimeout(viewerState.pageRailHideTimer), hideViewerPageIndicator(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), setActiveViewerSource(LIGHTBOX_SOURCE_CATALOG), transitionViewerPhase(VIEWER_PHASE_CLOSED, "lightbox-hidden"), syncDocumentLock();
+  transitionViewerPhase(VIEWER_PHASE_CLOSING, "hide-lightbox"), closeViewerOnboarding({ restoreFocus: !1 }), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0 }), invalidateViewerImageSwapCommand(), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), clearSingleImagePendingPosition(), clearSingleViewerResolutionUpgrade(), window.clearTimeout(viewerImageState.singleImageAnimationTimer), viewerElements.lightbox?.classList.add("hidden"), viewerElements.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed"), syncViewerAutoZoomButtonUi(), hideViewerZoomIndicator(), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter"), setViewerLoading(!1), hideLightboxFloatingPreview(), window.clearTimeout(viewerChromeState.uiHideTimer), window.clearTimeout(viewerChromeState.pageRailHideTimer), hideViewerPageIndicator(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), setActiveViewerSource(LIGHTBOX_SOURCE_CATALOG), transitionViewerPhase(VIEWER_PHASE_CLOSED, "lightbox-hidden"), finalizeViewerClosedStateCommand(), syncDocumentLock();
 }
 function closeLightbox(options = {}) {
   let wasFavoritesViewer = isFavoritesLightboxMode(), { restoreFavorites = wasFavoritesViewer } = options;
@@ -6022,8 +6198,8 @@ function openCatalogInViewer(id, page = void 0, options = {}) {
 }
 function attachViewerEvents() {
   attachViewerShareEvents(), attachViewerPageControllerEvents(), viewerElements.lightboxHomeLink?.addEventListener("click", returnToMainSiteFromLightbox), viewerElements.lightboxPinTopBar?.addEventListener("click", () => {
-    toggleTopUiPinned(), syncViewerMobileMoreMenuState(), viewerState.viewerOnboardingOpen && scheduleViewerOnboardingLayout(40);
-  }), viewerElements.lightboxBackdrop?.addEventListener("click", () => closeLightbox()), viewerElements.lightbox?.addEventListener("pointerdown", handleLightboxPageRailEdgePointerDown, { capture: !0, passive: !1 }), viewerElements.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: !0 }), viewerElements.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(viewerElements.fullscreenToggle)), viewerElements.prevPageBtn?.addEventListener("click", () => moveLightbox(-1)), viewerElements.nextPageBtn?.addEventListener("click", () => moveLightbox(1)), viewerElements.fitAutoBtn?.addEventListener("click", () => {
+    toggleTopUiPinned(), syncViewerMobileMoreMenuState(), viewerOnboardingState.viewerOnboardingOpen && scheduleViewerOnboardingLayout(40);
+  }), viewerElements.lightboxBackdrop?.addEventListener("click", () => closeLightbox()), viewerElements.lightbox?.addEventListener("pointerdown", handleLightboxPageRailEdgePointerDown, { capture: !0, passive: !1 }), viewerElements.lightbox?.addEventListener("pointerdown", handleLightboxPointerDownCapture, { capture: !0 }), viewerElements.fullscreenToggle?.addEventListener("click", () => toggleBrowserFullscreen(viewerElements.fullscreenToggle)), viewerElements.prevPageBtn?.addEventListener("click", () => moveLightbox(-1, { navigationSource: VIEWER_NAVIGATION_SOURCE_BUTTON })), viewerElements.nextPageBtn?.addEventListener("click", () => moveLightbox(1, { navigationSource: VIEWER_NAVIGATION_SOURCE_BUTTON })), viewerElements.fitAutoBtn?.addEventListener("click", () => {
     setViewerAutomaticFitMode(), syncViewerMobileMoreMenuState();
   }), viewerElements.fitHeightBtn?.addEventListener("click", () => {
     setViewerFitMode(VIEWER_FIT_HEIGHT), syncViewerMobileMoreMenuState();
@@ -6040,31 +6216,31 @@ function attachViewerEvents() {
   }), window.visualViewport?.addEventListener("resize", handleViewerResize, { passive: !0 }), typeof ResizeObserver == "function" && viewerElements.stageCanvas && !viewerStageResizeObserver && (viewerStageResizeObserver = new ResizeObserver(() => handleViewerResize()), viewerStageResizeObserver.observe(viewerElements.stageCanvas)), reconcileViewerFullscreenPhase("viewer-events-attached"), syncFullscreenButtonUi();
 }
 function flushViewerLayoutRefresh() {
-  viewerLayoutRefreshRaf = 0, isViewerSessionOpen() && (hideLightboxFloatingPreview(), syncAutomaticViewerFitMode({ showUi: !1, refreshLayout: !1 }), refreshLightboxLayoutForTopUiChange(), viewerState.viewerOnboardingOpen && scheduleViewerOnboardingLayout(40));
+  viewerLayoutRefreshRaf = 0, isViewerSessionOpen() && (hideLightboxFloatingPreview(), syncAutomaticViewerFitMode({ showUi: !1, refreshLayout: !1 }), refreshLightboxLayoutForTopUiChange(), viewerOnboardingState.viewerOnboardingOpen && scheduleViewerOnboardingLayout(40));
 }
 function handleViewerResize() {
   !isViewerSessionOpen() || viewerLayoutRefreshRaf || (viewerLayoutRefreshRaf = window.requestAnimationFrame(flushViewerLayoutRefresh));
 }
 function handleViewerGlobalKeydown(event) {
   if (!isViewerSessionOpen()) return !1;
-  if (viewerState.viewerOnboardingOpen)
+  if (viewerOnboardingState.viewerOnboardingOpen)
     return handleViewerOnboardingKeydown(event), !0;
   let target = eventTargetElement(event.target);
   if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return !1;
   if (["ArrowDown", "PageDown", "ArrowUp", "PageUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key) && stopViewerTouchMomentum(), ["ArrowDown", "PageDown"].includes(event.key))
-    event.preventDefault(), moveLightbox(1);
+    event.preventDefault(), moveLightbox(1, { navigationSource: VIEWER_NAVIGATION_SOURCE_KEYBOARD });
   else if (["ArrowUp", "PageUp"].includes(event.key))
-    event.preventDefault(), moveLightbox(-1);
+    event.preventDefault(), moveLightbox(-1, { navigationSource: VIEWER_NAVIGATION_SOURCE_KEYBOARD });
   else if (event.key === "ArrowRight")
-    event.preventDefault(), moveLightbox(-1);
+    event.preventDefault(), moveLightbox(-1, { navigationSource: VIEWER_NAVIGATION_SOURCE_KEYBOARD });
   else if (event.key === "ArrowLeft")
-    event.preventDefault(), moveLightbox(1);
+    event.preventDefault(), moveLightbox(1, { navigationSource: VIEWER_NAVIGATION_SOURCE_KEYBOARD });
   else if (event.key === "Home")
-    isFavoritesLightboxMode() ? setFavoriteViewerIndex(0) : setLightboxPage(catalogFirstPage(activeCatalog()));
+    isFavoritesLightboxMode() ? setFavoriteViewerIndex(0, { navigationSource: VIEWER_NAVIGATION_SOURCE_HOME_END }) : setLightboxPage(catalogFirstPage(activeCatalog()), { navigationSource: VIEWER_NAVIGATION_SOURCE_HOME_END });
   else if (event.key === "End") {
     let catalog = activeCatalog();
     if (!catalog) return !1;
-    isFavoritesLightboxMode() ? setFavoriteViewerIndex((getFeatureInterface("favorites")?.entries().length || 0) - 1) : setLightboxPage(catalogLastPage(catalog));
+    isFavoritesLightboxMode() ? setFavoriteViewerIndex((getFeatureInterface("favorites")?.entries().length || 0) - 1, { navigationSource: VIEWER_NAVIGATION_SOURCE_HOME_END }) : setLightboxPage(catalogLastPage(catalog), { navigationSource: VIEWER_NAVIGATION_SOURCE_HOME_END });
   } else
     return !1;
   return !0;
@@ -6088,21 +6264,21 @@ registerFeatureInterface("viewer", {
   refresh: (options = {}) => updateLightbox(options),
   renderPageRail: renderLightboxPageRail,
   prepareInquiry: () => {
-    viewerState.viewerOnboardingOpen && closeViewerOnboarding({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), getFeatureInterface("search")?.isLightboxMobileOpen?.() && getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0 });
+    viewerOnboardingState.viewerOnboardingOpen && closeViewerOnboarding({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), getFeatureInterface("search")?.isLightboxMobileOpen?.() && getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0 });
   },
-  setPage: (page, options = {}) => setLightboxPage(page, options),
+  setPage: (page, options = {}) => setLightboxPage(page, { navigationSource: VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC, ...options }),
   syncMobileSearchUi: (isOpen) => viewerElements.lightbox?.classList.toggle("mobile-search-open", !!isOpen),
   showTopUi: () => showTopUiTemporarily(0),
   containsTopBarElement: (element) => !!(element && viewerElements.lightboxBar?.contains(element)),
   closeMobileMoreMenu: () => closeViewerMobileMoreMenu(),
   hideTopUiForSearch: () => {
-    viewerState.topUiPinned || (window.clearTimeout(viewerState.uiHideTimer), viewerElements.lightbox?.classList.remove("show-ui"));
+    viewerChromeState.topUiPinned || (window.clearTimeout(viewerChromeState.uiHideTimer), viewerElements.lightbox?.classList.remove("show-ui"));
   },
   closeTopLayer: (event) => {
     if (!isViewerSessionOpen()) return !1;
-    if (viewerState.viewerMobileMoreOpen)
+    if (viewerChromeState.viewerMobileMoreOpen)
       return closeViewerMobileMoreMenu({ returnFocus: !0 }), !0;
-    if (viewerState.viewerOnboardingOpen)
+    if (viewerOnboardingState.viewerOnboardingOpen)
       return closeViewerOnboarding(), !0;
     if (getFeatureInterface("search")?.closeViewerTopLayer?.()) return !0;
     if (isBrowserFullscreenActive())

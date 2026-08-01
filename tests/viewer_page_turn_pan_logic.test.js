@@ -9,6 +9,7 @@ Object.assign(globalThis, pageNumbering);
 const clampValue = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 const state = {
   page: 1,
+  viewerPhase: "open",
   zoom: 2,
   fitScale: 1,
   panX: 0,
@@ -24,7 +25,22 @@ const state = {
   viewerPageWheelResetGestureActive: false,
   viewerPageWheelResetLastEventAt: 0,
   viewerPageWheelResetLastDelta: 0,
-  viewerPageWheelResetDirection: 0
+  viewerPageWheelResetDirection: 0,
+  pointers: new Map(),
+  viewerTouchMomentumRaf: 0,
+  viewerTouchMomentumVelocityX: 0,
+  viewerTouchMomentumVelocityY: 0,
+  viewerTouchMomentumLastTime: 0,
+  singleImageLoadToken: 0,
+  singleImageResolutionLoadToken: 0,
+  singleImageResolutionImage: null,
+  singleImageResolutionTargetSrc: "",
+  singleImageResolutionTargetTier: "",
+  singleImageResolutionReady: false,
+  singleImageResolutionVisible: false,
+  singleImageResolutionCommitPending: false,
+  singleImageResolutionRetainedForSwap: false,
+  singleImageResolutionStop: null
 };
 const stageCanvas = { clientWidth: 800, clientHeight: 800 };
 let metrics = { overflowX: 40, overflowY: 100 };
@@ -40,7 +56,7 @@ Object.assign(globalThis, {
   VIEWER_PAGE_TURN_BUFFER_MIN_PX: 144,
   VIEWER_PAGE_TURN_BUFFER_MAX_PX: 330,
   clampValue,
-  viewerState: state,
+  viewerState: state, viewerSessionState: state, viewerViewportState: state, viewerGestureState: state, viewerChromeState: state, viewerImageState: state, viewerNavigationState: state, viewerOnboardingState: state,
   navigationState: state,
   viewerElements: { stageCanvas },
   window: {
@@ -59,7 +75,8 @@ Object.assign(globalThis, {
   }
 });
 const geometry = importFrontendTestModule("src/js/54-viewer-geometry.js", "viewer-geometry");
-
+const transitions = importFrontendTestModule("src/js/17-viewer-state-transitions.js", "viewer-state-transitions");
+Object.assign(globalThis, transitions);
 
 assert.equal(geometry.getViewerPageTurnBuffer("y"), 288);
 stageCanvas.clientHeight = 300;
@@ -103,7 +120,11 @@ state.panX = 100;
 state.panY = -150;
 const relative = geometry.captureSingleImageRelativePosition();
 assert.deepEqual(relative, { xRatio: 0.5, yRatio: -0.5 });
-geometry.queueSingleImageRelativePosition(2, relative);
+transitions.beginViewerPageTransitionCommand(
+  2,
+  transitions.createViewerNavigationCommand("keyboard", 1, { manualZoom: true }),
+  relative
+);
 state.page = 2;
 metrics = { overflowX: 400, overflowY: 100 };
 assert.equal(geometry.applyPendingSingleImagePosition(), true);
@@ -111,13 +132,19 @@ assert.equal(state.panX, 200);
 assert.equal(state.panY, -50);
 
 // Edge-driven forward/backward navigation keeps zoom but chooses a reading origin.
-geometry.queueSingleImagePageTurnOrigin(3, 1, "y");
+transitions.beginViewerPageTransitionCommand(
+  3,
+  transitions.createViewerNavigationCommand("continuous-reading", 1, { axis: "y" })
+);
 state.page = 3;
 metrics = { overflowX: 75, overflowY: 260 };
 geometry.applyPendingSingleImagePosition();
 assert.equal(state.panX, 0);
 assert.equal(state.panY, 260, "forward edge turn opens the next image at its top");
-geometry.queueSingleImagePageTurnOrigin(2, -1, "y");
+transitions.beginViewerPageTransitionCommand(
+  2,
+  transitions.createViewerNavigationCommand("continuous-reading", -1, { axis: "y" })
+);
 state.page = 2;
 geometry.applyPendingSingleImagePosition();
 assert.equal(state.panY, -260, "backward edge turn enters the previous image from its bottom");
@@ -154,6 +181,11 @@ Object.assign(globalThis, {
   isViewerSessionOpen: () => true,
   singleViewerUsesBoundaryPan: () => usesBoundaryPan
 });
+Object.assign(globalThis, {
+  VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN: "boundary-pan",
+  VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING: "continuous-reading",
+  VIEWER_NAVIGATION_SOURCE_WHEEL: "wheel"
+});
 const navigation = importFrontendTestModule("src/js/58-viewer-navigation.js", "viewer-navigation");
 
 assert.deepEqual(
@@ -168,31 +200,38 @@ assert.deepEqual(
 state.page = 2;
 assert.equal(navigation.moveLightboxFromPageTurn(1, "y"), true);
 assert.deepEqual(moveCalls[0], [1, {
-  keepZoom: true,
-  positionMode: "page-turn",
-  pageTurnDirection: 1,
-  pageTurnAxis: "y",
-  preservePointerInteraction: false
+  navigationCommand: {
+    source: "continuous-reading",
+    direction: 1,
+    axis: "y",
+    zoomMode: "preserve",
+    positionMode: "page-turn",
+    preservePointerInteraction: false
+  }
 }]);
 assert.equal(navigation.moveLightboxFromPageTurn(-1, "x", { preservePointerInteraction: true }), true);
 assert.deepEqual(moveCalls[1], [-1, {
-  keepZoom: true,
-  positionMode: "page-turn",
-  pageTurnDirection: -1,
-  pageTurnAxis: "x",
-  preservePointerInteraction: true
+  navigationCommand: {
+    source: "continuous-reading",
+    direction: -1,
+    axis: "x",
+    zoomMode: "preserve",
+    positionMode: "page-turn",
+    preservePointerInteraction: true
+  }
 }]);
 
 assert.deepEqual(
-  navigation.getViewerPageTurnNavigationOptions(1, "y", {
+  navigation.getViewerPageTurnNavigationCommand(1, "y", {
     preservePointerInteraction: true,
-    resetViewOnPageTurn: true
+    navigationSource: "boundary-pan"
   }),
   {
-    keepZoom: false,
-    resetZoom: true,
-    resetPosition: true,
-    positionMode: "auto",
+    source: "boundary-pan",
+    direction: 1,
+    axis: "y",
+    zoomMode: "reset",
+    positionMode: "fit-origin",
     preservePointerInteraction: true
   },
   "scroll-driven page turns must reset a manual zoom and its pan position"
@@ -200,15 +239,18 @@ assert.deepEqual(
 
 const boundaryResult = navigation.consumeSingleViewerBoundaryInput(0, 40, {
   pointerId: 91,
-  resetViewOnPageTurn: true
+  navigationSource: "boundary-pan"
 });
 assert.equal(boundaryResult.turned, true);
 assert.deepEqual(moveCalls[2], [1, {
-  keepZoom: false,
-  resetZoom: true,
-  resetPosition: true,
-  positionMode: "auto",
-  preservePointerInteraction: true
+  navigationCommand: {
+    source: "boundary-pan",
+    direction: 1,
+    axis: "y",
+    zoomMode: "reset",
+    positionMode: "fit-origin",
+    preservePointerInteraction: true
+  }
 }], "a vertical touch-scroll edge turn resets the view while preserving the live pointer stream");
 
 boundaryPanResult = { moved: false, remainingDeltaX: 18, remainingDeltaY: 0 };
@@ -219,12 +261,13 @@ assert.equal(moveCalls.length, 3, "horizontal boundary overflow must stop withou
 
 state.zoom = 1;
 assert.deepEqual(
-  navigation.getViewerPageTurnNavigationOptions(1, "y", { resetViewOnPageTurn: true }),
+  navigation.getViewerPageTurnNavigationCommand(1, "y", { navigationSource: "boundary-pan" }),
   {
-    keepZoom: true,
+    source: "boundary-pan",
+    direction: 1,
+    axis: "y",
+    zoomMode: "preserve",
     positionMode: "page-turn",
-    pageTurnDirection: 1,
-    pageTurnAxis: "y",
     preservePointerInteraction: false
   },
   "ordinary scrolling at automatic zoom keeps the continuous-reading page origin"

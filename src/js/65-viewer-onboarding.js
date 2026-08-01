@@ -9,7 +9,7 @@
 /** @import { PositionedPoint, RectLike, ViewerOnboardingCloseOptions, ViewerOnboardingPlacement, ViewerOnboardingStep, ViewerOnboardingStepOptions, ViewerOnboardingTargetDefinition } from "../../types/frontend-contracts.js" */
 
 import { getFeatureInterface } from "./10-app-state.js";
-import { VIEWER_ONBOARDING_STORAGE_KEY, viewerElements, viewerState } from "./16-viewer-state.js";
+import { VIEWER_ONBOARDING_STORAGE_KEY, viewerChromeState, viewerElements, viewerOnboardingState } from "./16-viewer-state.js";
 import { clampValue, focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";
 import { isViewerSessionOpen } from "./51-viewer-session-state.js";
 
@@ -208,8 +208,8 @@ function getViewerOnboardingFocusableElements() {
     'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )).filter(isHtmlElement).filter((element) => !element.closest(".hidden"));
   const targets = [
-    ...(viewerState.viewerOnboardingFloatingTargets || []).map((entry) => entry.clone),
-    viewerState.viewerOnboardingTarget
+    ...(viewerOnboardingState.viewerOnboardingFloatingTargets || []).map((entry) => entry.clone),
+    viewerOnboardingState.viewerOnboardingTarget
   ].filter(isHtmlElement);
   const targetControls = targets.flatMap((target) => [
     ...(target.matches?.('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])') ? [target] : []),
@@ -312,8 +312,8 @@ function calculateViewerOnboardingCalloutPosition(targetRect, calloutRect, prefe
 }
 
 function removeViewerOnboardingFloatingTargets() {
-  (viewerState.viewerOnboardingFloatingTargets || []).forEach((entry) => entry.clone?.remove?.());
-  viewerState.viewerOnboardingFloatingTargets = [];
+  (viewerOnboardingState.viewerOnboardingFloatingTargets || []).forEach((entry) => entry.clone?.remove?.());
+  viewerOnboardingState.viewerOnboardingFloatingTargets = [];
 }
 
 /** @param {HTMLElement} clone */
@@ -348,7 +348,7 @@ function getViewerOnboardingFloatingTargetDefinitions(step) {
 
 /** @param {ViewerOnboardingStep} step @param {Array<ViewerOnboardingTargetDefinition>} definitions */
 function viewerOnboardingFloatingTargetsMatch(step, definitions) {
-  const current = viewerState.viewerOnboardingFloatingTargets || [];
+  const current = viewerOnboardingState.viewerOnboardingFloatingTargets || [];
   return current.length === definitions.length && current.every((entry, index) => (
     entry.source === definitions[index].source
     && entry.id === definitions[index].id
@@ -366,7 +366,7 @@ function updateViewerOnboardingFloatingTargets(step) {
 
   if (!viewerOnboardingFloatingTargetsMatch(step, definitions)) {
     removeViewerOnboardingFloatingTargets();
-    viewerState.viewerOnboardingFloatingTargets = definitions.map(({ source, id }) => {
+    viewerOnboardingState.viewerOnboardingFloatingTargets = definitions.map(({ source, id }) => {
       const clone = /** @type {HTMLButtonElement} */ (source.cloneNode(true));
       sanitizeViewerOnboardingFloatingTarget(clone);
       clone.classList.add("viewer-onboarding-floating-target");
@@ -377,9 +377,9 @@ function updateViewerOnboardingFloatingTargets(step) {
         event.stopPropagation();
         source.click();
         window.requestAnimationFrame(() => {
-          const isCurrentClone = (viewerState.viewerOnboardingFloatingTargets || [])
+          const isCurrentClone = (viewerOnboardingState.viewerOnboardingFloatingTargets || [])
             .some((entry) => entry.clone === clone);
-          if (!viewerState.viewerOnboardingOpen || !isCurrentClone) return;
+          if (!viewerOnboardingState.viewerOnboardingOpen || !isCurrentClone) return;
           syncViewerOnboardingFloatingTargetState(source, clone);
           scheduleViewerOnboardingLayout(30);
         });
@@ -389,7 +389,7 @@ function updateViewerOnboardingFloatingTargets(step) {
     });
   }
 
-  viewerState.viewerOnboardingFloatingTargets.forEach(({ source, clone }) => {
+  viewerOnboardingState.viewerOnboardingFloatingTargets.forEach(({ source, clone }) => {
     syncViewerOnboardingFloatingTargetState(source, clone);
     const rect = source.getBoundingClientRect();
     clone.style.left = `${rect.left}px`;
@@ -400,13 +400,13 @@ function updateViewerOnboardingFloatingTargets(step) {
 }
 
 function layoutViewerOnboarding() {
-  if (!viewerState.viewerOnboardingOpen || !viewerElements.viewerOnboarding || !viewerElements.viewerOnboardingCard || !viewerElements.viewerOnboardingSpotlight) return;
+  if (!viewerOnboardingState.viewerOnboardingOpen || !viewerElements.viewerOnboarding || !viewerElements.viewerOnboardingCard || !viewerElements.viewerOnboardingSpotlight) return;
   const steps = getViewerOnboardingSteps();
-  const step = steps[viewerState.viewerOnboardingStep];
+  const step = steps[viewerOnboardingState.viewerOnboardingStep];
   if (!step) return;
 
   const target = step.target?.() || null;
-  viewerState.viewerOnboardingTarget = target;
+  viewerOnboardingState.viewerOnboardingTarget = target;
   const rawRect = step.targetRect?.() || target?.getBoundingClientRect?.();
   const targetRect = normalizeViewerOnboardingRect(
     rawRect,
@@ -442,15 +442,15 @@ function layoutViewerOnboarding() {
 
 function scheduleViewerOnboardingLayout(delay = 0) {
   const run = () => {
-    window.cancelAnimationFrame(viewerState.viewerOnboardingLayoutRaf);
-    viewerState.viewerOnboardingLayoutRaf = window.requestAnimationFrame(layoutViewerOnboarding);
+    window.cancelAnimationFrame(viewerOnboardingState.viewerOnboardingLayoutRaf);
+    viewerOnboardingState.viewerOnboardingLayoutRaf = window.requestAnimationFrame(layoutViewerOnboarding);
   };
 
   if (delay > 0) {
     // Keep the immediate layout that was scheduled for this step. The delayed
     // pass only re-measures after toolbar/callout transitions have settled.
-    window.clearTimeout(viewerState.viewerOnboardingLayoutTimer);
-    viewerState.viewerOnboardingLayoutTimer = window.setTimeout(run, delay);
+    window.clearTimeout(viewerOnboardingState.viewerOnboardingLayoutTimer);
+    viewerOnboardingState.viewerOnboardingLayoutTimer = window.setTimeout(run, delay);
     return;
   }
 
@@ -459,14 +459,14 @@ function scheduleViewerOnboardingLayout(delay = 0) {
 
 /** @param {ViewerOnboardingStepOptions} [options] */
 function renderViewerOnboardingStep(options = {}) {
-  if (!viewerState.viewerOnboardingOpen) return;
+  if (!viewerOnboardingState.viewerOnboardingOpen) return;
   const { focus = true, scheduleLayout = true } = options;
   const steps = getViewerOnboardingSteps();
-  viewerState.viewerOnboardingStep = clampValue(viewerState.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
-  const step = steps[viewerState.viewerOnboardingStep];
+  viewerOnboardingState.viewerOnboardingStep = clampValue(viewerOnboardingState.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
+  const step = steps[viewerOnboardingState.viewerOnboardingStep];
   if (!step) return;
 
-  const floatingTargetsBelongToStep = (viewerState.viewerOnboardingFloatingTargets || [])
+  const floatingTargetsBelongToStep = (viewerOnboardingState.viewerOnboardingFloatingTargets || [])
     .every((entry) => entry.stepId === step.id);
   if (!floatingTargetsBelongToStep) {
     removeViewerOnboardingFloatingTargets();
@@ -474,24 +474,24 @@ function renderViewerOnboardingStep(options = {}) {
 
   viewerElements.lightbox?.classList.toggle("viewer-tour-show-top-ui", Boolean(step.revealTopBar));
   viewerElements.lightbox?.classList.toggle("viewer-tour-show-page-rail", Boolean(step.revealPageRail));
-  if (step.revealTopBar) window.clearTimeout(viewerState.uiHideTimer);
-  if (step.revealPageRail) window.clearTimeout(viewerState.pageRailHideTimer);
+  if (step.revealTopBar) window.clearTimeout(viewerChromeState.uiHideTimer);
+  if (step.revealPageRail) window.clearTimeout(viewerChromeState.pageRailHideTimer);
 
   if (viewerElements.viewerOnboardingEyebrow) viewerElements.viewerOnboardingEyebrow.textContent = step.eyebrow || "סיור קצר";
   if (viewerElements.viewerOnboardingTitle) viewerElements.viewerOnboardingTitle.textContent = step.title;
   if (viewerElements.viewerOnboardingDescription) viewerElements.viewerOnboardingDescription.textContent = step.description;
-  if (viewerElements.viewerOnboardingCounter) viewerElements.viewerOnboardingCounter.textContent = `${viewerState.viewerOnboardingStep + 1} מתוך ${steps.length}`;
+  if (viewerElements.viewerOnboardingCounter) viewerElements.viewerOnboardingCounter.textContent = `${viewerOnboardingState.viewerOnboardingStep + 1} מתוך ${steps.length}`;
   if (viewerElements.viewerOnboardingNote) {
     viewerElements.viewerOnboardingNote.textContent = step.note || "";
     viewerElements.viewerOnboardingNote.classList.toggle("hidden", !step.note);
   }
-  if (viewerElements.viewerOnboardingPrevious) viewerElements.viewerOnboardingPrevious.disabled = viewerState.viewerOnboardingStep === 0;
+  if (viewerElements.viewerOnboardingPrevious) viewerElements.viewerOnboardingPrevious.disabled = viewerOnboardingState.viewerOnboardingStep === 0;
   if (viewerElements.viewerOnboardingNext) {
-    viewerElements.viewerOnboardingNext.textContent = viewerState.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא";
+    viewerElements.viewerOnboardingNext.textContent = viewerOnboardingState.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא";
   }
   if (viewerElements.viewerOnboardingDots) {
     viewerElements.viewerOnboardingDots.innerHTML = steps.map((_, index) => (
-      `<span${index === viewerState.viewerOnboardingStep ? ' class="active"' : ""}></span>`
+      `<span${index === viewerOnboardingState.viewerOnboardingStep ? ' class="active"' : ""}></span>`
     )).join("");
   }
 
@@ -504,44 +504,44 @@ function renderViewerOnboardingStep(options = {}) {
 
 /** @param {number} delta */
 function moveViewerOnboardingStep(delta) {
-  if (!viewerState.viewerOnboardingOpen) return;
+  if (!viewerOnboardingState.viewerOnboardingOpen) return;
   const steps = getViewerOnboardingSteps();
-  const nextStep = viewerState.viewerOnboardingStep + delta;
+  const nextStep = viewerOnboardingState.viewerOnboardingStep + delta;
   if (nextStep >= steps.length) {
     closeViewerOnboarding();
     return;
   }
-  viewerState.viewerOnboardingStep = clampValue(nextStep, 0, Math.max(0, steps.length - 1));
+  viewerOnboardingState.viewerOnboardingStep = clampValue(nextStep, 0, Math.max(0, steps.length - 1));
   renderViewerOnboardingStep();
 }
 
 function restoreViewerUiAfterOnboarding() {
-  const restore = viewerState.viewerOnboardingRestoreUi || { showUi: false, showPageRail: false };
+  const restore = viewerOnboardingState.viewerOnboardingRestoreUi || { showUi: false, showPageRail: false };
   viewerElements.lightbox?.classList.remove("viewer-tour-active", "viewer-tour-show-top-ui", "viewer-tour-show-page-rail");
   if (viewerElements.lightbox) {
-    if (viewerState.topUiPinned || restore.showUi) viewerElements.lightbox.classList.add("show-ui");
+    if (viewerChromeState.topUiPinned || restore.showUi) viewerElements.lightbox.classList.add("show-ui");
     else viewerElements.lightbox.classList.remove("show-ui");
     if (restore.showPageRail) viewerElements.lightbox.classList.add("show-page-rail");
     else viewerElements.lightbox.classList.remove("show-page-rail");
   }
-  viewerState.viewerOnboardingRestoreUi = null;
+  viewerOnboardingState.viewerOnboardingRestoreUi = null;
 }
 
 /** @param {ViewerOnboardingCloseOptions} [options] */
 function closeViewerOnboarding(options = {}) {
-  if (!viewerState.viewerOnboardingOpen) return;
+  if (!viewerOnboardingState.viewerOnboardingOpen) return;
   const { restoreFocus = true, remember = true } = options;
-  viewerState.viewerOnboardingOpen = false;
-  viewerState.viewerOnboardingTarget = null;
+  viewerOnboardingState.viewerOnboardingOpen = false;
+  viewerOnboardingState.viewerOnboardingTarget = null;
   removeViewerOnboardingFloatingTargets();
-  window.cancelAnimationFrame(viewerState.viewerOnboardingLayoutRaf);
-  window.clearTimeout(viewerState.viewerOnboardingLayoutTimer);
+  window.cancelAnimationFrame(viewerOnboardingState.viewerOnboardingLayoutRaf);
+  window.clearTimeout(viewerOnboardingState.viewerOnboardingLayoutTimer);
   if (remember) markViewerOnboardingSeen();
   restoreViewerUiAfterOnboarding();
   viewerElements.viewerOnboarding?.classList.remove("visible");
   viewerElements.viewerOnboarding?.setAttribute("aria-hidden", "true");
   window.setTimeout(() => {
-    if (viewerState.viewerOnboardingOpen) return;
+    if (viewerOnboardingState.viewerOnboardingOpen) return;
     viewerElements.viewerOnboarding?.classList.add("hidden");
     viewerElements.viewerOnboarding?.classList.remove("layout-ready");
   }, 220);
@@ -549,13 +549,13 @@ function closeViewerOnboarding(options = {}) {
 }
 
 function showViewerOnboardingIfNeeded() {
-  if (!isViewerSessionOpen() || !viewerElements.viewerOnboarding || viewerState.viewerOnboardingOpen) return;
-  if (viewerState.viewerOnboardingShownThisSession || viewerOnboardingWasSeen()) return;
+  if (!isViewerSessionOpen() || !viewerElements.viewerOnboarding || viewerOnboardingState.viewerOnboardingOpen) return;
+  if (viewerOnboardingState.viewerOnboardingShownThisSession || viewerOnboardingWasSeen()) return;
 
-  viewerState.viewerOnboardingShownThisSession = true;
-  viewerState.viewerOnboardingOpen = true;
-  viewerState.viewerOnboardingStep = 0;
-  viewerState.viewerOnboardingRestoreUi = {
+  viewerOnboardingState.viewerOnboardingShownThisSession = true;
+  viewerOnboardingState.viewerOnboardingOpen = true;
+  viewerOnboardingState.viewerOnboardingStep = 0;
+  viewerOnboardingState.viewerOnboardingRestoreUi = {
     showUi: Boolean(viewerElements.lightbox?.classList.contains("show-ui")),
     showPageRail: Boolean(viewerElements.lightbox?.classList.contains("show-page-rail"))
   };
@@ -567,14 +567,14 @@ function showViewerOnboardingIfNeeded() {
   // Waiting one frame after revealing the real toolbar lets its layout settle,
   // so the callout is already in its final position before the fade-in begins.
   window.requestAnimationFrame(() => {
-    if (!viewerState.viewerOnboardingOpen) return;
+    if (!viewerOnboardingState.viewerOnboardingOpen) return;
     renderViewerOnboardingStep({ focus: false, scheduleLayout: false });
     window.requestAnimationFrame(() => {
-      if (!viewerState.viewerOnboardingOpen) return;
+      if (!viewerOnboardingState.viewerOnboardingOpen) return;
       layoutViewerOnboarding();
       viewerElements.viewerOnboarding.classList.add("layout-ready");
       window.requestAnimationFrame(() => {
-        if (!viewerState.viewerOnboardingOpen) return;
+        if (!viewerOnboardingState.viewerOnboardingOpen) return;
         viewerElements.viewerOnboarding.classList.add("visible");
         viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: true });
         scheduleViewerOnboardingLayout(260);
@@ -585,7 +585,7 @@ function showViewerOnboardingIfNeeded() {
 
 /** @param {KeyboardEvent} event */
 function handleViewerOnboardingKeydown(event) {
-  if (!viewerState.viewerOnboardingOpen) return false;
+  if (!viewerOnboardingState.viewerOnboardingOpen) return false;
   if (event.key === "Escape") {
     event.preventDefault();
     closeViewerOnboarding();

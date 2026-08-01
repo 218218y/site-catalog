@@ -6,7 +6,7 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
-import { VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, viewerElements, viewerState } from "./16-viewer-state.js";
+import { VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, viewerChromeState, viewerElements } from "./16-viewer-state.js";
 import { focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { downloadCurrentLightboxImage } from "./31-viewer-share.js";
@@ -24,7 +24,7 @@ function isMobileViewerToolbarMode() {
 /** @param {boolean} open @param {{returnFocus?:boolean}} [options] */
 function setViewerMobileMoreOpen(open, options = {}) {
   const shouldOpen = Boolean(open && isViewerSessionOpen() && isMobileViewerToolbarMode());
-  viewerState.viewerMobileMoreOpen = shouldOpen;
+  viewerChromeState.viewerMobileMoreOpen = shouldOpen;
   syncViewerMobileMoreMenuState();
   viewerElements.viewerMobileMoreMenu?.classList.toggle("hidden", !shouldOpen);
   viewerElements.viewerMobileMoreMenu?.classList.toggle("visible", shouldOpen);
@@ -56,7 +56,7 @@ function getViewerMobileMoreItems() {
 
 /** @param {KeyboardEvent} event */
 function handleViewerMobileMoreKeydown(event) {
-  if (!viewerState.viewerMobileMoreOpen) return;
+  if (!viewerChromeState.viewerMobileMoreOpen) return;
   const items = getViewerMobileMoreItems();
   if (!items.length) return;
 
@@ -94,13 +94,13 @@ function attachViewerActionEvents() {
   viewerElements.viewerMobileMoreToggle?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setViewerMobileMoreOpen(!viewerState.viewerMobileMoreOpen, { returnFocus: viewerState.viewerMobileMoreOpen });
+    setViewerMobileMoreOpen(!viewerChromeState.viewerMobileMoreOpen, { returnFocus: viewerChromeState.viewerMobileMoreOpen });
   });
   viewerElements.viewerMobileMoreMenu?.addEventListener("click", handleViewerMobileMoreAction);
   viewerElements.viewerMobileMoreMenu?.addEventListener("keydown", handleViewerMobileMoreKeydown);
 
   document.addEventListener("pointerdown", (event) => {
-    if (!viewerState.viewerMobileMoreOpen) return;
+    if (!viewerChromeState.viewerMobileMoreOpen) return;
     const target = event.target instanceof Node ? event.target : null;
     if (viewerElements.viewerMobileMoreMenu?.contains(target) || viewerElements.viewerMobileMoreToggle?.contains(target)) return;
     closeViewerMobileMoreMenu();

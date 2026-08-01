@@ -8,7 +8,8 @@
 
 import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, getFeatureInterface } from "./10-app-state.js";
-import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_PAGE_SWAP_CLEANUP_MS, viewerElements, viewerState } from "./16-viewer-state.js";
+import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_PAGE_SWAP_CLEANUP_MS, viewerElements, viewerImageState, viewerViewportState } from "./16-viewer-state.js";
+import { attachViewerResolutionStopCommand, beginViewerImageSwapCommand, beginViewerResolutionCommand, cancelViewerResolutionCommand, commitViewerResolutionCommand, isViewerImageSwapCurrent, markViewerResolutionReadyCommand, releaseViewerRetainedResolutionCommand, retainViewerResolutionForSwapCommand } from "./17-viewer-state-transitions.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { applyCatalogImageDimensions, catalogImageTierMaxSide, catalogNeighborPreloadRadius, catalogPageImageSrc, catalogSupportsImageTier, isSaveDataEnabled, loadCatalogImageWithRecovery, networkEffectiveType, normalizeCatalogImageUrl, pageSize, pageSrc, prepareCatalogImage, prepareImagePlaceholder, syncImagePlaceholderState } from "./20-shared-ui.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
@@ -26,9 +27,9 @@ function setViewerLoading(isLoading) {
  */
 function runViewerPageSwapAnimation(element, options = /** @type {ViewerPageSwapAnimationOptions} */ ({ timerKey: "singleImageAnimationTimer" })) {
   const { timerKey, root = element?.parentElement } = options;
-  if (!element || !timerKey || !(timerKey in viewerState)) return;
+  if (!element || !timerKey || !(timerKey in viewerImageState)) return;
 
-  window.clearTimeout(viewerState[timerKey]);
+  window.clearTimeout(viewerImageState[timerKey]);
   root?.querySelectorAll?.(".page-swap-enter")
     .forEach((animatedElement) => animatedElement.classList.remove("page-swap-enter"));
 
@@ -37,9 +38,9 @@ function runViewerPageSwapAnimation(element, options = /** @type {ViewerPageSwap
   // stale size or location.
   void element.offsetWidth;
   element.classList.add("page-swap-enter");
-  viewerState[timerKey] = window.setTimeout(() => {
+  viewerImageState[timerKey] = window.setTimeout(() => {
     element.classList.remove("page-swap-enter");
-    viewerState[timerKey] = 0;
+    viewerImageState[timerKey] = 0;
   }, VIEWER_PAGE_SWAP_CLEANUP_MS);
 }
 
@@ -53,7 +54,7 @@ function runSingleImageSwapAnimation() {
 
 /** @param {number} token */
 function finishSingleImageSwap(token) {
-  if (token !== viewerState.singleImageLoadToken) return;
+  if (!isViewerImageSwapCurrent(token)) return;
   setViewerLoading(false);
   viewerElements.lightbox?.classList.remove("is-page-loading");
   viewerElements.lightboxImageFrame?.classList.remove("is-preparing-swap");
@@ -62,7 +63,7 @@ function finishSingleImageSwap(token) {
 }
 
 function ensureSingleViewerResolutionImage() {
-  if (viewerState.singleImageResolutionImage?.isConnected) return viewerState.singleImageResolutionImage;
+  if (viewerImageState.singleImageResolutionImage?.isConnected) return viewerImageState.singleImageResolutionImage;
   if (!viewerElements.lightboxImageFrame) return null;
 
   const image = new Image();
@@ -74,23 +75,15 @@ function ensureSingleViewerResolutionImage() {
   image.setAttribute("aria-hidden", "true");
   image.dataset.placeholderIgnore = "true";
   viewerElements.lightboxImageFrame.append(image);
-  viewerState.singleImageResolutionImage = image;
+  viewerImageState.singleImageResolutionImage = image;
   return image;
 }
 
 function clearSingleViewerResolutionUpgrade() {
-  viewerState.singleImageResolutionLoadToken += 1;
-  viewerState.singleImageResolutionStop?.();
-  viewerState.singleImageResolutionStop = null;
-  viewerState.singleImageResolutionTargetSrc = "";
-  viewerState.singleImageResolutionTargetTier = "";
-  viewerState.singleImageResolutionReady = false;
-  viewerState.singleImageResolutionVisible = false;
-  viewerState.singleImageResolutionCommitPending = false;
-  viewerState.singleImageResolutionRetainedForSwap = false;
+  cancelViewerResolutionCommand();
   viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready");
 
-  const image = viewerState.singleImageResolutionImage;
+  const image = viewerImageState.singleImageResolutionImage;
   if (!image) return;
   image.removeAttribute("src");
   delete image.dataset.resolutionRetainedForSwap;
@@ -101,13 +94,13 @@ function clearSingleViewerResolutionUpgrade() {
 }
 
 function retainSingleViewerResolutionLayerForSwap() {
-  const image = viewerState.singleImageResolutionImage;
-  if (viewerState.singleImageResolutionRetainedForSwap) {
+  const image = viewerImageState.singleImageResolutionImage;
+  if (viewerImageState.singleImageResolutionRetainedForSwap) {
     return Boolean(image?.isConnected && image.naturalWidth > 0);
   }
   if (
-    !viewerState.singleImageResolutionVisible
-    || !viewerState.singleImageResolutionReady
+    !viewerImageState.singleImageResolutionVisible
+    || !viewerImageState.singleImageResolutionReady
     || !image?.isConnected
     || image.naturalWidth <= 0
   ) {
@@ -117,15 +110,7 @@ function retainSingleViewerResolutionLayerForSwap() {
   // Freeze the already-decoded high-resolution layer as the visual front buffer.
   // Its ownership metadata is retired immediately, so it cannot be mistaken for
   // the target page, but its pixels remain painted until the next page is decoded.
-  viewerState.singleImageResolutionLoadToken += 1;
-  viewerState.singleImageResolutionStop?.();
-  viewerState.singleImageResolutionStop = null;
-  viewerState.singleImageResolutionTargetSrc = "";
-  viewerState.singleImageResolutionTargetTier = "";
-  viewerState.singleImageResolutionReady = false;
-  viewerState.singleImageResolutionVisible = false;
-  viewerState.singleImageResolutionCommitPending = false;
-  viewerState.singleImageResolutionRetainedForSwap = true;
+  retainViewerResolutionForSwapCommand();
   image.dataset.resolutionRetainedForSwap = "true";
   viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading");
   viewerElements.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready");
@@ -133,11 +118,11 @@ function retainSingleViewerResolutionLayerForSwap() {
 }
 
 function releaseSingleViewerRetainedResolutionLayer() {
-  if (!viewerState.singleImageResolutionRetainedForSwap) return false;
-  viewerState.singleImageResolutionRetainedForSwap = false;
+  if (!viewerImageState.singleImageResolutionRetainedForSwap) return false;
+  releaseViewerRetainedResolutionCommand();
   viewerElements.lightboxImageFrame?.classList.remove("is-resolution-upgrade-ready");
 
-  const image = viewerState.singleImageResolutionImage;
+  const image = viewerImageState.singleImageResolutionImage;
   if (!image) return true;
   image.removeAttribute("src");
   delete image.dataset.resolutionRetainedForSwap;
@@ -149,41 +134,36 @@ function releaseSingleViewerRetainedResolutionLayer() {
 }
 
 function activeSingleViewerImageLogicalSrc() {
-  if (viewerState.singleImageResolutionVisible && viewerState.singleImageResolutionTargetSrc) {
-    return viewerState.singleImageResolutionTargetSrc;
+  if (viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionTargetSrc) {
+    return viewerImageState.singleImageResolutionTargetSrc;
   }
   return normalizeCatalogImageUrl(viewerElements.lightboxImage?.dataset.logicalSrc || viewerElements.lightboxImage?.getAttribute("src") || "");
 }
 
 function activeSingleViewerImageTier() {
-  if (viewerState.singleImageResolutionRetainedForSwap) return CATALOG_IMAGE_TIER_FULL;
-  if (viewerState.singleImageResolutionVisible && viewerState.singleImageResolutionTargetTier) {
-    return viewerState.singleImageResolutionTargetTier;
+  if (viewerImageState.singleImageResolutionRetainedForSwap) return CATALOG_IMAGE_TIER_FULL;
+  if (viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionTargetTier) {
+    return viewerImageState.singleImageResolutionTargetTier;
   }
   return String(viewerElements.lightboxImage?.dataset.loadedTier || "");
 }
 
-function shouldWarmSingleViewerFullResolution(previousZoom = viewerState.zoom) {
+function shouldWarmSingleViewerFullResolution(previousZoom = viewerViewportState.zoom) {
   if (isSaveDataEnabled()) return false;
   const effectiveType = networkEffectiveType();
   if (effectiveType === "slow-2g" || effectiveType === "2g" || effectiveType === "3g") return false;
 
-  const zoom = Number(viewerState.zoom) || AUTO_VIEWER_ZOOM;
+  const zoom = Number(viewerViewportState.zoom) || AUTO_VIEWER_ZOOM;
   const previous = Number(previousZoom) || AUTO_VIEWER_ZOOM;
   return zoom > AUTO_VIEWER_ZOOM + VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON
     && zoom > previous + 0.001;
 }
 
-function commitSingleViewerResolutionUpgrade(token = viewerState.singleImageResolutionLoadToken) {
-  if (token !== viewerState.singleImageResolutionLoadToken || !viewerState.singleImageResolutionReady) {
-    viewerState.singleImageResolutionCommitPending = true;
-    return false;
-  }
+function commitSingleViewerResolutionUpgrade(token = viewerImageState.singleImageResolutionLoadToken) {
+  if (!commitViewerResolutionCommand(token)) return false;
 
-  viewerState.singleImageResolutionCommitPending = false;
-  viewerState.singleImageResolutionVisible = true;
   requestAnimationFrame(() => {
-    if (token !== viewerState.singleImageResolutionLoadToken || !viewerState.singleImageResolutionVisible) return;
+    if (token !== viewerImageState.singleImageResolutionLoadToken || !viewerImageState.singleImageResolutionVisible) return;
     viewerElements.lightboxImageFrame?.classList.add("is-resolution-upgrade-ready");
   });
   return true;
@@ -200,49 +180,41 @@ function prepareSingleViewerResolutionUpgrade(catalog, page, request, options = 
   const targetSrc = normalizeCatalogImageUrl(request.primarySrc);
   if (!targetSrc) return false;
 
-  const sameTarget = viewerState.singleImageResolutionTargetSrc === targetSrc
-    && viewerState.singleImageResolutionTargetTier === request.primaryTier;
+  const sameTarget = viewerImageState.singleImageResolutionTargetSrc === targetSrc
+    && viewerImageState.singleImageResolutionTargetTier === request.primaryTier;
   if (sameTarget) {
-    if (options.commit) {
-      viewerState.singleImageResolutionCommitPending = true;
-      if (viewerState.singleImageResolutionReady) commitSingleViewerResolutionUpgrade();
-    }
+    if (options.commit) commitSingleViewerResolutionUpgrade();
     return true;
   }
 
-  clearSingleViewerResolutionUpgrade();
   const image = ensureSingleViewerResolutionImage();
   if (!image) return false;
 
-  const token = ++viewerState.singleImageResolutionLoadToken;
-  viewerState.singleImageResolutionTargetSrc = targetSrc;
-  viewerState.singleImageResolutionTargetTier = request.primaryTier;
-  viewerState.singleImageResolutionCommitPending = Boolean(options.commit);
+  const token = beginViewerResolutionCommand(targetSrc, request.primaryTier, Boolean(options.commit));
   viewerElements.lightboxImageFrame?.classList.add("is-resolution-loading");
 
-  viewerState.singleImageResolutionStop = loadCatalogImageWithRecovery(image, {
+  const stop = loadCatalogImageWithRecovery(image, {
     primarySrc: targetSrc,
     primaryTier: request.primaryTier,
     isCurrent: () => (
-      token === viewerState.singleImageResolutionLoadToken
+      token === viewerImageState.singleImageResolutionLoadToken
       && isViewerSessionOpen()
       && activeCatalog() === catalog
       && activePage() === page
-      && viewerState.singleImageResolutionTargetSrc === targetSrc
+      && viewerImageState.singleImageResolutionTargetSrc === targetSrc
     ),
     telemetryDetail: "viewer-resolution-upgrade",
     onSuccess: /** @param {CatalogImageCandidate} candidate */ (candidate) => {
       const finishReady = () => {
-        if (token !== viewerState.singleImageResolutionLoadToken || !image.naturalWidth) return;
-        viewerState.singleImageResolutionStop = null;
-        viewerState.singleImageResolutionReady = true;
+        if (token !== viewerImageState.singleImageResolutionLoadToken || !image.naturalWidth) return;
+        if (!markViewerResolutionReadyCommand(token)) return;
         image.dataset.logicalSrc = targetSrc;
         image.dataset.loadedTier = candidate.tier || request.primaryTier;
         image.dataset.loadedQuality = image.dataset.loadedTier;
         viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading");
 
         const preferredTier = preferredViewerImageTier(catalog, page);
-        if (viewerState.singleImageResolutionCommitPending || preferredTier === CATALOG_IMAGE_TIER_FULL) {
+        if (viewerImageState.singleImageResolutionCommitPending || preferredTier === CATALOG_IMAGE_TIER_FULL) {
           commitSingleViewerResolutionUpgrade(token);
         }
       };
@@ -254,17 +226,13 @@ function prepareSingleViewerResolutionUpgrade(catalog, page, request, options = 
       }
     },
     onExhausted: () => {
-      if (token !== viewerState.singleImageResolutionLoadToken) return;
-      viewerState.singleImageResolutionStop = null;
-      viewerState.singleImageResolutionTargetSrc = "";
-      viewerState.singleImageResolutionTargetTier = "";
-      viewerState.singleImageResolutionReady = false;
-      viewerState.singleImageResolutionVisible = false;
-      viewerState.singleImageResolutionCommitPending = false;
+      if (token !== viewerImageState.singleImageResolutionLoadToken) return;
+      cancelViewerResolutionCommand();
       viewerElements.lightboxImageFrame?.classList.remove("is-resolution-loading", "is-resolution-upgrade-ready");
       image.removeAttribute("src");
     }
   });
+  attachViewerResolutionStopCommand(token, stop);
   return true;
 }
 
@@ -293,7 +261,7 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
 function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!viewerElements.lightboxImage || !catalog) return;
 
-  const token = ++viewerState.singleImageLoadToken;
+  const token = beginViewerImageSwapCommand();
   const image = viewerElements.lightboxImage;
   const request = options.imageRequest || viewerPageImageRequest(catalog, page, {
     forceFull: Boolean(options.forceFull)
@@ -338,7 +306,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   image.dataset.logicalSrc = primarySrc;
 
   const requestIsCurrent = () => (
-    token === viewerState.singleImageLoadToken
+    isViewerImageSwapCurrent(token)
     && isViewerSessionOpen()
     && activeCatalog() === catalog
     && activePage() === page
@@ -397,7 +365,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
 }
 
 /** @param {CatalogRecord} catalog @param {number} page @param {number} [zoom] */
-function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zoom) {
+function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerViewportState.zoom) {
   const frame = viewerElements.lightboxImageFrame || null;
   const rect = frame?.getBoundingClientRect?.();
   const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
@@ -408,7 +376,7 @@ function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerState.zo
   const stageHeight = Math.max(1, viewerElements.stageCanvas?.clientHeight || window.innerHeight || 1);
   if (!size) return Math.max(stageWidth, stageHeight) * dpr;
 
-  const fitMode = String(viewerState.imageFitMode || VIEWER_FIT_HEIGHT);
+  const fitMode = String(viewerViewportState.imageFitMode || VIEWER_FIT_HEIGHT);
   const scale = fitMode === VIEWER_FIT_WIDTH
     ? stageWidth / size.width
     : fitMode === VIEWER_FIT_HEIGHT
@@ -424,7 +392,7 @@ function preferredViewerImageTier(catalog, page, options = {}) {
   }
   if (options.preferMedium) return CATALOG_IMAGE_TIER_MEDIUM;
 
-  const zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(viewerState.zoom || 1);
+  const zoom = Number.isFinite(Number(options.zoom)) ? Number(options.zoom) : Number(viewerViewportState.zoom || 1);
   if (zoom >= VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD) return CATALOG_IMAGE_TIER_FULL;
 
   if (!isSaveDataEnabled()) {
@@ -476,7 +444,7 @@ function catalogImageTierRank(tier) {
 function refreshSingleViewerImageResolution(options = {}) {
   const catalog = activeCatalog();
   if (!isViewerSessionOpen() || !catalog || !viewerElements.lightboxImage) return false;
-  if (viewerState.singleImageResolutionRetainedForSwap) return false;
+  if (viewerImageState.singleImageResolutionRetainedForSwap) return false;
   const page = activePage();
   const request = viewerPageImageRequest(catalog, page, options);
 
@@ -495,7 +463,7 @@ function refreshSingleViewerImageResolution(options = {}) {
     return prepareSingleViewerResolutionUpgrade(catalog, page, request, { commit: true });
   }
 
-  if (!viewerState.singleImageResolutionVisible && !viewerState.singleImageResolutionReady) {
+  if (!viewerImageState.singleImageResolutionVisible && !viewerImageState.singleImageResolutionReady) {
     clearSingleViewerResolutionUpgrade();
   }
   return false;

@@ -9,12 +9,8 @@
 
 /** @import { ViewerFitModeOptions } from "../../types/frontend-contracts.js" */
 
-import {
-  AUTO_VIEWER_ZOOM,
-  VIEWER_FIT_SOURCE_AUTO,
-  VIEWER_FIT_SOURCE_MANUAL,
-  viewerState
-} from "./16-viewer-state.js";
+import { AUTO_VIEWER_ZOOM, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, viewerViewportState } from "./16-viewer-state.js";
+import { resetViewerGestureCommand } from "./17-viewer-state-transitions.js";
 import { refreshSingleViewerImageResolution } from "./53-viewer-image.js";
 import {
   applyZoom,
@@ -38,15 +34,15 @@ function setViewerFitMode(fitMode, options = {}) {
     source = VIEWER_FIT_SOURCE_MANUAL,
     refreshLayout = true
   } = options;
-  const shouldResetView = nextFitMode !== viewerState.imageFitMode;
+  const shouldResetView = nextFitMode !== viewerViewportState.imageFitMode;
 
-  viewerState.imageFitModeSource = normalizeViewerFitModeSource(source);
-  viewerState.imageFitMode = nextFitMode;
+  viewerViewportState.imageFitModeSource = normalizeViewerFitModeSource(source);
+  viewerViewportState.imageFitMode = nextFitMode;
   if (shouldResetView) {
     clearViewerPageWheelGesture();
-    viewerState.zoom = AUTO_VIEWER_ZOOM;
+    viewerViewportState.zoom = AUTO_VIEWER_ZOOM;
     resetImagePosition({ queueSingleFitOrigin: true });
-    viewerState.pointers.clear();
+    resetViewerGestureCommand();
   }
 
   syncViewerFitModeUi();
@@ -70,7 +66,7 @@ function syncAutomaticViewerFitMode(options = {}) {
   if (!viewerUsesAutomaticFitMode()) return false;
 
   const nextFitMode = getAutomaticViewerFitMode();
-  if (nextFitMode === viewerState.imageFitMode) return false;
+  if (nextFitMode === viewerViewportState.imageFitMode) return false;
 
   setViewerAutomaticFitMode(options);
   return true;

@@ -27,6 +27,13 @@ Object.assign(globalThis, {
   window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
   document: { documentElement: { clientWidth: 1000, clientHeight: 800 } },
   viewerState,
+  viewerSessionState: viewerState,
+  viewerViewportState: viewerState,
+  viewerGestureState: viewerState,
+  viewerChromeState: viewerState,
+  viewerImageState: viewerState,
+  viewerNavigationState: viewerState,
+  viewerOnboardingState: viewerState,
   viewerElements: {
     prevPageBtn: { getBoundingClientRect: () => navRects.prev },
     nextPageBtn: { getBoundingClientRect: () => navRects.next },

@@ -11,7 +11,7 @@
 
 import { catalogDocumentUrl, isAppPage, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
-import { AUTO_VIEWER_ZOOM, MAX_VIEWER_ZOOM, MIN_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_TURN_BUFFER_MAX_PX, VIEWER_PAGE_TURN_BUFFER_MIN_PX, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO, viewerElements, viewerState } from "./16-viewer-state.js";
+import { AUTO_VIEWER_ZOOM, MAX_VIEWER_ZOOM, MIN_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_TURN_BUFFER_MAX_PX, VIEWER_PAGE_TURN_BUFFER_MIN_PX, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO, viewerElements, viewerGestureState, viewerViewportState } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { clampValue, pageSize } from "./20-shared-ui.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
@@ -30,7 +30,7 @@ function updateHash() {
 }
 
 function getPointerList() {
-  return Array.from(viewerState.pointers.values());
+  return Array.from(viewerGestureState.pointers.values());
 }
 
 /** @param {ViewerPointerPoint} first @param {ViewerPointerPoint} second */
@@ -50,12 +50,12 @@ function getMinimumViewerZoom() {
   return MIN_VIEWER_ZOOM;
 }
 
-function isAutoViewerZoom(value = viewerState.zoom) {
+function isAutoViewerZoom(value = viewerViewportState.zoom) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && Math.abs(numeric - AUTO_VIEWER_ZOOM) <= 0.001;
 }
 
-function getSafeViewerZoom(value = viewerState.zoom) {
+function getSafeViewerZoom(value = viewerViewportState.zoom) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return AUTO_VIEWER_ZOOM;
   return clampValue(numeric, getMinimumViewerZoom(), MAX_VIEWER_ZOOM);
@@ -74,7 +74,7 @@ function normalizeViewerFitModeSource(source) {
 }
 
 function viewerUsesAutomaticFitMode() {
-  return normalizeViewerFitModeSource(viewerState.imageFitModeSource) === VIEWER_FIT_SOURCE_AUTO;
+  return normalizeViewerFitModeSource(viewerViewportState.imageFitModeSource) === VIEWER_FIT_SOURCE_AUTO;
 }
 
 function getViewerFitViewportSize() {
@@ -138,8 +138,8 @@ function getSingleImageDisplayMetrics() {
   if (!naturalSize || !stage) return null;
 
   const safeZoom = getSafeViewerZoom();
-  const width = naturalSize.width * viewerState.fitScale * safeZoom;
-  const height = naturalSize.height * viewerState.fitScale * safeZoom;
+  const width = naturalSize.width * viewerViewportState.fitScale * safeZoom;
+  const height = naturalSize.height * viewerViewportState.fitScale * safeZoom;
   return {
     width,
     height,
@@ -201,15 +201,15 @@ function clampSinglePan(options = {}) {
   const bounds = getSinglePanBounds(options);
   if (!bounds) return null;
 
-  viewerState.panX = bounds.limitX <= 1 ? 0 : clampValue(viewerState.panX, -bounds.limitX, bounds.limitX);
-  viewerState.panY = bounds.limitY <= 1 ? 0 : clampValue(viewerState.panY, -bounds.limitY, bounds.limitY);
+  viewerViewportState.panX = bounds.limitX <= 1 ? 0 : clampValue(viewerViewportState.panX, -bounds.limitX, bounds.limitX);
+  viewerViewportState.panY = bounds.limitY <= 1 ? 0 : clampValue(viewerViewportState.panY, -bounds.limitY, bounds.limitY);
   return bounds;
 }
 
 function clearSingleImagePendingPosition() {
-  viewerState.singleImageFitOriginPending = false;
-  viewerState.singleImagePendingRelativePosition = null;
-  viewerState.singleImagePendingPageTurnOrigin = null;
+  viewerViewportState.singleImageFitOriginPending = false;
+  viewerViewportState.singleImagePendingRelativePosition = null;
+  viewerViewportState.singleImagePendingPageTurnOrigin = null;
 }
 
 function captureSingleImageRelativePosition() {
@@ -218,55 +218,21 @@ function captureSingleImageRelativePosition() {
 
   return {
     xRatio: metrics.overflowX > 1
-      ? clampValue(viewerState.panX / metrics.overflowX, -1, 1)
+      ? clampValue(viewerViewportState.panX / metrics.overflowX, -1, 1)
       : 0,
     yRatio: metrics.overflowY > 1
-      ? clampValue(viewerState.panY / metrics.overflowY, -1, 1)
+      ? clampValue(viewerViewportState.panY / metrics.overflowY, -1, 1)
       : 0
   };
 }
 
-/**
- * @param {number|string} page
- * @param {{xRatio:number, yRatio:number}|null} [position]
- */
-function queueSingleImageRelativePosition(page, position = null) {
-  const nextPage = Number.parseInt(String(page), 10);
-  if (!Number.isFinite(nextPage)) return;
-  const normalized = position || captureSingleImageRelativePosition();
-  viewerState.singleImageFitOriginPending = false;
-  viewerState.singleImagePendingPageTurnOrigin = null;
-  viewerState.singleImagePendingRelativePosition = {
-    page: nextPage,
-    xRatio: clampValue(Number(normalized.xRatio) || 0, -1, 1),
-    yRatio: clampValue(Number(normalized.yRatio) || 0, -1, 1)
-  };
-}
-
-/** @param {number|string} page @param {number} direction @param {string} [axis] */
-function queueSingleImagePageTurnOrigin(page, direction, axis = "y") {
-  const nextPage = Number.parseInt(String(page), 10);
-  const step = direction > 0 ? 1 : direction < 0 ? -1 : 0;
-  if (!Number.isFinite(nextPage) || !step) return;
-
-  viewerState.singleImageFitOriginPending = false;
-  viewerState.singleImagePendingRelativePosition = null;
-  viewerState.singleImagePendingPageTurnOrigin = {
-    page: nextPage,
-    direction: step,
-    axis: axis === "x" ? "x" : "y"
-  };
-  viewerState.panX = 0;
-  viewerState.panY = 0;
-}
-
 /** @param {ViewerGeometryResetOptions} [options] */
 function resetImagePosition(options = {}) {
-  viewerState.panX = 0;
-  viewerState.panY = 0;
+  viewerViewportState.panX = 0;
+  viewerViewportState.panY = 0;
   clearSingleImagePendingPosition();
   if (options.queueSingleFitOrigin) {
-    viewerState.singleImageFitOriginPending = true;
+    viewerViewportState.singleImageFitOriginPending = true;
   }
 }
 
@@ -274,51 +240,41 @@ function applyPendingSingleImagePosition() {
   const metrics = getSingleImageDisplayMetrics();
   if (!metrics) return false;
 
-  const pageTurnOrigin = viewerState.singleImagePendingPageTurnOrigin;
+  const pageTurnOrigin = viewerViewportState.singleImagePendingPageTurnOrigin;
   if (pageTurnOrigin?.page === activePage()) {
     // Edge-driven navigation behaves like continuous reading: moving forward
     // opens the target at its top, while moving backward enters from its bottom.
     // Horizontal page turns still use the same vertical reading origin and keep
     // the image centered horizontally.
-    viewerState.panX = 0;
-    viewerState.panY = pageTurnOrigin.direction > 0 ? metrics.overflowY : -metrics.overflowY;
-    viewerState.singleImagePendingPageTurnOrigin = null;
-    viewerState.singleImagePendingRelativePosition = null;
-    viewerState.singleImageFitOriginPending = false;
+    viewerViewportState.panX = 0;
+    viewerViewportState.panY = pageTurnOrigin.direction > 0 ? metrics.overflowY : -metrics.overflowY;
+    viewerViewportState.singleImagePendingPageTurnOrigin = null;
+    viewerViewportState.singleImagePendingRelativePosition = null;
+    viewerViewportState.singleImageFitOriginPending = false;
     return true;
   }
 
-  const relativePosition = viewerState.singleImagePendingRelativePosition;
+  const relativePosition = viewerViewportState.singleImagePendingRelativePosition;
   if (relativePosition?.page === activePage()) {
-    viewerState.panX = metrics.overflowX * relativePosition.xRatio;
-    viewerState.panY = metrics.overflowY * relativePosition.yRatio;
-    viewerState.singleImagePendingRelativePosition = null;
-    viewerState.singleImagePendingPageTurnOrigin = null;
-    viewerState.singleImageFitOriginPending = false;
+    viewerViewportState.panX = metrics.overflowX * relativePosition.xRatio;
+    viewerViewportState.panY = metrics.overflowY * relativePosition.yRatio;
+    viewerViewportState.singleImagePendingRelativePosition = null;
+    viewerViewportState.singleImagePendingPageTurnOrigin = null;
+    viewerViewportState.singleImageFitOriginPending = false;
     return true;
   }
 
-  if (!viewerState.singleImageFitOriginPending) return false;
+  if (!viewerViewportState.singleImageFitOriginPending) return false;
 
-  viewerState.panX = 0;
-  viewerState.panY = 0;
-  if (viewerState.imageFitMode === VIEWER_FIT_WIDTH && metrics.overflowY > 1) {
-    viewerState.panY = metrics.overflowY;
+  viewerViewportState.panX = 0;
+  viewerViewportState.panY = 0;
+  if (viewerViewportState.imageFitMode === VIEWER_FIT_WIDTH && metrics.overflowY > 1) {
+    viewerViewportState.panY = metrics.overflowY;
   }
-  viewerState.singleImageFitOriginPending = false;
-  viewerState.singleImagePendingRelativePosition = null;
-  viewerState.singleImagePendingPageTurnOrigin = null;
+  viewerViewportState.singleImageFitOriginPending = false;
+  viewerViewportState.singleImagePendingRelativePosition = null;
+  viewerViewportState.singleImagePendingPageTurnOrigin = null;
   return true;
-}
-
-/** @param {ViewerGeometryResetOptions} [options] */
-function shouldPreserveSingleManualPosition(options = {}) {
-  return (
-    options.keepZoom !== false
-    && options.resetZoom !== true
-    && options.resetPosition !== true
-    && !isAutoViewerZoom()
-  );
 }
 
 /** @param {number} naturalWidth @param {number} naturalHeight */
@@ -332,7 +288,7 @@ function singleImageFitLayout(naturalWidth, naturalHeight) {
   const availableHeight = Math.max(260, stage.clientHeight - 18);
   const widthScale = availableWidth / width;
   const heightScale = availableHeight / height;
-  const fitScale = viewerState.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
+  const fitScale = viewerViewportState.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
   return {
     fitScale,
     width: Math.max(220, Math.round(width * fitScale)),
@@ -347,7 +303,7 @@ function applyLightboxFrameGeometry(naturalWidth, naturalHeight, options = {}) {
   const layout = singleImageFitLayout(naturalWidth, naturalHeight);
   if (!frame || !image || !layout) return null;
 
-  if (options.updateFitScale !== false) viewerState.fitScale = layout.fitScale;
+  if (options.updateFitScale !== false) viewerViewportState.fitScale = layout.fitScale;
   const nextWidth = `${layout.width}px`;
   const nextHeight = `${layout.height}px`;
   const nextAspectRatio = `${naturalWidth} / ${naturalHeight}`;
@@ -373,15 +329,15 @@ function applySingleZoom() {
 
   applyLightboxFrameGeometry(naturalSize.width, naturalSize.height);
   if (!applyPendingSingleImagePosition() && isAutoViewerZoom() && !singleImageCanPan()) {
-    viewerState.panX = 0;
-    viewerState.panY = 0;
+    viewerViewportState.panX = 0;
+    viewerViewportState.panY = 0;
   }
 
   clampSinglePan();
-  frame.style.setProperty("--single-pan-x", `${viewerState.panX}px`);
-  frame.style.setProperty("--single-pan-y", `${viewerState.panY}px`);
-  frame.style.setProperty("--single-zoom", String(viewerState.zoom));
-  frame.style.transform = `translate(-50%, -50%) translate(${viewerState.panX}px, ${viewerState.panY}px) scale(${viewerState.zoom})`;
+  frame.style.setProperty("--single-pan-x", `${viewerViewportState.panX}px`);
+  frame.style.setProperty("--single-pan-y", `${viewerViewportState.panY}px`);
+  frame.style.setProperty("--single-zoom", String(viewerViewportState.zoom));
+  frame.style.transform = `translate(-50%, -50%) translate(${viewerViewportState.panX}px, ${viewerViewportState.panY}px) scale(${viewerViewportState.zoom})`;
 }
 
 function applyZoom() {
@@ -395,22 +351,22 @@ function consumeSingleViewerPanInput(deltaX = 0, deltaY = 0) {
 
   const safeDeltaX = Number.isFinite(deltaX) ? deltaX : 0;
   const safeDeltaY = Number.isFinite(deltaY) ? deltaY : 0;
-  const previousPanX = viewerState.panX;
-  const previousPanY = viewerState.panY;
+  const previousPanX = viewerViewportState.panX;
+  const previousPanY = viewerViewportState.panY;
 
-  viewerState.panX = previousPanX - safeDeltaX;
-  viewerState.panY = previousPanY - safeDeltaY;
+  viewerViewportState.panX = previousPanX - safeDeltaX;
+  viewerViewportState.panY = previousPanY - safeDeltaY;
   const bounds = clampSinglePan({ allowPageTurnBuffer: true });
   if (!bounds) return null;
 
-  const moved = Math.abs(viewerState.panX - previousPanX) > 0.01 || Math.abs(viewerState.panY - previousPanY) > 0.01;
+  const moved = Math.abs(viewerViewportState.panX - previousPanX) > 0.01 || Math.abs(viewerViewportState.panY - previousPanY) > 0.01;
   if (moved) {
     clearSingleImagePendingPosition();
     applySingleZoom();
   }
 
-  const consumedDeltaX = previousPanX - viewerState.panX;
-  const consumedDeltaY = previousPanY - viewerState.panY;
+  const consumedDeltaX = previousPanX - viewerViewportState.panX;
+  const consumedDeltaY = previousPanY - viewerViewportState.panY;
   return {
     moved,
     bounds,
@@ -447,8 +403,6 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     getSinglePanBounds,
     clampSinglePan,
     captureSingleImageRelativePosition,
-    queueSingleImageRelativePosition,
-    queueSingleImagePageTurnOrigin,
     applyPendingSingleImagePosition,
     applySingleZoom,
     consumeSingleViewerPanInput,
@@ -457,4 +411,4 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
 }
 /* TEST-ONLY EXPORTS: END */
 
-export { applyLightboxFrameGeometry, applyZoom, captureSingleImageRelativePosition, clearSingleImagePendingPosition, consumeSingleViewerPanInput, getAutomaticViewerFitMode, getPointerList, getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, normalizeViewerFitModeSource, normalizeWheelDeltaToPixels, pointerDistance, pointerMidpoint, primeLightboxFrameForCatalogPage, queueSingleImagePageTurnOrigin, queueSingleImageRelativePosition, resetImagePosition, shouldPreserveSingleManualPosition, singleViewerUsesBoundaryPan, updateHash, viewerUsesAutomaticFitMode };
+export { applyLightboxFrameGeometry, applyZoom, captureSingleImageRelativePosition, clearSingleImagePendingPosition, consumeSingleViewerPanInput, getAutomaticViewerFitMode, getPointerList, getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, normalizeViewerFitModeSource, normalizeWheelDeltaToPixels, pointerDistance, pointerMidpoint, primeLightboxFrameForCatalogPage, resetImagePosition, singleViewerUsesBoundaryPan, updateHash, viewerUsesAutomaticFitMode };

@@ -9,7 +9,8 @@
 /** @import { ViewerPointerPoint } from "../../types/frontend-contracts.js" */
 
 import { getFeatureInterface } from "./10-app-state.js";
-import { DOUBLE_TAP_DELAY, DOUBLE_TAP_DISTANCE, TAP_MOVE_TOLERANCE, VIEWER_PAGE_SWIPE_AXIS_RATIO, VIEWER_PAGE_SWIPE_MIN_DISTANCE, VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS, VIEWER_TOUCH_VELOCITY_BLEND, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, viewerElements, viewerState } from "./16-viewer-state.js";
+import { DOUBLE_TAP_DELAY, DOUBLE_TAP_DISTANCE, TAP_MOVE_TOLERANCE, VIEWER_PAGE_SWIPE_AXIS_RATIO, VIEWER_PAGE_SWIPE_MIN_DISTANCE, VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS, VIEWER_TOUCH_VELOCITY_BLEND, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, viewerElements, viewerGestureState, viewerViewportState } from "./16-viewer-state.js";
+import { VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN, VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE, VIEWER_NAVIGATION_SOURCE_MOMENTUM, VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE, assertViewerStateInvariants, createViewerNavigationCommand } from "./17-viewer-state-transitions.js";
 import { clampValue, isTouchLikePointer } from "./20-shared-ui.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { hideLightboxSearchResults } from "./50-search-ui.js";
@@ -82,13 +83,13 @@ function getViewerPointerEventTime(event) {
 }
 
 function stopViewerTouchMomentum() {
-  if (viewerState.viewerTouchMomentumRaf) {
-    window.cancelAnimationFrame(viewerState.viewerTouchMomentumRaf);
+  if (viewerGestureState.viewerTouchMomentumRaf) {
+    window.cancelAnimationFrame(viewerGestureState.viewerTouchMomentumRaf);
   }
-  viewerState.viewerTouchMomentumRaf = 0;
-  viewerState.viewerTouchMomentumVelocityX = 0;
-  viewerState.viewerTouchMomentumVelocityY = 0;
-  viewerState.viewerTouchMomentumLastTime = 0;
+  viewerGestureState.viewerTouchMomentumRaf = 0;
+  viewerGestureState.viewerTouchMomentumVelocityX = 0;
+  viewerGestureState.viewerTouchMomentumVelocityY = 0;
+  viewerGestureState.viewerTouchMomentumLastTime = 0;
 }
 
 /** @param {PointerEvent} event */
@@ -169,14 +170,14 @@ function consumeViewerPointerPanSamples(event, initialPoint) {
     };
   }
 
-  viewerState.pointers.set(event.pointerId, point);
+  viewerGestureState.pointers.set(event.pointerId, point);
   if (Math.abs(totalDeltaX) < 0.01 && Math.abs(totalDeltaY) < 0.01) {
     return { point, handled: false, moved: false, turned: false };
   }
 
   const boundary = consumeSingleViewerBoundaryInput(totalDeltaX, totalDeltaY, {
     pointerId: event.pointerId,
-    resetViewOnPageTurn: true
+    navigationSource: VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN
   });
   return {
     point,
@@ -203,15 +204,16 @@ function clampViewerTouchMomentumVelocity(velocityX, velocityY) {
 }
 
 function scheduleViewerTouchMomentumFrame() {
-  viewerState.viewerTouchMomentumRaf = window.requestAnimationFrame(runViewerTouchMomentumFrame);
+  viewerGestureState.viewerTouchMomentumRaf = window.requestAnimationFrame(runViewerTouchMomentumFrame);
+  assertViewerStateInvariants("schedule-touch-momentum");
 }
 
 /** @param {number} timestamp */
 function runViewerTouchMomentumFrame(timestamp) {
-  viewerState.viewerTouchMomentumRaf = 0;
+  viewerGestureState.viewerTouchMomentumRaf = 0;
   if (
     !isViewerSessionOpen()
-    || viewerState.pointers.size > 0
+    || viewerGestureState.pointers.size > 0
     || !singleViewerUsesBoundaryPan()
   ) {
     stopViewerTouchMomentum();
@@ -223,25 +225,25 @@ function runViewerTouchMomentumFrame(timestamp) {
     stopViewerTouchMomentum();
     return;
   }
-  if (!viewerState.viewerTouchMomentumLastTime) {
-    viewerState.viewerTouchMomentumLastTime = frameTime;
+  if (!viewerGestureState.viewerTouchMomentumLastTime) {
+    viewerGestureState.viewerTouchMomentumLastTime = frameTime;
     scheduleViewerTouchMomentumFrame();
     return;
   }
 
   const elapsed = clampValue(
-    frameTime - viewerState.viewerTouchMomentumLastTime,
+    frameTime - viewerGestureState.viewerTouchMomentumLastTime,
     1,
     VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS
   );
-  viewerState.viewerTouchMomentumLastTime = frameTime;
+  viewerGestureState.viewerTouchMomentumLastTime = frameTime;
 
-  let velocityX = viewerState.viewerTouchMomentumVelocityX;
-  let velocityY = viewerState.viewerTouchMomentumVelocityY;
+  let velocityX = viewerGestureState.viewerTouchMomentumVelocityX;
+  let velocityY = viewerGestureState.viewerTouchMomentumVelocityY;
   const boundary = consumeSingleViewerBoundaryInput(
     velocityX * elapsed,
     velocityY * elapsed,
-    { resetViewOnPageTurn: true }
+    { navigationSource: VIEWER_NAVIGATION_SOURCE_MOMENTUM }
   );
   if (!boundary.handled) {
     stopViewerTouchMomentum();
@@ -270,8 +272,8 @@ function runViewerTouchMomentumFrame(timestamp) {
   if (Math.abs(velocityX) < VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS) velocityX = 0;
   if (Math.abs(velocityY) < VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS) velocityY = 0;
 
-  viewerState.viewerTouchMomentumVelocityX = velocityX;
-  viewerState.viewerTouchMomentumVelocityY = velocityY;
+  viewerGestureState.viewerTouchMomentumVelocityX = velocityX;
+  viewerGestureState.viewerTouchMomentumVelocityY = velocityY;
   if (!velocityX && !velocityY) {
     stopViewerTouchMomentum();
     return;
@@ -282,6 +284,7 @@ function runViewerTouchMomentumFrame(timestamp) {
 /** @param {number} velocityX @param {number} velocityY */
 function startViewerTouchMomentum(velocityX, velocityY) {
   stopViewerTouchMomentum();
+  if (viewerGestureState.pointers.size > 0) return false;
   const velocity = clampViewerTouchMomentumVelocity(velocityX, velocityY);
   if (
     Math.hypot(velocity.velocityX, velocity.velocityY)
@@ -290,8 +293,8 @@ function startViewerTouchMomentum(velocityX, velocityY) {
     return false;
   }
 
-  viewerState.viewerTouchMomentumVelocityX = velocity.velocityX;
-  viewerState.viewerTouchMomentumVelocityY = velocity.velocityY;
+  viewerGestureState.viewerTouchMomentumVelocityX = velocity.velocityX;
+  viewerGestureState.viewerTouchMomentumVelocityY = velocity.velocityY;
   scheduleViewerTouchMomentumFrame();
   return true;
 }
@@ -302,12 +305,12 @@ function startPointerInteraction(event) {
 
   stopViewerTouchMomentum();
 
-  if (viewerState.pointers.size === 0) {
-    viewerState.pointerGestureHadMultiplePointers = false;
-    viewerState.pointerGestureConsumedPan = false;
+  if (viewerGestureState.pointers.size === 0) {
+    viewerGestureState.pointerGestureHadMultiplePointers = false;
+    viewerGestureState.pointerGestureConsumedPan = false;
   }
 
-  viewerState.pointers.set(event.pointerId, {
+  viewerGestureState.pointers.set(event.pointerId, {
     x: event.clientX,
     y: event.clientY,
     startX: event.clientX,
@@ -316,42 +319,43 @@ function startPointerInteraction(event) {
     velocityY: 0,
     lastTime: getViewerPointerEventTime(event)
   });
-  if (viewerState.pointers.size >= 2) viewerState.pointerGestureHadMultiplePointers = true;
+  if (viewerGestureState.pointers.size >= 2) viewerGestureState.pointerGestureHadMultiplePointers = true;
 
-  if (singleViewerUsesBoundaryPan() || viewerState.pointers.size >= 2) {
+  if (singleViewerUsesBoundaryPan() || viewerGestureState.pointers.size >= 2) {
     captureViewerPointer(event.currentTarget, event.pointerId);
   }
 
   const pointers = getPointerList();
   if (pointers.length === 1) {
-    viewerState.dragStartX = event.clientX;
-    viewerState.dragStartY = event.clientY;
-    viewerState.dragStartPanX = viewerState.panX;
-    viewerState.dragStartPanY = viewerState.panY;
+    viewerGestureState.dragStartX = event.clientX;
+    viewerGestureState.dragStartY = event.clientY;
+    viewerGestureState.dragStartPanX = viewerViewportState.panX;
+    viewerGestureState.dragStartPanY = viewerViewportState.panY;
   } else if (pointers.length === 2) {
     const [first, second] = pointers;
     const mid = pointerMidpoint(first, second);
-    viewerState.pinchStartDistance = Math.max(1, pointerDistance(first, second));
-    viewerState.pinchStartZoom = viewerState.zoom;
-    viewerState.pinchLastMidX = mid.x;
-    viewerState.pinchLastMidY = mid.y;
-    for (const pointerId of viewerState.pointers.keys()) {
+    viewerGestureState.pinchStartDistance = Math.max(1, pointerDistance(first, second));
+    viewerGestureState.pinchStartZoom = viewerViewportState.zoom;
+    viewerGestureState.pinchLastMidX = mid.x;
+    viewerGestureState.pinchLastMidY = mid.y;
+    for (const pointerId of viewerGestureState.pointers.keys()) {
       captureViewerPointer(event.currentTarget, pointerId);
     }
     event.preventDefault();
   }
+  assertViewerStateInvariants("start-pointer-interaction");
 }
 
 /** @param {PointerEvent} event */
 function movePointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
 
-  const previousPoint = viewerState.pointers.get(event.pointerId);
+  const previousPoint = viewerGestureState.pointers.get(event.pointerId);
   if (!previousPoint) return;
-  const pointerCount = viewerState.pointers.size;
+  const pointerCount = viewerGestureState.pointers.size;
 
   if (pointerCount >= 2) {
-    viewerState.pointers.set(event.pointerId, {
+    viewerGestureState.pointers.set(event.pointerId, {
       ...previousPoint,
       x: event.clientX,
       y: event.clientY,
@@ -361,15 +365,15 @@ function movePointerInteraction(event) {
     });
     const pointers = getPointerList();
     event.preventDefault();
-    viewerState.pointerGestureConsumedPan = true;
+    viewerGestureState.pointerGestureConsumedPan = true;
     const [first, second] = pointers;
     const distance = Math.max(1, pointerDistance(first, second));
     const mid = pointerMidpoint(first, second);
-    viewerState.panX += mid.x - viewerState.pinchLastMidX;
-    viewerState.panY += mid.y - viewerState.pinchLastMidY;
-    viewerState.pinchLastMidX = mid.x;
-    viewerState.pinchLastMidY = mid.y;
-    setZoom(viewerState.pinchStartZoom * (distance / viewerState.pinchStartDistance), {
+    viewerViewportState.panX += mid.x - viewerGestureState.pinchLastMidX;
+    viewerViewportState.panY += mid.y - viewerGestureState.pinchLastMidY;
+    viewerGestureState.pinchLastMidX = mid.x;
+    viewerGestureState.pinchLastMidY = mid.y;
+    setZoom(viewerGestureState.pinchStartZoom * (distance / viewerGestureState.pinchStartDistance), {
       showUi: false,
       focalClientX: mid.x,
       focalClientY: mid.y
@@ -383,39 +387,39 @@ function movePointerInteraction(event) {
     // Once a pannable/zoomed surface owns a real one-finger movement, the
     // release must not fall through to the separate page-swipe recognizer.
     // This remains true at a clamped horizontal safety edge where no pixels move.
-    if (pan.handled) viewerState.pointerGestureConsumedPan = true;
+    if (pan.handled) viewerGestureState.pointerGestureConsumedPan = true;
   }
 }
 
 /** @param {PointerEvent} event @param {number} startedX @param {number} startedY */
 function handlePotentialDoubleTap(event, startedX, startedY) {
   if (event.pointerType !== "touch" && event.pointerType !== "pen") return false;
-  if (viewerState.pointers.size > 0 || viewerState.pointerGestureConsumedPan) return false;
+  if (viewerGestureState.pointers.size > 0 || viewerGestureState.pointerGestureConsumedPan) return false;
 
   const moved = Math.hypot(event.clientX - startedX, event.clientY - startedY);
   if (moved > TAP_MOVE_TOLERANCE) {
-    viewerState.lastTapAt = 0;
+    viewerGestureState.lastTapAt = 0;
     return false;
   }
 
   const now = Date.now();
   const surface = getZoomSurfaceName(event.currentTarget);
-  const closeToLastTap = Math.hypot(event.clientX - viewerState.lastTapX, event.clientY - viewerState.lastTapY) <= DOUBLE_TAP_DISTANCE;
+  const closeToLastTap = Math.hypot(event.clientX - viewerGestureState.lastTapX, event.clientY - viewerGestureState.lastTapY) <= DOUBLE_TAP_DISTANCE;
   const isDoubleTap =
-    surface === viewerState.lastTapSurface
-    && now - viewerState.lastTapAt <= DOUBLE_TAP_DELAY
+    surface === viewerGestureState.lastTapSurface
+    && now - viewerGestureState.lastTapAt <= DOUBLE_TAP_DELAY
     && closeToLastTap;
 
-  viewerState.lastTapAt = now;
-  viewerState.lastTapX = event.clientX;
-  viewerState.lastTapY = event.clientY;
-  viewerState.lastTapSurface = surface;
+  viewerGestureState.lastTapAt = now;
+  viewerGestureState.lastTapX = event.clientX;
+  viewerGestureState.lastTapY = event.clientY;
+  viewerGestureState.lastTapSurface = surface;
 
   if (!isDoubleTap) return false;
 
   event.preventDefault();
-  viewerState.lastTapAt = 0;
-  viewerState.suppressNextDblClickUntil = now + 550;
+  viewerGestureState.lastTapAt = 0;
+  viewerGestureState.suppressNextDblClickUntil = now + 550;
   toggleZoomAtPoint(event.clientX, event.clientY);
   return true;
 }
@@ -423,7 +427,7 @@ function handlePotentialDoubleTap(event, startedX, startedY) {
 /** @param {PointerEvent} event @param {number} startedX @param {number} startedY */
 function handleViewerPageSwipe(event, startedX, startedY) {
   if (!isTouchLikePointer(event)) return false;
-  if (viewerState.pointers.size > 0 || viewerState.pointerGestureHadMultiplePointers || viewerState.pointerGestureConsumedPan) return false;
+  if (viewerGestureState.pointers.size > 0 || viewerGestureState.pointerGestureHadMultiplePointers || viewerGestureState.pointerGestureConsumedPan) return false;
 
   const dx = event.clientX - startedX;
   const dy = event.clientY - startedY;
@@ -443,13 +447,14 @@ function handleViewerPageSwipe(event, startedX, startedY) {
     : (dy < 0 ? 1 : -1);
   if (horizontal) {
     moveLightbox(direction, {
-      keepZoom: true,
-      positionMode: "page-turn",
-      pageTurnDirection: direction,
-      pageTurnAxis: "x"
+      navigationCommand: createViewerNavigationCommand(
+        VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE,
+        direction,
+        { axis: "x" }
+      )
     });
   } else {
-    moveLightboxFromPageTurn(direction, "y", { resetViewOnPageTurn: true });
+    moveLightboxFromPageTurn(direction, "y", { navigationSource: VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE });
   }
   return true;
 }
@@ -457,10 +462,10 @@ function handleViewerPageSwipe(event, startedX, startedY) {
 /** @param {PointerEvent} event */
 function endPointerInteraction(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
-  let tracked = viewerState.pointers.get(event.pointerId);
+  let tracked = viewerGestureState.pointers.get(event.pointerId);
   if (!tracked) return;
   if (
-    viewerState.pointers.size === 1
+    viewerGestureState.pointers.size === 1
     && singleViewerUsesBoundaryPan()
     && (
       Math.abs(tracked.x - event.clientX) >= 0.01
@@ -470,19 +475,19 @@ function endPointerInteraction(event) {
     event.preventDefault();
     const finalPan = consumeViewerPointerPanSamples(event, tracked);
     tracked = finalPan.point;
-    if (finalPan.handled) viewerState.pointerGestureConsumedPan = true;
+    if (finalPan.handled) viewerGestureState.pointerGestureConsumedPan = true;
   }
   const releaseTime = getViewerPointerEventTime(event);
   const velocityAge = releaseTime - tracked.lastTime;
   const velocityIsFresh = velocityAge >= 0 && velocityAge <= VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS;
   const shouldStartMomentum = Boolean(
     isTouchLikePointer(event)
-    && viewerState.pointers.size === 1
-    && !viewerState.pointerGestureHadMultiplePointers
-    && viewerState.pointerGestureConsumedPan
+    && viewerGestureState.pointers.size === 1
+    && !viewerGestureState.pointerGestureHadMultiplePointers
+    && viewerGestureState.pointerGestureConsumedPan
     && velocityIsFresh
   );
-  viewerState.pointers.delete(event.pointerId);
+  viewerGestureState.pointers.delete(event.pointerId);
 
   const handledDoubleTap = handlePotentialDoubleTap(event, tracked.startX, tracked.startY);
   if (!handledDoubleTap) handleViewerPageSwipe(event, tracked.startX, tracked.startY);
@@ -490,29 +495,31 @@ function endPointerInteraction(event) {
   const pointers = getPointerList();
   if (pointers.length === 1) {
     const only = pointers[0];
-    viewerState.dragStartX = only.x;
-    viewerState.dragStartY = only.y;
-    viewerState.dragStartPanX = viewerState.panX;
-    viewerState.dragStartPanY = viewerState.panY;
+    viewerGestureState.dragStartX = only.x;
+    viewerGestureState.dragStartY = only.y;
+    viewerGestureState.dragStartPanX = viewerViewportState.panX;
+    viewerGestureState.dragStartPanY = viewerViewportState.panY;
   } else if (pointers.length === 0) {
-    viewerState.pointerGestureHadMultiplePointers = false;
-    viewerState.pointerGestureConsumedPan = false;
+    viewerGestureState.pointerGestureHadMultiplePointers = false;
+    viewerGestureState.pointerGestureConsumedPan = false;
   }
   releaseViewerPointerCapture(event.currentTarget, event.pointerId);
   if (shouldStartMomentum) {
     startViewerTouchMomentum(tracked.velocityX, tracked.velocityY);
   }
+  assertViewerStateInvariants("end-pointer-interaction");
 }
 
 /** @param {PointerEvent} event */
 function cancelPointerInteraction(event) {
-  if (!viewerState.pointers.has(event.pointerId)) return;
-  viewerState.pointers.delete(event.pointerId);
-  if (viewerState.pointers.size === 0) {
-    viewerState.pointerGestureHadMultiplePointers = false;
-    viewerState.pointerGestureConsumedPan = false;
+  if (!viewerGestureState.pointers.has(event.pointerId)) return;
+  viewerGestureState.pointers.delete(event.pointerId);
+  if (viewerGestureState.pointers.size === 0) {
+    viewerGestureState.pointerGestureHadMultiplePointers = false;
+    viewerGestureState.pointerGestureConsumedPan = false;
     stopViewerTouchMomentum();
   }
+  assertViewerStateInvariants("cancel-pointer-interaction");
 }
 
 /** @param {WheelEvent} event */
@@ -560,7 +567,7 @@ function handleZoomSurfaceWheel(event) {
     event.stopPropagation();
     const factor = getWheelZoomFactor(event);
     if (factor === 1) return;
-    setZoom(viewerState.zoom * factor, {
+    setZoom(viewerViewportState.zoom * factor, {
       showUi: false,
       focalClientX: event.clientX,
       focalClientY: event.clientY
@@ -574,7 +581,7 @@ function handleZoomSurfaceWheel(event) {
 /** @param {MouseEvent} event */
 function handleZoomSurfaceDoubleClick(event) {
   if (!isViewerSessionOpen() || !isActiveZoomSurface(event.currentTarget)) return;
-  if (Date.now() < viewerState.suppressNextDblClickUntil) return;
+  if (Date.now() < viewerGestureState.suppressNextDblClickUntil) return;
 
   event.preventDefault();
   event.stopPropagation();
