@@ -74,6 +74,8 @@ from catalog_compiler import (
 from catalog_conversion_profiles import conversion_profile_command
 from catalog_page_numbering import page_number_start
 
+from catalog_schema import CATALOG_CONFIG_SCHEMA, validate_against_schema
+
 from control_panel_api_schema import ControlPanelSchemaError, validate_control_panel_payload
 
 from catalog_control_api import (
@@ -235,8 +237,7 @@ def read_config() -> list[dict[str, Any]]:
     if not CONFIG_FILE.exists():
         return []
     payload = json.loads(CONFIG_FILE.read_text(encoding="utf-8-sig"))
-    if not isinstance(payload, list):
-        raise ValueError("catalogs.config.json must contain a JSON array")
+    validate_against_schema(payload, PROJECT_ROOT, CATALOG_CONFIG_SCHEMA)
     result: list[dict[str, Any]] = []
     for index, item in enumerate(payload, start=1):
         if not isinstance(item, dict):
@@ -445,7 +446,7 @@ def group_catalogs_by_category_subcategory(config: list[dict[str, Any]]) -> list
             category_map[category_key] = category
             categories.append(category)
 
-        subcategory_key = group_value(item.get("subcategory", item.get("subCategory", "")))
+        subcategory_key = group_value(item.get("subcategory", ""))
         subcategory_map = category["subcategory_map"]
         subcategory = subcategory_map.get(subcategory_key)
         if subcategory is None:
@@ -493,6 +494,7 @@ def config_for_file(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
         else:
             row["pageNumberStart"] = 0
         rows.append(row)
+    validate_against_schema(rows, PROJECT_ROOT, CATALOG_CONFIG_SCHEMA)
     return rows
 
 
@@ -1257,7 +1259,7 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
         row["title"] = title or catalog_id
         row["description"] = str(row.get("description", ""))
         row["category"] = group_value(row.get("category", ""))
-        row["subcategory"] = group_value(row.get("subcategory", row.get("subCategory", "")))
+        row["subcategory"] = group_value(row.get("subcategory", ""))
         row["pdf"] = normalized_pdf
         row["ocr"] = catalog_ocr_enabled(row)
         row["pageNumberStart"] = page_number_start(row)

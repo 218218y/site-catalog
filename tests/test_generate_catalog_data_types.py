@@ -32,21 +32,21 @@ def test_catalog_record_requiredness_tracks_the_schema() -> None:
         assert f"  {name}?:" in rendered
 
 
-def test_canonical_catalog_contract_excludes_legacy_input_fields() -> None:
+def test_canonical_catalog_contract_has_no_compatibility_declaration_boundary() -> None:
     rendered = MODULE.render_types()
     for name in (
         "subCategory",
         "sub_category",
         "subcategories",
+        "תת קטגוריה",
+        "תת_קטגוריה",
         "thumbDir",
         "mediumDir",
         "format",
     ):
         assert name not in rendered
 
-    legacy = (ROOT / "types/catalog-legacy-input.d.ts").read_text(encoding="utf-8")
-    assert "export interface LegacyCatalogRecordInput" in legacy
-    assert "export interface CatalogRecord" not in legacy
+    assert not (ROOT / "types/catalog-legacy-input.d.ts").exists()
 
 
 def test_generator_rejects_unmapped_schema_references() -> None:

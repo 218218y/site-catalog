@@ -245,9 +245,23 @@ def test_every_managed_public_catalog_output_is_reconstructable() -> None:
     assert Path("catalog-big-pages-viewer-netfree/README.txt") in paths
 
 
-def test_schema_rejects_unowned_catalog_fields() -> None:
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "subCategory",
+        "sub_category",
+        "subcategories",
+        "תת קטגוריה",
+        "תת_קטגוריה",
+        "thumbDir",
+        "mediumDir",
+        "format",
+        "generatedPages",
+    ],
+)
+def test_schema_rejects_unowned_catalog_fields(field_name: str) -> None:
     catalogs = json.loads((ROOT / "catalogs.config.json").read_text(encoding="utf-8"))
-    catalogs[0]["generatedPages"] = 37
+    catalogs[0][field_name] = "unsupported"
     with pytest.raises(SCHEMA.SchemaValidationError, match="unsupported properties"):
         SCHEMA.validate_catalog_config(catalogs, ROOT)
 

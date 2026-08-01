@@ -123,3 +123,27 @@ def test_taxonomy_file_payload_strips_editor_only_original_fields():
         ],
         "subcategories": [],
     }
+
+
+def test_taxonomy_editor_uses_only_canonical_subcategory_field() -> None:
+    catalogs = [
+        {"id": "canonical", "category": "Category", "subcategory": "Canonical"},
+        {"id": "alias-only", "category": "Category", "subCategory": "Ignored"},
+        {
+            "id": "conflict",
+            "category": "Category",
+            "subcategory": "Canonical",
+            "subCategory": "Ignored",
+        },
+    ]
+
+    result, added = MODULE.reconcile_taxonomy_with_catalogs(
+        {"categories": [], "subcategories": []}, catalogs
+    )
+
+    assert [item["name"] for item in result["subcategories"]] == ["Canonical"]
+    assert added["subcategories"] == ["Category / Canonical"]
+    usage = MODULE.taxonomy_usage(result, catalogs)
+    assert usage["subcategories"] == [
+        {"category": "Category", "name": "Canonical", "count": 2}
+    ]

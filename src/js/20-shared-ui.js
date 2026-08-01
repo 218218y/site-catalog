@@ -8,7 +8,6 @@
 
 /** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
 /** @import { CatalogImageCandidate, CatalogImageReadiness } from "../../types/frontend-contracts.js" */
-/** @import { LegacyCatalogRecordInput } from "../../types/catalog-legacy-input.js" */
 
 import { tooltips } from "../runtime/tooltip-manager.js";
 import { eventTargetElement, requiredElement } from "./02-dom-contracts.js";
@@ -393,13 +392,9 @@ function catalogCategoryName(catalog) {
   return category || "קטלוגים";
 }
 
-/** @param {(CatalogRecord & Partial<LegacyCatalogRecordInput>)|null|undefined} catalog */
+/** @param {CatalogRecord|null|undefined} catalog */
 function catalogSubcategoryName(catalog) {
-  const legacyCatalog = /** @type {(CatalogRecord & Record<string, unknown>)|null|undefined} */ (catalog);
-  const value = catalog?.subcategory ?? catalog?.subCategory ?? legacyCatalog?.sub_category ?? legacyCatalog?.subcategories ?? legacyCatalog?.["תת קטגוריה"] ?? legacyCatalog?.["תת_קטגוריה"] ?? "";
-  const rawSubcategory = Array.isArray(value) ? value.find((item) => String(item || "").trim()) : value;
-  const subcategory = String(rawSubcategory || "").trim();
-  return subcategory;
+  return String(catalog?.subcategory || "").trim();
 }
 
 /** @param {unknown} value */
@@ -943,6 +938,7 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     catalogSupportsImageTier,
     catalogImageTierMaxSide,
     catalogPageImageSrc,
+    getCatalogCategoryGroups,
     pageSize,
     hasHoverPointer,
     isTouchLikePointer,

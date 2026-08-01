@@ -291,3 +291,39 @@ def test_route_lock_sync_failure_rolls_back_catalog_taxonomy_and_lock(
     assert config_path.read_bytes() == before[config_path]
     assert taxonomy_path.read_bytes() == before[taxonomy_path]
     assert route_lock_path.read_bytes() == before[route_lock_path]
+
+
+def test_control_panel_rejects_noncanonical_catalog_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "catalogs.config.json"
+    config_path.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "catalog",
+                    "title": "Catalog",
+                    "pdf": "assets/pdfs/catalog.pdf",
+                    "subCategory": "Old alias",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
+
+    with pytest.raises(ValueError, match="unsupported properties"):
+        SERVER.read_config()
+
+    normalized = SERVER.validate_catalogs_for_save(
+        [
+            {
+                "id": "catalog",
+                "title": "Catalog",
+                "pdf": "assets/pdfs/catalog.pdf",
+                "subCategory": "Old alias",
+            }
+        ]
+    )
+    with pytest.raises(ValueError, match="unsupported properties"):
+        SERVER.config_for_file(normalized)

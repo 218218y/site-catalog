@@ -7,7 +7,6 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const generated = read("types/catalog-data.generated.d.ts");
-const legacy = read("types/catalog-legacy-input.d.ts");
 const contracts = read("types/frontend-contracts.d.ts");
 const globals = read("types/frontend-globals.d.ts");
 const marker = read("src/js/05-app-contracts.js");
@@ -40,14 +39,15 @@ for (const requiredField of [
 for (const optionalField of ["subcategory", "pageSizes", "sort", "badge"]) {
   assert.match(generated, new RegExp(`^  ${optionalField}\\?:`, "m"), optionalField);
 }
-for (const compatibilityField of ["subCategory", "sub_category", "subcategories", "thumbDir", "mediumDir", "format"]) {
-  assert.doesNotMatch(generated, new RegExp(`\\b${compatibilityField}\\b`));
-  assert.match(legacy, new RegExp(`\\b${compatibilityField}\\??:`));
+for (const nonCanonicalField of ["subCategory", "sub_category", "thumbDir", "mediumDir"]) {
+  assert.doesNotMatch(generated, new RegExp(String.raw`\b${nonCanonicalField}\b`));
 }
-assert.match(legacy, /export interface LegacyCatalogRecordInput/);
-assert.doesNotMatch(legacy, /export interface CatalogRecord/);
-assert.match(sharedUi, /CatalogRecord & Partial<LegacyCatalogRecordInput>/);
-assert.match(sharedUi, /@import \{ LegacyCatalogRecordInput \} from "\.\.\/\.\.\/types\/catalog-legacy-input\.js"/);
+assert.equal(fs.existsSync(path.join(root, "types/catalog-legacy-input.d.ts")), false);
+assert.doesNotMatch(sharedUi, /LegacyCatalogRecordInput|catalog-legacy-input|subCategory|sub_category|thumbDir|mediumDir/);
+assert.match(
+  sharedUi,
+  /function catalogSubcategoryName\(catalog\) \{\s*return String\(catalog\?\.subcategory \|\| ""\)\.trim\(\);\s*\}/,
+);
 
 assert.match(contracts, /import type \{ CatalogImageVariant, CatalogRecord \} from "\.\/catalog-data\.generated\.js"/);
 assert.match(contracts, /export type \{ CatalogImageVariant, CatalogRecord \} from "\.\/catalog-data\.generated\.js"/);
@@ -58,7 +58,7 @@ assert.match(globals, /declare global \{/);
 assert.match(globals, /export \{\};/);
 assert.match(globals, /import type \{ CatalogRecord \} from "\.\/catalog-data\.generated\.js"/);
 
-const declarationSources = [contracts, generated, legacy].join("\n");
+const declarationSources = [contracts, generated].join("\n");
 const sharedNames = new Set(
   [...declarationSources.matchAll(/^export (?:type|interface) ([A-Za-z_$][\w$]*)/gm)]
     .map((match) => match[1]),

@@ -1124,11 +1124,7 @@ function catalogCategoryName(catalog) {
   return String(catalog?.category || "").trim() || "קטלוגים";
 }
 function catalogSubcategoryName(catalog) {
-  let legacyCatalog = (
-    /** @type {(CatalogRecord & Record<string, unknown>)|null|undefined} */
-    catalog
-  ), value = catalog?.subcategory ?? catalog?.subCategory ?? legacyCatalog?.sub_category ?? legacyCatalog?.subcategories ?? legacyCatalog?.["תת קטגוריה"] ?? legacyCatalog?.תת_קטגוריה ?? "", rawSubcategory = Array.isArray(value) ? value.find((item) => String(item || "").trim()) : value;
-  return String(rawSubcategory || "").trim();
+  return String(catalog?.subcategory || "").trim();
 }
 function categorySlug(value) {
   return String(value || "catalog").trim().toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g, "-").replace(/^-+|-+$/g, "") || "catalog";

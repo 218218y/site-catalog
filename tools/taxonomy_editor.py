@@ -145,7 +145,7 @@ def _catalog_subcategory_order(
     seen: set[tuple[str, str]] = set()
     for catalog in catalogs:
         category = _text(catalog.get("category"))
-        name = _text(catalog.get("subcategory", catalog.get("subCategory", "")))
+        name = _text(catalog.get("subcategory", ""))
         key = (category, name)
         if not category or not name or key in seen:
             continue
@@ -243,7 +243,7 @@ def apply_taxonomy_renames_to_catalogs(
     for source in catalogs:
         row = dict(source)
         category = _text(row.get("category"))
-        subcategory = _text(row.get("subcategory", row.get("subCategory", "")))
+        subcategory = _text(row.get("subcategory", ""))
         replacement = subcategory_renames.get((category, subcategory))
         if replacement is not None:
             row["category"], row["subcategory"] = replacement
@@ -283,7 +283,7 @@ def taxonomy_usage(
     subcategory_counts: dict[tuple[str, str], int] = {}
     for catalog in catalogs:
         category = _text(catalog.get("category"))
-        subcategory = _text(catalog.get("subcategory", catalog.get("subCategory", "")))
+        subcategory = _text(catalog.get("subcategory", ""))
         if category:
             category_counts[category] = category_counts.get(category, 0) + 1
         if category and subcategory:
