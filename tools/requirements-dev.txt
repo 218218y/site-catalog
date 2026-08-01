@@ -5,3 +5,5 @@ packaging==26.2
 pluggy==1.6.0
 Pygments==2.20.0
 colorama==0.4.6; sys_platform == "win32"
+ruff==0.16.1
+mypy==2.3.0

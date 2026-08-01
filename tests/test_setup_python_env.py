@@ -71,5 +71,7 @@ def test_expected_pins_include_all_test_runner_dependencies() -> None:
         "packaging": "26.2",
         "pluggy": "1.6.0",
         "Pygments": "2.20.0",
+        "ruff": "0.16.1",
+        "mypy": "2.3.0",
     }
     assert MODULE.expected_pinned_distributions(platform="nt")["colorama"] == "0.4.6"

@@ -122,10 +122,18 @@ def test_javascript_only_scope_does_not_require_python_tests_or_browser() -> Non
     assert "Clean Cloudflare Pages bundle" not in titles
 
 
-def test_python_only_scope_runs_only_pytest() -> None:
+def test_python_only_scope_runs_quality_gates_before_pytest() -> None:
     steps = MODULE.verification_steps(
         ROOT, quick=False, python_executable="project-python", scope="python"
     )
     assert steps == (
+        MODULE.VerificationStep(
+            "Python Ruff correctness lint",
+            ("project-python", "-m", "ruff", "check", "tools", "tests"),
+        ),
+        MODULE.VerificationStep(
+            "Python static type contracts",
+            ("project-python", "-m", "mypy", "--config-file", "pyproject.toml"),
+        ),
         MODULE.VerificationStep("Python tests", ("project-python", "-m", "pytest", "-q")),
     )

@@ -76,7 +76,11 @@
     "setup:typescript:5.8:offline": "node tools/run_project_python.js --system tools/bootstrap_typescript_5_8_offline.py",
     "check:typescript:5.8:offline": "node tools/run_project_python.js --system tools/bootstrap_typescript_5_8_offline.py --check",
     "check:types:5.8": "node tools/run_project_python.js --system tools/bootstrap_typescript_5_8_offline.py --quiet && node node_modules/typescript-5-8/bin/tsc -p jsconfig.json --pretty false",
-    "check:types:7": "node tools/run_project_python.js --system tools/run_typescript_offline.py -p jsconfig.json --pretty false"
+    "check:types:7": "node tools/run_project_python.js --system tools/run_typescript_offline.py -p jsconfig.json --pretty false",
+    "doctor": "node tools/run_project_python.js --system tools/project_doctor.py",
+    "lint:python": "node tools/run_project_python.js tools/run_python_quality.py --lint",
+    "check:python-types": "node tools/run_project_python.js tools/run_python_quality.py --types",
+    "check:python-quality": "node tools/run_project_python.js tools/run_python_quality.py"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

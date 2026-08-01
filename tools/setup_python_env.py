@@ -17,7 +17,7 @@ import venv
 from pathlib import Path
 from typing import Sequence
 
-REQUIRED_IMPORTS: tuple[str, ...] = ("pytest", "fitz", "PIL")
+REQUIRED_IMPORTS: tuple[str, ...] = ("pytest", "fitz", "PIL", "ruff", "mypy")
 PINNED_DISTRIBUTIONS: dict[str, str] = {
     "PyMuPDF": "1.28.0",
     "Pillow": "12.3.0",
@@ -26,6 +26,8 @@ PINNED_DISTRIBUTIONS: dict[str, str] = {
     "packaging": "26.2",
     "pluggy": "1.6.0",
     "Pygments": "2.20.0",
+    "ruff": "0.16.1",
+    "mypy": "2.3.0",
 }
 WINDOWS_PINNED_DISTRIBUTIONS: dict[str, str] = {"colorama": "0.4.6"}
 STAMP_NAME = ".site-catalog-requirements.sha256"

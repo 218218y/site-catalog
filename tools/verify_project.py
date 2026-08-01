@@ -28,7 +28,7 @@ from typing import Literal, Sequence
 
 from build_frontend_assets import GENERATED_JS_FILES
 
-REQUIRED_PYTHON_MODULES: tuple[str, ...] = ("pytest", "fitz", "PIL")
+REQUIRED_PYTHON_MODULES: tuple[str, ...] = ("pytest", "fitz", "PIL", "ruff", "mypy")
 VerificationScope = Literal["all", "javascript", "python"]
 
 
@@ -185,7 +185,17 @@ def verification_steps(
         )
 
     if scope in {"all", "python"}:
-        steps.append(VerificationStep("Python tests", (python, "-m", "pytest", "-q")))
+        steps.extend((
+            VerificationStep(
+                "Python Ruff correctness lint",
+                (python, "-m", "ruff", "check", "tools", "tests"),
+            ),
+            VerificationStep(
+                "Python static type contracts",
+                (python, "-m", "mypy", "--config-file", "pyproject.toml"),
+            ),
+            VerificationStep("Python tests", (python, "-m", "pytest", "-q")),
+        ))
 
     if scope == "all":
         steps.append(

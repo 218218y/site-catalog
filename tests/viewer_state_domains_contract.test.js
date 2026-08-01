@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const ts = require("typescript-5-8");
+const { inventorySource } = require("./helpers/frontend_ast.js");
 
 const root = path.resolve(__dirname, "..");
 const statePath = path.join(root, "src", "js", "16-viewer-state.js");
@@ -63,44 +63,23 @@ const expectedTypeNames = Object.freeze({
   viewerOnboardingState: "ViewerOnboardingState"
 });
 
-function propertyNameText(name) {
-  if (!name) return "";
-  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) return name.text;
-  return name.getText();
-}
-
-function objectLiteralDomains(sourceText, filename) {
-  const sourceFile = ts.createSourceFile(filename, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-  const domains = new Map();
-  for (const statement of sourceFile.statements) {
-    if (!ts.isVariableStatement(statement)) continue;
-    for (const declaration of statement.declarationList.declarations) {
-      if (!ts.isIdentifier(declaration.name) || !expectedDomains[declaration.name.text]) continue;
-      assert.ok(declaration.initializer && ts.isObjectLiteralExpression(declaration.initializer), `${declaration.name.text} must be an object literal`);
-      const properties = declaration.initializer.properties.map((property) => {
-        assert.ok(ts.isPropertyAssignment(property), `${declaration.name.text} must use explicit property assignments`);
-        return propertyNameText(property.name);
-      });
-      domains.set(declaration.name.text, properties);
-    }
-  }
-  return domains;
-}
-
-function typeLiteralDomains(sourceText, filename) {
-  const sourceFile = ts.createSourceFile(filename, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const result = new Map();
-  const wanted = new Set(Object.values(expectedTypeNames));
-  for (const statement of sourceFile.statements) {
-    if (!ts.isTypeAliasDeclaration(statement) || !wanted.has(statement.name.text)) continue;
-    assert.ok(ts.isTypeLiteralNode(statement.type), `${statement.name.text} must remain a type literal`);
-    result.set(statement.name.text, statement.type.members.map((member) => propertyNameText(member.name)));
-  }
-  return result;
-}
-
-const sourceDomains = objectLiteralDomains(stateSource, statePath);
-const contractDomains = typeLiteralDomains(contractsSource, contractsPath);
+const stateInventory = inventorySource(stateSource, statePath);
+const contractInventory = inventorySource(contractsSource, contractsPath);
+const sourceDomains = new Map(
+  Object.entries(stateInventory.objectDeclarations)
+    .filter(([name]) => expectedDomains[name]),
+);
+const contractDomains = new Map(
+  contractInventory.declarations
+    .filter((declaration) => Object.values(expectedTypeNames).includes(declaration.name))
+    .map((declaration) => [declaration.name, declaration.properties]),
+);
+const runtimeVariableNames = new Set(Object.keys(stateInventory.objectDeclarations));
+const contractTypeNames = new Set(
+  contractInventory.declarations
+    .filter((declaration) => declaration.kind === "TypeAliasDeclaration")
+    .map((declaration) => declaration.name),
+);
 assert.equal(sourceDomains.size, 7, "Viewer runtime state must have exactly seven domain owners");
 assert.equal(contractDomains.size, 7, "Viewer type contracts must have exactly seven matching domain types");
 
@@ -112,8 +91,8 @@ for (const [domain, expectedFields] of Object.entries(expectedDomains)) {
 }
 assert.equal(allFields.length, 68, "the Viewer domain partition must account for all 68 original state fields");
 assert.equal(new Set(allFields).size, 68, "a Viewer state field is owned by more than one domain");
-assert.doesNotMatch(stateSource, /\bconst\s+viewerState\s*=/, "the former aggregate mutable state must not return");
-assert.doesNotMatch(stateSource, /\bviewerStateDomains\b/, "the seven domains must not be re-aggregated behind another mutable facade");
-assert.doesNotMatch(contractsSource, /\bexport type ViewerState\s*=/, "the former aggregate ViewerState contract must not return");
+assert.equal(runtimeVariableNames.has("viewerState"), false, "the former aggregate mutable state must not return");
+assert.equal(runtimeVariableNames.has("viewerStateDomains"), false, "the seven domains must not be re-aggregated behind another mutable facade");
+assert.equal(contractTypeNames.has("ViewerState"), false, "the former aggregate ViewerState contract must not return");
 
 console.log("viewer_state_domains_contract.test.js: PASS");

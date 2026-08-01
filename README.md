@@ -576,14 +576,20 @@ npm ci
 הפקודות המרכזיות:
 
 ```bat
-npm run build          rem בניית מודולי המסלולים, קובצי CSS וכל דפי HTML
-npm run test:js        rem בדיקות JavaScript, תחביר ודפים שנוצרו
-npm run test:python    rem בדיקות Python מתוך .venv
-npm run test:e2e       rem מסלולי שימוש אמיתיים בדפדפן Chromium
-npm test               rem בדיקה מהירה: JavaScript + Python + שער public שמור, ללא דפדפן ופריסה
-npm run verify         rem אימות מלא לפני העלאה
-npm run clean:artifacts rem ניקוי __pycache__, bytecode ועותקי תמונת שיתוף ישנים
+npm run build                rem בניית מודולי המסלולים, קובצי CSS וכל דפי HTML
+npm run doctor               rem דוח מלא על Node, Python, כלים אופליין, דפדפן ו־OCR
+npm run test:js              rem בדיקות JavaScript, AST, תחביר ודפים שנוצרו
+npm run lint:python          rem שער Ruff ממוקד correctness
+npm run check:python-types   rem חוזי mypy על מודולי ה־ratchet
+npm run check:python-quality rem Ruff ו־mypy ברצף
+npm run test:python          rem Ruff, mypy וכל בדיקות Python מתוך .venv
+npm run test:e2e             rem מסלולי שימוש אמיתיים בדפדפן Chromium
+npm test                     rem בדיקה מהירה: JavaScript + Python + שער public שמור, ללא דפדפן ופריסה
+npm run verify               rem אימות מלא לפני העלאה
+npm run clean:artifacts      rem ניקוי __pycache__, bytecode ועותקי תמונת שיתוף ישנים
 ```
+
+חוזי מבנה JavaScript קריטיים משתמשים ב־TypeScript AST משותף במקום בחיפוש Regex בתוך קוד מקור. Regex נשאר בכוונה בחוזי HTML/CSS ותוכן שבהם הטקסט עצמו הוא הממשק. בדיקות property דטרמיניסטיות נועלות כעת invariants של מספור עמודים, reconciliation של טקסונומיה ומעברי Viewer. פירוט מלא, גבולות ה־ratchet והסבר מדוע לא בוצעה המרה גורפת נמצאים ב־`docs/QUALITY_MODERNIZATION_AUDIT.md`.
 
 `npm test` כולל את שער ה־SEO הציבורי המלא. התוצר נשמר ב־`dist/site-public-preview`: חתימת מקורות ומלאי קבצים קובעים אם צריך לבנות מחדש, וחתימת ביקורת נפרדת קובעת אם צריך לסרוק שוב את כל דפי ה־HTML. לכן שינוי רלוונטי מפעיל בנייה וביקורת אמיתיות פעם אחת, ואילו הרצה חוזרת ללא שינוי מבצעת בדיקת עדכניות קלה בלבד. כך Windows Defender אינו נדרש לסרוק מאות קבצים חדשים בכל הרצה, בלי לדלג על שער הפרסום.
 
@@ -594,11 +600,13 @@ npm run clean:artifacts rem ניקוי __pycache__, bytecode ועותקי תמו
 
 1. אימות שכל באנדלי המסלולים וקובצי ה־CSS מעודכנים.
 2. אימות שכל ששת דפי האתר תואמים לתבניות, לתוכן הפוטר ול־footer המשותף.
-3. בדיקת תחביר וכל בדיקות החוזה של JavaScript.
-4. כל בדיקות Python.
-5. בנייה או שימוש חוזר בתוצר public וביקורת SEO מלאה כשחתימת התוכן או כלי הביקורת השתנתה.
-6. בדיקות Playwright בדפדפן אמיתי.
-7. בניית חבילת Cloudflare Pages פרטית נקייה ואימות קובצי ה־hash.
+3. בדיקת תחביר, חוזי AST וכל בדיקות החוזה של JavaScript.
+4. Ruff על שגיאות correctness בקוד Python.
+5. mypy על מודולי ה־ratchet הטיפוסיים.
+6. כל בדיקות Python, כולל בדיקות property דטרמיניסטיות.
+7. בנייה או שימוש חוזר בתוצר public וביקורת SEO מלאה כשחתימת התוכן או כלי הביקורת השתנתה.
+8. בדיקות Playwright בדפדפן אמיתי.
+9. בניית חבילת Cloudflare Pages פרטית נקייה ואימות קובצי ה־hash.
 
 בדיקות Playwright מכסות פתיחת קטלוג, תצוגה מקדימה ופתיחת עמוד נבחר, מעבר עמודים, חיפוש, שמירת מועדף לאחר רענון, שיתוף רשימת מועדפים לדפדפן נקי, קישור ישיר ושיתוף הכתובת המדויקת, חזרה מהצופה וניווט פנימי בטוח בזמן מסך מלא, סיור ההדרכה החד־פעמי, צפייה במובייל ושינוי orientation, מרכוז הצופה, כשל תמונה, ניווט מקלדת ובדיקות צילום מסך. בנוסף, כל מסלול נכשל אם נזרקת שגיאת JavaScript לא מטופלת בדפדפן. תמונות הקטלוג נענות בבדיקות באמצעות fixture מקומי, ולכן הבדיקות אינן תלויות ב־R2 או באינטרנט.
 

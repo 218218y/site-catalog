@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 STATE_OWNERS: Mapping[str, str] = {
     "catalogAssetState": "src/js/10-app-state.js",
@@ -31,10 +32,6 @@ ELEMENT_OWNERS: Mapping[str, str] = {
     "viewerElements": "src/js/16-viewer-state.js",
     "inquiryElements": "src/js/32-shared-inquiry.js",
 }
-PROPERTY_RE_TEMPLATE = r"\b{owner}\.([A-Za-z_$][A-Za-z0-9_$]*)"
-OBJECT_RE_TEMPLATE = r"const\s+{owner}\s*=\s*(?:Object\.freeze\()?\{{(?P<body>.*?)\n\}}\)?;"
-DECLARED_PROPERTY_RE = re.compile(r"^\s{2}([A-Za-z_$][A-Za-z0-9_$]*):", re.MULTILINE)
-
 # Direct access to mutable state and feature-owned DOM is permitted only inside
 # the owning feature boundary. A state declaration may live in a small state
 # module while the implementation is split across a reviewed set of files.
@@ -121,12 +118,56 @@ DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
     ),
 }
 
-STATIC_IMPORT_RE = re.compile(
-    r"^\s*import(?:\s+[\s\S]*?\s+from\s+|\s*)[\"](?P<specifier>[^\"]+)[\"]\s*;",
-    re.MULTILINE,
-)
-DYNAMIC_IMPORT_RE = re.compile(r"\bimport\s*\(")
-DYNAMIC_IMPORT_SPECIFIER_RE = re.compile(r"\bimport\s*\(\s*[\"\'](?P<specifier>[^\"\']+)[\"\']\s*\)")
+
+AstInventory = dict[str, Any]
+
+
+def load_ast_inventory(base: Path, paths: list[Path]) -> dict[str, AstInventory]:
+    """Parse browser sources once with TypeScript and return structural facts.
+
+    The Node bridge deliberately owns JavaScript syntax knowledge. Python only
+    consumes JSON facts, so comments and strings can never satisfy code
+    ownership contracts by accident.
+    """
+
+    relative_paths = [path.relative_to(base).as_posix() for path in paths]
+    request = json.dumps({"root": str(base), "files": relative_paths})
+    try:
+        result = subprocess.run(
+            ("node", "tools/frontend_ast_inventory.js"),
+            cwd=base,
+            input=request,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as error:
+        detail = getattr(error, "stderr", "") or str(error)
+        raise RuntimeError(f"JavaScript AST inventory failed: {detail.strip()}") from error
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("JavaScript AST inventory returned invalid JSON") from error
+    if not isinstance(payload, dict):
+        raise RuntimeError("JavaScript AST inventory returned a non-object payload")
+    return payload
+
+
+def ast_calls(inventory: AstInventory, callee: str) -> list[dict[str, Any]]:
+    return [call for call in inventory.get("calls", []) if call.get("callee") == callee]
+
+
+def ast_property_paths(inventory: AstInventory) -> set[str]:
+    return {str(access.get("path")) for access in inventory.get("propertyAccesses", [])}
+
+
+def ast_owner_properties(inventory: AstInventory, owner: str) -> set[str]:
+    return {
+        str(access.get("property"))
+        for access in inventory.get("propertyAccesses", [])
+        if access.get("object") == owner
+    }
+
 
 APPROVED_DYNAMIC_IMPORTS: Mapping[str, tuple[str, ...]] = {}
 APPROVED_ROOT_BROWSER_MODULES: tuple[str, ...] = ("catalog-snapshot.js",)
@@ -222,7 +263,12 @@ def check_typecheck_configuration(base: Path, failures: list[str]) -> None:
         failures.append("jsconfig.json must include types/frontend-globals.d.ts")
 
 
-def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]) -> None:
+def check_es_module_imports(
+    base: Path,
+    sources: list[Path],
+    inventory: Mapping[str, AstInventory],
+    failures: list[str],
+) -> None:
     """Validate explicit local imports and reject unreviewed dependency cycles."""
 
     entries = sorted((base / "src" / "entries").glob("*.js"))
@@ -234,10 +280,13 @@ def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]
 
     for path in all_modules:
         relative = path.relative_to(base).as_posix()
-        text = path.read_text(encoding="utf-8")
-        executable = strip_javascript_comments(text)
+        module_inventory = inventory[relative]
+        dynamic_imports = module_inventory.get("dynamicImports", [])
+        non_static_dynamic_imports = [item for item in dynamic_imports if not item.get("static")]
         dynamic_specifiers = tuple(
-            match.group("specifier") for match in DYNAMIC_IMPORT_SPECIFIER_RE.finditer(executable)
+            str(item["specifier"])
+            for item in dynamic_imports
+            if item.get("static") and item.get("specifier") is not None
         )
         expected_dynamic_specifiers = APPROVED_DYNAMIC_IMPORTS.get(relative, ())
         if dynamic_specifiers != expected_dynamic_specifiers:
@@ -245,14 +294,14 @@ def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]
                 f"dynamic import contract changed for {relative}; "
                 f"expected={expected_dynamic_specifiers}, actual={dynamic_specifiers}"
             )
-        if DYNAMIC_IMPORT_RE.search(executable) and not dynamic_specifiers:
+        if non_static_dynamic_imports:
             failures.append(f"dynamic import must use one reviewed static string specifier: {relative}")
         for specifier in dynamic_specifiers:
             target = (path.parent / specifier).resolve()
             if not specifier.endswith(".js") or not target.is_file():
                 failures.append(f"reviewed dynamic import target is invalid: {relative} -> {specifier}")
-        for match in STATIC_IMPORT_RE.finditer(text):
-            specifier = match.group("specifier")
+        for raw_specifier in module_inventory.get("staticImports", []):
+            specifier = str(raw_specifier)
             if not specifier.startswith("."):
                 failures.append(f"browser source imports a package directly instead of a local module: {relative} -> {specifier}")
                 continue
@@ -332,7 +381,12 @@ def check_es_module_imports(base: Path, sources: list[Path], failures: list[str]
         )
 
 
-def check_feature_registry(base: Path, sources: list[Path], failures: list[str]) -> None:
+def check_feature_registry(
+    base: Path,
+    sources: list[Path],
+    inventory: Mapping[str, AstInventory],
+    failures: list[str],
+) -> None:
     contracts = (base / "types/frontend-contracts.d.ts").read_text(encoding="utf-8")
     registry = (base / "src/js/10-app-state.js").read_text(encoding="utf-8")
     if not re.search(r"export\s+(?:type|interface)\s+FeatureRegistry\b", contracts) or "keyof FeatureRegistry" not in contracts:
@@ -346,7 +400,13 @@ def check_feature_registry(base: Path, sources: list[Path], failures: list[str])
 
     registered: list[str] = []
     for path in sources:
-        registered.extend(re.findall(r'registerFeatureInterface\("([^"\n]+)"', strip_javascript_comments(path.read_text(encoding="utf-8"))))
+        relative = path.relative_to(base).as_posix()
+        for call in ast_calls(inventory[relative], "registerFeatureInterface"):
+            arguments = call.get("arguments", [])
+            if arguments and isinstance(arguments[0], str):
+                registered.append(arguments[0])
+            else:
+                failures.append(f"feature registration must use a static literal name: {relative}")
     unknown = sorted(set(registered) - FEATURE_NAMES)
     missing = sorted(FEATURE_NAMES - set(registered))
     duplicates = sorted(name for name in set(registered) if registered.count(name) > 1)
@@ -358,19 +418,22 @@ def check_feature_registry(base: Path, sources: list[Path], failures: list[str])
         failures.append(f"duplicate feature registrations: {', '.join(duplicates)}")
 
 
-def check_bootstrap_boundary(base: Path, failures: list[str]) -> None:
+def check_bootstrap_boundary(
+    base: Path,
+    inventory: Mapping[str, AstInventory],
+    failures: list[str],
+) -> None:
     path = base / "src/js/90-bootstrap.js"
-    text = path.read_text(encoding="utf-8")
-    code = strip_javascript_comments(text)
-    function_names = re.findall(r"\bfunction\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(", code)
+    relative = path.relative_to(base).as_posix()
+    module_inventory = inventory[relative]
+    function_names = module_inventory.get("functionDeclarations", [])
     if function_names != ["init"]:
         failures.append("90-bootstrap.js must contain only the init startup function")
-    if 'requireFeatureInterface("app-shell").initialize()' not in code:
+    if not ast_calls(module_inventory, 'requireFeatureInterface("app-shell").initialize'):
         failures.append("90-bootstrap.js must require the app-shell feature during startup")
-    if 'getFeatureInterface("app-shell")' in code:
+    if ast_calls(module_inventory, "getFeatureInterface"):
         failures.append("90-bootstrap.js must not allow a missing app-shell feature to become a silent no-op")
-    executable_lines = [line for line in code.splitlines() if line.strip()]
-    if len(executable_lines) > 18:
+    if int(module_inventory.get("topLevelStatementCount", 0)) > 8:
         failures.append("90-bootstrap.js contains orchestration or business logic instead of a minimal startup boundary")
 
 
@@ -415,6 +478,27 @@ def check_test_strategy(base: Path, failures: list[str]) -> None:
                     f"{relative} asserts implementation syntax against generated bundles; "
                     "inspect the owning source module or import its runtime test API"
                 )
+
+    ast_structural_tests = (
+        "tests/control_panel_modular_architecture_contract.test.js",
+        "tests/viewer_dependency_graph_contract.test.js",
+        "tests/viewer_navigation_source_contract.test.js",
+        "tests/viewer_state_domains_contract.test.js",
+    )
+    ast_helper = base / "tests/helpers/frontend_ast.js"
+    ast_cli = base / "tools/frontend_ast_inventory.js"
+    if not ast_helper.is_file() or not ast_cli.is_file():
+        failures.append("shared TypeScript AST inventory boundary is missing")
+    for relative in ast_structural_tests:
+        path = base / relative
+        if not path.is_file():
+            failures.append(f"required AST structural contract is missing: {relative}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "frontend_ast.js" not in text:
+            failures.append(f"{relative} must use the shared TypeScript AST helper")
+        if "assert.match(" in text or "assert.doesNotMatch(" in text:
+            failures.append(f"{relative} must not regress to source-regex structure assertions")
 
     required_behavior_tests = (
         "tests/search_catalog_domain_logic.test.js",
@@ -529,12 +613,15 @@ def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def declared_properties(root: Path, owner: str, relative_path: str) -> set[str]:
-    text = (root / relative_path).read_text(encoding="utf-8")
-    match = re.search(OBJECT_RE_TEMPLATE.format(owner=re.escape(owner)), text, re.DOTALL)
-    if not match:
+def declared_properties(
+    inventory: Mapping[str, AstInventory],
+    owner: str,
+    relative_path: str,
+) -> set[str]:
+    properties = inventory[relative_path].get("objectDeclarations", {}).get(owner)
+    if properties is None:
         raise RuntimeError(f"Could not find declared object for {owner} in {relative_path}")
-    return set(DECLARED_PROPERTY_RE.findall(match.group("body")))
+    return {str(name) for name in properties}
 
 
 def _strip_leading_javascript_comments(source: str) -> str:
@@ -585,26 +672,30 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     sources = sorted((base / "src" / "js").glob("*.js"))
     runtime_sources = sorted((base / "src" / "runtime").glob("*.js"))
     all_browser_sources = [*sources, *runtime_sources]
-    combined = "\n".join(path.read_text(encoding="utf-8") for path in sources)
-    code_without_comments = strip_javascript_comments(combined)
-    code_without_imports = STATIC_IMPORT_RE.sub("", code_without_comments)
+    ast_paths = list(dict.fromkeys([
+        *all_browser_sources,
+        *sorted((base / "src/entries").glob("*.js")),
+        *(base / relative for relative in APPROVED_ROOT_BROWSER_MODULES),
+        *(base / relative for relative in EXTERNAL_RUNTIME_MODULES),
+    ]))
+    inventory = load_ast_inventory(base, ast_paths)
     failures: list[str] = []
 
     check_typecheck_configuration(base, failures)
-    check_es_module_imports(base, all_browser_sources, failures)
-    check_feature_registry(base, sources, failures)
-    check_bootstrap_boundary(base, failures)
+    check_es_module_imports(base, all_browser_sources, inventory, failures)
+    check_feature_registry(base, sources, inventory, failures)
+    check_bootstrap_boundary(base, inventory, failures)
 
     for path in [*runtime_sources, *(base / name for name in EXTERNAL_RUNTIME_MODULES)]:
         if not path.is_file():
             failures.append(f"external runtime module is missing: {path.relative_to(base).as_posix()}")
             continue
-        text = path.read_text(encoding="utf-8")
+        relative = path.relative_to(base).as_posix()
+        property_paths = ast_property_paths(inventory[relative])
         for global_name in FORBIDDEN_RUNTIME_GLOBALS:
-            if re.search(rf"\bwindow\.{re.escape(global_name)}\b", text):
+            if f"window.{global_name}" in property_paths:
                 failures.append(
-                    f"business runtime API leaked back onto window.{global_name}: "
-                    f"{path.relative_to(base).as_posix()}"
+                    f"business runtime API leaked back onto window.{global_name}: {relative}"
                 )
 
     check_test_strategy(base, failures)
@@ -613,40 +704,45 @@ def check_frontend_contracts(root: Path | None = None) -> None:
 
     for path in sources:
         relative_path = path.relative_to(base).as_posix()
-        code = strip_javascript_comments(path.read_text(encoding="utf-8"))
+        identifiers = set(inventory[relative_path].get("identifiers", []))
         for identifier, allowed_paths in DIRECT_ACCESS_OWNERS.items():
-            if relative_path not in allowed_paths and re.search(rf"\b{re.escape(identifier)}\b", code):
+            if relative_path not in allowed_paths and identifier in identifiers:
                 failures.append(
                     f"{relative_path} reaches into {identifier}; use the owning feature interface instead"
                 )
 
-    if re.search(r"(?<![A-Za-z0-9_$.])state(?:\??\.|\s*\[)", code_without_imports):
+    all_property_accesses = [
+        access
+        for path in sources
+        for access in inventory[path.relative_to(base).as_posix()].get("propertyAccesses", [])
+    ]
+    if any(access.get("object") == "state" for access in all_property_accesses):
         failures.append("legacy monolithic state access remains")
-    if re.search(r"(?<![A-Za-z0-9_$.])els\.", code_without_imports):
+    if any(access.get("object") == "els" for access in all_property_accesses):
         failures.append("legacy monolithic els.* access remains")
 
     all_state_properties: dict[str, str] = {}
     for owner, relative_path in STATE_OWNERS.items():
-        declared = declared_properties(base, owner, relative_path)
+        declared = declared_properties(inventory, owner, relative_path)
         for name in declared:
             previous = all_state_properties.get(name)
             if previous:
                 failures.append(f"state property '{name}' is owned by both {previous} and {owner}")
             all_state_properties[name] = owner
-        used = set(re.findall(PROPERTY_RE_TEMPLATE.format(owner=re.escape(owner)), combined))
+        used = set().union(*(ast_owner_properties(inventory[path.relative_to(base).as_posix()], owner) for path in sources))
         unknown = sorted(used - declared)
         if unknown:
             failures.append(f"{owner} uses undeclared properties: {', '.join(unknown)}")
 
     all_element_properties: dict[str, str] = {}
     for owner, relative_path in ELEMENT_OWNERS.items():
-        declared = declared_properties(base, owner, relative_path)
+        declared = declared_properties(inventory, owner, relative_path)
         for name in declared:
             previous = all_element_properties.get(name)
             if previous:
                 failures.append(f"DOM reference '{name}' is owned by both {previous} and {owner}")
             all_element_properties[name] = owner
-        used = set(re.findall(PROPERTY_RE_TEMPLATE.format(owner=re.escape(owner)), combined))
+        used = set().union(*(ast_owner_properties(inventory[path.relative_to(base).as_posix()], owner) for path in sources))
         unknown = sorted(used - declared)
         if unknown:
             failures.append(f"{owner} uses undeclared DOM references: {', '.join(unknown)}")
@@ -658,7 +754,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     for path in sources:
         relative = path.relative_to(base).as_posix()
         text = path.read_text(encoding="utf-8")
-        if relative not in type_only_modules and not re.search(r"^(?:import|export)\s", text, re.MULTILINE):
+        if relative not in type_only_modules and not inventory[relative].get("isExternalModule"):
             failures.append(f"runtime source is not an ES module: {relative}")
         if "share one lexical scope" in text or "concatenates all sources" in text:
             failures.append(f"legacy shared-scope architecture text remains: {relative}")
@@ -805,23 +901,28 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         if re.fullmatch(r"(?:31|5[1-9]|6[0-9]|70)-.*\.js", path.name)
     ]
     for path in viewer_implementation_sources:
-        text = path.read_text(encoding="utf-8")
-        if re.search(r"\b(?:searchState|searchElements)\b", text):
+        relative = path.relative_to(base).as_posix()
+        identifiers = set(inventory[relative].get("identifiers", []))
+        if identifiers.intersection({"searchState", "searchElements"}):
             failures.append(
-                f"Viewer implementation reaches into search internals instead of the feature interface: "
-                f"{path.relative_to(base).as_posix()}"
+                "Viewer implementation reaches into search internals instead of the feature interface: "
+                f"{relative}"
             )
 
-    search_source = (base / "src/js/50-search-ui.js").read_text(encoding="utf-8")
-    if re.search(r"\b(?:viewer(?:Session|Viewport|Gesture|Chrome|Image|Navigation|Onboarding)State|viewerElements)\b", search_source):
+    search_relative = "src/js/50-search-ui.js"
+    search_identifiers = set(inventory[search_relative].get("identifiers", []))
+    forbidden_viewer_internals = {
+        "viewerSessionState", "viewerViewportState", "viewerGestureState",
+        "viewerChromeState", "viewerImageState", "viewerNavigationState",
+        "viewerOnboardingState", "viewerElements",
+    }
+    if search_identifiers.intersection(forbidden_viewer_internals):
         failures.append("Search implementation reaches into Viewer internals instead of the feature interface")
 
     for path in sources:
-        if "document.currentScript" in path.read_text(encoding="utf-8"):
-            failures.append(
-                f"native ES module depends on document.currentScript: "
-                f"{path.relative_to(base).as_posix()}"
-            )
+        relative = path.relative_to(base).as_posix()
+        if "document.currentScript" in ast_property_paths(inventory[relative]):
+            failures.append(f"native ES module depends on document.currentScript: {relative}")
 
     runner = (base / "tools/build_frontend_esbuild.mjs").read_text(encoding="utf-8")
     if 'format: "esm"' not in runner or 'format: "iife"' in runner:
