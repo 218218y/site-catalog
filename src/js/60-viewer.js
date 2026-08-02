@@ -26,7 +26,7 @@ import { closeViewerInquiry } from "./32-shared-inquiry.js";
 import { renderLightboxCatalogMenu, resetLightboxSearch } from "./50-search-ui.js";
 import { isViewerSessionOpen, transitionViewerPhase } from "./51-viewer-session-state.js";
 import { exitBrowserFullscreen, handleBrowserFullscreenChange, isBrowserFullscreenActive, reconcileViewerFullscreenPhase, returnToMainSiteFromLightbox, syncFullscreenButtonUi, toggleBrowserFullscreen, viewerUsesInDocumentFullscreenNavigation } from "./52-viewer-session.js";
-import { clearSingleViewerResolutionUpgrade, setViewerLoading, viewerPageSrc } from "./53-viewer-image.js";
+import { clearSingleViewerResolutionUpgrade, clearViewerImagePreparations, setViewerLoading, viewerPageSrc } from "./53-viewer-image.js";
 import { applyZoom, clearSingleImagePendingPosition, getAutomaticViewerFitMode, normalizeViewerFitMode, normalizeViewerFitModeSource, primeLightboxFrameForCatalogPage, resetImagePosition, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
 import { setZoom } from "./55-viewer-zoom-controller.js";
 import { handleLightboxEdgeHoverMove, handleLightboxEdgeHoverViewportExit, handleLightboxPageRailEdgePointerDown, handlePageRailPointerOutside, hideLightboxFloatingPreview, hideViewerPageIndicator, hideViewerZoomIndicator, keepPageRailOpen, keepPageRailOpenFromHover, markTouchLikeRailInput, markTouchLikeViewportInput, openPageRailFromHotspot, openPageRailFromTouch, openTopUiFromHotspot, renderLightboxPageRail, schedulePageRailClose, scheduleTopUiClose, showPageRailFromHover, showTopUiTemporarily, syncLightboxModeUi, syncTopUiPinnedUi, syncViewerAutoZoomButtonUi, syncViewerMobileMoreMenuState } from "./56-viewer-shell.js";
@@ -69,6 +69,7 @@ function openLightbox(page = undefined, options = {}) {
     : normalizeViewerFitMode(viewerViewportState.imageFitMode);
   stopViewerTouchMomentum();
   clearViewerPageWheelGesture();
+  clearViewerImagePreparations();
   initializeViewerOpenStateCommand();
   hideViewerZoomIndicator();
   closeViewerInquiry({ restoreFocus: false });
@@ -109,6 +110,7 @@ function hideLightboxUi() {
   stopViewerTouchMomentum();
   clearViewerPageWheelGesture();
   clearSingleImagePendingPosition();
+  clearViewerImagePreparations();
   clearSingleViewerResolutionUpgrade();
   window.clearTimeout(viewerImageState.singleImageAnimationTimer);
   viewerElements.lightbox?.classList.add("hidden");

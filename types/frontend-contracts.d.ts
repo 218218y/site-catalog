@@ -140,6 +140,8 @@ export type ViewerChromeState = {
 export type ViewerImageState = {
     singleImageLoadToken: number;
     singleImageAnimationTimer: number;
+    singleImageStageAbortController: AbortController | null;
+    neighborPreloadTimer: number;
     singleImageResolutionLoadToken: number;
     singleImageResolutionStop: (() => void) | null;
     singleImageResolutionImage: HTMLImageElement | null;

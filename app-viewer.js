@@ -1302,47 +1302,86 @@ function recoverCatalogImageAfterInitialFailure(img) {
     onExhausted: () => syncImagePlaceholderState(img)
   }), !0;
 }
+function catalogImagePreparationAbortError(reason = "image-load-aborted") {
+  let error = new Error(reason);
+  return error.name = "AbortError", error;
+}
 function prepareCatalogImage(url, options = {}) {
   let src = String(url || "");
   if (!src) return Promise.reject(new Error("missing-image-src"));
-  let cached = catalogAssetState.imageLoadCache.get(src);
+  let signal = options.signal || null, isCurrent = typeof options.isCurrent == "function" ? options.isCurrent : () => !0, useCache = options.cache !== !1 && !signal && typeof options.isCurrent != "function", cached = useCache ? catalogAssetState.imageLoadCache.get(src) : null;
   if (cached) return cached;
-  let image = new Image(), requestContext = telemetryCreateImageRequestContext(null, src, {
+  let image = new Image(), requestContext = options.telemetryRequestContext || telemetryCreateImageRequestContext(null, src, {
     detail: options.detail || "preload",
     surface: options.surface || options.detail || "image-preload",
     visibility: options.visibility || "preload"
   });
   applyCatalogImageCrossOrigin(image), image.decoding = "async", image.fetchPriority = options.priority || "auto";
   let promise = new Promise((resolve, reject) => {
-    image.addEventListener("load", async () => {
-      if (typeof image.decode == "function")
+    let settled = !1, cleanup = () => {
+      image.removeEventListener("load", handleLoad), image.removeEventListener("error", handleError), signal?.removeEventListener("abort", handleAbort);
+    }, rejectOnce = (error) => {
+      settled || (settled = !0, cleanup(), useCache && catalogAssetState.imageLoadCache.delete(src), reject(error));
+    }, handleAbort = () => {
+      if (!settled) {
+        settled = !0, cleanup(), useCache && catalogAssetState.imageLoadCache.delete(src);
         try {
-          await image.decode();
+          image.removeAttribute("src");
         } catch {
         }
-      resolve({
-        width: Number(image.naturalWidth) || 0,
-        height: Number(image.naturalHeight) || 0
-      });
-    }, { once: !0 }), image.addEventListener("error", () => {
-      catalogAssetState.imageLoadCache.delete(src), telemetryTrackImageAttemptFailure(src, {
-        requestContext,
-        detail: options.detail || "preload",
-        action: "preload",
-        attempt: 1
-      }), telemetryTrackImageTerminalFailure(src, {
-        requestContext,
-        detail: options.detail || "preload",
-        action: "preload",
-        failedAttempts: 1
-      }), reject(new Error("image-load-failed"));
-    }, { once: !0 }), image.src = src;
+        reject(catalogImagePreparationAbortError());
+      }
+    }, handleLoad = async () => {
+      if (!settled) {
+        if (typeof image.decode == "function")
+          try {
+            await image.decode();
+          } catch {
+          }
+        if (!settled) {
+          if (signal?.aborted || !isCurrent()) {
+            rejectOnce(catalogImagePreparationAbortError("image-load-superseded"));
+            return;
+          }
+          settled = !0, cleanup(), resolve({
+            width: Number(image.naturalWidth) || 0,
+            height: Number(image.naturalHeight) || 0
+          });
+        }
+      }
+    }, handleError = () => {
+      if (!settled) {
+        if (signal?.aborted || !isCurrent()) {
+          rejectOnce(catalogImagePreparationAbortError("image-load-superseded"));
+          return;
+        }
+        telemetryTrackImageAttemptFailure(src, {
+          requestContext,
+          detail: options.detail || "preload",
+          action: options.failureAction || "preload",
+          attempt: 1
+        }), options.terminalOnFailure !== !1 && telemetryTrackImageTerminalFailure(src, {
+          requestContext,
+          detail: options.detail || "preload",
+          action: options.failureAction || "preload",
+          failedAttempts: 1
+        }), rejectOnce(new Error("image-load-failed"));
+      }
+    };
+    if (image.addEventListener("load", handleLoad, { once: !0 }), image.addEventListener("error", handleError, { once: !0 }), signal?.addEventListener("abort", handleAbort, { once: !0 }), signal?.aborted) {
+      handleAbort();
+      return;
+    }
+    image.src = src;
   });
-  if (catalogAssetState.imageLoadCache.size >= 24) {
-    let oldestSrc = catalogAssetState.imageLoadCache.keys().next().value;
-    oldestSrc && catalogAssetState.imageLoadCache.delete(oldestSrc);
+  if (useCache) {
+    if (catalogAssetState.imageLoadCache.size >= 24) {
+      let oldestSrc = catalogAssetState.imageLoadCache.keys().next().value;
+      oldestSrc && catalogAssetState.imageLoadCache.delete(oldestSrc);
+    }
+    catalogAssetState.imageLoadCache.set(src, promise);
   }
-  return catalogAssetState.imageLoadCache.set(src, promise), promise;
+  return promise;
 }
 function clampValue(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -2107,7 +2146,7 @@ registerFeatureInterface("favorites", {
 });
 
 // src/js/16-viewer-state.js
-var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FIT_HEIGHT = "height", VIEWER_FIT_WIDTH = "width", VIEWER_FIT_SOURCE_AUTO = "auto", VIEWER_FIT_SOURCE_MANUAL = "manual", VIEWER_PHASE_CLOSED = "closed", VIEWER_PHASE_OPENING = "opening", VIEWER_PHASE_OPEN = "open", VIEWER_PHASE_CLOSING = "closing", VIEWER_FULLSCREEN_INACTIVE = "inactive", VIEWER_FULLSCREEN_ENTERING = "entering", VIEWER_FULLSCREEN_ACTIVE = "active", VIEWER_FULLSCREEN_EXITING = "exiting", VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON = 0.01, VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2", DOUBLE_TAP_DELAY = 320, DOUBLE_TAP_DISTANCE = 34, TAP_MOVE_TOLERANCE = 14, VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46, VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35, VIEWER_ZOOM_INDICATOR_HIDE_MS = 760, VIEWER_PAGE_INDICATOR_HIDE_MS = 1e3, VIEWER_PAGE_SWAP_CLEANUP_MS = 240, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100, VIEWER_PAGE_WHEEL_SETTLE_MS = 150, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS = 48, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO = 1.4, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36, VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144, VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330, VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0.08, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS = 2.6, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 48e-4, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS = 34, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS = 80, VIEWER_TOUCH_VELOCITY_BLEND = 0.45, viewerSessionState = {
+var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FIT_HEIGHT = "height", VIEWER_FIT_WIDTH = "width", VIEWER_FIT_SOURCE_AUTO = "auto", VIEWER_FIT_SOURCE_MANUAL = "manual", VIEWER_PHASE_CLOSED = "closed", VIEWER_PHASE_OPENING = "opening", VIEWER_PHASE_OPEN = "open", VIEWER_PHASE_CLOSING = "closing", VIEWER_FULLSCREEN_INACTIVE = "inactive", VIEWER_FULLSCREEN_ENTERING = "entering", VIEWER_FULLSCREEN_ACTIVE = "active", VIEWER_FULLSCREEN_EXITING = "exiting", VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD = 1.35, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO = 0.96, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON = 0.01, VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2", DOUBLE_TAP_DELAY = 320, DOUBLE_TAP_DISTANCE = 34, TAP_MOVE_TOLERANCE = 14, VIEWER_PAGE_SWIPE_MIN_DISTANCE = 46, VIEWER_PAGE_SWIPE_AXIS_RATIO = 1.35, VIEWER_ZOOM_INDICATOR_HIDE_MS = 760, VIEWER_PAGE_INDICATOR_HIDE_MS = 1e3, VIEWER_PAGE_SWAP_CLEANUP_MS = 240, VIEWER_NEIGHBOR_PRELOAD_SETTLE_MS = 180, VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20, VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100, VIEWER_PAGE_WHEEL_SETTLE_MS = 150, VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS = 48, VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO = 1.4, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0.36, VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144, VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330, VIEWER_PAGE_TURN_REMAINDER_EPSILON = 0.75, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0.08, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS = 2.6, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 48e-4, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS = 34, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS = 80, VIEWER_TOUCH_VELOCITY_BLEND = 0.45, viewerSessionState = {
   viewerPhase: VIEWER_PHASE_CLOSED,
   viewerPhaseReason: "initial",
   viewerFullscreenPhase: VIEWER_FULLSCREEN_INACTIVE,
@@ -2155,6 +2194,8 @@ var AUTO_VIEWER_ZOOM = 1, MIN_VIEWER_ZOOM = 0.35, MAX_VIEWER_ZOOM = 5, VIEWER_FI
 }, viewerImageState = {
   singleImageLoadToken: 0,
   singleImageAnimationTimer: 0,
+  singleImageStageAbortController: null,
+  neighborPreloadTimer: 0,
   singleImageResolutionLoadToken: 0,
   singleImageResolutionStop: null,
   singleImageResolutionImage: null,
@@ -5119,6 +5160,16 @@ function returnToMainSiteFromLightbox(event = null) {
 function setViewerLoading(isLoading) {
   viewerElements.viewerLoading.classList.toggle("hidden", !isLoading);
 }
+function cancelSingleViewerStagePreparation() {
+  let controller = viewerImageState.singleImageStageAbortController;
+  return controller ? (viewerImageState.singleImageStageAbortController = null, controller.abort(), !0) : !1;
+}
+function clearViewerNeighborPreloadSchedule() {
+  window.clearTimeout(viewerImageState.neighborPreloadTimer), viewerImageState.neighborPreloadTimer = 0;
+}
+function clearViewerImagePreparations() {
+  cancelSingleViewerStagePreparation(), clearViewerNeighborPreloadSchedule();
+}
 function runViewerPageSwapAnimation(element, options = (
   /** @type {ViewerPageSwapAnimationOptions} */
   { timerKey: "singleImageAnimationTimer" }
@@ -5218,6 +5269,7 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
 }
 function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!viewerElements.lightboxImage || !catalog) return;
+  cancelSingleViewerStagePreparation();
   let token = beginViewerImageSwapCommand(), image = viewerElements.lightboxImage, request = options.imageRequest || viewerPageImageRequest(catalog, page, {
     forceFull: !!options.forceFull
   }), primarySrc = normalizeCatalogImageUrl(src || request.primarySrc);
@@ -5229,7 +5281,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   }
   let preserveCurrentImage = !!(options.preserveCurrentImage && image.complete && image.naturalWidth > 0 && !viewerElements.lightboxImageFrame?.classList.contains("image-terminal-error"));
   preserveCurrentImage && retainSingleViewerResolutionLayerForSwap() || clearSingleViewerResolutionUpgrade(), setViewerLoading(!0), viewerElements.lightboxImageFrame?.setAttribute("aria-busy", "true"), setSingleViewerImageFeedback(), viewerElements.lightbox?.classList.add("is-page-loading"), viewerElements.lightboxImageFrame?.classList.toggle("is-preparing-swap", !preserveCurrentImage), viewerElements.lightboxImageFrame?.classList.remove("image-terminal-error"), preserveCurrentImage ? image.dataset.placeholderIgnore = "true" : prepareImagePlaceholder(image), image.alt = `${catalog.title} - עמוד ${page}`, applyCatalogImageDimensions(image, catalog, page), image.decoding = "async", image.fetchPriority = "high", image.dataset.logicalSrc = primarySrc;
-  let requestIsCurrent = () => isViewerImageSwapCurrent(token) && isViewerSessionOpen() && activeCatalog() === catalog && activePage() === page, commitImageRequest = () => {
+  let requestIsCurrent = () => isViewerImageSwapCurrent(token) && isViewerSessionOpen() && activeCatalog() === catalog && activePage() === page, commitImageRequest = (initialFailedAttempts = 0, telemetryRequestContext = null) => {
     requestIsCurrent() && loadCatalogImageWithRecovery(image, {
       primarySrc,
       primaryTier: request.primaryTier,
@@ -5238,6 +5290,8 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
       isCurrent: requestIsCurrent,
       telemetryDetail: "viewer-single",
       telemetrySurface: "viewer-stage",
+      telemetryRequestContext,
+      initialFailedAttempts,
       onSuccess: (
         /** @param {CatalogImageCandidate} candidate */
         (candidate) => {
@@ -5251,12 +5305,32 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
       }
     });
   };
-  preserveCurrentImage ? prepareCatalogImage(primarySrc, {
-    priority: "high",
-    detail: "viewer-page-stage",
-    surface: "viewer-stage-buffer",
-    visibility: "background"
-  }).catch(() => null).then(commitImageRequest) : commitImageRequest();
+  if (preserveCurrentImage) {
+    let controller = new AbortController();
+    viewerImageState.singleImageStageAbortController = controller;
+    let telemetryRequestContext = telemetryCreateImageRequestContext(image, primarySrc, {
+      detail: "viewer-single",
+      surface: "viewer-stage",
+      visibility: "visible"
+    });
+    prepareCatalogImage(primarySrc, {
+      priority: "high",
+      detail: "viewer-single-stage",
+      surface: "viewer-stage",
+      visibility: "visible",
+      failureAction: "stage",
+      cache: !1,
+      signal: controller.signal,
+      isCurrent: requestIsCurrent,
+      terminalOnFailure: !1,
+      telemetryRequestContext
+    }).then(() => ({ failedAttempts: 0 })).catch((error) => error?.name === "AbortError" || !requestIsCurrent() ? null : { failedAttempts: 1 }).then((result) => {
+      result && commitImageRequest(result.failedAttempts, telemetryRequestContext);
+    }).finally(() => {
+      viewerImageState.singleImageStageAbortController === controller && (viewerImageState.singleImageStageAbortController = null);
+    });
+  } else
+    commitImageRequest();
 }
 function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerViewportState.zoom) {
   let rect = (viewerElements.lightboxImageFrame || null)?.getBoundingClientRect?.(), dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
@@ -5307,14 +5381,12 @@ function refreshSingleViewerImageResolution(options = {}) {
   let currentSrc = activeSingleViewerImageLogicalSrc(), nextSrc = normalizeCatalogImageUrl(request.primarySrc), loadedTier = activeSingleViewerImageTier();
   return currentSrc === nextSrc ? !!options.warmFull : catalogImageTierRank(loadedTier) > catalogImageTierRank(request.primaryTier) ? !1 : request.primaryTier === CATALOG_IMAGE_TIER_FULL ? prepareSingleViewerResolutionUpgrade(catalog, page, request, { commit: !0 }) : (!viewerImageState.singleImageResolutionVisible && !viewerImageState.singleImageResolutionReady && clearSingleViewerResolutionUpgrade(), !1);
 }
-function preloadNeighbors() {
-  let catalog = activeCatalog();
-  if (!catalog) return;
-  let preloadFull = preferredViewerImageTier(catalog, activePage()) === CATALOG_IMAGE_TIER_FULL, radius = preloadFull ? 1 : catalogNeighborPreloadRadius(), requestOptions = preloadFull ? { forceFull: !0 } : { preferMedium: !0 };
+function runViewerNeighborPreloads(catalog, page, favoriteIndex = -1) {
+  let preloadFull = preferredViewerImageTier(catalog, page) === CATALOG_IMAGE_TIER_FULL, radius = preloadFull ? 1 : catalogNeighborPreloadRadius(), requestOptions = preloadFull ? { forceFull: !0 } : { preferMedium: !0 };
   if (!(radius < 1)) {
     if (isFavoritesLightboxMode()) {
-      let favorites = getFeatureInterface("favorites"), entries = favorites?.entries() || [], viewerIndex = favorites?.viewerIndex() ?? 0;
-      Array.from({ length: radius * 2 }, (_unused, index) => index < radius ? viewerIndex - (radius - index) : viewerIndex + (index - radius + 1)).filter((index) => index >= 0 && index < entries.length).forEach((index) => {
+      let entries = getFeatureInterface("favorites")?.entries() || [];
+      Array.from({ length: radius * 2 }, (_unused, index) => index < radius ? favoriteIndex - (radius - index) : favoriteIndex + (index - radius + 1)).filter((index) => index >= 0 && index < entries.length).forEach((index) => {
         let entry = entries[index];
         prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, requestOptions), {
           priority: "low",
@@ -5326,8 +5398,8 @@ function preloadNeighbors() {
       });
       return;
     }
-    Array.from({ length: radius * 2 }, (_unused, index) => index < radius ? activePage() - (radius - index) : activePage() + (index - radius + 1)).filter((page) => page >= catalogFirstPage(catalog) && page <= catalogLastPage(catalog)).forEach((page) => {
-      prepareCatalogImage(viewerPageSrc(catalog, page, requestOptions), {
+    Array.from({ length: radius * 2 }, (_unused, index) => index < radius ? page - (radius - index) : page + (index - radius + 1)).filter((page2) => page2 >= catalogFirstPage(catalog) && page2 <= catalogLastPage(catalog)).forEach((page2) => {
+      prepareCatalogImage(viewerPageSrc(catalog, page2, requestOptions), {
         priority: "low",
         detail: "viewer-neighbor-preload",
         surface: "viewer-neighbor-preload",
@@ -5336,6 +5408,15 @@ function preloadNeighbors() {
       });
     });
   }
+}
+function preloadNeighbors() {
+  clearViewerNeighborPreloadSchedule();
+  let catalog = activeCatalog();
+  if (!catalog || !isViewerSessionOpen()) return;
+  let page = activePage(), favoritesMode = isFavoritesLightboxMode(), favoriteIndex = favoritesMode ? getFeatureInterface("favorites")?.viewerIndex() ?? 0 : -1;
+  viewerImageState.neighborPreloadTimer = window.setTimeout(() => {
+    viewerImageState.neighborPreloadTimer = 0, !(!isViewerSessionOpen() || activeCatalog() !== catalog || activePage() !== page) && isFavoritesLightboxMode() === favoritesMode && (favoritesMode && (getFeatureInterface("favorites")?.viewerIndex() ?? 0) !== favoriteIndex || runViewerNeighborPreloads(catalog, page, favoriteIndex));
+  }, VIEWER_NEIGHBOR_PRELOAD_SETTLE_MS);
 }
 
 // src/js/55-viewer-zoom-controller.js
@@ -6341,12 +6422,12 @@ function openLightbox(page = void 0, options = {}) {
   }
   setActiveViewerSource(source);
   let favorites = getFeatureInterface("favorites");
-  source === LIGHTBOX_SOURCE_FAVORITES ? favorites?.setViewerIndex(Math.max(0, Number.parseInt(String(options.favoriteIndex ?? ""), 10) || 0)) : favorites?.resetViewerSession(), setActivePage(clampPage(page, catalog)), viewerViewportState.imageFitModeSource = normalizeViewerFitModeSource(viewerViewportState.imageFitModeSource), viewerViewportState.imageFitMode = viewerUsesAutomaticFitMode() ? getAutomaticViewerFitMode() : normalizeViewerFitMode(viewerViewportState.imageFitMode), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), initializeViewerOpenStateCommand(), hideViewerZoomIndicator(), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox"), telemetryTrackCatalogOpen(catalog, activePage(), activeViewerSource()), primeLightboxFrameForCatalogPage(catalog, activePage());
+  source === LIGHTBOX_SOURCE_FAVORITES ? favorites?.setViewerIndex(Math.max(0, Number.parseInt(String(options.favoriteIndex ?? ""), 10) || 0)) : favorites?.resetViewerSession(), setActivePage(clampPage(page, catalog)), viewerViewportState.imageFitModeSource = normalizeViewerFitModeSource(viewerViewportState.imageFitModeSource), viewerViewportState.imageFitMode = viewerUsesAutomaticFitMode() ? getAutomaticViewerFitMode() : normalizeViewerFitMode(viewerViewportState.imageFitMode), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), clearViewerImagePreparations(), initializeViewerOpenStateCommand(), hideViewerZoomIndicator(), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox"), telemetryTrackCatalogOpen(catalog, activePage(), activeViewerSource()), primeLightboxFrameForCatalogPage(catalog, activePage());
   let initialSrc = viewerPageSrc(catalog, activePage());
   viewerElements.lightboxImage?.getAttribute("src") !== initialSrc && (viewerElements.lightboxImage?.removeAttribute("src"), prepareImagePlaceholder(viewerElements.lightboxImage), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter")), viewerElements.lightbox.classList.remove("hidden"), viewerElements.lightbox.classList.remove("show-ui", "show-page-rail"), syncTopUiPinnedUi(), syncDocumentLock(), renderLightboxPageRail(), isFavoritesLightboxMode() || renderLightboxCatalogMenu(), resetLightboxSearch(), syncLightboxModeUi(), syncFullscreenButtonUi(), showTopUiTemporarily(1700), updateLightbox(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), transitionViewerPhase(VIEWER_PHASE_OPEN, "lightbox-ready"), window.requestAnimationFrame(showViewerOnboardingIfNeeded);
 }
 function hideLightboxUi() {
-  transitionViewerPhase(VIEWER_PHASE_CLOSING, "hide-lightbox"), closeViewerOnboarding({ restoreFocus: !1 }), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0 }), invalidateViewerImageSwapCommand(), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), clearSingleImagePendingPosition(), clearSingleViewerResolutionUpgrade(), window.clearTimeout(viewerImageState.singleImageAnimationTimer), viewerElements.lightbox?.classList.add("hidden"), viewerElements.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed"), syncViewerAutoZoomButtonUi(), hideViewerZoomIndicator(), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter"), setViewerLoading(!1), hideLightboxFloatingPreview(), window.clearTimeout(viewerChromeState.uiHideTimer), window.clearTimeout(viewerChromeState.pageRailHideTimer), hideViewerPageIndicator(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), setActiveViewerSource(LIGHTBOX_SOURCE_CATALOG), transitionViewerPhase(VIEWER_PHASE_CLOSED, "lightbox-hidden"), finalizeViewerClosedStateCommand(), syncDocumentLock();
+  transitionViewerPhase(VIEWER_PHASE_CLOSING, "hide-lightbox"), closeViewerOnboarding({ restoreFocus: !1 }), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0 }), invalidateViewerImageSwapCommand(), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), clearSingleImagePendingPosition(), clearViewerImagePreparations(), clearSingleViewerResolutionUpgrade(), window.clearTimeout(viewerImageState.singleImageAnimationTimer), viewerElements.lightbox?.classList.add("hidden"), viewerElements.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed"), syncViewerAutoZoomButtonUi(), hideViewerZoomIndicator(), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter"), setViewerLoading(!1), hideLightboxFloatingPreview(), window.clearTimeout(viewerChromeState.uiHideTimer), window.clearTimeout(viewerChromeState.pageRailHideTimer), hideViewerPageIndicator(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), setActiveViewerSource(LIGHTBOX_SOURCE_CATALOG), transitionViewerPhase(VIEWER_PHASE_CLOSED, "lightbox-hidden"), finalizeViewerClosedStateCommand(), syncDocumentLock();
 }
 function closeLightbox(options = {}) {
   let wasFavoritesViewer = isFavoritesLightboxMode(), { restoreFavorites = wasFavoritesViewer } = options;

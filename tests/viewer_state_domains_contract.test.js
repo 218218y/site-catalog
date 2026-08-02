@@ -32,7 +32,9 @@ const expectedDomains = Object.freeze({
     "zoomIndicatorHideTimer", "pageIndicatorHideTimer", "viewerMobileMoreOpen"
   ],
   viewerImageState: [
-    "singleImageLoadToken", "singleImageAnimationTimer", "singleImageResolutionLoadToken",
+    "singleImageLoadToken", "singleImageAnimationTimer",
+    "singleImageStageAbortController", "neighborPreloadTimer",
+    "singleImageResolutionLoadToken",
     "singleImageResolutionStop", "singleImageResolutionImage",
     "singleImageResolutionTargetSrc", "singleImageResolutionTargetTier",
     "singleImageResolutionReady", "singleImageResolutionVisible",
@@ -88,8 +90,8 @@ for (const [domain, expectedFields] of Object.entries(expectedDomains)) {
   assert.deepEqual(contractDomains.get(expectedTypeNames[domain]), expectedFields, `${expectedTypeNames[domain]} drifted from runtime ownership`);
   allFields.push(...expectedFields);
 }
-assert.equal(allFields.length, 68, "the Viewer domain partition must account for all 68 original state fields");
-assert.equal(new Set(allFields).size, 68, "a Viewer state field is owned by more than one domain");
+assert.equal(allFields.length, 70, "the Viewer domain partition must account for all 70 owned state fields");
+assert.equal(new Set(allFields).size, 70, "a Viewer state field is owned by more than one domain");
 assert.equal(runtimeVariableNames.has("viewerState"), false, "the former aggregate mutable state must not return");
 assert.equal(runtimeVariableNames.has("viewerStateDomains"), false, "the seven domains must not be re-aggregated behind another mutable facade");
 assert.equal(contractTypeNames.has("ViewerState"), false, "the former aggregate ViewerState contract must not return");

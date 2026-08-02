@@ -43,7 +43,20 @@ const uiElements = Object.freeze({
  *   onAttempt?:(candidate:CatalogImageRecoveryCandidate, progress:CatalogImageRecoveryProgress)=>void
  * }} CatalogImageRecoveryOptions
  */
-/** @typedef {{priority?:RequestPriority, detail?:string, surface?:string, visibility?:string}} CatalogImagePreloadOptions */
+/**
+ * @typedef {{
+ *   priority?:RequestPriority,
+ *   detail?:string,
+ *   surface?:string,
+ *   visibility?:string,
+ *   failureAction?:string,
+ *   cache?:boolean,
+ *   signal?:AbortSignal,
+ *   isCurrent?:()=>boolean,
+ *   terminalOnFailure?:boolean,
+ *   telemetryRequestContext?:ReturnType<typeof telemetryCreateImageRequestContext>|null
+ * }} CatalogImagePreloadOptions
+ */
 /** @typedef {{name?:unknown, slug?:unknown}} CatalogTaxonomyItem */
 /** @typedef {{categories?:Array<CatalogTaxonomyItem>, subcategories?:Array<CatalogTaxonomyItem>}} CatalogTaxonomy */
 /** @typedef {{subcategory:string, items:Array<CatalogRecord>}} CatalogSubcategoryGroup */
@@ -328,16 +341,26 @@ function recoverCatalogImageAfterInitialFailure(img) {
   return true;
 }
 
+/** @param {string} reason */
+function catalogImagePreparationAbortError(reason = "image-load-aborted") {
+  const error = new Error(reason);
+  error.name = "AbortError";
+  return error;
+}
+
 /** @param {unknown} url @param {CatalogImagePreloadOptions} [options] @returns {Promise<CatalogImageReadiness>} */
 function prepareCatalogImage(url, options = {}) {
   const src = String(url || "");
   if (!src) return Promise.reject(new Error("missing-image-src"));
 
-  const cached = catalogAssetState.imageLoadCache.get(src);
+  const signal = options.signal || null;
+  const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
+  const useCache = options.cache !== false && !signal && typeof options.isCurrent !== "function";
+  const cached = useCache ? catalogAssetState.imageLoadCache.get(src) : null;
   if (cached) return cached;
 
   const image = new Image();
-  const requestContext = telemetryCreateImageRequestContext(null, src, {
+  const requestContext = options.telemetryRequestContext || telemetryCreateImageRequestContext(null, src, {
     detail: options.detail || "preload",
     surface: options.surface || options.detail || "image-preload",
     visibility: options.visibility || "preload"
@@ -347,7 +370,36 @@ function prepareCatalogImage(url, options = {}) {
   image.fetchPriority = options.priority || "auto";
 
   const promise = new Promise((resolve, reject) => {
-    image.addEventListener("load", async () => {
+    let settled = false;
+
+    const cleanup = () => {
+      image.removeEventListener("load", handleLoad);
+      image.removeEventListener("error", handleError);
+      signal?.removeEventListener("abort", handleAbort);
+    };
+
+    /** @param {unknown} error */
+    const rejectOnce = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (useCache) catalogAssetState.imageLoadCache.delete(src);
+      reject(error);
+    };
+
+    const handleAbort = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (useCache) catalogAssetState.imageLoadCache.delete(src);
+      try {
+        image.removeAttribute("src");
+      } catch (_error) {}
+      reject(catalogImagePreparationAbortError());
+    };
+
+    const handleLoad = async () => {
+      if (settled) return;
       // Preloads should be decode-ready, not merely network-complete. Otherwise a
       // neighboring page can still pause on its first paint even though its bytes
       // already arrived. Decode failures are non-fatal when the image itself loaded.
@@ -358,7 +410,14 @@ function prepareCatalogImage(url, options = {}) {
           // The load event and natural dimensions remain the source of truth.
         }
       }
+      if (settled) return;
+      if (signal?.aborted || !isCurrent()) {
+        rejectOnce(catalogImagePreparationAbortError("image-load-superseded"));
+        return;
+      }
 
+      settled = true;
+      cleanup();
       // Keep only lightweight readiness metadata in the promise cache. Returning
       // the Image object itself retained its decoded bitmap indefinitely, which
       // made a browsing session accumulate tens or hundreds of megabytes.
@@ -366,33 +425,49 @@ function prepareCatalogImage(url, options = {}) {
         width: Number(image.naturalWidth) || 0,
         height: Number(image.naturalHeight) || 0
       });
-    }, { once: true });
+    };
 
-    image.addEventListener("error", () => {
-      catalogAssetState.imageLoadCache.delete(src);
+    const handleError = () => {
+      if (settled) return;
+      if (signal?.aborted || !isCurrent()) {
+        rejectOnce(catalogImagePreparationAbortError("image-load-superseded"));
+        return;
+      }
+
       telemetryTrackImageAttemptFailure(src, {
         requestContext,
         detail: options.detail || "preload",
-        action: "preload",
+        action: options.failureAction || "preload",
         attempt: 1
       });
-      telemetryTrackImageTerminalFailure(src, {
-        requestContext,
-        detail: options.detail || "preload",
-        action: "preload",
-        failedAttempts: 1
-      });
-      reject(new Error("image-load-failed"));
-    }, { once: true });
+      if (options.terminalOnFailure !== false) {
+        telemetryTrackImageTerminalFailure(src, {
+          requestContext,
+          detail: options.detail || "preload",
+          action: options.failureAction || "preload",
+          failedAttempts: 1
+        });
+      }
+      rejectOnce(new Error("image-load-failed"));
+    };
 
+    image.addEventListener("load", handleLoad, { once: true });
+    image.addEventListener("error", handleError, { once: true });
+    signal?.addEventListener("abort", handleAbort, { once: true });
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
     image.src = src;
   });
 
-  if (catalogAssetState.imageLoadCache.size >= CATALOG_IMAGE_PRELOAD_CACHE_LIMIT) {
-    const oldestSrc = catalogAssetState.imageLoadCache.keys().next().value;
-    if (oldestSrc) catalogAssetState.imageLoadCache.delete(oldestSrc);
+  if (useCache) {
+    if (catalogAssetState.imageLoadCache.size >= CATALOG_IMAGE_PRELOAD_CACHE_LIMIT) {
+      const oldestSrc = catalogAssetState.imageLoadCache.keys().next().value;
+      if (oldestSrc) catalogAssetState.imageLoadCache.delete(oldestSrc);
+    }
+    catalogAssetState.imageLoadCache.set(src, promise);
   }
-  catalogAssetState.imageLoadCache.set(src, promise);
   return promise;
 }
 
@@ -963,6 +1038,7 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     cacheBustedCatalogImageUrl,
     catalogImageRecoveryCandidates,
     loadCatalogImageWithRecovery,
+    prepareCatalogImage,
     recoverCatalogImageAfterInitialFailure,
     catalogImageVariant,
     catalogSupportsImageTier,

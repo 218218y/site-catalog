@@ -8,7 +8,8 @@
 
 import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, getFeatureInterface } from "./10-app-state.js";
-import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_PAGE_SWAP_CLEANUP_MS, viewerElements, viewerImageState, viewerViewportState } from "./16-viewer-state.js";
+import { telemetryCreateImageRequestContext } from "./15-telemetry.js";
+import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_NEIGHBOR_PRELOAD_SETTLE_MS, VIEWER_PAGE_SWAP_CLEANUP_MS, viewerElements, viewerImageState, viewerViewportState } from "./16-viewer-state.js";
 import { attachViewerResolutionStopCommand, beginViewerImageSwapCommand, beginViewerResolutionCommand, cancelViewerResolutionCommand, commitViewerResolutionCommand, isViewerImageSwapCurrent, markViewerResolutionReadyCommand, releaseViewerRetainedResolutionCommand, retainViewerResolutionForSwapCommand } from "./17-viewer-state-transitions.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { applyCatalogImageDimensions, catalogImageTierMaxSide, catalogNeighborPreloadRadius, catalogPageImageSrc, catalogSupportsImageTier, isSaveDataEnabled, loadCatalogImageWithRecovery, networkEffectiveType, normalizeCatalogImageUrl, pageSize, pageSrc, prepareCatalogImage, prepareImagePlaceholder, syncImagePlaceholderState } from "./20-shared-ui.js";
@@ -19,6 +20,24 @@ import { applyLightboxFrameGeometry, applyZoom } from "./54-viewer-geometry.js";
 /** @param {boolean} isLoading */
 function setViewerLoading(isLoading) {
   viewerElements.viewerLoading.classList.toggle("hidden", !isLoading);
+}
+
+function cancelSingleViewerStagePreparation() {
+  const controller = viewerImageState.singleImageStageAbortController;
+  if (!controller) return false;
+  viewerImageState.singleImageStageAbortController = null;
+  controller.abort();
+  return true;
+}
+
+function clearViewerNeighborPreloadSchedule() {
+  window.clearTimeout(viewerImageState.neighborPreloadTimer);
+  viewerImageState.neighborPreloadTimer = 0;
+}
+
+function clearViewerImagePreparations() {
+  cancelSingleViewerStagePreparation();
+  clearViewerNeighborPreloadSchedule();
 }
 
 /**
@@ -263,6 +282,7 @@ function setSingleViewerImageFeedback(mode = "", message = "") {
 function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!viewerElements.lightboxImage || !catalog) return;
 
+  cancelSingleViewerStagePreparation();
   const token = beginViewerImageSwapCommand();
   const image = viewerElements.lightboxImage;
   const request = options.imageRequest || viewerPageImageRequest(catalog, page, {
@@ -313,7 +333,11 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
     && activeCatalog() === catalog
     && activePage() === page
   );
-  const commitImageRequest = () => {
+  /**
+   * @param {number} [initialFailedAttempts]
+   * @param {ReturnType<typeof telemetryCreateImageRequestContext>|null} [telemetryRequestContext]
+   */
+  const commitImageRequest = (initialFailedAttempts = 0, telemetryRequestContext = null) => {
     if (!requestIsCurrent()) return;
     loadCatalogImageWithRecovery(image, {
       primarySrc,
@@ -323,6 +347,8 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
       isCurrent: requestIsCurrent,
       telemetryDetail: "viewer-single",
       telemetrySurface: "viewer-stage",
+      telemetryRequestContext,
+      initialFailedAttempts,
       onSuccess: /** @param {CatalogImageCandidate} candidate */ (candidate) => {
         delete image.dataset.placeholderIgnore;
         const loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL;
@@ -359,14 +385,39 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
     // Decode the target in a detached image first. Only then replace the visible
     // image source, so even browsers that clear an <img> during a src change can
     // reuse a decoded resource instead of exposing the viewer background.
+    const controller = new AbortController();
+    viewerImageState.singleImageStageAbortController = controller;
+    const telemetryRequestContext = telemetryCreateImageRequestContext(image, primarySrc, {
+      detail: "viewer-single",
+      surface: "viewer-stage",
+      visibility: "visible"
+    });
     prepareCatalogImage(primarySrc, {
       priority: "high",
-      detail: "viewer-page-stage",
-      surface: "viewer-stage-buffer",
-      visibility: "background"
+      detail: "viewer-single-stage",
+      surface: "viewer-stage",
+      visibility: "visible",
+      failureAction: "stage",
+      cache: false,
+      signal: controller.signal,
+      isCurrent: requestIsCurrent,
+      terminalOnFailure: false,
+      telemetryRequestContext
     })
-      .catch(() => null)
-      .then(commitImageRequest);
+      .then(() => ({ failedAttempts: 0 }))
+      .catch((error) => {
+        if (error?.name === "AbortError" || !requestIsCurrent()) return null;
+        return { failedAttempts: 1 };
+      })
+      .then((result) => {
+        if (!result) return;
+        commitImageRequest(result.failedAttempts, telemetryRequestContext);
+      })
+      .finally(() => {
+        if (viewerImageState.singleImageStageAbortController === controller) {
+          viewerImageState.singleImageStageAbortController = null;
+        }
+      });
   } else {
     commitImageRequest();
   }
@@ -477,10 +528,9 @@ function refreshSingleViewerImageResolution(options = {}) {
   return false;
 }
 
-function preloadNeighbors() {
-  const catalog = activeCatalog();
-  if (!catalog) return;
-  const preferredTier = preferredViewerImageTier(catalog, activePage());
+/** @param {CatalogRecord} catalog @param {number} page @param {number} favoriteIndex */
+function runViewerNeighborPreloads(catalog, page, favoriteIndex = -1) {
+  const preferredTier = preferredViewerImageTier(catalog, page);
   const preloadFull = preferredTier === CATALOG_IMAGE_TIER_FULL;
   const radius = preloadFull ? 1 : catalogNeighborPreloadRadius();
   const requestOptions = preloadFull ? { forceFull: true } : { preferMedium: true };
@@ -489,11 +539,10 @@ function preloadNeighbors() {
   if (isFavoritesLightboxMode()) {
     const favorites = getFeatureInterface("favorites");
     const entries = favorites?.entries() || [];
-    const viewerIndex = favorites?.viewerIndex() ?? 0;
     Array.from({ length: radius * 2 }, (_unused, index) => (
       index < radius
-        ? viewerIndex - (radius - index)
-        : viewerIndex + (index - radius + 1)
+        ? favoriteIndex - (radius - index)
+        : favoriteIndex + (index - radius + 1)
     ))
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
@@ -510,8 +559,8 @@ function preloadNeighbors() {
 
   Array.from({ length: radius * 2 }, (_unused, index) => (
     index < radius
-      ? activePage() - (radius - index)
-      : activePage() + (index - radius + 1)
+      ? page - (radius - index)
+      : page + (index - radius + 1)
   ))
     .filter((page) => page >= catalogFirstPage(catalog) && page <= catalogLastPage(catalog))
     .forEach((page) => {
@@ -524,6 +573,26 @@ function preloadNeighbors() {
     });
 }
 
+function preloadNeighbors() {
+  clearViewerNeighborPreloadSchedule();
+  const catalog = activeCatalog();
+  if (!catalog || !isViewerSessionOpen()) return;
+
+  const page = activePage();
+  const favoritesMode = isFavoritesLightboxMode();
+  const favoriteIndex = favoritesMode
+    ? (getFeatureInterface("favorites")?.viewerIndex() ?? 0)
+    : -1;
+
+  viewerImageState.neighborPreloadTimer = window.setTimeout(() => {
+    viewerImageState.neighborPreloadTimer = 0;
+    if (!isViewerSessionOpen() || activeCatalog() !== catalog || activePage() !== page) return;
+    if (isFavoritesLightboxMode() !== favoritesMode) return;
+    if (favoritesMode && (getFeatureInterface("favorites")?.viewerIndex() ?? 0) !== favoriteIndex) return;
+    runViewerNeighborPreloads(catalog, page, favoriteIndex);
+  }, VIEWER_NEIGHBOR_PRELOAD_SETTLE_MS);
+}
+
 
 /* TEST-ONLY EXPORTS: BEGIN */
 if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
@@ -533,9 +602,13 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     shouldWarmSingleViewerFullResolution,
     renderedViewerPagePhysicalLongSide,
     preferredViewerImageTier,
-    viewerPageImageRequest
+    viewerPageImageRequest,
+    cancelSingleViewerStagePreparation,
+    clearViewerNeighborPreloadSchedule,
+    runViewerNeighborPreloads,
+    preloadNeighbors
   });
 }
 /* TEST-ONLY EXPORTS: END */
 
-export { activeSingleViewerImageLogicalSrc, activeSingleViewerImageTier, clearSingleViewerResolutionUpgrade, preloadNeighbors, refreshSingleViewerImageResolution, setViewerLoading, shouldWarmSingleViewerFullResolution, showSingleLightboxImage, viewerPageImageRequest, viewerPageSrc };
+export { activeSingleViewerImageLogicalSrc, activeSingleViewerImageTier, clearSingleViewerResolutionUpgrade, clearViewerImagePreparations, preloadNeighbors, refreshSingleViewerImageResolution, setViewerLoading, shouldWarmSingleViewerFullResolution, showSingleLightboxImage, viewerPageImageRequest, viewerPageSrc };
