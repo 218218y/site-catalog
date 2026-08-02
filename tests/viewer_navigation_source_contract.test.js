@@ -3,18 +3,16 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { findCalls, inventorySource } = require("./helpers/frontend_ast.js");
+const { findCalls, inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.resolve(__dirname, "..");
 const sourceDir = path.join(root, "src", "js");
-const sources = new Map(
-  fs.readdirSync(sourceDir)
-    .filter((name) => name.endsWith(".js"))
-    .map((name) => {
-      const source = fs.readFileSync(path.join(sourceDir, name), "utf8");
-      return [name, inventorySource(source, name)];
-    }),
+const sourceNames = fs.readdirSync(sourceDir).filter((name) => name.endsWith(".js"));
+const projectInventories = inventoryProjectFiles(
+  root,
+  sourceNames.map((name) => path.join(sourceDir, name)),
 );
+const sources = new Map(sourceNames.map((name) => [name, projectInventories[`src/js/${name}`]]));
 
 const allIdentifiers = new Set([...sources.values()].flatMap((inventory) => inventory.identifiers));
 for (const legacyName of [

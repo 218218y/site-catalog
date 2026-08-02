@@ -8,6 +8,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping
 
+from bootstrap_typescript_offline import BootstrapError, ensure_typescript_available
+
 STATE_OWNERS: Mapping[str, str] = {
     "catalogAssetState": "src/js/10-app-state.js",
     "uiRuntime": "src/js/10-app-state.js",
@@ -133,19 +135,27 @@ def load_ast_inventory(base: Path, paths: list[Path]) -> dict[str, AstInventory]
     relative_paths = [path.relative_to(base).as_posix() for path in paths]
     request = json.dumps({"root": str(base), "files": relative_paths})
     try:
+        ensure_typescript_available(base, quiet=True)
+    except BootstrapError as error:
+        raise RuntimeError(f"TypeScript 7 AST runtime is unavailable: {error}") from error
+    try:
         result = subprocess.run(
             ("node", "tools/frontend_ast_inventory.js"),
             cwd=base,
             input=request,
-            text=True,
+            encoding="utf-8",
+            errors="strict",
             capture_output=True,
             check=True,
         )
-    except (FileNotFoundError, subprocess.CalledProcessError) as error:
+    except (FileNotFoundError, subprocess.CalledProcessError, UnicodeError) as error:
         detail = getattr(error, "stderr", "") or str(error)
         raise RuntimeError(f"JavaScript AST inventory failed: {detail.strip()}") from error
+    output = result.stdout or ""
+    if not output.strip():
+        raise RuntimeError("JavaScript AST inventory returned no JSON output")
     try:
-        payload = json.loads(result.stdout)
+        payload = json.loads(output)
     except json.JSONDecodeError as error:
         raise RuntimeError("JavaScript AST inventory returned invalid JSON") from error
     if not isinstance(payload, dict):

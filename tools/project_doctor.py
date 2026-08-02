@@ -174,12 +174,6 @@ def collect_doctor_checks(
 
     for key, label, command, remedy in (
         (
-            "typescript-5.8",
-            "Offline TypeScript 5.8 compatibility compiler",
-            (python, "tools/bootstrap_typescript_5_8_offline.py", "--check", "--quiet"),
-            "Run `npm run setup:typescript:5.8:offline`.",
-        ),
-        (
             "typescript-7",
             "Offline TypeScript 7 compiler",
             (python, "tools/bootstrap_typescript_offline.py", "--check", "--quiet"),

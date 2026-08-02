@@ -41,7 +41,7 @@ assert.equal(packageJson.scripts["test:e2e"], "playwright test");
 assert.equal(packageJson.scripts["test:e2e:update"], "node tools/update_visual_snapshots.js");
 assert.equal(packageJson.scripts["pretest:e2e:update"], "node tools/check_playwright_browser.js");
 assert.doesNotMatch(packageLock, /applied-caas-gateway|internal\.api\.openai/i);
-assert.equal(packageJson.scripts["test:js"], "node tools/run_project_python.js tools/verify_project.py --javascript-only");
+assert.equal(packageJson.scripts["test:js"], "node tools/run_project_python.js --system tools/verify_project.py --javascript-only");
 assert.equal(packageJson.scripts["test:python"], "node tools/run_project_python.js tools/verify_project.py --python-only");
 assert.equal(packageJson.scripts.build, "npm run build:local");
 

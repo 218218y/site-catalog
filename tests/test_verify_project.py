@@ -37,7 +37,7 @@ def test_quick_verification_reuses_the_guarded_public_build() -> None:
     assert commands[0][0] == "project-python"
     assert (
         "project-python",
-        "tools/run_typescript_matrix.py",
+        "tools/run_typescript_offline.py",
         "-p",
         "jsconfig.json",
         "--pretty",

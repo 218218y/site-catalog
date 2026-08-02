@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { findCalls, inventorySource } = require("./helpers/frontend_ast.js");
+const { findCalls, inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.join(__dirname, "..");
 const panelRoot = path.join(root, "src", "control-panel");
@@ -23,9 +23,10 @@ for (const filename of moduleFiles) {
 }
 
 const read = (filename) => fs.readFileSync(filename, "utf8");
+const projectInventories = inventoryProjectFiles(root, moduleFiles);
 const inventories = new Map(moduleFiles.map((filename) => [
   filename,
-  inventorySource(read(filename), path.relative(root, filename)),
+  projectInventories[path.relative(root, filename).split(path.sep).join("/")],
 ]));
 const entrySource = read(entry);
 const entryInventory = inventories.get(entry);

@@ -108,7 +108,6 @@ Completed successfully:
 - all 23 Viewer JavaScript tests;
 - all 76 JavaScript contract/logic tests through `verify_project.py --javascript-only`;
 - 329 Python tests through `verify_project.py --python-only`;
-- TypeScript 5.8.3;
 - TypeScript 7.0.2;
 - frontend feature contracts;
 - runtime-symbol checks for all four route bundles;

@@ -1,7 +1,6 @@
 # Repository execution guidance
 
-This repository includes verified offline runtimes for `esbuild`, TypeScript
-5.8.3, and TypeScript 7.0.2. For source review, focused frontend changes, JSDoc type checking,
+This repository includes verified offline runtimes for `esbuild` and TypeScript 7.0.2. For source review, focused frontend changes, JSDoc type checking,
 ordinary frontend builds, and the JavaScript contract suite, **do not run
 `npm install`, `npm ci`, `npm run setup`, or any Playwright browser
 installation**.
@@ -10,7 +9,6 @@ Provision only the required local packages:
 
 ```bash
 python tools/bootstrap_esbuild_offline.py
-python tools/bootstrap_typescript_5_8_offline.py
 python tools/bootstrap_typescript_offline.py
 ```
 
@@ -19,13 +17,12 @@ Useful focused commands:
 ```bash
 python tools/build_frontend_assets.py --check
 python tools/generate_catalog_data_types.py --check
-python tools/run_typescript_matrix.py -p jsconfig.json --pretty false
+python tools/run_typescript_offline.py -p jsconfig.json --pretty false
 python tools/verify_project.py --javascript-only
 ```
 
-The frontend builder bootstraps `esbuild` automatically. The TypeScript matrix
-and the JavaScript verification workflow bootstrap the exact 5.8 compatibility
-compiler and the exact TypeScript 7 launcher/native compiler automatically. All
+The frontend builder bootstraps `esbuild` automatically. The TypeScript runner and the JavaScript verification workflow bootstrap the exact
+TypeScript 7 launcher/native compiler automatically. All
 bootstraps verify pinned SHA-512 archives and modify only their own package paths
 under `node_modules`.
 They never invoke npm or lifecycle scripts.

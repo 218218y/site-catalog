@@ -21,9 +21,10 @@ import unicodedata
 import urllib.error
 import urllib.request
 import webbrowser
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Any, NamedTuple, Sequence
+from typing import Any, NamedTuple
 
 DEFAULT_ENV_FILE = "telemetry.env"
 DEFAULT_DATASET = "bargig_catalog_telemetry"

@@ -4,7 +4,7 @@
 
 This audit records the phase-1 migration from ambient JSDoc contracts to
 module-scoped declarations. It covers catalog schema generation, canonical-only
-input boundaries, the TypeScript 5.8/7 compatibility matrix, and the original
+input boundaries, the TypeScript 7 type gate, and the original
 runtime-neutral migration proof.
 
 ## Contract ownership
@@ -26,8 +26,9 @@ runtime-neutral migration proof.
 
 The canonical frontend JSDoc configuration is checked by both compilers:
 
-- TypeScript 5.8.3 (`node_modules/typescript-5-8`)
 - TypeScript 7.0.2 (`node_modules/typescript`)
+
+The temporary TypeScript 5.8 compatibility lane was retired after the TypeScript 7 migration closed. The type gate, AST inventory, runtime-symbol checker and offline bootstrap now share TypeScript 7 as their only compiler contract.
 
 Both compilers are installed from package-lock-pinned, SHA-512-verified local
 archives. `tools/verify_project.py` also rejects stale generated catalog

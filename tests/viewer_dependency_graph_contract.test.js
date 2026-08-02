@@ -3,16 +3,19 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { findCalls, inventorySource } = require("./helpers/frontend_ast.js");
+const { findCalls, inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.resolve(__dirname, "..");
 const sourceDir = path.join(root, "src", "js");
 const sourceNames = fs.readdirSync(sourceDir).filter((name) => name.endsWith(".js")).sort();
 const sourceSet = new Set(sourceNames);
-const inventories = new Map(sourceNames.map((name) => {
-  const source = fs.readFileSync(path.join(sourceDir, name), "utf8");
-  return [name, inventorySource(source, name)];
-}));
+const projectInventories = inventoryProjectFiles(
+  root,
+  sourceNames.map((name) => path.join(sourceDir, name)),
+);
+const inventories = new Map(
+  sourceNames.map((name) => [name, projectInventories[`src/js/${name}`]]),
+);
 const graph = new Map(sourceNames.map((name) => [name, new Set()]));
 
 for (const [name, inventory] of inventories) {

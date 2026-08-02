@@ -3,13 +3,11 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { inventorySource } = require("./helpers/frontend_ast.js");
+const { inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.resolve(__dirname, "..");
 const statePath = path.join(root, "src", "js", "16-viewer-state.js");
 const contractsPath = path.join(root, "types", "frontend-contracts.d.ts");
-const stateSource = fs.readFileSync(statePath, "utf8");
-const contractsSource = fs.readFileSync(contractsPath, "utf8");
 
 const expectedDomains = Object.freeze({
   viewerSessionState: [
@@ -63,8 +61,9 @@ const expectedTypeNames = Object.freeze({
   viewerOnboardingState: "ViewerOnboardingState"
 });
 
-const stateInventory = inventorySource(stateSource, statePath);
-const contractInventory = inventorySource(contractsSource, contractsPath);
+const inventories = inventoryProjectFiles(root, [statePath, contractsPath]);
+const stateInventory = inventories["src/js/16-viewer-state.js"];
+const contractInventory = inventories["types/frontend-contracts.d.ts"];
 const sourceDomains = new Map(
   Object.entries(stateInventory.objectDeclarations)
     .filter(([name]) => expectedDomains[name]),

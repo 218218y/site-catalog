@@ -6,7 +6,7 @@
 
 ## 1. חוזים מבניים מבוססי AST
 
-נוספה שכבת AST משותפת המבוססת על TypeScript 5.8 הנעול בפרויקט:
+נוספה שכבת AST משותפת. לאחר סגירת המעבר המלא היא מבוססת על ה־API של TypeScript 7 הנעול בפרויקט:
 
 - `tests/helpers/frontend_ast.js` — parser ומלאי מבני לשימוש בדיקות Node.
 - `tools/frontend_ast_inventory.js` — גשר JSON בטוח עבור שומר החוזים ב-Python.
@@ -60,7 +60,7 @@ npm run check:python-quality
 - התאמה מדויקת ל-Node שב-`.nvmrc`.
 - שלמות התקנת `package-lock.json`.
 - קיום `.venv` וגרסאות חבילות Python הנעולות.
-- TypeScript 5.8 ו-TypeScript 7 מארכיוני האופליין.
+- TypeScript 7 מארכיון האופליין הנעול.
 - esbuild אופליין.
 - Chromium של Playwright.
 - Tesseract ושפת OCR עברית.

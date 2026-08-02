@@ -145,10 +145,10 @@ def verification_steps(
                 (python, "tools/generate_control_panel_api_types.py", "--check"),
             ),
             VerificationStep(
-                "Frontend JSDoc type compatibility matrix",
+                "Frontend JSDoc typecheck (TypeScript 7)",
                 (
                     python,
-                    "tools/run_typescript_matrix.py",
+                    "tools/run_typescript_offline.py",
                     "-p",
                     "jsconfig.json",
                     "--pretty",

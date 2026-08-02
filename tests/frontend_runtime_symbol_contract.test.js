@@ -20,7 +20,7 @@ const jsconfig = JSON.parse(fs.readFileSync(path.join(root, "jsconfig.json"), "u
 assert.equal(packageJson.scripts["check:runtime-symbols"], "node tools/check_frontend_runtime_symbols.js");
 assert.equal(
   packageJson.scripts["check:types"],
-  "node tools/run_project_python.js --system tools/run_typescript_matrix.py -p jsconfig.json --pretty false",
+  "node tools/run_project_python.js --system tools/run_typescript_offline.py -p jsconfig.json --pretty false",
 );
 assert.equal(jsconfig.compilerOptions.checkJs, true);
 assert.equal(jsconfig.compilerOptions.noEmit, true);

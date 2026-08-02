@@ -3,11 +3,10 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { findCalls, inventorySource } = require("./helpers/frontend_ast.js");
+const { findCalls, inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
-const parse = (relative) => inventorySource(read(relative), relative);
 
 const javascriptFiles = {
   navigation: "src/js/00-navigation.js",
@@ -28,7 +27,10 @@ const javascriptFiles = {
   appShell: "src/js/80-app-shell.js",
   bootstrap: "src/js/90-bootstrap.js",
 };
-const ast = Object.fromEntries(Object.entries(javascriptFiles).map(([key, relative]) => [key, parse(relative)]));
+const projectInventories = inventoryProjectFiles(root, Object.values(javascriptFiles));
+const ast = Object.fromEntries(
+  Object.entries(javascriptFiles).map(([key, relative]) => [key, projectInventories[relative]]),
+);
 const functions = (key) => new Set(ast[key].functionDeclarations);
 
 assert.equal(ast.state.newExpressions.some((entry) => entry.callee === "Set"), true);

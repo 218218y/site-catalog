@@ -20,57 +20,66 @@ const contracts = read("types/frontend-contracts.d.ts");
 const runtimeSymbolChecker = read("tools/check_frontend_runtime_symbols.js");
 const frontendTestModule = read("tests/frontend_test_module.js");
 const currentBootstrap = read("tools/bootstrap_typescript_offline.py");
-const compatibilityBootstrap = read("tools/bootstrap_typescript_5_8_offline.py");
 const currentRunner = read("tools/run_typescript_offline.py");
-const matrixRunner = read("tools/run_typescript_matrix.py");
+const astInventory = read("tools/frontend_ast_inventory.js");
+const astHelper = read("tests/helpers/frontend_ast.js");
 const verifier = read("tools/verify_project.py");
 
 assert.equal(packageJson.devDependencies.typescript, "7.0.2");
-assert.equal(packageJson.devDependencies["typescript-5-8"], "npm:typescript@5.8.3");
+assert.equal(Object.hasOwn(packageJson.devDependencies, "typescript-5-8"), false);
 assert.equal(packageJson.devDependencies.esbuild, "0.28.1");
 assert.equal(packageLock.packages[""].devDependencies.typescript, "7.0.2");
-assert.equal(packageLock.packages[""].devDependencies["typescript-5-8"], "npm:typescript@5.8.3");
+assert.equal(Object.hasOwn(packageLock.packages[""].devDependencies, "typescript-5-8"), false);
 assert.equal(packageLock.packages["node_modules/typescript"].version, "7.0.2");
-assert.equal(packageLock.packages["node_modules/typescript-5-8"].name, "typescript");
-assert.equal(packageLock.packages["node_modules/typescript-5-8"].version, "5.8.3");
+assert.equal(Object.hasOwn(packageLock.packages, "node_modules/typescript-5-8"), false);
 assert.equal(packageLock.packages["node_modules/@typescript/typescript-linux-x64"].version, "7.0.2");
 assert.deepEqual(jsconfig.compilerOptions.types, []);
 
 assert.equal(
   packageJson.scripts["check:types"],
-  "node tools/run_project_python.js --system tools/run_typescript_matrix.py -p jsconfig.json --pretty false",
-);
-assert.equal(
-  packageJson.scripts["check:types:5.8"],
-  "node tools/run_project_python.js --system tools/bootstrap_typescript_5_8_offline.py --quiet && node node_modules/typescript-5-8/bin/tsc -p jsconfig.json --pretty false",
-);
-assert.equal(
-  packageJson.scripts["check:types:7"],
   "node tools/run_project_python.js --system tools/run_typescript_offline.py -p jsconfig.json --pretty false",
 );
+for (const retiredScript of [
+  "setup:typescript:5.8:offline",
+  "check:typescript:5.8:offline",
+  "check:types:5.8",
+  "check:types:7",
+]) {
+  assert.equal(Object.hasOwn(packageJson.scripts, retiredScript), false, `${retiredScript} must remain retired`);
+}
 assert.equal(
   packageJson.scripts["test:js"],
-  "node tools/run_project_python.js tools/verify_project.py --javascript-only",
+  "node tools/run_project_python.js --system tools/verify_project.py --javascript-only",
 );
+assert.equal(
+  packageJson.scripts["check:frontend-contracts"],
+  "node tools/run_project_python.js --system tools/check_frontend_contracts.py",
+);
+
+for (const retiredPath of [
+  "tools/bootstrap_typescript_5_8_offline.py",
+  "tools/run_typescript_matrix.py",
+  "tests/test_bootstrap_typescript_5_8_offline.py",
+  "vendor/npm/typescript-5-8",
+]) {
+  assert.equal(fs.existsSync(path.join(root, retiredPath)), false, `${retiredPath} must remain retired`);
+}
 
 assert.match(currentBootstrap, /TYPESCRIPT_VERSION: Final = "7\.0\.2"/);
 assert.match(currentBootstrap, /sri_sha512/);
 assert.match(currentBootstrap, /Unsafe npm archive member/);
 assert.doesNotMatch(currentBootstrap, /typescript-win32-x64|win32-x64-7\.0\.2\.tgz/);
-assert.match(compatibilityBootstrap, /VERSION: Final = "5\.8\.3"/);
-assert.match(compatibilityBootstrap, /DEPENDENCY_NAME: Final = "typescript-5-8"/);
-assert.match(compatibilityBootstrap, /package-lock\.json/);
-assert.match(compatibilityBootstrap, /sri_sha512/);
-assert.match(compatibilityBootstrap, /directory_matches_archive/);
-assert.match(compatibilityBootstrap, /Unsafe npm archive member/);
-assert.doesNotMatch(compatibilityBootstrap, /\bnpm install\b|\bnpm ci\b|shell=True/);
 assert.match(currentRunner, /ensure_typescript_available\(base, quiet=True\)/);
-assert.match(matrixRunner, /ensure_typescript_5_8_available/);
-assert.match(matrixRunner, /ensure_typescript_available/);
-assert.match(matrixRunner, /TypeScript \{LEGACY_VERSION\}/);
-assert.match(matrixRunner, /TypeScript \{CURRENT_VERSION\}/);
-assert.match(verifier, /tools\/run_typescript_matrix\.py/);
-assert.match(verifier, /Frontend JSDoc type compatibility matrix/);
+assert.match(astInventory, /import\("typescript\/unstable\/sync"\)/);
+assert.match(astInventory, /import\("typescript\/unstable\/ast\/is"\)/);
+assert.match(astInventory, /import\("typescript\/unstable\/ast"\)/);
+assert.match(astInventory, /getSyntacticDiagnostics/);
+assert.doesNotMatch(astInventory, /typescript-5-8|createSourceFile/);
+assert.match(astHelper, /encoding: "utf8"/);
+assert.doesNotMatch(astHelper, /require\(["']typescript/);
+assert.match(verifier, /tools\/run_typescript_offline\.py/);
+assert.match(verifier, /Frontend JSDoc typecheck \(TypeScript 7\)/);
+assert.doesNotMatch(verifier, /run_typescript_matrix|TypeScript 5\.8/);
 
 assert.doesNotMatch(compatibilityMarker, /@typedef|@callback|@template/);
 assert.match(compatibilityMarker, /intentionally declares no ambient names/);
