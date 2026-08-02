@@ -240,7 +240,7 @@ function navigationResultMarkup(result) {
         <button type="button" class="search-result-button search-navigation-result-button search-navigation-catalog-result-button" data-search-navigation-type="catalog" data-search-navigation-target="" data-search-navigation-catalog="${escapeNavigationMarkup(catalog.id)}" data-search-catalog="${escapeNavigationMarkup(catalog.id)}" data-search-page="${page}" data-search-preview-src="${escapeNavigationMarkup(preview)}" data-search-preview-title="${escapeNavigationMarkup(title)}">
           <span class="search-result-title" title="${escapeNavigationMarkup(title)}"><small class="search-navigation-result-kind">${typeLabel}</small>${escapeNavigationMarkup(title)}</span>
           <span class="search-result-thumb-frame catalog-image-frame">
-            <img class="search-result-thumb" src="${escapeNavigationMarkup(thumb)}" alt="שער ${escapeNavigationMarkup(title)}"${navigationImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" data-catalog-image-recovery="lightweight" data-catalog-id="${escapeNavigationMarkup(catalog.id)}" data-page="${page}" data-telemetry-detail="search-catalog-cover" />
+            <img class="search-result-thumb" src="${escapeNavigationMarkup(thumb)}" alt="שער ${escapeNavigationMarkup(title)}"${navigationImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" data-catalog-image-recovery="lightweight" data-catalog-id="${escapeNavigationMarkup(catalog.id)}" data-page="${page}" data-telemetry-detail="search-catalog-cover" data-telemetry-surface="global-search-results" />
           </span>
           <span class="search-result-copy"><span class="search-result-meta">${escapeNavigationMarkup(action + context)}</span></span>
         </button>

@@ -28,7 +28,7 @@ async function loadFunctionModule() {
       "Sec-Fetch-Site": "same-origin"
     },
     body: JSON.stringify({
-      version: 2,
+      version: 3,
       events: [
         {
           name: "search",
@@ -51,7 +51,8 @@ async function loadFunctionModule() {
           name: "web_vital",
           action: "LCP",
           detail: "good",
-          value: 1840
+          value: 1840,
+          component: "Viewer Stage"
         },
         {
           name: "resource_error",
@@ -64,7 +65,10 @@ async function loadFunctionModule() {
           name: "image_terminal_failure",
           detail: "thumbnail",
           source: "page-004.webp",
-          releaseId: "app-61dd783bd3fa"
+          releaseId: "app-61dd783bd3fa",
+          surface: "Catalog Grid",
+          requestId: "ir-abc12345",
+          visibility: "VISIBLE"
         },
         {
           name: "catalog_open",
@@ -92,8 +96,13 @@ async function loadFunctionModule() {
   assert.equal(writes[2].blobs[0], "web_vital");
   assert.equal(writes[2].blobs[6], "LCP");
   assert.equal(writes[2].doubles[0], 1840);
+  assert.equal(writes[2].blobs[13], "viewer-stage");
   assert.equal(writes[3].blobs[0], "resource_error");
   assert.equal(writes[4].blobs[0], "image_terminal_failure");
+  assert.equal(writes[4].blobs[14], "catalog-grid");
+  assert.equal(writes[4].blobs[15], "ir-abc12345");
+  assert.equal(writes[4].blobs[16], "visible");
+  assert.equal(writes[4].blobs.length, 17);
   assert.equal(writes[5].blobs[9], "");
   assert.equal(writes[5].blobs[12], "");
   assert.equal(JSON.stringify(writes).includes("must never be stored"), false);

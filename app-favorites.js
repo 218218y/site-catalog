@@ -511,10 +511,11 @@ var favoritesStore = createStore({ storage: getFavoritesStorage() }), favoritesS
 });
 
 // src/js/15-telemetry.js
-var TELEMETRY_ENDPOINT = "/api/telemetry", TELEMETRY_SCHEMA_VERSION = 2, TELEMETRY_BATCH_LIMIT = 20, TELEMETRY_QUEUE_LIMIT = 60, TELEMETRY_FLUSH_DELAY_MS = 900, TELEMETRY_SEARCH_DEDUP_MS = 1200, TELEMETRY_ALLOWED_HOSTS = /* @__PURE__ */ new Set([
+var TELEMETRY_ENDPOINT = "/api/telemetry", TELEMETRY_SCHEMA_VERSION = 3, TELEMETRY_BATCH_LIMIT = 20, TELEMETRY_QUEUE_LIMIT = 60, TELEMETRY_FLUSH_DELAY_MS = 900, TELEMETRY_SEARCH_DEDUP_MS = 1200, TELEMETRY_ALLOWED_HOSTS = /* @__PURE__ */ new Set([
   "bargig-furniture.com",
   "www.bargig-furniture.com"
 ]), TELEMETRY_EVENT_NAMES = /* @__PURE__ */ new Set([
+  "app_session",
   "catalog_open",
   "search",
   "favorite",
@@ -545,11 +546,14 @@ var TELEMETRY_ENDPOINT = "/api/telemetry", TELEMETRY_SCHEMA_VERSION = 2, TELEMET
     supported: /* @__PURE__ */ new Set(),
     reported: /* @__PURE__ */ new Set(),
     lcp: 0,
+    lcpComponent: "unknown",
     inp: 0,
     cls: 0,
+    clsComponent: "unknown",
     clsSessionValue: 0,
     clsSessionStart: 0,
     clsLastEntry: 0,
+    clsSessionComponents: /* @__PURE__ */ new Map(),
     interactions: /* @__PURE__ */ new Map()
   },
   initialized: !1
@@ -572,9 +576,25 @@ function telemetryCleanPathname(value = window.location.pathname) {
   let pathname = telemetryCleanText(value, 180) || "/";
   return pathname.startsWith("/") ? pathname : `/${pathname}`;
 }
+function telemetryCleanToken(value, limit = 50) {
+  return telemetryCleanText(value, limit).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").replace(/-{2,}/g, "-").slice(0, limit);
+}
+var TELEMETRY_IMAGE_VISIBILITY = /* @__PURE__ */ new Set(["visible", "hidden", "preload", "background", "unknown"]);
+function telemetryCleanVisibility(value) {
+  let visibility = telemetryCleanToken(value, 20);
+  return TELEMETRY_IMAGE_VISIBILITY.has(visibility) ? visibility : "unknown";
+}
+function telemetryCleanRequestId(value) {
+  let requestId = telemetryCleanToken(value, 48);
+  return /^ir-[a-z0-9-]{8,45}$/.test(requestId) ? requestId : "";
+}
 function telemetryViewportBucket() {
   let width = Math.max(0, Number(window.innerWidth) || 0);
   return width < 480 ? "xs" : width < 760 ? "sm" : width < 1100 ? "md" : width < 1600 ? "lg" : "xl";
+}
+function telemetryViewportValue(value) {
+  let viewport = telemetryCleanToken(value, 12);
+  return ["xs", "sm", "md", "lg", "xl"].includes(viewport) ? viewport : telemetryViewportBucket();
 }
 function telemetryPrivacySignalEnabled() {
   if (navigator.globalPrivacyControl === !0) return !0;
@@ -610,13 +630,17 @@ function telemetryNormalizeEvent(name, fields = {}) {
     action: telemetryCleanText(fields.action, 50),
     detail: telemetryCleanText(fields.detail, 120),
     error: telemetryCleanText(fields.error, 80),
-    viewport: telemetryViewportBucket(),
+    viewport: telemetryViewportValue(fields.viewport),
     source: telemetryCleanText(fields.source, 50),
     value: telemetryNumber(fields.value, -1e6, 1e6),
     durationMs: telemetryNumber(fields.durationMs),
     pageNumber: telemetryNumber(fields.pageNumber, 0, 1e5),
     secondaryValue: telemetryNumber(fields.secondaryValue, -1e6, 1e6),
-    releaseId: telemetryCleanText(fields.releaseId || TELEMETRY_RELEASE_ID, 64)
+    releaseId: telemetryCleanText(fields.releaseId || TELEMETRY_RELEASE_ID, 64),
+    component: telemetryCleanToken(fields.component || "", 50),
+    surface: telemetryCleanToken(fields.surface || "", 50),
+    requestId: telemetryCleanRequestId(fields.requestId),
+    visibility: telemetryCleanVisibility(fields.visibility)
   } : null;
 }
 function telemetryScheduleFlush(delay = TELEMETRY_FLUSH_DELAY_MS) {
@@ -684,6 +708,65 @@ function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 
     value: count
   });
 }
+function telemetryTrackAppSession() {
+  return telemetryTrack("app_session", {
+    action: telemetryNavigationType(),
+    visibility: document.visibilityState === "hidden" ? "hidden" : "visible"
+  }, { immediate: !0 });
+}
+var TELEMETRY_COMPONENT_SELECTORS = Object.freeze([
+  ["[data-telemetry-component]", ""],
+  ["#lightboxImageFrame, #lightboxStage, #lightbox", "viewer-stage"],
+  ["#lightboxBar, .lightbox-top-shell", "viewer-toolbar"],
+  ["#lightboxPageRail, .lightbox-page-rail", "viewer-thumbnail-rail"],
+  ["#catalogSearch, .global-search-popover", "global-search"],
+  ["#globalSearchResults, .search-results", "global-search-results"],
+  ["#catalogGrid, .catalog-category-list", "catalog-grid"],
+  ["#pageGrid, .page-grid", "catalog-page-grid"],
+  ["#catalogDetail, .catalog-detail", "catalog-detail"],
+  ["#favoritesPanel, .favorites-panel", "favorites-panel"],
+  [".site-header", "site-header"],
+  [".site-footer", "site-footer"],
+  ["main, #main-content", "main-content"],
+  ["img", "image"],
+  ["video", "video"],
+  ["iframe", "frame"]
+]);
+function telemetryComponentToken(node) {
+  let element = typeof Element == "function" && node instanceof Element ? node : typeof Element == "function" && node?.parentElement instanceof Element ? node.parentElement : null;
+  if (!element) return "unknown";
+  for (let [selector, fixedToken] of TELEMETRY_COMPONENT_SELECTORS) {
+    let matched = element.closest?.(selector);
+    if (matched) {
+      if (!fixedToken) {
+        let explicit = telemetryCleanToken(matched.getAttribute?.("data-telemetry-component"), 50);
+        if (explicit) return explicit;
+        continue;
+      }
+      return fixedToken;
+    }
+  }
+  return telemetryCleanToken(element.tagName || "element", 30) || "unknown";
+}
+function telemetryRectSignal(rect) {
+  if (!rect) return 0;
+  let width = Math.max(0, Number(rect.width) || 0), height = Math.max(0, Number(rect.height) || 0), x = Number(rect.x ?? rect.left) || 0, y = Number(rect.y ?? rect.top) || 0;
+  return width * height + Math.abs(x) + Math.abs(y);
+}
+function telemetryDominantLayoutShiftComponent(entry) {
+  let sources = Array.isArray(entry?.sources) ? entry.sources : [], token = "unknown", bestScore = -1;
+  for (let source of sources) {
+    let current = telemetryRectSignal(source.currentRect), previous = telemetryRectSignal(source.previousRect), score = Math.max(current, previous) + Math.abs(current - previous);
+    score <= bestScore || (bestScore = score, token = telemetryComponentToken(source.node));
+  }
+  return token;
+}
+function telemetryDominantSessionComponent(components) {
+  let token = "unknown", value = -1;
+  for (let [candidate, contribution] of components)
+    contribution <= value || (token = candidate, value = contribution);
+  return token;
+}
 var TELEMETRY_WEB_VITAL_THRESHOLDS = Object.freeze({
   LCP: [2500, 4e3],
   INP: [200, 500],
@@ -732,6 +815,7 @@ function telemetryReportWebVitals() {
       action: name,
       detail: telemetryWebVitalRating(name, value),
       source: telemetryNavigationType(),
+      component: name === "CLS" ? runtime.clsComponent : name === "LCP" ? runtime.lcpComponent : "",
       value
     }, { immediate: !0 }));
   }
@@ -743,8 +827,11 @@ function telemetryObserveWebVitals() {
     runtime.supported.add("LCP");
     try {
       new PerformanceObserver((list) => {
-        let entries = list.getEntries(), latest = entries[entries.length - 1];
-        latest && (runtime.lcp = Math.max(0, Number(latest.startTime) || 0)), telemetryPublishWebVitalsDiagnostics();
+        let entries = list.getEntries(), latest = (
+          /** @type {TelemetryLcpEntry|undefined} */
+          entries[entries.length - 1]
+        );
+        latest && (runtime.lcp = Math.max(0, Number(latest.startTime) || 0), runtime.lcpComponent = telemetryComponentToken(latest.element)), telemetryPublishWebVitalsDiagnostics();
       }).observe({ type: "largest-contentful-paint", buffered: !0 });
     } catch {
     }
@@ -753,10 +840,19 @@ function telemetryObserveWebVitals() {
     runtime.supported.add("CLS");
     try {
       new PerformanceObserver((list) => {
-        for (let entry of list.getEntries()) {
+        for (let rawEntry of list.getEntries()) {
+          let entry = (
+            /** @type {TelemetryLayoutShiftEntry} */
+            rawEntry
+          );
           if (entry.hadRecentInput) continue;
           let start = Number(entry.startTime) || 0, value = Number(entry.value) || 0;
-          runtime.clsLastEntry && start - runtime.clsLastEntry < 1e3 && start - runtime.clsSessionStart < 5e3 ? runtime.clsSessionValue += value : (runtime.clsSessionValue = value, runtime.clsSessionStart = start), runtime.clsLastEntry = start, runtime.cls = Math.max(runtime.cls, runtime.clsSessionValue), telemetryPublishWebVitalsDiagnostics();
+          runtime.clsLastEntry && start - runtime.clsLastEntry < 1e3 && start - runtime.clsSessionStart < 5e3 ? runtime.clsSessionValue += value : (runtime.clsSessionValue = value, runtime.clsSessionStart = start, runtime.clsSessionComponents.clear());
+          let component = telemetryDominantLayoutShiftComponent(entry);
+          runtime.clsSessionComponents.set(
+            component,
+            (runtime.clsSessionComponents.get(component) || 0) + value
+          ), runtime.clsLastEntry = start, runtime.clsSessionValue >= runtime.cls && (runtime.cls = runtime.clsSessionValue, runtime.clsComponent = telemetryDominantSessionComponent(runtime.clsSessionComponents)), telemetryPublishWebVitalsDiagnostics();
         }
       }).observe({ type: "layout-shift", buffered: !0 });
     } catch {
@@ -775,6 +871,36 @@ function telemetryObserveWebVitals() {
 function telemetryCatalogImageContext(img, src = "") {
   let value = String(src || img?.currentSrc || img?.getAttribute?.("src") || ""), match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i), catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || activeCatalog()?.id || "", 100), pageNumber = Number.parseInt(String(match?.[2] || img?.dataset?.page || activePage() || 0), 10) || 0, detail = "image";
   return /\/thumbs\//i.test(value) ? detail = "thumbnail" : img?.id === "lightboxImage" ? detail = "viewer" : img?.classList?.contains("catalog-cover") && (detail = "cover"), { catalogId, pageNumber, detail, value };
+}
+function telemetryCreateRequestId() {
+  let bytes = new Uint8Array(8);
+  return globalThis.crypto?.getRandomValues ? (globalThis.crypto.getRandomValues(bytes), `ir-${Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")}`) : `ir-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+function telemetryImageVisibility(img, surface) {
+  let cleanSurface = telemetryCleanToken(surface, 50);
+  if (!img || /(?:^|-)preload(?:-|$)|background|buffer/.test(cleanSurface)) return "preload";
+  if (img.dataset?.telemetryVisibility) return telemetryCleanVisibility(img.dataset.telemetryVisibility);
+  if (img.isConnected === !1) return "background";
+  if (typeof img.getBoundingClientRect != "function") return "unknown";
+  let rect = img.getBoundingClientRect(), width = Math.max(0, Number(rect?.width) || 0), height = Math.max(0, Number(rect?.height) || 0);
+  if (!width || !height) return "hidden";
+  let viewportWidth = Math.max(0, Number(window.innerWidth) || 0), viewportHeight = Math.max(0, Number(window.innerHeight) || 0);
+  return Number(rect.bottom) > 0 && Number(rect.right) > 0 && Number(rect.top) < viewportHeight && Number(rect.left) < viewportWidth ? "visible" : "hidden";
+}
+function telemetryCreateImageRequestContext(img, src = "", options = {}) {
+  let image = telemetryCatalogImageContext(img, src), surface = telemetryCleanToken(options.surface || img?.dataset?.telemetrySurface || image.detail, 50) || "image";
+  return Object.freeze({
+    requestId: telemetryCleanRequestId(options.requestId) || telemetryCreateRequestId(),
+    catalogId: image.catalogId,
+    pageNumber: image.pageNumber,
+    detail: telemetryCleanText(options.detail || img?.dataset?.telemetryDetail || image.detail, 50),
+    surface,
+    visibility: telemetryCleanVisibility(options.visibility || telemetryImageVisibility(img, surface)),
+    page: telemetryCleanText(currentAppPage || document.body?.dataset?.page || "", 30),
+    path: telemetryCleanPathname(),
+    viewport: telemetryViewportBucket(),
+    releaseId: TELEMETRY_RELEASE_ID
+  });
 }
 function telemetryStableResourceUrl(value) {
   let raw = String(value || "").trim();
@@ -817,15 +943,22 @@ function telemetryDiagnosticOnce(key) {
   return !0;
 }
 function telemetryTrackImageEvent(name, src, options = {}) {
-  let context = telemetryCatalogImageContext(options.img, src), detail = telemetryCleanText(options.detail || context.detail, 50), action = telemetryCleanText(options.action || "", 50), stableUrl = telemetryStableResourceUrl(context.value), source = telemetryResourceSourceName(stableUrl), eventKey = [name, stableUrl, context.catalogId, context.pageNumber, detail, action].join("|");
+  let context = options.requestContext || telemetryCreateImageRequestContext(options.img, src, options), detail = telemetryCleanText(options.detail || context.detail, 50), action = telemetryCleanText(options.action || "", 50), stableUrl = telemetryStableResourceUrl(src || options.img?.currentSrc || options.img?.src || ""), source = telemetryResourceSourceName(stableUrl), eventKey = [name, context.requestId, detail, action, source].join("|");
   return telemetryDiagnosticOnce(eventKey) ? telemetryTrack(name, {
+    page: context.page,
+    path: context.path,
     catalogId: context.catalogId,
     pageNumber: context.pageNumber,
     detail,
     action,
     source,
+    viewport: context.viewport,
+    releaseId: context.releaseId,
+    surface: context.surface,
+    requestId: context.requestId,
+    visibility: context.visibility,
     value: telemetryNumber(options.failedAttempts ?? options.attempt ?? options.value, 0, 100),
-    error: telemetryErrorFingerprint([name, context.catalogId, context.pageNumber, detail, action, source])
+    error: telemetryErrorFingerprint([name, context.catalogId, context.pageNumber, context.surface, detail, action, source])
   }, { immediate: !0 }) : !1;
 }
 function telemetryTrackImageAttemptFailure(src, options = {}) {
@@ -933,16 +1066,20 @@ function telemetryHandleDocumentClick(event) {
   }, { immediate: !0 });
 }
 function telemetryInit(options = {}) {
-  telemetryRuntime.initialized || (telemetryRuntime.initialized = !0, telemetryIsEnabled() && (window.addEventListener("error", (event) => {
+  telemetryRuntime.initialized || (telemetryRuntime.initialized = !0, telemetryIsEnabled() && (telemetryTrackAppSession(), window.addEventListener("error", (event) => {
     let classification = telemetryClassifyWindowError(event);
     if (classification === "image") {
       let image = event.target instanceof HTMLImageElement ? event.target : null;
       if (!image) return;
       if (image.dataset.telemetryManaged !== "true") {
         if (options.recoverCatalogImageAfterInitialFailure?.(image)) return;
+        let requestContext = telemetryCreateImageRequestContext(image, image.currentSrc || image.src, {
+          detail: telemetryCatalogImageContext(image).detail,
+          surface: image.dataset.telemetrySurface || "unmanaged-image"
+        });
         telemetryTrackImageTerminalFailure(image.currentSrc || image.src, {
           img: image,
-          detail: telemetryCatalogImageContext(image).detail,
+          requestContext,
           action: "unmanaged",
           failedAttempts: 1
         });
@@ -1045,13 +1182,17 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
   }), candidates;
 }
 function loadCatalogImageWithRecovery(img, options = {}) {
-  let candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options), isCurrent = typeof options.isCurrent == "function" ? options.isCurrent : () => !0, telemetryDetail = telemetryCleanText(options.telemetryDetail, 40), index = 0, stopped = !1, failedAttempts = Math.max(0, Number(options.initialFailedAttempts) || 0), lastCandidate = null;
+  let candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options), isCurrent = typeof options.isCurrent == "function" ? options.isCurrent : () => !0, telemetryDetail = telemetryCleanText(options.telemetryDetail, 40), telemetryRequestContext = options.telemetryRequestContext || (telemetryDetail ? telemetryCreateImageRequestContext(img, options.primarySrc || options.fallbackSrc || "", {
+    detail: telemetryDetail,
+    surface: options.telemetrySurface,
+    visibility: options.telemetryVisibility
+  }) : null), index = 0, stopped = !1, failedAttempts = Math.max(0, Number(options.initialFailedAttempts) || 0), lastCandidate = null;
   img.dataset.telemetryManaged = "true";
   let attempt = () => {
     if (stopped || !isCurrent() || index >= candidates.length) {
       !stopped && isCurrent() && (telemetryDetail && lastCandidate && telemetryTrackImageTerminalFailure(lastCandidate.src, {
         img,
-        detail: telemetryDetail,
+        requestContext: telemetryRequestContext,
         action: lastCandidate.role,
         failedAttempts
       }), options.onExhausted?.({ failedAttempts, lastCandidate }));
@@ -1064,7 +1205,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
         if (loaded && img.naturalWidth > 0) {
           syncImagePlaceholderState(img), telemetryDetail && failedAttempts > 0 && telemetryTrackImageRecovery(candidate.src, {
             img,
-            detail: telemetryDetail,
+            requestContext: telemetryRequestContext,
             action: candidate.role,
             failedAttempts
           }), options.onSuccess?.(candidate, { failedAttempts, attempts: index });
@@ -1072,6 +1213,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
         }
         failedAttempts += 1, telemetryDetail && telemetryTrackImageAttemptFailure(candidate.src, {
           img,
+          requestContext: telemetryRequestContext,
           detail: `${telemetryDetail}-${candidate.role}`,
           action: candidate.role,
           attempt: failedAttempts
@@ -1084,18 +1226,22 @@ function loadCatalogImageWithRecovery(img, options = {}) {
     stopped = !0;
   };
 }
-function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail") {
-  let catalogId = escapeHtml(catalog?.id || ""), safePage = Math.max(0, Number.parseInt(String(page), 10) || 0), safeDetail = escapeHtml(detail || "thumbnail");
-  return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}"`;
+function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail", surface = detail) {
+  let catalogId = escapeHtml(catalog?.id || ""), safePage = Math.max(0, Number.parseInt(String(page), 10) || 0), safeDetail = escapeHtml(detail || "thumbnail"), safeSurface = escapeHtml(surface || detail || "image");
+  return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}" data-telemetry-surface="${safeSurface}"`;
 }
 function recoverCatalogImageAfterInitialFailure(img) {
   if (!img || img.dataset.catalogImageRecovery !== "lightweight") return !1;
   if (img.dataset.catalogImageRecoveryStarted === "true") return !0;
   let failedSrc = String(img.currentSrc || img.getAttribute("src") || "");
   if (!failedSrc) return !1;
-  let detail = telemetryCleanText(img.dataset.telemetryDetail || telemetryCatalogImageContext(img).detail, 40);
+  let detail = telemetryCleanText(img.dataset.telemetryDetail || telemetryCatalogImageContext(img).detail, 40), requestContext = telemetryCreateImageRequestContext(img, failedSrc, {
+    detail,
+    surface: img.dataset.telemetrySurface || detail
+  });
   img.dataset.catalogImageRecoveryStarted = "true", telemetryTrackImageAttemptFailure(failedSrc, {
     img,
+    requestContext,
     detail: `${detail}-primary`,
     action: "primary",
     attempt: 1
@@ -1107,6 +1253,7 @@ function recoverCatalogImageAfterInitialFailure(img) {
     forceRefreshRole: "direct-retry",
     initialFailedAttempts: 1,
     telemetryDetail: detail,
+    telemetryRequestContext: requestContext,
     isCurrent: () => img.isConnected !== !1,
     onExhausted: () => syncImagePlaceholderState(img)
   }), !0;
@@ -2193,7 +2340,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
       </button>
       <button class="favorite-preview-button" type="button" data-open-favorite="1" aria-label="פתיחת ${title}, עמוד ${page}">
         <span class="favorite-image-frame catalog-image-frame"${pageAspectStyle(catalog, page)}>
-          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(image)} />
+          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "favorites-grid")}${catalogImageCrossOriginAttribute(image)} />
         </span>
         <span class="favorite-card-meta">
           <strong>${title}</strong>
@@ -3009,7 +3156,7 @@ async function renderLightboxSearchResults(query) {
         <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
           <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
           <span class="reader-search-thumb-frame catalog-image-frame">
-            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
+            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-search-results")}${catalogImageCrossOriginAttribute(rawImage)} />
           </span>
           <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
         </button>
@@ -3104,7 +3251,7 @@ function globalSearchResultMarkup(result) {
       <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
         <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
         <span class="search-result-thumb-frame catalog-image-frame">
-          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(rawImage)} />
+          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "global-search-results")}${catalogImageCrossOriginAttribute(rawImage)} />
         </span>
         <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
       </button>
@@ -3510,7 +3657,7 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   return `
     <article class="catalog-card">
       <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageRecoveryAttributes(catalog, 1, "cover")}${catalogImageCrossOriginAttribute(cover)} />
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageRecoveryAttributes(catalog, 1, "cover", "catalog-grid")}${catalogImageCrossOriginAttribute(cover)} />
         <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
       </a>
       <div class="catalog-body">
@@ -3639,7 +3786,7 @@ function renderPageGrid() {
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
           <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
-            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageRecoveryAttributes(catalog, page, "thumbnail")}${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "catalog-page-grid")}${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">

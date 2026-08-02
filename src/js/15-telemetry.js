@@ -32,20 +32,29 @@ import { activeCatalog, activePage } from "./18-navigation-feature.js";
  * @property {unknown} [pageNumber]
  * @property {unknown} [secondaryValue]
  * @property {unknown} [releaseId]
+ * @property {unknown} [viewport]
+ * @property {unknown} [component]
+ * @property {unknown} [surface]
+ * @property {unknown} [requestId]
+ * @property {unknown} [visibility]
  */
 /** @typedef {{immediate?:boolean}} TelemetryTrackOptions */
 /** @typedef {{beacon?:boolean}} TelemetryFlushOptions */
 /** @typedef {{recoverCatalogImageAfterInitialFailure?:(image:HTMLImageElement)=>boolean}} TelemetryInitOptions */
 /** @typedef {{surface?:unknown, scope?:unknown, catalogId?:unknown, completion?:unknown, immediate?:boolean}} TelemetrySearchOptions */
-/** @typedef {{img?:HTMLImageElement|null, detail?:unknown, action?:unknown, failedAttempts?:unknown, attempt?:unknown, value?:unknown}} TelemetryImageEventOptions */
+/** @typedef {{requestId:string, catalogId:string, pageNumber:number, detail:string, surface:string, visibility:string, page:string, path:string, viewport:string, releaseId:string}} TelemetryImageRequestContext */
+/** @typedef {{img?:HTMLImageElement|null, detail?:unknown, action?:unknown, failedAttempts?:unknown, attempt?:unknown, value?:unknown, surface?:unknown, visibility?:unknown, requestId?:unknown, requestContext?:TelemetryImageRequestContext|null}} TelemetryImageEventOptions */
 /** @typedef {{src?:unknown, target?:Element|null, trigger?:unknown}} TelemetrySearchIndexFailureOptions */
 /** @typedef {Element & {currentSrc?:string, src?:string, href?:string, data?:string, rel?:string, as?:string}} TelemetryResourceElement */
-/** @typedef {{supported:Set<TelemetryWebVitalName>, reported:Set<TelemetryWebVitalName>, lcp:number, inp:number, cls:number, clsSessionValue:number, clsSessionStart:number, clsLastEntry:number, interactions:Map<number,number>}} TelemetryWebVitalsRuntime */
+/** @typedef {{node?:Node|null, previousRect?:DOMRectReadOnly|null, currentRect?:DOMRectReadOnly|null}} TelemetryLayoutShiftSource */
+/** @typedef {PerformanceEntry & {hadRecentInput?:boolean, value?:number, sources?:TelemetryLayoutShiftSource[]}} TelemetryLayoutShiftEntry */
+/** @typedef {PerformanceEntry & {element?:Element|null}} TelemetryLcpEntry */
+/** @typedef {{supported:Set<TelemetryWebVitalName>, reported:Set<TelemetryWebVitalName>, lcp:number, lcpComponent:string, inp:number, cls:number, clsComponent:string, clsSessionValue:number, clsSessionStart:number, clsLastEntry:number, clsSessionComponents:Map<string,number>, interactions:Map<number,number>}} TelemetryWebVitalsRuntime */
 /** @typedef {{enabled:boolean|null, queue:Array<Record<string,string|number>>, flushTimer:number, flushing:boolean, catalogKey:string, catalogAt:number, searchKeys:Map<string,number>, diagnosticEvents:Set<string>, webVitals:TelemetryWebVitalsRuntime, initialized:boolean}} TelemetryRuntime */
 /** @typedef {PerformanceEntry & {interactionId?:number, duration?:number}} TelemetryInteractionEntry */
 
 const TELEMETRY_ENDPOINT = "/api/telemetry";
-const TELEMETRY_SCHEMA_VERSION = 2;
+const TELEMETRY_SCHEMA_VERSION = 3;
 const TELEMETRY_BATCH_LIMIT = 20;
 const TELEMETRY_QUEUE_LIMIT = 60;
 const TELEMETRY_FLUSH_DELAY_MS = 900;
@@ -55,6 +64,7 @@ const TELEMETRY_ALLOWED_HOSTS = new Set([
   "www.bargig-furniture.com"
 ]);
 const TELEMETRY_EVENT_NAMES = new Set([
+  "app_session",
   "catalog_open",
   "search",
   "favorite",
@@ -82,11 +92,14 @@ const telemetryRuntime = {
     supported: new Set(),
     reported: new Set(),
     lcp: 0,
+    lcpComponent: "unknown",
     inp: 0,
     cls: 0,
+    clsComponent: "unknown",
     clsSessionValue: 0,
     clsSessionStart: 0,
     clsLastEntry: 0,
+    clsSessionComponents: new Map(),
     interactions: new Map()
   },
   initialized: false
@@ -130,6 +143,30 @@ function telemetryCleanPathname(value = window.location.pathname) {
   return pathname.startsWith("/") ? pathname : `/${pathname}`;
 }
 
+/** @param {unknown} value @param {number} [limit] */
+function telemetryCleanToken(value, limit = 50) {
+  const token = telemetryCleanText(value, limit)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+  return token.slice(0, limit);
+}
+
+const TELEMETRY_IMAGE_VISIBILITY = new Set(["visible", "hidden", "preload", "background", "unknown"]);
+
+/** @param {unknown} value */
+function telemetryCleanVisibility(value) {
+  const visibility = telemetryCleanToken(value, 20);
+  return TELEMETRY_IMAGE_VISIBILITY.has(visibility) ? visibility : "unknown";
+}
+
+/** @param {unknown} value */
+function telemetryCleanRequestId(value) {
+  const requestId = telemetryCleanToken(value, 48);
+  return /^ir-[a-z0-9-]{8,45}$/.test(requestId) ? requestId : "";
+}
+
 function telemetryViewportBucket() {
   const width = Math.max(0, Number(window.innerWidth) || 0);
   if (width < 480) return "xs";
@@ -137,6 +174,12 @@ function telemetryViewportBucket() {
   if (width < 1100) return "md";
   if (width < 1600) return "lg";
   return "xl";
+}
+
+/** @param {unknown} value */
+function telemetryViewportValue(value) {
+  const viewport = telemetryCleanToken(value, 12);
+  return ["xs", "sm", "md", "lg", "xl"].includes(viewport) ? viewport : telemetryViewportBucket();
 }
 
 function telemetryPrivacySignalEnabled() {
@@ -191,13 +234,17 @@ function telemetryNormalizeEvent(name, fields = {}) {
     action: telemetryCleanText(fields.action, 50),
     detail: telemetryCleanText(fields.detail, 120),
     error: telemetryCleanText(fields.error, 80),
-    viewport: telemetryViewportBucket(),
+    viewport: telemetryViewportValue(fields.viewport),
     source: telemetryCleanText(fields.source, 50),
     value: telemetryNumber(fields.value, -1_000_000, 1_000_000),
     durationMs: telemetryNumber(fields.durationMs),
     pageNumber: telemetryNumber(fields.pageNumber, 0, 100_000),
     secondaryValue: telemetryNumber(fields.secondaryValue, -1_000_000, 1_000_000),
-    releaseId: telemetryCleanText(fields.releaseId || TELEMETRY_RELEASE_ID, 64)
+    releaseId: telemetryCleanText(fields.releaseId || TELEMETRY_RELEASE_ID, 64),
+    component: telemetryCleanToken(fields.component || "", 50),
+    surface: telemetryCleanToken(fields.surface || "", 50),
+    requestId: telemetryCleanRequestId(fields.requestId),
+    visibility: telemetryCleanVisibility(fields.visibility)
   };
 }
 
@@ -322,6 +369,92 @@ function telemetryTrackFavorite(action, catalogId = "", pageNumber = 0, count = 
   });
 }
 
+function telemetryTrackAppSession() {
+  return telemetryTrack("app_session", {
+    action: telemetryNavigationType(),
+    visibility: document.visibilityState === "hidden" ? "hidden" : "visible"
+  }, { immediate: true });
+}
+
+const TELEMETRY_COMPONENT_SELECTORS = Object.freeze([
+  ["[data-telemetry-component]", ""],
+  ["#lightboxImageFrame, #lightboxStage, #lightbox", "viewer-stage"],
+  ["#lightboxBar, .lightbox-top-shell", "viewer-toolbar"],
+  ["#lightboxPageRail, .lightbox-page-rail", "viewer-thumbnail-rail"],
+  ["#catalogSearch, .global-search-popover", "global-search"],
+  ["#globalSearchResults, .search-results", "global-search-results"],
+  ["#catalogGrid, .catalog-category-list", "catalog-grid"],
+  ["#pageGrid, .page-grid", "catalog-page-grid"],
+  ["#catalogDetail, .catalog-detail", "catalog-detail"],
+  ["#favoritesPanel, .favorites-panel", "favorites-panel"],
+  [".site-header", "site-header"],
+  [".site-footer", "site-footer"],
+  ["main, #main-content", "main-content"],
+  ["img", "image"],
+  ["video", "video"],
+  ["iframe", "frame"]
+]);
+
+/** @param {Node|null|undefined} node */
+function telemetryComponentToken(node) {
+  const element = typeof Element === "function" && node instanceof Element
+    ? node
+    : typeof Element === "function" && node?.parentElement instanceof Element
+      ? node.parentElement
+      : null;
+  if (!element) return "unknown";
+
+  for (const [selector, fixedToken] of TELEMETRY_COMPONENT_SELECTORS) {
+    const matched = element.closest?.(selector);
+    if (!matched) continue;
+    if (!fixedToken) {
+      const explicit = telemetryCleanToken(matched.getAttribute?.("data-telemetry-component"), 50);
+      if (explicit) return explicit;
+      continue;
+    }
+    return fixedToken;
+  }
+  return telemetryCleanToken(element.tagName || "element", 30) || "unknown";
+}
+
+/** @param {DOMRectReadOnly|null|undefined} rect */
+function telemetryRectSignal(rect) {
+  if (!rect) return 0;
+  const width = Math.max(0, Number(rect.width) || 0);
+  const height = Math.max(0, Number(rect.height) || 0);
+  const x = Number(rect.x ?? rect.left) || 0;
+  const y = Number(rect.y ?? rect.top) || 0;
+  return width * height + Math.abs(x) + Math.abs(y);
+}
+
+/** @param {TelemetryLayoutShiftEntry} entry */
+function telemetryDominantLayoutShiftComponent(entry) {
+  const sources = Array.isArray(entry?.sources) ? entry.sources : [];
+  let token = "unknown";
+  let bestScore = -1;
+  for (const source of sources) {
+    const current = telemetryRectSignal(source.currentRect);
+    const previous = telemetryRectSignal(source.previousRect);
+    const score = Math.max(current, previous) + Math.abs(current - previous);
+    if (score <= bestScore) continue;
+    bestScore = score;
+    token = telemetryComponentToken(source.node);
+  }
+  return token;
+}
+
+/** @param {Map<string,number>} components */
+function telemetryDominantSessionComponent(components) {
+  let token = "unknown";
+  let value = -1;
+  for (const [candidate, contribution] of components) {
+    if (contribution <= value) continue;
+    token = candidate;
+    value = contribution;
+  }
+  return token;
+}
+
 /** @type {Readonly<Record<TelemetryWebVitalName, readonly [number,number]>>} */
 const TELEMETRY_WEB_VITAL_THRESHOLDS = Object.freeze({
   LCP: [2500, 4000],
@@ -390,6 +523,7 @@ function telemetryReportWebVitals() {
       action: name,
       detail: telemetryWebVitalRating(name, value),
       source: telemetryNavigationType(),
+      component: name === "CLS" ? runtime.clsComponent : name === "LCP" ? runtime.lcpComponent : "",
       value
     }, { immediate: true });
   }
@@ -405,8 +539,11 @@ function telemetryObserveWebVitals() {
     try {
       new PerformanceObserver((list) => {
         const entries = list.getEntries();
-        const latest = entries[entries.length - 1];
-        if (latest) runtime.lcp = Math.max(0, Number(latest.startTime) || 0);
+        const latest = /** @type {TelemetryLcpEntry|undefined} */ (entries[entries.length - 1]);
+        if (latest) {
+          runtime.lcp = Math.max(0, Number(latest.startTime) || 0);
+          runtime.lcpComponent = telemetryComponentToken(latest.element);
+        }
         telemetryPublishWebVitalsDiagnostics();
       }).observe({ type: "largest-contentful-paint", buffered: true });
     } catch (_error) {}
@@ -416,7 +553,8 @@ function telemetryObserveWebVitals() {
     runtime.supported.add("CLS");
     try {
       new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
+        for (const rawEntry of list.getEntries()) {
+          const entry = /** @type {TelemetryLayoutShiftEntry} */ (rawEntry);
           if (entry.hadRecentInput) continue;
           const start = Number(entry.startTime) || 0;
           const value = Number(entry.value) || 0;
@@ -428,9 +566,18 @@ function telemetryObserveWebVitals() {
           } else {
             runtime.clsSessionValue = value;
             runtime.clsSessionStart = start;
+            runtime.clsSessionComponents.clear();
           }
+          const component = telemetryDominantLayoutShiftComponent(entry);
+          runtime.clsSessionComponents.set(
+            component,
+            (runtime.clsSessionComponents.get(component) || 0) + value
+          );
           runtime.clsLastEntry = start;
-          runtime.cls = Math.max(runtime.cls, runtime.clsSessionValue);
+          if (runtime.clsSessionValue >= runtime.cls) {
+            runtime.cls = runtime.clsSessionValue;
+            runtime.clsComponent = telemetryDominantSessionComponent(runtime.clsSessionComponents);
+          }
           telemetryPublishWebVitalsDiagnostics();
         }
       }).observe({ type: "layout-shift", buffered: true });
@@ -458,6 +605,58 @@ function telemetryCatalogImageContext(img, src = "") {
   else if (img?.id === "lightboxImage") detail = "viewer";
   else if (img?.classList?.contains("catalog-cover")) detail = "cover";
   return { catalogId, pageNumber, detail, value };
+}
+
+function telemetryCreateRequestId() {
+  const bytes = new Uint8Array(8);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+    return `ir-${Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")}`;
+  }
+  return `ir-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+/** @param {HTMLImageElement|null|undefined} img @param {unknown} surface */
+function telemetryImageVisibility(img, surface) {
+  const cleanSurface = telemetryCleanToken(surface, 50);
+  if (!img || /(?:^|-)preload(?:-|$)|background|buffer/.test(cleanSurface)) return "preload";
+  if (img.dataset?.telemetryVisibility) return telemetryCleanVisibility(img.dataset.telemetryVisibility);
+  if (img.isConnected === false) return "background";
+  if (typeof img.getBoundingClientRect !== "function") return "unknown";
+  const rect = img.getBoundingClientRect();
+  const width = Math.max(0, Number(rect?.width) || 0);
+  const height = Math.max(0, Number(rect?.height) || 0);
+  if (!width || !height) return "hidden";
+  const viewportWidth = Math.max(0, Number(window.innerWidth) || 0);
+  const viewportHeight = Math.max(0, Number(window.innerHeight) || 0);
+  const visible = Number(rect.bottom) > 0
+    && Number(rect.right) > 0
+    && Number(rect.top) < viewportHeight
+    && Number(rect.left) < viewportWidth;
+  return visible ? "visible" : "hidden";
+}
+
+/**
+ * @param {HTMLImageElement|null|undefined} img
+ * @param {string} [src]
+ * @param {TelemetryImageEventOptions} [options]
+ * @returns {TelemetryImageRequestContext}
+ */
+function telemetryCreateImageRequestContext(img, src = "", options = {}) {
+  const image = telemetryCatalogImageContext(img, src);
+  const surface = telemetryCleanToken(options.surface || img?.dataset?.telemetrySurface || image.detail, 50) || "image";
+  return Object.freeze({
+    requestId: telemetryCleanRequestId(options.requestId) || telemetryCreateRequestId(),
+    catalogId: image.catalogId,
+    pageNumber: image.pageNumber,
+    detail: telemetryCleanText(options.detail || img?.dataset?.telemetryDetail || image.detail, 50),
+    surface,
+    visibility: telemetryCleanVisibility(options.visibility || telemetryImageVisibility(img, surface)),
+    page: telemetryCleanText(currentAppPage || document.body?.dataset?.page || "", 30),
+    path: telemetryCleanPathname(),
+    viewport: telemetryViewportBucket(),
+    releaseId: TELEMETRY_RELEASE_ID
+  });
 }
 
 /** @param {unknown} value */
@@ -528,22 +727,29 @@ function telemetryDiagnosticOnce(key) {
 
 /** @param {string} name @param {string} src @param {TelemetryImageEventOptions} [options] */
 function telemetryTrackImageEvent(name, src, options = {}) {
-  const context = telemetryCatalogImageContext(options.img, src);
+  const context = options.requestContext || telemetryCreateImageRequestContext(options.img, src, options);
   const detail = telemetryCleanText(options.detail || context.detail, 50);
   const action = telemetryCleanText(options.action || "", 50);
-  const stableUrl = telemetryStableResourceUrl(context.value);
+  const stableUrl = telemetryStableResourceUrl(src || options.img?.currentSrc || options.img?.src || "");
   const source = telemetryResourceSourceName(stableUrl);
-  const eventKey = [name, stableUrl, context.catalogId, context.pageNumber, detail, action].join("|");
+  const eventKey = [name, context.requestId, detail, action, source].join("|");
   if (!telemetryDiagnosticOnce(eventKey)) return false;
 
   return telemetryTrack(name, {
+    page: context.page,
+    path: context.path,
     catalogId: context.catalogId,
     pageNumber: context.pageNumber,
     detail,
     action,
     source,
+    viewport: context.viewport,
+    releaseId: context.releaseId,
+    surface: context.surface,
+    requestId: context.requestId,
+    visibility: context.visibility,
     value: telemetryNumber(options.failedAttempts ?? options.attempt ?? options.value, 0, 100),
-    error: telemetryErrorFingerprint([name, context.catalogId, context.pageNumber, detail, action, source])
+    error: telemetryErrorFingerprint([name, context.catalogId, context.pageNumber, context.surface, detail, action, source])
   }, { immediate: true });
 }
 
@@ -717,6 +923,8 @@ function telemetryInit(options = {}) {
   telemetryRuntime.initialized = true;
   if (!telemetryIsEnabled()) return;
 
+  telemetryTrackAppSession();
+
   window.addEventListener("error", (event) => {
     const classification = telemetryClassifyWindowError(event);
     if (classification === "image") {
@@ -724,9 +932,13 @@ function telemetryInit(options = {}) {
       if (!image) return;
       if (image.dataset.telemetryManaged !== "true") {
         if (options.recoverCatalogImageAfterInitialFailure?.(image)) return;
+        const requestContext = telemetryCreateImageRequestContext(image, image.currentSrc || image.src, {
+          detail: telemetryCatalogImageContext(image).detail,
+          surface: image.dataset.telemetrySurface || "unmanaged-image"
+        });
         telemetryTrackImageTerminalFailure(image.currentSrc || image.src, {
           img: image,
-          detail: telemetryCatalogImageContext(image).detail,
+          requestContext,
           action: "unmanaged",
           failedAttempts: 1
         });
@@ -763,9 +975,14 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     telemetryResourceScope,
     telemetryErrorSourceScope,
     telemetryIsRuntimeErrorEvent,
-    telemetryClassifyWindowError
+    telemetryClassifyWindowError,
+    telemetryCleanToken,
+    telemetryComponentToken,
+    telemetryDominantLayoutShiftComponent,
+    telemetryCreateImageRequestContext,
+    telemetryImageVisibility
   });
 }
 /* TEST-ONLY EXPORTS: END */
 
-export { telemetryCatalogImageContext, telemetryCleanText, telemetryFlush, telemetryInit, telemetryTrack, telemetryTrackCatalogOpen, telemetryTrackFavorite, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure, telemetryTrackSearch, telemetryTrackSearchIndexFailure };
+export { telemetryCatalogImageContext, telemetryCleanText, telemetryCreateImageRequestContext, telemetryFlush, telemetryInit, telemetryTrack, telemetryTrackCatalogOpen, telemetryTrackFavorite, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure, telemetryTrackSearch, telemetryTrackSearchIndexFailure };

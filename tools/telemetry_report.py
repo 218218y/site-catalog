@@ -30,6 +30,7 @@ DEFAULT_ENV_FILE = "telemetry.env"
 DEFAULT_DATASET = "bargig_catalog_telemetry"
 DEFAULT_OUTPUT_DIR = "reports/telemetry"
 BIDI_ESCAPE_RE = re.compile(r"#u(?:200e|200f|202a|202b|202c|202d|202e|2066|2067|2068|2069)", re.IGNORECASE)
+RELEASE_ID_RE = re.compile(r"^(?:deploy-[a-f0-9]{16}|app-[a-f0-9]{8,16}|app-unversioned|unknown-release)$", re.IGNORECASE)
 API_URL = "https://api.cloudflare.com/client/v4/accounts/{account_id}/analytics_engine/sql"
 
 SECTION_TITLES_HE = {
@@ -38,7 +39,9 @@ SECTION_TITLES_HE = {
     "search": "חיפושים",
     "contact": "לחיצות ליצירת קשר",
     "favorite": "פעולות במועדפים",
-    "release": "גרסאות פריסה לפי פתיחות קטלוג",
+    "session_cohort": "ביקורי אפליקציה לפי גרסה, מסלול ומסך",
+    "release": "שלמות גרסאות פריסה לפי ביקורי אפליקציה",
+    "reliability": "שיעורי תקלות לכל 1,000 ביקורי אפליקציה",
     "js_error": "שגיאות JavaScript מאומתות — פירוט לאבחון",
     "js_error_legacy": "שגיאות JavaScript היסטוריות — סיווג ישן",
     "resource_summary": "סיכום כשלי משאבים לפי ספק ותפקיד",
@@ -48,11 +51,14 @@ SECTION_TITLES_HE = {
     "image_recovered": "תמונות שהתאוששו לאחר כשל",
     "image_terminal": "כשלי תמונה סופיים",
     "image_legacy": "כשלי תמונה היסטוריים — ללא סיווג תוצאה",
+    "image_outcome": "תוצאות מסלול התאוששות תמונות לפי משטח ונראות",
     "rum": "מדדי חוויית משתמש אמיתיים (RUM)",
+    "rum_cohort": "RUM לפי גרסה, מסלול, עמוד, מסך ורכיב",
     "trend": "מגמות מול התקופה הקודמת",
 }
 
 EVENT_LABELS_HE = {
+    "app_session": "ביקור אפליקציה",
     "catalog_open": "פתיחת קטלוג",
     "search": "חיפוש",
     "favorite": "פעולה במועדפים",
@@ -156,6 +162,51 @@ def settings(env_file: Path) -> tuple[str, str, str]:
     return account_id, api_token, dataset
 
 
+def normalized_release_id(value: Any) -> str:
+    release_id = str(value or "").strip().lower()
+    return release_id if RELEASE_ID_RE.fullmatch(release_id) else ""
+
+
+def local_build_release_id(root: Path | None = None) -> str:
+    """Return the release id from the newest local deploy build-state file."""
+
+    base = root or project_root()
+    candidates = [
+        base / "dist" / "site-upload-r2.build.json",
+        base / "dist" / "site-public-preview.build.json",
+        base / "dist" / "site-local.build.json",
+    ]
+    newest: tuple[float, str] | None = None
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        release_id = normalized_release_id(payload.get("releaseId") if isinstance(payload, dict) else "")
+        if not release_id.startswith("deploy-"):
+            continue
+        modified = path.stat().st_mtime
+        if newest is None or modified > newest[0]:
+            newest = (modified, release_id)
+    return newest[1] if newest else ""
+
+
+def configured_current_release_id(env_file: Path, explicit: str = "") -> str:
+    """Resolve an explicit current production release without guessing from events."""
+
+    direct = normalized_release_id(explicit)
+    if direct:
+        return direct
+    file_values = load_env_file(env_file)
+    configured = normalized_release_id(
+        os.getenv("BARGIG_CURRENT_RELEASE_ID")
+        or file_values.get("BARGIG_CURRENT_RELEASE_ID", "")
+    )
+    return configured or local_build_release_id()
+
+
 def query_api(account_id: str, api_token: str, query: str) -> dict[str, Any]:
     request = urllib.request.Request(
         API_URL.format(account_id=account_id),
@@ -224,28 +275,40 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
         "sumIf(_sample_interval, blob1 != 'js_error' OR blob13 != '') AS count"
     )
     tracked_events = (
-        "'catalog_open', 'search', 'favorite', 'contact', 'js_error', "
+        "'app_session', 'catalog_open', 'search', 'favorite', 'contact', 'js_error', "
         "'resource_error', 'search_index_load_failed', 'image_attempt_failed', "
         "'image_recovered', 'image_terminal_failure', 'image_error', 'web_vital'"
+    )
+    rum_quality_select = (
+        "quantileExactWeighted(0.75)(double1, _sample_interval) AS metric, "
+        "SUM(_sample_interval) AS count, "
+        "sumIf(_sample_interval, "
+        "(blob7 = 'LCP' AND double1 <= 2500) OR "
+        "(blob7 = 'INP' AND double1 <= 200) OR "
+        "(blob7 = 'CLS' AND double1 <= 0.1)) AS good_count, "
+        "sumIf(_sample_interval, "
+        "(blob7 = 'LCP' AND double1 > 4000) OR "
+        "(blob7 = 'INP' AND double1 > 500) OR "
+        "(blob7 = 'CLS' AND double1 > 0.25)) AS poor_count, "
+        "MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen"
     )
     image_select = (
         "blob9 AS fingerprint, blob4 AS catalog_id, double3 AS page_number, "
         "blob8 AS failure_stage, blob7 AS outcome_action, blob11 AS source, "
-        "blob10 AS viewport, blob2 AS app_page, blob3 AS path, "
-        "blob13 AS release_id, double1 AS attempt_count, "
+        "blob10 AS viewport, blob2 AS app_page, blob3 AS route, "
+        "blob13 AS release_id, blob15 AS surface, blob16 AS request_id, "
+        "blob17 AS visibility, double1 AS attempt_count, "
         "SUM(_sample_interval) AS count"
     )
-    image_group = "blob9, blob4, double3, blob8, blob7, blob11, blob10, blob2, blob3, blob13, double1"
+    image_group = (
+        "blob9, blob4, double3, blob8, blob7, blob11, blob10, blob2, blob3, "
+        "blob13, blob15, blob16, blob17, double1"
+    )
 
     return (
         ReportQuery(
             "event",
-            query(
-                event_count_select,
-                f"blob1 IN ({tracked_events})",
-                "blob1",
-                30,
-            ),
+            query(event_count_select, f"blob1 IN ({tracked_events})", "blob1", 30),
         ),
         ReportQuery(
             "previous_event",
@@ -258,12 +321,24 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
             ),
         ),
         ReportQuery(
+            "session_cohort",
+            query(
+                "blob13 AS release_id, blob2 AS app_page, blob3 AS route, "
+                "blob10 AS viewport, SUM(_sample_interval) AS count, "
+                "MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen",
+                "blob1 = 'app_session'",
+                "blob13, blob2, blob3, blob10",
+                1000,
+            ),
+        ),
+        ReportQuery(
             "release",
             query(
-                "blob13 AS label, SUM(_sample_interval) AS count",
-                "blob1 = 'catalog_open' AND blob13 != ''",
+                "blob13 AS release_id, SUM(_sample_interval) AS count, "
+                "MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen",
+                "blob1 = 'app_session'",
                 "blob13",
-                30,
+                100,
             ),
         ),
         ReportQuery(
@@ -300,14 +375,33 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
             ),
         ),
         ReportQuery(
-            "rum_raw",
+            "rum",
             query(
-                "blob7 AS label, double1 AS metric_value, blob8 AS rating, "
-                "SUM(_sample_interval) AS weight",
+                f"blob7 AS label, {rum_quality_select}",
                 "blob1 = 'web_vital' AND blob7 IN ('LCP', 'INP', 'CLS')",
-                "blob7, double1, blob8",
-                5000,
-                order_by="weight DESC",
+                "blob7",
+                10,
+            ),
+        ),
+        ReportQuery(
+            "rum_cohort",
+            query(
+                f"blob7 AS label, blob13 AS release_id, blob2 AS app_page, "
+                f"blob3 AS route, blob10 AS viewport, blob14 AS component, {rum_quality_select}",
+                "blob1 = 'web_vital' AND blob7 IN ('LCP', 'INP', 'CLS')",
+                "blob7, blob13, blob2, blob3, blob10, blob14",
+                3000,
+            ),
+        ),
+        ReportQuery(
+            "reliability",
+            query(
+                "blob1 AS label, blob13 AS release_id, blob2 AS app_page, "
+                "blob3 AS route, blob10 AS viewport, SUM(_sample_interval) AS count",
+                "blob1 IN ('js_error', 'resource_error', 'search_index_load_failed', "
+                "'image_terminal_failure')",
+                "blob1, blob13, blob2, blob3, blob10",
+                1000,
             ),
         ),
         ReportQuery(
@@ -367,23 +461,21 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
             ),
         ),
         ReportQuery(
-            "image_attempt",
-            query(image_select, "blob1 = 'image_attempt_failed'", image_group, 300),
+            "image_outcome",
+            query(
+                "blob1 AS label, blob13 AS release_id, blob2 AS app_page, blob3 AS route, "
+                "blob10 AS viewport, blob4 AS catalog_id, double3 AS page_number, "
+                "blob15 AS surface, blob17 AS visibility, SUM(_sample_interval) AS count",
+                "blob1 IN ('image_recovered', 'image_terminal_failure')",
+                "blob1, blob13, blob2, blob3, blob10, blob4, double3, blob15, blob17",
+                1500,
+            ),
         ),
-        ReportQuery(
-            "image_recovered",
-            query(image_select, "blob1 = 'image_recovered'", image_group, 300),
-        ),
-        ReportQuery(
-            "image_terminal",
-            query(image_select, "blob1 = 'image_terminal_failure'", image_group, 300),
-        ),
-        ReportQuery(
-            "image_legacy",
-            query(image_select, "blob1 = 'image_error'", image_group, 300),
-        ),
+        ReportQuery("image_attempt", query(image_select, "blob1 = 'image_attempt_failed'", image_group, 500)),
+        ReportQuery("image_recovered", query(image_select, "blob1 = 'image_recovered'", image_group, 500)),
+        ReportQuery("image_terminal", query(image_select, "blob1 = 'image_terminal_failure'", image_group, 500)),
+        ReportQuery("image_legacy", query(image_select, "blob1 = 'image_error'", image_group, 500)),
     )
-
 
 def weighted_percentile(rows: Sequence[dict[str, Any]], percentile: float) -> float:
     """Return a weighted percentile from Analytics Engine sampled rows."""
@@ -452,7 +544,7 @@ def build_trend_rows(
     }
     result: list[dict[str, Any]] = []
     for event_name in (
-        "catalog_open", "search", "favorite", "contact", "js_error",
+        "app_session", "catalog_open", "search", "favorite", "contact", "js_error",
         "resource_error", "search_index_load_failed", "image_attempt_failed",
         "image_recovered", "image_terminal_failure", "image_error",
     ):
@@ -471,17 +563,146 @@ def build_trend_rows(
     return result
 
 
+def session_cohort_key(row: Mapping[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        str(row.get("release_id") or ""),
+        str(row.get("app_page") or ""),
+        str(row.get("route") or row.get("path") or ""),
+        str(row.get("viewport") or ""),
+    )
+
+
+def release_status(release_id: Any, current_release_id: str) -> str:
+    value = normalized_release_id(release_id)
+    if value and value == current_release_id:
+        return "current"
+    if value.startswith("deploy-"):
+        return "historical"
+    if value.startswith("app-"):
+        return "fallback"
+    if value == "unknown-release":
+        return "unknown"
+    return "legacy"
+
+
+def finalize_rum_row(row: dict[str, Any], denominator: float = 0.0) -> dict[str, Any]:
+    metric_name = str(row.get("label") or "").upper()
+    sample_count = max(0.0, numeric_value(row.get("count")))
+    good_count = max(0.0, numeric_value(row.get("good_count")))
+    poor_count = max(0.0, numeric_value(row.get("poor_count")))
+    row["label"] = metric_name
+    row["good_percent"] = (good_count / sample_count * 100.0) if sample_count else 0.0
+    row["poor_percent"] = (poor_count / sample_count * 100.0) if sample_count else 0.0
+    row["unit"] = "score" if metric_name == "CLS" else "ms"
+    row["denominator"] = max(0.0, denominator)
+    row["coverage_percent"] = (sample_count / denominator * 100.0) if denominator else 0.0
+    return row
+
+
+def enrich_report_rows(
+    rows: list[dict[str, Any]],
+    current_release_id: str = "",
+) -> tuple[list[dict[str, Any]], str]:
+    resolved_current = normalized_release_id(current_release_id)
+    session_rows = [row for row in rows if row.get("section") == "session_cohort"]
+    session_index = {
+        session_cohort_key(row): numeric_value(row.get("count"))
+        for row in session_rows
+    }
+    event_session_total = sum(
+        numeric_value(row.get("count"))
+        for row in rows
+        if row.get("section") == "event" and row.get("label") == "app_session"
+    )
+    cohort_session_total = sum(numeric_value(row.get("count")) for row in session_rows)
+    total_sessions = event_session_total or cohort_session_total
+
+    for row in rows:
+        section = str(row.get("section") or "")
+        release_id = str(
+            row.get("release_id")
+            or (row.get("label") if section == "release" else "")
+            or ""
+        )
+        if section == "release":
+            row["release_id"] = release_id
+            row["label"] = release_id or "legacy"
+            row["denominator"] = total_sessions
+            row["share_percent"] = (numeric_value(row.get("count")) / total_sessions * 100.0) if total_sessions else 0.0
+        row["release_status"] = release_status(release_id, resolved_current)
+        row["current_release_id"] = resolved_current
+
+        if section == "event":
+            row["denominator"] = total_sessions
+            row["rate_per_1000"] = (
+                numeric_value(row.get("count")) / total_sessions * 1000.0
+                if total_sessions and row.get("label") != "app_session"
+                else 0.0
+            )
+        elif section == "rum":
+            finalize_rum_row(row, total_sessions)
+        elif section == "rum_cohort":
+            finalize_rum_row(row, session_index.get(session_cohort_key(row), 0.0))
+        elif section == "reliability":
+            denominator = session_index.get(session_cohort_key(row), 0.0)
+            row["denominator"] = denominator
+            row["rate_per_1000"] = (
+                numeric_value(row.get("count")) / denominator * 1000.0
+                if denominator else 0.0
+            )
+
+    outcome_rows = [row for row in rows if row.get("section") == "image_outcome"]
+    outcome_totals: dict[tuple[str, ...], float] = {}
+    for row in outcome_rows:
+        key = (
+            str(row.get("release_id") or ""),
+            str(row.get("app_page") or ""),
+            str(row.get("route") or ""),
+            str(row.get("viewport") or ""),
+            str(row.get("catalog_id") or ""),
+            str(row.get("page_number") or ""),
+            str(row.get("surface") or ""),
+            str(row.get("visibility") or ""),
+        )
+        outcome_totals[key] = outcome_totals.get(key, 0.0) + numeric_value(row.get("count"))
+    for row in outcome_rows:
+        key = (
+            str(row.get("release_id") or ""),
+            str(row.get("app_page") or ""),
+            str(row.get("route") or ""),
+            str(row.get("viewport") or ""),
+            str(row.get("catalog_id") or ""),
+            str(row.get("page_number") or ""),
+            str(row.get("surface") or ""),
+            str(row.get("visibility") or ""),
+        )
+        lifecycle_denominator = outcome_totals.get(key, 0.0)
+        row["denominator"] = lifecycle_denominator
+        row["outcome_percent"] = (
+            numeric_value(row.get("count")) / lifecycle_denominator * 100.0
+            if lifecycle_denominator else 0.0
+        )
+        session_denominator = session_index.get(session_cohort_key(row), 0.0)
+        row["session_denominator"] = session_denominator
+        row["rate_per_1000"] = (
+            numeric_value(row.get("count")) / session_denominator * 1000.0
+            if session_denominator and row.get("label") == "image_terminal_failure"
+            else 0.0
+        )
+    return rows, resolved_current
+
+
 def fetch_report_rows(
     account_id: str,
     api_token: str,
     dataset: str,
     days: int,
+    current_release_id: str = "",
 ) -> list[dict[str, Any]]:
     """Execute supported single-SELECT queries and merge their rows."""
 
     merged: list[dict[str, Any]] = []
     previous_counts: dict[str, float] = {}
-    rum_rows: list[dict[str, Any]] = []
     for report_query in report_queries(dataset, days):
         try:
             payload = query_api(account_id, api_token, report_query.sql)
@@ -497,13 +718,10 @@ def fetch_report_rows(
                 for row in section_rows
             })
             continue
-        if report_query.section == "rum_raw":
-            rum_rows.extend(section_rows)
-            continue
         for row in section_rows:
             merged.append(normalize_report_row(report_query.section, row))
 
-    merged.extend(summarize_rum_rows(rum_rows))
+    enrich_report_rows(merged, current_release_id)
     merged.extend(build_trend_rows(merged, previous_counts))
     return merged
 
@@ -539,6 +757,8 @@ def normalize_report_row(section: str, row: dict[str, Any]) -> dict[str, Any]:
     """Normalize one Analytics Engine row while preserving diagnostic fields."""
 
     normalized = normalize_resource_diagnostic(row) if section in {"resource_summary", "resource_error"} else dict(row)
+    if "route" in normalized and "path" not in normalized:
+        normalized["path"] = normalized.get("route", "")
     normalized["section"] = section
     if section in {"js_error", "js_error_legacy"}:
         normalized["label"] = str(normalized.get("fingerprint") or normalized.get("error_name") or "unknown_js_error")
@@ -550,6 +770,8 @@ def normalize_report_row(section: str, row: dict[str, Any]) -> dict[str, Any]:
         normalized["label"] = str(normalized.get("fingerprint") or normalized.get("failure_reason") or "unknown_search_index_error")
     elif section in {"image_attempt", "image_recovered", "image_terminal", "image_legacy"}:
         normalized["label"] = str(normalized.get("fingerprint") or normalized.get("source") or "unknown_image_event")
+    elif section == "release":
+        normalized["label"] = str(normalized.get("release_id") or "legacy")
     else:
         normalized.setdefault("label", "")
     normalized.setdefault("count", 0)
@@ -640,14 +862,17 @@ def write_csv_report(
     catalog_titles: dict[str, str],
     generated_at: datetime,
 ) -> None:
-    """Write an Excel-friendly CSV that keeps all diagnostic dimensions."""
+    """Write an Excel-friendly CSV that keeps every operational dimension."""
 
     columns = [
-        "סוג נתון", "פריט / טביעה", "כמות", "מדד נוסף", "סוג שגיאה", "הודעה",
-        "קובץ", "מקור", "תג משאב", "תפקיד משאב", "סיבת כשל", "יוזם טעינה",
-        "עמוד באתר", "נתיב", "קטלוג", "עמוד בקטלוג",
-        "שורה", "עמודה", "שלב כשל", "תוצאת טעינה", "מספר ניסיונות", "גודל מסך", "גרסת אתר", "תקופה קודמת",
-        "שינוי", "אחוז טוב", "אחוז גרוע", "יחידה",
+        "סוג נתון", "פריט / טביעה", "כמות", "מדד נוסף", "מכנה", "שיעור ל-1,000",
+        "כיסוי באחוזים", "אחוז תוצאה", "סוג שגיאה", "הודעה", "קובץ", "מקור",
+        "תג משאב", "תפקיד משאב", "סיבת כשל", "יוזם טעינה", "עמוד באתר", "נתיב",
+        "קטלוג", "עמוד בקטלוג", "שורה", "עמודה", "שלב כשל", "תוצאת טעינה",
+        "מספר ניסיונות", "גודל מסך", "רכיב", "משטח תמונה", "נראות תמונה",
+        "מזהה בקשת תמונה", "גרסת אתר", "מצב גרסה", "גרסה נוכחית", "נראה לראשונה",
+        "נראה לאחרונה", "נתח ביקורים", "תקופה קודמת", "שינוי", "אחוז טוב",
+        "אחוז גרוע", "יחידה",
     ]
     with output_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
@@ -664,6 +889,10 @@ def write_csv_report(
                 localized_label(section, row.get("label"), catalog_titles),
                 format_count(row.get("count")),
                 format_count(row.get("metric")) if numeric_value(row.get("metric")) else "",
+                format_count(row.get("denominator")) if row.get("denominator") is not None else "",
+                format_count(row.get("rate_per_1000")) if row.get("rate_per_1000") is not None else "",
+                format_count(row.get("coverage_percent")) if row.get("coverage_percent") is not None else "",
+                format_count(row.get("outcome_percent")) if row.get("outcome_percent") is not None else "",
                 row.get("error_name", ""),
                 row.get("message", ""),
                 row.get("source", ""),
@@ -673,7 +902,7 @@ def write_csv_report(
                 row.get("failure_reason", ""),
                 row.get("load_trigger", ""),
                 row.get("app_page", ""),
-                row.get("path", ""),
+                row.get("route", row.get("path", "")),
                 catalog_titles.get(catalog_id, catalog_id),
                 row.get("page_number", ""),
                 row.get("line", ""),
@@ -682,7 +911,16 @@ def write_csv_report(
                 row.get("outcome_action", ""),
                 row.get("attempt_count", ""),
                 row.get("viewport", ""),
+                row.get("component", ""),
+                row.get("surface", ""),
+                row.get("visibility", ""),
+                row.get("request_id", ""),
                 row.get("release_id", ""),
+                row.get("release_status", ""),
+                row.get("current_release_id", ""),
+                row.get("first_seen", ""),
+                row.get("last_seen", ""),
+                format_count(row.get("share_percent")) if row.get("share_percent") is not None else "",
                 format_count(row.get("previous")) if row.get("previous") is not None else "",
                 format_count(row.get("delta")) if row.get("delta") is not None else "",
                 format_count(row.get("good_percent")) if row.get("good_percent") is not None else "",
@@ -690,15 +928,22 @@ def write_csv_report(
                 row.get("unit", ""),
             ])
 
+
 def write_json_report(
     rows: list[dict[str, Any]],
     days: int,
     output_path: Path,
     generated_at: datetime,
 ) -> None:
+    current_release_id = next(
+        (str(row.get("current_release_id") or "") for row in rows if row.get("current_release_id")),
+        "",
+    )
     payload = {
+        "schemaVersion": 3,
         "generatedAt": generated_at.isoformat(),
         "days": days,
+        "currentReleaseId": current_release_id,
         "rows": rows,
     }
     output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -716,53 +961,75 @@ def write_html_report(
         str(row.get("label") or ""): numeric_value(row.get("count"))
         for row in grouped.get("event", [])
     }
+    current_release_id = next(
+        (str(row.get("current_release_id") or "") for row in rows if row.get("current_release_id")),
+        "",
+    )
+    status_labels = {
+        "current": "נוכחית",
+        "historical": "היסטורית",
+        "fallback": "Fallback מקומי",
+        "unknown": "גרסה לא ידועה",
+        "legacy": "ללא חוזה גרסה",
+    }
+    visibility_labels = {
+        "visible": "גלויה למשתמש",
+        "hidden": "מוסתרת",
+        "preload": "טעינה מוקדמת",
+        "background": "רקע",
+        "unknown": "לא ידוע",
+    }
 
-    def card(label: str, value: Any, note: str = "") -> str:
+    def card(label: str, value: Any, note: str = "", *, raw: bool = False) -> str:
+        formatted = str(value) if raw else format_count(value)
         return (
             '<article class="summary-card">'
             f'<span class="summary-label">{html.escape(label)}</span>'
-            f'<strong>{html.escape(format_count(value))}</strong>'
+            f'<strong>{html.escape(formatted or "—")}</strong>'
             f'<small>{html.escape(note)}</small>'
             "</article>"
         )
 
     resource_summary_rows = grouped.get("resource_summary", [])
-    cloudflare_observability_failures = sum(
-        numeric_value(row.get("count"))
-        for row in resource_summary_rows
-        if str(row.get("source_scope") or "") == "cloudflare-observability"
-    )
     ignored_environment_failures = sum(
         numeric_value(row.get("count"))
         for row in resource_summary_rows
         if str(row.get("source_scope") or "") in {"cloudflare-observability", "extension"}
     )
     actionable_resource_failures = max(
-        0.0,
-        event_counts.get("resource_error", 0) - ignored_environment_failures
+        0.0, event_counts.get("resource_error", 0) - ignored_environment_failures
     ) + event_counts.get("search_index_load_failed", 0)
+    release_rows = grouped.get("release", [])
+    fallback_sessions = sum(
+        numeric_value(row.get("count"))
+        for row in release_rows
+        if row.get("release_status") in {"fallback", "unknown", "legacy"}
+    )
+    app_sessions = event_counts.get("app_session", 0)
+    fallback_share = (fallback_sessions / app_sessions * 100.0) if app_sessions else 0.0
+    current_cls = next(
+        (
+            row for row in grouped.get("rum_cohort", [])
+            if row.get("label") == "CLS" and row.get("release_status") == "current"
+        ),
+        None,
+    )
 
     summary_cards = "".join([
+        card("ביקורי אפליקציה", app_sessions, "המכנה האמיתי לשיעורי תקלות"),
+        card("גרסה נוכחית", current_release_id or "לא הוגדרה", "פריסה שמשמשת להשוואת cohorts", raw=True),
+        card("ביקורים ללא גרסת deploy", fallback_sessions, f"{fallback_share:.1f}% מכלל הביקורים"),
+        card(
+            "CLS בגרסה הנוכחית",
+            f"{numeric_value(current_cls.get('metric')):.3f}" if current_cls else "אין דגימות",
+            str(current_cls.get("component") or "רכיב לא זוהה") if current_cls else "",
+            raw=True,
+        ),
         card("פתיחות קטלוג", event_counts.get("catalog_open", 0), "עניין בקטלוגים"),
         card("חיפושים", event_counts.get("search", 0), "חיפושים שהושלמו באתר"),
-        card("פעולות במועדפים", event_counts.get("favorite", 0), "הוספה, הסרה וניקוי"),
-        card("פעולות ליצירת קשר", event_counts.get("contact", 0), "שיתוף והעתקת פרטי דגם"),
-        card(
-            "שגיאות JavaScript",
-            event_counts.get("js_error", 0),
-            "ErrorEvent מאומת בלבד",
-        ),
-        card(
-            "כשלי מעטפת דורשי בדיקה",
-            actionable_resource_failures,
-            "ללא Beacon של Cloudflare והרחבות דפדפן",
-        ),
-        card(
-            "Beacon חיצוני שנחסם",
-            cloudflare_observability_failures,
-            "Cloudflare Web Analytics; אינו קובץ מעטפת של האתר",
-        ),
-        card("כשלי תמונה סופיים", event_counts.get("image_terminal_failure", 0), "לאחר מסלול ההתאוששות המדווח"),
+        card("שגיאות JavaScript", event_counts.get("js_error", 0), "ErrorEvent מאומת בלבד"),
+        card("כשלי מעטפת דורשי בדיקה", actionable_resource_failures, "ללא Beacon והרחבות דפדפן"),
+        card("כשלי תמונה סופיים", event_counts.get("image_terminal_failure", 0), "לאחר מסלול התאוששות מלא"),
     ])
 
     def empty_section(title: str) -> str:
@@ -771,6 +1038,10 @@ def write_html_report(
             '<div class="empty">לא התקבלו נתונים בחלק זה בתקופה שנבחרה.</div></section>'
         )
 
+    def section_note(text: str, warning: bool = False) -> str:
+        class_name = "warning-callout" if warning else "section-note"
+        return f'<p class="{class_name}">{html.escape(text)}</p>'
+
     def section_table(section: str, section_rows: list[dict[str, Any]]) -> str:
         title = SECTION_TITLES_HE.get(section, section)
         if not section_rows:
@@ -778,21 +1049,78 @@ def write_html_report(
         table_rows = []
         for row in section_rows:
             label = localized_label(section, row.get("label"), catalog_titles)
-            count = format_count(row.get("count"))
-            metric = format_count(row.get("metric")) if numeric_value(row.get("metric")) else "—"
-            metric_cell = f'<td class="number">{html.escape(metric)}</td>' if section == "search" else ""
+            metric_cell = (
+                f'<td class="number">{html.escape(format_count(row.get("metric")))}</td>'
+                if section == "search" else ""
+            )
             table_rows.append(
                 "<tr>"
                 f'<td>{html.escape(label)}</td>'
-                f'<td class="number">{html.escape(count)}</td>'
-                f"{metric_cell}"
-                "</tr>"
+                f'<td class="number">{html.escape(format_count(row.get("count")))}</td>'
+                f"{metric_cell}</tr>"
             )
         metric_header = "<th>חיפושים ללא תוצאה</th>" if section == "search" else ""
         body = (
-            '<div class="table-wrap"><table><thead><tr>'
-            "<th>פריט</th><th>כמות</th>"
-            f"{metric_header}</tr></thead><tbody>{''.join(table_rows)}</tbody></table></div>"
+            '<div class="table-wrap"><table><thead><tr><th>פריט</th><th>כמות</th>'
+            f'{metric_header}</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
+
+    def release_badge(status: Any) -> str:
+        raw = str(status or "legacy")
+        return f'<span class="badge badge-{html.escape(raw)}">{html.escape(status_labels.get(raw, raw))}</span>'
+
+    def release_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["release"]
+        if not section_rows:
+            return empty_section(title)
+        table_rows = []
+        for row in section_rows:
+            table_rows.append(
+                "<tr>"
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code></td>'
+                f'<td>{release_badge(row.get("release_status"))}</td>'
+                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
+                f'<td class="number">{numeric_value(row.get("share_percent")):.1f}%</td>'
+                f'<td><code>{html.escape(str(row.get("first_seen") or "—"))}</code></td>'
+                f'<td><code>{html.escape(str(row.get("last_seen") or "—"))}</code></td>'
+                "</tr>"
+            )
+        warning = ""
+        if fallback_sessions:
+            warning = section_note(
+                f"נמצאו {format_count(fallback_sessions)} ביקורים ({fallback_share:.1f}%) עם unknown-release, app-* או ללא חוזה גרסה. "
+                "בפרודקשן תקין כל פתיחה חדשה אמורה לשאת deploy-*.",
+                warning=True,
+            )
+        body = (
+            '<div class="table-wrap"><table><thead><tr><th>גרסה</th><th>מצב</th>'
+            '<th>ביקורים</th><th>נתח</th><th>ראשון</th><th>אחרון</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{warning}{body}</section>'
+
+    def session_cohort_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["session_cohort"]
+        if not section_rows:
+            return empty_section(title)
+        table_rows = []
+        for row in section_rows:
+            table_rows.append(
+                "<tr>"
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code><br>{release_badge(row.get("release_status"))}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}</td>'
+                f'<td><code>{html.escape(str(row.get("route") or row.get("path") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("viewport") or "—"))}</td>'
+                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
+                f'<td><code>{html.escape(str(row.get("first_seen") or "—"))}</code></td>'
+                f'<td><code>{html.escape(str(row.get("last_seen") or "—"))}</code></td>'
+                "</tr>"
+            )
+        body = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr><th>גרסה</th><th>עמוד</th>'
+            '<th>מסלול</th><th>מסך</th><th>ביקורים</th><th>ראשון</th><th>אחרון</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
         )
         return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
 
@@ -805,45 +1133,150 @@ def write_html_report(
             "INP": "INP — תגובתיות לאינטראקציה",
             "CLS": "CLS — יציבות הפריסה",
         }
-        rows_html = []
+        table_rows = []
         for row in section_rows:
             name = str(row.get("label") or "")
             value = numeric_value(row.get("metric"))
-            unit = str(row.get("unit") or "")
-            formatted = f"{value:.3f}" if unit == "score" else f"{format_count(value)} ms"
-            rows_html.append(
+            formatted = f"{value:.3f}" if row.get("unit") == "score" else f"{format_count(value)} ms"
+            table_rows.append(
                 "<tr>"
                 f'<td>{html.escape(labels.get(name, name))}</td>'
                 f'<td class="number strong">{html.escape(formatted)}</td>'
                 f'<td class="number">{html.escape(format_count(row.get("count")))}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("denominator")))}</td>'
+                f'<td class="number">{numeric_value(row.get("coverage_percent")):.1f}%</td>'
                 f'<td class="number">{numeric_value(row.get("good_percent")):.1f}%</td>'
                 f'<td class="number">{numeric_value(row.get("poor_percent")):.1f}%</td>'
                 "</tr>"
             )
         body = (
-            '<div class="table-wrap"><table><thead><tr>'
-            '<th>מדד</th><th>אחוזון 75</th><th>דגימות</th><th>טוב</th><th>גרוע</th>'
-            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+            '<div class="table-wrap"><table><thead><tr><th>מדד</th><th>אחוזון 75</th>'
+            '<th>דגימות</th><th>ביקורים</th><th>כיסוי</th><th>טוב</th><th>גרוע</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
         )
         return (
             f'<section class="report-section"><h2>{html.escape(title)}</h2>'
-            '<p class="section-note">המדדים נאספים בדפדפנים תומכים בלבד, ללא מזהה משתמש. '
-            'אחוזון 75 מחושב במשקל הדגימות של Cloudflare Analytics Engine.</p>'
-            f'{body}</section>'
+            + section_note("המכנה הוא מספר ביקורי האפליקציה בתקופה; הכיסוי מראה כמה דגימות מדד התקבלו ביחס אליו.")
+            + body + "</section>"
+        )
+
+    def rum_cohort_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["rum_cohort"]
+        if not section_rows:
+            return empty_section(title)
+        ordered = sorted(
+            section_rows,
+            key=lambda row: (
+                0 if row.get("label") == "CLS" else 1,
+                0 if row.get("release_status") == "current" else 1,
+                -numeric_value(row.get("metric")),
+                -numeric_value(row.get("count")),
+            ),
+        )
+        table_rows = []
+        for row in ordered:
+            metric_name = str(row.get("label") or "")
+            metric_value = numeric_value(row.get("metric"))
+            formatted = f"{metric_value:.3f}" if row.get("unit") == "score" else f"{format_count(metric_value)} ms"
+            table_rows.append(
+                "<tr>"
+                f'<td><strong>{html.escape(metric_name)}</strong></td>'
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code><br>{release_badge(row.get("release_status"))}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("route") or row.get("path") or ""))}</small></td>'
+                f'<td>{html.escape(str(row.get("viewport") or "—"))}</td>'
+                f'<td><code>{html.escape(str(row.get("component") or "unknown-component"))}</code></td>'
+                f'<td class="number strong">{html.escape(formatted)}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("count")))}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("denominator")))}</td>'
+                f'<td class="number">{numeric_value(row.get("coverage_percent")):.1f}%</td>'
+                f'<td class="number">{numeric_value(row.get("poor_percent")):.1f}%</td>'
+                f'<td><code>{html.escape(str(row.get("first_seen") or "—"))}</code></td>'
+                "</tr>"
+            )
+        body = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr><th>מדד</th><th>גרסה</th>'
+            '<th>עמוד / מסלול</th><th>מסך</th><th>רכיב</th><th>p75</th><th>דגימות</th>'
+            '<th>ביקורים</th><th>כיסוי</th><th>גרוע</th><th>הופיע לראשונה</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
+        )
+        return (
+            f'<section class="report-section"><h2>{html.escape(title)}</h2>'
+            + section_note("שורת CLS כוללת את הרכיב הדומיננטי בחלון ההזזה הגרוע ביותר, מתוך רשימת tokens סגורה.")
+            + body + "</section>"
+        )
+
+    def reliability_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["reliability"]
+        if not section_rows:
+            return empty_section(title)
+        table_rows = []
+        for row in section_rows:
+            label = EVENT_LABELS_HE.get(str(row.get("label") or ""), str(row.get("label") or ""))
+            table_rows.append(
+                "<tr>"
+                f'<td>{html.escape(label)}</td>'
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code><br>{release_badge(row.get("release_status"))}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("route") or row.get("path") or ""))}</small></td>'
+                f'<td>{html.escape(str(row.get("viewport") or "—"))}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("count")))}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("denominator")))}</td>'
+                f'<td class="number strong">{numeric_value(row.get("rate_per_1000")):.2f}</td>'
+                "</tr>"
+            )
+        body = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr><th>תקלה</th><th>גרסה</th>'
+            '<th>עמוד / מסלול</th><th>מסך</th><th>אירועים</th><th>ביקורים</th><th>ל-1,000</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
+
+    def image_outcome_table(section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE["image_outcome"]
+        if not section_rows:
+            return empty_section(title)
+        table_rows = []
+        for row in section_rows:
+            catalog_id = str(row.get("catalog_id") or "")
+            label = EVENT_LABELS_HE.get(str(row.get("label") or ""), str(row.get("label") or ""))
+            table_rows.append(
+                "<tr>"
+                f'<td>{html.escape(label)}</td>'
+                f'<td>{html.escape(visibility_labels.get(str(row.get("visibility") or "unknown"), str(row.get("visibility") or "unknown")))}</td>'
+                f'<td><code>{html.escape(str(row.get("surface") or "unknown-surface"))}</code></td>'
+                f'<td>{html.escape(catalog_titles.get(catalog_id, catalog_id) or "—")}</td>'
+                f'<td class="number">{html.escape(format_count(row.get("page_number"))) if numeric_value(row.get("page_number")) else "—"}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("route") or row.get("path") or ""))}</small></td>'
+                f'<td>{html.escape(str(row.get("viewport") or "—"))}</td>'
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code><br>{release_badge(row.get("release_status"))}</td>'
+                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
+                f'<td class="number">{numeric_value(row.get("outcome_percent")):.1f}%</td>'
+                f'<td class="number">{numeric_value(row.get("rate_per_1000")):.2f}</td>'
+                "</tr>"
+            )
+        body = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr><th>תוצאה</th><th>נראות</th>'
+            '<th>משטח</th><th>קטלוג</th><th>עמוד</th><th>עמוד / מסלול</th><th>מסך</th>'
+            '<th>גרסה</th><th>כמות</th><th>מתוך lifecycle</th><th>כשל סופי ל-1,000 ביקורים</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
+        )
+        return (
+            f'<section class="report-section"><h2>{html.escape(title)}</h2>'
+            + section_note("visible מציין כשל בתמונה שהייתה על המסך; preload/background מציינים עבודה שאינה גלויה למשתמש.")
+            + body + "</section>"
         )
 
     def trend_table(section_rows: list[dict[str, Any]]) -> str:
         title = SECTION_TITLES_HE["trend"]
         if not section_rows:
             return empty_section(title)
-        rows_html = []
+        table_rows = []
         for row in section_rows:
             label = EVENT_LABELS_HE.get(str(row.get("label") or ""), str(row.get("label") or ""))
             delta = numeric_value(row.get("delta"))
             percent = numeric_value(row.get("metric"))
             direction = "trend-up" if delta > 0 else ("trend-down" if delta < 0 else "trend-flat")
             sign = "+" if percent > 0 else ""
-            rows_html.append(
+            table_rows.append(
                 "<tr>"
                 f'<td>{html.escape(label)}</td>'
                 f'<td class="number">{html.escape(format_count(row.get("count")))}</td>'
@@ -852,58 +1285,11 @@ def write_html_report(
                 "</tr>"
             )
         body = (
-            '<div class="table-wrap"><table><thead><tr>'
-            '<th>מדד</th><th>תקופה נוכחית</th><th>תקופה קודמת</th><th>שינוי</th>'
-            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+            '<div class="table-wrap"><table><thead><tr><th>מדד</th><th>תקופה נוכחית</th>'
+            '<th>תקופה קודמת</th><th>שינוי</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
         )
         return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
-
-    def js_error_table(section: str, section_rows: list[dict[str, Any]]) -> str:
-        title = SECTION_TITLES_HE[section]
-        if not section_rows:
-            return empty_section(title)
-        rows_html = []
-        for row in section_rows:
-            catalog_id = str(row.get("catalog_id") or "")
-            catalog_title = catalog_titles.get(catalog_id, catalog_id) or "—"
-            location = ":".join(
-                value for value in (str(row.get("line") or ""), str(row.get("column") or "")) if value
-            ) or "—"
-            rows_html.append(
-                "<tr>"
-                f'<td class="number"><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
-                f'<td>{html.escape(str(row.get("error_name") or "—"))}</td>'
-                f'<td class="message">{html.escape(str(row.get("message") or "—"))}</td>'
-                f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
-                f'<td>{html.escape(str(row.get("source_scope") or "—"))}</td>'
-                f'<td class="number">{html.escape(location)}</td>'
-                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
-                f'<td>{html.escape(catalog_title)}</td>'
-                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code></td>'
-                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
-                "</tr>"
-            )
-        top = max(section_rows, key=lambda row: numeric_value(row.get("count")))
-        callout = (
-            '<div class="diagnostic-callout">'
-            '<strong>הקבוצה החוזרת ביותר:</strong> '
-            f'<code>{html.escape(str(top.get("fingerprint") or "ללא טביעה"))}</code> · '
-            f'{html.escape(format_count(top.get("count")))} מופעים · '
-            f'{html.escape(str(top.get("error_name") or "שגיאה"))}: '
-            f'{html.escape(str(top.get("message") or "ללא הודעה היסטורית"))}'
-            '</div>'
-        )
-        note = ""
-        if section == "js_error_legacy":
-            note = ('<p class="section-note">הנתונים נאספו לפני הפרדת ErrorEvent מכשלי משאב. '
-                    'ייתכן שחלקם אינם שגיאות JavaScript אמיתיות.</p>')
-        table = (
-            '<div class="table-wrap diagnostic-table"><table><thead><tr>'
-            '<th>טביעה</th><th>סוג</th><th>הודעה</th><th>קובץ</th><th>מקור</th>'
-            '<th>שורה:עמודה</th><th>עמוד באתר</th><th>קטלוג</th><th>גרסה</th><th>כמות</th>'
-            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
-        )
-        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{note}{callout}{table}</section>'
 
     def diagnostic_coverage_note(section_rows: list[dict[str, Any]], total: float) -> str:
         covered = sum(numeric_value(row.get("count")) for row in section_rows)
@@ -911,21 +1297,55 @@ def write_html_report(
             return ""
         omitted = max(0.0, total - covered)
         if omitted <= 0:
-            return f'<p class="section-note">הפירוט מכסה את כל {html.escape(format_count(total))} האירועים.</p>'
-        return (
-            '<p class="section-note">'
-            f'הפירוט מכסה {html.escape(format_count(covered))} מתוך {html.escape(format_count(total))} אירועים; '
-            f'{html.escape(format_count(omitted))} אירועים נוספים הושמטו בגלל מגבלת מספר הקבוצות בדוח.'
-            '</p>'
+            return section_note(f"הפירוט מכסה את כל {format_count(total)} האירועים.")
+        return section_note(
+            f"הפירוט מכסה {format_count(covered)} מתוך {format_count(total)} אירועים; "
+            f"{format_count(omitted)} הושמטו בשל מגבלת מספר הקבוצות בדוח."
         )
+
+    def js_error_table(section: str, section_rows: list[dict[str, Any]]) -> str:
+        title = SECTION_TITLES_HE[section]
+        if not section_rows:
+            return empty_section(title)
+        table_rows = []
+        for row in section_rows:
+            catalog_id = str(row.get("catalog_id") or "")
+            location = ":".join(
+                value for value in (str(row.get("line") or ""), str(row.get("column") or "")) if value
+            ) or "—"
+            table_rows.append(
+                "<tr>"
+                f'<td><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("error_name") or "—"))}</td>'
+                f'<td class="message">{html.escape(str(row.get("message") or "—"))}</td>'
+                f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
+                f'<td>{html.escape(str(row.get("source_scope") or "—"))}</td>'
+                f'<td class="number">{html.escape(location)}</td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
+                f'<td>{html.escape(catalog_titles.get(catalog_id, catalog_id) or "—")}</td>'
+                f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code></td>'
+                f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
+                "</tr>"
+            )
+        note = section_note(
+            "נתונים היסטוריים ללא release עשויים לערבב ErrorEvent וכשלי משאב.",
+            warning=section == "js_error_legacy",
+        ) if section == "js_error_legacy" else ""
+        body = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr><th>טביעה</th><th>סוג</th>'
+            '<th>הודעה</th><th>קובץ</th><th>מקור</th><th>שורה:עמודה</th><th>עמוד</th>'
+            '<th>קטלוג</th><th>גרסה</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{note}{body}</section>'
 
     def resource_summary_table(section_rows: list[dict[str, Any]]) -> str:
         title = SECTION_TITLES_HE["resource_summary"]
         if not section_rows:
             return empty_section(title)
-        rows_html = []
+        table_rows = []
         for row in section_rows:
-            rows_html.append(
+            table_rows.append(
                 "<tr>"
                 f'<td>{html.escape(str(row.get("source_scope") or "—"))}</td>'
                 f'<td>{html.escape(str(row.get("resource_tag") or "—"))}</td>'
@@ -934,26 +1354,22 @@ def write_html_report(
                 f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
                 "</tr>"
             )
-        note = (
-            '<p class="section-note">cloudflare-observability הוא Beacon אופציונלי של Cloudflare. '
-            'חסימתו בידי סינון או חוסם מעקב אינה מעידה שמעטפת האתר נשברה.</p>'
+        body = (
+            '<div class="table-wrap"><table><thead><tr><th>ספק / תחום</th><th>תג</th>'
+            '<th>תפקיד</th><th>קובץ</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
         )
-        table = (
-            '<div class="table-wrap"><table><thead><tr>'
-            '<th>ספק / תחום אחריות</th><th>תג</th><th>תפקיד</th><th>קובץ</th><th>כמות</th>'
-            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
-        )
-        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{note}{table}</section>'
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
 
     def resource_error_table(section_rows: list[dict[str, Any]]) -> str:
         title = SECTION_TITLES_HE["resource_error"]
         if not section_rows:
             return empty_section(title)
-        rows_html = []
+        table_rows = []
         for row in section_rows:
-            rows_html.append(
+            table_rows.append(
                 "<tr>"
-                f'<td class="number"><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
+                f'<td><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
                 f'<td>{html.escape(str(row.get("resource_tag") or "—"))}</td>'
                 f'<td>{html.escape(str(row.get("resource_role") or "—"))}</td>'
                 f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
@@ -963,24 +1379,23 @@ def write_html_report(
                 f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
                 "</tr>"
             )
-        table = (
-            '<div class="table-wrap diagnostic-table"><table><thead><tr>'
-            '<th>טביעה</th><th>תג</th><th>תפקיד משאב</th><th>קובץ</th><th>מקור</th>'
-            '<th>עמוד באתר</th><th>גרסה</th><th>כמות</th>'
-            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+        body = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr><th>טביעה</th><th>תג</th>'
+            '<th>תפקיד</th><th>קובץ</th><th>מקור</th><th>עמוד</th><th>גרסה</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
         )
         coverage = diagnostic_coverage_note(section_rows, event_counts.get("resource_error", 0))
-        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{coverage}{table}</section>'
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{coverage}{body}</section>'
 
     def search_index_error_table(section_rows: list[dict[str, Any]]) -> str:
         title = SECTION_TITLES_HE["search_index_error"]
         if not section_rows:
             return empty_section(title)
-        rows_html = []
+        table_rows = []
         for row in section_rows:
-            rows_html.append(
+            table_rows.append(
                 "<tr>"
-                f'<td class="number"><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
+                f'<td><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
                 f'<td>{html.escape(str(row.get("failure_reason") or "—"))}</td>'
                 f'<td>{html.escape(str(row.get("load_trigger") or "—"))}</td>'
                 f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
@@ -990,47 +1405,37 @@ def write_html_report(
                 f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
                 "</tr>"
             )
-        table = (
-            '<div class="table-wrap diagnostic-table"><table><thead><tr>'
-            '<th>טביעה</th><th>סיבת כשל</th><th>יוזם טעינה</th><th>קובץ</th><th>מקור</th>'
-            '<th>עמוד באתר</th><th>גרסה</th><th>כמות</th>'
-            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+        body = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr><th>טביעה</th><th>סיבה</th>'
+            '<th>יוזם</th><th>קובץ</th><th>מקור</th><th>עמוד</th><th>גרסה</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
         )
-        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{table}</section>'
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{body}</section>'
 
     def image_event_table(section: str, section_rows: list[dict[str, Any]]) -> str:
         title = SECTION_TITLES_HE[section]
         if not section_rows:
             return empty_section(title)
-        rows_html = []
+        table_rows = []
         for row in section_rows:
             catalog_id = str(row.get("catalog_id") or "")
-            catalog_title = catalog_titles.get(catalog_id, catalog_id) or "—"
-            rows_html.append(
+            table_rows.append(
                 "<tr>"
-                f'<td class="number"><code>{html.escape(str(row.get("fingerprint") or "היסטורי — ללא טביעה"))}</code></td>'
-                f'<td>{html.escape(catalog_title)}</td>'
+                f'<td><code>{html.escape(str(row.get("request_id") or "ללא correlation היסטורי"))}</code></td>'
+                f'<td><code>{html.escape(str(row.get("fingerprint") or "—"))}</code></td>'
+                f'<td>{html.escape(catalog_titles.get(catalog_id, catalog_id) or "—")}</td>'
                 f'<td class="number">{html.escape(format_count(row.get("page_number"))) if numeric_value(row.get("page_number")) else "—"}</td>'
+                f'<td><code>{html.escape(str(row.get("surface") or "unknown-surface"))}</code></td>'
+                f'<td>{html.escape(visibility_labels.get(str(row.get("visibility") or "unknown"), str(row.get("visibility") or "unknown")))}</td>'
                 f'<td>{html.escape(str(row.get("failure_stage") or "—"))}</td>'
                 f'<td>{html.escape(str(row.get("outcome_action") or "—"))}</td>'
                 f'<td class="number">{html.escape(format_count(row.get("attempt_count"))) if numeric_value(row.get("attempt_count")) else "—"}</td>'
-                f'<td><code>{html.escape(str(row.get("source") or "—"))}</code></td>'
                 f'<td>{html.escape(str(row.get("viewport") or "—"))}</td>'
-                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("path") or ""))}</small></td>'
+                f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("route") or row.get("path") or ""))}</small></td>'
                 f'<td><code>{html.escape(str(row.get("release_id") or "legacy"))}</code></td>'
                 f'<td class="number strong">{html.escape(format_count(row.get("count")))}</td>'
                 "</tr>"
             )
-        note = ""
-        if section == "image_legacy":
-            note = ('<p class="section-note">נתונים שנאספו לפני שדרוג הסיווג. '
-                    'לא ניתן לקבוע מהם אם התמונה התאוששה או נכשלה סופית.</p>')
-        table = (
-            '<div class="table-wrap diagnostic-table"><table><thead><tr>'
-            '<th>טביעה</th><th>קטלוג</th><th>עמוד</th><th>שלב</th><th>תוצאה</th>'
-            '<th>ניסיונות</th><th>קובץ</th><th>מסך</th><th>עמוד באתר</th><th>גרסה</th><th>כמות</th>'
-            f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
-        )
         event_name = {
             "image_attempt": "image_attempt_failed",
             "image_recovered": "image_recovered",
@@ -1038,12 +1443,22 @@ def write_html_report(
             "image_legacy": "image_error",
         }[section]
         coverage = diagnostic_coverage_note(section_rows, event_counts.get(event_name, 0))
-        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{note}{coverage}{table}</section>'
+        body = (
+            '<div class="table-wrap diagnostic-table"><table><thead><tr><th>Request ID</th><th>טביעה</th>'
+            '<th>קטלוג</th><th>עמוד</th><th>משטח</th><th>נראות</th><th>שלב</th><th>תוצאה</th>'
+            '<th>ניסיונות</th><th>מסך</th><th>עמוד / מסלול</th><th>גרסה</th><th>כמות</th>'
+            f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
+        )
+        return f'<section class="report-section"><h2>{html.escape(title)}</h2>{coverage}{body}</section>'
 
     sections_html = "".join([
         trend_table(grouped.get("trend", [])),
+        release_table(release_rows),
         rum_table(grouped.get("rum", [])),
-        section_table("release", grouped.get("release", [])),
+        rum_cohort_table(grouped.get("rum_cohort", [])),
+        reliability_table(grouped.get("reliability", [])),
+        image_outcome_table(grouped.get("image_outcome", [])),
+        session_cohort_table(grouped.get("session_cohort", [])),
         *(section_table(section, grouped.get(section, [])) for section in ("catalog", "search", "contact", "favorite")),
         js_error_table("js_error", grouped.get("js_error", [])),
         js_error_table("js_error_legacy", grouped.get("js_error_legacy", [])),
@@ -1064,18 +1479,18 @@ def write_html_report(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>דוח פעילות אתר רהיטי ברגיג</title>
   <style>
-    :root {{ color-scheme: light; --ink:#172033; --muted:#667085; --line:#d9e0ea; --panel:#fff; --soft:#f4f7fb; --accent:#335f93; }}
+    :root {{ color-scheme:light; --ink:#172033; --muted:#667085; --line:#d9e0ea; --panel:#fff; --soft:#f4f7fb; --accent:#335f93; }}
     * {{ box-sizing:border-box; }}
     body {{ margin:0; background:#edf2f7; color:var(--ink); font-family:Arial,"Segoe UI",sans-serif; line-height:1.55; }}
-    main {{ width:min(1120px,calc(100% - 32px)); margin:32px auto; }}
+    main {{ width:min(1320px,calc(100% - 32px)); margin:32px auto; }}
     .hero {{ background:linear-gradient(135deg,#173a63,#315f93); color:#fff; border-radius:22px; padding:28px 30px; box-shadow:0 18px 45px rgba(28,57,91,.18); }}
     .hero h1 {{ margin:0 0 6px; font-size:clamp(1.55rem,3vw,2.35rem); }}
     .hero p {{ margin:0; opacity:.88; }}
-    .summary {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:14px; margin:18px 0; }}
+    .summary {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin:18px 0; }}
     .summary-card,.report-section {{ background:var(--panel); border:1px solid var(--line); border-radius:18px; box-shadow:0 10px 28px rgba(35,55,78,.08); }}
     .summary-card {{ padding:18px; min-height:126px; display:flex; flex-direction:column; justify-content:center; }}
     .summary-label {{ color:var(--muted); font-weight:700; }}
-    .summary-card strong {{ font-size:2rem; line-height:1.2; margin:4px 0; direction:ltr; text-align:right; }}
+    .summary-card strong {{ font-size:1.55rem; line-height:1.25; margin:4px 0; direction:ltr; text-align:right; overflow-wrap:anywhere; }}
     .summary-card small {{ color:var(--muted); }}
     .report-section {{ margin:16px 0; padding:20px; }}
     .report-section h2 {{ margin:0 0 14px; font-size:1.15rem; }}
@@ -1090,9 +1505,16 @@ def write_html_report(
     code {{ direction:ltr; unicode-bidi:embed; font-family:Consolas,"Courier New",monospace; font-size:.9em; }}
     td.message {{ min-width:260px; max-width:480px; overflow-wrap:anywhere; }}
     td small {{ color:var(--muted); direction:ltr; unicode-bidi:embed; }}
-    .diagnostic-table table {{ min-width:980px; }}
-    .diagnostic-callout {{ margin:0 0 14px; padding:13px 15px; border:1px solid #b8c8db; border-radius:13px; background:#eef5fd; overflow-wrap:anywhere; }}
+    .diagnostic-table table {{ min-width:1120px; }}
+    .section-note,.warning-callout {{ margin:0 0 14px; padding:12px 14px; border-radius:12px; }}
+    .section-note {{ color:var(--muted); background:var(--soft); }}
+    .warning-callout {{ color:#7a2e0b; background:#fff3e8; border:1px solid #f2c9a7; font-weight:700; }}
+    .badge {{ display:inline-block; margin-top:4px; padding:2px 8px; border-radius:999px; font-size:.78rem; font-weight:800; background:#eef2f6; }}
+    .badge-current {{ color:#05603a; background:#ddf7e9; }}
+    .badge-historical {{ color:#344054; background:#eef2f6; }}
+    .badge-fallback,.badge-unknown,.badge-legacy {{ color:#8a3b12; background:#fff0e5; }}
     .empty {{ color:var(--muted); background:var(--soft); border-radius:12px; padding:16px; }}
+    .trend-up {{ color:#067647; }} .trend-down {{ color:#b42318; }} .trend-flat {{ color:var(--muted); }}
     footer {{ color:var(--muted); text-align:center; padding:18px 0 5px; font-size:.9rem; }}
     @media print {{ body {{ background:#fff; }} main {{ width:100%; margin:0; }} .hero,.summary-card,.report-section {{ box-shadow:none; }} }}
   </style>
@@ -1105,13 +1527,12 @@ def write_html_report(
     </header>
     <section class="summary" aria-label="סיכום">{summary_cards}</section>
     {sections_html}
-    <footer>הדוח מכיל נתונים מצטברים בלבד ואינו כולל מזהה משתמש קבוע.</footer>
+    <footer>הדוח מכיל נתונים מצטברים והקשרים גסים בלבד; אינו כולל מזהה משתמש קבוע, selector חופשי או URL תמונה מלא.</footer>
   </main>
 </body>
 </html>
 """
     output_path.write_text(document, encoding="utf-8")
-
 
 def create_report_files(
     rows: list[dict[str, Any]],
@@ -1218,6 +1639,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         choices=("html", "csv", "json"),
         help="Output format. Repeat for multiple formats. Default: HTML and CSV.",
     )
+    parser.add_argument(
+        "--current-release",
+        default="",
+        help=(
+            "Current production release id (deploy-<16 hex>). Falls back to "
+            "BARGIG_CURRENT_RELEASE_ID or the newest local deploy build-state file."
+        ),
+    )
     parser.add_argument("--open", action="store_true", help="Open the generated HTML report after writing it.")
     parser.add_argument("--console", action="store_true", help="Also print the legacy plain-text report.")
     parser.add_argument("--json", action="store_true", help="Legacy mode: print normalized rows as JSON to stdout.")
@@ -1240,7 +1669,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 file=sys.stderr,
             )
         account_id, api_token, dataset = settings(env_file)
-        rows = fetch_report_rows(account_id, api_token, dataset, days)
+        current_release_id = configured_current_release_id(env_file, args.current_release)
+        rows = fetch_report_rows(
+            account_id, api_token, dataset, days, current_release_id=current_release_id
+        )
         if args.json:
             print(json.dumps(rows, ensure_ascii=False, indent=2))
             return 0

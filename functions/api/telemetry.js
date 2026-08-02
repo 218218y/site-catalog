@@ -7,6 +7,7 @@
  */
 
 const ALLOWED_EVENTS = new Set([
+  "app_session",
   "catalog_open",
   "search",
   "favorite",
@@ -22,7 +23,9 @@ const ALLOWED_EVENTS = new Set([
 ]);
 const ALLOWED_HOSTS = new Set(["bargig-furniture.com", "www.bargig-furniture.com"]);
 const ALLOWED_VIEWPORTS = new Set(["xs", "sm", "md", "lg", "xl"]);
+const ALLOWED_VISIBILITY = new Set(["visible", "hidden", "preload", "background", "unknown"]);
 const RELEASE_ID_RE = /^(?:deploy-[a-f0-9]{16}|app-[a-f0-9]{8,16}|app-unversioned|unknown-release)$/i;
+const REQUEST_ID_RE = /^ir-[a-z0-9-]{8,45}$/i;
 const MAX_BODY_BYTES = 32 * 1024;
 const MAX_EVENTS = 20;
 
@@ -43,6 +46,25 @@ function cleanNumber(value, min = 0, max = 86_400_000) {
 function cleanViewport(value) {
   const viewport = cleanText(value, 12).toLowerCase();
   return ALLOWED_VIEWPORTS.has(viewport) ? viewport : "";
+}
+
+function cleanToken(value, limit = 50) {
+  return cleanText(value, limit)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-")
+    .slice(0, limit);
+}
+
+function cleanVisibility(value) {
+  const visibility = cleanToken(value, 20);
+  return ALLOWED_VISIBILITY.has(visibility) ? visibility : "unknown";
+}
+
+function cleanRequestId(value) {
+  const requestId = cleanToken(value, 48);
+  return REQUEST_ID_RE.test(requestId) ? requestId : "";
 }
 
 function cleanReleaseId(value) {
@@ -99,7 +121,11 @@ function normalizeEvent(raw) {
     durationMs: cleanNumber(raw.durationMs),
     pageNumber: cleanNumber(raw.pageNumber, 0, 100_000),
     secondaryValue: cleanNumber(raw.secondaryValue, -1_000_000, 1_000_000),
-    releaseId: cleanReleaseId(raw.releaseId)
+    releaseId: cleanReleaseId(raw.releaseId),
+    component: cleanToken(raw.component, 50),
+    surface: cleanToken(raw.surface, 50),
+    requestId: cleanRequestId(raw.requestId),
+    visibility: cleanVisibility(raw.visibility)
   };
 }
 
@@ -119,7 +145,11 @@ function writeEvent(dataset, event, hostname, batchIndex) {
       event.viewport,
       event.source,
       hostname,
-      event.releaseId
+      event.releaseId,
+      event.component,
+      event.surface,
+      event.requestId,
+      event.visibility
     ],
     doubles: [
       event.value,
@@ -171,7 +201,7 @@ export async function onRequestPost(context) {
     return jsonResponse({ ok: false, error: "invalid-json" }, 400);
   }
 
-  if (![1, 2].includes(payload?.version) || !Array.isArray(payload.events)) {
+  if (![1, 2, 3].includes(payload?.version) || !Array.isArray(payload.events)) {
     return jsonResponse({ ok: false, error: "invalid-schema" }, 400);
   }
 

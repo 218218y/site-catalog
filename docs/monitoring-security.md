@@ -26,6 +26,7 @@ bundle.
 
 | Event | Purpose | Main fields |
 |---|---|---|
+| `app_session` | Real denominator for rates and release cohorts | deployment, page, route, viewport, navigation type |
 | `catalog_open` | Catalog interest | catalog, page number, source |
 | `search` | Completed-search quality | query, scope, result count, submit/result-open |
 | `favorite` | Feature usage | add/remove/clear, catalog/page, count |
@@ -33,13 +34,13 @@ bundle.
 | `js_error` | Runtime stability | coarse error name/message fingerprint, file, line, deployment ID |
 | `resource_error` | Non-image resource loading | provider scope, tag, role, coarse filename, deployment ID |
 | `search_index_load_failed` | Search bootstrap failures | reason, trigger, source scope, deployment ID |
-| `image_attempt_failed` | One failed catalog-image attempt | catalog/page, role, attempt number |
-| `image_recovered` | Catalog image recovered after retry/fallback | catalog/page, successful role, failed-attempt count |
-| `image_terminal_failure` | Catalog image exhausted its managed recovery path | catalog/page, final role, failed-attempt count |
+| `image_attempt_failed` | One failed catalog-image attempt | frozen request ID, catalog/page, surface, visibility, role, attempt number |
+| `image_recovered` | Catalog image recovered after retry/fallback | same frozen request context, successful role, failed-attempt count |
+| `image_terminal_failure` | Catalog image exhausted its managed recovery path | same frozen request context, final role, failed-attempt count |
 | `image_error` | Historical pre-classification image failures | catalog/page, image role |
-| `web_vital` | Coarse real-user LCP/INP/CLS quality | metric name, rating, numeric value |
+| `web_vital` | Coarse real-user LCP/INP/CLS quality | metric name, rating, numeric value, allowlisted component token for LCP/CLS |
 
-Each request receives a random, short-lived batch key used only as the Analytics Engine sampling index; it is not reused across requests and cannot identify a visitor.
+Each ingestion request receives a random, short-lived batch key used only as the Analytics Engine sampling index. Each managed image lifecycle receives a separate random request ID that is reused only across its attempt/recovery/terminal events. Neither value persists across page loads or identifies a visitor. Component values come from a closed token map or an explicit sanitized `data-telemetry-component`; arbitrary selectors, HTML, and DOM text are not sent.
 
 The implementation deliberately does **not** read or store cookies, IP address,
 User-Agent, full referrer, email address, phone number, error stack, or a
@@ -82,8 +83,10 @@ is available to the Function.
 2. Copy `telemetry.env.example` to a file named exactly `telemetry.env`.
    If an archive or RTL-aware file manager adds hidden direction marks to the
    filename, the report detects one unambiguous copy and asks you to rename it.
-3. Fill in the account ID and token. `telemetry.env` is ignored by Git and must
-   never be uploaded.
+3. Fill in the account ID and token. Also set `BARGIG_CURRENT_RELEASE_ID` to the exact
+   current production `deploy-...` identifier when available. The tool may use a local deploy
+   build-state file, but it does not infer the current release from traffic rows.
+   `telemetry.env` is ignored by Git and must never be uploaded.
 4. Run:
 
 ```bat
@@ -96,19 +99,22 @@ or:
 npm run telemetry:report -- 30
 ```
 
-The report shows event totals, deployment activity based on catalog opens, opened catalogs,
-completed searches/no-result searches, contact and favorite actions, provider-level resource
-failures, and runtime/image diagnostics. Typing prefixes are not reported; a search event is
-emitted only after Enter/submit or after opening a result. The first-party report derives its
-LCP/INP/CLS table from `web_vital` events; Cloudflare Web Analytics remains an independent optional
-dashboard. The SQL API is called once per report section with a single supported
-`SELECT`; the Python tool merges the normalized rows locally instead of using `UNION ALL` or a
-CTE. The current report performs 17 bounded SQL reads. Each query uses Analytics Engine's
-`_sample_interval`, so sampled event counts remain correct.
+The report shows event totals, application-session denominators, current/historical/fallback
+release cohorts, opened catalogs, completed searches/no-result searches, contact and favorite
+actions, provider-level resource failures, and runtime/image diagnostics. RUM is grouped by
+release, app page, route, viewport, and component; reliability is expressed per 1,000 matching
+sessions. Image outcomes distinguish visible failures from hidden/preload/background work and
+preserve one request correlation across the complete recovery lifecycle. Typing prefixes are not
+reported; a search event is emitted only after Enter/submit or after opening a result. The SQL API
+is called once per report section with a single supported `SELECT`; the Python tool merges the
+normalized rows locally instead of using `UNION ALL` or a CTE. The current report performs 21
+bounded SQL reads. Each query uses Analytics Engine's `_sample_interval`, so sampled event counts
+remain correct.
 Error rows are grouped only by physical Analytics Engine columns (`blob1`, `blob9`);
 the readable fallback label is derived locally because Analytics Engine does not
 allow expressions inside `GROUP BY`.
-Use `--json` for machine-readable output.
+Use `--format json` for an archived machine-readable file, `--json` for the legacy stdout mode,
+or `--current-release deploy-...` to override the configured current production release.
 
 Analytics Engine is intended for aggregated operational analytics rather than a
 per-user event log. Cloudflare currently retains Analytics Engine data for
@@ -238,8 +244,9 @@ and does not contain a persistent visitor identifier.
 The monitoring scope planned for the public rollout is complete:
 
 - Cloudflare Web Analytics may provide an independent visits/RUM dashboard when its beacon is not blocked;
-- catalog opens, completed searches/no-result searches, favorites, contact intent,
-  LCP/INP/CLS, JavaScript errors, resource failures, and image lifecycle events are covered by first-party telemetry;
+- application-session denominators, release cohorts, catalog opens, completed searches/no-result searches,
+  favorites, contact intent, component-attributed LCP/CLS, INP, JavaScript errors, resource failures,
+  and correlated image lifecycle events are covered by first-party telemetry;
 - duplicate page-view and page-load events are not sent to Analytics Engine;
 - reports can be archived as HTML/CSV;
 - the ingestion endpoint validates a strict schema and remains non-blocking if

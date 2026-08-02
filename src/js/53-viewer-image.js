@@ -204,6 +204,8 @@ function prepareSingleViewerResolutionUpgrade(catalog, page, request, options = 
       && viewerImageState.singleImageResolutionTargetSrc === targetSrc
     ),
     telemetryDetail: "viewer-resolution-upgrade",
+    telemetrySurface: "viewer-resolution-upgrade",
+    telemetryVisibility: "background",
     onSuccess: /** @param {CatalogImageCandidate} candidate */ (candidate) => {
       const finishReady = () => {
         if (token !== viewerImageState.singleImageResolutionLoadToken || !image.naturalWidth) return;
@@ -320,6 +322,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
       forceRefresh: Boolean(options.forceRefresh),
       isCurrent: requestIsCurrent,
       telemetryDetail: "viewer-single",
+      telemetrySurface: "viewer-stage",
       onSuccess: /** @param {CatalogImageCandidate} candidate */ (candidate) => {
         delete image.dataset.placeholderIgnore;
         const loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL;
@@ -356,7 +359,12 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
     // Decode the target in a detached image first. Only then replace the visible
     // image source, so even browsers that clear an <img> during a src change can
     // reuse a decoded resource instead of exposing the viewer background.
-    prepareCatalogImage(primarySrc, { priority: "high", detail: "viewer-page-stage" })
+    prepareCatalogImage(primarySrc, {
+      priority: "high",
+      detail: "viewer-page-stage",
+      surface: "viewer-stage-buffer",
+      visibility: "background"
+    })
       .catch(() => null)
       .then(commitImageRequest);
   } else {
@@ -490,7 +498,12 @@ function preloadNeighbors() {
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
         const entry = entries[index];
-        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, requestOptions), { priority: "low" }).catch(() => {});
+        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, requestOptions), {
+          priority: "low",
+          detail: "viewer-neighbor-preload",
+          surface: "viewer-favorites-neighbor-preload",
+          visibility: "preload"
+        }).catch(() => {});
       });
     return;
   }
@@ -502,7 +515,12 @@ function preloadNeighbors() {
   ))
     .filter((page) => page >= catalogFirstPage(catalog) && page <= catalogLastPage(catalog))
     .forEach((page) => {
-      prepareCatalogImage(viewerPageSrc(catalog, page, requestOptions), { priority: "low" }).catch(() => {});
+      prepareCatalogImage(viewerPageSrc(catalog, page, requestOptions), {
+        priority: "low",
+        detail: "viewer-neighbor-preload",
+        surface: "viewer-neighbor-preload",
+        visibility: "preload"
+      }).catch(() => {});
     });
 }
 

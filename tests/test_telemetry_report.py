@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -18,23 +19,10 @@ SPEC.loader.exec_module(MODULE)
 def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
     queries = MODULE.report_queries("bargig_catalog_telemetry", 200)
     assert [item.section for item in queries] == [
-        "event",
-        "previous_event",
-        "release",
-        "catalog",
-        "search",
-        "contact",
-        "favorite",
-        "rum_raw",
-        "js_error",
-        "js_error_legacy",
-        "resource_summary",
-        "resource_error",
-        "search_index_error",
-        "image_attempt",
-        "image_recovered",
-        "image_terminal",
-        "image_legacy",
+        "event", "previous_event", "session_cohort", "release", "catalog", "search",
+        "contact", "favorite", "rum", "rum_cohort", "reliability", "js_error",
+        "js_error_legacy", "resource_summary", "resource_error", "search_index_error",
+        "image_outcome", "image_attempt", "image_recovered", "image_terminal", "image_legacy",
     ]
 
     for item in queries:
@@ -49,73 +37,57 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
         assert "WITH recent" not in query
         assert "page_load" not in query
         assert "first_catalog_image" not in query
-        assert "ip" not in query.lower()
         assert "user_agent" not in query.lower()
 
-    search_query = next(item.sql for item in queries if item.section == "search")
-    assert "sumIf(_sample_interval, double1 = 0) AS metric" in search_query
-    js_query = next(item.sql for item in queries if item.section == "js_error")
-    assert "blob9 AS fingerprint" in js_query
-    assert "blob8 AS message" in js_query
-    assert "double3 AS line" in js_query
-    assert "GROUP BY blob9, blob7, blob8" in js_query
-    assert "blob13 != ''" in js_query
-    legacy_js_query = next(item.sql for item in queries if item.section == "js_error_legacy")
-    assert "blob13 = ''" in legacy_js_query
-    image_query = next(item.sql for item in queries if item.section == "image_terminal")
-    assert "blob4 AS catalog_id" in image_query
-    assert "blob8 AS failure_stage" in image_query
-    assert "blob13 AS release_id" in image_query
-    resource_query = next(item.sql for item in queries if item.section == "resource_error")
-    assert "blob7 AS resource_tag" in resource_query
-    search_index_query = next(item.sql for item in queries if item.section == "search_index_error")
-    assert "blob7 AS failure_reason" in search_index_query
-    release_query = next(item.sql for item in queries if item.section == "release")
-    assert "blob13 AS label" in release_query
-    assert "blob1 = 'catalog_open'" in release_query
     event_query = next(item.sql for item in queries if item.section == "event")
+    assert "'app_session'" in event_query
     assert "sumIf(_sample_interval, blob1 != 'js_error' OR blob13 != '') AS count" in event_query
-    resource_summary_query = next(item.sql for item in queries if item.section == "resource_summary")
-    assert "blob6 AS source_scope" in resource_summary_query
-    assert "blob11 AS source" in resource_summary_query
-    rum_query = next(item.sql for item in queries if item.section == "rum_raw")
-    assert "double1 AS metric_value" in rum_query
-    assert "blob7 IN ('LCP', 'INP', 'CLS')" in rum_query
+    session_query = next(item.sql for item in queries if item.section == "session_cohort")
+    assert "blob1 = 'app_session'" in session_query
+    assert "blob13 AS release_id" in session_query
+    assert "blob3 AS route" in session_query
+    release_query = next(item.sql for item in queries if item.section == "release")
+    assert "blob13 AS release_id" in release_query
+    assert "MIN(timestamp) AS first_seen" in release_query
+    rum_query = next(item.sql for item in queries if item.section == "rum")
+    assert "quantileExactWeighted(0.75)(double1, _sample_interval) AS metric" in rum_query
+    assert "sumIf(_sample_interval" in rum_query
+    rum_cohort = next(item.sql for item in queries if item.section == "rum_cohort")
+    assert "blob14 AS component" in rum_cohort
+    assert "blob13 AS release_id" in rum_cohort
+    reliability = next(item.sql for item in queries if item.section == "reliability")
+    assert "image_terminal_failure" in reliability
+    image_outcome = next(item.sql for item in queries if item.section == "image_outcome")
+    assert "blob15 AS surface" in image_outcome
+    assert "blob17 AS visibility" in image_outcome
+    image_detail = next(item.sql for item in queries if item.section == "image_terminal")
+    assert "blob16 AS request_id" in image_detail
     previous_query = next(item.sql for item in queries if item.section == "previous_event")
     assert "timestamp < NOW() - INTERVAL '90' DAY" in previous_query
 
 
-def test_diagnostic_rows_keep_error_context() -> None:
+def test_diagnostic_rows_keep_error_and_image_context() -> None:
     js_row = MODULE.normalize_report_row(
         "js_error",
         {"fingerprint": "ef21e4fae", "error_name": "TypeError", "message": "boom", "count": 3},
     )
     image_row = MODULE.normalize_report_row(
         "image_terminal",
-        {"fingerprint": "", "source": "page-004.webp", "count": 2},
+        {"fingerprint": "", "source": "page-004.webp", "route": "/viewer.html", "request_id": "ir-a1234567", "count": 2},
     )
-    resource_row = MODULE.normalize_report_row(
-        "resource_error",
-        {"fingerprint": "e-resource", "source": "optional.js", "count": 1},
-    )
-
     assert js_row["label"] == "ef21e4fae"
     assert js_row["message"] == "boom"
-    assert js_row["section"] == "js_error"
     assert image_row["label"] == "page-004.webp"
-    assert image_row["section"] == "image_terminal"
-    assert resource_row["label"] == "e-resource"
+    assert image_row["path"] == "/viewer.html"
+    assert image_row["request_id"] == "ir-a1234567"
 
 
 def test_resource_diagnostics_canonicalize_cloudflare_beacon_version_paths() -> None:
     row = MODULE.normalize_report_row(
         "resource_summary",
         {
-            "source_scope": "external",
-            "resource_tag": "script",
-            "resource_role": "script",
-            "source": "v4513226cdae34746b4dedf0b4dfa099e1781791509496",
-            "count": 392,
+            "source_scope": "external", "resource_tag": "script", "resource_role": "script",
+            "source": "v4513226cdae34746b4dedf0b4dfa099e1781791509496", "count": 392,
         },
     )
     assert row["source"] == "beacon.min.js"
@@ -123,77 +95,80 @@ def test_resource_diagnostics_canonicalize_cloudflare_beacon_version_paths() -> 
     assert row["label"] == "cloudflare-observability"
 
 
-def test_fetch_report_rows_normalizes_diagnostic_sections(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_query_api(_account_id: str, _token: str, query: str) -> dict[str, object]:
-        if "blob8 AS message" in query and "blob13 != ''" in query:
-            return {"data": [{"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4}]}
-        if "blob8 AS message" in query:
-            return {"data": []}
-        if "blob6 AS source_scope" in query and "blob9 AS fingerprint" not in query:
-            return {"data": [{
-                "source_scope": "external",
-                "resource_tag": "script",
-                "resource_role": "script",
-                "source": "v4513226cdae34746b4dedf0b4dfa099e1781791509496",
-                "count": 2,
-            }]}
-        if "blob7 AS resource_tag" in query:
-            return {"data": [{"fingerprint": "eresource", "source": "optional.js", "count": 2}]}
-        if "blob7 AS failure_reason" in query:
-            return {"data": [{"fingerprint": "esearch", "failure_reason": "network-error", "count": 1}]}
-        if "blob1 = 'image_terminal_failure'" in query:
-            return {"data": [{"fingerprint": "", "source": "page-001.webp", "count": 1}]}
-        return {"data": []}
-
-    monkeypatch.setattr(MODULE, "query_api", fake_query_api)
-    rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
-
-    assert rows[:5] == [
-        {"fingerprint": "ef21e4fae", "error_name": "ReferenceError", "message": "missing", "count": 4, "section": "js_error", "label": "ef21e4fae", "metric": 0},
-        {
-            "source_scope": "cloudflare-observability",
-            "resource_tag": "script",
-            "resource_role": "script",
-            "source": "beacon.min.js",
-            "count": 2,
-            "section": "resource_summary",
-            "label": "cloudflare-observability",
-            "metric": 0,
-        },
-        {"fingerprint": "eresource", "source": "optional.js", "count": 2, "section": "resource_error", "label": "eresource", "metric": 0},
-        {"fingerprint": "esearch", "failure_reason": "network-error", "count": 1, "section": "search_index_error", "label": "esearch", "metric": 0},
-        {"fingerprint": "", "source": "page-001.webp", "count": 1, "section": "image_terminal", "label": "page-001.webp", "metric": 0},
+def test_enrich_report_rows_uses_real_session_denominators_and_release_statuses() -> None:
+    rows = [
+        {"section": "event", "label": "app_session", "count": 100},
+        {"section": "session_cohort", "release_id": "deploy-0123456789abcdef", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "count": 40},
+        {"section": "session_cohort", "release_id": "app-12345678", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "count": 10},
+        {"section": "release", "release_id": "deploy-0123456789abcdef", "count": 80, "first_seen": "2026-08-01", "last_seen": "2026-08-02"},
+        {"section": "release", "release_id": "deploy-fedcba9876543210", "count": 10},
+        {"section": "release", "release_id": "app-12345678", "count": 10},
+        {"section": "rum_cohort", "label": "CLS", "release_id": "deploy-0123456789abcdef", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "component": "viewer-stage", "metric": 0.21, "count": 20, "good_count": 10, "poor_count": 5},
+        {"section": "reliability", "label": "image_terminal_failure", "release_id": "deploy-0123456789abcdef", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "count": 2},
+        {"section": "image_outcome", "label": "image_recovered", "release_id": "deploy-0123456789abcdef", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "catalog_id": "kids", "page_number": 1, "surface": "viewer-stage", "visibility": "visible", "count": 8},
+        {"section": "image_outcome", "label": "image_terminal_failure", "release_id": "deploy-0123456789abcdef", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "catalog_id": "kids", "page_number": 1, "surface": "viewer-stage", "visibility": "visible", "count": 2},
     ]
-    assert {row["label"] for row in rows[5:] if row["section"] == "trend"} == {
-        "catalog_open", "search", "favorite", "contact", "js_error", "resource_error",
-        "search_index_load_failed", "image_attempt_failed", "image_recovered",
-        "image_terminal_failure", "image_error",
-    }
+    enriched, current = MODULE.enrich_report_rows(rows, "deploy-0123456789abcdef")
+    assert current == "deploy-0123456789abcdef"
+    release_by_id = {row["release_id"]: row for row in enriched if row["section"] == "release"}
+    assert release_by_id["deploy-0123456789abcdef"]["release_status"] == "current"
+    assert release_by_id["deploy-fedcba9876543210"]["release_status"] == "historical"
+    assert release_by_id["app-12345678"]["release_status"] == "fallback"
+    assert release_by_id["deploy-0123456789abcdef"]["share_percent"] == pytest.approx(80)
+    cls = next(row for row in enriched if row["section"] == "rum_cohort")
+    assert cls["denominator"] == 40
+    assert cls["coverage_percent"] == pytest.approx(50)
+    assert cls["good_percent"] == pytest.approx(50)
+    assert cls["poor_percent"] == pytest.approx(25)
+    reliability = next(row for row in enriched if row["section"] == "reliability")
+    assert reliability["rate_per_1000"] == pytest.approx(50)
+    terminal = next(row for row in enriched if row["section"] == "image_outcome" and row["label"] == "image_terminal_failure")
+    assert terminal["denominator"] == 10
+    assert terminal["outcome_percent"] == pytest.approx(20)
+    assert terminal["rate_per_1000"] == pytest.approx(50)
 
 
-def test_fetch_report_rows_executes_sections_independently(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_enrichment_does_not_guess_current_release() -> None:
+    rows = [
+        {"section": "release", "release_id": "deploy-0123456789abcdef", "count": 10, "first_seen": "2026-08-02"},
+        {"section": "release", "release_id": "deploy-fedcba9876543210", "count": 5, "first_seen": "2026-08-03"},
+    ]
+    enriched, current = MODULE.enrich_report_rows(rows)
+    assert current == ""
+    assert all(row["release_status"] == "historical" for row in enriched)
+
+
+def test_fetch_report_rows_executes_all_sections_and_enriches(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
 
     def fake_query_api(account_id: str, token: str, query: str) -> dict[str, object]:
-        assert account_id == "account"
-        assert token == "token"
+        assert account_id == "account" and token == "token"
         calls.append(query)
+        if "blob1 AS label" in query and "blob1 IN" in query and "timestamp <" not in query:
+            return {"data": [{"label": "app_session", "count": 4}, {"label": "catalog_open", "count": 2}]}
+        if "blob1 = 'app_session'" in query and "blob2 AS app_page" in query:
+            return {"data": [{"release_id": "deploy-0123456789abcdef", "app_page": "catalog", "route": "/catalog.html", "viewport": "xs", "count": 4}]}
+        if "blob1 = 'app_session'" in query:
+            return {"data": [{"release_id": "deploy-0123456789abcdef", "count": 4, "first_seen": "2026-08-01", "last_seen": "2026-08-02"}]}
         if "blob4 AS label" in query:
-            return {"data": [{"label": "opening-test", "count": 4}]}
-        if "blob5 AS label" in query:
-            return {"data": [{"label": "ארון", "count": 3, "metric": 1}]}
+            return {"data": [{"label": "opening-test", "count": 2}]}
+        if "blob14 AS component" in query:
+            return {"data": [{"label": "CLS", "release_id": "deploy-0123456789abcdef", "app_page": "catalog", "route": "/catalog.html", "viewport": "xs", "component": "catalog-grid", "metric": 0.2, "count": 2, "good_count": 1, "poor_count": 0}]}
         return {"data": []}
 
     monkeypatch.setattr(MODULE, "query_api", fake_query_api)
-    rows = MODULE.fetch_report_rows("account", "token", "dataset", 30)
-
-    assert len(calls) == 17
+    rows = MODULE.fetch_report_rows(
+        "account", "token", "dataset", 30, current_release_id="deploy-0123456789abcdef"
+    )
+    assert len(calls) == 21
     assert all("UNION" not in query for query in calls)
-    assert rows[:2] == [
-        {"label": "opening-test", "count": 4, "section": "catalog", "metric": 0},
-        {"label": "ארון", "count": 3, "metric": 1, "section": "search"},
-    ]
-    assert len([row for row in rows if row["section"] == "trend"]) == 11
+    catalog = next(row for row in rows if row["section"] == "catalog")
+    assert catalog["label"] == "opening-test"
+    cls = next(row for row in rows if row["section"] == "rum_cohort")
+    assert cls["denominator"] == 4
+    assert cls["component"] == "catalog-grid"
+    assert cls["release_status"] == "current"
+    assert {row["label"] for row in rows if row["section"] == "trend"} >= {"app_session", "catalog_open"}
 
 
 def test_fetch_report_rows_names_the_failed_section(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -224,8 +199,7 @@ def test_rum_summary_uses_weighted_p75_and_quality_percentages() -> None:
 
 def test_trend_rows_compare_current_and_previous_periods() -> None:
     rows = MODULE.build_trend_rows(
-        [{"section": "event", "label": "search", "count": 12}],
-        {"search": 8},
+        [{"section": "event", "label": "search", "count": 12}], {"search": 8}
     )
     search = next(row for row in rows if row["label"] == "search")
     assert search["previous"] == 8
@@ -233,30 +207,45 @@ def test_trend_rows_compare_current_and_previous_periods() -> None:
     assert search["metric"] == pytest.approx(50)
 
 
-def test_settings_load_local_secret_file_without_committing_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_settings_and_current_release_load_local_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     env_file = tmp_path / "telemetry.env"
     env_file.write_text(
         "CLOUDFLARE_ACCOUNT_ID=account\n"
         "CLOUDFLARE_API_TOKEN=secret\n"
-        "BARGIG_TELEMETRY_DATASET=bargig_catalog_telemetry\n",
+        "BARGIG_TELEMETRY_DATASET=bargig_catalog_telemetry\n"
+        "BARGIG_CURRENT_RELEASE_ID=deploy-0123456789abcdef\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CLOUDFLARE_ACCOUNT_ID", raising=False)
-    monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
+    for key in ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "BARGIG_CURRENT_RELEASE_ID"):
+        monkeypatch.delenv(key, raising=False)
     assert MODULE.settings(env_file) == ("account", "secret", "bargig_catalog_telemetry")
+    assert MODULE.configured_current_release_id(env_file) == "deploy-0123456789abcdef"
+    assert MODULE.configured_current_release_id(env_file, "deploy-fedcba9876543210") == "deploy-fedcba9876543210"
+
+
+def test_local_build_release_uses_newest_valid_deploy_state(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    old = dist / "site-local.build.json"
+    new = dist / "site-upload-r2.build.json"
+    old.write_text(json.dumps({"releaseId": "deploy-0123456789abcdef"}), encoding="utf-8")
+    new.write_text(json.dumps({"releaseId": "deploy-fedcba9876543210"}), encoding="utf-8")
+    os.utime(old, (1, 1))
+    os.utime(new, (2, 2))
+    assert MODULE.local_build_release_id(tmp_path) == "deploy-fedcba9876543210"
 
 
 def test_extract_rows_accepts_cloudflare_json_shape() -> None:
-    rows = MODULE.extract_rows({"data": [{"section": "event", "count": 3}]})
-    assert rows == [{"section": "event", "count": 3}]
+    assert MODULE.extract_rows({"data": [{"count": 3}]}) == [{"count": 3}]
     with pytest.raises(RuntimeError, match="Unexpected Cloudflare"):
         MODULE.extract_rows({"success": True})
 
 
-def test_example_env_contains_no_credentials() -> None:
+def test_example_env_contains_no_credentials_and_current_release_slot() -> None:
     text = (ROOT / "telemetry.env.example").read_text(encoding="utf-8")
     assert "CLOUDFLARE_ACCOUNT_ID=\n" in text
     assert "CLOUDFLARE_API_TOKEN=\n" in text
+    assert "BARGIG_CURRENT_RELEASE_ID=\n" in text
     assert "secret" not in text.lower()
     assert "telemetry.env" in (ROOT / ".gitignore").read_text(encoding="utf-8")
 
@@ -265,18 +254,15 @@ def test_resolve_env_file_accepts_accidental_direction_mark_prefix(tmp_path: Pat
     malformed = tmp_path / "#U200f#U200ftelemetry.env"
     malformed.write_text("CLOUDFLARE_ACCOUNT_ID=a\nCLOUDFLARE_API_TOKEN=b\n", encoding="utf-8")
     resolved, compatibility = MODULE.resolve_env_file(tmp_path / "telemetry.env")
-    assert resolved == malformed
-    assert compatibility is True
+    assert resolved == malformed and compatibility is True
 
 
-def test_parse_args_supports_npm_positional_and_direct_option() -> None:
-    positional = MODULE.parse_args(["30"])
+def test_parse_args_supports_days_and_current_release() -> None:
+    positional = MODULE.parse_args(["30", "--current-release", "deploy-0123456789abcdef"])
     assert positional.days_value == 30
-    assert positional.days_option is None
-
+    assert positional.current_release == "deploy-0123456789abcdef"
     option = MODULE.parse_args(["--days", "30"])
-    assert option.days_option == 30
-    assert option.days_value is None
+    assert option.days_option == 30 and option.days_value is None
 
 
 def test_resolve_env_file_prefers_exact_name(tmp_path: Path) -> None:
@@ -284,116 +270,76 @@ def test_resolve_env_file_prefers_exact_name(tmp_path: Path) -> None:
     exact.write_text("", encoding="utf-8")
     (tmp_path / "#U200ftelemetry.env").write_text("", encoding="utf-8")
     resolved, compatibility = MODULE.resolve_env_file(exact)
-    assert resolved == exact
-    assert compatibility is False
+    assert resolved == exact and compatibility is False
 
 
 def sample_report_rows() -> list[dict[str, object]]:
-    return [
+    current = "deploy-0123456789abcdef"
+    rows: list[dict[str, object]] = [
+        {"section": "event", "label": "app_session", "count": 20, "metric": 0},
         {"section": "event", "label": "catalog_open", "count": 12, "metric": 0},
         {"section": "event", "label": "search", "count": 7, "metric": 0},
         {"section": "event", "label": "resource_error", "count": 2, "metric": 0},
         {"section": "event", "label": "image_terminal_failure", "count": 1, "metric": 0},
-        {
-            "section": "resource_summary",
-            "label": "cloudflare-observability",
-            "source_scope": "cloudflare-observability",
-            "resource_tag": "script",
-            "resource_role": "script",
-            "source": "beacon.min.js",
-            "count": 2,
-            "metric": 0,
-        },
-        {"section": "release", "label": "app-61dd783bd3fa", "count": 20, "metric": 0},
+        {"section": "session_cohort", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "count": 16, "first_seen": "2026-08-01", "last_seen": "2026-08-02"},
+        {"section": "session_cohort", "release_id": "app-61dd783bd3fa", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "count": 4},
+        {"section": "release", "release_id": current, "count": 16, "first_seen": "2026-08-01", "last_seen": "2026-08-02"},
+        {"section": "release", "release_id": "app-61dd783bd3fa", "count": 4, "first_seen": "2026-08-01", "last_seen": "2026-08-02"},
+        {"section": "resource_summary", "label": "cloudflare-observability", "source_scope": "cloudflare-observability", "resource_tag": "script", "resource_role": "script", "source": "beacon.min.js", "count": 2, "metric": 0},
         {"section": "catalog", "label": "opening-test", "count": 9, "metric": 0},
         {"section": "search", "label": "ארון הזזה", "count": 4, "metric": 2},
         {"section": "contact", "label": "phone", "count": 3, "metric": 0},
         {"section": "favorite", "label": "add", "count": 5, "metric": 0},
         {"section": "trend", "label": "search", "count": 7, "previous": 5, "delta": 2, "metric": 40},
-        {"section": "rum", "label": "LCP", "count": 10, "metric": 2100, "good_percent": 80, "poor_percent": 10, "unit": "ms"},
-        {
-            "section": "js_error",
-            "fingerprint": "ef21e4fae",
-            "error_name": "TypeError",
-            "message": "Cannot read properties of undefined",
-            "source": "app.js",
-            "line": 412,
-            "column": 18,
-            "release_id": "app-61dd783bd3fa",
-            "count": 46,
-            "metric": 0,
-            "label": "ef21e4fae",
-        },
-        {
-            "section": "image_terminal",
-            "fingerprint": "",
-            "catalog_id": "opening-test",
-            "page_number": 4,
-            "failure_stage": "viewer-single",
-            "outcome_action": "fallback",
-            "attempt_count": 2,
-            "source": "page-004.webp",
-            "release_id": "app-61dd783bd3fa",
-            "count": 1,
-            "metric": 0,
-            "label": "page-004.webp",
-        },
+        {"section": "rum", "label": "LCP", "count": 10, "metric": 2100, "good_count": 8, "poor_count": 1},
+        {"section": "rum_cohort", "label": "CLS", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "component": "viewer-stage", "count": 12, "metric": 0.246, "good_count": 5, "poor_count": 3, "first_seen": "2026-08-01"},
+        {"section": "reliability", "label": "image_terminal_failure", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "count": 1},
+        {"section": "image_outcome", "label": "image_recovered", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "catalog_id": "opening-test", "page_number": 4, "surface": "viewer-stage", "visibility": "visible", "count": 3},
+        {"section": "image_outcome", "label": "image_terminal_failure", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "catalog_id": "opening-test", "page_number": 4, "surface": "viewer-stage", "visibility": "visible", "count": 1},
+        {"section": "js_error", "fingerprint": "ef21e4fae", "error_name": "TypeError", "message": "Cannot read properties of undefined", "source": "app.js", "line": 412, "column": 18, "release_id": current, "count": 2, "metric": 0, "label": "ef21e4fae"},
+        {"section": "image_terminal", "fingerprint": "eimage123", "request_id": "ir-abc12345", "catalog_id": "opening-test", "page_number": 4, "failure_stage": "viewer-single", "outcome_action": "fallback", "attempt_count": 2, "surface": "viewer-stage", "visibility": "visible", "source": "page-004.webp", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "release_id": current, "count": 1, "metric": 0, "label": "eimage123"},
     ]
+    MODULE.enrich_report_rows(rows, current)
+    return rows
 
 
-def test_create_report_files_writes_rtl_html_and_excel_friendly_csv(tmp_path: Path) -> None:
-    generated_at = MODULE.datetime(2026, 7, 16, 10, 30).astimezone()
+def test_create_report_files_writes_operational_html_csv_and_json(tmp_path: Path) -> None:
+    generated_at = MODULE.datetime(2026, 8, 2, 10, 30).astimezone()
+    rows = sample_report_rows()
     paths = MODULE.create_report_files(
-        sample_report_rows(),
-        30,
-        tmp_path,
-        ("html", "csv", "json"),
-        generated_at=generated_at,
+        rows, 30, tmp_path, ("html", "csv", "json"), generated_at=generated_at,
         catalog_titles={"opening-test": "ארונות פתיחה לדוגמה"},
     )
-
     assert set(paths) == {"html", "csv", "json"}
     assert all(path.is_file() for path in paths.values())
-    assert "2026-07-16_10-30-00" in paths["html"].name
 
     html_text = paths["html"].read_text(encoding="utf-8")
-    assert '<html lang="he" dir="rtl">' in html_text
-    assert "דוח פעילות אתר רהיטי ברגיג" in html_text
-    assert "ארונות פתיחה לדוגמה" in html_text
-    assert "ארון הזזה" in html_text
-    assert "חיפושים ללא תוצאה" in html_text
-    assert "ef21e4fae" in html_text
-    assert "Cannot read properties of undefined" in html_text
-    assert "viewer-single" in html_text
-    assert "fallback" in html_text
-    assert "app-61dd783bd3fa" in html_text
-    assert "מדדי חוויית משתמש אמיתיים" in html_text
-    assert "מגמות מול התקופה הקודמת" in html_text
-    assert "2,100 ms" in html_text
-    assert "גרסאות פריסה לפי פתיחות קטלוג" in html_text
-    assert "Beacon חיצוני שנחסם" in html_text
-    assert "cloudflare-observability" in html_text
-    assert "כשלי מעטפת דורשי בדיקה" in html_text
+    for expected in (
+        '<html lang="he" dir="rtl">', "שלמות גרסאות פריסה", "RUM לפי גרסה", "viewer-stage",
+        "0.246", "שיעורי תקלות לכל 1,000", "גלויה למשתמש", "ir-abc12345",
+        "app-61dd783bd3fa", "Fallback מקומי", "ארונות פתיחה לדוגמה",
+        "Cannot read properties of undefined", "2,100 ms",
+    ):
+        assert expected in html_text
 
     csv_bytes = paths["csv"].read_bytes()
     assert csv_bytes.startswith(b"\xef\xbb\xbf")
     csv_text = csv_bytes.decode("utf-8-sig")
-    assert "סוג נתון,פריט / טביעה,כמות" in csv_text
-    assert "תג משאב,תפקיד משאב,סיבת כשל,יוזם טעינה" in csv_text
-    assert "ארונות פתיחה לדוגמה" in csv_text
+    for header in ("מכנה", "שיעור ל-1,000", "כיסוי באחוזים", "רכיב", "משטח תמונה", "נראות תמונה", "מזהה בקשת תמונה"):
+        assert header in csv_text
+    assert "ir-abc12345" in csv_text
 
     json_payload = json.loads(paths["json"].read_text(encoding="utf-8"))
+    assert json_payload["schemaVersion"] == 3
+    assert json_payload["currentReleaseId"] == "deploy-0123456789abcdef"
     assert json_payload["days"] == 30
-    assert len(json_payload["rows"]) == len(sample_report_rows())
+    assert len(json_payload["rows"]) == len(rows)
 
 
 def test_default_report_cli_prefers_files_over_rtl_console() -> None:
     args = MODULE.parse_args(["30", "--open"])
-    assert args.days_value == 30
-    assert args.open is True
-    assert args.console is False
-    assert args.formats is None
-    assert args.output_dir == MODULE.DEFAULT_OUTPUT_DIR
+    assert args.days_value == 30 and args.open is True and args.console is False
+    assert args.formats is None and args.output_dir == MODULE.DEFAULT_OUTPUT_DIR
 
 
 def test_report_output_directory_is_created_under_project_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

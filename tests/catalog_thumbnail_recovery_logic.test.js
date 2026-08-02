@@ -17,6 +17,12 @@ Object.assign(globalThis, {
   CATALOG_IMAGE_RETRY_PARAM: "bargig_retry",
   CATALOG_ASSET_VERSION_PARAM: "v",
   telemetryCleanText: (value, limit) => String(value || "").slice(0, limit),
+  telemetryCreateImageRequestContext: (_img, _src, options = {}) => Object.freeze({
+    requestId: "ir-test1234", catalogId: "catalog-a", pageNumber: 1,
+    detail: String(options.detail || "image"), surface: String(options.surface || "image"),
+    visibility: String(options.visibility || "visible"), page: "viewer",
+    path: "/viewer.html?catalog=catalog-a&page=1", viewport: "xs", releaseId: "deploy-0123456789abcdef"
+  }),
   telemetryCatalogImageContext: () => ({ detail: "thumbnail" }),
   telemetryTrackImageAttemptFailure: (src, options) => attempts.push({ src, options }),
   telemetryTrackImageRecovery() {},
@@ -70,6 +76,8 @@ assert.equal(attempts.length, 2, "the original failure and the bounded direct re
 assert.equal(attempts[0].options.action, "primary");
 assert.equal(attempts[0].options.attempt, 1);
 assert.equal(attempts[1].options.action, "direct-retry");
+assert.equal(attempts[0].options.requestContext, attempts[1].options.requestContext);
+assert.equal(attempts[0].options.requestContext.requestId, "ir-test1234");
 assert.match(image.currentSrc, /bargig_retry=/);
 assert.doesNotMatch(image.currentSrc, /[?&]v=/);
 assert.equal(frameClasses.has("image-error"), true, "exhausted lightweight recovery exposes the placeholder error state");

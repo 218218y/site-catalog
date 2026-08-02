@@ -13,7 +13,7 @@ import { tooltips } from "../runtime/tooltip-manager.js";
 import { eventTargetElement, requiredElement } from "./02-dom-contracts.js";
 import { catalogs } from "./03-runtime-context.js";
 import { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_EAGER_COVER_COUNT, CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY, CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE, CATALOG_IMAGE_PRELOAD_CACHE_LIMIT, CATALOG_IMAGE_RETRY_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, DEFAULT_CATALOG_MEDIUM_MAX_SIDE, catalogAssetState, featureInterfacesByEscapePriority, getFeatureInterface, uiRuntime } from "./10-app-state.js";
-import { telemetryCatalogImageContext, telemetryCleanText, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure } from "./15-telemetry.js";
+import { telemetryCatalogImageContext, telemetryCleanText, telemetryCreateImageRequestContext, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure } from "./15-telemetry.js";
 import { activeCatalog } from "./18-navigation-feature.js";
 import { catalogFirstPage, clampCatalogPage, displayPageToAssetPage, isCatalogPage } from "./06-catalog-page-numbering.js";
 import { catalogDir, coverThumbSrc, imageExt, pageSrc, resolveCatalogAssetUrl, thumbSrc, withAssetVersion } from "./17-catalog-asset-urls.js";
@@ -33,6 +33,9 @@ const uiElements = Object.freeze({
  *   fallbackSrc?:string,
  *   isCurrent?:()=>boolean,
  *   telemetryDetail?:unknown,
+ *   telemetrySurface?:unknown,
+ *   telemetryVisibility?:unknown,
+ *   telemetryRequestContext?:ReturnType<typeof telemetryCreateImageRequestContext>|null,
  *   initialFailedAttempts?:number,
  *   onExhausted?:(result:CatalogImageRecoveryExhausted)=>void,
  *   onSuccess?:(candidate:CatalogImageRecoveryCandidate, progress:CatalogImageRecoveryProgress)=>void,
@@ -40,7 +43,7 @@ const uiElements = Object.freeze({
  *   onAttempt?:(candidate:CatalogImageRecoveryCandidate, progress:CatalogImageRecoveryProgress)=>void
  * }} CatalogImageRecoveryOptions
  */
-/** @typedef {{priority?:RequestPriority, detail?:string}} CatalogImagePreloadOptions */
+/** @typedef {{priority?:RequestPriority, detail?:string, surface?:string, visibility?:string}} CatalogImagePreloadOptions */
 /** @typedef {{name?:unknown, slug?:unknown}} CatalogTaxonomyItem */
 /** @typedef {{categories?:Array<CatalogTaxonomyItem>, subcategories?:Array<CatalogTaxonomyItem>}} CatalogTaxonomy */
 /** @typedef {{subcategory:string, items:Array<CatalogRecord>}} CatalogSubcategoryGroup */
@@ -195,6 +198,13 @@ function loadCatalogImageWithRecovery(img, options = {}) {
   const candidates = catalogImageRecoveryCandidates(options.primarySrc, options.fallbackSrc, options);
   const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
   const telemetryDetail = telemetryCleanText(options.telemetryDetail, 40);
+  const telemetryRequestContext = options.telemetryRequestContext || (telemetryDetail
+    ? telemetryCreateImageRequestContext(img, options.primarySrc || options.fallbackSrc || "", {
+      detail: telemetryDetail,
+      surface: options.telemetrySurface,
+      visibility: options.telemetryVisibility
+    })
+    : null);
   let index = 0;
   let stopped = false;
   let failedAttempts = Math.max(0, Number(options.initialFailedAttempts) || 0);
@@ -209,7 +219,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
         if (telemetryDetail && lastCandidate) {
           telemetryTrackImageTerminalFailure(lastCandidate.src, {
             img,
-            detail: telemetryDetail,
+            requestContext: telemetryRequestContext,
             action: lastCandidate.role,
             failedAttempts
           });
@@ -235,7 +245,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
         if (telemetryDetail && failedAttempts > 0) {
           telemetryTrackImageRecovery(candidate.src, {
             img,
-            detail: telemetryDetail,
+            requestContext: telemetryRequestContext,
             action: candidate.role,
             failedAttempts
           });
@@ -247,6 +257,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
       if (telemetryDetail) {
         telemetryTrackImageAttemptFailure(candidate.src, {
           img,
+          requestContext: telemetryRequestContext,
           detail: `${telemetryDetail}-${candidate.role}`,
           action: candidate.role,
           attempt: failedAttempts
@@ -273,11 +284,12 @@ function loadCatalogImageWithRecovery(img, options = {}) {
  * @param {string} [detail]
  * @returns {string}
  */
-function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail") {
+function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail", surface = detail) {
   const catalogId = escapeHtml(catalog?.id || "");
   const safePage = Math.max(0, Number.parseInt(String(page), 10) || 0);
   const safeDetail = escapeHtml(detail || "thumbnail");
-  return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}"`;
+  const safeSurface = escapeHtml(surface || detail || "image");
+  return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}" data-telemetry-surface="${safeSurface}"`;
 }
 
 /** @param {HTMLImageElement|null|undefined} img */
@@ -289,9 +301,14 @@ function recoverCatalogImageAfterInitialFailure(img) {
   if (!failedSrc) return false;
 
   const detail = telemetryCleanText(img.dataset.telemetryDetail || telemetryCatalogImageContext(img).detail, 40);
+  const requestContext = telemetryCreateImageRequestContext(img, failedSrc, {
+    detail,
+    surface: img.dataset.telemetrySurface || detail
+  });
   img.dataset.catalogImageRecoveryStarted = "true";
   telemetryTrackImageAttemptFailure(failedSrc, {
     img,
+    requestContext,
     detail: `${detail}-primary`,
     action: "primary",
     attempt: 1
@@ -304,6 +321,7 @@ function recoverCatalogImageAfterInitialFailure(img) {
     forceRefreshRole: "direct-retry",
     initialFailedAttempts: 1,
     telemetryDetail: detail,
+    telemetryRequestContext: requestContext,
     isCurrent: () => img.isConnected !== false,
     onExhausted: () => syncImagePlaceholderState(img)
   });
@@ -319,6 +337,11 @@ function prepareCatalogImage(url, options = {}) {
   if (cached) return cached;
 
   const image = new Image();
+  const requestContext = telemetryCreateImageRequestContext(null, src, {
+    detail: options.detail || "preload",
+    surface: options.surface || options.detail || "image-preload",
+    visibility: options.visibility || "preload"
+  });
   applyCatalogImageCrossOrigin(image);
   image.decoding = "async";
   image.fetchPriority = options.priority || "auto";
@@ -348,9 +371,16 @@ function prepareCatalogImage(url, options = {}) {
     image.addEventListener("error", () => {
       catalogAssetState.imageLoadCache.delete(src);
       telemetryTrackImageAttemptFailure(src, {
+        requestContext,
         detail: options.detail || "preload",
         action: "preload",
         attempt: 1
+      });
+      telemetryTrackImageTerminalFailure(src, {
+        requestContext,
+        detail: options.detail || "preload",
+        action: "preload",
+        failedAttempts: 1
       });
       reject(new Error("image-load-failed"));
     }, { once: true });

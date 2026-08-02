@@ -20,7 +20,7 @@ assert.match(telemetry, /navigator\.doNotTrack/);
 assert.match(telemetry, /credentials: "omit"/);
 assert.match(telemetry, /keepalive: true/);
 assert.match(telemetry, /navigator\.sendBeacon/);
-assert.match(telemetry, /const TELEMETRY_SCHEMA_VERSION = 2/);
+assert.match(telemetry, /const TELEMETRY_SCHEMA_VERSION = 3/);
 assert.match(telemetry, /releaseId: telemetryCleanText\(fields\.releaseId \|\| TELEMETRY_RELEASE_ID, 64\)/);
 assert.match(telemetry, /function telemetryClassifyWindowError\(event\)/);
 assert.match(telemetry, /classification === "runtime"/);
@@ -32,6 +32,12 @@ assert.match(telemetry, /return "netfree-filter"/);
 assert.match(telemetry, /options\.recoverCatalogImageAfterInitialFailure\?\.\(image\)/);
 assert.match(appShell, /telemetryInit\(\{ recoverCatalogImageAfterInitialFailure \}\)/);
 assert.match(telemetry, /telemetryTrackSearchIndexFailure\("network-error"/);
+assert.match(telemetry, /function telemetryComponentToken\(node\)/);
+assert.match(telemetry, /function telemetryCreateImageRequestContext\(img, src = "", options = \{\}\)/);
+assert.match(telemetry, /Object\.freeze\(\{/);
+assert.match(telemetry, /requestId: context\.requestId/);
+assert.doesNotMatch(telemetry, /component:\s*(?:element|node)\.outerHTML/);
+assert.doesNotMatch(telemetry, /component:\s*(?:element|node)\.textContent/);
 assert.doesNotMatch(telemetry, /telemetryTrackImageFailure/);
 assert.doesNotMatch(telemetry, /document\.cookie/);
 assert.doesNotMatch(telemetry, /navigator\.userAgent/);
@@ -39,6 +45,7 @@ assert.doesNotMatch(telemetry, /document\.referrer/);
 assert.doesNotMatch(telemetry, /\.stack\b/);
 
 for (const eventName of [
+  "app_session",
   "catalog_open",
   "search",
   "favorite",
