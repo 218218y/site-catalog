@@ -5604,7 +5604,7 @@ function viewerHasTouchCapability() {
   return Number(navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
 }
 function viewerNavigationOnboardingCopy() {
-  return viewerHasTouchCapability() ? "במסך מגע החליקו למעלה, למטה, ימינה או שמאלה כדי לעבור עמוד. בהגדלה, גררו בתוך התמונה; מעבר לקצה יעביר לעמוד הבא בלי לבטל את הזום. אפשר גם להשתמש בחצים שבצדי המסך או במקשי החצים ו־Page Up/Down." : "גללו בעכבר או במשטח המגע, לחצו על החצים שבצדי המסך, או השתמשו במקשי החצים ו־Page Up/Down. בהגדלה, הגלילה מזיזה את התמונה ומעבר לקצה מעביר עמוד בלי לבטל את הזום.";
+  return viewerHasTouchCapability() ? "במסך מגע החליקו למעלה, למטה, ימינה או שמאלה כדי לעבור עמוד. אפשר גם להשתמש בחצים שבצדי המסך או במקשי החצים ו־Page Up/Down." : "גללו בעכבר או במשטח המגע, לחצו על החצים שבצדי המסך, או השתמשו במקשי החצים ו־Page Up/Down.";
 }
 function viewerZoomOnboardingCopy() {
   return viewerHasTouchCapability() ? "במסך מגע צבטו בשתי אצבעות או הקישו פעמיים. בעכבר אפשר ללחוץ פעמיים או להשתמש בגלגלת; לאחר ההגדלה גררו את התמונה." : "לחצו פעמיים על התמונה או השתמשו בגלגלת העכבר להגדלה; לאחר מכן גררו את התמונה למיקום הרצוי.";
