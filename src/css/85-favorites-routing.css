@@ -264,21 +264,21 @@
   width: var(--viewer-side-control-size);
   min-width: var(--viewer-side-control-size);
   min-height: var(--viewer-side-control-size);
-  padding: 0 !important;
+  padding: 0;
   transform: translateY(-50%);
   border-radius: 999px;
   color: var(--viewer-side-control-color);
-  background: var(--viewer-side-control-bg) !important;
-  border-color: var(--viewer-side-control-border) !important;
+  background: var(--viewer-side-control-bg);
+  border-color: var(--viewer-side-control-border);
   box-shadow: var(--viewer-side-control-shadow);
   backdrop-filter: blur(14px);
 }
 .viewer-favorite-button:hover,
 .viewer-favorite-button:focus-visible,
 .viewer-favorite-button:active {
-  transform: translateY(-50%) !important;
-  background: var(--viewer-side-control-hover-bg) !important;
-  border-color: var(--viewer-side-control-hover-border) !important;
+  transform: translateY(-50%);
+  background: var(--viewer-side-control-hover-bg);
+  border-color: var(--viewer-side-control-hover-border);
 }
 .viewer-favorite-button svg {
   width: 23px;
@@ -291,8 +291,8 @@
 }
 .viewer-favorite-button[data-favorite-active="true"] {
   color: var(--favorite-active-color);
-  background: var(--favorite-active-background) !important;
-  border-color: var(--favorite-active-border) !important;
+  background: var(--favorite-active-background);
+  border-color: var(--favorite-active-border);
   box-shadow: var(--favorite-active-shadow);
 }
 .viewer-favorite-button[data-favorite-active="true"] svg {

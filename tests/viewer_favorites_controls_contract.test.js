@@ -42,8 +42,8 @@ assert.match(css, /\.stage-next\s*\{\s*left:\s*var\(--viewer-side-control-left-e
 assert.match(viewerCss, /--favorite-active-color:\s*#8a590d;/);
 assert.match(viewerCss, /--favorite-active-background:\s*linear-gradient\(180deg, rgba\(255,248,225,0\.99\), rgba\(235,199,116,0\.94\)\);/);
 assert.match(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*top:\s*max\([^}]*var\(--lightbox-top-safe-offset, 0px\) \+ 18px[^}]*left:\s*var\(--viewer-side-control-center-x\);[^}]*--viewer-auto-zoom-control-size:\s*60px;[^}]*width:\s*var\(--viewer-auto-zoom-control-size\);[^}]*height:\s*var\(--viewer-auto-zoom-control-size\);[^}]*transform:\s*translateX\(-50%\);/);
-assert.match(viewerCss, /\.viewer-auto-zoom-button:not\(\.hidden\)\s*\{[^}]*color:\s*var\(--favorite-active-color\);[^}]*background:\s*var\(--favorite-active-background\) !important;[^}]*border-color:\s*var\(--favorite-active-border\) !important;/);
-assert.match(viewerCss, /\.viewer-favorite-button\[data-favorite-active="true"\]\s*\{[^}]*color:\s*var\(--favorite-active-color\);[^}]*background:\s*var\(--favorite-active-background\) !important;[^}]*border-color:\s*var\(--favorite-active-border\) !important;/);
+assert.match(viewerCss, /\.viewer-auto-zoom-button:not\(\.hidden\)\s*\{[^}]*color:\s*var\(--favorite-active-color\);[^}]*background:\s*var\(--favorite-active-background\);[^}]*border-color:\s*var\(--favorite-active-border\);/);
+assert.match(viewerCss, /\.viewer-favorite-button\[data-favorite-active="true"\]\s*\{[^}]*color:\s*var\(--favorite-active-color\);[^}]*background:\s*var\(--favorite-active-background\);[^}]*border-color:\s*var\(--favorite-active-border\);/);
 assert.match(viewerCss, /@media \(max-width: 640px\)[\s\S]*?\.lightbox\s*\{[^}]*--viewer-side-control-size:\s*44px;[^}]*--viewer-side-control-radius:\s*22px;/);
 assert.match(viewerCss, /@media \(max-width: 640px\)[\s\S]*?\.viewer-auto-zoom-button\s*\{[^}]*--viewer-auto-zoom-control-size:\s*54px;/);
 assert.match(css, /\.lightbox-favorites-button\s*\{[\s\S]*?order:\s*10;/);

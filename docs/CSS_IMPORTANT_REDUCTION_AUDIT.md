@@ -1,5 +1,10 @@
 # CSS `!important` Reduction Audit
 
+> **Follow-up:** the cascade-ownership closeout in `docs/CSS_CASCADE_OWNERSHIP_CLOSEOUT.md`
+> reduces the current reviewed total further from 72 to 22 declarations and moves Viewer onboarding
+> from the early `05` slot to the late `92` feature-override slot. The counts below remain the historical
+> record of the first reduction slice.
+
 ## Scope
 
 This change is deliberately limited to CSS cascade cleanup and the contracts that protect it. It does not change HTML, JavaScript behavior, DOM structure, accessibility focus rules, onboarding behavior, forced-colors behavior, or reduced-motion behavior.

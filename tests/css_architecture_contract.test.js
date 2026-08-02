@@ -45,20 +45,20 @@ for (const name of sources) {
 
 const reviewedImportantCounts = Object.freeze({
   "00-foundation.css": 0,
-  "05-viewer-onboarding.css": 34,
   "06-shell-components.css": 2,
   "08-shared-floating-ui.css": 0,
   "10-catalog.css": 0,
-  "20-viewer.css": 5,
+  "20-viewer.css": 2,
   "24-shared-inquiry.css": 0,
   "25-viewer-actions.css": 0,
   "30-media-components.css": 0,
   "40-catalog-refinements.css": 0,
   "50-footer-legal.css": 0,
-  "80-responsive-shell.css": 6,
-  "85-favorites-routing.css": 8,
+  "80-responsive-shell.css": 0,
+  "85-favorites-routing.css": 0,
   "87-favorites-workspace.css": 1,
-  "90-visual-polish.css": 11,
+  "90-visual-polish.css": 10,
+  "92-viewer-onboarding.css": 2,
   "95-accessibility-consistency.css": 5,
   "97-seo-foundation.css": 0,
 });
@@ -69,7 +69,7 @@ const importantCount = sources.reduce((total, name) => {
   assert.equal(count, reviewedImportantCounts[name], `${name}: update the reviewed !important count after a justified removal`);
   return total + count;
 }, 0);
-assert.equal(importantCount, 72, "the reviewed CSS !important total must only move downward");
+assert.equal(importantCount, 22, "the reviewed CSS !important total must only move downward");
 
 for (const bundleName of ["styles.css", "styles-catalog.css", "styles-favorites.css", "styles-viewer.css"]) {
   const bundle = fs.readFileSync(path.join(root, bundleName), "utf8");

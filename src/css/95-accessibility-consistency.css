@@ -30,12 +30,12 @@
 }
 
 /* One visible and high-contrast keyboard focus language throughout the site. */
-:where(a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+:where(a[href], button, input:not(.reader-search-input), select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 0 !important;
   box-shadow: var(--focus-ring) !important;
 }
 
-:where(.lightbox, .reader-shell) :where(a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+:where(.lightbox, .reader-shell) :where(a[href], button, input:not(.reader-search-input), select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
   --focus-ring-color: #f3d7bd;
   --focus-ring-halo: rgba(40, 29, 23, .92);
 }
@@ -272,7 +272,7 @@
 }
 
 @media (forced-colors: active) {
-  :where(a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+  :where(a[href], button, input:not(.reader-search-input), select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
     outline: 3px solid Highlight !important;
     outline-offset: 3px !important;
     box-shadow: none !important;

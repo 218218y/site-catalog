@@ -298,6 +298,19 @@ def test_manifest_validation_is_reserved_for_ordered_css_layers() -> None:
         MODULE.validate_module_manifest(("src/css/viewer.css",), expected_extension="css")
 
 
+def test_viewer_css_manifest_keeps_onboarding_as_a_late_feature_override() -> None:
+    modules = MODULE.VIEWER_CSS_MODULES
+
+    assert "src/css/05-viewer-onboarding.css" not in modules
+    assert modules.count("src/css/92-viewer-onboarding.css") == 1
+    assert modules.index("src/css/90-visual-polish.css") < modules.index(
+        "src/css/92-viewer-onboarding.css"
+    )
+    assert modules.index("src/css/92-viewer-onboarding.css") < modules.index(
+        "src/css/95-accessibility-consistency.css"
+    )
+
+
 def test_js_spec_requires_an_entrypoint_and_required_boundaries(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()

@@ -834,9 +834,9 @@ a.reader-home:focus-visible {
   display: block;
   fill: currentColor;
 }
-.reader-icon-button-done {
-  background: var(--viewer-control-active-bg, rgba(217, 186, 163, 0.34)) !important;
-  border-color: var(--viewer-chrome-border-strong, rgba(255,255,255,0.34)) !important;
+.reader-button.reader-icon-button-done {
+  background: var(--viewer-control-active-bg, rgba(217, 186, 163, 0.34));
+  border-color: var(--viewer-chrome-border-strong, rgba(255,255,255,0.34));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -948,7 +948,7 @@ a.reader-home:focus-visible {
      would otherwise wrap only the text field and visually split it from the
      adjacent search-scope button. Focus is rendered by the shared field below
      so the whole control keeps one symmetric outline. */
-  box-shadow: none !important;
+  box-shadow: none;
 }
 .reader-search-field:focus-within {
   border-color: var(--viewer-chrome-border-strong, rgba(217, 186, 163, 0.52));

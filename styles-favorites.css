@@ -3841,8 +3841,8 @@ body[data-app-ready="true"] > .site-footer {
 
 .viewer-auto-zoom-button:not(.hidden) {
   color: var(--favorite-active-color);
-  background: var(--favorite-active-background) !important;
-  border-color: var(--favorite-active-border) !important;
+  background: var(--favorite-active-background);
+  border-color: var(--favorite-active-border);
   box-shadow:
     var(--favorite-active-shadow),
     0 0 0 4px rgba(255, 248, 225, 0.2),
@@ -3851,9 +3851,9 @@ body[data-app-ready="true"] > .site-footer {
 
 .viewer-auto-zoom-button:hover,
 .viewer-auto-zoom-button:focus-visible {
-  transform: translateX(-50%) !important;
-  background: linear-gradient(180deg, rgba(255,252,238,1), rgba(242,210,132,0.98)) !important;
-  border-color: rgba(165, 111, 22, 0.64) !important;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(255,252,238,1), rgba(242,210,132,0.98));
+  border-color: rgba(165, 111, 22, 0.64);
   box-shadow:
     var(--favorite-active-shadow),
     0 0 0 5px rgba(255, 248, 225, 0.26),
@@ -3861,7 +3861,7 @@ body[data-app-ready="true"] > .site-footer {
 }
 
 .viewer-auto-zoom-button:active {
-  transform: translateX(-50%) !important;
+  transform: translateX(-50%);
 }
 
 .viewer-auto-zoom-button svg {
@@ -4468,21 +4468,21 @@ body[data-app-ready="true"] > .site-footer {
   width: var(--viewer-side-control-size);
   min-width: var(--viewer-side-control-size);
   min-height: var(--viewer-side-control-size);
-  padding: 0 !important;
+  padding: 0;
   transform: translateY(-50%);
   border-radius: 999px;
   color: var(--viewer-side-control-color);
-  background: var(--viewer-side-control-bg) !important;
-  border-color: var(--viewer-side-control-border) !important;
+  background: var(--viewer-side-control-bg);
+  border-color: var(--viewer-side-control-border);
   box-shadow: var(--viewer-side-control-shadow);
   backdrop-filter: blur(14px);
 }
 .viewer-favorite-button:hover,
 .viewer-favorite-button:focus-visible,
 .viewer-favorite-button:active {
-  transform: translateY(-50%) !important;
-  background: var(--viewer-side-control-hover-bg) !important;
-  border-color: var(--viewer-side-control-hover-border) !important;
+  transform: translateY(-50%);
+  background: var(--viewer-side-control-hover-bg);
+  border-color: var(--viewer-side-control-hover-border);
 }
 .viewer-favorite-button svg {
   width: 23px;
@@ -4495,8 +4495,8 @@ body[data-app-ready="true"] > .site-footer {
 }
 .viewer-favorite-button[data-favorite-active="true"] {
   color: var(--favorite-active-color);
-  background: var(--favorite-active-background) !important;
-  border-color: var(--favorite-active-border) !important;
+  background: var(--favorite-active-background);
+  border-color: var(--favorite-active-border);
   box-shadow: var(--favorite-active-shadow);
 }
 .viewer-favorite-button[data-favorite-active="true"] svg {
@@ -5419,7 +5419,7 @@ body[data-page="viewer"] {
 
 .viewer-favorite-button.reader-icon-button-done {
   color: #8a590d;
-  border-color: rgba(165,111,22,.56) !important;
+  border-color: rgba(165,111,22,.56);
   box-shadow:
     var(--viewer-side-control-shadow),
     0 0 0 5px rgba(235,199,116,.14),
@@ -5915,12 +5915,12 @@ body[data-page="viewer"] {
 }
 
 
-:where(a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+:where(a[href], button, input:not(.reader-search-input), select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 0 !important;
   box-shadow: var(--focus-ring) !important;
 }
 
-:where(.lightbox, .reader-shell) :where(a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+:where(.lightbox, .reader-shell) :where(a[href], button, input:not(.reader-search-input), select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
   --focus-ring-color: #f3d7bd;
   --focus-ring-halo: rgba(40, 29, 23, .92);
 }
@@ -6157,7 +6157,7 @@ body[data-page="viewer"] {
 }
 
 @media (forced-colors: active) {
-  :where(a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+  :where(a[href], button, input:not(.reader-search-input), select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
     outline: 3px solid Highlight !important;
     outline-offset: 3px !important;
     box-shadow: none !important;

@@ -97,7 +97,7 @@ assert.equal(functions("viewer").has("startPointerInteraction"), false);
 
 // CSS contracts remain textual by nature; AST migration applies only to code structure.
 const foundation = read("src/css/00-foundation.css");
-const onboardingCss = read("src/css/05-viewer-onboarding.css");
+const onboardingCss = read("src/css/92-viewer-onboarding.css");
 const shellCss = read("src/css/06-shell-components.css");
 const responsiveCss = read("src/css/80-responsive-shell.css");
 const favoritesRoutingCss = read("src/css/85-favorites-routing.css");

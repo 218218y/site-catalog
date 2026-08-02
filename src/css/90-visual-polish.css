@@ -304,7 +304,7 @@
 
 .viewer-favorite-button.reader-icon-button-done {
   color: #8a590d;
-  border-color: rgba(165,111,22,.56) !important;
+  border-color: rgba(165,111,22,.56);
   box-shadow:
     var(--viewer-side-control-shadow),
     0 0 0 5px rgba(235,199,116,.14),

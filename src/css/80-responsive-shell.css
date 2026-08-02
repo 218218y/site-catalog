@@ -420,8 +420,8 @@
    without inventing a second competing highlight language. */
 .viewer-auto-zoom-button:not(.hidden) {
   color: var(--favorite-active-color);
-  background: var(--favorite-active-background) !important;
-  border-color: var(--favorite-active-border) !important;
+  background: var(--favorite-active-background);
+  border-color: var(--favorite-active-border);
   box-shadow:
     var(--favorite-active-shadow),
     0 0 0 4px rgba(255, 248, 225, 0.2),
@@ -430,9 +430,9 @@
 
 .viewer-auto-zoom-button:hover,
 .viewer-auto-zoom-button:focus-visible {
-  transform: translateX(-50%) !important;
-  background: linear-gradient(180deg, rgba(255,252,238,1), rgba(242,210,132,0.98)) !important;
-  border-color: rgba(165, 111, 22, 0.64) !important;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(255,252,238,1), rgba(242,210,132,0.98));
+  border-color: rgba(165, 111, 22, 0.64);
   box-shadow:
     var(--favorite-active-shadow),
     0 0 0 5px rgba(255, 248, 225, 0.26),
@@ -440,7 +440,7 @@
 }
 
 .viewer-auto-zoom-button:active {
-  transform: translateX(-50%) !important;
+  transform: translateX(-50%);
 }
 
 .viewer-auto-zoom-button svg {
