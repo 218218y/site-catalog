@@ -17,7 +17,7 @@ for (const html of [template, viewer]) {
 }
 
 const viewerShellRule = favoritesRoutingCss.match(
-  /\/\* Hide only the inactive document shell in the standalone viewer\.[\s\S]*?display:\s*none\s*!important;\s*\}/
+  /\/\* Hide only the inactive document shell in the standalone viewer\.[\s\S]*?display:\s*none;\s*\}/
 )?.[0] || '';
 
 assert.ok(viewerShellRule, 'standalone viewer shell rule must exist');

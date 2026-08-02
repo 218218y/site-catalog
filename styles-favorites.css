@@ -3598,7 +3598,7 @@ body[data-app-ready="true"] > .site-footer {
     width: min(calc(100% - 16px), var(--reader-search-results-width), 560px);
   }
   .lightbox:not(.mobile-search-open) .lightbox-search-results {
-    display: none !important;
+    display: none;
   }
   .lightbox.mobile-search-open .lightbox-search-results {
     position: relative;
@@ -3822,12 +3822,12 @@ body[data-app-ready="true"] > .site-footer {
   min-width: var(--viewer-auto-zoom-control-size);
   height: var(--viewer-auto-zoom-control-size);
   min-height: var(--viewer-auto-zoom-control-size);
-  padding: 0 !important;
+  padding: 0;
   transform: translateX(-50%);
   border-radius: 999px;
   color: var(--favorite-active-color);
-  background: var(--favorite-active-background) !important;
-  border-color: var(--favorite-active-border) !important;
+  background: var(--favorite-active-background);
+  border-color: var(--favorite-active-border);
   box-shadow: var(--favorite-active-shadow);
   backdrop-filter: blur(14px);
 }
@@ -4542,11 +4542,11 @@ body[data-app-ready="true"] > .site-footer {
     padding: 14px;
   }
   .favorite-image-frame { min-height: 180px; }
-  .favorite-open-catalog-button {
+  .reader-button.favorite-open-catalog-button {
     bottom: 18px;
     min-height: 42px;
     max-width: calc(100vw - 128px);
-    padding-inline: 14px !important;
+    padding-inline: 14px;
     font-size: .88rem;
   }
   .favorite-open-catalog-button span {
@@ -4615,7 +4615,7 @@ body[data-page="viewer"] > main,
 body[data-page="viewer"] > .catalog-scroll-top-float,
 body[data-page="viewer"] > .favorites-panel,
 body[data-page="viewer"] > .site-footer {
-  display: none !important;
+  display: none;
 }
 
 body[data-page="viewer"] {
@@ -5714,12 +5714,12 @@ body[data-page="viewer"] {
   line-height: 1.65;
 }
 
-.favorites-transfer-summary {
-  margin-top: 13px !important;
+.favorites-transfer-copy .favorites-transfer-summary {
+  margin-top: 13px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 13px;
-  color: var(--ink) !important;
+  color: var(--ink);
   background: rgba(255, 255, 255, .62);
   font-size: .86rem;
   font-weight: 760;

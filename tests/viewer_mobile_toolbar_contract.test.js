@@ -40,11 +40,13 @@ assert.match(viewerSource, /registerFeatureInterface\("viewer", \{[\s\S]*?attach
 
 assert.match(css, /\.reader-mobile-search-toggle,\s*\.reader-mobile-search-head\s*\{\s*display:\s*none;/);
 assert.match(css, /\.lightbox\.mobile-search-open \.reader-header-search\s*\{\s*display:\s*block;/);
-assert.match(css, /\.lightbox:not\(\.mobile-search-open\) \.lightbox-search-results\s*\{[\s\S]*?display:\s*none !important;/);
+assert.match(css, /\.lightbox:not\(\.mobile-search-open\) \.lightbox-search-results\s*\{[\s\S]*?display:\s*none;/);
+assert.doesNotMatch(css, /\.lightbox:not\(\.mobile-search-open\) \.lightbox-search-results\s*\{[^}]*!important/);
 assert.match(css, /@media \(max-width: 480px\)[\s\S]*?--reader-mobile-toolbar-height:\s*58px;[\s\S]*?grid-template-areas:\s*"brand actions";/);
 assert.doesNotMatch(css, /grid-template-areas:\s*"brand"\s*"search"\s*"actions";/);
 assert.doesNotMatch(css, /\.reader-quick-actions\s*\{\s*display:\s*none;/);
-assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]*?#lightboxPinTopBar,[\s\S]*?\.lightbox-actions \.viewer-fit-control,[\s\S]*?display:\s*none !important;/);
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]*?#lightboxPinTopBar,[\s\S]*?\.lightbox-actions \.viewer-fit-control,[\s\S]*?display:\s*none;/);
+assert.doesNotMatch(css, /#lightboxScreenshot,[\s\S]*?\.viewer-control-separator\s*\{[^}]*!important/);
 assert.match(css, /\.viewer-mobile-more-menu\.visible\s*\{[\s\S]*?pointer-events:\s*auto;/);
 
 console.log('viewer_mobile_toolbar_contract.test.js: PASS');

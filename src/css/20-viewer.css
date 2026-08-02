@@ -158,7 +158,6 @@
   width: 38px;
   min-width: 38px;
   min-height: 38px;
-  padding: 0 !important;
   border-radius: 13px;
 }
 .reader-control-icon-button svg {
@@ -189,14 +188,14 @@
 }
 .viewer-fit-control[aria-pressed="true"] {
   color: var(--ink);
-  background: var(--viewer-control-active-bg) !important;
-  border-color: var(--viewer-chrome-border-strong) !important;
+  background: var(--viewer-control-active-bg);
+  border-color: var(--viewer-chrome-border-strong);
   box-shadow: var(--viewer-control-hover-shadow);
 }
 .viewer-fullscreen-toggle[data-fullscreen-active="true"] {
   color: var(--ink);
-  background: var(--viewer-control-active-bg) !important;
-  border-color: var(--viewer-chrome-border-strong) !important;
+  background: var(--viewer-control-active-bg);
+  border-color: var(--viewer-chrome-border-strong);
 }
 .viewer-fullscreen-toggle[data-fullscreen-active="true"] .viewer-fullscreen-icon-enter {
   display: none;
@@ -209,8 +208,8 @@
 }
 .top-ui-pin-button[data-pinned="true"] {
   color: var(--ink);
-  background: var(--viewer-control-active-bg) !important;
-  border-color: var(--viewer-chrome-border-strong) !important;
+  background: var(--viewer-control-active-bg);
+  border-color: var(--viewer-chrome-border-strong);
   box-shadow: var(--viewer-control-hover-shadow);
 }
 .lightbox.top-ui-pinned .lightbox-top-hotspot {
@@ -281,21 +280,11 @@
   width: var(--viewer-side-control-size);
   min-width: var(--viewer-side-control-size);
   min-height: var(--viewer-side-control-size);
-  padding: 0 !important;
   transform: translateY(-50%);
   border-radius: 999px;
   color: var(--viewer-side-control-color);
-  background: var(--viewer-side-control-bg) !important;
-  border-color: var(--viewer-side-control-border) !important;
   box-shadow: var(--viewer-side-control-shadow);
   backdrop-filter: blur(14px);
-}
-.viewer-fullscreen-float:hover,
-.viewer-fullscreen-float:focus-visible,
-.viewer-fullscreen-float:active {
-  transform: translateY(-50%) !important;
-  background: var(--viewer-side-control-hover-bg) !important;
-  border-color: var(--viewer-side-control-hover-border) !important;
 }
 .viewer-fullscreen-float svg {
   width: 22px;
@@ -360,22 +349,12 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  padding: 0 17px !important;
   transform: translateX(-50%);
   border-radius: 999px;
   color: var(--viewer-control-text);
-  background: var(--viewer-control-bg) !important;
-  border-color: var(--viewer-chrome-border) !important;
   box-shadow: var(--viewer-control-shadow);
   backdrop-filter: blur(16px);
   white-space: nowrap;
-}
-.favorite-open-catalog-button:hover,
-.favorite-open-catalog-button:focus-visible,
-.favorite-open-catalog-button:active {
-  transform: translateX(-50%) translateY(-1px) !important;
-  background: var(--viewer-control-hover-bg) !important;
-  border-color: var(--viewer-chrome-border-strong) !important;
 }
 .favorite-open-catalog-button svg {
   width: 19px;
@@ -390,7 +369,7 @@
 .lightbox.favorites-viewer-mode .lightbox-search > .reader-search-toolbar,
 .lightbox.favorites-viewer-mode .lightbox-search > .reader-catalog-menu,
 .lightbox.favorites-viewer-mode .lightbox-search-results {
-  display: none !important;
+  display: none;
 }
 .lightbox-floating-preview {
   position: fixed;
@@ -812,10 +791,41 @@ a.reader-home:focus-visible {
 .reader-button:active {
   transform: translateY(0);
 }
+
+/* Viewer controls that specialize the shared reader button are declared after
+   the base state so ordinary cascade specificity is sufficient. */
+.reader-button.reader-control-icon-button,
+.reader-button.viewer-fullscreen-float {
+  padding: 0;
+}
+.reader-button.viewer-fullscreen-float {
+  background: var(--viewer-side-control-bg);
+  border-color: var(--viewer-side-control-border);
+}
+.reader-button.viewer-fullscreen-float:hover,
+.reader-button.viewer-fullscreen-float:focus-visible,
+.reader-button.viewer-fullscreen-float:active {
+  transform: translateY(-50%);
+  background: var(--viewer-side-control-hover-bg);
+  border-color: var(--viewer-side-control-hover-border);
+}
+.reader-button.favorite-open-catalog-button {
+  padding: 0 17px;
+  background: var(--viewer-control-bg);
+  border-color: var(--viewer-chrome-border);
+}
+.reader-button.favorite-open-catalog-button:hover,
+.reader-button.favorite-open-catalog-button:focus-visible,
+.reader-button.favorite-open-catalog-button:active {
+  transform: translateX(-50%) translateY(-1px);
+  background: var(--viewer-control-hover-bg);
+  border-color: var(--viewer-chrome-border-strong);
+}
+
 .reader-icon-button {
   width: 40px;
   min-width: 40px;
-  padding: 0 !important;
+  padding: 0;
   border-radius: 13px;
 }
 .reader-icon-button svg {
@@ -966,7 +976,7 @@ a.reader-home:focus-visible {
   width: 42px;
   min-width: 42px;
   min-height: 42px;
-  padding: 0 !important;
+  padding: 0;
   border-radius: 15px;
   color: var(--viewer-control-text, rgba(255,255,255,0.94));
   background: var(--viewer-control-active-bg, linear-gradient(180deg, rgba(217, 186, 163, 0.24), rgba(255,255,255,0.09)));

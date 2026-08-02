@@ -43,13 +43,33 @@ for (const name of sources) {
   assert.doesNotMatch(source, /@layer\b/, `${name}: cascade layer ownership belongs to the builder`);
 }
 
-const importantBudget = 105;
+const reviewedImportantCounts = Object.freeze({
+  "00-foundation.css": 0,
+  "05-viewer-onboarding.css": 34,
+  "06-shell-components.css": 2,
+  "08-shared-floating-ui.css": 0,
+  "10-catalog.css": 0,
+  "20-viewer.css": 5,
+  "24-shared-inquiry.css": 0,
+  "25-viewer-actions.css": 0,
+  "30-media-components.css": 0,
+  "40-catalog-refinements.css": 0,
+  "50-footer-legal.css": 0,
+  "80-responsive-shell.css": 6,
+  "85-favorites-routing.css": 8,
+  "87-favorites-workspace.css": 1,
+  "90-visual-polish.css": 11,
+  "95-accessibility-consistency.css": 5,
+  "97-seo-foundation.css": 0,
+});
+assert.deepEqual(sources, Object.keys(reviewedImportantCounts).sort(), "review every CSS module in the important override ledger");
 const importantCount = sources.reduce((total, name) => {
   const source = fs.readFileSync(path.join(cssDirectory, name), "utf8");
-  return total + (source.match(/!important/g) || []).length;
+  const count = (source.match(/!important/g) || []).length;
+  assert.equal(count, reviewedImportantCounts[name], `${name}: update the reviewed !important count after a justified removal`);
+  return total + count;
 }, 0);
-assert.ok(importantCount <= importantBudget, `CSS !important budget exceeded: ${importantCount} > ${importantBudget}`);
-assert.equal(importantCount, 105, "update the reviewed budget downward when overrides are removed");
+assert.equal(importantCount, 72, "the reviewed CSS !important total must only move downward");
 
 for (const bundleName of ["styles.css", "styles-catalog.css", "styles-favorites.css", "styles-viewer.css"]) {
   const bundle = fs.readFileSync(path.join(root, bundleName), "utf8");

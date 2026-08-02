@@ -90,7 +90,7 @@ assert.match(inquiryPreviewRule[1], /--catalog-watermark-top:\s*5%;/, "inquiry w
 assert.match(css, /width:\s*var\(--catalog-watermark-width,\s*clamp\(58px, 16%, 138px\)\);/, "shared watermark sizing must allow component-level proportional overrides");
 assert.doesNotMatch(css, /\.viewer-inquiry-preview-frame::after\s*\{[^}]*width:\s*clamp\(58px/s, "compact inquiry preview must not inherit the desktop watermark minimum directly");
 assert.doesNotMatch(css, /\.viewer-inquiry-action small\s*\{/);
-assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]*?#lightboxPinTopBar,[\s\S]*?display:\s*none !important;/);
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?#lightboxScreenshot,[\s\S]*?#lightboxPinTopBar,[\s\S]*?display:\s*none;/);
 assert.match(css, /@media \(max-width: 480px\)[\s\S]*?grid-template-areas:\s*"brand actions";/);
 
 console.log("viewer_stage1_value_contract.test.js: PASS");

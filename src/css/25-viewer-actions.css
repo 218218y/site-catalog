@@ -20,8 +20,8 @@
   .viewer-mobile-more-toggle svg { fill: currentColor; stroke: none; }
   .viewer-mobile-more-toggle.is-active {
     color: var(--ink);
-    background: var(--viewer-control-active-bg) !important;
-    border-color: var(--viewer-chrome-border-strong) !important;
+    background: var(--viewer-control-active-bg);
+    border-color: var(--viewer-chrome-border-strong);
   }
   .viewer-mobile-more-menu {
     position: absolute;
@@ -94,7 +94,7 @@
   .lightbox-actions .viewer-fit-control,
   .lightbox-actions .lightbox-favorites-button,
   .viewer-control-separator {
-    display: none !important;
+    display: none;
   }
   .lightbox.mobile-more-open .lightbox-top-shell {
     transform: translateY(0);

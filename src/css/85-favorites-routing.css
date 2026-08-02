@@ -338,11 +338,11 @@
     padding: 14px;
   }
   .favorite-image-frame { min-height: 180px; }
-  .favorite-open-catalog-button {
+  .reader-button.favorite-open-catalog-button {
     bottom: 18px;
     min-height: 42px;
     max-width: calc(100vw - 128px);
-    padding-inline: 14px !important;
+    padding-inline: 14px;
     font-size: .88rem;
   }
   .favorite-open-catalog-button span {
@@ -411,7 +411,7 @@ body[data-page="viewer"] > main,
 body[data-page="viewer"] > .catalog-scroll-top-float,
 body[data-page="viewer"] > .favorites-panel,
 body[data-page="viewer"] > .site-footer {
-  display: none !important;
+  display: none;
 }
 
 body[data-page="viewer"] {

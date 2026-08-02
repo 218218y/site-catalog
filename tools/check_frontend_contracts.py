@@ -552,7 +552,25 @@ def check_test_only_exports(base: Path, sources: list[Path], failures: list[str]
 
 
 
-CSS_IMPORTANT_BUDGET = 105
+CSS_IMPORTANT_BUDGET_BY_FILE: Mapping[str, int] = {
+    "00-foundation.css": 0,
+    "05-viewer-onboarding.css": 34,
+    "06-shell-components.css": 2,
+    "08-shared-floating-ui.css": 0,
+    "10-catalog.css": 0,
+    "20-viewer.css": 5,
+    "24-shared-inquiry.css": 0,
+    "25-viewer-actions.css": 0,
+    "30-media-components.css": 0,
+    "40-catalog-refinements.css": 0,
+    "50-footer-legal.css": 0,
+    "80-responsive-shell.css": 6,
+    "85-favorites-routing.css": 8,
+    "87-favorites-workspace.css": 1,
+    "90-visual-polish.css": 11,
+    "95-accessibility-consistency.css": 5,
+    "97-seo-foundation.css": 0,
+}
 
 
 def check_css_architecture(base: Path, failures: list[str]) -> None:
@@ -560,15 +578,20 @@ def check_css_architecture(base: Path, failures: list[str]) -> None:
 
     css_sources = sorted((base / "src/css").glob("*.css"))
     foundation = (base / "src/css/00-foundation.css").read_text(encoding="utf-8")
-    important_count = sum(
-        path.read_text(encoding="utf-8").count("!important")
-        for path in css_sources
-    )
-    if important_count > CSS_IMPORTANT_BUDGET:
-        failures.append(
-            f"CSS !important budget exceeded: {important_count} > {CSS_IMPORTANT_BUDGET}; "
-            "prefer scoped ownership selectors before adding cascade overrides"
-        )
+    actual_css_names = {path.name for path in css_sources}
+    expected_css_names = set(CSS_IMPORTANT_BUDGET_BY_FILE)
+    if actual_css_names != expected_css_names:
+        missing = sorted(expected_css_names - actual_css_names)
+        extra = sorted(actual_css_names - expected_css_names)
+        failures.append(f"CSS important override ledger mismatch; missing={missing}, extra={extra}")
+    for path in css_sources:
+        count = path.read_text(encoding="utf-8").count("!important")
+        budget = CSS_IMPORTANT_BUDGET_BY_FILE.get(path.name, 0)
+        if count > budget:
+            failures.append(
+                f"CSS !important budget exceeded in {path.name}: {count} > {budget}; "
+                "prefer scoped ownership selectors before adding cascade overrides"
+            )
     token_values: list[int] = []
     missing_tokens: list[str] = []
     for token in Z_INDEX_SCALE:
