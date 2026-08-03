@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import importlib.util
 import json
 import os
@@ -55,18 +56,56 @@ def test_platform_selection_is_chat_linux_x64_only() -> None:
     assert set(MODULE.PLATFORM_INSTALL_PATHS) == {"linux-x64"}
 
 
-def test_offline_install_is_atomic_idempotent_and_runtime_checked(tmp_path: Path) -> None:
+def test_offline_install_is_atomic_and_idempotent(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
     copy_inputs(root)
 
-    assert MODULE.install_typescript(root, platform_key="linux-x64", quiet=True)
-    assert not MODULE.install_typescript(root, platform_key="linux-x64", quiet=True)
+    assert MODULE.install_typescript(
+        root, platform_key="linux-x64", verify_runtime=False, quiet=True
+    )
+    assert not MODULE.install_typescript(
+        root, platform_key="linux-x64", verify_runtime=False, quiet=True
+    )
     assert (root / "node_modules/typescript/bin/tsc").is_file()
     assert (root / "node_modules/@typescript/typescript-linux-x64/lib/tsc").is_file()
     if os.name != "nt":
         assert (root / "node_modules/.bin/tsc").is_symlink()
+    MODULE.verify_offline_installation(
+        root, platform_key="linux-x64", verify_runtime=False
+    )
+
+
+@pytest.mark.skipif(
+    platform.system() != "Linux" or platform.machine().lower() not in {"x86_64", "amd64", "x64"},
+    reason="runtime probe uses the Linux x64 vendored compiler",
+)
+def test_offline_linux_x64_runtime_works_without_npm(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    copy_inputs(root)
+    MODULE.install_typescript(root, platform_key="linux-x64", quiet=True)
     MODULE.verify_offline_installation(root, platform_key="linux-x64")
+
+
+def test_cli_shim_falls_back_to_a_copied_launcher_when_symlinks_are_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    copy_inputs(root)
+
+    def reject_symlink(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError(errno.EPERM, "symlink creation unavailable")
+
+    monkeypatch.setattr(Path, "symlink_to", reject_symlink)
+    MODULE.install_typescript(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
+
+    launcher = root / "node_modules/typescript/bin/tsc"
+    shim = root / "node_modules/.bin/tsc"
+    assert shim.is_file()
+    assert not shim.is_symlink()
+    assert shim.read_bytes() == launcher.read_bytes()
 
 
 def test_modified_installation_is_repaired_from_the_archive(tmp_path: Path) -> None:

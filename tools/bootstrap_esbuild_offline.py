@@ -8,6 +8,7 @@ the complete dependency tree is handled by ``bootstrap_npm_offline_linux.py``.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import sys
 import json
@@ -241,13 +242,32 @@ def _install_package(
     return True
 
 
+def _symlink_creation_is_unavailable(error: OSError) -> bool:
+    return getattr(error, "winerror", None) == 1314 or error.errno in {
+        errno.EACCES,
+        errno.EPERM,
+        errno.ENOSYS,
+        errno.ENOTSUP,
+    }
+
+
 def _write_cli_shim(root: Path) -> None:
     bin_directory = root / "node_modules/.bin"
     bin_directory.mkdir(parents=True, exist_ok=True)
     shim = bin_directory / "esbuild"
     if shim.exists() or shim.is_symlink():
         shim.unlink()
-    shim.symlink_to(Path("../esbuild/bin/esbuild"))
+    try:
+        shim.symlink_to(Path("../esbuild/bin/esbuild"))
+    except OSError as error:
+        if not _symlink_creation_is_unavailable(error):
+            raise
+        # Windows commonly denies symlink creation without Developer Mode or
+        # elevated privileges. The focused installer may still be exercised
+        # there for archive/layout verification, so preserve the launcher by
+        # copying it instead of requiring a host privilege unrelated to the
+        # Linux-target package contract.
+        shutil.copy2(root / "node_modules/esbuild/bin/esbuild", shim)
 
 
 def verify_node_runtime(root: Path) -> None:
@@ -352,7 +372,12 @@ def install_esbuild(
     return changed_core or changed_platform
 
 
-def verify_offline_installation(root: Path | None = None, *, platform_key: str | None = None) -> None:
+def verify_offline_installation(
+    root: Path | None = None,
+    *,
+    platform_key: str | None = None,
+    verify_runtime: bool = True,
+) -> None:
     base = (root or project_root()).resolve()
     selected_key = platform_key or current_platform_key()
     try:
@@ -363,7 +388,8 @@ def verify_offline_installation(root: Path | None = None, *, platform_key: str |
         raise BootstrapError("Offline esbuild core package is missing or modified.")
     if not _installation_is_current(base, platform_install_path, binary=Path("bin/esbuild")):
         raise BootstrapError("Offline esbuild Linux x64 binary package is missing or modified.")
-    verify_node_runtime(base)
+    if verify_runtime:
+        verify_node_runtime(base)
 
 
 def main() -> int:

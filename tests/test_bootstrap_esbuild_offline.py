@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import importlib.util
 import json
 import platform
@@ -78,6 +79,26 @@ def test_offline_install_is_atomic_idempotent_and_repairs_changes(tmp_path: Path
     assert main_js.read_bytes() == expected
 
 
+def test_cli_shim_falls_back_to_a_copied_launcher_when_symlinks_are_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    copy_inputs(root)
+
+    def reject_symlink(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError(errno.EPERM, "symlink creation unavailable")
+
+    monkeypatch.setattr(Path, "symlink_to", reject_symlink)
+    MODULE.install_esbuild(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
+
+    launcher = root / "node_modules/esbuild/bin/esbuild"
+    shim = root / "node_modules/.bin/esbuild"
+    assert shim.is_file()
+    assert not shim.is_symlink()
+    assert shim.read_bytes() == launcher.read_bytes()
+
+
 def test_npm_postinstall_core_binary_layout_is_accepted(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
@@ -88,7 +109,9 @@ def test_npm_postinstall_core_binary_layout_is_accepted(tmp_path: Path) -> None:
     platform_binary = root / MODULE.PLATFORM_INSTALL_PATHS["linux-x64"] / "bin/esbuild"
     shutil.copy2(platform_binary, core_binary)
 
-    MODULE.verify_offline_installation(root, platform_key="linux-x64")
+    MODULE.verify_offline_installation(
+        root, platform_key="linux-x64", verify_runtime=False
+    )
     assert not MODULE.install_esbuild(
         root,
         platform_key="linux-x64",

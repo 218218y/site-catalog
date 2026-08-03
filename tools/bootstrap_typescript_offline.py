@@ -7,6 +7,7 @@ native compiler. Versions, URLs and integrity values come from package-lock.json
 from __future__ import annotations
 
 import argparse
+import errno
 import sys
 import json
 import os
@@ -189,13 +190,32 @@ def _install_package(root: Path, install_path: str, *, force: bool = False) -> b
     return True
 
 
+def _symlink_creation_is_unavailable(error: OSError) -> bool:
+    return getattr(error, "winerror", None) == 1314 or error.errno in {
+        errno.EACCES,
+        errno.EPERM,
+        errno.ENOSYS,
+        errno.ENOTSUP,
+    }
+
+
 def _write_cli_shim(root: Path) -> None:
     bin_directory = root / "node_modules/.bin"
     bin_directory.mkdir(parents=True, exist_ok=True)
     shim = bin_directory / "tsc"
     if shim.exists() or shim.is_symlink():
         shim.unlink()
-    shim.symlink_to(Path("../typescript/bin/tsc"))
+    try:
+        shim.symlink_to(Path("../typescript/bin/tsc"))
+    except OSError as error:
+        if not _symlink_creation_is_unavailable(error):
+            raise
+        # Windows commonly denies symlink creation without Developer Mode or
+        # elevated privileges. The focused installer may still be exercised
+        # there for archive/layout verification, so preserve the launcher by
+        # copying it instead of requiring a host privilege unrelated to the
+        # Linux-target package contract.
+        shutil.copy2(root / "node_modules/typescript/bin/tsc", shim)
 
 
 def _parse_node_version(version_text: str) -> tuple[int, int, int]:
@@ -324,7 +344,12 @@ def install_typescript(
     return changed_core or changed_platform
 
 
-def verify_offline_installation(root: Path | None = None, *, platform_key: str | None = None) -> None:
+def verify_offline_installation(
+    root: Path | None = None,
+    *,
+    platform_key: str | None = None,
+    verify_runtime: bool = True,
+) -> None:
     base = (root or project_root()).resolve()
     selected_key = platform_key or current_platform_key()
     try:
@@ -336,7 +361,8 @@ def verify_offline_installation(root: Path | None = None, *, platform_key: str |
     if not _installation_is_current(base, platform_install_path):
         raise BootstrapError("Offline TypeScript Linux x64 compiler package is missing or modified.")
     verify_core_platform_contract(base, platform_install_path)
-    verify_node_runtime(base)
+    if verify_runtime:
+        verify_node_runtime(base)
 
 
 def main() -> int:

@@ -181,7 +181,7 @@ def test_esbuild_is_an_exact_direct_reproducible_dependency() -> None:
 
 def test_route_entrypoints_are_small_explicit_static_composition_roots() -> None:
     expectations = {
-        "catalog": {"18-navigation-feature.js", "30-favorites-share.js", "40-catalog-grid.js", "50-search-ui.js", "80-app-shell.js", "90-bootstrap.js"},
+        "catalog": {"18-navigation-feature.js", "30-favorites-share.js", "40-catalog-grid.js", "41-catalog-initial-hydration.js", "50-search-ui.js", "80-app-shell.js", "90-bootstrap.js"},
         "favorites": {"18-navigation-feature.js", "30-favorites-share.js", "32-shared-inquiry.js", "35-favorites-workspace.js", "40-catalog-grid.js", "50-search-ui.js", "80-app-shell.js", "90-bootstrap.js"},
         "viewer": {"18-navigation-feature.js", "30-favorites-share.js", "31-viewer-share.js", "32-shared-inquiry.js", "35-favorites-workspace.js", "40-catalog-grid.js", "50-search-ui.js", "60-viewer.js", "80-app-shell.js", "90-bootstrap.js"},
         "payment": set(),

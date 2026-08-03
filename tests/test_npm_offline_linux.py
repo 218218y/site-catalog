@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import errno
 import hashlib
 import importlib.util
 import io
@@ -388,12 +389,33 @@ def test_installed_directory_with_unexpected_symlink_is_not_trusted(tmp_path: Pa
     write_archive(archive, name="offline-alpha", version="1.2.3")
     installed = tmp_path / "installed"
     MODULE.extract_npm_archive(archive, installed)
-    (installed / "unexpected-link").symlink_to("index.js")
+    try:
+        (installed / "unexpected-link").symlink_to("index.js")
+    except OSError as error:
+        unavailable = getattr(error, "winerror", None) == 1314 or error.errno in {
+            errno.EACCES, errno.EPERM, errno.ENOSYS, errno.ENOTSUP
+        }
+        if unavailable:
+            pytest.skip(f"symlink creation is unavailable on this host: {error}")
+        raise
 
     assert MODULE.directory_matches_archive(archive, installed) is False
 
 
-@pytest.mark.skipif(shutil.which("npm") is None, reason="npm is required for the offline install integration test")
+def _linux_offline_install_integration_available() -> bool:
+    if shutil.which("npm") is None:
+        return False
+    try:
+        BOOTSTRAP.verify_host()
+    except BOOTSTRAP.OfflineInstallError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(
+    not _linux_offline_install_integration_available(),
+    reason="integration test requires npm on the Linux x64/glibc offline-install target",
+)
 def test_complete_install_uses_isolated_stage_and_preserves_project_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -433,6 +455,10 @@ def test_complete_install_uses_isolated_stage_and_preserves_project_metadata(
     assert not (root / MODULE.LEGACY_CACHE_DIRECTORY).exists()
 
 
+@pytest.mark.skipif(
+    not _linux_offline_install_integration_available(),
+    reason="integration test requires npm on the Linux x64/glibc offline-install target",
+)
 def test_failed_staged_install_keeps_existing_node_modules(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
