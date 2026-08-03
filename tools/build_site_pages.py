@@ -422,6 +422,7 @@ def default_site_shell_replacements(
         "{{ROUTE_STYLESHEET}}": rewrites.get(route_stylesheet, route_stylesheet),
         "{{ROUTE_SCRIPT}}": rewrites.get(route_script, route_script),
         "{{PAGE_MODE}}": page.mode,
+        "{{ROOT_CLASS_SUFFIX}}": " viewer-open" if page.mode == "viewer" else "",
         "{{BODY_DATA_ATTRIBUTES}}": "",
         "{{BRAND_HEADING_OPEN}}": (
             '<h1 class="brand-text brand-page-heading">'

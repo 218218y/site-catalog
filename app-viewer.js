@@ -4750,7 +4750,7 @@ function applyPendingSingleImagePosition() {
 function singleImageFitLayout(naturalWidth, naturalHeight) {
   let stage = viewerElements.stageCanvas, width = Number(naturalWidth), height = Number(naturalHeight);
   if (!stage || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
-  let availableWidth = Math.max(260, stage.clientWidth - 18), availableHeight = Math.max(260, stage.clientHeight - 18), widthScale = availableWidth / width, heightScale = availableHeight / height, fitScale = viewerViewportState.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
+  let viewportWidth = Math.max(0, Number(window.visualViewport?.width) || Number(window.innerWidth) || 0), viewportHeight = Math.max(0, Number(window.visualViewport?.height) || Number(window.innerHeight) || 0), stageWidth = Math.max(0, Number(stage.clientWidth) || viewportWidth), stageHeight = Math.max(0, Number(stage.clientHeight) || viewportHeight), availableWidth = Math.max(260, stageWidth - 18), availableHeight = Math.max(260, stageHeight - 18), widthScale = availableWidth / width, heightScale = availableHeight / height, fitScale = viewerViewportState.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
   return {
     fitScale,
     width: Math.max(220, Math.round(width * fitScale)),
@@ -5160,6 +5160,10 @@ function returnToMainSiteFromLightbox(event = null) {
 function setViewerLoading(isLoading) {
   viewerElements.viewerLoading.classList.toggle("hidden", !isLoading);
 }
+function applyStableViewerPageGeometry(catalog, page, image, options = {}) {
+  let declaredSize = pageSize(catalog, page), width = Number(declaredSize?.width) || Number(image?.naturalWidth) || 0, height = Number(declaredSize?.height) || Number(image?.naturalHeight) || 0;
+  return width <= 0 || height <= 0 ? null : applyLightboxFrameGeometry(width, height, options);
+}
 function cancelSingleViewerStagePreparation() {
   let controller = viewerImageState.singleImageStageAbortController;
   return controller ? (viewerImageState.singleImageStageAbortController = null, controller.abort(), !0) : !1;
@@ -5276,7 +5280,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!primarySrc) return;
   let currentLogicalSrc = image.dataset.logicalSrc || normalizeCatalogImageUrl(image.getAttribute("src") || "");
   if (!options.forceRefresh && currentLogicalSrc === primarySrc && image.complete && image.naturalWidth && image.dataset.loadedQuality !== "fallback") {
-    applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: !1 }), setSingleViewerImageFeedback(), finishSingleImageSwap(token);
+    applyStableViewerPageGeometry(catalog, page, image, { updateFitScale: !1 }), setSingleViewerImageFeedback(), finishSingleImageSwap(token);
     return;
   }
   let preserveCurrentImage = !!(options.preserveCurrentImage && image.complete && image.naturalWidth > 0 && !viewerElements.lightboxImageFrame?.classList.contains("image-terminal-error"));
@@ -5297,7 +5301,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
         (candidate) => {
           delete image.dataset.placeholderIgnore;
           let loadedTier = candidate.tier || request.primaryTier || CATALOG_IMAGE_TIER_FULL, degraded = catalogImageTierRank(loadedTier) < catalogImageTierRank(request.primaryTier);
-          image.dataset.loadedTier = loadedTier, image.dataset.loadedQuality = degraded ? "fallback" : loadedTier, image.naturalWidth && image.naturalHeight && applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: !1 }), releaseSingleViewerRetainedResolutionLayer(), finishSingleImageSwap(token), viewerElements.lightboxImageFrame?.setAttribute("aria-busy", "false"), runSingleImageSwapAnimation(), degraded ? setSingleViewerImageFeedback("fallback", "שכבת התמונה המועדפת לא נטענה. מוצגת חלופה מוקטנת; אפשר לנסות שוב.") : setSingleViewerImageFeedback();
+          image.dataset.loadedTier = loadedTier, image.dataset.loadedQuality = degraded ? "fallback" : loadedTier, image.naturalWidth && image.naturalHeight && applyStableViewerPageGeometry(catalog, page, image, { updateFitScale: !1 }), releaseSingleViewerRetainedResolutionLayer(), finishSingleImageSwap(token), viewerElements.lightboxImageFrame?.setAttribute("aria-busy", "false"), runSingleImageSwapAnimation(), degraded ? setSingleViewerImageFeedback("fallback", "שכבת התמונה המועדפת לא נטענה. מוצגת חלופה מוקטנת; אפשר לנסות שוב.") : setSingleViewerImageFeedback();
         }
       ),
       onExhausted: () => {

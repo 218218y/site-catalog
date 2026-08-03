@@ -35,7 +35,8 @@ for (const html of [template, favorites]) {
 
 assert.match(viewerGeometrySource, /function singleImageFitLayout\(/);
 assert.match(viewerGeometrySource, /function applyLightboxFrameGeometry\(/);
-assert.match(viewerImageSource, /applyLightboxFrameGeometry\(image\.naturalWidth, image\.naturalHeight/);
+assert.match(viewerImageSource, /function applyStableViewerPageGeometry\(/);
+assert.match(viewerImageSource, /return applyLightboxFrameGeometry\(width, height, options\)/);
 assert.match(viewerImageSource, /loadCatalogImageWithRecovery\(image, \{/);
 assert.match(sharedUiSource, /function initImagePlaceholderObserver\(/);
 assert.match(sharedUiSource, /new MutationObserver/);

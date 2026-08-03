@@ -31,7 +31,7 @@ for (const filename of pageFiles) {
   const readerLogo = html.match(/<img\b[^>]*class="reader-logo"[^>]*>/)?.[0];
   assert.ok(headerLogo, `${filename} must contain the header logo`);
   assert.ok(readerLogo, `${filename} must contain the reader logo`);
-  assert.match(html, /<html\b[^>]*class="has-bargig-logo"/s);
+  assert.match(html, /<html\b[^>]*class="has-bargig-logo(?:\{\{ROOT_CLASS_SUFFIX\}\}| viewer-open)?"/s);
   assert.doesNotMatch(html, /--bargig-logo-url:/, `${filename} must not define CSS-relative asset URLs inline`);
   assert.doesNotMatch(html, /wp_logo_data\.js|brand-logo\.js|data-wp-logo=/);
   assert.match(headerLogo, /\bsrc="brand-logo-header\.svg"/, `${filename} header must use the transparent header artwork`);

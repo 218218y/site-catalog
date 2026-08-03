@@ -32,7 +32,8 @@ const activeCatalogValue = { id: "fit-test" };
 const viewerElements = {
   stageCanvas: { clientWidth: 1440, clientHeight: 900 },
   lightbox: { classList: fakeClassList() },
-  lightboxImage: { naturalWidth: 0, naturalHeight: 0 },
+  lightboxImageFrame: { style: {} },
+  lightboxImage: { naturalWidth: 0, naturalHeight: 0, style: {} },
   fitAutoBtn: fakeButton(),
   fitHeightBtn: fakeButton(),
   fitWidthBtn: fakeButton()
@@ -99,6 +100,30 @@ assert.equal(geometry.getAutomaticViewerFitMode(), "height");
 activePageSize = null;
 assert.equal(geometry.getAutomaticViewerFitMode(), "height", "orientation fallback remains available before image dimensions are known");
 activePageSize = { width: 1200, height: 1800 };
+
+viewerState.imageFitMode = "width";
+viewerElements.stageCanvas.clientWidth = 0;
+viewerElements.stageCanvas.clientHeight = 0;
+window.innerWidth = 390;
+window.innerHeight = 844;
+window.visualViewport.width = 390;
+window.visualViewport.height = 844;
+assert.equal(geometry.primeLightboxFrameForCatalogPage(activeCatalogValue, 1), true);
+assert.equal(viewerElements.lightboxImageFrame.style.width, "372px");
+assert.equal(viewerElements.lightboxImageFrame.style.height, "558px");
+const hiddenPrimeGeometry = {
+  width: viewerElements.lightboxImageFrame.style.width,
+  height: viewerElements.lightboxImageFrame.style.height,
+  aspectRatio: viewerElements.lightboxImageFrame.style.aspectRatio
+};
+viewerElements.stageCanvas.clientWidth = 390;
+viewerElements.stageCanvas.clientHeight = 844;
+assert.equal(geometry.primeLightboxFrameForCatalogPage(activeCatalogValue, 1), true);
+assert.deepEqual({
+  width: viewerElements.lightboxImageFrame.style.width,
+  height: viewerElements.lightboxImageFrame.style.height,
+  aspectRatio: viewerElements.lightboxImageFrame.style.aspectRatio
+}, hiddenPrimeGeometry, "hidden-route priming must match the first visible-stage geometry");
 
 viewerElements.stageCanvas.clientWidth = 390;
 viewerElements.stageCanvas.clientHeight = 844;

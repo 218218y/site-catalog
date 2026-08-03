@@ -4,7 +4,7 @@
  */
 
 /** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
-/** @import { CatalogImageCandidate, CatalogImageRequest, ViewerImageRequestOptions, ViewerImageSwapOptions, ViewerPageSwapAnimationOptions, ViewerResolutionUpgradeOptions } from "../../types/frontend-contracts.js" */
+/** @import { CatalogImageCandidate, CatalogImageRequest, ViewerImageRequestOptions, ViewerFrameGeometryOptions, ViewerImageSwapOptions, ViewerPageSwapAnimationOptions, ViewerResolutionUpgradeOptions } from "../../types/frontend-contracts.js" */
 
 import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, getFeatureInterface } from "./10-app-state.js";
@@ -20,6 +20,25 @@ import { applyLightboxFrameGeometry, applyZoom } from "./54-viewer-geometry.js";
 /** @param {boolean} isLoading */
 function setViewerLoading(isLoading) {
   viewerElements.viewerLoading.classList.toggle("hidden", !isLoading);
+}
+
+
+/**
+ * Keep the frame on the catalog compiler's authoritative page geometry. Image
+ * tiers may be resized independently and can differ by a rounding pixel; using
+ * their decoded dimensions for layout would reflow an already-primed frame.
+ * Natural dimensions remain the safe fallback for legacy/incomplete records.
+ * @param {CatalogRecord} catalog
+ * @param {number} page
+ * @param {HTMLImageElement} image
+ * @param {ViewerFrameGeometryOptions} [options]
+ */
+function applyStableViewerPageGeometry(catalog, page, image, options = {}) {
+  const declaredSize = pageSize(catalog, page);
+  const width = Number(declaredSize?.width) || Number(image?.naturalWidth) || 0;
+  const height = Number(declaredSize?.height) || Number(image?.naturalHeight) || 0;
+  if (width <= 0 || height <= 0) return null;
+  return applyLightboxFrameGeometry(width, height, options);
 }
 
 function cancelSingleViewerStagePreparation() {
@@ -292,7 +311,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
   if (!primarySrc) return;
   const currentLogicalSrc = image.dataset.logicalSrc || normalizeCatalogImageUrl(image.getAttribute("src") || "");
   if (!options.forceRefresh && currentLogicalSrc === primarySrc && image.complete && image.naturalWidth && image.dataset.loadedQuality !== "fallback") {
-    applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
+    applyStableViewerPageGeometry(catalog, page, image, { updateFitScale: false });
     setSingleViewerImageFeedback();
     finishSingleImageSwap(token);
     return;
@@ -356,7 +375,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
         image.dataset.loadedTier = loadedTier;
         image.dataset.loadedQuality = degraded ? "fallback" : loadedTier;
         if (image.naturalWidth && image.naturalHeight) {
-          applyLightboxFrameGeometry(image.naturalWidth, image.naturalHeight, { updateFitScale: false });
+          applyStableViewerPageGeometry(catalog, page, image, { updateFitScale: false });
         }
         releaseSingleViewerRetainedResolutionLayer();
         finishSingleImageSwap(token);

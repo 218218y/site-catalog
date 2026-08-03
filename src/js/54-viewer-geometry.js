@@ -284,8 +284,17 @@ function singleImageFitLayout(naturalWidth, naturalHeight) {
   const height = Number(naturalHeight);
   if (!stage || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
 
-  const availableWidth = Math.max(260, stage.clientWidth - 18);
-  const availableHeight = Math.max(260, stage.clientHeight - 18);
+  // The direct viewer route primes the frame while the fullscreen shell is
+  // still hidden. Hidden descendants report zero client dimensions, so using
+  // the stage box alone creates a small provisional frame that is resized on
+  // the first visible animation frame. Fall back to the final visual viewport
+  // dimensions so the very first geometry written is also the stable one.
+  const viewportWidth = Math.max(0, Number(window.visualViewport?.width) || Number(window.innerWidth) || 0);
+  const viewportHeight = Math.max(0, Number(window.visualViewport?.height) || Number(window.innerHeight) || 0);
+  const stageWidth = Math.max(0, Number(stage.clientWidth) || viewportWidth);
+  const stageHeight = Math.max(0, Number(stage.clientHeight) || viewportHeight);
+  const availableWidth = Math.max(260, stageWidth - 18);
+  const availableHeight = Math.max(260, stageHeight - 18);
   const widthScale = availableWidth / width;
   const heightScale = availableHeight / height;
   const fitScale = viewerViewportState.imageFitMode === VIEWER_FIT_WIDTH ? widthScale : heightScale;
@@ -396,6 +405,7 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     getSafeViewerZoom,
     isAutoViewerZoom,
     applyZoom,
+    primeLightboxFrameForCatalogPage,
     clearSingleImagePendingPosition,
     resetImagePosition,
     singleViewerUsesBoundaryPan,
