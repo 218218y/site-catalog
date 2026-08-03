@@ -192,18 +192,51 @@ chmod 600 r2.env telemetry.env
 ./node_modules/.bin/wrangler login
 ```
 
-## esbuild במצב אופליין
+## npm במצב אופליין לסביבת הצ׳אט
 
-הפרויקט כולל ארכיונים מאומתים של esbuild עבור Linux `x64`, Linux `arm64`
-ו־Windows `x64`. כאשר צריך רק לשחזר את esbuild ללא `npm ci` מלא:
+מראת האופליין מיועדת במכוון ל־Linux `x64` עם `glibc` בלבד. היא אינה כוללת
+Windows, macOS, ARM64, musl או דפדפני Playwright.
+
+אחרי `npm update`, שינוי `package.json` או שינוי `package-lock.json`, מריצים
+פעם אחת עם חיבור רשת:
+
+```bash
+npm run update:offline:linux
+npm run check:offline:linux
+```
+
+הפקודה קוראת את הגרסאות וה־integrity ישירות מ־`package-lock.json`, מסננת את
+החבילות לפלטפורמת הצ׳אט, ממחזרת tarballs קיימים, מורידה רק את החסר, מאמתת
+חבילות bundled ומנקה ארכיונים ישנים או של פלטפורמות אחרות. התוצאה נשמרת תחת
+`vendor/npm/linux-x64-glibc`.
+
+במכונת Linux x64/glibc מנותקת מרשת מתקינים את כל עץ npm כך:
+
+```bash
+npm run setup:npm:offline:linux
+```
+
+המתקין מזין cache מקומי מה־tarballs ומריץ `npm ci --offline`. הוא מגדיר
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`, ולכן חבילות `@playwright/test`,
+`playwright` ו־`playwright-core` זמינות לקוד ולבדיקות שאינן פותחות דפדפן, בלי
+לצרף Chromium. בדיקות E2E דורשות התקנת דפדפן נפרדת ורשת:
+
+```bash
+npm run setup:browsers
+```
+
+לפעולות ממוקדות שלא צריכות את Wrangler, sharp או Playwright נשארו bootstraps
+קטנים יותר:
 
 ```bash
 npm run setup:esbuild:offline
 npm run check:esbuild:offline
+npm run setup:typescript:offline
+npm run check:typescript:offline
 ```
 
-זהו bootstrap ממוקד ל־esbuild בלבד; שאר חבילות npm עדיין מותקנות דרך
-`npm ci` לפי קובץ הנעילה.
+גם הם קוראים כעת את הגרסה והחתימה מה־lockfile ואינם דורשים עדכון ידני של
+מספרי גרסאות בתוך קוד Python. ב־Windows ממשיכים להשתמש ב־`npm ci` הרגיל.
 
 ## תקלות נפוצות
 

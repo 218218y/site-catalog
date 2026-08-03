@@ -1,24 +1,24 @@
-# Offline TypeScript 7 archives
+# Legacy focused TypeScript archives
 
-Place the exact Linux npm tarballs required by the offline chat/CI machine in
-this directory. Do not extract or rename them. Windows uses the normal `npm ci`
-installation and must not require a vendored Windows compiler archive.
+The focused TypeScript bootstrap recognizes verified archives in this legacy
+directory for compatibility with existing project copies. It now resolves the
+exact launcher/compiler version, URL and SHA-512 integrity directly from
+`package-lock.json`; no package version is duplicated in the bootstrap source.
 
-Always required:
+Generate the canonical Linux x64/glibc mirror after npm dependency updates:
 
-- `typescript-7.0.2.tgz`
-  - https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz
+```bash
+npm run update:offline:linux
+```
 
-Linux x64 (the usual chat/CI container):
+The updater reuses matching archives from here, copies them into
+`vendor/npm/linux-x64-glibc`, downloads only missing lockfile packages, and
+removes legacy or non-target tarballs. The mirror intentionally excludes
+Windows, macOS, ARM64, musl and Playwright browser payloads.
 
-- `typescript-linux-x64-7.0.2.tgz`
-  - https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.2.tgz
+Focused install and verification remain available:
 
-Linux ARM64, only when needed:
-
-- `typescript-linux-arm64-7.0.2.tgz`
-  - https://registry.npmjs.org/@typescript/typescript-linux-arm64/-/typescript-linux-arm64-7.0.2.tgz
-
-`tools/bootstrap_typescript_offline.py` verifies each archive against the exact
-URL, version and SHA-512 integrity in `package-lock.json`, extracts only the
-current platform, and installs no unrelated npm dependencies.
+```bash
+npm run setup:typescript:offline
+npm run check:typescript:offline
+```

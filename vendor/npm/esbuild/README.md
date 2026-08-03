@@ -1,26 +1,25 @@
-# Offline esbuild runtime
+# Legacy focused esbuild archives
 
-These Linux-only archives provide the exact `esbuild` version pinned by
-`package.json` and `package-lock.json` without installing the repository's
-complete npm dependency tree. Windows uses the normal `npm ci` installation and
-does not require or expect a vendored Windows archive.
+The focused esbuild bootstrap still recognizes verified archives in this
+legacy directory so existing project copies keep working. Its version, URL and
+SHA-512 contract are now read from `package-lock.json`; the Python source no
+longer contains a separately maintained version manifest.
 
-| Archive | npm package | Supported host |
-| --- | --- | --- |
-| `esbuild-0.28.1.tgz` | `esbuild@0.28.1` | All listed hosts |
-| `linux-x64-0.28.1.tgz` | `@esbuild/linux-x64@0.28.1` | Linux x86-64 |
-| `linux-arm64-0.28.1.tgz` | `@esbuild/linux-arm64@0.28.1` | Linux ARM64 |
-
-Install or verify them through the repository tool; do not unpack them by hand:
+The canonical Linux x64/glibc mirror is generated under
+`vendor/npm/linux-x64-glibc`:
 
 ```bash
-python tools/bootstrap_esbuild_offline.py
-python tools/bootstrap_esbuild_offline.py --check
+npm run update:offline:linux
 ```
 
-The bootstrap verifies the SHA-512 values against both its locked manifest and
-`package-lock.json`, validates the extracted package contents and platform
-binary, and never invokes npm or accesses the network.
+That command reuses matching files from this directory, copies them to the
+canonical mirror, downloads other lockfile-required packages, and removes
+legacy/ARM64/stale tarballs unless `--no-prune` is used. Do not add Windows,
+macOS, ARM64 or musl archives.
 
-When updating esbuild, update `package.json`, `package-lock.json`, every archive,
-the bootstrap manifest, and its contract tests in one reviewed change.
+Focused install and verification remain available:
+
+```bash
+npm run setup:esbuild:offline
+npm run check:esbuild:offline
+```

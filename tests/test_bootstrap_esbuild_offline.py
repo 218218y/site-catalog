@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 import platform
 import shutil
 import sys
@@ -12,6 +11,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
+
+import npm_offline_linux as OFFLINE  # noqa: E402
+
 SPEC = importlib.util.spec_from_file_location(
     "bootstrap_esbuild_offline",
     TOOLS / "bootstrap_esbuild_offline.py",
@@ -22,136 +26,106 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
-def copy_vendored_archives(target: Path) -> None:
+def copy_inputs(target: Path) -> None:
     shutil.copy2(ROOT / "package-lock.json", target / "package-lock.json")
-    vendor = target / MODULE.VENDOR_DIRECTORY
-    vendor.mkdir(parents=True)
-    for archive in (MODULE.CORE_ARCHIVE, *MODULE.PLATFORM_ARCHIVES.values()):
-        shutil.copy2(ROOT / MODULE.VENDOR_DIRECTORY / archive.filename, vendor / archive.filename)
+    for install_path in (MODULE.CORE_INSTALL_PATH, MODULE.PLATFORM_INSTALL_PATHS["linux-x64"]):
+        package = OFFLINE.locked_package(ROOT, install_path)
+        source = OFFLINE.locate_archive(ROOT, package)
+        destination = target / OFFLINE.canonical_archive_relative(package)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
 
 
-def test_vendored_archives_match_the_pinned_integrities() -> None:
-    for archive in (MODULE.CORE_ARCHIVE, *MODULE.PLATFORM_ARCHIVES.values()):
-        path = ROOT / MODULE.VENDOR_DIRECTORY / archive.filename
-        assert path.is_file()
-        assert MODULE.sri_sha512(path) == archive.integrity
+def test_specs_are_derived_from_the_current_lockfile() -> None:
+    core = OFFLINE.locked_package(ROOT, MODULE.CORE_INSTALL_PATH)
+    binary = OFFLINE.locked_package(ROOT, MODULE.PLATFORM_INSTALL_PATHS["linux-x64"])
+    assert MODULE.ESBUILD_VERSION == core.version
+    assert binary.version == core.version
+    assert OFFLINE.sri_sha512(OFFLINE.locate_archive(ROOT, core)) == core.integrity
+    assert OFFLINE.sri_sha512(OFFLINE.locate_archive(ROOT, binary)) == binary.integrity
 
 
-def test_platform_selection_is_explicit_and_rejects_unvendored_targets() -> None:
+def test_platform_selection_is_chat_linux_x64_only() -> None:
     assert MODULE.current_platform_key(system="Linux", machine="x86_64") == "linux-x64"
-    assert MODULE.current_platform_key(system="Linux", machine="aarch64") == "linux-arm64"
-    with pytest.raises(MODULE.BootstrapError, match="Linux-only"):
+    with pytest.raises(MODULE.BootstrapError, match="Linux x64 only"):
+        MODULE.current_platform_key(system="Linux", machine="aarch64")
+    with pytest.raises(MODULE.BootstrapError, match="Linux x64 only"):
         MODULE.current_platform_key(system="Windows", machine="AMD64")
-    with pytest.raises(MODULE.BootstrapError, match="Linux-only"):
-        MODULE.current_platform_key(system="Darwin", machine="arm64")
-    assert all(not key.startswith("win32-") for key in MODULE.PLATFORM_ARCHIVES)
+    assert set(MODULE.PLATFORM_INSTALL_PATHS) == {"linux-x64"}
 
 
-def test_offline_install_extracts_only_the_selected_runtime(tmp_path: Path) -> None:
+def test_offline_install_is_atomic_idempotent_and_repairs_changes(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    copy_vendored_archives(root)
+    copy_inputs(root)
 
-    changed = MODULE.install_esbuild(
-        root,
-        platform_key="linux-x64",
-        verify_runtime=False,
-        quiet=True,
-    )
+    assert MODULE.install_esbuild(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
+    assert not MODULE.install_esbuild(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
 
-    assert changed is True
-    core = json.loads((root / "node_modules/esbuild/package.json").read_text(encoding="utf-8"))
-    binary = json.loads(
+    core_metadata = json.loads((root / "node_modules/esbuild/package.json").read_text(encoding="utf-8"))
+    platform_metadata = json.loads(
         (root / "node_modules/@esbuild/linux-x64/package.json").read_text(encoding="utf-8")
     )
-    assert (core["name"], core["version"]) == ("esbuild", MODULE.ESBUILD_VERSION)
-    assert (binary["name"], binary["version"]) == ("@esbuild/linux-x64", MODULE.ESBUILD_VERSION)
+    assert core_metadata["version"] == MODULE.locked_version(root)
+    assert platform_metadata["version"] == MODULE.locked_version(root)
     assert (root / "node_modules/@esbuild/linux-x64/bin/esbuild").is_file()
     assert not (root / "node_modules/@esbuild/linux-arm64").exists()
-    assert MODULE.install_esbuild(
-        root,
-        platform_key="linux-x64",
-        verify_runtime=False,
-        quiet=True,
-    ) is False
+
+    main_js = root / "node_modules/esbuild/lib/main.js"
+    expected = main_js.read_bytes()
+    main_js.write_bytes(expected + b"\n// modified\n")
+    assert MODULE.install_esbuild(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
+    assert main_js.read_bytes() == expected
 
 
 @pytest.mark.skipif(
     platform.system() != "Linux" or platform.machine().lower() not in {"x86_64", "amd64", "x64"},
-    reason="runtime probe uses the current vendored binary",
+    reason="runtime probe uses the Linux x64 vendored binary",
 )
 def test_offline_linux_x64_runtime_works_without_npm(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    copy_vendored_archives(root)
+    copy_inputs(root)
     MODULE.install_esbuild(root, platform_key="linux-x64", quiet=True)
     MODULE.verify_offline_installation(root, platform_key="linux-x64")
 
 
-def test_corrupted_archive_is_rejected_before_extraction(tmp_path: Path) -> None:
+def test_corrupted_only_archive_is_rejected_before_mutation(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    copy_vendored_archives(root)
-    archive = root / MODULE.VENDOR_DIRECTORY / MODULE.CORE_ARCHIVE.filename
+    copy_inputs(root)
+    core = OFFLINE.locked_package(root, MODULE.CORE_INSTALL_PATH)
+    archive = root / OFFLINE.canonical_archive_relative(core)
     archive.write_bytes(archive.read_bytes() + b"corruption")
 
-    with pytest.raises(MODULE.BootstrapError, match="Integrity check failed"):
-        MODULE.install_archive(root, MODULE.CORE_ARCHIVE, force=True)
-    assert not (root / MODULE.CORE_ARCHIVE.install_path).exists()
+    with pytest.raises(MODULE.BootstrapError, match="Missing verified archive|Integrity check failed"):
+        MODULE.install_esbuild(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
+    assert not (root / MODULE.CORE_INSTALL_PATH).exists()
 
 
-def test_modified_installed_javascript_is_repaired_from_the_archive(tmp_path: Path) -> None:
-    root = tmp_path / "project"
-    root.mkdir()
-    copy_vendored_archives(root)
-    MODULE.install_esbuild(
-        root,
-        platform_key="linux-x64",
-        verify_runtime=False,
-        quiet=True,
-    )
-    main_js = root / "node_modules/esbuild/lib/main.js"
-    original = main_js.read_bytes()
-    main_js.write_bytes(original + b"\n// modified\n")
-
-    assert MODULE.install_esbuild(
-        root,
-        platform_key="linux-x64",
-        verify_runtime=False,
-        quiet=True,
-    ) is True
-    assert main_js.read_bytes() == original
-
-
-def test_valid_local_runtime_is_accepted_without_any_vendor_archives(
+def test_valid_local_runtime_is_accepted_without_vendor_archives(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    monkeypatch.setattr(MODULE.shutil, "which", lambda name: "/usr/bin/node")
-    monkeypatch.setattr(MODULE, "verify_node_runtime", lambda base: None)
-
+    shutil.copy2(ROOT / "package-lock.json", root / "package-lock.json")
+    monkeypatch.setattr(MODULE, "verify_installed_esbuild", lambda base: None)
     assert MODULE.ensure_esbuild_available(root, quiet=True) is False
 
 
-def test_non_linux_missing_runtime_points_to_npm_instead_of_a_windows_archive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_non_linux_missing_runtime_points_to_npm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    monkeypatch.setattr(MODULE.shutil, "which", lambda name: "C:/Program Files/nodejs/node.exe")
+    shutil.copy2(ROOT / "package-lock.json", root / "package-lock.json")
     monkeypatch.setattr(
         MODULE,
-        "verify_node_runtime",
+        "verify_installed_esbuild",
         lambda base: (_ for _ in ()).throw(MODULE.BootstrapError("missing runtime")),
     )
     monkeypatch.setattr(
         MODULE,
         "current_platform_key",
-        lambda: (_ for _ in ()).throw(MODULE.BootstrapError("Linux-only")),
+        lambda: (_ for _ in ()).throw(MODULE.BootstrapError("Linux x64 only")),
     )
-
-    with pytest.raises(MODULE.BootstrapError, match=r"Linux-only.*npm ci") as captured:
+    with pytest.raises(MODULE.BootstrapError, match=r"Linux x64 only.*npm ci"):
         MODULE.ensure_esbuild_available(root, quiet=True)
-    assert "win32-x64" not in str(captured.value)
-    assert "Missing offline archive" not in str(captured.value)

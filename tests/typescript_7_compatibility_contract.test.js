@@ -20,6 +20,7 @@ const contracts = read("types/frontend-contracts.d.ts");
 const runtimeSymbolChecker = read("tools/check_frontend_runtime_symbols.js");
 const frontendTestModule = read("tests/frontend_test_module.js");
 const currentBootstrap = read("tools/bootstrap_typescript_offline.py");
+const npmOfflineLinux = read("tools/npm_offline_linux.py");
 const currentRunner = read("tools/run_typescript_offline.py");
 const astInventory = read("tools/frontend_ast_inventory.js");
 const astHelper = read("tests/helpers/frontend_ast.js");
@@ -65,9 +66,12 @@ for (const retiredPath of [
   assert.equal(fs.existsSync(path.join(root, retiredPath)), false, `${retiredPath} must remain retired`);
 }
 
-assert.match(currentBootstrap, /TYPESCRIPT_VERSION: Final = "7\.0\.2"/);
-assert.match(currentBootstrap, /sri_sha512/);
-assert.match(currentBootstrap, /Unsafe npm archive member/);
+assert.match(currentBootstrap, /TYPESCRIPT_VERSION = locked_version\(\)/);
+assert.match(currentBootstrap, /locked_package/);
+assert.match(currentBootstrap, /locate_archive/);
+assert.match(npmOfflineLinux, /def sri_sha512/);
+assert.match(npmOfflineLinux, /Unsafe npm archive member/);
+assert.match(npmOfflineLinux, /TARGET_KEY: Final = "linux-x64-glibc"/);
 assert.doesNotMatch(currentBootstrap, /typescript-win32-x64|win32-x64-7\.0\.2\.tgz/);
 assert.match(currentRunner, /ensure_typescript_available\(base, quiet=True\)/);
 assert.match(astInventory, /import\("typescript\/unstable\/sync"\)/);

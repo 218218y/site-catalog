@@ -532,9 +532,14 @@ npm run setup
 `npm run setup` מכין את סביבת Python המקומית `.venv` ומתקין את Chromium המבודד של Playwright. אפשר במקום זאת להריץ את `.20-setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
 גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`, ו־Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`. גרסת Node המומלצת ל־CI ולפיתוח נשמרת ב־`.nvmrc`.
 
-### סביבת esbuild ו־TypeScript 7 מקומית ללא התקנת npm מלאה
+### סביבת npm אופליין ללינוקס של הצ׳אט
 
-לבדיקת קוד, עבודה בצ'אט, בניית קובצי ה־frontend, בדיקת חוזי JSDoc והרצת בדיקות ה־JavaScript אין צורך להתקין Playwright, Wrangler ושאר עץ התלויות. הפרויקט כולל מנגנוני bootstrap מצומצמים שמתקינים רק את הכלים הנדרשים מתוך ארכיונים נעולים:
+לפרויקט יש כעת שני מסלולי אופליין נפרדים, ושניהם מיועדים במכוון רק ל־Linux
+`x64` עם `glibc` — סביבת הצ׳אט/CI. אין במראה חבילות Windows, macOS, ARM64 או
+Musl.
+
+לבדיקת קוד, בניית frontend, בדיקת חוזי JSDoc והרצת בדיקות JavaScript אפשר
+להמשיך להשתמש ב־bootstrap המצומצם:
 
 ```bash
 python tools/bootstrap_esbuild_offline.py
@@ -543,31 +548,47 @@ python tools/generate_catalog_data_types.py --check
 python tools/build_frontend_assets.py --check
 python tools/run_typescript_offline.py -p jsconfig.json --pretty false
 python tools/verify_project.py --javascript-only
-# או: npm run test:js
 ```
 
-ארכיוני האופליין של esbuild ושל TypeScript מיועדים בכוונה לסביבת הצ'אט או CI מנותק. ב־Windows הכלים משתמשים קודם בהתקנת `node_modules` הרגילה והמדויקת שנוצרה מ־`package-lock.json`; הם אינם מחפשים ארכיון Windows בתוך `vendor`. אם esbuild או TypeScript חסרים או פגומים ב־Windows, יש להריץ `npm ci` כדי לשחזר את החבילה והבינארי המתאימים למערכת. אין לדלג על בניית ה־frontend ואין לנסות להפעיל בינארי Linux ב־Windows. שער `check:types` מריץ את חוזי ה־JSDoc רק ב־TypeScript ‏7.0.2 הנעול בפרויקט, ואינו נופל ל־`tsc` גלובלי או לגרסה שנמצאה במקרה במחשב. גם מנתח ה־AST של בדיקות המבנה משתמש ב־API של TypeScript 7, ולכן אין בפרויקט נתיב תאימות סמוי לגרסה קודמת. `test:js` משתמש בכוונה ב־Python המערכתי, משום שכל כלי הבדיקה במסלול הזה מבוססים על הספרייה הסטנדרטית; הוא אינו יוצר `.venv` ואינו מפעיל pip.
+הכלים המצומצמים אינם מחזיקים יותר רשימת גרסאות ידנית. בכל הרצה הם קוראים את
+הגרסה, כתובת ה־tarball וחתימת SHA-512 ישירות מ־`package-lock.json`, מאתרים
+ארכיון תואם תחת `vendor/npm`, ומתקינים רק את חבילת הליבה ואת הבינארי של Linux
+x64. הם אינם מפעילים npm או lifecycle scripts ואינם נוגעים בחבילות אחרות.
 
-מודל `CatalogRecord` אינו נכתב עוד ידנית: `types/catalog-data.generated.d.ts` נוצר מתוך `schemas/catalogs.generated.schema.json`. הפרויקט מקבל ומעבד רק את שמות השדות הקנוניים שבסכמות; aliases ישנים אינם קיימים עוד בחוזי הטיפוסים, ב־runtime או בכלי הניהול, וקלט שאינו תואם לסכמה נדחה בגבול הקובץ או ה־API. כל מודול JavaScript מייבא את חוזי הטיפוסים שלו במפורש באמצעות JSDoc `@import`; הקובץ `src/js/05-app-contracts.js` נשמר רק כסמן תאימות ואינו מכריז שמות ambient.
-
-כל ארכיון מאומת מול כתובת ההורדה, הגרסה וחתימת SHA-512 שב־`package-lock.json`. הכלים אינם פונים לרשת, אינם מפעילים npm או lifecycle scripts ואינם מוחקים חבילות אחרות מתוך `node_modules`. את קובצי TypeScript יש להניח ללא חילוץ תחת `vendor/npm/typescript` לפי השמות והקישורים שב־`vendor/npm/typescript/README.md`.
-
-אפשר לבדוק התקנה קיימת ללא שינוי באמצעות:
+לעבודה שצריכה גם Wrangler/workerd, ‏sharp, חבילות Playwright או כל תלות npm
+טרנזיטיבית אחרת, מעדכנים את מראת האופליין המלאה אחרי `npm update`, שינוי
+`package.json` או יצירה מחדש של lockfile:
 
 ```bash
-python tools/bootstrap_esbuild_offline.py --check
-python tools/bootstrap_typescript_offline.py --check
+npm run update:offline:linux
+npm run check:offline:linux
 ```
 
-הפקודות `bootstrap_*_offline.py` עצמן מיועדות ללינוקס. ב־Windows, לאחר מחיקת ארכיוני Windows מהפרויקט, יש להריץ פעם אחת:
+פקודת העדכון קוראת את כל עץ `package-lock.json`, מסננת לפי `os`/`cpu`/`libc`,
+ממחזרת ארכיונים קיימים בעלי integrity זהה, מורידה רק את החסר, מאמתת שהשם
+והגרסה בתוך כל tarball נכונים, בודקת חבילות bundled שאין להן `resolved` נפרד,
+מוחקת ארכיונים ישנים או של פלטפורמות אחרות, וכותבת `manifest.json` אטומי תחת
+`vendor/npm/linux-x64-glibc`. אין צורך לערוך גרסאות בתוך סקריפט לאחר עדכון npm.
 
-```bat
-npm ci
+אחרי שהארכיונים קיימים אפשר להתקין את כל עץ npm ללא רשת:
+
+```bash
+npm run setup:npm:offline:linux
+npm run check:npm:offline:linux
 ```
 
-לאחר מכן `npm run verify`, `npm run check:frontend` ו־`npm run check:types` משתמשים בהתקנה המקומית התקינה ואינם דורשים קובצי `win32-*.tgz`.
+המתקין מאמת מחדש את ה־manifest ואת ה־lockfile, מזין cache מקומי מתוך ה־tarballs
+ומריץ `npm ci --offline`. חבילות ה־npm של Playwright כן נשמרות, משום שהקוד
+והבדיקות מייבאים את test runner; Chromium ושאר קובצי הדפדפן הכבדים אינם
+נשמרים ואינם מותקנים. רק כאשר נדרשות בדיקות E2E אמיתיות מריצים בנפרד:
 
-התקנת npm מלאה עדיין נדרשת לעבודות שמשתמשות ב־Wrangler או Playwright. בדיקות Python דורשות בנפרד את סביבת `.venv` והחבילות הנעולות ב־`tools/requirements*.txt`.
+```bash
+npm run setup:browsers
+```
+
+ב־Windows ממשיכים להשתמש ב־`npm ci` הרגיל. אין לנסות להפעיל בינארי Linux
+ב־Windows ואין להוסיף ארכיוני Windows למראת הצ׳אט. בדיקות Python דורשות בנפרד
+את `.venv` והחבילות הנעולות ב־`tools/requirements*.txt`.
 
 גרסאות npm חדשות חוסמות install scripts של תלויות שלא נבדקו. `package.json` מאשר במפורש רק את `esbuild`, `sharp` ו־`workerd`; הגרסאות המדויקות שלהן עדיין נעולות ב־`package-lock.json`. בסוף `npm ci` רץ `tools/check_node_install_scripts.js`, שמפעיל בפועל את הבינאריים ואת Wrangler ונכשל בהודעה ברורה אם סקריפט נדרש נחסם או התקנה בינארית נפגמה. אין לאשר חבילות נוספות אוטומטית בלי לבדוק מדוע הן מבקשות install script.
 

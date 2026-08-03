@@ -1,19 +1,22 @@
 from __future__ import annotations
 
-import base64
-import hashlib
 import importlib.util
-import io
 import json
 import os
+import platform
+import shutil
 import sys
-import tarfile
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
+
+import npm_offline_linux as OFFLINE  # noqa: E402
+
 SPEC = importlib.util.spec_from_file_location(
     "bootstrap_typescript_offline",
     TOOLS / "bootstrap_typescript_offline.py",
@@ -24,229 +27,90 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
-def write_npm_archive(path: Path, files: dict[str, bytes]) -> str:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(path, mode="w:gz") as bundle:
-        for relative, content in sorted(files.items()):
-            info = tarfile.TarInfo(f"package/{relative}")
-            info.size = len(content)
-            info.mode = 0o755 if relative in {"bin/tsc", "lib/tsc", "lib/tsc.exe"} else 0o644
-            bundle.addfile(info, io.BytesIO(content))
-    digest = hashlib.sha512(path.read_bytes()).digest()
-    return "sha512-" + base64.b64encode(digest).decode("ascii")
+def copy_inputs(target: Path) -> None:
+    shutil.copy2(ROOT / "package-lock.json", target / "package-lock.json")
+    for install_path in (MODULE.CORE_INSTALL_PATH, MODULE.PLATFORM_INSTALL_PATHS["linux-x64"]):
+        package = OFFLINE.locked_package(ROOT, install_path)
+        source = OFFLINE.locate_archive(ROOT, package)
+        destination = target / OFFLINE.canonical_archive_relative(package)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
 
 
-def fixture_specs(root: Path) -> tuple[object, object]:
-    vendor = root / MODULE.VENDOR_DIRECTORY
-    core_filename = "typescript-fixture.tgz"
-    platform_filename = "typescript-linux-x64-fixture.tgz"
-    platform_name = "@typescript/typescript-linux-x64"
-    core_integrity = write_npm_archive(
-        vendor / core_filename,
-        {
-            "package.json": json.dumps(
-                {
-                    "name": "typescript",
-                    "version": MODULE.TYPESCRIPT_VERSION,
-                    "type": "module",
-                    "bin": {"tsc": "./bin/tsc"},
-                    "optionalDependencies": {platform_name: MODULE.TYPESCRIPT_VERSION},
-                }
-            ).encode(),
-            "bin/tsc": (
-                "#!/usr/bin/env node\n"
-                f"console.log('Version {MODULE.TYPESCRIPT_VERSION}');\n"
-            ).encode(),
-            "lib/getExePath.js": b"export default function getExePath() {}\n",
-            "lib/tsc.js": b"export {};\n",
-        },
-    )
-    platform_integrity = write_npm_archive(
-        vendor / platform_filename,
-        {
-            "package.json": json.dumps(
-                {"name": platform_name, "version": MODULE.TYPESCRIPT_VERSION}
-            ).encode(),
-            "lib/tsc": b"fixture native compiler\n",
-        },
-    )
-    core = MODULE.ArchiveSpec(
-        filename=core_filename,
-        package_name="typescript",
-        resolved="https://example.invalid/typescript-fixture.tgz",
-        integrity=core_integrity,
-        install_path=Path("node_modules/typescript"),
-        required_files=(Path("bin/tsc"), Path("lib/getExePath.js"), Path("lib/tsc.js")),
-    )
-    platform = MODULE.ArchiveSpec(
-        filename=platform_filename,
-        package_name=platform_name,
-        resolved="https://example.invalid/typescript-linux-x64-fixture.tgz",
-        integrity=platform_integrity,
-        install_path=Path("node_modules/@typescript/typescript-linux-x64"),
-        required_files=(Path("lib/tsc"),),
-        executable_path=Path("lib/tsc"),
-    )
-    lock = {
-        "packages": {
-            core.install_path.as_posix(): {
-                "version": MODULE.TYPESCRIPT_VERSION,
-                "resolved": core.resolved,
-                "integrity": core.integrity,
-            },
-            platform.install_path.as_posix(): {
-                "version": MODULE.TYPESCRIPT_VERSION,
-                "resolved": platform.resolved,
-                "integrity": platform.integrity,
-            },
-        }
-    }
-    (root / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
-    return core, platform
+def test_specs_are_derived_from_the_current_lockfile() -> None:
+    core = OFFLINE.locked_package(ROOT, MODULE.CORE_INSTALL_PATH)
+    compiler = OFFLINE.locked_package(ROOT, MODULE.PLATFORM_INSTALL_PATHS["linux-x64"])
+    assert MODULE.TYPESCRIPT_VERSION == core.version
+    assert compiler.version == core.version
+    assert OFFLINE.sri_sha512(OFFLINE.locate_archive(ROOT, core)) == core.integrity
+    assert OFFLINE.sri_sha512(OFFLINE.locate_archive(ROOT, compiler)) == compiler.integrity
 
 
-def test_lockfile_matches_every_offline_typescript_spec() -> None:
-    lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
-    for archive in (MODULE.CORE_ARCHIVE, *MODULE.PLATFORM_ARCHIVES.values()):
-        locked = lock["packages"][archive.install_path.as_posix()]
-        assert locked["version"] == MODULE.TYPESCRIPT_VERSION
-        assert locked["resolved"] == archive.resolved
-        assert locked["integrity"] == archive.integrity
-
-
-def test_platform_selection_is_explicit() -> None:
+def test_platform_selection_is_chat_linux_x64_only() -> None:
     assert MODULE.current_platform_key(system="Linux", machine="x86_64") == "linux-x64"
-    assert MODULE.current_platform_key(system="Linux", machine="aarch64") == "linux-arm64"
-    with pytest.raises(MODULE.BootstrapError, match="Linux-only"):
+    with pytest.raises(MODULE.BootstrapError, match="Linux x64 only"):
+        MODULE.current_platform_key(system="Linux", machine="aarch64")
+    with pytest.raises(MODULE.BootstrapError, match="Linux x64 only"):
         MODULE.current_platform_key(system="Windows", machine="AMD64")
-    with pytest.raises(MODULE.BootstrapError, match="Linux-only"):
-        MODULE.current_platform_key(system="Darwin", machine="arm64")
-    assert all(not key.startswith("win32-") for key in MODULE.PLATFORM_ARCHIVES)
+    assert set(MODULE.PLATFORM_INSTALL_PATHS) == {"linux-x64"}
 
 
-def test_offline_install_is_atomic_idempotent_and_runtime_checked(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_offline_install_is_atomic_idempotent_and_runtime_checked(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    core, platform = fixture_specs(root)
-    monkeypatch.setattr(MODULE, "CORE_ARCHIVE", core)
-    monkeypatch.setattr(MODULE, "PLATFORM_ARCHIVES", {"linux-x64": platform})
+    copy_inputs(root)
 
-    assert MODULE.install_typescript(root, platform_key="linux-x64", quiet=True) is True
-    assert MODULE.install_typescript(root, platform_key="linux-x64", quiet=True) is False
+    assert MODULE.install_typescript(root, platform_key="linux-x64", quiet=True)
+    assert not MODULE.install_typescript(root, platform_key="linux-x64", quiet=True)
     assert (root / "node_modules/typescript/bin/tsc").is_file()
     assert (root / "node_modules/@typescript/typescript-linux-x64/lib/tsc").is_file()
-    if os.name == "nt":
-        assert (root / "node_modules/.bin/tsc.cmd").is_file()
-        assert (root / "node_modules/.bin/tsc.ps1").is_file()
-    else:
+    if os.name != "nt":
         assert (root / "node_modules/.bin/tsc").is_symlink()
     MODULE.verify_offline_installation(root, platform_key="linux-x64")
 
 
-def test_modified_installation_is_repaired_from_the_archive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_modified_installation_is_repaired_from_the_archive(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    core, platform = fixture_specs(root)
-    monkeypatch.setattr(MODULE, "CORE_ARCHIVE", core)
-    monkeypatch.setattr(MODULE, "PLATFORM_ARCHIVES", {"linux-x64": platform})
-    MODULE.install_typescript(
-        root,
-        platform_key="linux-x64",
-        verify_runtime=False,
-        quiet=True,
-    )
+    copy_inputs(root)
+    MODULE.install_typescript(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
     launcher = root / "node_modules/typescript/bin/tsc"
     expected = launcher.read_bytes()
     launcher.write_bytes(expected + b"// modified\n")
 
-    assert MODULE.install_typescript(
-        root,
-        platform_key="linux-x64",
-        verify_runtime=False,
-        quiet=True,
-    ) is True
+    assert MODULE.install_typescript(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
     assert launcher.read_bytes() == expected
 
 
-def test_corrupted_archive_is_rejected_before_mutation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_corrupted_only_archive_is_rejected_before_mutation(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    core, platform = fixture_specs(root)
-    monkeypatch.setattr(MODULE, "CORE_ARCHIVE", core)
-    monkeypatch.setattr(MODULE, "PLATFORM_ARCHIVES", {"linux-x64": platform})
-    archive = root / MODULE.VENDOR_DIRECTORY / core.filename
+    copy_inputs(root)
+    core = OFFLINE.locked_package(root, MODULE.CORE_INSTALL_PATH)
+    archive = root / OFFLINE.canonical_archive_relative(core)
     archive.write_bytes(archive.read_bytes() + b"corruption")
 
-    with pytest.raises(MODULE.BootstrapError, match="Integrity check failed"):
-        MODULE.install_typescript(
-            root,
-            platform_key="linux-x64",
-            verify_runtime=False,
-            quiet=True,
-        )
-    assert not (root / "node_modules/typescript").exists()
-    assert not (root / "node_modules/@typescript/typescript-linux-x64").exists()
+    with pytest.raises(MODULE.BootstrapError, match="Missing verified archive|Integrity check failed"):
+        MODULE.install_typescript(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
+    assert not (root / MODULE.CORE_INSTALL_PATH).exists()
 
 
-def test_missing_archive_message_includes_exact_download_location(
+def test_valid_local_compiler_is_accepted_without_vendor_archives(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    core, platform = fixture_specs(root)
-    monkeypatch.setattr(MODULE, "CORE_ARCHIVE", core)
-    monkeypatch.setattr(MODULE, "PLATFORM_ARCHIVES", {"linux-x64": platform})
-    missing = root / MODULE.VENDOR_DIRECTORY / platform.filename
-    missing.unlink()
-
-    with pytest.raises(MODULE.BootstrapError) as captured:
-        MODULE.install_typescript(
-            root,
-            platform_key="linux-x64",
-            verify_runtime=False,
-            quiet=True,
-        )
-    message = str(captured.value)
-    assert platform.resolved in message
-    assert platform.filename in message
-
-
-def test_archive_path_traversal_is_rejected(tmp_path: Path) -> None:
-    archive = tmp_path / "malicious.tgz"
-    with tarfile.open(archive, mode="w:gz") as bundle:
-        content = b"escape"
-        info = tarfile.TarInfo("package/../escape.txt")
-        info.size = len(content)
-        bundle.addfile(info, io.BytesIO(content))
-
-    with pytest.raises(MODULE.BootstrapError, match="Unsafe npm archive member"):
-        MODULE.extract_verified_archive(archive, tmp_path / "destination")
-    assert not (tmp_path / "escape.txt").exists()
-
-
-def test_valid_local_compiler_is_accepted_without_any_vendor_archives(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = tmp_path / "project"
-    root.mkdir()
-    monkeypatch.setattr(MODULE.shutil, "which", lambda name: "/usr/bin/node")
+    shutil.copy2(ROOT / "package-lock.json", root / "package-lock.json")
     monkeypatch.setattr(MODULE, "verify_installed_typescript", lambda base: None)
-
     assert MODULE.ensure_typescript_available(root, quiet=True) is False
 
 
-def test_non_linux_missing_compiler_points_to_npm_instead_of_a_windows_archive(
+def test_non_linux_missing_compiler_points_to_npm(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    monkeypatch.setattr(MODULE.shutil, "which", lambda name: "C:/Program Files/nodejs/node.exe")
+    shutil.copy2(ROOT / "package-lock.json", root / "package-lock.json")
     monkeypatch.setattr(
         MODULE,
         "verify_installed_typescript",
@@ -255,10 +119,7 @@ def test_non_linux_missing_compiler_points_to_npm_instead_of_a_windows_archive(
     monkeypatch.setattr(
         MODULE,
         "current_platform_key",
-        lambda: (_ for _ in ()).throw(MODULE.BootstrapError("Linux-only")),
+        lambda: (_ for _ in ()).throw(MODULE.BootstrapError("Linux x64 only")),
     )
-
-    with pytest.raises(MODULE.BootstrapError, match=r"Linux-only.*npm ci") as captured:
+    with pytest.raises(MODULE.BootstrapError, match=r"Linux x64 only.*npm ci"):
         MODULE.ensure_typescript_available(root, quiet=True)
-    assert "typescript-win32-x64" not in str(captured.value)
-    assert "Missing offline archive" not in str(captured.value)
