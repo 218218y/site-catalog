@@ -1207,7 +1207,7 @@ def state_payload() -> dict[str, Any]:
         "files": {
             "config": rel_to_root(CONFIG_FILE),
             "taxonomy": rel_to_root(TAXONOMY_FILE),
-            "generated": (PROJECT_ROOT / "catalogs.generated.js").is_file(),
+            "generated": (PROJECT_ROOT / "catalogs.generated.module.js").is_file(),
             "search": (PROJECT_ROOT / "catalogs.search-index.json").is_file(),
             "pdfDir": rel_to_root(PDF_DIR),
             "pagesDir": rel_to_root(PAGES_DIR),

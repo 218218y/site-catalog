@@ -28,7 +28,7 @@ async function loadFunctionModule() {
       "Sec-Fetch-Site": "same-origin"
     },
     body: JSON.stringify({
-      version: 3,
+      version: 4,
       events: [
         {
           name: "search",
@@ -68,7 +68,9 @@ async function loadFunctionModule() {
           releaseId: "app-61dd783bd3fa",
           surface: "Catalog Grid",
           requestId: "ir-abc12345",
-          visibility: "VISIBLE"
+          visibility: "VISIBLE",
+          requestedTier: "MEDIUM",
+          networkState: "OFFLINE"
         },
         {
           name: "catalog_open",
@@ -102,7 +104,9 @@ async function loadFunctionModule() {
   assert.equal(writes[4].blobs[14], "catalog-grid");
   assert.equal(writes[4].blobs[15], "ir-abc12345");
   assert.equal(writes[4].blobs[16], "visible");
-  assert.equal(writes[4].blobs.length, 17);
+  assert.equal(writes[4].blobs[17], "medium");
+  assert.equal(writes[4].blobs[18], "offline");
+  assert.equal(writes[4].blobs.length, 19);
   assert.equal(writes[5].blobs[9], "");
   assert.equal(writes[5].blobs[12], "");
   assert.equal(JSON.stringify(writes).includes("must never be stored"), false);

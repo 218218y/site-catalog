@@ -24,6 +24,8 @@ const ALLOWED_EVENTS = new Set([
 const ALLOWED_HOSTS = new Set(["bargig-furniture.com", "www.bargig-furniture.com"]);
 const ALLOWED_VIEWPORTS = new Set(["xs", "sm", "md", "lg", "xl"]);
 const ALLOWED_VISIBILITY = new Set(["visible", "hidden", "preload", "background", "unknown"]);
+const ALLOWED_IMAGE_TIERS = new Set(["thumb", "medium", "full", "unknown"]);
+const ALLOWED_NETWORK_STATES = new Set(["online", "offline", "unknown"]);
 const RELEASE_ID_RE = /^(?:deploy-[a-f0-9]{16}|app-[a-f0-9]{8,16}|app-unversioned|unknown-release)$/i;
 const REQUEST_ID_RE = /^ir-[a-z0-9-]{8,45}$/i;
 const MAX_BODY_BYTES = 32 * 1024;
@@ -60,6 +62,11 @@ function cleanToken(value, limit = 50) {
 function cleanVisibility(value) {
   const visibility = cleanToken(value, 20);
   return ALLOWED_VISIBILITY.has(visibility) ? visibility : "unknown";
+}
+
+function cleanEnumToken(value, allowed, limit = 20) {
+  const token = cleanToken(value, limit);
+  return allowed.has(token) ? token : "unknown";
 }
 
 function cleanRequestId(value) {
@@ -125,7 +132,9 @@ function normalizeEvent(raw) {
     component: cleanToken(raw.component, 50),
     surface: cleanToken(raw.surface, 50),
     requestId: cleanRequestId(raw.requestId),
-    visibility: cleanVisibility(raw.visibility)
+    visibility: cleanVisibility(raw.visibility),
+    requestedTier: cleanEnumToken(raw.requestedTier, ALLOWED_IMAGE_TIERS, 16),
+    networkState: cleanEnumToken(raw.networkState, ALLOWED_NETWORK_STATES, 16)
   };
 }
 
@@ -149,7 +158,9 @@ function writeEvent(dataset, event, hostname, batchIndex) {
       event.component,
       event.surface,
       event.requestId,
-      event.visibility
+      event.visibility,
+      event.requestedTier,
+      event.networkState
     ],
     doubles: [
       event.value,
@@ -201,7 +212,7 @@ export async function onRequestPost(context) {
     return jsonResponse({ ok: false, error: "invalid-json" }, 400);
   }
 
-  if (![1, 2, 3].includes(payload?.version) || !Array.isArray(payload.events)) {
+  if (![1, 2, 3, 4].includes(payload?.version) || !Array.isArray(payload.events)) {
     return jsonResponse({ ok: false, error: "invalid-schema" }, 400);
   }
 

@@ -180,7 +180,7 @@ def test_compiler_is_byte_deterministic_and_second_write_is_a_noop(tmp_path: Pat
     assert first.build_state == second.build_state
     assert {path.name for path in first_writes} == {
         COMPILER.GENERATED_JSON_FILE,
-        COMPILER.GENERATED_JS_FILE,
+        COMPILER.GENERATED_MODULE_FILE,
         COMPILER.SEARCH_INDEX_FILE,
     }
 
@@ -273,7 +273,7 @@ def test_normal_compilation_never_uses_public_outputs_as_input(tmp_path: Path) -
     state = {"version": 1, "catalogs": [artifact("one")]}
     write_sources(root, catalogs, state)
     (root / COMPILER.GENERATED_JSON_FILE).write_text('[{"id":"tampered"}]\n', encoding="utf-8")
-    (root / COMPILER.GENERATED_JS_FILE).write_text("tampered\n", encoding="utf-8")
+    (root / COMPILER.GENERATED_MODULE_FILE).write_text("tampered\n", encoding="utf-8")
     legacy_search_json = root / COMPILER.LEGACY_SEARCH_JSON_FILE
     legacy_search_js = root / COMPILER.LEGACY_SEARCH_JS_FILE
     legacy_search_json.write_text('[{"catalogId":"tampered","pages":[]}]\n', encoding="utf-8")
@@ -282,6 +282,11 @@ def test_normal_compilation_never_uses_public_outputs_as_input(tmp_path: Path) -
     COMPILER.compile_current_project_catalog_data(root, writer=lambda path, data: path.write_bytes(data))
 
     assert json.loads((root / COMPILER.GENERATED_JSON_FILE).read_text(encoding="utf-8"))[0]["id"] == "one"
+    assert (root / COMPILER.GENERATED_MODULE_FILE).read_bytes() == (
+        COMPILER.compiled_catalog_file_bytes(
+            COMPILER.compile_catalog_data(catalogs, taxonomy(), state, root)
+        )[Path(COMPILER.GENERATED_MODULE_FILE)]
+    )
     assert json.loads((root / COMPILER.SEARCH_INDEX_FILE).read_text(encoding="utf-8"))["catalogs"][0]["id"] == "one"
     assert legacy_search_json.read_text(encoding="utf-8") == '[{"catalogId":"tampered","pages":[]}]\n'
     assert legacy_search_js.read_text(encoding="utf-8") == "tampered\n"
@@ -294,7 +299,7 @@ def test_missing_build_state_is_a_hard_error_for_normal_compilation(tmp_path: Pa
     write_sources(root, catalogs, {"version": 1, "catalogs": [artifact("one")]})
     (root / COMPILER.BUILD_STATE_FILE).unlink()
     (root / COMPILER.GENERATED_JSON_FILE).write_text("[]\n", encoding="utf-8")
-    (root / COMPILER.GENERATED_JS_FILE).write_text("legacy\n", encoding="utf-8")
+    (root / COMPILER.GENERATED_MODULE_FILE).write_text("stale module\n", encoding="utf-8")
 
     with pytest.raises(FileNotFoundError, match=COMPILER.BUILD_STATE_FILE):
         COMPILER.compile_current_project_catalog_data(root, writer=lambda _path, _data: None)
@@ -324,7 +329,7 @@ def test_orphan_build_state_requires_explicit_reconciliation(tmp_path: Path) -> 
         COMPILER.compile_current_project_catalog_data(root, writer=lambda _path, _data: None)
 
 
-def test_explicit_legacy_migration_requires_matching_json_and_js(tmp_path: Path) -> None:
+def test_explicit_legacy_migration_requires_matching_search_json_and_js(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
     catalogs = [source_catalog("one", "One", pdf="assets/pdfs/one.pdf")]
@@ -336,9 +341,6 @@ def test_explicit_legacy_migration_requires_matching_json_and_js(tmp_path: Path)
     )
     (root / COMPILER.GENERATED_JSON_FILE).write_bytes(
         COMPILER.compiled_catalog_file_bytes(expected)[Path(COMPILER.GENERATED_JSON_FILE)]
-    )
-    (root / COMPILER.GENERATED_JS_FILE).write_bytes(
-        COMPILER.compiled_catalog_file_bytes(expected)[Path(COMPILER.GENERATED_JS_FILE)]
     )
     legacy_search_payload = json.dumps(expected.search, ensure_ascii=False, indent=2) + "\n"
     (root / COMPILER.LEGACY_SEARCH_JSON_FILE).write_text(legacy_search_payload, encoding="utf-8")
@@ -352,7 +354,9 @@ def test_explicit_legacy_migration_requires_matching_json_and_js(tmp_path: Path)
     migrated = COMPILER.migrate_legacy_outputs_to_build_state(root)
     assert migrated == expected.build_state
 
-    (root / COMPILER.GENERATED_JS_FILE).write_text("window.BARGIG_CATALOGS = [];\n", encoding="utf-8")
+    (root / COMPILER.LEGACY_SEARCH_JS_FILE).write_text(
+        "window.BARGIG_CATALOG_SEARCH = [];\n", encoding="utf-8"
+    )
     with pytest.raises(RuntimeError, match="different data"):
         COMPILER.migrate_legacy_outputs_to_build_state(root)
 

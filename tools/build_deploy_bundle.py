@@ -49,7 +49,9 @@ except ModuleNotFoundError:  # Direct execution
 
 from build_frontend_assets import (
     DEPLOY_GENERATED_FILES as FRONTEND_GENERATED_FILES,
+    GENERATED_DATA_EXTERNAL_MODULES,
     ROUTE_GENERATED_FILES,
+    RUNTIME_EXTERNAL_DEPENDENCIES,
     RUNTIME_EXTERNAL_MODULES,
     build_frontend_assets,
     ensure_local_esbuild,
@@ -89,8 +91,7 @@ DEPLOY_FILES = [
     "brand-logo.svg",
     "brand-logo-header.svg",
     "favicon-loader.js",
-    "catalogs.generated.js",
-    "catalog-taxonomy.generated.js",
+    *GENERATED_DATA_EXTERNAL_MODULES.values(),
     "social-share-default.png",
 ]
 
@@ -123,7 +124,6 @@ CSS_URL_RE = re.compile(
     r"url\(\s*(?P<quote>[\"']?)(?P<url>[^\"')]+)(?P=quote)\s*\)",
     re.IGNORECASE,
 )
-GENERATED_ASSIGNMENT_RE = re.compile(r"window\.BARGIG_CATALOGS\s*=\s*(\[.*?\])\s*;\s*$", re.DOTALL)
 DEFAULT_R2_ASSET_BASE_URL = "https://cdn.bargig-furniture.com"
 FINGERPRINTED_ASSET_DIR = "static"
 FINGERPRINTED_EXTENSIONS = {".css", ".js"}
@@ -133,7 +133,9 @@ DEPLOY_APP_FILES = tuple(
     if name.startswith("app-") and name.endswith(".js")
 )
 DEPLOY_RUNTIME_MODULE_FILES = tuple(RUNTIME_EXTERNAL_MODULES.values())
-DEPLOY_ESM_FILES = frozenset((*DEPLOY_APP_FILES, *DEPLOY_RUNTIME_MODULE_FILES))
+DEPLOY_DATA_MODULE_FILES = tuple(GENERATED_DATA_EXTERNAL_MODULES.values())
+DEPLOY_EXTERNAL_MODULE_FILES = (*DEPLOY_RUNTIME_MODULE_FILES, *DEPLOY_DATA_MODULE_FILES)
+DEPLOY_ESM_FILES = frozenset((*DEPLOY_APP_FILES, *DEPLOY_EXTERNAL_MODULE_FILES))
 RUNTIME_FREE_ROUTE_APP_STEMS = frozenset({"app-payment"})
 
 
@@ -143,12 +145,12 @@ def route_app_stem(filename: str | Path) -> str:
     return Path(filename).name.split(".", 1)[0]
 
 
-def expected_runtime_modules_for_app(filename: str | Path) -> frozenset[str]:
-    """Return the external runtime modules that a route bundle must import."""
+def expected_external_modules_for_app(filename: str | Path) -> frozenset[str]:
+    """Return the external browser modules that a route bundle must import."""
 
     if route_app_stem(filename) in RUNTIME_FREE_ROUTE_APP_STEMS:
         return frozenset()
-    return frozenset(DEPLOY_RUNTIME_MODULE_FILES)
+    return frozenset(DEPLOY_EXTERNAL_MODULE_FILES)
 
 
 def deploy_optimization_kind(relative: str) -> str:
@@ -199,7 +201,7 @@ FINGERPRINTED_RUNTIME_IMPORT_RE = re.compile(
 
 ARTIFACT_STATE_SCHEMA = 2
 ARTIFACT_STATE_SUFFIX = ".build.json"
-BUILD_SIGNATURE_VERSION = "site-bundle-v7"
+BUILD_SIGNATURE_VERSION = "site-bundle-v8"
 DEPLOY_OPTIMIZATION_PROFILE = "standard-minified-v1"
 DEPLOY_OPTIMIZER = Path(__file__).with_name("optimize_deploy_assets.mjs")
 LEGACY_ARTIFACT_DIRS = (
@@ -225,7 +227,8 @@ BUILD_INPUT_FILES = (
     "catalog-taxonomy.config.json",
     "catalogs.build-state.json",
     "catalogs.generated.json",
-    "catalogs.generated.js",
+    "catalogs.generated.module.js",
+    "catalog-taxonomy.generated.module.js",
     "catalogs.search-index.json",
     "catalog-search-worker.js",
     "catalog-snapshot.js",
@@ -858,70 +861,114 @@ def fingerprint_search_runtime_assets(out_dir: Path) -> dict[str, str]:
     return targets
 
 
-def fingerprint_runtime_modules(out_dir: Path) -> dict[str, str]:
-    """Fingerprint external ESM runtimes and rewrite route-bundle imports.
+def rewrite_external_module_imports(
+    source: str,
+    targets: Mapping[str, str],
+) -> tuple[str, frozenset[str]]:
+    """Rewrite reviewed sibling imports and return the logical modules found."""
 
-    Runtime services stay independently cacheable instead of being duplicated in
-    every route bundle. Route bundles are still at the bundle root at this stage;
-    they are rewritten to sibling hashed module specifiers before both sides move
-    into ``static/``.
+    rewritten = source
+    imported: set[str] = set()
+    for logical_name, target_relative in targets.items():
+        source_specifier = f"./{logical_name}"
+        target_specifier = f"./{Path(target_relative).name}"
+        pattern = re.compile(
+            rf'(?P<prefix>\bfrom\s*|\bimport\s*)(?P<quote>["\"])'
+            rf'{re.escape(source_specifier)}(?P=quote)'
+        )
+        rewritten, count = pattern.subn(
+            lambda match: (
+                f'{match.group("prefix")}{match.group("quote")}'
+                f'{target_specifier}{match.group("quote")}'
+            ),
+            rewritten,
+        )
+        if count:
+            imported.add(logical_name)
+    return rewritten, frozenset(imported)
+
+
+def move_fingerprinted_module(out_dir: Path, logical_name: str) -> str:
+    source = out_dir / logical_name
+    if not source.is_file():
+        raise FileNotFoundError(f"Cannot fingerprint missing external module: {logical_name}")
+    normalize_fingerprinted_text(source)
+    target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(source)
+    target = out_dir / target_relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        target.unlink()
+    shutil.move(str(source), str(target))
+    return target_relative.as_posix()
+
+
+def fingerprint_external_modules(out_dir: Path) -> dict[str, str]:
+    """Fingerprint generated data and runtime ESM modules as one static graph.
+
+    Data projections are hashed first. Runtime services that import them are
+    then rewritten before their own hash is computed. Finally every route bundle
+    is pointed at the same immutable module generation.
     """
 
-    runtime_targets: dict[str, str] = {}
+    targets: dict[str, str] = {}
+    for logical_name in DEPLOY_DATA_MODULE_FILES:
+        targets[logical_name] = move_fingerprinted_module(out_dir, logical_name)
+
+    runtime_source_by_output = {
+        output_name: source_path
+        for source_path, output_name in RUNTIME_EXTERNAL_MODULES.items()
+    }
     for logical_name in DEPLOY_RUNTIME_MODULE_FILES:
         source = out_dir / logical_name
         if not source.is_file():
             raise FileNotFoundError(f"Cannot fingerprint missing runtime module: {logical_name}")
-        normalize_fingerprinted_text(source)
-        target_relative = Path(FINGERPRINTED_ASSET_DIR) / hashed_asset_name(source)
-        target = out_dir / target_relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.exists():
-            target.unlink()
-        shutil.move(str(source), str(target))
-        runtime_targets[logical_name] = target_relative.as_posix()
+        dependency_names = frozenset(
+            RUNTIME_EXTERNAL_DEPENDENCIES.get(
+                runtime_source_by_output[logical_name], {}
+            ).values()
+        )
+        dependency_targets = {
+            name: targets[name]
+            for name in dependency_names
+        }
+        runtime_text, imported = rewrite_external_module_imports(
+            source.read_text(encoding="utf-8", errors="strict"),
+            dependency_targets,
+        )
+        if imported != dependency_names:
+            raise ValueError(
+                f"Runtime module {logical_name} data import set drifted; "
+                f"expected {sorted(dependency_names)}, found {sorted(imported)}"
+            )
+        stale = [f"./{name}" for name in dependency_names if f"./{name}" in runtime_text]
+        if stale:
+            raise ValueError(f"Unfingerprinted data imports remain in {logical_name}: {stale}")
+        source.write_text(runtime_text, encoding="utf-8", newline="\n")
+        targets[logical_name] = move_fingerprinted_module(out_dir, logical_name)
 
-    expected_specifiers = {
-        logical_name: f"./{Path(target_relative).name}"
-        for logical_name, target_relative in runtime_targets.items()
-    }
     for app_name in DEPLOY_APP_FILES:
         app_path = out_dir / app_name
         if not app_path.is_file():
-            raise FileNotFoundError(f"Cannot rewrite runtime imports in missing route bundle: {app_name}")
-        app_text = app_path.read_text(encoding="utf-8", errors="strict")
-        replacement_counts: dict[str, int] = {}
-        for logical_name, target_specifier in expected_specifiers.items():
-            source_specifier = f"./{logical_name}"
-            pattern = re.compile(
-                rf'(?P<prefix>\bfrom\s*|\bimport\s*)(?P<quote>["\"])'
-                rf'{re.escape(source_specifier)}(?P=quote)'
-            )
-            app_text, count = pattern.subn(
-                lambda match: f'{match.group("prefix")}{match.group("quote")}{target_specifier}{match.group("quote")}',
-                app_text,
-            )
-            replacement_counts[logical_name] = count
-        imported_modules = frozenset(
-            name for name, count in replacement_counts.items() if count > 0
+            raise FileNotFoundError(f"Cannot rewrite external imports in missing route bundle: {app_name}")
+        app_text, imported = rewrite_external_module_imports(
+            app_path.read_text(encoding="utf-8", errors="strict"),
+            targets,
         )
-        expected_modules = expected_runtime_modules_for_app(app_name)
-        if imported_modules != expected_modules:
+        expected_modules = expected_external_modules_for_app(app_name)
+        if imported != expected_modules:
             raise ValueError(
-                f"Route bundle {app_name} runtime import set drifted; "
-                f"expected {sorted(expected_modules)}, found {sorted(imported_modules)}"
+                f"Route bundle {app_name} external import set drifted; "
+                f"expected {sorted(expected_modules)}, found {sorted(imported)}"
             )
-        stale_specifiers = [
-            f"./{logical_name}" for logical_name in DEPLOY_RUNTIME_MODULE_FILES
+        stale = [
+            f"./{logical_name}" for logical_name in DEPLOY_EXTERNAL_MODULE_FILES
             if f"./{logical_name}" in app_text
         ]
-        if stale_specifiers:
-            raise ValueError(
-                f"Unfingerprinted runtime imports remain in {app_name}: {sorted(stale_specifiers)}"
-            )
+        if stale:
+            raise ValueError(f"Unfingerprinted external imports remain in {app_name}: {stale}")
         app_path.write_text(app_text, encoding="utf-8", newline="\n")
 
-    return runtime_targets
+    return targets
 
 
 def discover_bundle_html(out_dir: Path) -> list[Path]:
@@ -1194,65 +1241,85 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
             f"found {sorted(found_route_scripts)}"
         )
 
-    expected_runtime_stems = {Path(name).stem for name in DEPLOY_RUNTIME_MODULE_FILES}
-    runtime_assets_by_stem: dict[str, str] = {}
-    for app_asset in app_assets:
-        app_relative = Path(app_asset)
-        app_text = (out_dir / app_relative).read_text(encoding="utf-8", errors="replace")
-        imported_runtime_stems: set[str] = set()
-        for import_match in FINGERPRINTED_RUNTIME_IMPORT_RE.finditer(app_text):
+    expected_external_stems = {Path(name).stem for name in DEPLOY_EXTERNAL_MODULE_FILES}
+    external_assets_by_stem: dict[str, str] = {}
+
+    def validate_external_imports(owner_asset: str, expected_stems: set[str]) -> set[str]:
+        """Validate one module's static imports against the external-module graph."""
+
+        owner_relative = Path(owner_asset)
+        owner_text = (out_dir / owner_relative).read_text(encoding="utf-8", errors="replace")
+        imported_stems: set[str] = set()
+        for import_match in FINGERPRINTED_RUNTIME_IMPORT_RE.finditer(owner_text):
             import_reference = import_match.group("url")
             raw_import_path = Path(import_reference)
             if raw_import_path.is_absolute() or ".." in raw_import_path.parts:
-                invalid_assets.append(f"{app_asset} -> {import_reference} (unsafe module import)")
+                invalid_assets.append(f"{owner_asset} -> {import_reference} (unsafe module import)")
                 continue
-            imported_relative = app_relative.parent / raw_import_path
+            imported_relative = owner_relative.parent / raw_import_path
             imported_path = out_dir / imported_relative
             if not imported_path.is_file():
-                missing_assets.append(f"{app_asset} -> {import_reference}")
+                missing_assets.append(f"{owner_asset} -> {import_reference}")
                 continue
             imported_name = HASHED_ASSET_FILENAME_RE.fullmatch(imported_relative.name)
             if imported_name is None or imported_name.group("extension") != "js":
                 invalid_assets.append(
-                    f"{app_asset} -> {import_reference} (runtime module is not fingerprinted)"
+                    f"{owner_asset} -> {import_reference} (external module is not fingerprinted)"
                 )
                 continue
-            runtime_stem = imported_name.group("stem")
-            if runtime_stem not in expected_runtime_stems:
+            external_stem = imported_name.group("stem")
+            if external_stem not in expected_external_stems:
                 invalid_assets.append(
-                    f"{app_asset} -> {import_reference} (unexpected external runtime module)"
+                    f"{owner_asset} -> {import_reference} (unexpected external browser module)"
                 )
                 continue
             if imported_name.group("digest") != cached_content_hash(imported_path):
                 invalid_assets.append(
-                    f"{app_asset} -> {import_reference} (filename hash does not match file contents)"
+                    f"{owner_asset} -> {import_reference} (filename hash does not match file contents)"
                 )
                 continue
-            prior_asset = runtime_assets_by_stem.setdefault(runtime_stem, imported_relative.as_posix())
+            prior_asset = external_assets_by_stem.setdefault(external_stem, imported_relative.as_posix())
             if prior_asset != imported_relative.as_posix():
                 invalid_assets.append(
-                    f"multiple fingerprinted generations found for runtime module {runtime_stem}"
+                    f"multiple fingerprinted generations found for external module {external_stem}"
                 )
                 continue
-            imported_runtime_stems.add(runtime_stem)
+            imported_stems.add(external_stem)
             referenced_assets.add(imported_relative.as_posix())
 
-        expected_app_runtime_stems = {
-            Path(name).stem for name in expected_runtime_modules_for_app(app_asset)
-        }
-        if imported_runtime_stems != expected_app_runtime_stems:
+        if imported_stems != expected_stems:
             invalid_assets.append(
-                f"{app_asset} runtime import set drifted; expected {sorted(expected_app_runtime_stems)}, "
-                f"found {sorted(imported_runtime_stems)}"
+                f"{owner_asset} external import set drifted; expected {sorted(expected_stems)}, "
+                f"found {sorted(imported_stems)}"
             )
+        return imported_stems
 
-    if set(runtime_assets_by_stem) != expected_runtime_stems:
+    for app_asset in app_assets:
+        expected_app_external_stems = {
+            Path(name).stem for name in expected_external_modules_for_app(app_asset)
+        }
+        validate_external_imports(app_asset, expected_app_external_stems)
+
+    if set(external_assets_by_stem) != expected_external_stems:
         invalid_assets.append(
-            "fingerprinted external runtime inventory drifted; "
-            f"expected {sorted(expected_runtime_stems)}, found {sorted(runtime_assets_by_stem)}"
+            "fingerprinted external browser module inventory drifted; "
+            f"expected {sorted(expected_external_stems)}, found {sorted(external_assets_by_stem)}"
         )
 
-    search_runtime_asset = runtime_assets_by_stem.get("catalog-search")
+    runtime_output_by_source = {
+        source_path: output_name
+        for source_path, output_name in RUNTIME_EXTERNAL_MODULES.items()
+    }
+    for runtime_source, dependency_map in RUNTIME_EXTERNAL_DEPENDENCIES.items():
+        runtime_stem = Path(runtime_output_by_source[runtime_source]).stem
+        runtime_asset = external_assets_by_stem.get(runtime_stem)
+        if runtime_asset:
+            validate_external_imports(
+                runtime_asset,
+                {Path(name).stem for name in dependency_map.values()},
+            )
+
+    search_runtime_asset = external_assets_by_stem.get("catalog-search")
     if search_runtime_asset:
         runtime_text = (out_dir / search_runtime_asset).read_text(encoding="utf-8", errors="replace")
         dynamic_specs = (
@@ -1448,25 +1515,12 @@ def referenced_html_assets(root: Path) -> set[str]:
 
 def load_generated_catalogs(root: Path) -> list[dict]:
     generated_json = root / "catalogs.generated.json"
-    if generated_json.is_file():
-        try:
-            data = json.loads(generated_json.read_text(encoding="utf-8-sig"))
-            if isinstance(data, list):
-                return [item for item in data if isinstance(item, dict)]
-        except json.JSONDecodeError as exc:
-            print(f"[warn] Could not parse catalogs.generated.json: {exc}", file=sys.stderr)
-
-    generated_js = root / "catalogs.generated.js"
-    if not generated_js.is_file():
-        return []
-    content = generated_js.read_text(encoding="utf-8", errors="replace")
-    match = GENERATED_ASSIGNMENT_RE.search(content)
-    if not match:
-        return []
     try:
-        data = json.loads(match.group(1))
+        data = json.loads(generated_json.read_text(encoding="utf-8-sig"))
+    except FileNotFoundError:
+        return []
     except json.JSONDecodeError as exc:
-        print(f"[warn] Could not parse catalogs.generated.js: {exc}", file=sys.stderr)
+        print(f"[warn] Could not parse catalogs.generated.json: {exc}", file=sys.stderr)
         return []
     return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
 
@@ -1668,8 +1722,8 @@ def _main_unlocked() -> int:
         # Build the two generated source assets before copying deploy inputs.
         # The shared browser files are fingerprinted from the small template set
         # first, then every generated route is rendered directly with final URLs.
-        build_frontend_assets(root)
         build_taxonomy_asset(root)
+        build_frontend_assets(root)
 
         deploy_files = list(DEPLOY_FILES)
         if args.include_big_pages_viewer:
@@ -1711,13 +1765,13 @@ def _main_unlocked() -> int:
             pre_search_optimization,
             post_search_optimization,
         )
-        fingerprinted_runtime_assets = fingerprint_runtime_modules(staging_dir)
+        fingerprinted_external_assets = fingerprint_external_modules(staging_dir)
         fingerprinted_assets = fingerprint_source_assets(
             root,
             staging_dir,
             include_big_pages_viewer=args.include_big_pages_viewer,
         )
-        fingerprinted_assets.update(fingerprinted_runtime_assets)
+        fingerprinted_assets.update(fingerprinted_external_assets)
         fingerprinted_assets.update(fingerprinted_search_assets)
         rewrite_existing_bundle_html(staging_dir, fingerprinted_assets)
         asset_stage_seconds = time.perf_counter() - asset_stage_started

@@ -33,7 +33,7 @@ except ModuleNotFoundError:  # Direct execution from tools/
 
 SEO_CONFIG_FILE = "seo.config.json"
 TAXONOMY_CONFIG_FILE = "catalog-taxonomy.config.json"
-TAXONOMY_GENERATED_JS = "catalog-taxonomy.generated.js"
+TAXONOMY_GENERATED_MODULE = "catalog-taxonomy.generated.module.js"
 HEADERS_TEMPLATE_FILE = "_headers.template"
 VALID_SEO_MODES = {"private", "public"}
 CATALOG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
@@ -266,22 +266,25 @@ def taxonomy_browser_payload(taxonomy: Taxonomy) -> dict[str, Any]:
     }
 
 
-def taxonomy_generated_js(taxonomy: Taxonomy) -> str:
-    payload = json.dumps(taxonomy_browser_payload(taxonomy), ensure_ascii=False, separators=(",", ":"))
+def taxonomy_generated_module(taxonomy: Taxonomy) -> str:
+    payload = json.dumps(
+        taxonomy_browser_payload(taxonomy), ensure_ascii=False, indent=2
+    )
     return (
         "// GENERATED FILE — edit catalog-taxonomy.config.json and rebuild instead.\n"
-        f"window.BARGIG_CATALOG_TAXONOMY = {payload};\n"
+        f"const taxonomyRecord = {payload};\n"
+        "export const catalogTaxonomy = Object.freeze(taxonomyRecord);\n"
     )
 
 
 def build_taxonomy_asset(root: Path, *, check: bool = False) -> Path:
     taxonomy = load_taxonomy(root)
-    target = root / TAXONOMY_GENERATED_JS
-    expected = taxonomy_generated_js(taxonomy).encode("utf-8")
+    target = root / TAXONOMY_GENERATED_MODULE
+    expected = taxonomy_generated_module(taxonomy).encode("utf-8")
     current = target.read_bytes() if target.is_file() else None
     if check and current != expected:
         raise RuntimeError(
-            f"Generated taxonomy asset is stale: {TAXONOMY_GENERATED_JS}. "
+            f"Generated taxonomy asset is stale: {TAXONOMY_GENERATED_MODULE}. "
             "Run: python tools/build_site_pages.py"
         )
     if not check and current != expected:

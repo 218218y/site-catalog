@@ -34,7 +34,7 @@ bundle.
 | `js_error` | Runtime stability | coarse error name/message fingerprint, file, line, deployment ID |
 | `resource_error` | Non-image resource loading | provider scope, tag, role, coarse filename, deployment ID |
 | `search_index_load_failed` | Search bootstrap failures | reason, trigger, source scope, deployment ID |
-| `image_attempt_failed` | One failed catalog-image attempt | frozen request ID, catalog/page, surface, visibility, role, attempt number |
+| `image_attempt_failed` | One failed catalog-image attempt | frozen request ID, catalog/page, surface, visibility, requested tier, request-start network state, role, attempt number |
 | `image_recovered` | Catalog image recovered after retry/fallback | same frozen request context, successful role, failed-attempt count |
 | `image_terminal_failure` | Catalog image exhausted its managed recovery path | same frozen request context, final role, failed-attempt count |
 | `image_error` | Historical pre-classification image failures | catalog/page, image role |
@@ -103,8 +103,10 @@ The report shows event totals, application-session denominators, current/histori
 release cohorts, opened catalogs, completed searches/no-result searches, contact and favorite
 actions, provider-level resource failures, and runtime/image diagnostics. RUM is grouped by
 release, app page, route, viewport, and component; reliability is expressed per 1,000 matching
-sessions. Image outcomes distinguish visible failures from hidden/preload/background work and
-preserve one request correlation across the complete recovery lifecycle. Typing prefixes are not
+sessions. Image outcomes distinguish visible failures from hidden/preload/background work, retain
+the requested image tier and the browser's online/offline state at request start, and preserve one
+request correlation across the complete recovery lifecycle. These fields are frozen when loading
+starts instead of being inferred later from a changed route or DOM. Typing prefixes are not
 reported; a search event is emitted only after Enter/submit or after opening a result. The SQL API
 is called once per report section with a single supported `SELECT`; the Python tool merges the
 normalized rows locally instead of using `UNION ALL` or a CTE. The current report performs 21

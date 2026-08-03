@@ -942,10 +942,10 @@ def render_site_pages(
     include_indexing_files: bool = True,
     asset_rewrites: Mapping[str, str] | None = None,
 ) -> list[Path]:
-    if build_assets:
-        build_frontend_assets(root)
     if build_taxonomy:
         build_taxonomy_asset(root)
+    if build_assets:
+        build_frontend_assets(root)
 
     config = load_seo_config(root)
     mode = resolve_seo_mode(root, seo_mode)

@@ -38,6 +38,7 @@ assert.match(compiler, /def compile_catalog_data\(/);
 assert.match(compiler, /def compile_current_project_catalog_data\(/);
 assert.match(compiler, /def verify_managed_outputs_reconstructable\(/);
 assert.match(compiler, /BUILD_STATE_FILE = "catalogs\.build-state\.json"/);
+assert.match(compiler, /GENERATED_MODULE_FILE = "catalogs\.generated\.module\.js"/);
 assert.match(compiler, /SEARCH_INDEX_FILE = "catalogs\.search-index\.json"/);
 assert.match(compiler, /build_normalized_search_index/);
 assert.match(compiler, /def load_build_state\(root: Path, \*, allow_legacy_migration: bool = False\)/);
@@ -70,11 +71,18 @@ const catalogWriters = pythonFiles.filter((name) => {
   const source = fs.readFileSync(path.join(tools, name), "utf8");
   return /window\.BARGIG_CATALOGS\s*=|window\.BARGIG_CATALOG_SEARCH\s*=/.test(source);
 });
-assert.deepEqual(catalogWriters, ["build_big_pages_viewer.py", "catalog_compiler.py"]);
+assert.deepEqual(catalogWriters, ["build_big_pages_viewer.py"]);
 assert.match(compiler, /render_updated_files_from_catalogs/);
 assert.match(compiler, /catalog-big-pages-viewer-netfree\/catalog-big-pages-viewer\.html/);
 
-assert.match(fs.readFileSync(path.join(root, "catalogs.generated.js"), "utf8"), /tools\/catalog_compiler\.py/);
+const generatedModule = fs.readFileSync(path.join(root, "catalogs.generated.module.js"), "utf8");
+assert.match(generatedModule, /tools\/catalog_compiler\.py/);
+assert.match(generatedModule, /export const catalogs = Object\.freeze\(catalogRecords\);/);
+assert.doesNotMatch(generatedModule, /window\.|document\.|globalThis\./);
+const modulePayload = generatedModule.match(/const catalogRecords = ([\s\S]*);\nexport const catalogs/)?.[1];
+assert.ok(modulePayload, "generated catalog ESM must expose a parseable literal projection");
+assert.deepEqual(JSON.parse(modulePayload), JSON.parse(fs.readFileSync(path.join(root, "catalogs.generated.json"), "utf8")));
+assert.equal(fs.existsSync(path.join(root, "catalogs.generated.js")), false);
 assert.equal(fs.existsSync(path.join(root, "catalogs.search.json")), false);
 assert.equal(fs.existsSync(path.join(root, "catalogs.search.js")), false);
 assert.match(compiler, /LEGACY_SEARCH_JSON_FILE = "catalogs\.search\.json"/);

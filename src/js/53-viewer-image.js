@@ -244,6 +244,7 @@ function prepareSingleViewerResolutionUpgrade(catalog, page, request, options = 
     telemetryDetail: "viewer-resolution-upgrade",
     telemetrySurface: "viewer-resolution-upgrade",
     telemetryVisibility: "background",
+    telemetryRequestedTier: request.primaryTier,
     onSuccess: /** @param {CatalogImageCandidate} candidate */ (candidate) => {
       const finishReady = () => {
         if (token !== viewerImageState.singleImageResolutionLoadToken || !image.naturalWidth) return;
@@ -366,6 +367,7 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
       isCurrent: requestIsCurrent,
       telemetryDetail: "viewer-single",
       telemetrySurface: "viewer-stage",
+      telemetryRequestedTier: request.primaryTier,
       telemetryRequestContext,
       initialFailedAttempts,
       onSuccess: /** @param {CatalogImageCandidate} candidate */ (candidate) => {
@@ -409,7 +411,8 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
     const telemetryRequestContext = telemetryCreateImageRequestContext(image, primarySrc, {
       detail: "viewer-single",
       surface: "viewer-stage",
-      visibility: "visible"
+      visibility: "visible",
+      requestedTier: request.primaryTier
     });
     prepareCatalogImage(primarySrc, {
       priority: "high",
@@ -421,7 +424,8 @@ function showSingleLightboxImage(catalog, page, src, options = {}) {
       signal: controller.signal,
       isCurrent: requestIsCurrent,
       terminalOnFailure: false,
-      telemetryRequestContext
+      telemetryRequestContext,
+      requestedTier: request.primaryTier
     })
       .then(() => ({ failedAttempts: 0 }))
       .catch((error) => {
@@ -566,11 +570,13 @@ function runViewerNeighborPreloads(catalog, page, favoriteIndex = -1) {
       .filter((index) => index >= 0 && index < entries.length)
       .forEach((index) => {
         const entry = entries[index];
-        prepareCatalogImage(viewerPageSrc(entry.catalog, entry.page, requestOptions), {
+        const request = viewerPageImageRequest(entry.catalog, entry.page, requestOptions);
+        prepareCatalogImage(request.primarySrc, {
           priority: "low",
           detail: "viewer-neighbor-preload",
           surface: "viewer-favorites-neighbor-preload",
-          visibility: "preload"
+          visibility: "preload",
+          requestedTier: request.primaryTier
         }).catch(() => {});
       });
     return;
@@ -583,11 +589,13 @@ function runViewerNeighborPreloads(catalog, page, favoriteIndex = -1) {
   ))
     .filter((page) => page >= catalogFirstPage(catalog) && page <= catalogLastPage(catalog))
     .forEach((page) => {
-      prepareCatalogImage(viewerPageSrc(catalog, page, requestOptions), {
+      const request = viewerPageImageRequest(catalog, page, requestOptions);
+      prepareCatalogImage(request.primarySrc, {
         priority: "low",
         detail: "viewer-neighbor-preload",
         surface: "viewer-neighbor-preload",
-        visibility: "preload"
+        visibility: "preload",
+        requestedTier: request.primaryTier
       }).catch(() => {});
     });
 }

@@ -158,7 +158,7 @@ def build_fixture(root: Path, *, include_missing: bool = False) -> None:
         encoding="utf-8",
     )
     (root / "catalogs.generated.json").write_text('[{"id":"old-public"}]\n', encoding="utf-8")
-    (root / "catalogs.generated.js").write_text("window.BARGIG_CATALOGS = [{\"id\":\"old-public\"}];\n", encoding="utf-8")
+    (root / "catalogs.generated.module.js").write_text("export const catalogs = [];\n", encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -247,7 +247,7 @@ def control_fixture(root: Path) -> tuple[list[dict[str, object]], dict[str, obje
     (root / "catalog-taxonomy.config.json").write_text(json.dumps(taxonomy) + "\n", encoding="utf-8")
     generated = [{"id": "old-id", "title": "Old", "description": "old", "category": "Category", "subcategory": "Sub", "pages": 1, "dir": "assets/pages/old-id", "cover": "assets/pages/old-id/page-001.webp", "imageExt": "webp"}]
     (root / "catalogs.generated.json").write_text(json.dumps(generated) + "\n", encoding="utf-8")
-    (root / "catalogs.generated.js").write_text("old generated js\n", encoding="utf-8")
+    (root / "catalogs.generated.module.js").write_text("old generated module\n", encoding="utf-8")
     (root / "catalogs.build-state.json").write_text(
         json.dumps({"version": 1, "catalogs": [build_state_artifact("old-id", image_format="webp")]}) + "\n",
         encoding="utf-8",
@@ -418,7 +418,7 @@ def test_directory_replacement_accepts_only_its_own_staging_area(tmp_path: Path)
             transaction.replace_directory(root / "target", unrelated)
 
 
-def test_control_save_reconstructs_half_missing_generated_file_pairs_from_state(
+def test_control_save_reconstructs_a_missing_generated_module_from_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -426,11 +426,11 @@ def test_control_save_reconstructs_half_missing_generated_file_pairs_from_state(
     root.mkdir()
     catalogs, taxonomy = control_fixture(root)
     patch_control_paths(monkeypatch, root)
-    (root / "catalogs.generated.js").unlink()
+    (root / "catalogs.generated.module.js").unlink()
     SERVER.save_catalogs_transactionally(catalogs, taxonomy, [])
 
     generated = json.loads((root / "catalogs.generated.json").read_text(encoding="utf-8"))
-    assert (root / "catalogs.generated.js").is_file()
+    assert (root / "catalogs.generated.module.js").is_file()
     assert generated[0]["id"] == "new-id"
 
 

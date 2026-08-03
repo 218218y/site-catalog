@@ -16,7 +16,7 @@
     "viewer": {
       "source": "app-viewer.js",
       "bundlePattern": "static/app-viewer.*.js",
-      "rawBytes": 520000,
+      "rawBytes": 522000,
       "gzipBytes": 110000
     }
   },

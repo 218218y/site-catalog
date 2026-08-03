@@ -46,8 +46,7 @@ assert.equal(
   "https://cdn.example.test/catalogs/assets/pages/demo/page-001.webp"
 );
 
-const runtimeWindow = { BARGIG_CATALOGS: [catalog] };
-const search = importStandaloneRuntimeModule("src/runtime/catalog-search.js", { window: runtimeWindow });
+const search = importStandaloneRuntimeModule("src/runtime/catalog-search.js", { catalogs: [catalog] });
 assert.match(search.pageSrc(catalog, 1), /page-001\.jpg\?v=full-release-full-u2$/);
 assert.match(search.thumbSrc(catalog, 1), /thumbs\/page-001\.jpg\?v=thumb-release-thumb-u2$/);
 

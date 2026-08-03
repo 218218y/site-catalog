@@ -220,7 +220,7 @@ catalogs.config.json
 ```bat
 assets\pages
 catalogs.build-state.json
-catalogs.generated.js
+catalogs.generated.module.js
 catalogs.generated.json
 catalogs.search-index.json
 ```
@@ -471,7 +471,7 @@ tools/catalog_schema.py            אימות Schema ואילוצים חוצי־
 partials/site-footer.html          תבנית מבנה הפוטר; העיצוב והתגיות נשארים קבועים
 partials/site-footer.content.json  טקסטי הפוטר הנערכים דרך לוח השליטה
 tools/footer_content.py            אימות, escaping ובניית קישורי הפוטר מתוך קובץ התוכן
-catalogs.generated.js              נתוני קטלוגים שנוצרו אוטומטית
+catalogs.generated.module.js       נתוני קטלוגים שנוצרו אוטומטית כ־ESM immutable
 catalogs.search-index.json         אינדקס החיפוש הפעיל והדטרמיניסטי עבור ה־Worker
 .04-catalog-control-panel.bat          פתיחת לוח השליטה המקומי
 catalog-control-panel.html         מעטפת HTML דקה של לוח השליטה המקומי

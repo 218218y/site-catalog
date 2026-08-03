@@ -175,7 +175,7 @@ def test_full_conversion_and_control_panel_save_emit_identical_catalog_bytes(
     managed = (
         "catalogs.build-state.json",
         "catalogs.generated.json",
-        "catalogs.generated.js",
+        "catalogs.generated.module.js",
         "catalogs.search-index.json",
     )
     conversion_bytes = {name: (root / name).read_bytes() for name in managed}

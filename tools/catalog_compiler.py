@@ -8,7 +8,7 @@ Authoritative inputs have distinct ownership:
 * ``catalogs.build-state.json`` owns PDF-derived artifact/search facts produced
   by the conversion pipeline.
 
-Every checked-in ``catalogs.generated.*`` byte and the active
+Every checked-in catalog projection byte and the active
 ``catalogs.search-index.json`` are emitted by this module. The control panel and
 PDF converter provide inputs; neither owns a second serializer or metadata
 patching path. Legacy ``catalogs.search.json`` / ``catalogs.search.js`` may be
@@ -58,14 +58,14 @@ except ModuleNotFoundError:  # Direct execution from tools/
 
 BUILD_STATE_FILE = "catalogs.build-state.json"
 GENERATED_JSON_FILE = "catalogs.generated.json"
-GENERATED_JS_FILE = "catalogs.generated.js"
+GENERATED_MODULE_FILE = "catalogs.generated.module.js"
 LEGACY_SEARCH_JSON_FILE = "catalogs.search.json"
 LEGACY_SEARCH_JS_FILE = "catalogs.search.js"
 SEARCH_INDEX_FILE = "catalogs.search-index.json"
-TAXONOMY_JS_FILE = "catalog-taxonomy.generated.js"
+TAXONOMY_MODULE_FILE = "catalog-taxonomy.generated.module.js"
 MANAGED_CATALOG_OUTPUTS = (
     Path(GENERATED_JSON_FILE),
-    Path(GENERATED_JS_FILE),
+    Path(GENERATED_MODULE_FILE),
     Path(SEARCH_INDEX_FILE),
 )
 VARIANT_DIRECTORIES = {
@@ -91,12 +91,14 @@ def _json_bytes(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
-def _generated_js_bytes(entries: Sequence[Mapping[str, Any]]) -> bytes:
+def _generated_module_bytes(entries: Sequence[Mapping[str, Any]]) -> bytes:
     payload = json.dumps(list(entries), ensure_ascii=False, indent=2)
     return (
         "// הקובץ הזה נוצר אוטומטית על ידי tools/catalog_compiler.py\n"
         "// מקור העריכה הוא catalogs.config.json; נתוני ההמרה מגיעים מ-catalogs.build-state.json.\n"
-        f"window.BARGIG_CATALOGS = {payload};\n"
+        "/** @type {import(\"./types/catalog-data.generated.js\").CatalogRecord[]} */\n"
+        f"const catalogRecords = {payload};\n"
+        "export const catalogs = Object.freeze(catalogRecords);\n"
     ).encode("utf-8")
 
 
@@ -105,7 +107,7 @@ def compiled_catalog_file_bytes(compiled: CompiledCatalogData) -> dict[Path, byt
     """Return every managed public catalog output as deterministic bytes."""
     return {
         Path(GENERATED_JSON_FILE): _json_bytes(compiled.generated),
-        Path(GENERATED_JS_FILE): _generated_js_bytes(compiled.generated),
+        Path(GENERATED_MODULE_FILE): _generated_module_bytes(compiled.generated),
         Path(SEARCH_INDEX_FILE): _json_bytes(compiled.search_index),
     }
 
@@ -240,16 +242,9 @@ def migrate_legacy_outputs_to_build_state(root: Path) -> dict[str, Any]:
     transaction.
     """
     generated_path = root / GENERATED_JSON_FILE
-    generated_js_path = root / GENERATED_JS_FILE
     search_path = root / LEGACY_SEARCH_JSON_FILE
     search_js_path = root / LEGACY_SEARCH_JS_FILE
-    generated_pair = (generated_path.is_file(), generated_js_path.is_file())
     search_pair = (search_path.is_file(), search_js_path.is_file())
-    if generated_pair[0] != generated_pair[1]:
-        raise RuntimeError(
-            "catalogs.generated.json ו-catalogs.generated.js אינם במצב תואם; "
-            "יש לשחזר או לבנות אותם מחדש לפני יצירת מצב ה-Compiler."
-        )
     if search_pair[0] != search_pair[1]:
         raise RuntimeError(
             "catalogs.search.json ו-catalogs.search.js אינם במצב תואם; "
@@ -263,8 +258,6 @@ def migrate_legacy_outputs_to_build_state(root: Path) -> dict[str, Any]:
         raise ValueError("Legacy catalogs.generated.json must contain an array of objects")
     if not isinstance(search, list) or not all(isinstance(item, Mapping) for item in search):
         raise ValueError("Legacy catalogs.search.json must contain an array of objects")
-    if _legacy_js_array(generated_js_path, "BARGIG_CATALOGS") != generated:
-        raise RuntimeError("Legacy catalogs.generated.json and catalogs.generated.js contain different data")
     if search_js_path.is_file() and _legacy_js_array(search_js_path, "BARGIG_CATALOG_SEARCH") != search:
         raise RuntimeError("Legacy catalogs.search.json and catalogs.search.js contain different data")
     search_by_id = {
@@ -531,17 +524,17 @@ def compile_taxonomy_and_site_pages(
     writer: ByteWriter,
     staging_root: Path,
 ) -> tuple[Path, ...]:
-    """Emit taxonomy JS and root site pages through the same compiler transaction."""
+    """Emit the taxonomy ESM projection and root pages in one transaction."""
     try:
         from tools.build_site_pages import render_site_pages
-        from tools.seo_site import load_taxonomy, taxonomy_generated_js
+        from tools.seo_site import load_taxonomy, taxonomy_generated_module
     except ModuleNotFoundError:  # Direct execution from tools/
         from build_site_pages import render_site_pages
-        from seo_site import load_taxonomy, taxonomy_generated_js
+        from seo_site import load_taxonomy, taxonomy_generated_module
 
     taxonomy = load_taxonomy(root)
-    taxonomy_path = root / TAXONOMY_JS_FILE
-    writer(taxonomy_path, taxonomy_generated_js(taxonomy).encode("utf-8"))
+    taxonomy_path = root / TAXONOMY_MODULE_FILE
+    writer(taxonomy_path, taxonomy_generated_module(taxonomy).encode("utf-8"))
 
     pages_root = staging_root / "site-pages"
     staged_pages = render_site_pages(

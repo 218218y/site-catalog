@@ -12,7 +12,7 @@ import { isCatalogPage } from "./06-catalog-page-numbering.js";
  * @typedef {Object} FavoritesPortabilityDependencies
  * @property {(values:unknown)=>Array<FavoriteItem>} normalizeItems
  * @property {(id:unknown)=>CatalogRecord|null} findCatalogById
- * @property {()=>Array<CatalogRecord>} catalogs
+ * @property {()=>readonly CatalogRecord[]} catalogs
  * @property {(value:string)=>string} encodeBase64
  * @property {(value:string)=>string} decodeBase64
  * @property {number} shareVersion

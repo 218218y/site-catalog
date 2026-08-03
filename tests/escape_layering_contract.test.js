@@ -18,7 +18,7 @@ const searchUi = fs.readFileSync(path.join(root, 'src', 'js', '50-search-ui.js')
 const viewer = fs.readFileSync(path.join(root, 'src', 'js', '60-viewer.js'), 'utf8');
 const sharedInquiry = fs.readFileSync(path.join(root, 'src', 'js', '32-shared-inquiry.js'), 'utf8');
 
-global.window = { BARGIG_CATALOG_TAXONOMY: { categories: [], subcategories: [] }, location: { href: 'https://example.test/' } };
+global.window = { location: { href: 'https://example.test/' } };
 Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
 global.requiredElement = () => ({});
 const { handleTopLayerEscape } = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');

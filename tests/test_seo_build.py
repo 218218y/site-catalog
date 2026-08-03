@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import sys
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import pytest
+from tools import seo_site as SEO_SITE
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
@@ -94,6 +96,19 @@ def seo_outputs(
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def test_checked_in_taxonomy_module_matches_the_canonical_taxonomy() -> None:
+    source = read(ROOT / SEO_SITE.TAXONOMY_GENERATED_MODULE)
+    match = re.search(
+        r"const taxonomyRecord = ([\s\S]*);\nexport const catalogTaxonomy",
+        source,
+    )
+    assert match is not None
+    assert json.loads(match.group(1)) == SEO_SITE.taxonomy_browser_payload(
+        SEO_SITE.load_taxonomy(ROOT)
+    )
+    assert not (ROOT / "catalog-taxonomy.generated.js").exists()
 
 
 

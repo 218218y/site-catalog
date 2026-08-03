@@ -1,4 +1,3 @@
-import type { CatalogRecord } from "./catalog-data.generated.js";
 import type { FeatureCapabilities } from "./frontend-contracts.js";
 
 declare global {
@@ -23,10 +22,8 @@ declare global {
   }
 
   interface Window {
-    BARGIG_CATALOGS?: CatalogRecord[];
     BARGIG_CATALOG_ASSET_BASE_URL?: string;
     BARGIG_CATALOG_IMAGE_DELIVERY_MODE?: string;
-    BARGIG_CATALOG_TAXONOMY?: Record<string, unknown>;
     __BARGIG_RELEASE_ID__?: string;
     __BARGIG_DISABLE_TELEMETRY__?: boolean;
     __BARGIG_ENABLE_TELEMETRY__?: boolean;

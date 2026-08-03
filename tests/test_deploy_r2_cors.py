@@ -214,17 +214,27 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
     (static_dir / worker_name).write_bytes(worker_content)
     (static_dir / index_name).write_bytes(index_content)
 
+    data_sources = {
+        "catalogs.generated.module": b"export const catalogs = Object.freeze([]);\n",
+        "catalog-taxonomy.generated.module": b"export const catalogTaxonomy = Object.freeze({});\n",
+    }
+    runtime_names: dict[str, str] = {}
+    for stem, content in data_sources.items():
+        module_name = f"{stem}.{hashlib.sha256(content).hexdigest()[:12]}.js"
+        (static_dir / module_name).write_bytes(content)
+        runtime_names[stem] = module_name
+
     runtime_sources = {
         "catalog-search": (
+            f'import {{ catalogs }} from "./{runtime_names["catalogs.generated.module"]}";\n'
             f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
             f'const SEARCH_INDEX_DATA_SRC = "{index_name}";\n'
-            'export const catalogSearch = {};\n'
+            'export const catalogSearch = { catalogs };\n'
         ).encode("utf-8"),
         "tooltip-manager": b"export const tooltips = {};\n",
         "favorites-store": b"export function createStore() { return {}; }\n",
         "site-routes": b"export const siteRoutes = {};\n",
     }
-    runtime_names: dict[str, str] = {}
     for stem, content in runtime_sources.items():
         runtime_name = f"{stem}.{hashlib.sha256(content).hexdigest()[:12]}.js"
         (static_dir / runtime_name).write_bytes(content)
@@ -236,7 +246,10 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
 
     runtime_imports = "".join(
         f'import "./{runtime_names[stem]}";\n'
-        for stem in ("catalog-search", "tooltip-manager", "favorites-store", "site-routes")
+        for stem in (
+            "catalog-search", "tooltip-manager", "favorites-store", "site-routes",
+            "catalogs.generated.module", "catalog-taxonomy.generated.module",
+        )
     )
     route_scripts: dict[str, str] = {}
     for stem in ("app-catalog", "app-favorites", "app-viewer"):

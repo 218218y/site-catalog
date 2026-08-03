@@ -10,7 +10,6 @@ const attempts = [];
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
 Object.assign(globalThis, {
   window: {
-    BARGIG_CATALOG_TAXONOMY: { categories: [], subcategories: [] },
     location: { href: "https://example.test/viewer.html" }
   },
   requiredElement: () => ({}),

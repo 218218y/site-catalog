@@ -11,7 +11,7 @@
 
 import { tooltips } from "../runtime/tooltip-manager.js";
 import { eventTargetElement, requiredElement } from "./02-dom-contracts.js";
-import { catalogs } from "./03-runtime-context.js";
+import { catalogs, catalogTaxonomy } from "./03-runtime-context.js";
 import { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_EAGER_COVER_COUNT, CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY, CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE, CATALOG_IMAGE_PRELOAD_CACHE_LIMIT, CATALOG_IMAGE_RETRY_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, DEFAULT_CATALOG_MEDIUM_MAX_SIDE, catalogAssetState, featureInterfacesByEscapePriority, getFeatureInterface, uiRuntime } from "./10-app-state.js";
 import { telemetryCatalogImageContext, telemetryCleanText, telemetryCreateImageRequestContext, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure } from "./15-telemetry.js";
 import { activeCatalog } from "./18-navigation-feature.js";
@@ -22,6 +22,9 @@ import { catalogDir, coverThumbSrc, imageExt, pageSrc, resolveCatalogAssetUrl, t
 const uiElements = Object.freeze({
   siteActionToast: requiredElement("siteActionToast")
 });
+
+/** @type {WeakMap<CatalogRecord, Map<number, {width:number, height:number}>>} */
+const observedCatalogPageSizes = new WeakMap();
 
 /** @typedef {CatalogImageCandidate & {fallback:boolean}} CatalogImageRecoveryCandidate */
 /** @typedef {{primaryTier?:string, forceRefresh?:boolean, forceRefreshRole?:string, fallbackTier?:string, fallbackCandidates?:Array<CatalogImageCandidate>}} CatalogImageRecoveryCandidateOptions */
@@ -35,6 +38,7 @@ const uiElements = Object.freeze({
  *   telemetryDetail?:unknown,
  *   telemetrySurface?:unknown,
  *   telemetryVisibility?:unknown,
+ *   telemetryRequestedTier?:unknown,
  *   telemetryRequestContext?:ReturnType<typeof telemetryCreateImageRequestContext>|null,
  *   initialFailedAttempts?:number,
  *   onExhausted?:(result:CatalogImageRecoveryExhausted)=>void,
@@ -49,6 +53,7 @@ const uiElements = Object.freeze({
  *   detail?:string,
  *   surface?:string,
  *   visibility?:string,
+ *   requestedTier?:string,
  *   failureAction?:string,
  *   cache?:boolean,
  *   signal?:AbortSignal,
@@ -215,7 +220,8 @@ function loadCatalogImageWithRecovery(img, options = {}) {
     ? telemetryCreateImageRequestContext(img, options.primarySrc || options.fallbackSrc || "", {
       detail: telemetryDetail,
       surface: options.telemetrySurface,
-      visibility: options.telemetryVisibility
+      visibility: options.telemetryVisibility,
+      requestedTier: options.telemetryRequestedTier || options.primaryTier
     })
     : null);
   let index = 0;
@@ -302,7 +308,7 @@ function catalogImageRecoveryAttributes(catalog, page, detail = "thumbnail", sur
   const safePage = Math.max(0, Number.parseInt(String(page), 10) || 0);
   const safeDetail = escapeHtml(detail || "thumbnail");
   const safeSurface = escapeHtml(surface || detail || "image");
-  return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}" data-telemetry-surface="${safeSurface}"`;
+  return ` data-catalog-image-recovery="lightweight" data-catalog-id="${catalogId}" data-page="${safePage}" data-telemetry-detail="${safeDetail}" data-telemetry-surface="${safeSurface}" data-telemetry-requested-tier="thumb"`;
 }
 
 /** @param {HTMLImageElement|null|undefined} img */
@@ -316,7 +322,8 @@ function recoverCatalogImageAfterInitialFailure(img) {
   const detail = telemetryCleanText(img.dataset.telemetryDetail || telemetryCatalogImageContext(img).detail, 40);
   const requestContext = telemetryCreateImageRequestContext(img, failedSrc, {
     detail,
-    surface: img.dataset.telemetrySurface || detail
+    surface: img.dataset.telemetrySurface || detail,
+    requestedTier: img.dataset.telemetryRequestedTier || "thumb"
   });
   img.dataset.catalogImageRecoveryStarted = "true";
   telemetryTrackImageAttemptFailure(failedSrc, {
@@ -363,7 +370,8 @@ function prepareCatalogImage(url, options = {}) {
   const requestContext = options.telemetryRequestContext || telemetryCreateImageRequestContext(null, src, {
     detail: options.detail || "preload",
     surface: options.surface || options.detail || "image-preload",
-    visibility: options.visibility || "preload"
+    visibility: options.visibility || "preload",
+    requestedTier: options.requestedTier
   });
   applyCatalogImageCrossOrigin(image);
   image.decoding = "async";
@@ -521,8 +529,6 @@ function subcategorySectionId(category, categoryIndex, subcategory, subcategoryI
   return `${categorySectionId(category, categoryIndex)}-sub-${categorySlug(subcategory)}-${subcategoryIndex + 1}`;
 }
 
-/** @type {CatalogTaxonomy} */
-const catalogTaxonomy = window.BARGIG_CATALOG_TAXONOMY || { categories: [], subcategories: [] };
 const CATALOG_CATEGORY_SHARE_SLUGS = new Map(
   (Array.isArray(catalogTaxonomy.categories) ? catalogTaxonomy.categories : [])
     .map((item) => /** @type {[string, string]} */ ([String(item?.name || "").trim(), String(item?.slug || "").trim()]))
@@ -675,8 +681,11 @@ function catalogCoverSrc(catalog) {
 
 /** @param {CatalogRecord|null|undefined} catalog @param {number|string} page */
 function pageSize(catalog, page) {
-  const sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [];
   const assetPage = displayPageToAssetPage(catalog, page);
+  const observed = catalog ? observedCatalogPageSizes.get(catalog)?.get(assetPage) : null;
+  if (observed) return observed;
+
+  const sizes = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [];
   const size = sizes[assetPage - 1];
   if (!Array.isArray(size) || size.length < 2) return null;
   const width = Number(size[0]);
@@ -753,9 +762,12 @@ function applyLoadedPageAspect(img) {
   const catalog = activeCatalog();
   if (!catalog || !isCatalogPage(catalog, page)) return;
 
-  if (!Array.isArray(catalog.pageSizes)) catalog.pageSizes = [];
-  catalog.pageSizes[displayPageToAssetPage(catalog, page) - 1] = [width, height];
-
+  let observedSizes = observedCatalogPageSizes.get(catalog);
+  if (!observedSizes) {
+    observedSizes = new Map();
+    observedCatalogPageSizes.set(catalog, observedSizes);
+  }
+  observedSizes.set(displayPageToAssetPage(catalog, page), { width, height });
 }
 
 /** @param {HTMLImageElement|null|undefined} img */

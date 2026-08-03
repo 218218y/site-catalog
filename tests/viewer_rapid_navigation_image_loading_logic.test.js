@@ -50,7 +50,6 @@ async function testPreparationLifecycle() {
   Object.assign(globalThis, {
     Image: ControlledImage,
     window: {
-      BARGIG_CATALOG_TAXONOMY: { categories: [], subcategories: [] },
       location: { href: "https://example.test/viewer.html" }
     },
     requiredElement: () => ({}),

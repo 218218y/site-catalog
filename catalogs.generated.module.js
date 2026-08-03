@@ -1,6 +1,7 @@
 // הקובץ הזה נוצר אוטומטית על ידי tools/catalog_compiler.py
 // מקור העריכה הוא catalogs.config.json; נתוני ההמרה מגיעים מ-catalogs.build-state.json.
-window.BARGIG_CATALOGS = [
+/** @type {import("./types/catalog-data.generated.js").CatalogRecord[]} */
+const catalogRecords = [
   {
     "id": "opening-tbi-2026",
     "title": "ארונות פתיחה ת.ב.י רהיטים 2026",
@@ -3954,3 +3955,4 @@ window.BARGIG_CATALOGS = [
     "subcategory": ""
   }
 ];
+export const catalogs = Object.freeze(catalogRecords);

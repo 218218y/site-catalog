@@ -7,7 +7,6 @@ Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, conf
 
 Object.assign(globalThis, {
   window: {
-    BARGIG_CATALOG_TAXONOMY: { categories: [], subcategories: [] },
     location: { href: "https://example.test/catalog.html" },
   },
   requiredElement: () => ({}),

@@ -6,7 +6,7 @@
 
 מה הוא עושה:
 - מציג את תמונות העמודים הקטנות, הבינוניות או הגדולות של כל הקטלוגים המעודכנים.
-- הדף עצמאי: רשימת הקטלוגים צרובה בתוך קובץ ה־HTML, ולכן הוא לא תלוי ב־../catalogs.generated.js או ב־../catalog-assets.config.js.
+- הדף עצמאי: רשימת הקטלוגים צרובה בתוך קובץ ה־HTML, ולכן הוא לא תלוי ב־../catalogs.generated.module.js או ב־../catalog-assets.config.js.
 - התמונות נטענות ישירות מכתובת Cloudflare R2/CDN:
   https://cdn.bargig-furniture.com/assets/pages/
 - בראש הדף בוחרים אם להציג תמונות קטנות, בינוניות או גדולות.

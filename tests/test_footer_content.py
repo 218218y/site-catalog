@@ -40,7 +40,7 @@ def copy_page_sources(target: Path) -> None:
         "legal/accessibility.content.html",
         "seo.config.json",
         "catalog-taxonomy.config.json",
-        "catalog-taxonomy.generated.js",
+        "catalog-taxonomy.generated.module.js",
         "catalogs.generated.json",
         "_headers.template",
     ):

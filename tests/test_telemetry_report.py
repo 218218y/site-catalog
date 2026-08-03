@@ -60,8 +60,12 @@ def test_report_queries_are_single_select_aggregate_and_bounded() -> None:
     image_outcome = next(item.sql for item in queries if item.section == "image_outcome")
     assert "blob15 AS surface" in image_outcome
     assert "blob17 AS visibility" in image_outcome
+    assert "blob18 AS requested_tier" in image_outcome
+    assert "blob19 AS network_state" in image_outcome
     image_detail = next(item.sql for item in queries if item.section == "image_terminal")
     assert "blob16 AS request_id" in image_detail
+    assert "blob18 AS requested_tier" in image_detail
+    assert "blob19 AS network_state" in image_detail
     previous_query = next(item.sql for item in queries if item.section == "previous_event")
     assert "timestamp < NOW() - INTERVAL '90' DAY" in previous_query
 
@@ -294,10 +298,10 @@ def sample_report_rows() -> list[dict[str, object]]:
         {"section": "rum", "label": "LCP", "count": 10, "metric": 2100, "good_count": 8, "poor_count": 1},
         {"section": "rum_cohort", "label": "CLS", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "component": "viewer-stage", "count": 12, "metric": 0.246, "good_count": 5, "poor_count": 3, "first_seen": "2026-08-01"},
         {"section": "reliability", "label": "image_terminal_failure", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "count": 1},
-        {"section": "image_outcome", "label": "image_recovered", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "catalog_id": "opening-test", "page_number": 4, "surface": "viewer-stage", "visibility": "visible", "count": 3},
-        {"section": "image_outcome", "label": "image_terminal_failure", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "catalog_id": "opening-test", "page_number": 4, "surface": "viewer-stage", "visibility": "visible", "count": 1},
+        {"section": "image_outcome", "label": "image_recovered", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "catalog_id": "opening-test", "page_number": 4, "surface": "viewer-stage", "visibility": "visible", "requested_tier": "medium", "network_state": "online", "count": 3},
+        {"section": "image_outcome", "label": "image_terminal_failure", "release_id": current, "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "catalog_id": "opening-test", "page_number": 4, "surface": "viewer-stage", "visibility": "visible", "requested_tier": "medium", "network_state": "offline", "count": 1},
         {"section": "js_error", "fingerprint": "ef21e4fae", "error_name": "TypeError", "message": "Cannot read properties of undefined", "source": "app.js", "line": 412, "column": 18, "release_id": current, "count": 2, "metric": 0, "label": "ef21e4fae"},
-        {"section": "image_terminal", "fingerprint": "eimage123", "request_id": "ir-abc12345", "catalog_id": "opening-test", "page_number": 4, "failure_stage": "viewer-single", "outcome_action": "fallback", "attempt_count": 2, "surface": "viewer-stage", "visibility": "visible", "source": "page-004.webp", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "release_id": current, "count": 1, "metric": 0, "label": "eimage123"},
+        {"section": "image_terminal", "fingerprint": "eimage123", "request_id": "ir-abc12345", "catalog_id": "opening-test", "page_number": 4, "failure_stage": "viewer-single", "outcome_action": "fallback", "attempt_count": 2, "surface": "viewer-stage", "visibility": "visible", "requested_tier": "medium", "network_state": "offline", "source": "page-004.webp", "app_page": "viewer", "route": "/viewer.html", "viewport": "xs", "release_id": current, "count": 1, "metric": 0, "label": "eimage123"},
     ]
     MODULE.enrich_report_rows(rows, current)
     return rows
@@ -317,6 +321,7 @@ def test_create_report_files_writes_operational_html_csv_and_json(tmp_path: Path
     for expected in (
         '<html lang="he" dir="rtl">', "שלמות גרסאות פריסה", "RUM לפי גרסה", "viewer-stage",
         "0.246", "שיעורי תקלות לכל 1,000", "גלויה למשתמש", "ir-abc12345",
+        "medium", "מצב רשת בתחילת הבקשה", "לא מקוון",
         "app-61dd783bd3fa", "Fallback מקומי", "ארונות פתיחה לדוגמה",
         "Cannot read properties of undefined", "2,100 ms",
     ):
@@ -325,12 +330,12 @@ def test_create_report_files_writes_operational_html_csv_and_json(tmp_path: Path
     csv_bytes = paths["csv"].read_bytes()
     assert csv_bytes.startswith(b"\xef\xbb\xbf")
     csv_text = csv_bytes.decode("utf-8-sig")
-    for header in ("מכנה", "שיעור ל-1,000", "כיסוי באחוזים", "רכיב", "משטח תמונה", "נראות תמונה", "מזהה בקשת תמונה"):
+    for header in ("מכנה", "שיעור ל-1,000", "כיסוי באחוזים", "רכיב", "משטח תמונה", "נראות תמונה", "מזהה בקשת תמונה", "רמת תמונה מבוקשת", "מצב רשת בתחילת הבקשה"):
         assert header in csv_text
     assert "ir-abc12345" in csv_text
 
     json_payload = json.loads(paths["json"].read_text(encoding="utf-8"))
-    assert json_payload["schemaVersion"] == 3
+    assert json_payload["schemaVersion"] == 4
     assert json_payload["currentReleaseId"] == "deploy-0123456789abcdef"
     assert json_payload["days"] == 30
     assert len(json_payload["rows"]) == len(rows)

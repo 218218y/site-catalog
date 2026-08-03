@@ -5,6 +5,7 @@
 
 import { catalogSearch } from "../runtime/catalog-search.js";
 import { siteRoutes } from "../runtime/site-routes.js";
+import { catalogs } from "../../catalogs.generated.module.js";
+import { catalogTaxonomy } from "../../catalog-taxonomy.generated.module.js";
 
-const catalogs = Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
-export { catalogSearch, catalogs, siteRoutes };
+export { catalogSearch, catalogs, catalogTaxonomy, siteRoutes };

@@ -20,7 +20,7 @@ The following files are outputs and must never be edited or used as normal compi
 
 ```text
 catalogs.generated.json
-catalogs.generated.js
+catalogs.generated.module.js
 catalogs.search-index.json
 ```
 

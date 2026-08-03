@@ -67,6 +67,19 @@ RUNTIME_EXTERNAL_MODULES: Mapping[str, str] = {
     "src/runtime/favorites-store.js": "favorites-store.js",
     "src/runtime/site-routes.js": "site-routes.js",
 }
+GENERATED_DATA_EXTERNAL_MODULES: Mapping[str, str] = {
+    "catalogs.generated.module.js": "catalogs.generated.module.js",
+    "catalog-taxonomy.generated.module.js": "catalog-taxonomy.generated.module.js",
+}
+ROUTE_EXTERNAL_MODULES: Mapping[str, str] = {
+    **RUNTIME_EXTERNAL_MODULES,
+    **GENERATED_DATA_EXTERNAL_MODULES,
+}
+RUNTIME_EXTERNAL_DEPENDENCIES: Mapping[str, Mapping[str, str]] = {
+    "src/runtime/catalog-search.js": {
+        "catalogs.generated.module.js": "catalogs.generated.module.js",
+    },
+}
 @dataclass(frozen=True)
 class CapabilityBoundary:
     required_roots: tuple[str, ...]
@@ -136,19 +149,20 @@ BUNDLE_SPECS: tuple[FrontendBundleSpec, ...] = (
         "runtime-js",
         entrypoint=source_path,
         required_inputs=(source_path,),
+        external_modules=RUNTIME_EXTERNAL_DEPENDENCIES.get(source_path, {}),
     ) for source_path, output_name in RUNTIME_EXTERNAL_MODULES.items()),
     FrontendBundleSpec("app-catalog.js", "js", entrypoint="src/entries/catalog.js",
         required_inputs=("src/entries/catalog.js", *COMMON_ROUTE_REQUIRED_INPUTS),
-        external_modules=RUNTIME_EXTERNAL_MODULES,
+        external_modules=ROUTE_EXTERNAL_MODULES,
         capabilities={"viewer": False, "favoritesWorkspace": False, "catalogGrid": True, "search": True}),
     FrontendBundleSpec("app-favorites.js", "js", entrypoint="src/entries/favorites.js",
         required_inputs=("src/entries/favorites.js", *COMMON_ROUTE_REQUIRED_INPUTS, "src/js/32-shared-inquiry.js"),
-        external_modules=RUNTIME_EXTERNAL_MODULES,
+        external_modules=ROUTE_EXTERNAL_MODULES,
         capabilities={"viewer": False, "favoritesWorkspace": True, "catalogGrid": True, "search": True}),
     FrontendBundleSpec("app-viewer.js", "js", entrypoint="src/entries/viewer.js",
         required_inputs=("src/entries/viewer.js", *COMMON_ROUTE_REQUIRED_INPUTS,
                          "src/js/31-viewer-share.js", "src/js/32-shared-inquiry.js"),
-        external_modules=RUNTIME_EXTERNAL_MODULES,
+        external_modules=ROUTE_EXTERNAL_MODULES,
         capabilities={"viewer": True, "favoritesWorkspace": True, "catalogGrid": True, "search": True}),
     FrontendBundleSpec("app-payment.js", "js", entrypoint="src/entries/payment.js",
         required_inputs=("src/entries/payment.js",)),
@@ -241,14 +255,16 @@ def validate_js_spec(root: Path, spec: FrontendBundleSpec) -> None:
     if spec.entrypoint not in spec.required_inputs:
         raise ValueError(f"Required boundaries for {spec.output_name} do not contain its entrypoint")
     external_modules = dict(spec.external_modules or {})
-    if spec.kind == "runtime-js" and external_modules:
-        raise ValueError(f"Runtime module {spec.output_name} cannot depend on external runtime modules")
     if len(external_modules.values()) != len(set(external_modules.values())):
         raise ValueError(f"Duplicate external runtime output in {spec.output_name}")
     for source_path, output_name in external_modules.items():
         read_source_module(root, source_path)
-        if Path(source_path).parent.as_posix() != "src/runtime":
-            raise ValueError(f"External runtime source must live under src/runtime: {source_path}")
+        approved_source = (
+            Path(source_path).parent.as_posix() == "src/runtime"
+            or source_path in GENERATED_DATA_EXTERNAL_MODULES
+        )
+        if not approved_source:
+            raise ValueError(f"External browser module has no approved owner: {source_path}")
         if Path(output_name).name != output_name or not output_name.endswith(".js"):
             raise ValueError(f"External runtime output must be a root JavaScript filename: {output_name}")
 
@@ -521,7 +537,7 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
         raise RuntimeError(f"Test-only exports leaked into {spec.output_name}")
 
     external_manifest = (
-        f" * External runtime modules:\n{source_manifest_text(tuple((spec.external_modules or {}).keys()))}\n"
+        f" * External browser modules:\n{source_manifest_text(tuple((spec.external_modules or {}).keys()))}\n"
         if spec.external_modules else ""
     )
     banner = (

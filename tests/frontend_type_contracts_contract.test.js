@@ -9,6 +9,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const generated = read("types/catalog-data.generated.d.ts");
 const contracts = read("types/frontend-contracts.d.ts");
 const globals = read("types/frontend-globals.d.ts");
+const catalogDataModule = read("catalogs.generated.module.js");
 const marker = read("src/js/05-app-contracts.js");
 const sharedUi = read("src/js/20-shared-ui.js");
 const packageJson = JSON.parse(read("package.json"));
@@ -56,7 +57,8 @@ assert.doesNotMatch(contracts, /declare global/);
 assert.doesNotMatch(marker, /@typedef|@callback|@template|declare global/);
 assert.match(globals, /declare global \{/);
 assert.match(globals, /export \{\};/);
-assert.match(globals, /import type \{ CatalogRecord \} from "\.\/catalog-data\.generated\.js"/);
+assert.doesNotMatch(globals, /CatalogRecord|BARGIG_CATALOGS|BARGIG_CATALOG_TAXONOMY/);
+assert.match(catalogDataModule, /import\("\.\/types\/catalog-data\.generated\.js"\)\.CatalogRecord/);
 
 const declarationSources = [contracts, generated].join("\n");
 const sharedNames = new Set(

@@ -19,7 +19,7 @@
 - `seo.config.json` — דומיין, CDN, שם האתר, תמונת שיתוף ופרטי העסק.
 - `catalog-taxonomy.config.json` — שמות הקטגוריות, כתובות ותיאורי עמודי הקטגוריה.
 - `catalogs.generated.json` — הקטלוגים, התיאורים, מספרי העמודים ומידות התמונות.
-- `catalog-taxonomy.generated.js` — תוצר לדפדפן; אין לערוך אותו ידנית.
+- `catalog-taxonomy.generated.module.js` — תוצר ESM immutable לדפדפן; אין לערוך אותו ידנית.
 
 ## כתובות שנוצרות
 

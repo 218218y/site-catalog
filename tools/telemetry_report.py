@@ -297,12 +297,13 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
         "blob8 AS failure_stage, blob7 AS outcome_action, blob11 AS source, "
         "blob10 AS viewport, blob2 AS app_page, blob3 AS route, "
         "blob13 AS release_id, blob15 AS surface, blob16 AS request_id, "
-        "blob17 AS visibility, double1 AS attempt_count, "
+        "blob17 AS visibility, blob18 AS requested_tier, blob19 AS network_state, "
+        "double1 AS attempt_count, "
         "SUM(_sample_interval) AS count"
     )
     image_group = (
         "blob9, blob4, double3, blob8, blob7, blob11, blob10, blob2, blob3, "
-        "blob13, blob15, blob16, blob17, double1"
+        "blob13, blob15, blob16, blob17, blob18, blob19, double1"
     )
 
     return (
@@ -465,9 +466,11 @@ def report_queries(dataset: str, days: int) -> tuple[ReportQuery, ...]:
             query(
                 "blob1 AS label, blob13 AS release_id, blob2 AS app_page, blob3 AS route, "
                 "blob10 AS viewport, blob4 AS catalog_id, double3 AS page_number, "
-                "blob15 AS surface, blob17 AS visibility, SUM(_sample_interval) AS count",
+                "blob15 AS surface, blob17 AS visibility, blob18 AS requested_tier, "
+                "blob19 AS network_state, SUM(_sample_interval) AS count",
                 "blob1 IN ('image_recovered', 'image_terminal_failure')",
-                "blob1, blob13, blob2, blob3, blob10, blob4, double3, blob15, blob17",
+                "blob1, blob13, blob2, blob3, blob10, blob4, double3, blob15, blob17, "
+                "blob18, blob19",
                 1500,
             ),
         ),
@@ -663,6 +666,8 @@ def enrich_report_rows(
             str(row.get("page_number") or ""),
             str(row.get("surface") or ""),
             str(row.get("visibility") or ""),
+            str(row.get("requested_tier") or ""),
+            str(row.get("network_state") or ""),
         )
         outcome_totals[key] = outcome_totals.get(key, 0.0) + numeric_value(row.get("count"))
     for row in outcome_rows:
@@ -675,6 +680,8 @@ def enrich_report_rows(
             str(row.get("page_number") or ""),
             str(row.get("surface") or ""),
             str(row.get("visibility") or ""),
+            str(row.get("requested_tier") or ""),
+            str(row.get("network_state") or ""),
         )
         lifecycle_denominator = outcome_totals.get(key, 0.0)
         row["denominator"] = lifecycle_denominator
@@ -870,7 +877,8 @@ def write_csv_report(
         "תג משאב", "תפקיד משאב", "סיבת כשל", "יוזם טעינה", "עמוד באתר", "נתיב",
         "קטלוג", "עמוד בקטלוג", "שורה", "עמודה", "שלב כשל", "תוצאת טעינה",
         "מספר ניסיונות", "גודל מסך", "רכיב", "משטח תמונה", "נראות תמונה",
-        "מזהה בקשת תמונה", "גרסת אתר", "מצב גרסה", "גרסה נוכחית", "נראה לראשונה",
+        "מזהה בקשת תמונה", "רמת תמונה מבוקשת", "מצב רשת בתחילת הבקשה",
+        "גרסת אתר", "מצב גרסה", "גרסה נוכחית", "נראה לראשונה",
         "נראה לאחרונה", "נתח ביקורים", "תקופה קודמת", "שינוי", "אחוז טוב",
         "אחוז גרוע", "יחידה",
     ]
@@ -915,6 +923,8 @@ def write_csv_report(
                 row.get("surface", ""),
                 row.get("visibility", ""),
                 row.get("request_id", ""),
+                row.get("requested_tier", ""),
+                row.get("network_state", ""),
                 row.get("release_id", ""),
                 row.get("release_status", ""),
                 row.get("current_release_id", ""),
@@ -940,7 +950,7 @@ def write_json_report(
         "",
     )
     payload = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "generatedAt": generated_at.isoformat(),
         "days": days,
         "currentReleaseId": current_release_id,
@@ -977,6 +987,11 @@ def write_html_report(
         "hidden": "מוסתרת",
         "preload": "טעינה מוקדמת",
         "background": "רקע",
+        "unknown": "לא ידוע",
+    }
+    network_state_labels = {
+        "online": "מקוון",
+        "offline": "לא מקוון",
         "unknown": "לא ידוע",
     }
 
@@ -1243,6 +1258,8 @@ def write_html_report(
                 f'<td>{html.escape(label)}</td>'
                 f'<td>{html.escape(visibility_labels.get(str(row.get("visibility") or "unknown"), str(row.get("visibility") or "unknown")))}</td>'
                 f'<td><code>{html.escape(str(row.get("surface") or "unknown-surface"))}</code></td>'
+                f'<td>{html.escape(str(row.get("requested_tier") or "unknown"))}</td>'
+                f'<td>{html.escape(network_state_labels.get(str(row.get("network_state") or "unknown"), str(row.get("network_state") or "unknown")))}</td>'
                 f'<td>{html.escape(catalog_titles.get(catalog_id, catalog_id) or "—")}</td>'
                 f'<td class="number">{html.escape(format_count(row.get("page_number"))) if numeric_value(row.get("page_number")) else "—"}</td>'
                 f'<td>{html.escape(str(row.get("app_page") or "—"))}<br><small>{html.escape(str(row.get("route") or row.get("path") or ""))}</small></td>'
@@ -1255,7 +1272,7 @@ def write_html_report(
             )
         body = (
             '<div class="table-wrap diagnostic-table"><table><thead><tr><th>תוצאה</th><th>נראות</th>'
-            '<th>משטח</th><th>קטלוג</th><th>עמוד</th><th>עמוד / מסלול</th><th>מסך</th>'
+            '<th>משטח</th><th>רמת תמונה מבוקשת</th><th>מצב רשת בתחילת הבקשה</th><th>קטלוג</th><th>עמוד</th><th>עמוד / מסלול</th><th>מסך</th>'
             '<th>גרסה</th><th>כמות</th><th>מתוך lifecycle</th><th>כשל סופי ל-1,000 ביקורים</th>'
             f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
         )
@@ -1427,6 +1444,8 @@ def write_html_report(
                 f'<td class="number">{html.escape(format_count(row.get("page_number"))) if numeric_value(row.get("page_number")) else "—"}</td>'
                 f'<td><code>{html.escape(str(row.get("surface") or "unknown-surface"))}</code></td>'
                 f'<td>{html.escape(visibility_labels.get(str(row.get("visibility") or "unknown"), str(row.get("visibility") or "unknown")))}</td>'
+                f'<td>{html.escape(str(row.get("requested_tier") or "unknown"))}</td>'
+                f'<td>{html.escape(network_state_labels.get(str(row.get("network_state") or "unknown"), str(row.get("network_state") or "unknown")))}</td>'
                 f'<td>{html.escape(str(row.get("failure_stage") or "—"))}</td>'
                 f'<td>{html.escape(str(row.get("outcome_action") or "—"))}</td>'
                 f'<td class="number">{html.escape(format_count(row.get("attempt_count"))) if numeric_value(row.get("attempt_count")) else "—"}</td>'
@@ -1445,7 +1464,7 @@ def write_html_report(
         coverage = diagnostic_coverage_note(section_rows, event_counts.get(event_name, 0))
         body = (
             '<div class="table-wrap diagnostic-table"><table><thead><tr><th>Request ID</th><th>טביעה</th>'
-            '<th>קטלוג</th><th>עמוד</th><th>משטח</th><th>נראות</th><th>שלב</th><th>תוצאה</th>'
+            '<th>קטלוג</th><th>עמוד</th><th>משטח</th><th>נראות</th><th>רמת תמונה מבוקשת</th><th>מצב רשת בתחילת הבקשה</th><th>שלב</th><th>תוצאה</th>'
             '<th>ניסיונות</th><th>מסך</th><th>עמוד / מסלול</th><th>גרסה</th><th>כמות</th>'
             f'</tr></thead><tbody>{"".join(table_rows)}</tbody></table></div>'
         )

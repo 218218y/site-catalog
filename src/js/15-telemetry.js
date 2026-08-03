@@ -37,13 +37,15 @@ import { activeCatalog, activePage } from "./18-navigation-feature.js";
  * @property {unknown} [surface]
  * @property {unknown} [requestId]
  * @property {unknown} [visibility]
+ * @property {unknown} [requestedTier]
+ * @property {unknown} [networkState]
  */
 /** @typedef {{immediate?:boolean}} TelemetryTrackOptions */
 /** @typedef {{beacon?:boolean}} TelemetryFlushOptions */
 /** @typedef {{recoverCatalogImageAfterInitialFailure?:(image:HTMLImageElement)=>boolean}} TelemetryInitOptions */
 /** @typedef {{surface?:unknown, scope?:unknown, catalogId?:unknown, completion?:unknown, immediate?:boolean}} TelemetrySearchOptions */
-/** @typedef {{requestId:string, catalogId:string, pageNumber:number, detail:string, surface:string, visibility:string, page:string, path:string, viewport:string, releaseId:string}} TelemetryImageRequestContext */
-/** @typedef {{img?:HTMLImageElement|null, detail?:unknown, action?:unknown, failedAttempts?:unknown, attempt?:unknown, value?:unknown, surface?:unknown, visibility?:unknown, requestId?:unknown, requestContext?:TelemetryImageRequestContext|null}} TelemetryImageEventOptions */
+/** @typedef {{requestId:string, catalogId:string, pageNumber:number, detail:string, surface:string, visibility:string, requestedTier:string, networkState:string, page:string, path:string, viewport:string, releaseId:string}} TelemetryImageRequestContext */
+/** @typedef {{img?:HTMLImageElement|null, detail?:unknown, action?:unknown, failedAttempts?:unknown, attempt?:unknown, value?:unknown, surface?:unknown, visibility?:unknown, requestedTier?:unknown, requestId?:unknown, requestContext?:TelemetryImageRequestContext|null}} TelemetryImageEventOptions */
 /** @typedef {{src?:unknown, target?:Element|null, trigger?:unknown}} TelemetrySearchIndexFailureOptions */
 /** @typedef {Element & {currentSrc?:string, src?:string, href?:string, data?:string, rel?:string, as?:string}} TelemetryResourceElement */
 /** @typedef {{node?:Node|null, previousRect?:DOMRectReadOnly|null, currentRect?:DOMRectReadOnly|null}} TelemetryLayoutShiftSource */
@@ -54,7 +56,7 @@ import { activeCatalog, activePage } from "./18-navigation-feature.js";
 /** @typedef {PerformanceEntry & {interactionId?:number, duration?:number}} TelemetryInteractionEntry */
 
 const TELEMETRY_ENDPOINT = "/api/telemetry";
-const TELEMETRY_SCHEMA_VERSION = 3;
+const TELEMETRY_SCHEMA_VERSION = 4;
 const TELEMETRY_BATCH_LIMIT = 20;
 const TELEMETRY_QUEUE_LIMIT = 60;
 const TELEMETRY_FLUSH_DELAY_MS = 900;
@@ -154,11 +156,30 @@ function telemetryCleanToken(value, limit = 50) {
 }
 
 const TELEMETRY_IMAGE_VISIBILITY = new Set(["visible", "hidden", "preload", "background", "unknown"]);
+const TELEMETRY_IMAGE_TIERS = new Set(["thumb", "medium", "full", "unknown"]);
 
 /** @param {unknown} value */
 function telemetryCleanVisibility(value) {
   const visibility = telemetryCleanToken(value, 20);
   return TELEMETRY_IMAGE_VISIBILITY.has(visibility) ? visibility : "unknown";
+}
+
+/** @param {unknown} value */
+function telemetryCleanImageTier(value) {
+  const tier = telemetryCleanToken(value, 16);
+  return TELEMETRY_IMAGE_TIERS.has(tier) ? tier : "unknown";
+}
+
+function telemetryNetworkState() {
+  if (navigator.onLine === false) return "offline";
+  if (navigator.onLine === true) return "online";
+  return "unknown";
+}
+
+/** @param {unknown} value */
+function telemetryCleanNetworkState(value) {
+  const state = telemetryCleanToken(value, 16);
+  return ["online", "offline", "unknown"].includes(state) ? state : "unknown";
 }
 
 /** @param {unknown} value */
@@ -244,7 +265,9 @@ function telemetryNormalizeEvent(name, fields = {}) {
     component: telemetryCleanToken(fields.component || "", 50),
     surface: telemetryCleanToken(fields.surface || "", 50),
     requestId: telemetryCleanRequestId(fields.requestId),
-    visibility: telemetryCleanVisibility(fields.visibility)
+    visibility: telemetryCleanVisibility(fields.visibility),
+    requestedTier: telemetryCleanImageTier(fields.requestedTier),
+    networkState: telemetryCleanNetworkState(fields.networkState)
   };
 }
 
@@ -652,6 +675,8 @@ function telemetryCreateImageRequestContext(img, src = "", options = {}) {
     detail: telemetryCleanText(options.detail || img?.dataset?.telemetryDetail || image.detail, 50),
     surface,
     visibility: telemetryCleanVisibility(options.visibility || telemetryImageVisibility(img, surface)),
+    requestedTier: telemetryCleanImageTier(options.requestedTier || img?.dataset?.telemetryRequestedTier),
+    networkState: telemetryNetworkState(),
     page: telemetryCleanText(currentAppPage || document.body?.dataset?.page || "", 30),
     path: telemetryCleanPathname(),
     viewport: telemetryViewportBucket(),
@@ -748,6 +773,8 @@ function telemetryTrackImageEvent(name, src, options = {}) {
     surface: context.surface,
     requestId: context.requestId,
     visibility: context.visibility,
+    requestedTier: context.requestedTier,
+    networkState: context.networkState,
     value: telemetryNumber(options.failedAttempts ?? options.attempt ?? options.value, 0, 100),
     error: telemetryErrorFingerprint([name, context.catalogId, context.pageNumber, context.surface, detail, action, source])
   }, { immediate: true });
@@ -980,7 +1007,9 @@ if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
     telemetryComponentToken,
     telemetryDominantLayoutShiftComponent,
     telemetryCreateImageRequestContext,
-    telemetryImageVisibility
+    telemetryImageVisibility,
+    telemetryCleanImageTier,
+    telemetryNetworkState
   });
 }
 /* TEST-ONLY EXPORTS: END */

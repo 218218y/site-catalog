@@ -27,7 +27,7 @@ SPEC.loader.exec_module(MODULE)
 def generated_graph_inputs(output_name: str) -> tuple[str, ...]:
     source = (ROOT / output_name).read_text(encoding="utf-8")
     graph = source.split(" * Bundled ES module graph:\n", 1)[1]
-    graph = graph.split(" * External runtime modules:\n", 1)[0]
+    graph = graph.split(" * External browser modules:\n", 1)[0]
     graph = graph.split(" * Compiler virtual inputs:", 1)[0]
     return tuple(
         line.removeprefix(" *   - ")
@@ -48,7 +48,12 @@ def all_source_modules() -> tuple[str, ...]:
         for directory in (ROOT / "src/js", ROOT / "src/entries", ROOT / "src/runtime")
         for path in sorted(directory.glob("*.js"))
     )
-    return tuple(dict.fromkeys((*css_sources, *javascript_sources, "catalog-snapshot.js")))
+    return tuple(dict.fromkeys((
+        *css_sources,
+        *javascript_sources,
+        *MODULE.GENERATED_DATA_EXTERNAL_MODULES.keys(),
+        "catalog-snapshot.js",
+    )))
 
 
 def copy_frontend_sources(target: Path) -> None:
@@ -107,8 +112,13 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
         runtime_spec = specs[output]
         assert runtime_spec.kind == "runtime-js"
         assert runtime_spec.required_inputs == (runtime_spec.entrypoint,)
-        assert runtime_spec.external_modules is None
+        expected_dependencies = MODULE.RUNTIME_EXTERNAL_DEPENDENCIES.get(
+            str(runtime_spec.entrypoint), {}
+        )
+        assert dict(runtime_spec.external_modules or {}) == dict(expected_dependencies)
         generated = (ROOT / output).read_text(encoding="utf-8")
+        if expected_dependencies:
+            assert "External browser modules:" in generated
         assert "Compiler virtual inputs: none" in generated
         assert "__BARGIG_FEATURE_CAPABILITIES__" not in generated
 

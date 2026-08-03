@@ -4,12 +4,15 @@
  * ES module entrypoint: src/runtime/catalog-search.js
  * Bundled ES module graph:
  *   - src/runtime/catalog-search.js
+ * External browser modules:
+ *   - catalogs.generated.module.js
  * Compiler virtual inputs: none
  * Output format: native browser ES module
  * Bundler: esbuild 0.28.1 (direct pinned devDependency)
  * Build command: python tools/build_frontend_assets.py
  */
 // src/runtime/catalog-search.js
+import { catalogs as catalogRecords } from "./catalogs.generated.module.js";
 var SEARCH_WORKER_SCRIPT_SRC = "catalog-search-worker.js", SEARCH_INDEX_DATA_SRC = "catalogs.search-index.json", FINAL_LETTERS = /* @__PURE__ */ new Map([
   ["ך", "כ"],
   ["ם", "מ"],
@@ -18,7 +21,7 @@ var SEARCH_WORKER_SCRIPT_SRC = "catalog-search-worker.js", SEARCH_INDEX_DATA_SRC
   ["ץ", "צ"]
 ]), ASSET_URL_SCHEMA_VERSION = 2, NAVIGATION_RESULT_TYPE_ORDER = Object.freeze({ category: 0, subcategory: 1, catalog: 2 }), worker = null, readyPromise = null, readyResolve = null, readyReject = null, readyMetadata = null, requestSequence = 0, pendingRequests = /* @__PURE__ */ new Map(), latestRequestByChannel = /* @__PURE__ */ new Map();
 function catalogs() {
-  return Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
+  return catalogRecords;
 }
 function normalize(value) {
   let text = String(value ?? "").toLowerCase().normalize("NFKD").replace(/\p{M}+/gu, "").replace(/[״׳'\"“”]/g, "").replace(/[־–—_]/g, " ").replace(/[^\p{L}\p{N}]+/gu, " ").trim();

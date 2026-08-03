@@ -152,9 +152,9 @@ function importFrontendTestModule(relativePath, exportKey, globals = {}) {
 }
 
 /**
- * Import a standalone dependency-free ESM owner under src/runtime. esbuild
- * performs the ESM-to-CommonJS lowering through the same supported transform
- * API already used by this project.
+ * Import one ESM owner under src/runtime. Static imports are supplied from the
+ * explicit globals test port; production graph validation separately proves
+ * that only reviewed browser modules can be imported.
  *
  * @param {string} relativePath
  * @param {Record<string, unknown>} [globals]
@@ -172,13 +172,10 @@ function importStandaloneRuntimeModule(relativePath, globals = {}) {
 
   const source = fs.readFileSync(absolutePath, "utf8");
   const compiledSource = compileFrontendModuleForTest(source, absolutePath);
-  if (/\brequire\s*\(/.test(compiledSource)) {
-    throw new Error(`Standalone runtime module must not have source imports: ${relativePath}`);
-  }
-
   const runtimeModule = new Module(`${absolutePath}.test-runtime`, module);
   runtimeModule.filename = absolutePath;
   runtimeModule.paths = Module._nodeModulePaths(path.dirname(absolutePath));
+  runtimeModule.require = () => createFrontendTestPortModule();
   runtimeModule._compile(compiledSource, absolutePath);
   return runtimeModule.exports;
 }

@@ -3,6 +3,8 @@
 /** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
 /** @import { CatalogCategoryGroup, CatalogSearchResult } from "../../types/frontend-contracts.js" */
 
+import { catalogs as catalogRecords } from "../../catalogs.generated.module.js";
+
 /** @typedef {"category"|"subcategory"|"catalog"} NavigationResultType */
 /** @typedef {CatalogSearchResult & {resultType:NavigationResultType, label:string, category:string, score:number, sourceOrder:number}} NavigationSearchResult */
 /** @typedef {{category?:string, limit?:number}} NavigationSearchOptions */
@@ -37,9 +39,9 @@ const pendingRequests = new Map();
 /** @type {Map<string, number>} */
 const latestRequestByChannel = new Map();
 
-/** @returns {CatalogRecord[]} */
+/** @returns {readonly CatalogRecord[]} */
 function catalogs() {
-  return Array.isArray(window.BARGIG_CATALOGS) ? window.BARGIG_CATALOGS : [];
+  return catalogRecords;
 }
 
 /** @param {unknown} value */

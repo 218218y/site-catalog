@@ -5,10 +5,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const windowObject = { BARGIG_CATALOGS: [] };
-global.window = windowObject;
+const catalogRecords = [];
+global.window = {};
 const { importStandaloneRuntimeModule } = require("./frontend_test_module");
-const catalogSearch = importStandaloneRuntimeModule("src/runtime/catalog-search.js");
+const catalogSearch = importStandaloneRuntimeModule("src/runtime/catalog-search.js", { catalogs: catalogRecords });
 
 assert.ok(catalogSearch, "catalog search runtime should expose its public API");
 assert.equal(catalogSearch.normalize("פרד״י"), "פרדי");
@@ -99,7 +99,7 @@ assert.equal(
   "results must reflect catalog removal immediately"
 );
 
-windowObject.BARGIG_CATALOGS = [frediOpening, frediKids, frediBedrooms, tbiBedrooms];
+catalogRecords.splice(0, catalogRecords.length, frediOpening, frediKids, frediBedrooms, tbiBedrooms);
 const merged = catalogSearch.mergeNavigationResults(frediResults, [
   { catalogId: "opening-fredi", page: 1, matchField: "title" },
   { catalogId: "kids-fredi", page: 2, matchField: "page" },
@@ -141,7 +141,7 @@ actualCatalogs.forEach((catalog) => {
   }
   actualGroupsByCategory.get(category).items.push(catalog);
 });
-windowObject.BARGIG_CATALOGS = actualCatalogs;
+catalogRecords.splice(0, catalogRecords.length, ...actualCatalogs);
 const expectedActualTbiIds = actualCatalogs
   .filter((catalog) => /ת\.ב\.י/.test(String(catalog.title || "")))
   .map((catalog) => catalog.id);

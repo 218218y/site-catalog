@@ -25,6 +25,8 @@
     "src/runtime/**/*.js",
     "src/entries/**/*.js",
     "src/control-panel/**/*.js",
-    "catalog-snapshot.js"
+    "catalog-snapshot.js",
+    "catalogs.generated.module.js",
+    "catalog-taxonomy.generated.module.js"
   ]
 }

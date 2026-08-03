@@ -66,7 +66,7 @@ assert.equal(api.telemetryDominantLayoutShiftComponent({
 }), "large-card");
 
 const visibleImage = {
-  dataset: { catalogId: "kids", page: "7", telemetrySurface: "viewer-stage" },
+  dataset: { catalogId: "kids", page: "7", telemetrySurface: "viewer-stage", telemetryRequestedTier: "medium" },
   isConnected: true,
   getBoundingClientRect: () => ({ width: 300, height: 400, top: 20, left: 10, right: 310, bottom: 420 }),
   getAttribute: () => "https://cdn.bargig-furniture.com/assets/pages/kids/page-007.webp"
@@ -87,6 +87,8 @@ assert.deepEqual(context, {
   detail: "viewer-single",
   surface: "viewer-stage",
   visibility: "visible",
+  requestedTier: "medium",
+  networkState: "unknown",
   page: "viewer",
   path: "/viewer.html",
   viewport: "xs",

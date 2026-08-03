@@ -56,7 +56,7 @@ assert.match(searchUi, /catalogSearch\.cancel\("global"\)/);
 assert.match(searchUi, /catalogSearch\.cancel\("viewer"\)/);
 
 assert.match(deploy, /fingerprint_search_runtime_assets/);
-assert.match(deploy, /fingerprint_runtime_modules/);
+assert.match(deploy, /fingerprint_external_modules/);
 assert.match(deploy, /catalog-search-worker\.js/);
 assert.match(deploy, /catalogs\.search-index\.json/);
 assert.doesNotMatch(deploy.split("DEPLOY_FILES =", 2)[1].split("OPTIONAL_DEPLOY_FILES", 1)[0], /catalogs\.search\.js/);

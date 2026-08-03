@@ -205,11 +205,23 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
     index_name = f"catalogs.search-index.{MODULE.content_hash(index)}.json"
     index = index.rename(static / index_name)
 
+    data_sources = {
+        "catalogs.generated.module": "export const catalogs = Object.freeze([]);\n",
+        "catalog-taxonomy.generated.module": "export const catalogTaxonomy = Object.freeze({});\n",
+    }
+    external_assets: dict[str, Path] = {}
+    for stem, content in data_sources.items():
+        module = static / f"{stem}.js"
+        module.write_text(content, encoding="utf-8")
+        module_name = f"{stem}.{MODULE.content_hash(module)}.js"
+        external_assets[stem] = module.rename(static / module_name)
+
     runtime_sources = {
         "catalog-search": (
+            f'import {{ catalogs }} from "./{external_assets["catalogs.generated.module"].name}";\n'
             f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
             f'const SEARCH_INDEX_DATA_SRC = "{index_name}";\n'
-            'export const catalogSearch = {};\n'
+            'export const catalogSearch = { catalogs };\n'
         ),
         "tooltip-manager": "export const tooltips = {};\n",
         "favorites-store": "export function createStore() { return {}; }\n",
@@ -222,9 +234,14 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
         runtime_name = f"{stem}.{MODULE.content_hash(runtime)}.js"
         runtime_assets[stem] = runtime.rename(static / runtime_name)
 
+    external_assets.update(runtime_assets)
+
     runtime_imports = "".join(
-        f'import "./{runtime_assets[stem].name}";\n'
-        for stem in ("catalog-search", "tooltip-manager", "favorites-store", "site-routes")
+        f'import "./{external_assets[stem].name}";\n'
+        for stem in (
+            "catalog-search", "tooltip-manager", "favorites-store", "site-routes",
+            "catalogs.generated.module", "catalog-taxonomy.generated.module",
+        )
     )
     route_apps: dict[str, Path] = {}
     for stem in ("app-catalog", "app-favorites", "app-viewer"):
@@ -253,7 +270,7 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
         )
     return {
         **route_apps,
-        **runtime_assets,
+        **external_assets,
         "worker": worker,
         "index": index,
     }
@@ -283,7 +300,7 @@ def test_bundle_validation_hashes_each_shared_asset_once(
 
     monkeypatch.setattr(MODULE, "content_hash", counting_content_hash)
 
-    assert MODULE.validate_fingerprinted_bundle(out) == 10
+    assert MODULE.validate_fingerprinted_bundle(out) == 12
     assert hash_calls == {path: 1 for path in assets.values()}
 
 
@@ -656,15 +673,15 @@ def test_legacy_seo_artifacts_are_removed_without_touching_canonical_outputs(tmp
     assert (root / "dist/site-local/index.html").is_file()
 
 
-def test_payment_route_is_the_only_runtime_free_route_bundle() -> None:
-    assert MODULE.expected_runtime_modules_for_app("app-payment.js") == frozenset()
-    assert MODULE.expected_runtime_modules_for_app("static/app-payment.0123456789ab.js") == frozenset()
+def test_payment_route_is_the_only_external_module_free_route_bundle() -> None:
+    assert MODULE.expected_external_modules_for_app("app-payment.js") == frozenset()
+    assert MODULE.expected_external_modules_for_app("static/app-payment.0123456789ab.js") == frozenset()
 
-    expected_catalog_runtime = frozenset(MODULE.DEPLOY_RUNTIME_MODULE_FILES)
+    expected_catalog_modules = frozenset(MODULE.DEPLOY_EXTERNAL_MODULE_FILES)
     for filename in (
         "app-catalog.js",
         "app-favorites.js",
         "app-viewer.js",
         "static/app-catalog.0123456789ab.js",
     ):
-        assert MODULE.expected_runtime_modules_for_app(filename) == expected_catalog_runtime
+        assert MODULE.expected_external_modules_for_app(filename) == expected_catalog_modules

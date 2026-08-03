@@ -44,7 +44,6 @@ Object.assign(globalThis, {
   isViewerSessionOpen: () => true
 });
 Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
-window.BARGIG_CATALOG_TAXONOMY = { categories: [], subcategories: [] };
 window.location = { href: 'https://example.test/' };
 const shared = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');
 global.hasHoverPointer = shared.hasHoverPointer;

@@ -52,6 +52,8 @@ assert.match(catalogGrid, /catalogImageDimensionAttributes\(catalog, 1\)/);
 assert.match(catalogGrid, /pageAspectVariableStyle\(catalog, page, "--page-thumb-aspect-ratio"\)/);
 assert.match(sharedUi, /function catalogImageDimensionAttributes\(catalog, page\)/);
 assert.match(sharedUi, /return size \? ` width="\$\{size\.width\}" height="\$\{size\.height\}"` : "";/);
+assert.match(sharedUi, /const observedCatalogPageSizes = new WeakMap\(\);/);
+assert.doesNotMatch(sharedUi, /catalog\.pageSizes\s*=|catalog\.pageSizes\s*\[/);
 assert.match(css, /html\s*\{[\s\S]*?scrollbar-gutter:\s*stable;/);
 assert.match(css, /html\.viewer-open\s*\{[\s\S]*?scrollbar-gutter:\s*auto;/);
 assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?contain:\s*layout paint style;[\s\S]*?transition:\s*\n?\s*box-shadow/);

@@ -180,7 +180,11 @@ def ast_owner_properties(inventory: AstInventory, owner: str) -> set[str]:
 
 
 APPROVED_DYNAMIC_IMPORTS: Mapping[str, tuple[str, ...]] = {}
-APPROVED_ROOT_BROWSER_MODULES: tuple[str, ...] = ("catalog-snapshot.js",)
+APPROVED_ROOT_BROWSER_MODULES: tuple[str, ...] = (
+    "catalog-snapshot.js",
+    "catalogs.generated.module.js",
+    "catalog-taxonomy.generated.module.js",
+)
 EXTERNAL_RUNTIME_MODULES: tuple[str, ...] = (
     "catalog-search.js",
     "tooltip-manager.js",

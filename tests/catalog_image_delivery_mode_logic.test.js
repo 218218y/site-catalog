@@ -12,7 +12,6 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 Object.assign(globalThis, {
   window: {
-    BARGIG_CATALOG_TAXONOMY: { categories: [], subcategories: [] },
     BARGIG_CATALOG_IMAGE_DELIVERY_MODE: 'responsive',
     location: { href: 'https://example.test/viewer.html' },
     devicePixelRatio: 1,
