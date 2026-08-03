@@ -205,10 +205,12 @@ npm run update:offline:linux
 npm run check:offline:linux
 ```
 
-הפקודה קוראת את הגרסאות וה־integrity ישירות מ־`package-lock.json`, מסננת את
-החבילות לפלטפורמת הצ׳אט, ממחזרת tarballs קיימים, מורידה רק את החסר, מאמתת
-חבילות bundled ומנקה ארכיונים ישנים או של פלטפורמות אחרות. התוצאה נשמרת תחת
-`vendor/npm/linux-x64-glibc`.
+הפקודה קוראת את השמות והגרסאות מ־`package-lock.json`, מסננת את החבילות
+לפלטפורמת הצ׳אט, ממחזרת tarballs קיימים ומורידה רק את החסר. שש חבילות Wrangler
+ב־lockfile הנוכחי חסרות `resolved` ו־`integrity`; הן חבילות registry רגילות ולא
+bundled. עבורן הפקודה מריצה `npm pack` בגרסה המדויקת, מאמתת שם/גרסה ושומרת
+integrity נגזר. התוצאה כוללת `manifest.json` ו־`package-lock.offline.json` תחת
+`vendor/npm/linux-x64-glibc`, בלי לשנות את `package-lock.json` המקורי.
 
 במכונת Linux x64/glibc מנותקת מרשת מתקינים את כל עץ npm כך:
 
@@ -216,7 +218,8 @@ npm run check:offline:linux
 npm run setup:npm:offline:linux
 ```
 
-המתקין מזין cache מקומי מה־tarballs ומריץ `npm ci --offline`. הוא מגדיר
+המתקין משתמש זמנית ב־`npm-shrinkwrap.json` הנגזר, שבו כל `resolved` הוא
+`file:` מקומי, ומריץ `npm ci --offline` עם cache זמני שנמחק בסיום. הוא מגדיר
 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`, ולכן חבילות `@playwright/test`,
 `playwright` ו־`playwright-core` זמינות לקוד ולבדיקות שאינן פותחות דפדפן, בלי
 לצרף Chromium. בדיקות E2E דורשות התקנת דפדפן נפרדת ורשת:
@@ -224,6 +227,18 @@ npm run setup:npm:offline:linux
 ```bash
 npm run setup:browsers
 ```
+
+
+לאחר עדכון מוצלח נמחקים אוטומטית הכפילויות הישנות:
+
+```text
+vendor/npm/esbuild/
+vendor/npm/typescript/
+.cache/npm-offline-linux/
+```
+
+אין למחוק אותן לפני שהעדכון הצליח, משום שהפקודה יכולה למחזר מהן את ה־tarballs
+הקיימים. לאחר ההצלחה כל bootstrap ממוקד קורא מן המראה הקנונית החדשה בלבד.
 
 לפעולות ממוקדות שלא צריכות את Wrangler, sharp או Playwright נשארו bootstraps
 קטנים יותר:

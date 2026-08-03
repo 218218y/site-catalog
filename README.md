@@ -565,10 +565,13 @@ npm run check:offline:linux
 ```
 
 פקודת העדכון קוראת את כל עץ `package-lock.json`, מסננת לפי `os`/`cpu`/`libc`,
-ממחזרת ארכיונים קיימים בעלי integrity זהה, מורידה רק את החסר, מאמתת שהשם
-והגרסה בתוך כל tarball נכונים, בודקת חבילות bundled שאין להן `resolved` נפרד,
-מוחקת ארכיונים ישנים או של פלטפורמות אחרות, וכותבת `manifest.json` אטומי תחת
-`vendor/npm/linux-x64-glibc`. אין צורך לערוך גרסאות בתוך סקריפט לאחר עדכון npm.
+ממחזרת ארכיונים קיימים בעלי integrity זהה, ומורידה רק את החסר. אם npm השמיט
+בטעות `resolved` ו־`integrity` מחבילת registry רגילה, הפקודה אינה מנחשת שהיא
+bundled: היא מריצה `npm pack` עבור השם והגרסה המדויקים, מאמתת את זהות ה־tarball
+ושומרת את ה־SHA-512 במראה. בנוסף נוצר
+`vendor/npm/linux-x64-glibc/package-lock.offline.json`, שהוא עותק נגזר בלבד עם
+הפניות `file:` מקומיות לכל 43 החבילות. `package-lock.json` המקורי אינו משתנה.
+לאחר הצלחה נמחקים הארכיונים הישנים/הכפולים ותיקיות ה־esbuild/TypeScript הישנות.
 
 אחרי שהארכיונים קיימים אפשר להתקין את כל עץ npm ללא רשת:
 
@@ -577,8 +580,10 @@ npm run setup:npm:offline:linux
 npm run check:npm:offline:linux
 ```
 
-המתקין מאמת מחדש את ה־manifest ואת ה־lockfile, מזין cache מקומי מתוך ה־tarballs
-ומריץ `npm ci --offline`. חבילות ה־npm של Playwright כן נשמרות, משום שהקוד
+המתקין מאמת מחדש את ה־manifest ואת שני ה־lockfiles, מציב זמנית
+`npm-shrinkwrap.json` מקומי שמצביע ישירות ל־tarballs, ומריץ `npm ci --offline`.
+הקובץ הזמני וה־cache הזמני נמחקים תמיד; אין עוד cache קבוע שמכפיל את משקל
+המראה. חבילות ה־npm של Playwright כן נשמרות, משום שהקוד
 והבדיקות מייבאים את test runner; Chromium ושאר קובצי הדפדפן הכבדים אינם
 נשמרים ואינם מותקנים. רק כאשר נדרשות בדיקות E2E אמיתיות מריצים בנפרד:
 

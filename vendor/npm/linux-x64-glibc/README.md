@@ -10,12 +10,15 @@ npm run update:offline:linux
 npm run check:offline:linux
 ```
 
-The updater reads package names, versions, tarball URLs, platform constraints
-and SHA-512 integrity values directly from lockfile version 3. It keeps only
-packages installable on Linux x64/glibc, reuses already-vendored archives when
-their integrity matches, downloads only missing archives, verifies package
-identity, validates dependencies bundled inside another npm tarball, removes
-stale canonical archives, and writes `manifest.json` atomically.
+The updater keeps only packages installable on Linux x64/glibc. Normal lockfile
+entries are authenticated with their SHA-512 integrity. If npm omitted
+`resolved` and `integrity` for an ordinary registry dependency, the updater
+runs `npm pack <name>@<exact-version>`, verifies the tarball identity, and
+records its computed SRI in `manifest.json`.
+
+`package-lock.offline.json` is generated beside the manifest. It is a copy of
+the canonical lockfile whose selected package entries point to repository-local
+`file:` tarballs. The canonical `package-lock.json` is never edited.
 
 Install the complete npm dependency tree without network access:
 
@@ -23,11 +26,14 @@ Install the complete npm dependency tree without network access:
 npm run setup:npm:offline:linux
 ```
 
-The installer verifies the manifest, seeds a repository-local npm cache from the
-mirrored tarballs, and runs `npm ci --offline`. Playwright's npm packages are
-included because the test runner imports them, but Chromium and all other
-Playwright browser payloads are intentionally excluded. Install a browser only
-for real E2E work with `npm run setup:browsers`.
+The installer verifies every tarball and the generated lock, exposes it
+temporarily as `npm-shrinkwrap.json`, and runs `npm ci --offline`. The temporary
+shrinkwrap and npm cache are removed even if installation fails. Playwright's
+npm packages are included, but Chromium and other browser payloads are not.
 
-Do not add Windows, macOS, ARM64, musl or Playwright browser files here. The
-mirror target is intentionally narrow so routine project archives stay small.
+A successful update removes the obsolete duplicate trees
+`vendor/npm/esbuild`, `vendor/npm/typescript`, and the old persistent
+`.cache/npm-offline-linux` cache. Do not delete them before the first successful
+update because their matching tarballs can be reused without downloading.
+
+Do not add Windows, macOS, ARM64, musl or Playwright browser files here.

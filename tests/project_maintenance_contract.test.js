@@ -132,10 +132,16 @@ assert.doesNotMatch(nodeInstallCheck, /path\.join\(root, "node_modules", "\.bin"
 assert.match(npmOffline, /TARGET_KEY: Final = "linux-x64-glibc"/);
 assert.match(npmOffline, /package-lock\.json lockfileVersion 3/);
 assert.match(npmOffline, /playwrightBrowsersIncluded/);
-assert.match(npmOffline, /resolve_bundle_owners/);
+assert.match(npmOffline, /def _npm_pack_exact/);
+assert.match(npmOffline, /OFFLINE_LOCK_PATH: Final =/);
+assert.match(npmOffline, /LEGACY_MIRROR_DIRECTORIES/);
+assert.doesNotMatch(npmOffline, /resolve_bundle_owners|bundledPackageCount/);
 assert.match(npmOfflineSync, /sync_mirror\(project_root\(\)/);
 assert.match(npmOfflineBootstrap, /"ci",[\s\S]*"--offline"/);
 assert.match(npmOfflineBootstrap, /PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD/);
+assert.match(npmOfflineBootstrap, /TEMPORARY_SHRINKWRAP/);
+assert.match(npmOfflineBootstrap, /shrinkwrap\.unlink\(missing_ok=True\)/);
+assert.doesNotMatch(npmOfflineBootstrap, /npm cache add|mirror-stamp/);
 assert.equal(fs.existsSync(path.join(root, "vendor", "npm", "linux-x64-glibc", "README.md")), true);
 assert.match(deployTool, /def find_local_wrangler\(/);
 assert.doesNotMatch(deployTool, /def find_npx\(|npx was not found|--yes[\s\S]{0,40}wrangler/);

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Install the complete npm lockfile from the verified Linux x64/glibc mirror."""
+"""Install npm dependencies from the verified Linux x64/glibc mirror."""
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import os
 import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parent
@@ -17,17 +16,18 @@ if str(TOOLS_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIRECTORY))
 
 from npm_offline_linux import (
+    OFFLINE_LOCK_PATH,
     TARGET_CPU,
     TARGET_LIBC,
     TARGET_OS,
     OfflineMirrorError,
+    npm_executable,
     project_root,
-    unique_archive_paths,
+    sha256_file,
     verify_mirror,
 )
 
-CACHE_DIRECTORY = Path(".cache/npm-offline-linux")
-STAMP_FILE = CACHE_DIRECTORY / "mirror-stamp.sha256"
+TEMPORARY_SHRINKWRAP = Path("npm-shrinkwrap.json")
 
 
 class OfflineInstallError(RuntimeError):
@@ -47,33 +47,13 @@ def verify_host() -> None:
         )
 
 
-def npm_executable() -> str:
-    executable = shutil.which("npm")
-    if executable is None:
-        raise OfflineInstallError("npm is not available on PATH; install the Node.js version pinned in .nvmrc.")
-    return executable
-
-
-def manifest_stamp(manifest: dict[str, object]) -> str:
-    payload = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
 def run(command: list[str], *, root: Path, environment: dict[str, str]) -> None:
     completed = subprocess.run(command, cwd=root, env=environment, check=False)
     if completed.returncode:
         raise OfflineInstallError(f"Command failed with exit code {completed.returncode}: {' '.join(command)}")
 
 
-def seed_cache(root: Path, manifest: dict[str, object], *, force: bool = False) -> Path:
-    cache = root / CACHE_DIRECTORY
-    stamp = manifest_stamp(manifest)
-    stamp_path = root / STAMP_FILE
-    if not force and stamp_path.is_file() and stamp_path.read_text(encoding="utf-8").strip() == stamp:
-        return cache
-
-    shutil.rmtree(cache, ignore_errors=True)
-    cache.mkdir(parents=True, exist_ok=True)
+def _install_environment() -> dict[str, str]:
     environment = os.environ.copy()
     environment.update(
         {
@@ -83,45 +63,49 @@ def seed_cache(root: Path, manifest: dict[str, object], *, force: bool = False) 
             "npm_config_update_notifier": "false",
         }
     )
-    npm = npm_executable()
-    for archive in unique_archive_paths(root, manifest):
-        run([npm, "cache", "add", "--cache", str(cache), str(archive)], root=root, environment=environment)
-    stamp_path.write_text(stamp + "\n", encoding="utf-8")
-    return cache
+    return environment
 
 
-def install(root: Path, *, force_cache: bool = False) -> None:
+def install(root: Path) -> None:
     verify_host()
-    manifest = verify_mirror(root)
-    cache = seed_cache(root, manifest, force=force_cache)
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1",
-            "npm_config_audit": "false",
-            "npm_config_fund": "false",
-            "npm_config_update_notifier": "false",
-        }
-    )
-    run(
-        [
-            npm_executable(),
-            "ci",
-            "--offline",
-            "--cache",
-            str(cache),
-            "--no-audit",
-            "--no-fund",
-        ],
-        root=root,
-        environment=environment,
-    )
+    verify_mirror(root)
+    canonical_lock = root / "package-lock.json"
+    canonical_hash = sha256_file(canonical_lock)
+    offline_lock = root / OFFLINE_LOCK_PATH
+    shrinkwrap = root / TEMPORARY_SHRINKWRAP
+    if shrinkwrap.exists() or shrinkwrap.is_symlink():
+        raise OfflineInstallError(
+            f"Refusing to overwrite existing {TEMPORARY_SHRINKWRAP}; remove or commit it intentionally first."
+        )
+
+    # npm has no alternate-lockfile flag. npm-shrinkwrap.json has precedence
+    # over package-lock.json, so expose the verified local-file lock only for
+    # the duration of npm ci and remove it unconditionally afterwards.
+    shutil.copy2(offline_lock, shrinkwrap)
+    try:
+        with tempfile.TemporaryDirectory(prefix=".npm-offline-cache-", dir=root) as cache:
+            run(
+                [
+                    npm_executable(),
+                    "ci",
+                    "--offline",
+                    "--cache",
+                    cache,
+                    "--no-audit",
+                    "--no-fund",
+                ],
+                root=root,
+                environment=_install_environment(),
+            )
+    finally:
+        shrinkwrap.unlink(missing_ok=True)
+    if sha256_file(canonical_lock) != canonical_hash:
+        raise OfflineInstallError("npm modified package-lock.json during the offline install.")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Verify mirror completeness without installing")
-    parser.add_argument("--force-cache", action="store_true", help="Rebuild the local npm cache before install")
     args = parser.parse_args()
     try:
         if args.check:
@@ -129,11 +113,11 @@ def main() -> int:
             manifest = verify_mirror(project_root())
             print(
                 "Offline npm install inputs are valid for Linux x64/glibc: "
-                f"{manifest['packageCount']} packages."
+                f"{manifest['packageCount']} local tarballs."
             )
         else:
-            install(project_root(), force_cache=args.force_cache)
-            print("Complete npm dependency tree installed from the verified local mirror.")
+            install(project_root())
+            print("Complete npm dependency tree installed directly from verified local tarballs.")
             print("Playwright browsers were not installed; use `npm run setup:browsers` only when needed.")
     except (OfflineMirrorError, OfflineInstallError, OSError, subprocess.SubprocessError) as error:
         parser.exit(1, f"ERROR: {error}\n")

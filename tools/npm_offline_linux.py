@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Shared lockfile-driven support for the Linux x64 npm offline mirror.
+"""Lockfile-driven Linux x64/glibc npm offline mirror support.
 
-The repository mirror intentionally targets the ChatGPT/Linux execution host:
-Linux, x64, glibc.  Package versions, tarball URLs and integrity values are read
-from ``package-lock.json``; this module contains no package-version inventory.
+The canonical ``package-lock.json`` remains npm-managed.  Some npm-generated
+lockfiles omit ``resolved`` and ``integrity`` for ordinary registry packages.
+Those entries are not assumed to be bundled: the online sync obtains their
+exact name/version tarball with ``npm pack`` and records the resulting SRI in a
+separate offline lockfile.  Offline installation then uses only repository
+local ``file:`` tarball references.
 """
 from __future__ import annotations
 
@@ -12,6 +15,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import tarfile
 import tempfile
 import urllib.error
@@ -27,8 +31,14 @@ TARGET_KEY: Final = "linux-x64-glibc"
 MIRROR_DIRECTORY: Final = Path("vendor/npm") / TARGET_KEY
 ARCHIVE_DIRECTORY: Final = MIRROR_DIRECTORY / "archives"
 MANIFEST_PATH: Final = MIRROR_DIRECTORY / "manifest.json"
-MANIFEST_SCHEMA_VERSION: Final = 1
-DOWNLOAD_USER_AGENT: Final = "site-catalog-offline-mirror/1"
+OFFLINE_LOCK_PATH: Final = MIRROR_DIRECTORY / "package-lock.offline.json"
+MANIFEST_SCHEMA_VERSION: Final = 2
+DOWNLOAD_USER_AGENT: Final = "site-catalog-offline-mirror/2"
+LEGACY_MIRROR_DIRECTORIES: Final = (
+    Path("vendor/npm/esbuild"),
+    Path("vendor/npm/typescript"),
+)
+LEGACY_CACHE_DIRECTORY: Final = Path(".cache/npm-offline-linux")
 
 
 class OfflineMirrorError(RuntimeError):
@@ -45,15 +55,21 @@ class LockedPackage:
     optional: bool
 
     @property
-    def has_archive(self) -> bool:
+    def has_lock_archive_metadata(self) -> bool:
         return self.resolved is not None and self.integrity is not None
+
+    # Kept as a compatibility alias for the focused esbuild/TypeScript tools.
+    @property
+    def has_archive(self) -> bool:
+        return self.has_lock_archive_metadata
 
 
 @dataclass(frozen=True)
-class BundleOwner:
-    package_name: str
-    package_version: str
+class MirroredPackage:
+    locked: LockedPackage
     archive_relative: Path
+    integrity: str
+    metadata_source: str
 
 
 def project_root() -> Path:
@@ -178,8 +194,6 @@ def _safe_component(value: str, *, label: str) -> str:
 
 
 def canonical_archive_relative(package: LockedPackage) -> Path:
-    if not package.has_archive:
-        raise OfflineMirrorError(f"{package.name}@{package.version} is bundled and has no standalone archive.")
     version = _safe_component(package.version, label="package version")
     if package.name.startswith("@"):
         scope, basename = package.name.split("/", 1)
@@ -217,15 +231,13 @@ def _read_json_member(bundle: tarfile.TarFile, member_name: str) -> dict[str, ob
     return value
 
 
-def verify_archive(path: Path, package: LockedPackage) -> None:
-    if not package.has_archive:
-        raise OfflineMirrorError(f"Cannot verify a standalone archive for bundled package {package.name}.")
+def verify_archive_identity(path: Path, package: LockedPackage, *, integrity: str | None = None) -> str:
     if not path.is_file():
         raise OfflineMirrorError(f"Missing offline archive: {path}")
     actual_integrity = sri_sha512(path)
-    if actual_integrity != package.integrity:
+    if integrity is not None and actual_integrity != integrity:
         raise OfflineMirrorError(
-            f"Integrity check failed for {path}; expected {package.integrity}, received {actual_integrity}."
+            f"Integrity check failed for {path}; expected {integrity}, received {actual_integrity}."
         )
     try:
         with tarfile.open(path, mode="r:gz") as bundle:
@@ -237,13 +249,22 @@ def verify_archive(path: Path, package: LockedPackage) -> None:
             f"Archive identity mismatch for {path}: expected {package.name}@{package.version}, "
             f"received {metadata.get('name')!r}@{metadata.get('version')!r}."
         )
+    return actual_integrity
+
+
+def verify_archive(path: Path, package: LockedPackage) -> None:
+    if not package.has_lock_archive_metadata or package.integrity is None:
+        raise OfflineMirrorError(
+            f"{package.name}@{package.version} has no lockfile integrity; verify it through the mirror manifest."
+        )
+    verify_archive_identity(path, package, integrity=package.integrity)
 
 
 def _archive_candidates(root: Path) -> Iterable[Path]:
     vendor = root / "vendor/npm"
     if not vendor.is_dir():
         return ()
-    return (path for path in vendor.rglob("*.tgz") if path.is_file())
+    return (path for path in vendor.rglob("*.tgz") if path.is_file() and not path.is_symlink())
 
 
 def build_integrity_index(root: Path) -> dict[str, list[Path]]:
@@ -260,8 +281,13 @@ def build_integrity_index(root: Path) -> dict[str, list[Path]]:
 
 
 def locate_archive(root: Path, package: LockedPackage) -> Path:
-    if not package.has_archive or package.integrity is None:
-        raise OfflineMirrorError(f"{package.name}@{package.version} has no standalone lockfile archive.")
+    """Locate a lockfile-authenticated archive for focused bootstraps."""
+
+    if not package.has_lock_archive_metadata or package.integrity is None:
+        raise OfflineMirrorError(
+            f"{package.name}@{package.version} has no standalone integrity in package-lock.json. "
+            "Use the complete Linux mirror instead."
+        )
     canonical = root / canonical_archive_relative(package)
     if canonical.is_file():
         verify_archive(canonical, package)
@@ -361,8 +387,9 @@ def _copy_atomic(source: Path, destination: Path) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _download_atomic(package: LockedPackage, destination: Path) -> None:
-    assert package.resolved is not None
+def _download_atomic(package: LockedPackage, destination: Path) -> str:
+    if package.resolved is None or package.integrity is None:
+        raise OfflineMirrorError(f"Cannot URL-download {package.name}@{package.version} without lock metadata.")
     destination.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", dir=destination.parent)
     os.close(handle)
@@ -376,124 +403,181 @@ def _download_atomic(package: LockedPackage, destination: Path) -> None:
             raise OfflineMirrorError(
                 f"Failed to download {package.name}@{package.version} from {package.resolved}: {error}"
             ) from error
-        verify_archive(temporary, package)
+        integrity = verify_archive_identity(temporary, package, integrity=package.integrity)
         os.replace(temporary, destination)
+        return integrity
     finally:
         temporary.unlink(missing_ok=True)
 
 
-def _bundled_packages_in_archive(path: Path) -> dict[tuple[str, str], None]:
-    discovered: dict[tuple[str, str], None] = {}
+def npm_executable() -> str:
+    executable = shutil.which("npm")
+    if executable is None:
+        raise OfflineMirrorError("npm is not available on PATH; install the Node.js version pinned in .nvmrc.")
+    return executable
+
+
+def _parse_npm_pack_output(stdout: str, package: LockedPackage, directory: Path) -> tuple[Path, str | None]:
     try:
-        with tarfile.open(path, mode="r:gz") as bundle:
-            for member in bundle.getmembers():
-                member_path = _safe_archive_member(member.name)
-                if not member.isfile() or member_path.name != "package.json":
-                    continue
-                parts = member_path.parts
-                if len(parts) < 4 or parts[0] != "package" or "node_modules" not in parts[1:-1]:
-                    continue
-                source = bundle.extractfile(member)
-                if source is None:
-                    continue
-                try:
-                    metadata = json.loads(source.read().decode("utf-8"))
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    continue
-                if not isinstance(metadata, dict):
-                    continue
-                name = metadata.get("name")
-                version = metadata.get("version")
-                if isinstance(name, str) and isinstance(version, str):
-                    discovered[(name, version)] = None
-    except (OSError, tarfile.TarError) as error:
-        raise OfflineMirrorError(f"Cannot scan bundled dependencies in {path}.") from error
-    return discovered
-
-
-def resolve_bundle_owners(
-    root: Path,
-    archive_packages: Iterable[LockedPackage],
-    bundled_packages: Iterable[LockedPackage],
-) -> dict[str, BundleOwner]:
-    ownership: dict[tuple[str, str], list[BundleOwner]] = {}
-    seen_archives: set[Path] = set()
-    for owner_package in archive_packages:
-        archive = locate_archive(root, owner_package)
-        resolved_archive = archive.resolve()
-        if resolved_archive in seen_archives:
-            continue
-        seen_archives.add(resolved_archive)
-        owner = BundleOwner(
-            package_name=owner_package.name,
-            package_version=owner_package.version,
-            archive_relative=archive.relative_to(root),
+        value = json.loads(stdout)
+    except json.JSONDecodeError as error:
+        raise OfflineMirrorError(
+            f"npm pack returned invalid JSON for {package.name}@{package.version}: {stdout.strip()!r}"
+        ) from error
+    if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+        raise OfflineMirrorError(f"npm pack returned an unexpected result for {package.name}@{package.version}.")
+    record = value[0]
+    if record.get("name") != package.name or record.get("version") != package.version:
+        raise OfflineMirrorError(
+            f"npm pack identity mismatch: expected {package.name}@{package.version}, "
+            f"received {record.get('name')!r}@{record.get('version')!r}."
         )
-        for identity in _bundled_packages_in_archive(archive):
-            ownership.setdefault(identity, []).append(owner)
+    filename = record.get("filename")
+    if not isinstance(filename, str) or Path(filename).name != filename:
+        raise OfflineMirrorError(f"npm pack returned an unsafe filename for {package.name}@{package.version}.")
+    integrity = record.get("integrity")
+    if integrity is not None and not isinstance(integrity, str):
+        raise OfflineMirrorError(f"npm pack returned an invalid integrity for {package.name}@{package.version}.")
+    return directory / filename, integrity
 
-    result: dict[str, BundleOwner] = {}
-    for package in bundled_packages:
-        owners = ownership.get((package.name, package.version), [])
-        if not owners:
+
+def _npm_pack_exact(root: Path, package: LockedPackage, destination: Path) -> str:
+    """Fetch an exact registry package whose lock entry omitted dist metadata."""
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".npm-pack-", dir=destination.parent) as temporary_name:
+        temporary = Path(temporary_name)
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1",
+                "npm_config_audit": "false",
+                "npm_config_fund": "false",
+                "npm_config_update_notifier": "false",
+            }
+        )
+        command = [
+            npm_executable(),
+            "pack",
+            f"{package.name}@{package.version}",
+            "--json",
+            "--ignore-scripts",
+            "--pack-destination",
+            str(temporary),
+        ]
+        completed = subprocess.run(
+            command,
+            cwd=root,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode:
+            details = (completed.stderr or completed.stdout).strip()
             raise OfflineMirrorError(
-                f"package-lock.json omits a tarball for {package.name}@{package.version}, but no mirrored "
-                "archive contains that exact bundled dependency."
+                f"npm pack failed for {package.name}@{package.version}: {details or 'no diagnostic output'}"
             )
-        owners.sort(key=lambda item: (item.archive_relative.as_posix(), item.package_name))
-        result[package.install_path] = owners[0]
+        packed, reported_integrity = _parse_npm_pack_output(completed.stdout, package, temporary)
+        actual_integrity = verify_archive_identity(packed, package, integrity=reported_integrity)
+        _copy_atomic(packed, destination)
+        verify_archive_identity(destination, package, integrity=actual_integrity)
+        return actual_integrity
+
+
+def _load_previous_manifest(root: Path) -> dict[str, dict[str, object]]:
+    path = root / MANIFEST_PATH
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(value, dict) or value.get("schemaVersion") != MANIFEST_SCHEMA_VERSION:
+        return {}
+    packages = value.get("packages")
+    if not isinstance(packages, list):
+        return {}
+    result: dict[str, dict[str, object]] = {}
+    for record in packages:
+        if isinstance(record, dict) and isinstance(record.get("installPath"), str):
+            result[record["installPath"]] = record
     return result
 
 
-def _manifest_data(root: Path, packages: tuple[LockedPackage, ...]) -> dict[str, object]:
-    archives = tuple(package for package in packages if package.has_archive)
-    bundled = tuple(package for package in packages if not package.has_archive)
-    bundle_owners = resolve_bundle_owners(root, archives, bundled)
+def _reuse_registry_pack(
+    root: Path,
+    package: LockedPackage,
+    destination: Path,
+    previous: dict[str, dict[str, object]],
+) -> str | None:
+    record = previous.get(package.install_path)
+    if not destination.is_file() or record is None or record.get("metadataSource") != "npm-pack":
+        return None
+    integrity = record.get("integrity")
+    archive = record.get("archive")
+    if not isinstance(integrity, str) or archive != destination.relative_to(root).as_posix():
+        return None
+    try:
+        return verify_archive_identity(destination, package, integrity=integrity)
+    except OfflineMirrorError:
+        return None
+
+
+def _offline_file_reference(relative: Path) -> str:
+    return "file:" + relative.as_posix()
+
+
+def build_offline_lock(
+    root: Path,
+    mirrored: tuple[MirroredPackage, ...],
+) -> dict[str, object]:
+    lock = load_lockfile(root)
+    packages = lock.get("packages")
+    assert isinstance(packages, dict)
+    for item in mirrored:
+        metadata = packages.get(item.locked.install_path)
+        if not isinstance(metadata, dict):
+            raise OfflineMirrorError(f"Missing {item.locked.install_path} while building the offline lockfile.")
+        metadata["resolved"] = _offline_file_reference(item.archive_relative)
+        metadata["integrity"] = item.integrity
+    return lock
+
+
+def _manifest_data(root: Path, mirrored: tuple[MirroredPackage, ...]) -> dict[str, object]:
     records: list[dict[str, object]] = []
-    for package in packages:
-        base: dict[str, object] = {
+    registry_pack_count = 0
+    for item in mirrored:
+        package = item.locked
+        if item.metadata_source == "npm-pack":
+            registry_pack_count += 1
+        record: dict[str, object] = {
             "installPath": package.install_path,
             "name": package.name,
             "version": package.version,
             "optional": package.optional,
+            "metadataSource": item.metadata_source,
+            "integrity": item.integrity,
+            "archive": item.archive_relative.as_posix(),
         }
-        if package.has_archive:
-            archive = locate_archive(root, package)
-            base.update(
-                {
-                    "source": "archive",
-                    "resolved": package.resolved,
-                    "integrity": package.integrity,
-                    "archive": archive.relative_to(root).as_posix(),
-                }
-            )
-        else:
-            owner = bundle_owners[package.install_path]
-            base.update(
-                {
-                    "source": "bundled",
-                    "owner": f"{owner.package_name}@{owner.package_version}",
-                    "archive": owner.archive_relative.as_posix(),
-                }
-            )
-        records.append(base)
+        if package.resolved is not None:
+            record["registryResolved"] = package.resolved
+        records.append(record)
     return {
         "schemaVersion": MANIFEST_SCHEMA_VERSION,
         "target": {"os": TARGET_OS, "cpu": TARGET_CPU, "libc": TARGET_LIBC},
         "lockfileSha256": sha256_file(root / "package-lock.json"),
-        "packageCount": len(packages),
-        "archivePackageCount": len(archives),
-        "bundledPackageCount": len(bundled),
+        "packageCount": len(mirrored),
+        "archivePackageCount": len(mirrored),
+        "registryPackPackageCount": registry_pack_count,
         "playwrightBrowsersIncluded": False,
+        "offlineLock": OFFLINE_LOCK_PATH.as_posix(),
         "packages": records,
     }
 
 
-def write_manifest(root: Path, data: dict[str, object]) -> None:
-    destination = root / MANIFEST_PATH
+def _write_json_atomic(destination: Path, data: dict[str, object]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     encoded = (json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    handle, temporary_name = tempfile.mkstemp(prefix=".manifest.", dir=destination.parent)
+    handle, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", dir=destination.parent)
     os.close(handle)
     temporary = Path(temporary_name)
     try:
@@ -503,90 +587,217 @@ def write_manifest(root: Path, data: dict[str, object]) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def write_manifest(root: Path, data: dict[str, object]) -> None:
+    _write_json_atomic(root / MANIFEST_PATH, data)
+
+
+def write_offline_lock(root: Path, data: dict[str, object]) -> None:
+    _write_json_atomic(root / OFFLINE_LOCK_PATH, data)
+
+
+def _prune_mirror(root: Path, expected: set[Path]) -> None:
+    vendor_root = root / "vendor/npm"
+    if vendor_root.is_dir():
+        for candidate in vendor_root.rglob("*.tgz"):
+            if candidate.is_symlink() or candidate.resolve() not in expected:
+                candidate.unlink(missing_ok=True)
+    for relative in LEGACY_MIRROR_DIRECTORIES:
+        shutil.rmtree(root / relative, ignore_errors=True)
+    shutil.rmtree(root / LEGACY_CACHE_DIRECTORY, ignore_errors=True)
+    archive_root = root / ARCHIVE_DIRECTORY
+    if archive_root.is_dir():
+        for directory in sorted(archive_root.rglob("*"), reverse=True):
+            if directory.is_dir() and not any(directory.iterdir()):
+                directory.rmdir()
+
+
 def sync_mirror(root: Path, *, download_missing: bool = True, prune: bool = True) -> dict[str, object]:
     packages = locked_packages(root)
-    archive_packages = tuple(package for package in packages if package.has_archive)
     integrity_index = build_integrity_index(root)
+    previous = _load_previous_manifest(root)
+    mirrored: list[MirroredPackage] = []
     expected_canonical: set[Path] = set()
 
-    for package in archive_packages:
-        assert package.integrity is not None
+    for package in packages:
         destination = root / canonical_archive_relative(package)
-        expected_canonical.add(destination.resolve())
-        if destination.is_file():
-            try:
-                verify_archive(destination, package)
-                continue
-            except OfflineMirrorError:
-                destination.unlink()
-        reusable = None
-        for candidate in integrity_index.get(package.integrity, []):
-            try:
-                verify_archive(candidate, package)
-            except OfflineMirrorError:
-                continue
-            reusable = candidate
-            break
-        if reusable is not None:
-            _copy_atomic(reusable, destination)
-            verify_archive(destination, package)
-            continue
-        if not download_missing:
-            raise OfflineMirrorError(
-                f"Missing archive for {package.name}@{package.version}: {canonical_archive_relative(package)}"
+        destination_resolved = destination.resolve()
+        expected_canonical.add(destination_resolved)
+        integrity: str | None = None
+        source = "lockfile" if package.has_lock_archive_metadata else "npm-pack"
+
+        if package.has_lock_archive_metadata:
+            assert package.integrity is not None
+            if destination.is_file():
+                try:
+                    integrity = verify_archive_identity(destination, package, integrity=package.integrity)
+                except OfflineMirrorError:
+                    destination.unlink(missing_ok=True)
+            if integrity is None:
+                for candidate in integrity_index.get(package.integrity, []):
+                    try:
+                        verify_archive_identity(candidate, package, integrity=package.integrity)
+                    except OfflineMirrorError:
+                        continue
+                    _copy_atomic(candidate, destination)
+                    integrity = verify_archive_identity(destination, package, integrity=package.integrity)
+                    break
+            if integrity is None:
+                if not download_missing:
+                    raise OfflineMirrorError(
+                        f"Missing archive for {package.name}@{package.version}: {canonical_archive_relative(package)}"
+                    )
+                integrity = _download_atomic(package, destination)
+        else:
+            integrity = _reuse_registry_pack(root, package, destination, previous)
+            if integrity is None:
+                if not download_missing:
+                    raise OfflineMirrorError(
+                        f"package-lock.json omits resolved/integrity for {package.name}@{package.version}; "
+                        "run `npm run update:offline:linux` online so npm pack can mirror it."
+                    )
+                integrity = _npm_pack_exact(root, package, destination)
+
+        if integrity is None:
+            raise OfflineMirrorError(f"No verified archive was produced for {package.name}@{package.version}.")
+        mirrored.append(
+            MirroredPackage(
+                locked=package,
+                archive_relative=destination.relative_to(root),
+                integrity=integrity,
+                metadata_source=source,
             )
-        _download_atomic(package, destination)
-        integrity_index.setdefault(package.integrity, []).append(destination)
+        )
 
-    # Validate archive identities and all lockfile entries without standalone
-    # tarballs before destructive cleanup. A failed bundled-package check must
-    # leave the previous repository mirror available for diagnosis/retry.
-    manifest = _manifest_data(root, packages)
+    mirrored_tuple = tuple(mirrored)
+    offline_lock = build_offline_lock(root, mirrored_tuple)
+    manifest = _manifest_data(root, mirrored_tuple)
 
+    # All required archives and generated metadata are validated before any
+    # destructive cleanup of legacy or stale files.
     if prune:
-        vendor_root = root / "vendor/npm"
-        if vendor_root.is_dir():
-            for candidate in vendor_root.rglob("*.tgz"):
-                if candidate.resolve() not in expected_canonical:
-                    candidate.unlink()
-        archive_root = root / ARCHIVE_DIRECTORY
-        if archive_root.is_dir():
-            for directory in sorted(archive_root.rglob("*"), reverse=True):
-                if directory.is_dir() and not any(directory.iterdir()):
-                    directory.rmdir()
-
+        _prune_mirror(root, expected_canonical)
+    write_offline_lock(root, offline_lock)
     write_manifest(root, manifest)
     return manifest
+
+
+def _load_json_file(path: Path, *, label: str) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise OfflineMirrorError(f"Missing or invalid {label}: {path}") from error
+    if not isinstance(value, dict):
+        raise OfflineMirrorError(f"Invalid {label}: {path}")
+    return value
+
+
+def _manifest_records(manifest: dict[str, object]) -> dict[str, dict[str, object]]:
+    raw = manifest.get("packages")
+    if not isinstance(raw, list):
+        raise OfflineMirrorError("Offline manifest packages must be a list.")
+    records: dict[str, dict[str, object]] = {}
+    for item in raw:
+        if not isinstance(item, dict) or not isinstance(item.get("installPath"), str):
+            raise OfflineMirrorError("Offline manifest contains an invalid package record.")
+        install_path = item["installPath"]
+        if install_path in records:
+            raise OfflineMirrorError(f"Offline manifest duplicates {install_path}.")
+        records[install_path] = item
+    return records
 
 
 def verify_mirror(root: Path) -> dict[str, object]:
     manifest_path = root / MANIFEST_PATH
     try:
-        stored = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
+        manifest = _load_json_file(manifest_path, label="offline manifest")
+    except OfflineMirrorError as error:
         raise OfflineMirrorError(
             f"Missing or invalid {MANIFEST_PATH}. Run `npm run update:offline:linux` while online."
         ) from error
-    if not isinstance(stored, dict):
-        raise OfflineMirrorError(f"Invalid offline manifest: {MANIFEST_PATH}")
-    expected = _manifest_data(root, locked_packages(root))
-    if stored != expected:
+    if manifest.get("schemaVersion") != MANIFEST_SCHEMA_VERSION:
+        raise OfflineMirrorError(
+            "The Linux npm offline manifest uses an obsolete schema. "
+            "Run `npm run update:offline:linux` while online."
+        )
+    if manifest.get("target") != {"os": TARGET_OS, "cpu": TARGET_CPU, "libc": TARGET_LIBC}:
+        raise OfflineMirrorError("The offline manifest targets a different platform.")
+    if manifest.get("lockfileSha256") != sha256_file(root / "package-lock.json"):
         raise OfflineMirrorError(
             "The Linux npm offline mirror does not match package-lock.json. "
             "Run `npm run update:offline:linux` while online."
         )
-    return expected
+
+    packages = locked_packages(root)
+    records = _manifest_records(manifest)
+    if set(records) != {package.install_path for package in packages}:
+        raise OfflineMirrorError(
+            "The Linux npm offline package inventory does not match package-lock.json. "
+            "Run `npm run update:offline:linux` while online."
+        )
+
+    mirrored: list[MirroredPackage] = []
+    expected_paths: set[Path] = set()
+    registry_pack_count = 0
+    for package in packages:
+        record = records[package.install_path]
+        expected_relative = canonical_archive_relative(package)
+        expected_source = "lockfile" if package.has_lock_archive_metadata else "npm-pack"
+        integrity = record.get("integrity")
+        if (
+            record.get("name") != package.name
+            or record.get("version") != package.version
+            or record.get("optional") != package.optional
+            or record.get("metadataSource") != expected_source
+            or record.get("archive") != expected_relative.as_posix()
+            or not isinstance(integrity, str)
+        ):
+            raise OfflineMirrorError(f"Invalid offline manifest record for {package.install_path}.")
+        if package.has_lock_archive_metadata:
+            if integrity != package.integrity or record.get("registryResolved") != package.resolved:
+                raise OfflineMirrorError(f"Lockfile metadata mismatch for {package.install_path}.")
+        else:
+            registry_pack_count += 1
+        archive = root / expected_relative
+        verify_archive_identity(archive, package, integrity=integrity)
+        expected_paths.add(archive.resolve())
+        mirrored.append(
+            MirroredPackage(package, expected_relative, integrity, expected_source)
+        )
+
+    if manifest.get("packageCount") != len(packages) or manifest.get("archivePackageCount") != len(packages):
+        raise OfflineMirrorError("Offline manifest package counts are invalid.")
+    if manifest.get("registryPackPackageCount") != registry_pack_count:
+        raise OfflineMirrorError("Offline manifest registry-pack count is invalid.")
+    if manifest.get("playwrightBrowsersIncluded") is not False:
+        raise OfflineMirrorError("The npm mirror must not claim to include Playwright browsers.")
+    if manifest.get("offlineLock") != OFFLINE_LOCK_PATH.as_posix():
+        raise OfflineMirrorError("Offline manifest points to an unexpected lockfile.")
+
+    stored_offline_lock = _load_json_file(root / OFFLINE_LOCK_PATH, label="offline package lock")
+    expected_offline_lock = build_offline_lock(root, tuple(mirrored))
+    if stored_offline_lock != expected_offline_lock:
+        raise OfflineMirrorError(
+            "The generated offline package lock is stale or modified. "
+            "Run `npm run update:offline:linux` while online."
+        )
+
+    stale = [
+        path.relative_to(root).as_posix()
+        for path in _archive_candidates(root)
+        if path.resolve() not in expected_paths
+    ]
+    if stale:
+        raise OfflineMirrorError(
+            "Stale or duplicate npm archives remain: " + ", ".join(sorted(stale)) + ". Run the update command."
+        )
+    return manifest
 
 
 def unique_archive_paths(root: Path, manifest: dict[str, object]) -> tuple[Path, ...]:
-    raw_packages = manifest.get("packages")
-    if not isinstance(raw_packages, list):
-        raise OfflineMirrorError("Offline manifest packages must be a list.")
+    records = _manifest_records(manifest)
     paths: set[Path] = set()
-    for raw in raw_packages:
-        if not isinstance(raw, dict) or raw.get("source") != "archive":
-            continue
-        archive = raw.get("archive")
+    for record in records.values():
+        archive = record.get("archive")
         if not isinstance(archive, str):
             raise OfflineMirrorError("Offline manifest archive path is invalid.")
         path = (root / archive).resolve()
