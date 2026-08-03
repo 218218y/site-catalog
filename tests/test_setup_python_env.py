@@ -75,3 +75,20 @@ def test_expected_pins_include_all_test_runner_dependencies() -> None:
         "mypy": "2.3.0",
     }
     assert MODULE.expected_pinned_distributions(platform="nt")["colorama"] == "0.4.6"
+
+
+def test_setup_prefers_verified_linux_wheelhouse_when_present(tmp_path: Path, monkeypatch) -> None:
+    wheelhouse = tmp_path / MODULE.WHEELHOUSE_DIRECTORY
+    wheelhouse.mkdir(parents=True)
+    monkeypatch.setattr(MODULE, "is_python_offline_target_host", lambda: True)
+    monkeypatch.setattr(MODULE, "offline_python_install_arguments", lambda root: ("--no-index", "--find-links", "wheels", "-r", "req"))
+
+    assert MODULE.should_use_offline_wheelhouse(tmp_path) is True
+    assert MODULE.pip_install_arguments(tmp_path) == ("--no-index", "--find-links", "wheels", "-r", "req")
+
+
+def test_setup_keeps_windows_and_missing_wheelhouse_on_normal_pip_path(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(MODULE, "is_python_offline_target_host", lambda: False)
+
+    assert MODULE.should_use_offline_wheelhouse(tmp_path) is False
+    assert MODULE.pip_install_arguments(tmp_path) == ("-r", str(tmp_path / "tools" / "requirements-dev.txt"))
