@@ -70,9 +70,6 @@ def test_package_scripts_expose_doctor_and_individual_quality_gates() -> None:
     assert scripts["doctor"].endswith("tools/project_doctor.py")
     assert scripts["lint:python"].endswith("tools/run_python_quality.py --lint")
     assert scripts["check:python-types"].endswith("tools/run_python_quality.py --types")
-    assert scripts["setup:python:offline:linux"].endswith("tools/bootstrap_python_offline_linux.py")
-    assert scripts["update:python:offline:linux"].endswith("tools/sync_python_offline_linux.py")
-    assert scripts["check:python:offline:linux"].endswith("tools/sync_python_offline_linux.py --check")
     assert run_python_quality.quality_commands(lint=True, types=False) == (
         (sys.executable, "-m", "ruff", "check", "tools", "tests"),
     )

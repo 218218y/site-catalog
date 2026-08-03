@@ -44,9 +44,6 @@ const nodeInstallCheck = fs.readFileSync(path.join(root, "tools", "check_node_in
 const npmOffline = fs.readFileSync(path.join(root, "tools", "npm_offline_linux.py"), "utf8");
 const npmOfflineSync = fs.readFileSync(path.join(root, "tools", "sync_npm_offline_linux.py"), "utf8");
 const npmOfflineBootstrap = fs.readFileSync(path.join(root, "tools", "bootstrap_npm_offline_linux.py"), "utf8");
-const pythonOffline = fs.readFileSync(path.join(root, "tools", "python_offline_linux.py"), "utf8");
-const pythonOfflineSync = fs.readFileSync(path.join(root, "tools", "sync_python_offline_linux.py"), "utf8");
-const pythonOfflineBootstrap = fs.readFileSync(path.join(root, "tools", "bootstrap_python_offline_linux.py"), "utf8");
 const requirements = fs.readFileSync(path.join(root, "tools", "requirements.txt"), "utf8");
 const devRequirements = fs.readFileSync(path.join(root, "tools", "requirements-dev.txt"), "utf8");
 const bundleSite = readLauncher(windowsLaunchers.bundleSite);
@@ -66,9 +63,6 @@ const linuxDocs = fs.readFileSync(path.join(root, "docs", "linux-development.md"
 
 assert.equal(packageJson.private, true);
 assert.equal(packageJson.scripts["setup:python"], "node tools/run_project_python.js --system tools/setup_python_env.py");
-assert.equal(packageJson.scripts["setup:python:offline:linux"], "node tools/run_project_python.js --system tools/bootstrap_python_offline_linux.py");
-assert.equal(packageJson.scripts["update:python:offline:linux"], "node tools/run_project_python.js --system tools/sync_python_offline_linux.py");
-assert.equal(packageJson.scripts["check:python:offline:linux"], "node tools/run_project_python.js --system tools/sync_python_offline_linux.py --check");
 assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
 assert.equal(packageJson.scripts["update:offline:linux"], "node tools/run_project_python.js --system tools/sync_npm_offline_linux.py");
 assert.equal(packageJson.scripts["check:offline:linux"], "node tools/run_project_python.js --system tools/sync_npm_offline_linux.py --check");
@@ -153,15 +147,7 @@ assert.match(npmOfflineBootstrap, /INSTALL_STAGE_PREFIX/);
 assert.match(npmOfflineBootstrap, /symlink_to\(root \/ "vendor"/);
 assert.match(npmOfflineBootstrap, /TOOLCHAIN_PROBE/);
 assert.doesNotMatch(npmOfflineBootstrap, /TEMPORARY_SHRINKWRAP|npm cache add|mirror-stamp/);
-assert.match(pythonOffline, /TARGET_KEY: Final = "linux-x64-glibc"/);
-assert.match(pythonOffline, /WHEELHOUSE_DIRECTORY: Final = MIRROR_DIRECTORY \/ "wheels"/);
-assert.match(pythonOffline, /--only-binary=:all:/);
-assert.match(pythonOffline, /ruff==0\.16\.1|directRequirements/);
-assert.match(pythonOfflineSync, /sync_wheelhouse\(project_root\(\)\)/);
-assert.match(pythonOfflineBootstrap, /PYTHON_OFFLINE_ENV_VAR/);
-assert.match(pythonOfflineBootstrap, /create_or_update_environment\(root/);
 assert.equal(fs.existsSync(path.join(root, "vendor", "npm", "linux-x64-glibc", "README.md")), true);
-assert.equal(fs.existsSync(path.join(root, "vendor", "python", "linux-x64-glibc", "README.md")), true);
 assert.match(deployTool, /def find_local_wrangler\(/);
 assert.doesNotMatch(deployTool, /def find_npx\(|npx was not found|--yes[\s\S]{0,40}wrangler/);
 assert.match(requirements, /^PyMuPDF==1\.28\.0$/m);

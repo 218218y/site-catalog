@@ -17,18 +17,6 @@ import venv
 from pathlib import Path
 from typing import Sequence
 
-TOOLS_DIRECTORY = Path(__file__).resolve().parent
-if str(TOOLS_DIRECTORY) not in sys.path:
-    sys.path.insert(0, str(TOOLS_DIRECTORY))
-
-from python_offline_linux import (  # noqa: E402
-    PythonOfflineMirrorError,
-    WHEELHOUSE_DIRECTORY,
-    has_wheelhouse,
-    install_arguments as offline_python_install_arguments,
-    is_target_host as is_python_offline_target_host,
-)
-
 REQUIRED_IMPORTS: tuple[str, ...] = ("pytest", "fitz", "PIL", "ruff", "mypy")
 PINNED_DISTRIBUTIONS: dict[str, str] = {
     "PyMuPDF": "1.28.0",
@@ -43,7 +31,6 @@ PINNED_DISTRIBUTIONS: dict[str, str] = {
 }
 WINDOWS_PINNED_DISTRIBUTIONS: dict[str, str] = {"colorama": "0.4.6"}
 STAMP_NAME = ".site-catalog-requirements.sha256"
-PYTHON_OFFLINE_ENV_VAR = "SITE_CATALOG_PYTHON_OFFLINE"
 
 
 def project_root() -> Path:
@@ -156,25 +143,6 @@ def environment_is_current(root: Path, python: Path, fingerprint: str) -> bool:
     return not missing_imports(python) and not mismatched_distribution_versions(python)
 
 
-
-def should_use_offline_wheelhouse(root: Path) -> bool:
-    """Return whether setup should install Python deps from the Linux wheelhouse."""
-    requested = os.environ.get(PYTHON_OFFLINE_ENV_VAR, "auto").strip().lower()
-    if requested in {"0", "false", "no", "off"}:
-        return False
-    if requested in {"1", "true", "yes", "on", "required"}:
-        return True
-    return is_python_offline_target_host() and has_wheelhouse(root)
-
-
-def pip_install_arguments(root: Path) -> tuple[str, ...]:
-    if should_use_offline_wheelhouse(root):
-        try:
-            return offline_python_install_arguments(root)
-        except PythonOfflineMirrorError as error:
-            raise RuntimeError(f"Python offline wheelhouse is not usable: {error}") from error
-    return ("-r", str(root / "tools" / "requirements-dev.txt"))
-
 def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
     root = root.resolve()
     environment_dir = root / ".venv"
@@ -192,14 +160,9 @@ def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
         venv.EnvBuilder(with_pip=True).create(environment_dir)
         python = venv_python_path(root)
 
-    install_args = pip_install_arguments(root)
-    using_offline = "--no-index" in install_args
+    requirements = root / "tools" / "requirements-dev.txt"
     if not quiet:
-        if using_offline:
-            print(f"Installing Python development requirements from {WHEELHOUSE_DIRECTORY.as_posix()}")
-        else:
-            requirements = root / "tools" / "requirements-dev.txt"
-            print(f"Installing Python development requirements from {requirements.relative_to(root)}")
+        print(f"Installing Python development requirements from {requirements.relative_to(root)}")
     subprocess.run(
         (
             str(python),
@@ -207,7 +170,8 @@ def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
             "pip",
             "install",
             "--disable-pip-version-check",
-            *install_args,
+            "-r",
+            str(requirements),
         ),
         cwd=root,
         check=True,
