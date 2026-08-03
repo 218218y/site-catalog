@@ -55,11 +55,27 @@ if (!fs.existsSync(wranglerPackagePath)) {
   fail("The local Wrangler package is missing.");
 }
 
+const requestedWranglerVersion = packageJson.devDependencies?.wrangler;
+const lockedWranglerRequest = packageLock.packages?.[""]?.devDependencies?.wrangler;
+const lockedWranglerVersion = lockedVersion("wrangler");
+if (typeof requestedWranglerVersion !== "string" || !requestedWranglerVersion.trim()) {
+  fail("package.json does not declare Wrangler as a devDependency.");
+}
+if (lockedWranglerRequest !== requestedWranglerVersion) {
+  fail("package.json and package-lock.json disagree about the requested Wrangler version.");
+}
+
 let wranglerPackage;
 try {
   wranglerPackage = JSON.parse(fs.readFileSync(wranglerPackagePath, "utf8"));
 } catch (error) {
   fail("Wrangler's installed package metadata is unreadable.", error);
+}
+if (wranglerPackage.version !== lockedWranglerVersion) {
+  fail(
+    `The installed Wrangler version ${wranglerPackage.version || "<unknown>"} does not match `
+      + `package-lock.json (${lockedWranglerVersion}).`,
+  );
 }
 const wranglerBinRelative = typeof wranglerPackage.bin === "string"
   ? wranglerPackage.bin
@@ -93,8 +109,8 @@ if (wrangler.error || wrangler.status !== 0) {
     .trim();
   fail("Wrangler/workerd could not start.", new Error(details || `Wrangler exited with status ${wrangler.status}.`));
 }
-if (!`${wrangler.stdout}\n${wrangler.stderr}`.includes(packageJson.devDependencies.wrangler)) {
-  fail(`Wrangler started, but did not report the pinned version ${packageJson.devDependencies.wrangler}.`);
+if (!`${wrangler.stdout}\n${wrangler.stderr}`.trim()) {
+  fail("Wrangler started, but its --version command produced no output.");
 }
 
-console.log(`Node install-script runtimes verified: esbuild ${lockedVersion("esbuild")}, sharp ${lockedVersion("sharp")}, workerd ${lockedVersion("workerd")}, wrangler ${packageJson.devDependencies.wrangler}.`);
+console.log(`Node install-script runtimes verified: esbuild ${lockedVersion("esbuild")}, sharp ${lockedVersion("sharp")}, workerd ${lockedVersion("workerd")}, wrangler ${lockedWranglerVersion}.`);

@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+const fixtureWranglerVersion = "9.99.0";
 const root = path.resolve(__dirname, "..");
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "site catalog-בדיקה-\u200f\u200f-"));
 
@@ -27,14 +28,16 @@ try {
   );
   write("tools/python_probe.py", 'print("python-launcher-ok")\n');
   write("package.json", JSON.stringify({
-    devDependencies: { wrangler: "4.112.0" },
+    devDependencies: { wrangler: fixtureWranglerVersion },
     allowScripts: { esbuild: true, sharp: true, workerd: true },
   }));
   write("package-lock.json", JSON.stringify({
     packages: {
+      "": { devDependencies: { wrangler: fixtureWranglerVersion } },
       "node_modules/esbuild": { version: "0.28.1" },
       "node_modules/sharp": { version: "0.34.5" },
       "node_modules/workerd": { version: "1.20260714.1" },
+      "node_modules/wrangler": { version: fixtureWranglerVersion },
     },
   }));
   write(
@@ -47,9 +50,9 @@ try {
   );
   write(
     "node_modules/wrangler/package.json",
-    JSON.stringify({ bin: { wrangler: "bin/wrangler.js" } }),
+    JSON.stringify({ version: fixtureWranglerVersion, bin: { wrangler: "bin/wrangler.js" } }),
   );
-  write("node_modules/wrangler/bin/wrangler.js", 'console.log("4.112.0");\n');
+  write("node_modules/wrangler/bin/wrangler.js", 'console.log("Wrangler is ready");\n');
 
   const completed = spawnSync(
     process.execPath,
@@ -68,7 +71,24 @@ try {
     `toolchain check failed in a Unicode path:\n${completed.stderr}\n${completed.stdout}`,
   );
   assert.match(completed.stdout, /Node install-script runtimes verified/);
-  assert.match(completed.stdout, /wrangler 4\.112\.0/);
+  assert.match(completed.stdout, new RegExp(`wrangler ${fixtureWranglerVersion.replaceAll(".", "\\.")}`));
+
+  write(
+    "node_modules/wrangler/package.json",
+    JSON.stringify({ version: "9.99.1", bin: { wrangler: "bin/wrangler.js" } }),
+  );
+  const mismatchedInstall = spawnSync(
+    process.execPath,
+    [path.join(fixtureRoot, "tools", "check_node_install_scripts.js")],
+    {
+      cwd: fixtureRoot,
+      encoding: "utf8",
+      shell: false,
+      windowsHide: true,
+    },
+  );
+  assert.notEqual(mismatchedInstall.status, 0, "a Wrangler install that differs from the lockfile must fail");
+  assert.match(`${mismatchedInstall.stderr}\n${mismatchedInstall.stdout}`, /does not match package-lock\.json/);
 
   const pythonCompleted = spawnSync(
     process.execPath,

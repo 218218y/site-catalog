@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const supportedPlaywrightVersion = "1.62.1";
+const exactNpmVersion = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const windowsLaunchers = Object.freeze({
   bundleSite: ".01-bundle-site-r2.bat",
   convertCatalogsForce: ".011-convert-catalogs-force.bat",
@@ -32,6 +32,7 @@ for (const launcherName of launcherNames) {
 
 const readLauncher = (launcherName) => fs.readFileSync(path.join(root, launcherName), "utf8");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const lockfile = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
 const builder = fs.readFileSync(path.join(root, "tools", "build_frontend_assets.py"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
 const architecture = fs.readFileSync(path.join(root, "docs", "frontend-architecture.md"), "utf8");
@@ -68,8 +69,6 @@ assert.match(packageJson.scripts["build:local"], /--mirror-to dist\/site-local/)
 assert.equal(packageJson.scripts.dev, "node tools/run_project_python.js tools/serve_site.py");
 assert.equal(packageJson.scripts.serve, "node tools/run_project_python.js tools/serve_site.py");
 assert.equal(packageJson.scripts["dev:check"], "node tools/run_project_python.js tools/serve_site.py --ensure-current ask");
-assert.equal(packageJson.devDependencies["@playwright/test"], supportedPlaywrightVersion);
-assert.equal(packageJson.devDependencies.wrangler, "4.116.0");
 assert.equal(packageJson.scripts.postinstall, "node tools/check_node_install_scripts.js");
 assert.equal(packageJson.scripts["check:node-tools"], "node tools/check_node_install_scripts.js");
 assert.deepEqual(packageJson.allowScripts, {
@@ -77,29 +76,51 @@ assert.deepEqual(packageJson.allowScripts, {
   sharp: true,
   workerd: true,
 });
-const lockfile = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
-assert.equal(lockfile.packages[""].devDependencies["@playwright/test"], supportedPlaywrightVersion);
-assert.equal(lockfile.packages["node_modules/@playwright/test"].version, supportedPlaywrightVersion);
-assert.equal(lockfile.packages["node_modules/@playwright/test"].dependencies.playwright, supportedPlaywrightVersion);
-assert.equal(lockfile.packages["node_modules/playwright"].version, supportedPlaywrightVersion);
-assert.equal(lockfile.packages["node_modules/playwright"].dependencies["playwright-core"], supportedPlaywrightVersion);
-assert.equal(lockfile.packages["node_modules/playwright-core"].version, supportedPlaywrightVersion);
-for (const packagePath of [
-  "node_modules/@playwright/test",
-  "node_modules/playwright",
-  "node_modules/playwright-core",
-]) {
-  assert.equal(lockfile.packages[packagePath].engines.node, ">=20");
+
+const lockedDevDependencies = lockfile.packages?.[""]?.devDependencies;
+assert.deepEqual(
+  lockedDevDependencies,
+  packageJson.devDependencies,
+  "package.json devDependencies must be synchronized with the lockfile root",
+);
+for (const [packageName, requestedVersion] of Object.entries(packageJson.devDependencies)) {
+  assert.match(
+    requestedVersion,
+    exactNpmVersion,
+    `${packageName} must use an exact version; package-lock.json provides reproducible transitive resolution`,
+  );
+  const lockedPackage = lockfile.packages?.[`node_modules/${packageName}`];
+  assert.ok(lockedPackage, `${packageName} is missing from package-lock.json`);
+  assert.equal(
+    lockedPackage.version,
+    requestedVersion,
+    `${packageName} must resolve to the exact version requested by package.json`,
+  );
 }
-assert.equal(lockfile.packages[""].devDependencies.wrangler, "4.116.0");
-assert.equal(lockfile.packages["node_modules/esbuild"].version, "0.28.1");
-assert.equal(lockfile.packages["node_modules/sharp"].version, "0.35.2");
-assert.equal(lockfile.packages["node_modules/workerd"].version, "1.20260730.1");
+
+const playwrightVersion = packageJson.devDependencies["@playwright/test"];
+assert.equal(lockfile.packages["node_modules/@playwright/test"].dependencies.playwright, playwrightVersion);
+assert.equal(lockfile.packages["node_modules/playwright"].version, playwrightVersion);
+assert.equal(lockfile.packages["node_modules/playwright"].dependencies["playwright-core"], playwrightVersion);
+assert.equal(lockfile.packages["node_modules/playwright-core"].version, playwrightVersion);
+
+for (const packageName of Object.keys(packageJson.allowScripts)) {
+  const installedByLockfile = lockfile.packages?.[`node_modules/${packageName}`];
+  assert.ok(installedByLockfile, `${packageName} is approved for install scripts but absent from package-lock.json`);
+  assert.match(installedByLockfile.version, exactNpmVersion, `${packageName} has an invalid locked version`);
+}
+const lockedWranglerBin = lockfile.packages["node_modules/wrangler"].bin;
+const lockedWranglerEntryPoint = typeof lockedWranglerBin === "string"
+  ? lockedWranglerBin
+  : lockedWranglerBin?.wrangler;
+assert.equal(typeof lockedWranglerEntryPoint, "string");
 assert.equal(fs.readFileSync(path.join(root, ".npmrc"), "utf8").trim(), "save-exact=true");
 assert.equal(fs.readFileSync(path.join(root, ".nvmrc"), "utf8").trim(), "24.18.0");
 assert.equal(fs.existsSync(path.join(root, "tools", "check_node_install_scripts.js")), true);
 assert.match(nodeInstallCheck, /spawnSync\(process\.execPath, \[wranglerCli, "--version"\]/);
 assert.match(nodeInstallCheck, /shell: false/);
+assert.match(nodeInstallCheck, /lockedWranglerVersion = lockedVersion\("wrangler"\)/);
+assert.match(nodeInstallCheck, /wranglerPackage\.version !== lockedWranglerVersion/);
 assert.doesNotMatch(nodeInstallCheck, /path\.join\(root, "node_modules", "\.bin"|shell: process\.platform/);
 assert.match(deployTool, /def find_local_wrangler\(/);
 assert.doesNotMatch(deployTool, /def find_npx\(|npx was not found|--yes[\s\S]{0,40}wrangler/);
