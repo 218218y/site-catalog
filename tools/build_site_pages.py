@@ -354,6 +354,9 @@ def active_subcategories(
     )
 
 
+INITIAL_HOME_CATALOG_COLUMNS = 3
+
+
 def static_home_navigation(
     taxonomy: Taxonomy,
     catalogs: Sequence[Mapping[str, Any]],
@@ -369,39 +372,433 @@ def static_home_navigation(
     )
 
 
+def _catalog_category_groups(
+    catalogs: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Mirror the browser's category grouping order for initial home markup."""
+
+    groups: list[dict[str, Any]] = []
+    group_by_category: dict[str, dict[str, Any]] = {}
+    for catalog in catalogs:
+        category = str(catalog.get("category", "")).strip() or "קטלוגים"
+        group = group_by_category.get(category)
+        if group is None:
+            group = {
+                "category": category,
+                "items": [],
+                "directItems": [],
+                "subcategories": [],
+                "subcategoryMap": {},
+            }
+            group_by_category[category] = group
+            groups.append(group)
+
+        group["items"].append(catalog)
+        subcategory = str(catalog.get("subcategory", "")).strip()
+        if not subcategory:
+            group["directItems"].append(catalog)
+            continue
+
+        subcategory_group = group["subcategoryMap"].get(subcategory)
+        if subcategory_group is None:
+            subcategory_group = {"subcategory": subcategory, "items": []}
+            group["subcategoryMap"][subcategory] = subcategory_group
+            group["subcategories"].append(subcategory_group)
+        subcategory_group["items"].append(catalog)
+
+    for group in groups:
+        group["hasSubcategories"] = bool(group["subcategories"])
+        group.pop("subcategoryMap", None)
+    return groups
+
+
+def _clamp_catalog_span(value: Any, columns: int) -> int:
+    return min(columns, max(1, int(value or 1)))
+
+
+def _catalog_subcategory_source_blocks(group: Mapping[str, Any]) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    direct_items = list(group.get("directItems") or [])
+    if direct_items:
+        blocks.append(
+            {
+                "blockKey": "__direct__",
+                "blockIndex": -1,
+                "label": "קטלוגים כלליים",
+                "isDirect": True,
+                "items": direct_items,
+            }
+        )
+    for index, subcategory_group in enumerate(group.get("subcategories") or []):
+        subcategory = str(subcategory_group.get("subcategory", "")).strip()
+        items = list(subcategory_group.get("items") or [])
+        if not subcategory or not items:
+            continue
+        blocks.append(
+            {
+                "blockKey": subcategory,
+                "blockIndex": index,
+                "label": subcategory,
+                "isDirect": False,
+                "items": items,
+            }
+        )
+    return blocks
+
+
+def _catalog_layout_segments(
+    groups: Sequence[Mapping[str, Any]],
+    columns: int,
+) -> list[dict[str, Any]]:
+    """Mirror searchCatalogDomain.catalogCategorySegments for first paint."""
+
+    safe_columns = _clamp_catalog_span(columns, 3)
+    segments: list[dict[str, Any]] = []
+    occupied = 0
+
+    def append_card_block_segments(
+        group: Mapping[str, Any],
+        group_index: int,
+        block: Mapping[str, Any],
+        *,
+        segment_type: str = "category",
+        layout_block_key: str = "",
+        has_subcategories: bool = False,
+        block_order: int | None = None,
+    ) -> None:
+        nonlocal occupied
+        items = list(block.get("items") or [])
+        if not items:
+            return
+        resolved_layout_key = layout_block_key or f"{segment_type}:{group_index}:{block.get('blockKey') or 'main'}"
+        item_offset = 0
+        segment_index = 0
+        while item_offset < len(items):
+            if occupied >= safe_columns:
+                occupied = 0
+            available_in_row = safe_columns - occupied if occupied > 0 else safe_columns
+            span = min(available_in_row, len(items) - item_offset, safe_columns)
+            segment: dict[str, Any] = {
+                "category": group["category"],
+                "groupIndex": group_index,
+                "segmentIndex": segment_index,
+                "itemOffset": item_offset,
+                "span": span,
+                "items": items[item_offset:item_offset + span],
+                "hasSubcategories": has_subcategories,
+                "segmentType": segment_type,
+                "layoutBlockKey": resolved_layout_key,
+                "inlineDivider": False,
+            }
+            if segment_type == "subcategory":
+                segment.update(
+                    {
+                        "blockKey": block.get("blockKey"),
+                        "blockIndex": block.get("blockIndex"),
+                        "blockOrder": block_order,
+                        "label": block.get("label"),
+                        "isDirect": bool(block.get("isDirect")),
+                    }
+                )
+            segments.append(segment)
+            item_offset += span
+            segment_index += 1
+            occupied += span
+            if occupied >= safe_columns:
+                occupied = 0
+
+    for group_index, group in enumerate(groups):
+        items = list(group.get("items") or [])
+        if not items:
+            continue
+        if group.get("hasSubcategories"):
+            if occupied > 0:
+                occupied = 0
+            segments.append(
+                {
+                    "category": group["category"],
+                    "groupIndex": group_index,
+                    "segmentIndex": 0,
+                    "itemOffset": 0,
+                    "span": safe_columns,
+                    "items": [],
+                    "directItems": list(group.get("directItems") or []),
+                    "subcategories": list(group.get("subcategories") or []),
+                    "hasSubcategories": True,
+                    "segmentType": "categoryHeader",
+                    "layoutBlockKey": f"category-header:{group_index}",
+                    "inlineDivider": False,
+                }
+            )
+            occupied = 0
+            for block_order, block in enumerate(_catalog_subcategory_source_blocks(group)):
+                append_card_block_segments(
+                    group,
+                    group_index,
+                    block,
+                    segment_type="subcategory",
+                    has_subcategories=True,
+                    block_order=block_order,
+                    layout_block_key=f"subcategory:{group_index}:{block['blockKey']}:{block_order}",
+                )
+            continue
+
+        append_card_block_segments(
+            group,
+            group_index,
+            {"blockKey": "__category__", "items": items},
+            segment_type="category",
+            has_subcategories=False,
+            layout_block_key=f"category:{group_index}",
+        )
+
+    occupied = 0
+    for index, segment in enumerate(segments):
+        span = _clamp_catalog_span(segment["span"], safe_columns)
+        if occupied + span > safe_columns:
+            occupied = 0
+        row_end = occupied + span
+        next_segment = segments[index + 1] if index + 1 < len(segments) else None
+        next_span = _clamp_catalog_span(next_segment["span"], safe_columns) if next_segment else 0
+        same_layout_block = bool(
+            next_segment and next_segment["layoutBlockKey"] == segment["layoutBlockKey"]
+        )
+        segment["inlineDivider"] = bool(
+            next_segment
+            and not same_layout_block
+            and segment["segmentType"] != "categoryHeader"
+            and next_segment["segmentType"] != "categoryHeader"
+            and row_end < safe_columns
+            and next_span <= safe_columns - row_end
+        )
+        occupied = 0 if row_end >= safe_columns else row_end
+    return segments
+
+
+def _catalog_dom_slug(value: Any) -> str:
+    normalized = re.sub(r"[^a-z0-9\u0590-\u05ff]+", "-", str(value or "catalog").strip().lower())
+    return normalized.strip("-") or "catalog"
+
+
+def _category_section_id(category: Any, index: int) -> str:
+    return f"catalog-category-{_catalog_dom_slug(category)}-{index + 1}"
+
+
+def _subcategory_section_id(
+    category: Any,
+    category_index: int,
+    subcategory: Any,
+    subcategory_index: int,
+) -> str:
+    return (
+        f"{_category_section_id(category, category_index)}-sub-"
+        f"{_catalog_dom_slug(subcategory)}-{subcategory_index + 1}"
+    )
+
+
+def _normalize_share_route_token(value: Any) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower().replace("'", "").replace('"', "").replace("`", ""))
+    return normalized.strip("-")
+
+
+def _category_share_slug(taxonomy: Taxonomy, category: Any, index: int) -> str:
+    item = taxonomy.category_by_name(str(category or "").strip())
+    return _normalize_share_route_token(item.slug if item else category) or f"category-{index + 1}"
+
+
+def _subcategory_share_slug(
+    taxonomy: Taxonomy,
+    category: Any,
+    subcategory: Any,
+    index: int,
+) -> str:
+    item = taxonomy.subcategory_by_name(str(category or "").strip(), str(subcategory or "").strip())
+    return _normalize_share_route_token(item.slug if item else subcategory) or f"sub-{index + 1}"
+
+
+def _home_catalog_card(
+    catalog: Mapping[str, Any],
+    config: SeoConfig,
+    *,
+    eager: bool,
+    heading_level: int = 3,
+) -> str:
+    catalog_id = str(catalog.get("id", "")).strip()
+    title = str(catalog.get("title", "קטלוג")).strip()
+    description = str(catalog.get("description", "")).strip()
+    href = f"/{catalog_path(catalog_id)}"
+    cover = catalog_page_image_url(config, catalog, first_display_page(catalog), thumb=True)
+    width, height = catalog_page_dimensions(catalog, 1)
+    loading = "eager" if eager else "lazy"
+    priority = "high" if eager else "low"
+    safe_heading_level = 4 if heading_level == 4 else 3
+    escaped_id = html.escape(catalog_id, quote=True)
+    escaped_title = html.escape(title, quote=True)
+    escaped_href = html.escape(href, quote=True)
+    return f"""
+    <article class="catalog-card" data-catalog-card-id="{escaped_id}">
+      <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="{escaped_href}" data-open-catalog-entry="{escaped_id}" aria-label="פתיחת הקטלוג {escaped_title}">
+        <img class="catalog-cover" src="{html.escape(cover, quote=True)}" alt="כריכת {escaped_title}" width="{width}" height="{height}" loading="{loading}" decoding="async" fetchpriority="{priority}" data-catalog-image-recovery="lightweight" data-catalog-id="{escaped_id}" data-page="1" data-telemetry-detail="cover" data-telemetry-surface="catalog-grid" data-telemetry-requested-tier="thumb" />
+        <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
+      </a>
+      <div class="catalog-body">
+        <h{safe_heading_level}><a href="{escaped_href}" data-open-catalog-preview="{escaped_id}">{html.escape(title)}</a></h{safe_heading_level}>
+        <p>{html.escape(description)}</p>
+        <div class="catalog-actions" role="group" aria-label="פעולות עבור {escaped_title}">
+          <a class="button primary catalog-open-button" href="{escaped_href}" data-open-catalog-entry="{escaped_id}">פתיחת הקטלוג</a>
+          <button class="button soft catalog-preview-button" type="button" data-open-catalog-preview="{escaped_id}">תצוגה מקדימה</button>
+        </div>
+      </div>
+    </article>
+    """.strip()
+
+
+def _render_home_subcategory_nav(
+    segment: Mapping[str, Any],
+    taxonomy: Taxonomy,
+) -> str:
+    if not segment.get("hasSubcategories") or not segment.get("subcategories"):
+        return ""
+    category = str(segment["category"])
+    group_index = int(segment["groupIndex"])
+    links: list[str] = []
+    for index, group in enumerate(segment["subcategories"]):
+        subcategory = str(group.get("subcategory", "")).strip()
+        target_id = _subcategory_section_id(category, group_index, subcategory, index)
+        category_slug = _category_share_slug(taxonomy, category, group_index)
+        subcategory_slug = _subcategory_share_slug(taxonomy, category, subcategory, index)
+        share_path = f"{category_slug}/{subcategory_slug}"
+        links.append(
+            f'<a class="catalog-subcategory-nav-link" href="/category/{html.escape(share_path, quote=True)}/" '
+            f'data-category-target="{html.escape(target_id, quote=True)}" '
+            f'data-category-share-path="{html.escape(share_path, quote=True)}">{html.escape(subcategory)}</a>'
+        )
+    return (
+        f'<nav class="catalog-subcategory-nav" aria-label="ניווט תתי קטגוריות עבור {html.escape(category, quote=True)}">'
+        + "".join(links)
+        + "</nav>"
+    )
+
+
+def _render_home_catalog_segment(
+    segment: Mapping[str, Any],
+    taxonomy: Taxonomy,
+    config: SeoConfig,
+    eager_catalog_ids: set[str],
+    *,
+    columns: int,
+) -> str:
+    category = str(segment["category"])
+    group_index = int(segment["groupIndex"])
+    base_section_id = _category_section_id(category, group_index)
+    category_share_path = _category_share_slug(taxonomy, category, group_index)
+    safe_columns = _clamp_catalog_span(columns, 3)
+    segment_type = str(segment["segmentType"])
+
+    if segment_type == "categoryHeader":
+        title_id = f"{base_section_id}-title"
+        section_style = f"--category-span: {safe_columns}; --subcategory-layout-columns: {safe_columns};"
+        return f"""
+    <section class="catalog-category-section catalog-category-section-with-subcategories catalog-category-section-header-only" id="{html.escape(base_section_id, quote=True)}" aria-labelledby="{html.escape(title_id, quote=True)}" style="{html.escape(section_style, quote=True)}" data-category-focus-target="{html.escape(base_section_id, quote=True)}" data-category-share-path="{html.escape(category_share_path, quote=True)}" data-category-span="{safe_columns}" data-inline-divider="0" data-category-continuation="0">
+      <div class="catalog-category-head catalog-category-head-with-subcategories">
+        <h2 id="{html.escape(title_id, quote=True)}">{html.escape(category)}</h2>
+        {_render_home_subcategory_nav(segment, taxonomy)}
+      </div>
+    </section>
+        """.strip()
+
+    if segment_type == "subcategory":
+        block_label = str(segment.get("label", "")).strip() or "קטלוגים"
+        block_index = int(segment.get("blockIndex") or 0)
+        if segment.get("isDirect"):
+            block_base_id = f"{base_section_id}-general"
+            share_path = category_share_path
+        else:
+            block_base_id = _subcategory_section_id(category, group_index, block_label, block_index)
+            share_path = f"{category_share_path}/{_subcategory_share_slug(taxonomy, category, block_label, block_index)}"
+        section_id = block_base_id if int(segment["segmentIndex"]) == 0 else f"{block_base_id}-part-{int(segment['segmentIndex']) + 1}"
+        title_id = f"{section_id}-title"
+        span = _clamp_catalog_span(segment["span"], 3)
+        cards = "".join(
+            _home_catalog_card(
+                catalog,
+                config,
+                eager=str(catalog.get("id", "")).strip() in eager_catalog_ids,
+                heading_level=4,
+            )
+            for catalog in segment["items"]
+        )
+        return f"""
+    <section class="catalog-subcategory-section" id="{html.escape(section_id, quote=True)}" aria-labelledby="{html.escape(title_id, quote=True)}" style="--subcategory-span: {span};" data-category-focus-target="{html.escape(block_base_id, quote=True)}" data-parent-category-target="{html.escape(base_section_id, quote=True)}" data-category-share-path="{html.escape(share_path, quote=True)}" data-subcategory-span="{span}" data-inline-divider="{'1' if segment.get('inlineDivider') else '0'}" data-subcategory-continuation="{'1' if int(segment['itemOffset']) > 0 else '0'}">
+      <div class="catalog-category-head catalog-subcategory-head">
+        <h3 id="{html.escape(title_id, quote=True)}">{html.escape(block_label)}</h3>
+      </div>
+      <div class="catalog-grid catalog-category-grid catalog-subcategory-grid">
+        {cards}
+      </div>
+    </section>
+        """.strip()
+
+    section_id = base_section_id if int(segment["itemOffset"]) == 0 else f"{base_section_id}-part-{int(segment['segmentIndex']) + 1}"
+    title_id = f"{section_id}-title"
+    span = int(segment["span"])
+    cards = "".join(
+        _home_catalog_card(
+            catalog,
+            config,
+            eager=str(catalog.get("id", "")).strip() in eager_catalog_ids,
+            heading_level=3,
+        )
+        for catalog in segment["items"]
+    )
+    return f"""
+    <section class="catalog-category-section" id="{html.escape(section_id, quote=True)}" aria-labelledby="{html.escape(title_id, quote=True)}" style="--category-span: {span}; --subcategory-layout-columns: {safe_columns};" data-category-focus-target="{html.escape(base_section_id, quote=True)}" data-category-share-path="{html.escape(category_share_path, quote=True)}" data-category-span="{span}" data-inline-divider="{'1' if segment.get('inlineDivider') else '0'}" data-category-continuation="{'1' if int(segment['itemOffset']) > 0 else '0'}">
+      <div class="catalog-category-head">
+        <h2 id="{html.escape(title_id, quote=True)}">{html.escape(category)}</h2>
+      </div>
+      <div class="catalog-grid catalog-category-grid">
+        {cards}
+      </div>
+    </section>
+    """.strip()
+
+
 def static_home_catalog_grid(
     catalogs: Sequence[Mapping[str, Any]],
     taxonomy: Taxonomy,
     config: SeoConfig,
 ) -> str:
-    sections: list[str] = []
+    columns = INITIAL_HOME_CATALOG_COLUMNS
+    groups = _catalog_category_groups(catalogs)
+    segments = _catalog_layout_segments(groups, columns)
     eager_catalog_ids = {
         str(item.get("id", "")).strip()
         for item in catalogs[:2]
     }
-    for category in active_categories(taxonomy, catalogs):
-        category_catalogs = catalogs_for_category(catalogs, category.name)
-        cards = "\n".join(
-            catalog_card(
-                item,
-                config,
-                eager=str(item.get("id", "")).strip() in eager_catalog_ids,
-            )
-            for item in category_catalogs
+    rendered = [
+        _render_home_catalog_segment(
+            segment,
+            taxonomy,
+            config,
+            eager_catalog_ids,
+            columns=columns,
         )
-        category_href = f"/{category_path(category)}"
-        sections.append(
-            '<section class="catalog-category-section" '
-            f'data-category-section="{html.escape(category.name, quote=True)}">'
-            '<div class="catalog-category-heading">'
-            f'<h2><a href="{html.escape(category_href, quote=True)}">{html.escape(category.name)}</a></h2>'
-            f'<a class="catalog-category-all-link" href="{html.escape(category_href, quote=True)}">לכל הקטלוגים בקטגוריה</a>'
-            '</div>'
-            f'<div class="catalog-grid">{cards}</div>'
-            '</section>'
-        )
-    return "\n".join(sections)
+        for segment in segments
+    ]
+    if not rendered:
+        return ""
 
+    catalog_ids_json = json.dumps(
+        [str(item.get("id", "")).strip() for item in catalogs],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    marker = (
+        f'data-initial-catalog-layout-columns="{columns}" '
+        f'data-initial-catalog-ids="{html.escape(catalog_ids_json, quote=True)}" '
+    )
+    rendered[0] = rendered[0].replace("<section ", f"<section {marker}", 1)
+    return "\n".join(rendered)
 
 def default_site_shell_replacements(
     page: PageDocument,

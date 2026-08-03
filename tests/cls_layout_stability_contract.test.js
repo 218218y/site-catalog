@@ -15,6 +15,7 @@ const geometry = read("src/js/54-viewer-geometry.js");
 const viewerImage = read("src/js/53-viewer-image.js");
 const sharedUi = read("src/js/20-shared-ui.js");
 const catalogGrid = read("src/js/40-catalog-grid.js");
+const catalogInitialHydration = read("src/js/41-catalog-initial-hydration.js");
 const css = readAllCssBundles();
 const catalogs = JSON.parse(read("catalogs.generated.json"));
 
@@ -48,6 +49,15 @@ for (const catalog of catalogs) {
   });
 }
 
+assert.match(catalogInitialHydration, /function canHydrateInitialCatalogCards\(grid, columns, catalogs\)/);
+assert.match(catalogInitialHydration, /querySelector\("\[data-initial-catalog-layout-columns\]\[data-initial-catalog-ids\]"\)/);
+assert.match(catalogInitialHydration, /requireFeatureInterface\("catalog-grid"\)\.setInitialLayoutHydrator\(canHydrateInitialCatalogCards\)/);
+assert.match(catalogGrid, /function setInitialLayoutHydrator\(hydrator\)/);
+assert.match(catalogGrid, /if \(!initialLayoutHydrator\?\.\(catalogElements\.catalogGrid, columns, catalogs\)\) \{[\s\S]*?catalogElements\.catalogGrid\.innerHTML = categorySegments/s);
+assert.match(pageBuilder, /INITIAL_HOME_CATALOG_COLUMNS = 3/);
+assert.match(pageBuilder, /def _catalog_layout_segments\([\s\S]*?Mirror searchCatalogDomain\.catalogCategorySegments for first paint\./);
+assert.match(pageBuilder, /data-initial-catalog-layout-columns=/);
+assert.match(pageBuilder, /data-catalog-card-id=/);
 assert.match(catalogGrid, /catalogImageDimensionAttributes\(catalog, 1\)/);
 assert.match(catalogGrid, /pageAspectVariableStyle\(catalog, page, "--page-thumb-aspect-ratio"\)/);
 assert.match(sharedUi, /function catalogImageDimensionAttributes\(catalog, page\)/);

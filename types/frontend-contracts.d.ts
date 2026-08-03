@@ -599,6 +599,7 @@ export type CatalogGridFeatureApi = {
     attachEvents: () => void;
     initialize: () => void;
     renderInitialContent: () => void;
+    setInitialLayoutHydrator: (hydrator: ((grid: HTMLElement, columns: number, catalogs: ReadonlyArray<CatalogRecord>) => boolean)) => void;
     renderEmptyState: () => void;
     openCatalog: (catalogId: string, options?: CatalogOpenOptions) => void;
     closeMobileMenu: (options?: MobileMenuCloseOptions) => void;

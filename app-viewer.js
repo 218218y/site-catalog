@@ -4067,6 +4067,10 @@ function syncCatalogCategoryFocusFromHash(options = {}) {
   let { scroll = !1 } = options;
   return scroll && section.scrollIntoView({ behavior: "smooth", block: "start" }), markCatalogCategoryFocus(section, { ...options, targetId });
 }
+var initialLayoutHydrator;
+function setInitialLayoutHydrator(hydrator) {
+  initialLayoutHydrator = hydrator;
+}
 function catalogLayoutColumnCount() {
   return searchCatalogDomain.catalogColumnCount({
     mobile: !!window.matchMedia?.("(max-width: 760px)").matches,
@@ -4189,12 +4193,14 @@ function renderCatalogCards() {
   let groups = getCatalogCategoryGroups(), totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
   catalogElements.catalogCount && (catalogElements.catalogCount.textContent = String(catalogs.length)), catalogElements.pageCount && (catalogElements.pageCount.textContent = String(totalPages)), renderCategoryNav(groups);
   let columns = catalogLayoutColumnCount();
-  catalogState.catalogLayoutColumns = columns;
-  let categorySegments = (
-    /** @type {Array<CatalogLayoutSegment>} */
-    searchCatalogDomain.catalogCategorySegments(groups, columns)
-  );
-  if (catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns)), catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join(""), catalogElements.catalogGrid.setAttribute("aria-busy", "false"), catalogElements.catalogLoadStatus) {
+  if (catalogState.catalogLayoutColumns = columns, catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns)), !initialLayoutHydrator?.(catalogElements.catalogGrid, columns, catalogs)) {
+    let categorySegments = (
+      /** @type {Array<CatalogLayoutSegment>} */
+      searchCatalogDomain.catalogCategorySegments(groups, columns)
+    );
+    catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
+  }
+  if (catalogElements.catalogGrid.setAttribute("aria-busy", "false"), catalogElements.catalogLoadStatus) {
     let count = catalogs.length;
     catalogElements.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
   }
@@ -4359,6 +4365,7 @@ registerFeatureInterface("catalog-grid", {
   renderInitialContent: () => {
     renderCatalogCards(), fillCatalogSelect();
   },
+  setInitialLayoutHydrator,
   renderEmptyState,
   openCatalog,
   closeMobileMenu: (options = {}) => closeMobileCategoryMenu(options),

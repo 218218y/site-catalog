@@ -22,6 +22,7 @@
  *   - src/js/30-favorites-share.js
  *   - src/js/39-search-catalog-domain.js
  *   - src/js/40-catalog-grid.js
+ *   - src/js/41-catalog-initial-hydration.js
  *   - src/js/50-search-ui.js
  *   - src/js/80-app-shell.js
  *   - src/js/90-bootstrap.js
@@ -3126,6 +3127,10 @@ function syncCatalogCategoryFocusFromHash(options = {}) {
   let { scroll = !1 } = options;
   return scroll && section.scrollIntoView({ behavior: "smooth", block: "start" }), markCatalogCategoryFocus(section, { ...options, targetId });
 }
+var initialLayoutHydrator;
+function setInitialLayoutHydrator(hydrator) {
+  initialLayoutHydrator = hydrator;
+}
 function catalogLayoutColumnCount() {
   return searchCatalogDomain.catalogColumnCount({
     mobile: !!window.matchMedia?.("(max-width: 760px)").matches,
@@ -3248,12 +3253,14 @@ function renderCatalogCards() {
   let groups = getCatalogCategoryGroups(), totalPages = catalogs.reduce((sum, item) => sum + Number(item.pages || 0), 0);
   catalogElements.catalogCount && (catalogElements.catalogCount.textContent = String(catalogs.length)), catalogElements.pageCount && (catalogElements.pageCount.textContent = String(totalPages)), renderCategoryNav(groups);
   let columns = catalogLayoutColumnCount();
-  catalogState.catalogLayoutColumns = columns;
-  let categorySegments = (
-    /** @type {Array<CatalogLayoutSegment>} */
-    searchCatalogDomain.catalogCategorySegments(groups, columns)
-  );
-  if (catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns)), catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join(""), catalogElements.catalogGrid.setAttribute("aria-busy", "false"), catalogElements.catalogLoadStatus) {
+  if (catalogState.catalogLayoutColumns = columns, catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns)), !initialLayoutHydrator?.(catalogElements.catalogGrid, columns, catalogs)) {
+    let categorySegments = (
+      /** @type {Array<CatalogLayoutSegment>} */
+      searchCatalogDomain.catalogCategorySegments(groups, columns)
+    );
+    catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
+  }
+  if (catalogElements.catalogGrid.setAttribute("aria-busy", "false"), catalogElements.catalogLoadStatus) {
     let count = catalogs.length;
     catalogElements.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
   }
@@ -3418,6 +3425,7 @@ registerFeatureInterface("catalog-grid", {
   renderInitialContent: () => {
     renderCatalogCards(), fillCatalogSelect();
   },
+  setInitialLayoutHydrator,
   renderEmptyState,
   openCatalog,
   closeMobileMenu: (options = {}) => closeMobileCategoryMenu(options),
@@ -3452,6 +3460,23 @@ registerFeatureInterface("catalog-detail", {
   containsTarget: (target) => target instanceof Node && (catalogElements.catalogMenu.contains(target) || catalogElements.catalogMenuToggle.contains(target)),
   closeTopLayer: () => catalogElements.catalogMenu.classList.contains("hidden") ? !1 : (closeDetailCatalogMenu(), !0)
 });
+
+// src/js/41-catalog-initial-hydration.js
+function canHydrateInitialCatalogCards(grid, columns, catalogs3) {
+  let marker = grid.querySelector("[data-initial-catalog-layout-columns][data-initial-catalog-ids]");
+  if (!(marker instanceof HTMLElement) || Number.parseInt(marker.dataset.initialCatalogLayoutColumns || "", 10) !== columns) return !1;
+  let initialCatalogIds;
+  try {
+    initialCatalogIds = JSON.parse(marker.dataset.initialCatalogIds || "[]");
+  } catch {
+    return !1;
+  }
+  let expectedCatalogIds = catalogs3.map((catalog) => String(catalog?.id || ""));
+  if (!Array.isArray(initialCatalogIds) || initialCatalogIds.length !== expectedCatalogIds.length || initialCatalogIds.some((catalogId, index) => String(catalogId) !== expectedCatalogIds[index])) return !1;
+  let renderedCatalogIds = Array.from(grid.querySelectorAll(".catalog-card[data-catalog-card-id]")).map((card) => card instanceof HTMLElement ? String(card.dataset.catalogCardId || "") : "");
+  return renderedCatalogIds.length === expectedCatalogIds.length && renderedCatalogIds.every((catalogId, index) => catalogId === expectedCatalogIds[index]);
+}
+requireFeatureInterface("catalog-grid").setInitialLayoutHydrator(canHydrateInitialCatalogCards);
 
 // src/js/80-app-shell.js
 function attachShellEvents() {

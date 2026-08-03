@@ -24,6 +24,7 @@ import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-sea
 /** @typedef {{focusFirst?:boolean, focusButton?:boolean}} MobileCategoryMenuOptions */
 /** @typedef {{scroll?:boolean, animate?:boolean, targetId?:string, clearHash?:boolean}} CatalogCategoryFocusOptions */
 /** @typedef {{blockKey:string, blockIndex?:number, label?:string, isDirect?:boolean, items:Array<CatalogRecord>}} CatalogSubcategoryBlock */
+/** @typedef {(grid:HTMLElement, columns:number, catalogs:ReadonlyArray<CatalogRecord>)=>boolean} CatalogInitialLayoutHydrator */
 /** @typedef {CatalogSubcategoryBlock & {blockOrder:number, segmentIndex:number, itemOffset:number, span:number, inlineDivider:boolean}} CatalogSubcategoryLayoutSegment */
 /** @typedef {{segmentType?:"category"|"subcategory", layoutBlockKey?:string, hasSubcategories?:boolean, blockOrder?:number}} CatalogSegmentAppendOptions */
 /**
@@ -505,6 +506,14 @@ function syncCatalogCategoryFocusFromHash(options = {}) {
 }
 
 
+/** @type {CatalogInitialLayoutHydrator|undefined} */
+let initialLayoutHydrator;
+
+/** @param {CatalogInitialLayoutHydrator} hydrator */
+function setInitialLayoutHydrator(hydrator) {
+  initialLayoutHydrator = hydrator;
+}
+
 function catalogLayoutColumnCount() {
   return searchCatalogDomain.catalogColumnCount({
     mobile: Boolean(window.matchMedia?.("(max-width: 760px)").matches),
@@ -697,16 +706,18 @@ function renderCatalogCards() {
 
   const columns = catalogLayoutColumnCount();
   catalogState.catalogLayoutColumns = columns;
-  const categorySegments = /** @type {Array<CatalogLayoutSegment>} */ (searchCatalogDomain.catalogCategorySegments(groups, columns));
-
   catalogElements.catalogGrid.style.setProperty("--catalog-layout-columns", String(columns));
-  catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
+
+  if (!initialLayoutHydrator?.(catalogElements.catalogGrid, columns, catalogs)) {
+    const categorySegments = /** @type {Array<CatalogLayoutSegment>} */ (searchCatalogDomain.catalogCategorySegments(groups, columns));
+    catalogElements.catalogGrid.innerHTML = categorySegments.map((segment) => renderCatalogCategorySegment(segment, columns)).join("");
+  }
+
   catalogElements.catalogGrid.setAttribute("aria-busy", "false");
   if (catalogElements.catalogLoadStatus) {
     const count = catalogs.length;
     catalogElements.catalogLoadStatus.textContent = count === 1 ? "קטלוג אחד נטען." : `${count} קטלוגים נטענו.`;
   }
-
   bindCatalogCardEvents();
   syncCatalogCategoryFocusFromHash({ animate: false });
 }
@@ -1012,6 +1023,7 @@ registerFeatureInterface("catalog-grid", {
     renderCatalogCards();
     fillCatalogSelect();
   },
+  setInitialLayoutHydrator,
   renderEmptyState,
   openCatalog,
   closeMobileMenu: (options = {}) => closeMobileCategoryMenu(options),

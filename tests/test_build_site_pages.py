@@ -88,3 +88,30 @@ def test_route_bundle_tokens_honor_deploy_asset_rewrites(tmp_path: Path) -> None
         assert "{{ROUTE_SCRIPT}}" not in html
         for raw_asset in {asset for pair in MODULE.ROUTE_ASSETS.values() for asset in pair}:
             assert f'="{raw_asset}"' not in html, (route_name, raw_asset)
+
+
+def test_home_initial_catalog_layout_matches_runtime_three_column_policy() -> None:
+    catalogs = MODULE.read_catalogs(ROOT)
+    taxonomy = MODULE.load_taxonomy(ROOT)
+    config = MODULE.load_seo_config(ROOT)
+    groups = MODULE._catalog_category_groups(catalogs)
+    segments = MODULE._catalog_layout_segments(groups, MODULE.INITIAL_HOME_CATALOG_COLUMNS)
+
+    assert [
+        (segment["segmentType"], segment["span"], [item["id"] for item in segment["items"]])
+        for segment in segments[:2]
+    ] == [
+        ("category", 2, ["opening-tbi-2026", "opening-fredi-2026"]),
+        ("category", 1, ["sliding-tbi-2026"]),
+    ]
+
+    markup = MODULE.static_home_catalog_grid(catalogs, taxonomy, config)
+    assert 'data-initial-catalog-layout-columns="3"' in markup
+    assert markup.index('data-catalog-card-id="opening-tbi-2026"') < markup.index(
+        'data-catalog-card-id="opening-fredi-2026"'
+    ) < markup.index('data-catalog-card-id="sliding-tbi-2026"')
+    assert 'style="--category-span: 2; --subcategory-layout-columns: 3;"' in markup
+    assert 'style="--category-span: 1; --subcategory-layout-columns: 3;"' in markup
+    assert 'class="catalog-cover-frame catalog-image-frame catalog-cover-button"' in markup
+    assert 'data-open-catalog-preview="opening-tbi-2026"' in markup
+    assert "seo-catalog-card" not in markup
