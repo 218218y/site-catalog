@@ -233,6 +233,34 @@
   font-weight: 720;
   line-height: 1.48;
 }
+.viewer-onboarding-note.is-tip {
+  position: relative;
+  padding: 13px 46px 13px 14px;
+  color: #5f4217;
+  border-color: rgba(177, 119, 25, 0.28);
+  background:
+    radial-gradient(circle at top right, rgba(255, 226, 149, 0.42), transparent 46%),
+    linear-gradient(135deg, rgba(255, 250, 232, 0.98), rgba(247, 226, 178, 0.9));
+  box-shadow: 0 10px 28px rgba(111, 77, 27, 0.12), inset 0 1px 0 rgba(255,255,255,0.82);
+  font-size: .88rem;
+  font-weight: 850;
+}
+.viewer-onboarding-note.is-tip::before {
+  content: "★";
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #8a590d;
+  background: rgba(255,255,255,0.68);
+  box-shadow: 0 4px 12px rgba(111, 77, 27, 0.12);
+  font-size: .9rem;
+  line-height: 1;
+}
 .viewer-onboarding-actions {
   display: grid;
   grid-template-columns: minmax(92px, .72fr) minmax(132px, 1.28fr);

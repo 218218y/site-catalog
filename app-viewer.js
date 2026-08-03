@@ -2438,7 +2438,9 @@ function buildViewerInquiryMailtoUrl(emailAddress, reference) {
 var inquiryState = {
   open: !1,
   returnFocus: null,
-  reference: null
+  reference: null,
+  tipOpenCount: 0,
+  tipShown: !1
 }, inquiryElements = Object.freeze({
   viewerInquiryButton: $requiredButton("viewerInquiryButton"),
   viewerInquiryOverlay: requiredElement("viewerInquiryOverlay"),
@@ -2447,18 +2449,18 @@ var inquiryState = {
   viewerInquiryEyebrow: requiredElement("viewerInquiryEyebrow"),
   viewerInquiryTitle: requiredElement("viewerInquiryTitle"),
   viewerInquiryDescription: requiredElement("viewerInquiryDescription"),
+  viewerInquiryFavoritesTip: requiredElement("viewerInquiryFavoritesTip"),
   viewerInquiryReference: requiredElement("viewerInquiryReference"),
   viewerInquiryCatalog: requiredElement("viewerInquiryCatalog"),
   viewerInquiryPage: requiredElement("viewerInquiryPage"),
   viewerInquiryPreview: $requiredImage("viewerInquiryPreview"),
-  viewerInquiryActions: requiredElement("viewerInquiryActions"),
   viewerInquiryGmail: $requiredAnchor("viewerInquiryGmail"),
   viewerInquiryEmail: $requiredAnchor("viewerInquiryEmail"),
   viewerInquiryShare: $requiredButton("viewerInquiryShare"),
   viewerInquiryCopy: $requiredButton("viewerInquiryCopy")
 });
 function viewerInquiryFooterEmail() {
-  let link = Array.from(document.querySelectorAll(".site-footer-contact-list a[href]")).find((candidate) => String(candidate.getAttribute("href") || "").startsWith("mailto:"));
+  let link = document.querySelector('.site-footer-contact-list a[href^="mailto:"]');
   return link instanceof HTMLAnchorElement ? link : null;
 }
 function viewerInquiryEmailAddress() {
@@ -2525,7 +2527,6 @@ function viewerInquiryTelemetryFields(reference, action, detail = "") {
   };
 }
 function syncViewerInquiryContactLink(link, href, reference, action) {
-  if (!link) return;
   let available = !!href;
   if (link.classList.toggle("hidden", !available), link.setAttribute("aria-hidden", available ? "false" : "true"), !available) {
     link.removeAttribute("href"), delete link.dataset.contactSource, delete link.dataset.contactAction, delete link.dataset.contactCatalogId, delete link.dataset.contactPage;
@@ -2536,12 +2537,12 @@ function syncViewerInquiryContactLink(link, href, reference, action) {
 }
 function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   if (!reference) return;
-  if (inquiryElements.viewerInquiryEyebrow && (inquiryElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית"), inquiryElements.viewerInquiryTitle && (inquiryElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם"), inquiryElements.viewerInquiryDescription && (inquiryElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש."), inquiryElements.viewerInquiryCatalog && (inquiryElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title), inquiryElements.viewerInquiryPage && (inquiryElements.viewerInquiryPage.textContent = reference.pageLabel || ""), inquiryElements.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites"), inquiryElements.viewerInquiryButton && reference.kind === "viewer") {
+  if (inquiryElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית", inquiryElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם", inquiryElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.", inquiryElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title, inquiryElements.viewerInquiryPage.textContent = reference.pageLabel || "", inquiryElements.viewerInquiryReference.classList.toggle("is-bulk", reference.kind === "favorites"), reference.kind === "viewer") {
     let label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
     inquiryElements.viewerInquiryButton.setAttribute("aria-label", label);
   }
   let previewCatalog = reference.previewCatalog || reference.catalog, rawPreviewPage = reference.previewPage ?? reference.page, previewPage = Number.isFinite(Number(rawPreviewPage)) ? Number(rawPreviewPage) : 1;
-  if (inquiryElements.viewerInquiryPreview && previewCatalog) {
+  if (previewCatalog) {
     let preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
     inquiryElements.viewerInquiryPreview.getAttribute("src") !== preview && (inquiryElements.viewerInquiryPreview.src = preview), inquiryElements.viewerInquiryPreview.alt = reference.kind === "favorites" ? `תצוגה מקדימה של ${reference.referenceTitle}` : `${reference.referenceTitle}, עמוד ${previewPage}`;
   }
@@ -2571,18 +2572,20 @@ function getViewerInquiryFocusableElements() {
 }
 function openViewerInquiry(options = {}) {
   let reference = options.reference || viewerPageInquiryReference();
-  if (!reference || !inquiryElements.viewerInquiryOverlay) return;
+  if (!reference) return;
   getFeatureInterface("viewer")?.prepareInquiry?.();
   let returnFocus = isHtmlElement(options.returnFocus) ? options.returnFocus : isHtmlElement(document.activeElement) ? document.activeElement : inquiryElements.viewerInquiryButton;
-  inquiryState.reference = reference, inquiryState.open = !0, inquiryState.returnFocus = returnFocus, syncViewerInquiryUi(reference), inquiryElements.viewerInquiryOverlay.classList.remove("hidden"), inquiryElements.viewerInquiryOverlay.setAttribute("aria-hidden", "false"), setViewerInquiryTriggerState(!0, returnFocus), syncDocumentLock(), window.requestAnimationFrame(() => {
-    inquiryState.open && (inquiryElements.viewerInquiryOverlay?.classList.add("visible"), focusHtmlElement(inquiryElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0], { preventScroll: !0 }));
+  inquiryState.reference = reference, inquiryState.open = !0, inquiryState.returnFocus = returnFocus, syncViewerInquiryUi(reference);
+  let showTip = reference.kind === "viewer" && !inquiryState.tipShown && ++inquiryState.tipOpenCount >= 2;
+  showTip && (inquiryState.tipShown = !0), inquiryElements.viewerInquiryFavoritesTip.hidden = !showTip, inquiryElements.viewerInquiryOverlay.classList.remove("hidden"), inquiryElements.viewerInquiryOverlay.setAttribute("aria-hidden", "false"), setViewerInquiryTriggerState(!0, returnFocus), syncDocumentLock(), window.requestAnimationFrame(() => {
+    inquiryState.open && (inquiryElements.viewerInquiryOverlay.classList.add("visible"), focusHtmlElement(inquiryElements.viewerInquiryClose, { preventScroll: !0 }));
   });
 }
 function closeViewerInquiry(options = {}) {
-  if (!inquiryState.open && inquiryElements.viewerInquiryOverlay?.classList.contains("hidden")) return;
+  if (!inquiryState.open) return;
   let { restoreFocus = !0 } = options, returnFocus = inquiryState.returnFocus;
-  inquiryState.open = !1, inquiryState.returnFocus = null, inquiryState.reference = null, inquiryElements.viewerInquiryOverlay?.classList.remove("visible"), inquiryElements.viewerInquiryOverlay?.setAttribute("aria-hidden", "true"), setViewerInquiryTriggerState(!1), syncDocumentLock(), window.setTimeout(() => {
-    inquiryState.open || inquiryElements.viewerInquiryOverlay?.classList.add("hidden");
+  inquiryState.open = !1, inquiryState.returnFocus = null, inquiryState.reference = null, inquiryElements.viewerInquiryFavoritesTip.hidden = !0, inquiryElements.viewerInquiryOverlay.classList.remove("visible"), inquiryElements.viewerInquiryOverlay.setAttribute("aria-hidden", "true"), setViewerInquiryTriggerState(!1), syncDocumentLock(), window.setTimeout(() => {
+    inquiryState.open || inquiryElements.viewerInquiryOverlay.classList.add("hidden");
   }, 180), restoreFocus && focusHtmlElement(returnFocus || inquiryElements.viewerInquiryButton, { preventScroll: !0 });
 }
 function handleViewerInquiryKeydown(event) {
@@ -2636,10 +2639,10 @@ async function shareViewerInquiryReference() {
   }
 }
 function attachSharedInquiryEvents() {
-  inquiryElements.viewerInquiryButton?.addEventListener("click", (event) => {
+  inquiryElements.viewerInquiryButton.addEventListener("click", (event) => {
     event.preventDefault(), event.stopPropagation(), openViewerInquiry({ returnFocus: inquiryElements.viewerInquiryButton });
-  }), inquiryElements.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry()), inquiryElements.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry()), inquiryElements.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference()), inquiryElements.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference()), inquiryElements.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown), [inquiryElements.viewerInquiryGmail, inquiryElements.viewerInquiryEmail].forEach((link) => {
-    link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: !1 }), 0));
+  }), inquiryElements.viewerInquiryBackdrop.addEventListener("click", () => closeViewerInquiry()), inquiryElements.viewerInquiryClose.addEventListener("click", () => closeViewerInquiry()), inquiryElements.viewerInquiryShare.addEventListener("click", () => shareViewerInquiryReference()), inquiryElements.viewerInquiryCopy.addEventListener("click", () => copyViewerInquiryReference()), inquiryElements.viewerInquiryOverlay.addEventListener("keydown", handleViewerInquiryKeydown), [inquiryElements.viewerInquiryGmail, inquiryElements.viewerInquiryEmail].forEach((link) => {
+    link.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: !1 }), 0));
   });
 }
 registerFeatureInterface("inquiry", {
@@ -5941,10 +5944,10 @@ function getViewerOnboardingSteps() {
     },
     {
       id: "inquiry",
-      eyebrow: "מצאתם דגם מתאים?",
-      title: "שמירה, שיתוף ובירור",
-      description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
-      note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
+      eyebrow: "חוסכים פניות מיותרות",
+      title: "מועדפים ובירור אחד מרוכז",
+      description: "סמנו בכוכב כמה דגמים, פתחו את מסך המועדפים, בחרו אותם ולחצו על „בירור על הדגמים” — כולם יצורפו להודעה אחת.",
+      note: "טיפ: במקום בירור נפרד לכל דגם, מרכזים בכוכב ושולחים בירור אחד מהמועדפים.",
       target: () => getFeatureInterface("inquiry")?.onboardingTarget() || null,
       floatingTargets: () => {
         let inquiryTarget = getFeatureInterface("inquiry")?.onboardingTarget(), favoriteTarget = getFeatureInterface("favorites")?.onboardingTarget();
@@ -6119,7 +6122,7 @@ function renderViewerOnboardingStep(options = {}) {
   viewerOnboardingState.viewerOnboardingStep = clampValue(viewerOnboardingState.viewerOnboardingStep, 0, Math.max(0, steps.length - 1));
   let step = steps[viewerOnboardingState.viewerOnboardingStep];
   if (!step) return;
-  (viewerOnboardingState.viewerOnboardingFloatingTargets || []).every((entry) => entry.stepId === step.id) || removeViewerOnboardingFloatingTargets(), viewerElements.lightbox?.classList.toggle("viewer-tour-show-top-ui", !!step.revealTopBar), viewerElements.lightbox?.classList.toggle("viewer-tour-show-page-rail", !!step.revealPageRail), step.revealTopBar && window.clearTimeout(viewerChromeState.uiHideTimer), step.revealPageRail && window.clearTimeout(viewerChromeState.pageRailHideTimer), viewerElements.viewerOnboardingEyebrow && (viewerElements.viewerOnboardingEyebrow.textContent = step.eyebrow || "סיור קצר"), viewerElements.viewerOnboardingTitle && (viewerElements.viewerOnboardingTitle.textContent = step.title), viewerElements.viewerOnboardingDescription && (viewerElements.viewerOnboardingDescription.textContent = step.description), viewerElements.viewerOnboardingCounter && (viewerElements.viewerOnboardingCounter.textContent = `${viewerOnboardingState.viewerOnboardingStep + 1} מתוך ${steps.length}`), viewerElements.viewerOnboardingNote && (viewerElements.viewerOnboardingNote.textContent = step.note || "", viewerElements.viewerOnboardingNote.classList.toggle("hidden", !step.note)), viewerElements.viewerOnboardingPrevious && (viewerElements.viewerOnboardingPrevious.disabled = viewerOnboardingState.viewerOnboardingStep === 0), viewerElements.viewerOnboardingNext && (viewerElements.viewerOnboardingNext.textContent = viewerOnboardingState.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא"), viewerElements.viewerOnboardingDots && (viewerElements.viewerOnboardingDots.innerHTML = steps.map((_, index) => `<span${index === viewerOnboardingState.viewerOnboardingStep ? ' class="active"' : ""}></span>`).join("")), scheduleLayout && (scheduleViewerOnboardingLayout(), scheduleViewerOnboardingLayout(260)), focus && window.requestAnimationFrame(() => viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: !0 }));
+  (viewerOnboardingState.viewerOnboardingFloatingTargets || []).every((entry) => entry.stepId === step.id) || removeViewerOnboardingFloatingTargets(), viewerElements.lightbox?.classList.toggle("viewer-tour-show-top-ui", !!step.revealTopBar), viewerElements.lightbox?.classList.toggle("viewer-tour-show-page-rail", !!step.revealPageRail), step.revealTopBar && window.clearTimeout(viewerChromeState.uiHideTimer), step.revealPageRail && window.clearTimeout(viewerChromeState.pageRailHideTimer), viewerElements.viewerOnboardingEyebrow && (viewerElements.viewerOnboardingEyebrow.textContent = step.eyebrow || "סיור קצר"), viewerElements.viewerOnboardingTitle && (viewerElements.viewerOnboardingTitle.textContent = step.title), viewerElements.viewerOnboardingDescription && (viewerElements.viewerOnboardingDescription.textContent = step.description), viewerElements.viewerOnboardingCounter && (viewerElements.viewerOnboardingCounter.textContent = `${viewerOnboardingState.viewerOnboardingStep + 1} מתוך ${steps.length}`), viewerElements.viewerOnboardingNote && (viewerElements.viewerOnboardingNote.textContent = step.note || "", viewerElements.viewerOnboardingNote.classList.toggle("hidden", !step.note), viewerElements.viewerOnboardingNote.classList.toggle("is-tip", step.id === "inquiry")), viewerElements.viewerOnboardingPrevious && (viewerElements.viewerOnboardingPrevious.disabled = viewerOnboardingState.viewerOnboardingStep === 0), viewerElements.viewerOnboardingNext && (viewerElements.viewerOnboardingNext.textContent = viewerOnboardingState.viewerOnboardingStep === steps.length - 1 ? "סיום" : "הבא"), viewerElements.viewerOnboardingDots && (viewerElements.viewerOnboardingDots.innerHTML = steps.map((_, index) => `<span${index === viewerOnboardingState.viewerOnboardingStep ? ' class="active"' : ""}></span>`).join("")), scheduleLayout && (scheduleViewerOnboardingLayout(), scheduleViewerOnboardingLayout(260)), focus && window.requestAnimationFrame(() => viewerElements.viewerOnboardingNext?.focus?.({ preventScroll: !0 }));
 }
 function moveViewerOnboardingStep(delta) {
   if (!viewerOnboardingState.viewerOnboardingOpen) return;

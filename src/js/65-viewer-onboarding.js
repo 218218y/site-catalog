@@ -89,10 +89,10 @@ function getViewerOnboardingSteps() {
     },
     {
       id: "inquiry",
-      eyebrow: "מצאתם דגם מתאים?",
-      title: "שמירה, שיתוף ובירור",
-      description: "לחצו על „בירור על הדגם” כדי לפנות עם שם הקטלוג, מספר העמוד וקישור מדויק שכבר מוכנים עבורכם.",
-      note: "הכוכב שומר את העמוד במועדפים, וכפתור השיתוף בסרגל העליון שולח קישור ישיר.",
+      eyebrow: "חוסכים פניות מיותרות",
+      title: "מועדפים ובירור אחד מרוכז",
+      description: "סמנו בכוכב כמה דגמים, פתחו את מסך המועדפים, בחרו אותם ולחצו על „בירור על הדגמים” — כולם יצורפו להודעה אחת.",
+      note: "טיפ: במקום בירור נפרד לכל דגם, מרכזים בכוכב ושולחים בירור אחד מהמועדפים.",
       target: () => getFeatureInterface("inquiry")?.onboardingTarget() || null,
       floatingTargets: () => {
         const inquiryTarget = getFeatureInterface("inquiry")?.onboardingTarget();
@@ -484,6 +484,7 @@ function renderViewerOnboardingStep(options = {}) {
   if (viewerElements.viewerOnboardingNote) {
     viewerElements.viewerOnboardingNote.textContent = step.note || "";
     viewerElements.viewerOnboardingNote.classList.toggle("hidden", !step.note);
+    viewerElements.viewerOnboardingNote.classList.toggle("is-tip", step.id === "inquiry");
   }
   if (viewerElements.viewerOnboardingPrevious) viewerElements.viewerOnboardingPrevious.disabled = viewerOnboardingState.viewerOnboardingStep === 0;
   if (viewerElements.viewerOnboardingNext) {

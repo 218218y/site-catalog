@@ -40,7 +40,7 @@ assert.match(favoritesShareSource, /function shareOrCopyCurrentLink\([\s\S]*?cur
 assert.match(favoritesShareSource, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
 assert.match(viewerStateSource, /VIEWER_ONBOARDING_STORAGE_KEY = "bargig\.viewer-onboarding\.v2"/);
 assert.match(onboardingSource, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouchPoints[\s\S]*?ontouchstart/);
-assert.match(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "page-navigation"[\s\S]*?מעבר בין עמודים[\s\S]*?id: "zoom"[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?id: "inquiry"[\s\S]*?שמירה, שיתוף ובירור/);
+assert.match(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "page-navigation"[\s\S]*?מעבר בין עמודים[\s\S]*?id: "zoom"[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?id: "inquiry"[\s\S]*?מועדפים ובירור אחד מרוכז/);
 assert.doesNotMatch(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "top-bar"/);
 assert.doesNotMatch(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "pin-top-bar"/);
 assert.doesNotMatch(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "page-rail"/);

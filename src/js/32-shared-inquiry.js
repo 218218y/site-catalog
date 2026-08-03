@@ -18,11 +18,13 @@ import { buildViewerInquiryMailtoUrl } from "./19-shared-pure.js";
 import { clampPage, focusHtmlElement, isHtmlElement, pageSrc, showActionToast, syncDocumentLock, thumbSrc } from "./20-shared-ui.js";
 import { copyTextToClipboard } from "./30-favorites-share.js";
 
-/** @type {{open:boolean, returnFocus:HTMLElement|null, reference:InquiryReference|null}} */
+/** @type {{open:boolean, returnFocus:HTMLElement|null, reference:InquiryReference|null, tipOpenCount:number, tipShown:boolean}} */
 const inquiryState = {
   open: false,
   returnFocus: null,
-  reference: null
+  reference: null,
+  tipOpenCount: 0,
+  tipShown: false
 };
 
 const inquiryElements = Object.freeze({
@@ -33,11 +35,11 @@ const inquiryElements = Object.freeze({
   viewerInquiryEyebrow: requiredElement("viewerInquiryEyebrow"),
   viewerInquiryTitle: requiredElement("viewerInquiryTitle"),
   viewerInquiryDescription: requiredElement("viewerInquiryDescription"),
+  viewerInquiryFavoritesTip: requiredElement("viewerInquiryFavoritesTip"),
   viewerInquiryReference: requiredElement("viewerInquiryReference"),
   viewerInquiryCatalog: requiredElement("viewerInquiryCatalog"),
   viewerInquiryPage: requiredElement("viewerInquiryPage"),
   viewerInquiryPreview: $requiredImage("viewerInquiryPreview"),
-  viewerInquiryActions: requiredElement("viewerInquiryActions"),
   viewerInquiryGmail: $requiredAnchor("viewerInquiryGmail"),
   viewerInquiryEmail: $requiredAnchor("viewerInquiryEmail"),
   viewerInquiryShare: $requiredButton("viewerInquiryShare"),
@@ -46,8 +48,7 @@ const inquiryElements = Object.freeze({
 
 /** @returns {HTMLAnchorElement|null} */
 function viewerInquiryFooterEmail() {
-  const link = Array.from(document.querySelectorAll(".site-footer-contact-list a[href]"))
-    .find((candidate) => String(candidate.getAttribute("href") || "").startsWith("mailto:"));
+  const link = document.querySelector('.site-footer-contact-list a[href^="mailto:"]');
   return link instanceof HTMLAnchorElement ? link : null;
 }
 
@@ -131,7 +132,6 @@ function viewerInquiryTelemetryFields(reference, action, detail = "") {
 
 /** @param {HTMLAnchorElement} link @param {string} href @param {InquiryReference} reference @param {string} action */
 function syncViewerInquiryContactLink(link, href, reference, action) {
-  if (!link) return;
   const available = Boolean(href);
   link.classList.toggle("hidden", !available);
   link.setAttribute("aria-hidden", available ? "false" : "true");
@@ -157,14 +157,14 @@ function syncViewerInquiryContactLink(link, href, reference, action) {
 function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   if (!reference) return;
 
-  if (inquiryElements.viewerInquiryEyebrow) inquiryElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית";
-  if (inquiryElements.viewerInquiryTitle) inquiryElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם";
-  if (inquiryElements.viewerInquiryDescription) inquiryElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.";
-  if (inquiryElements.viewerInquiryCatalog) inquiryElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title;
-  if (inquiryElements.viewerInquiryPage) inquiryElements.viewerInquiryPage.textContent = reference.pageLabel || "";
-  inquiryElements.viewerInquiryReference?.classList.toggle("is-bulk", reference.kind === "favorites");
+  inquiryElements.viewerInquiryEyebrow.textContent = reference.eyebrow || "פרטי הבירור מצורפים אוטומטית";
+  inquiryElements.viewerInquiryTitle.textContent = reference.title || "בירור על הדגם";
+  inquiryElements.viewerInquiryDescription.textContent = reference.description || "פרטי הבירור והקישורים מוכנים מראש.";
+  inquiryElements.viewerInquiryCatalog.textContent = reference.referenceTitle || reference.title;
+  inquiryElements.viewerInquiryPage.textContent = reference.pageLabel || "";
+  inquiryElements.viewerInquiryReference.classList.toggle("is-bulk", reference.kind === "favorites");
 
-  if (inquiryElements.viewerInquiryButton && reference.kind === "viewer") {
+  if (reference.kind === "viewer") {
     const label = `בירור על הדגם — ${reference.referenceTitle}, עמוד ${reference.page}`;
     inquiryElements.viewerInquiryButton.setAttribute("aria-label", label);
   }
@@ -172,7 +172,7 @@ function syncViewerInquiryUi(reference = viewerInquiryReference()) {
   const previewCatalog = reference.previewCatalog || reference.catalog;
   const rawPreviewPage = reference.previewPage ?? reference.page;
   const previewPage = Number.isFinite(Number(rawPreviewPage)) ? Number(rawPreviewPage) : 1;
-  if (inquiryElements.viewerInquiryPreview && previewCatalog) {
+  if (previewCatalog) {
     const preview = thumbSrc(previewCatalog, previewPage) || pageSrc(previewCatalog, previewPage);
     if (inquiryElements.viewerInquiryPreview.getAttribute("src") !== preview) {
       inquiryElements.viewerInquiryPreview.src = preview;
@@ -217,7 +217,7 @@ function getViewerInquiryFocusableElements() {
 /** @param {InquiryOpenOptions} [options] */
 function openViewerInquiry(options = {}) {
   const reference = options.reference || viewerPageInquiryReference();
-  if (!reference || !inquiryElements.viewerInquiryOverlay) return;
+  if (!reference) return;
   getFeatureInterface("viewer")?.prepareInquiry?.();
 
   const returnFocus = isHtmlElement(options.returnFocus)
@@ -227,31 +227,37 @@ function openViewerInquiry(options = {}) {
   inquiryState.open = true;
   inquiryState.returnFocus = returnFocus;
   syncViewerInquiryUi(reference);
+  const showTip = reference.kind === "viewer"
+    && !inquiryState.tipShown
+    && ++inquiryState.tipOpenCount >= 2;
+  if (showTip) inquiryState.tipShown = true;
+  inquiryElements.viewerInquiryFavoritesTip.hidden = !showTip;
   inquiryElements.viewerInquiryOverlay.classList.remove("hidden");
   inquiryElements.viewerInquiryOverlay.setAttribute("aria-hidden", "false");
   setViewerInquiryTriggerState(true, returnFocus);
   syncDocumentLock();
   window.requestAnimationFrame(() => {
     if (!inquiryState.open) return;
-    inquiryElements.viewerInquiryOverlay?.classList.add("visible");
-    focusHtmlElement(inquiryElements.viewerInquiryClose || getViewerInquiryFocusableElements()[0], { preventScroll: true });
+    inquiryElements.viewerInquiryOverlay.classList.add("visible");
+    focusHtmlElement(inquiryElements.viewerInquiryClose, { preventScroll: true });
   });
 }
 
 /** @param {DialogCloseOptions} [options] */
 function closeViewerInquiry(options = {}) {
-  if (!inquiryState.open && inquiryElements.viewerInquiryOverlay?.classList.contains("hidden")) return;
+  if (!inquiryState.open) return;
   const { restoreFocus = true } = options;
   const returnFocus = inquiryState.returnFocus;
   inquiryState.open = false;
   inquiryState.returnFocus = null;
   inquiryState.reference = null;
-  inquiryElements.viewerInquiryOverlay?.classList.remove("visible");
-  inquiryElements.viewerInquiryOverlay?.setAttribute("aria-hidden", "true");
+  inquiryElements.viewerInquiryFavoritesTip.hidden = true;
+  inquiryElements.viewerInquiryOverlay.classList.remove("visible");
+  inquiryElements.viewerInquiryOverlay.setAttribute("aria-hidden", "true");
   setViewerInquiryTriggerState(false);
   syncDocumentLock();
   window.setTimeout(() => {
-    if (!inquiryState.open) inquiryElements.viewerInquiryOverlay?.classList.add("hidden");
+    if (!inquiryState.open) inquiryElements.viewerInquiryOverlay.classList.add("hidden");
   }, 180);
   if (restoreFocus) focusHtmlElement(returnFocus || inquiryElements.viewerInquiryButton, { preventScroll: true });
 }
@@ -342,18 +348,18 @@ async function shareViewerInquiryReference() {
 }
 
 function attachSharedInquiryEvents() {
-  inquiryElements.viewerInquiryButton?.addEventListener("click", (event) => {
+  inquiryElements.viewerInquiryButton.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
     openViewerInquiry({ returnFocus: inquiryElements.viewerInquiryButton });
   });
-  inquiryElements.viewerInquiryBackdrop?.addEventListener("click", () => closeViewerInquiry());
-  inquiryElements.viewerInquiryClose?.addEventListener("click", () => closeViewerInquiry());
-  inquiryElements.viewerInquiryShare?.addEventListener("click", () => shareViewerInquiryReference());
-  inquiryElements.viewerInquiryCopy?.addEventListener("click", () => copyViewerInquiryReference());
-  inquiryElements.viewerInquiryOverlay?.addEventListener("keydown", handleViewerInquiryKeydown);
+  inquiryElements.viewerInquiryBackdrop.addEventListener("click", () => closeViewerInquiry());
+  inquiryElements.viewerInquiryClose.addEventListener("click", () => closeViewerInquiry());
+  inquiryElements.viewerInquiryShare.addEventListener("click", () => shareViewerInquiryReference());
+  inquiryElements.viewerInquiryCopy.addEventListener("click", () => copyViewerInquiryReference());
+  inquiryElements.viewerInquiryOverlay.addEventListener("keydown", handleViewerInquiryKeydown);
   [inquiryElements.viewerInquiryGmail, inquiryElements.viewerInquiryEmail].forEach((link) => {
-    link?.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: false }), 0));
+    link.addEventListener("click", () => window.setTimeout(() => closeViewerInquiry({ restoreFocus: false }), 0));
   });
 }
 
