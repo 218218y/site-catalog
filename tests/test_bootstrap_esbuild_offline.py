@@ -122,6 +122,34 @@ def test_corrupted_only_archive_is_rejected_before_mutation(tmp_path: Path) -> N
     assert not (root / MODULE.CORE_INSTALL_PATH).exists()
 
 
+def test_valid_installed_runtime_does_not_require_linux_platform_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    shutil.copy2(ROOT / "package-lock.json", root / "package-lock.json")
+
+    core = OFFLINE.locked_package(root, MODULE.CORE_INSTALL_PATH)
+    core_directory = root / MODULE.CORE_INSTALL_PATH
+    core_directory.mkdir(parents=True)
+    (core_directory / "package.json").write_text(
+        json.dumps({"name": core.name, "version": core.version}),
+        encoding="utf-8",
+    )
+
+    probes: list[Path] = []
+    monkeypatch.setattr(MODULE, "verify_node_runtime", lambda base: probes.append(base))
+    monkeypatch.setattr(
+        MODULE,
+        "current_platform_key",
+        lambda: (_ for _ in ()).throw(AssertionError("offline platform detection must not run")),
+    )
+
+    assert MODULE.ensure_esbuild_available(root, quiet=True) is False
+    assert probes == [root.resolve()]
+    assert not (root / MODULE.PLATFORM_INSTALL_PATHS["linux-x64"]).exists()
+
+
 def test_valid_local_runtime_is_accepted_without_vendor_archives(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

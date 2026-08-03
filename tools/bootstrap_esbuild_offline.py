@@ -281,16 +281,18 @@ def verify_node_runtime(root: Path) -> None:
 
 
 def verify_installed_esbuild(root: Path | None = None) -> None:
+    """Verify the lockfile-pinned local runtime without assuming an OS package.
+
+    A normal ``npm ci`` installs esbuild's optional native package for the
+    current platform (for example ``@esbuild/win32-x64`` on Windows).  The
+    Linux-only offline bootstrap has its own stricter archive verification in
+    :func:`verify_offline_installation`; availability checks must accept any
+    platform package that the pinned esbuild core can successfully execute.
+    """
+
     base = (root or project_root()).resolve()
     core = _locked(base, CORE_INSTALL_PATH)
-    platform_package = _locked(base, PLATFORM_INSTALL_PATHS["linux-x64"])
     _validate_directory(base / CORE_INSTALL_PATH, name=core.name, version=core.version)
-    _validate_directory(
-        base / PLATFORM_INSTALL_PATHS["linux-x64"],
-        name=platform_package.name,
-        version=platform_package.version,
-        binary=Path("bin/esbuild"),
-    )
     verify_node_runtime(base)
 
 
