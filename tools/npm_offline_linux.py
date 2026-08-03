@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Lockfile-driven Linux x64/glibc npm offline mirror support.
+"""Lockfile-driven minimal npm mirror for Linux x64/glibc chat checks.
 
-The canonical ``package-lock.json`` remains npm-managed.  Some npm-generated
-lockfiles omit ``resolved`` and ``integrity`` for ordinary registry packages.
-Those entries are not assumed to be bundled: the online sync obtains their
-exact name/version tarball with ``npm pack`` and records the resulting SRI in a
-separate offline lockfile.  Offline installation then uses only repository
-local ``file:`` tarball references.
+The canonical ``package-lock.json`` remains npm-managed. The chat profile starts
+from direct project dependencies except the deployment-only ``wrangler`` root,
+then follows the required dependency graph and platform-compatible optional
+packages. Generated offline package/lock files use only repository-local
+``file:`` tarball references.
 """
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import json
 import os
@@ -32,7 +32,12 @@ MIRROR_DIRECTORY: Final = Path("vendor/npm") / TARGET_KEY
 ARCHIVE_DIRECTORY: Final = MIRROR_DIRECTORY / "archives"
 MANIFEST_PATH: Final = MIRROR_DIRECTORY / "manifest.json"
 OFFLINE_LOCK_PATH: Final = MIRROR_DIRECTORY / "package-lock.offline.json"
-MANIFEST_SCHEMA_VERSION: Final = 2
+OFFLINE_PACKAGE_PATH: Final = MIRROR_DIRECTORY / "package.offline.json"
+MANIFEST_SCHEMA_VERSION: Final = 3
+CHAT_PROFILE_NAME: Final = "chat-tests"
+EXCLUDED_CHAT_ROOT_PACKAGES: Final = frozenset({"wrangler"})
+ROOT_DEPENDENCY_FIELDS: Final = ("dependencies", "devDependencies", "optionalDependencies")
+PACKAGE_DEPENDENCY_FIELDS: Final = ("dependencies", "optionalDependencies")
 DOWNLOAD_USER_AGENT: Final = "site-catalog-offline-mirror/2"
 LEGACY_MIRROR_DIRECTORIES: Final = (
     Path("vendor/npm/esbuild"),
@@ -139,19 +144,157 @@ def is_target_compatible(metadata: dict[str, object]) -> bool:
     )
 
 
+def _dependency_maps(metadata: dict[str, object], fields: tuple[str, ...]) -> dict[str, dict[str, str]]:
+    result: dict[str, dict[str, str]] = {}
+    for field in fields:
+        raw = metadata.get(field)
+        if raw is None:
+            continue
+        if not isinstance(raw, dict) or not all(
+            isinstance(name, str) and isinstance(version, str) for name, version in raw.items()
+        ):
+            raise OfflineMirrorError(f"Invalid npm {field} map in package-lock.json.")
+        result[field] = dict(raw)
+    return result
+
+
+def selected_root_dependency_maps(root: Path) -> dict[str, dict[str, str]]:
+    lock = load_lockfile(root)
+    raw_packages = lock["packages"]
+    assert isinstance(raw_packages, dict)
+    root_metadata = raw_packages.get("")
+    if not isinstance(root_metadata, dict):
+        raise OfflineMirrorError("package-lock.json does not contain root package metadata.")
+    selected: dict[str, dict[str, str]] = {}
+    for field, dependencies in _dependency_maps(root_metadata, ROOT_DEPENDENCY_FIELDS).items():
+        kept = {
+            name: version
+            for name, version in dependencies.items()
+            if name not in EXCLUDED_CHAT_ROOT_PACKAGES
+        }
+        if kept:
+            selected[field] = kept
+    return selected
+
+
+def selected_root_package_names(root: Path) -> tuple[str, ...]:
+    names = {
+        name
+        for dependencies in selected_root_dependency_maps(root).values()
+        for name in dependencies
+    }
+    return tuple(sorted(names))
+
+
+def excluded_root_package_names(root: Path) -> tuple[str, ...]:
+    lock = load_lockfile(root)
+    raw_packages = lock["packages"]
+    assert isinstance(raw_packages, dict)
+    root_metadata = raw_packages.get("")
+    if not isinstance(root_metadata, dict):
+        raise OfflineMirrorError("package-lock.json does not contain root package metadata.")
+    declared = {
+        name
+        for dependencies in _dependency_maps(root_metadata, ROOT_DEPENDENCY_FIELDS).values()
+        for name in dependencies
+    }
+    return tuple(sorted(declared & EXCLUDED_CHAT_ROOT_PACKAGES))
+
+
+def _dependency_install_path_candidates(parent_install_path: str, dependency_name: str) -> tuple[str, ...]:
+    suffix = f"node_modules/{dependency_name}"
+    bases = [parent_install_path]
+    current = parent_install_path
+    while "/node_modules/" in current:
+        current = current.rsplit("/node_modules/", 1)[0]
+        bases.append(current)
+    bases.append("")
+    candidates: list[str] = []
+    for base in bases:
+        candidate = f"{base}/{suffix}" if base else suffix
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return tuple(candidates)
+
+
+def _resolve_dependency_install_path(
+    raw_packages: dict[str, object],
+    parent_install_path: str,
+    dependency_name: str,
+) -> str | None:
+    for candidate in _dependency_install_path_candidates(parent_install_path, dependency_name):
+        metadata = raw_packages.get(candidate)
+        if isinstance(metadata, dict):
+            return candidate
+    return None
+
+
+def _selected_install_paths(root: Path) -> tuple[str, ...]:
+    lock = load_lockfile(root)
+    raw_packages = lock["packages"]
+    assert isinstance(raw_packages, dict)
+    queue: list[tuple[str, str, bool]] = []
+    for dependencies in selected_root_dependency_maps(root).values():
+        for dependency_name in dependencies:
+            queue.append(("", dependency_name, False))
+
+    selected: set[str] = set()
+    while queue:
+        parent_install_path, dependency_name, optional = queue.pop(0)
+        install_path = _resolve_dependency_install_path(raw_packages, parent_install_path, dependency_name)
+        if install_path is None:
+            if optional:
+                continue
+            raise OfflineMirrorError(
+                f"Cannot resolve required dependency {dependency_name!r} from "
+                f"{parent_install_path or 'the project root'} in package-lock.json."
+            )
+        metadata = raw_packages[install_path]
+        assert isinstance(metadata, dict)
+        if not is_target_compatible(metadata):
+            if optional or metadata.get("optional") is True:
+                continue
+            raise OfflineMirrorError(
+                f"Required dependency {install_path} is incompatible with {TARGET_KEY}."
+            )
+        if install_path in selected:
+            continue
+        selected.add(install_path)
+
+        for field, dependencies in _dependency_maps(metadata, PACKAGE_DEPENDENCY_FIELDS).items():
+            is_optional = field == "optionalDependencies"
+            for child_name in dependencies:
+                queue.append((install_path, child_name, is_optional))
+
+        peers = metadata.get("peerDependencies")
+        if peers is not None:
+            if not isinstance(peers, dict) or not all(
+                isinstance(name, str) and isinstance(version, str) for name, version in peers.items()
+            ):
+                raise OfflineMirrorError(f"Invalid peerDependencies for {install_path}.")
+            peer_meta = metadata.get("peerDependenciesMeta")
+            if peer_meta is not None and not isinstance(peer_meta, dict):
+                raise OfflineMirrorError(f"Invalid peerDependenciesMeta for {install_path}.")
+            for peer_name in peers:
+                optional_peer = False
+                if isinstance(peer_meta, dict):
+                    raw_peer_meta = peer_meta.get(peer_name)
+                    optional_peer = isinstance(raw_peer_meta, dict) and raw_peer_meta.get("optional") is True
+                queue.append((install_path, peer_name, optional_peer))
+
+    return tuple(sorted(selected))
+
+
 def locked_packages(root: Path) -> tuple[LockedPackage, ...]:
     lock = load_lockfile(root)
     raw_packages = lock["packages"]
     assert isinstance(raw_packages, dict)
     selected: list[LockedPackage] = []
-    for install_path, raw_metadata in raw_packages.items():
-        if not install_path:
-            continue
-        if not isinstance(install_path, str) or not isinstance(raw_metadata, dict):
-            raise OfflineMirrorError("package-lock.json contains an invalid package entry.")
+    for install_path in _selected_install_paths(root):
+        raw_metadata = raw_packages.get(install_path)
+        if not isinstance(raw_metadata, dict):
+            raise OfflineMirrorError(f"Missing package metadata for {install_path}.")
         metadata = raw_metadata
-        if not is_target_compatible(metadata):
-            continue
         version = metadata.get("version")
         if not isinstance(version, str) or not version:
             raise OfflineMirrorError(f"Missing version for {install_path} in package-lock.json.")
@@ -175,8 +318,7 @@ def locked_packages(root: Path) -> tuple[LockedPackage, ...]:
                 optional=metadata.get("optional") is True,
             )
         )
-    return tuple(sorted(selected, key=lambda item: item.install_path))
-
+    return tuple(selected)
 
 def locked_package(root: Path, install_path: str) -> LockedPackage:
     for package in locked_packages(root):
@@ -526,21 +668,81 @@ def _offline_file_reference(relative: Path) -> str:
     return "file:" + relative.as_posix()
 
 
+def build_offline_package(root: Path) -> dict[str, object]:
+    package_path = root / "package.json"
+    try:
+        package = json.loads(package_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise OfflineMirrorError(f"Cannot read {package_path}") from error
+    if not isinstance(package, dict):
+        raise OfflineMirrorError("package.json must contain a JSON object.")
+
+    lock = load_lockfile(root)
+    raw_packages = lock["packages"]
+    assert isinstance(raw_packages, dict)
+    root_metadata = raw_packages.get("")
+    if not isinstance(root_metadata, dict):
+        raise OfflineMirrorError("package-lock.json does not contain root package metadata.")
+
+    result: dict[str, object] = {
+        "name": package.get("name", root_metadata.get("name", "offline-chat-toolchain")),
+        "version": package.get("version", root_metadata.get("version", "0.0.0")),
+        "private": True,
+        "description": "Generated minimal npm toolchain for Linux chat/code checks; do not edit.",
+    }
+    selected_maps = selected_root_dependency_maps(root)
+    for field, dependencies in selected_maps.items():
+        package_dependencies = package.get(field)
+        if not isinstance(package_dependencies, dict):
+            raise OfflineMirrorError(f"package.json is missing the {field} map required by package-lock.json.")
+        selected_values: dict[str, str] = {}
+        for name, locked_request in dependencies.items():
+            requested = package_dependencies.get(name)
+            if requested != locked_request:
+                raise OfflineMirrorError(
+                    f"package.json and package-lock.json disagree for {name}: "
+                    f"{requested!r} != {locked_request!r}."
+                )
+            selected_values[name] = locked_request
+        if selected_values:
+            result[field] = selected_values
+    return result
+
+
 def build_offline_lock(
     root: Path,
     mirrored: tuple[MirroredPackage, ...],
 ) -> dict[str, object]:
-    lock = load_lockfile(root)
+    lock = copy.deepcopy(load_lockfile(root))
     packages = lock.get("packages")
     assert isinstance(packages, dict)
-    for item in mirrored:
-        metadata = packages.get(item.locked.install_path)
+    root_metadata = packages.get("")
+    if not isinstance(root_metadata, dict):
+        raise OfflineMirrorError("package-lock.json does not contain root package metadata.")
+
+    pruned_root = copy.deepcopy(root_metadata)
+    selected_maps = selected_root_dependency_maps(root)
+    for field in ROOT_DEPENDENCY_FIELDS:
+        if field in selected_maps:
+            pruned_root[field] = selected_maps[field]
+        else:
+            pruned_root.pop(field, None)
+
+    selected_paths = {item.locked.install_path for item in mirrored}
+    pruned_packages: dict[str, object] = {"": pruned_root}
+    for install_path in sorted(selected_paths):
+        metadata = packages.get(install_path)
         if not isinstance(metadata, dict):
-            raise OfflineMirrorError(f"Missing {item.locked.install_path} while building the offline lockfile.")
+            raise OfflineMirrorError(f"Missing {install_path} while building the offline lockfile.")
+        pruned_packages[install_path] = copy.deepcopy(metadata)
+    lock["packages"] = pruned_packages
+
+    for item in mirrored:
+        metadata = pruned_packages.get(item.locked.install_path)
+        assert isinstance(metadata, dict)
         metadata["resolved"] = _offline_file_reference(item.archive_relative)
         metadata["integrity"] = item.integrity
     return lock
-
 
 def _manifest_data(root: Path, mirrored: tuple[MirroredPackage, ...]) -> dict[str, object]:
     records: list[dict[str, object]] = []
@@ -563,13 +765,17 @@ def _manifest_data(root: Path, mirrored: tuple[MirroredPackage, ...]) -> dict[st
         records.append(record)
     return {
         "schemaVersion": MANIFEST_SCHEMA_VERSION,
+        "profile": CHAT_PROFILE_NAME,
         "target": {"os": TARGET_OS, "cpu": TARGET_CPU, "libc": TARGET_LIBC},
         "lockfileSha256": sha256_file(root / "package-lock.json"),
+        "rootPackages": list(selected_root_package_names(root)),
+        "excludedRootPackages": list(excluded_root_package_names(root)),
         "packageCount": len(mirrored),
         "archivePackageCount": len(mirrored),
         "registryPackPackageCount": registry_pack_count,
         "playwrightBrowsersIncluded": False,
         "offlineLock": OFFLINE_LOCK_PATH.as_posix(),
+        "offlinePackage": OFFLINE_PACKAGE_PATH.as_posix(),
         "packages": records,
     }
 
@@ -593,6 +799,10 @@ def write_manifest(root: Path, data: dict[str, object]) -> None:
 
 def write_offline_lock(root: Path, data: dict[str, object]) -> None:
     _write_json_atomic(root / OFFLINE_LOCK_PATH, data)
+
+
+def write_offline_package(root: Path, data: dict[str, object]) -> None:
+    _write_json_atomic(root / OFFLINE_PACKAGE_PATH, data)
 
 
 def _prune_mirror(root: Path, expected: set[Path]) -> None:
@@ -670,6 +880,7 @@ def sync_mirror(root: Path, *, download_missing: bool = True, prune: bool = True
 
     mirrored_tuple = tuple(mirrored)
     offline_lock = build_offline_lock(root, mirrored_tuple)
+    offline_package = build_offline_package(root)
     manifest = _manifest_data(root, mirrored_tuple)
 
     # All required archives and generated metadata are validated before any
@@ -677,6 +888,7 @@ def sync_mirror(root: Path, *, download_missing: bool = True, prune: bool = True
     if prune:
         _prune_mirror(root, expected_canonical)
     write_offline_lock(root, offline_lock)
+    write_offline_package(root, offline_package)
     write_manifest(root, manifest)
     return manifest
 
@@ -719,8 +931,14 @@ def verify_mirror(root: Path) -> dict[str, object]:
             "The Linux npm offline manifest uses an obsolete schema. "
             "Run `npm run update:offline:linux` while online."
         )
+    if manifest.get("profile") != CHAT_PROFILE_NAME:
+        raise OfflineMirrorError("The offline manifest targets a different dependency profile.")
     if manifest.get("target") != {"os": TARGET_OS, "cpu": TARGET_CPU, "libc": TARGET_LIBC}:
         raise OfflineMirrorError("The offline manifest targets a different platform.")
+    if manifest.get("rootPackages") != list(selected_root_package_names(root)):
+        raise OfflineMirrorError("The offline manifest root package inventory is stale.")
+    if manifest.get("excludedRootPackages") != list(excluded_root_package_names(root)):
+        raise OfflineMirrorError("The offline manifest excluded-root inventory is stale.")
     if manifest.get("lockfileSha256") != sha256_file(root / "package-lock.json"):
         raise OfflineMirrorError(
             "The Linux npm offline mirror does not match package-lock.json. "
@@ -772,12 +990,24 @@ def verify_mirror(root: Path) -> dict[str, object]:
         raise OfflineMirrorError("The npm mirror must not claim to include Playwright browsers.")
     if manifest.get("offlineLock") != OFFLINE_LOCK_PATH.as_posix():
         raise OfflineMirrorError("Offline manifest points to an unexpected lockfile.")
+    if manifest.get("offlinePackage") != OFFLINE_PACKAGE_PATH.as_posix():
+        raise OfflineMirrorError("Offline manifest points to an unexpected package descriptor.")
 
     stored_offline_lock = _load_json_file(root / OFFLINE_LOCK_PATH, label="offline package lock")
     expected_offline_lock = build_offline_lock(root, tuple(mirrored))
     if stored_offline_lock != expected_offline_lock:
         raise OfflineMirrorError(
             "The generated offline package lock is stale or modified. "
+            "Run `npm run update:offline:linux` while online."
+        )
+
+    stored_offline_package = _load_json_file(
+        root / OFFLINE_PACKAGE_PATH, label="offline package descriptor"
+    )
+    expected_offline_package = build_offline_package(root)
+    if stored_offline_package != expected_offline_package:
+        raise OfflineMirrorError(
+            "The generated offline package descriptor is stale or modified. "
             "Run `npm run update:offline:linux` while online."
         )
 

@@ -8,6 +8,7 @@ the complete dependency tree is handled by ``bootstrap_npm_offline_linux.py``.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 import json
 import os
@@ -17,7 +18,7 @@ import subprocess
 import tarfile
 import tempfile
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parent
 if str(TOOLS_DIRECTORY) not in sys.path:
@@ -30,6 +31,7 @@ from npm_offline_linux import (
     locate_archive,
     locked_package,
     project_root,
+    sha256_file,
 )
 
 CORE_INSTALL_PATH = "node_modules/esbuild"
@@ -121,6 +123,76 @@ def _replace_directory(staged: Path, target: Path) -> None:
                 backup.unlink(missing_ok=True)
 
 
+def _archive_file_hashes(archive: Path) -> dict[PurePosixPath, str] | None:
+    expected: dict[PurePosixPath, str] = {}
+    try:
+        with tarfile.open(archive, mode="r:gz") as bundle:
+            for member in bundle.getmembers():
+                parts = PurePosixPath(member.name).parts
+                if not parts or parts[0] != "package" or any(part in {"", ".", ".."} for part in parts):
+                    return None
+                relative = PurePosixPath(*parts[1:])
+                if not relative.parts or member.isdir():
+                    continue
+                if not member.isfile():
+                    return None
+                source = bundle.extractfile(member)
+                if source is None:
+                    return None
+                with source:
+                    expected[relative] = hashlib.sha256(source.read()).hexdigest()
+    except (OSError, tarfile.TarError):
+        return None
+    return expected
+
+
+def _npm_installed_core_matches(root: Path, archive: Path, directory: Path) -> bool:
+    """Accept esbuild's verified postinstall layout.
+
+    npm's esbuild install script replaces the archive's JavaScript
+    ``bin/esbuild`` launcher with a byte-for-byte copy of the authenticated
+    platform binary. Every other core file must still match the core archive.
+    """
+
+    platform_install_path = PLATFORM_INSTALL_PATHS["linux-x64"]
+    platform_package = _locked(root, platform_install_path)
+    platform_directory = root / platform_install_path
+    try:
+        platform_archive = locate_archive(root, platform_package)
+    except OfflineMirrorError:
+        return False
+    if not directory_matches_archive(platform_archive, platform_directory):
+        return False
+
+    expected = _archive_file_hashes(archive)
+    if expected is None:
+        return False
+    installed_paths = tuple(directory.rglob("*"))
+    if any(path.is_symlink() for path in installed_paths):
+        return False
+    actual_files = {
+        PurePosixPath(path.relative_to(directory).as_posix())
+        for path in installed_paths
+        if path.is_file()
+    }
+    if actual_files != set(expected):
+        return False
+
+    replaced = PurePosixPath("bin/esbuild")
+    for relative, expected_hash in expected.items():
+        if relative == replaced:
+            continue
+        if sha256_file(directory.joinpath(*relative.parts)) != expected_hash:
+            return False
+    core_binary = directory / "bin/esbuild"
+    platform_binary = platform_directory / "bin/esbuild"
+    return (
+        core_binary.is_file()
+        and platform_binary.is_file()
+        and sha256_file(core_binary) == sha256_file(platform_binary)
+    )
+
+
 def _installation_is_current(root: Path, install_path: str, *, binary: Path | None = None) -> bool:
     package = _locked(root, install_path)
     directory = root / install_path
@@ -131,7 +203,11 @@ def _installation_is_current(root: Path, install_path: str, *, binary: Path | No
         _validate_directory(directory, name=package.name, version=package.version, binary=binary)
     except (BootstrapError, OfflineMirrorError):
         return False
-    return directory_matches_archive(archive, directory)
+    if directory_matches_archive(archive, directory):
+        return True
+    if install_path == CORE_INSTALL_PATH:
+        return _npm_installed_core_matches(root, archive, directory)
+    return False
 
 
 def _install_package(

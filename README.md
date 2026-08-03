@@ -534,68 +534,75 @@ npm run setup
 
 ### סביבת npm אופליין ללינוקס של הצ׳אט
 
-לפרויקט יש כעת שני מסלולי אופליין נפרדים, ושניהם מיועדים במכוון רק ל־Linux
-`x64` עם `glibc` — סביבת הצ׳אט/CI. אין במראה חבילות Windows, macOS, ARM64 או
-Musl.
+לפרויקט יש מראת npm מצומצמת המיועדת רק ל־Linux `x64` עם `glibc`, כפי שקיים
+בסביבת הצ׳אט/CI. היא אינה כוללת Windows, macOS, ARM64, musl או דפדפני
+Playwright.
 
-לבדיקת קוד, בניית frontend, בדיקת חוזי JSDoc והרצת בדיקות JavaScript אפשר
-להמשיך להשתמש ב־bootstrap המצומצם:
+פרופיל הצ׳אט שומר רק את הכלים הנדרשים לבדיקת הקוד ולבנייתו:
 
-```bash
-python tools/bootstrap_esbuild_offline.py
-python tools/bootstrap_typescript_offline.py
-python tools/generate_catalog_data_types.py --check
-python tools/build_frontend_assets.py --check
-python tools/run_typescript_offline.py -p jsconfig.json --pretty false
-python tools/verify_project.py --javascript-only
-```
+- `esbuild` והבינארי `@esbuild/linux-x64`
+- `typescript` והבינארי `@typescript/typescript-linux-x64`
+- `@playwright/test`, ‏`playwright` ו־`playwright-core`, ללא Chromium
 
-הכלים המצומצמים אינם מחזיקים יותר רשימת גרסאות ידנית. בכל הרצה הם קוראים את
-הגרסה, כתובת ה־tarball וחתימת SHA-512 ישירות מ־`package-lock.json`, מאתרים
-ארכיון תואם תחת `vendor/npm`, ומתקינים רק את חבילת הליבה ואת הבינארי של Linux
-x64. הם אינם מפעילים npm או lifecycle scripts ואינם נוגעים בחבילות אחרות.
+`wrangler` נשאר תלות נעולה של הפרויקט להתקנה רגילה ולפריסה, אך הוא ועץ
+Cloudflare הכבד שלו אינם חלק ממראת הצ׳אט. כך workerd, miniflare, sharp,
+libvips ושאר תלויות הפריסה אינם מכבידים על כל עותק קוד שנשלח לצ׳אט.
 
-לעבודה שצריכה גם Wrangler/workerd, ‏sharp, חבילות Playwright או כל תלות npm
-טרנזיטיבית אחרת, מעדכנים את מראת האופליין המלאה אחרי `npm update`, שינוי
-`package.json` או יצירה מחדש של lockfile:
+אחרי `npm update`, שינוי `package.json` או יצירה מחדש של lockfile:
 
 ```bash
 npm run update:offline:linux
 npm run check:offline:linux
 ```
 
-פקודת העדכון קוראת את כל עץ `package-lock.json`, מסננת לפי `os`/`cpu`/`libc`,
-ממחזרת ארכיונים קיימים בעלי integrity זהה, ומורידה רק את החסר. אם npm השמיט
-בטעות `resolved` ו־`integrity` מחבילת registry רגילה, הפקודה אינה מנחשת שהיא
-bundled: היא מריצה `npm pack` עבור השם והגרסה המדויקים, מאמתת את זהות ה־tarball
-ושומרת את ה־SHA-512 במראה. בנוסף נוצר
-`vendor/npm/linux-x64-glibc/package-lock.offline.json`, שהוא עותק נגזר בלבד עם
-הפניות `file:` מקומיות לכל 43 החבילות. `package-lock.json` המקורי אינו משתנה.
-לאחר הצלחה נמחקים הארכיונים הישנים/הכפולים ותיקיות ה־esbuild/TypeScript הישנות.
+פקודת העדכון קוראת את הגרסאות והחתימות מ־`package-lock.json`, מחריגה את שורש
+`wrangler`, ופותרת אוטומטית את כל התלויות הנגישות משאר השורשים. תלות בדיקות
+חדשה שתתווסף ישירות לפרויקט או תלות טרנזיטיבית חדשה תיכלל אוטומטית. הפקודה
+ממחזרת tarballs קיימים, מורידה רק את החסר ומוחקת ארכיונים שכבר אינם חלק
+מהפרופיל.
 
-אחרי שהארכיונים קיימים אפשר להתקין את כל עץ npm ללא רשת:
+נוצרים שלושה קבצים נגזרים תחת `vendor/npm/linux-x64-glibc`:
+
+- `manifest.json`
+- `package-lock.offline.json`
+- `package.offline.json`
+
+`package.json` ו־`package-lock.json` המקוריים אינם משתנים.
+
+להתקנה ללא רשת בסביבת Linux של הצ׳אט:
 
 ```bash
-npm run setup:npm:offline:linux
 npm run check:npm:offline:linux
+npm run setup:npm:offline:linux
 ```
 
-המתקין מאמת מחדש את ה־manifest ואת שני ה־lockfiles, מציב זמנית
-`npm-shrinkwrap.json` מקומי שמצביע ישירות ל־tarballs, ומריץ `npm ci --offline`.
-הקובץ הזמני וה־cache הזמני נמחקים תמיד; אין עוד cache קבוע שמכפיל את משקל
-המראה. חבילות ה־npm של Playwright כן נשמרות, משום שהקוד
-והבדיקות מייבאים את test runner; Chromium ושאר קובצי הדפדפן הכבדים אינם
-נשמרים ואינם מותקנים. רק כאשר נדרשות בדיקות E2E אמיתיות מריצים בנפרד:
+המתקין יוצר פרויקט staging זמני, מריץ בו `npm ci --offline`, ובודק בפועל
+esbuild, TypeScript ו־Playwright API. רק אחרי שכל השלבים עברו הוא מחליף את
+`node_modules`; כשל אינו מוחק התקנה קיימת. ה־cache וה־staging נמחקים תמיד.
+
+בדיקות JavaScript, בדיקת טיפוסים ובניית frontend עובדות עם שבע החבילות האלה.
+בדיקות E2E אמיתיות עדיין דורשות דפדפן בנפרד:
 
 ```bash
 npm run setup:browsers
 ```
 
-ב־Windows ממשיכים להשתמש ב־`npm ci` הרגיל. אין לנסות להפעיל בינארי Linux
-ב־Windows ואין להוסיף ארכיוני Windows למראת הצ׳אט. בדיקות Python דורשות בנפרד
-את `.venv` והחבילות הנעולות ב־`tools/requirements*.txt`.
+פעולות פריסה ל־Cloudflare דורשות התקנת npm רגילה (`npm ci`) שבה Wrangler קיים.
+לאחר עדכון מוצלח נמחקים אוטומטית גם `vendor/npm/esbuild/`,
+`vendor/npm/typescript/` ו־`.cache/npm-offline-linux/` הישנים.
 
-גרסאות npm חדשות חוסמות install scripts של תלויות שלא נבדקו. `package.json` מאשר במפורש רק את `esbuild`, `sharp` ו־`workerd`; הגרסאות המדויקות שלהן עדיין נעולות ב־`package-lock.json`. בסוף `npm ci` רץ `tools/check_node_install_scripts.js`, שמפעיל בפועל את הבינאריים ואת Wrangler ונכשל בהודעה ברורה אם סקריפט נדרש נחסם או התקנה בינארית נפגמה. אין לאשר חבילות נוספות אוטומטית בלי לבדוק מדוע הן מבקשות install script.
+לפעולות ממוקדות נשארו ה־bootstraps של esbuild ו־TypeScript, וגם הם קוראים את
+הגרסאות מה־lockfile ללא רשימה ידנית:
+
+```bash
+npm run setup:esbuild:offline
+npm run setup:typescript:offline
+```
+
+ב־Windows ממשיכים להשתמש ב־`npm ci` הרגיל. אין להוסיף ארכיוני Windows למראת
+הצ׳אט. בדיקות Python דורשות בנפרד את `.venv` והחבילות הנעולות תחת
+`tools/requirements*.txt`.
+
 
 הפקודות המרכזיות:
 

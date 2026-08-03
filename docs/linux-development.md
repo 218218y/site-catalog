@@ -197,39 +197,51 @@ chmod 600 r2.env telemetry.env
 מראת האופליין מיועדת במכוון ל־Linux `x64` עם `glibc` בלבד. היא אינה כוללת
 Windows, macOS, ARM64, musl או דפדפני Playwright.
 
-אחרי `npm update`, שינוי `package.json` או שינוי `package-lock.json`, מריצים
-פעם אחת עם חיבור רשת:
+המראה היא פרופיל בדיקות מצומצם, ולא עותק של כל `node_modules`. היא שומרת את
+esbuild, TypeScript ואת חבילות ה־npm של Playwright ללא Chromium. שורש
+`wrangler` וכל עץ Cloudflare הכבד שלו מוחרגים משום שהם משמשים פריסה ואמולציה,
+לא בדיקות קוד רגילות בצ׳אט.
+
+אחרי `npm update`, שינוי `package.json` או שינוי `package-lock.json`, מריצים:
 
 ```bash
 npm run update:offline:linux
 npm run check:offline:linux
 ```
 
-הפקודה קוראת את השמות והגרסאות מ־`package-lock.json`, מסננת את החבילות
-לפלטפורמת הצ׳אט, ממחזרת tarballs קיימים ומורידה רק את החסר. שש חבילות Wrangler
-ב־lockfile הנוכחי חסרות `resolved` ו־`integrity`; הן חבילות registry רגילות ולא
-bundled. עבורן הפקודה מריצה `npm pack` בגרסה המדויקת, מאמתת שם/גרסה ושומרת
-integrity נגזר. התוצאה כוללת `manifest.json` ו־`package-lock.offline.json` תחת
-`vendor/npm/linux-x64-glibc`, בלי לשנות את `package-lock.json` המקורי.
+הפקודה קוראת את הגרסאות מה־lockfile, מתחילה מכל התלויות הישירות שאינן
+`wrangler`, עוקבת אוטומטית אחרי כל התלויות הטרנזיטיביות הנדרשות ומסננת לפי
+Linux x64/glibc. היא ממחזרת tarballs קיימים, מורידה רק חסרים ומוחקת כל ארכיון
+שאינו שייך עוד לפרופיל. לכן הרצה ראשונה אחרי החלת התיקון מנקה אוטומטית את עץ
+Wrangler הישן בלי להוריד מחדש את שבע החבילות שכבר קיימות.
 
-במכונת Linux x64/glibc מנותקת מרשת מתקינים את כל עץ npm כך:
+התוצאה כוללת תחת `vendor/npm/linux-x64-glibc` את `manifest.json`,
+`package-lock.offline.json` ו־`package.offline.json`; הקבצים הקנוניים
+`package.json` ו־`package-lock.json` אינם משתנים.
+
+במכונת Linux x64/glibc מנותקת מרשת:
 
 ```bash
+npm run check:npm:offline:linux
 npm run setup:npm:offline:linux
 ```
 
-המתקין משתמש זמנית ב־`npm-shrinkwrap.json` הנגזר, שבו כל `resolved` הוא
-`file:` מקומי, ומריץ `npm ci --offline` עם cache זמני שנמחק בסיום. הוא מגדיר
-`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`, ולכן חבילות `@playwright/test`,
-`playwright` ו־`playwright-core` זמינות לקוד ולבדיקות שאינן פותחות דפדפן, בלי
-לצרף Chromium. בדיקות E2E דורשות התקנת דפדפן נפרדת ורשת:
+המתקין מריץ `npm ci --offline` בפרויקט staging זמני. הוא מאמת בפועל transform
+של esbuild, טעינת TypeScript וטעינת Playwright API, ורק אז מחליף את
+`node_modules`. התקנה קיימת נשמרת אם שלב כלשהו נכשל. אין cache קבוע ואין
+`npm-shrinkwrap.json` זמני בשורש הפרויקט.
+
+חבילות Playwright זמינות לבדיקות שאינן פותחות דפדפן. בדיקות E2E אמיתיות
+דורשות התקנה נפרדת של Chromium:
 
 ```bash
 npm run setup:browsers
 ```
 
+פעולות פריסה כגון `site:deploy:cloudflare` דורשות `npm ci` רגיל, משום ש־Wrangler
+אינו חלק מפרופיל האופליין המצומצם.
 
-לאחר עדכון מוצלח נמחקים אוטומטית הכפילויות הישנות:
+לאחר עדכון מוצלח נמחקים גם שרידי הכפילויות הישנות:
 
 ```text
 vendor/npm/esbuild/
@@ -237,11 +249,7 @@ vendor/npm/typescript/
 .cache/npm-offline-linux/
 ```
 
-אין למחוק אותן לפני שהעדכון הצליח, משום שהפקודה יכולה למחזר מהן את ה־tarballs
-הקיימים. לאחר ההצלחה כל bootstrap ממוקד קורא מן המראה הקנונית החדשה בלבד.
-
-לפעולות ממוקדות שלא צריכות את Wrangler, sharp או Playwright נשארו bootstraps
-קטנים יותר:
+לפעולות ממוקדות נשארו גם ה־bootstraps הקטנים:
 
 ```bash
 npm run setup:esbuild:offline
@@ -250,8 +258,8 @@ npm run setup:typescript:offline
 npm run check:typescript:offline
 ```
 
-גם הם קוראים כעת את הגרסה והחתימה מה־lockfile ואינם דורשים עדכון ידני של
-מספרי גרסאות בתוך קוד Python. ב־Windows ממשיכים להשתמש ב־`npm ci` הרגיל.
+גם הם קוראים את הגרסה והחתימה מה־lockfile. ב־Windows ממשיכים להשתמש ב־`npm ci`
+הרגיל; מתקין האופליין המלא דוחה בכוונה כל מערכת שאינה Linux x64/glibc.
 
 ## תקלות נפוצות
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install npm dependencies from the verified Linux x64/glibc mirror."""
+"""Install the minimal chat/test npm toolchain from the Linux offline mirror."""
 from __future__ import annotations
 
 import argparse
@@ -17,6 +17,7 @@ if str(TOOLS_DIRECTORY) not in sys.path:
 
 from npm_offline_linux import (
     OFFLINE_LOCK_PATH,
+    OFFLINE_PACKAGE_PATH,
     TARGET_CPU,
     TARGET_LIBC,
     TARGET_OS,
@@ -27,7 +28,18 @@ from npm_offline_linux import (
     verify_mirror,
 )
 
-TEMPORARY_SHRINKWRAP = Path("npm-shrinkwrap.json")
+INSTALL_STAGE_PREFIX = ".npm-offline-install-"
+NODE_MODULES_BACKUP_PREFIX = ".node_modules-offline-backup-"
+TOOLCHAIN_PROBE = r"""
+const esbuild = require("esbuild");
+const typescript = require("typescript");
+const playwright = require("@playwright/test");
+const transformed = esbuild.transformSync("const answer: number = 42", { loader: "ts" });
+if (!transformed.code.includes("42")) throw new Error("esbuild transform probe failed");
+if (typeof typescript.version !== "string") throw new Error("TypeScript runtime probe failed");
+if (typeof playwright.chromium?.launch !== "function") throw new Error("Playwright API probe failed");
+console.log(`Offline chat npm toolchain verified: esbuild ${esbuild.version}, TypeScript ${typescript.version}, Playwright API loaded without browser binaries.`);
+"""
 
 
 class OfflineInstallError(RuntimeError):
@@ -42,13 +54,13 @@ def verify_host() -> None:
     libc = "glibc" if libc_name.lower() in {"glibc", "gnu libc"} else libc_name.lower()
     if (system, architecture, libc) != (TARGET_OS, TARGET_CPU, TARGET_LIBC):
         raise OfflineInstallError(
-            "The complete offline npm install is intentionally limited to the chat target "
+            "The offline npm install is intentionally limited to the chat target "
             f"{TARGET_OS}/{TARGET_CPU}/{TARGET_LIBC}; detected {system}/{architecture}/{libc or 'unknown'}."
         )
 
 
-def run(command: list[str], *, root: Path, environment: dict[str, str]) -> None:
-    completed = subprocess.run(command, cwd=root, env=environment, check=False)
+def run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> None:
+    completed = subprocess.run(command, cwd=cwd, env=environment, check=False)
     if completed.returncode:
         raise OfflineInstallError(f"Command failed with exit code {completed.returncode}: {' '.join(command)}")
 
@@ -66,41 +78,75 @@ def _install_environment() -> dict[str, str]:
     return environment
 
 
+def _remove_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
+def _replace_node_modules(root: Path, staged_node_modules: Path) -> None:
+    target = root / "node_modules"
+    with tempfile.TemporaryDirectory(prefix=NODE_MODULES_BACKUP_PREFIX, dir=root) as backup_name:
+        backup = Path(backup_name) / "node_modules"
+        moved_existing = False
+        try:
+            if target.exists() or target.is_symlink():
+                os.replace(target, backup)
+                moved_existing = True
+            os.replace(staged_node_modules, target)
+        except Exception:
+            _remove_path(target)
+            if moved_existing and backup.exists():
+                os.replace(backup, target)
+            raise
+
+
 def install(root: Path) -> None:
     verify_host()
     verify_mirror(root)
     canonical_lock = root / "package-lock.json"
-    canonical_hash = sha256_file(canonical_lock)
-    offline_lock = root / OFFLINE_LOCK_PATH
-    shrinkwrap = root / TEMPORARY_SHRINKWRAP
-    if shrinkwrap.exists() or shrinkwrap.is_symlink():
-        raise OfflineInstallError(
-            f"Refusing to overwrite existing {TEMPORARY_SHRINKWRAP}; remove or commit it intentionally first."
-        )
+    canonical_package = root / "package.json"
+    canonical_lock_hash = sha256_file(canonical_lock)
+    canonical_package_hash = sha256_file(canonical_package)
+    environment = _install_environment()
 
-    # npm has no alternate-lockfile flag. npm-shrinkwrap.json has precedence
-    # over package-lock.json, so expose the verified local-file lock only for
-    # the duration of npm ci and remove it unconditionally afterwards.
-    shutil.copy2(offline_lock, shrinkwrap)
-    try:
-        with tempfile.TemporaryDirectory(prefix=".npm-offline-cache-", dir=root) as cache:
-            run(
-                [
-                    npm_executable(),
-                    "ci",
-                    "--offline",
-                    "--cache",
-                    cache,
-                    "--no-audit",
-                    "--no-fund",
-                ],
-                root=root,
-                environment=_install_environment(),
-            )
-    finally:
-        shrinkwrap.unlink(missing_ok=True)
-    if sha256_file(canonical_lock) != canonical_hash:
+    # Install in a disposable sibling project. This lets npm use a generated,
+    # pruned package descriptor without ever replacing the canonical package.json
+    # or package-lock.json, and keeps the existing node_modules intact until the
+    # new toolchain has installed and passed its runtime probes.
+    with tempfile.TemporaryDirectory(prefix=INSTALL_STAGE_PREFIX, dir=root) as stage_name:
+        stage = Path(stage_name)
+        shutil.copy2(root / OFFLINE_PACKAGE_PATH, stage / "package.json")
+        shutil.copy2(root / OFFLINE_LOCK_PATH, stage / "npm-shrinkwrap.json")
+        (stage / "vendor").symlink_to(root / "vendor", target_is_directory=True)
+        cache = stage / ".npm-cache"
+        run(
+            [
+                npm_executable(),
+                "ci",
+                "--offline",
+                "--cache",
+                str(cache),
+                "--no-audit",
+                "--no-fund",
+            ],
+            cwd=stage,
+            environment=environment,
+        )
+        staged_node_modules = stage / "node_modules"
+        if not staged_node_modules.is_dir():
+            raise OfflineInstallError("npm ci completed without creating node_modules.")
+        node = shutil.which("node")
+        if node is None:
+            raise OfflineInstallError("node is not available on PATH.")
+        run([node, "-e", TOOLCHAIN_PROBE], cwd=stage, environment=environment)
+        _replace_node_modules(root, staged_node_modules)
+
+    if sha256_file(canonical_lock) != canonical_lock_hash:
         raise OfflineInstallError("npm modified package-lock.json during the offline install.")
+    if sha256_file(canonical_package) != canonical_package_hash:
+        raise OfflineInstallError("npm modified package.json during the offline install.")
 
 
 def main() -> int:
@@ -112,13 +158,14 @@ def main() -> int:
             verify_host()
             manifest = verify_mirror(project_root())
             print(
-                "Offline npm install inputs are valid for Linux x64/glibc: "
-                f"{manifest['packageCount']} local tarballs."
+                "Offline chat npm inputs are valid for Linux x64/glibc: "
+                f"{manifest['packageCount']} local tarballs; excluded roots: "
+                f"{', '.join(manifest['excludedRootPackages']) or 'none'}."
             )
         else:
             install(project_root())
-            print("Complete npm dependency tree installed directly from verified local tarballs.")
-            print("Playwright browsers were not installed; use `npm run setup:browsers` only when needed.")
+            print("Minimal chat/test npm toolchain installed from verified local tarballs.")
+            print("Cloudflare deployment tooling and Playwright browsers are intentionally not installed.")
     except (OfflineMirrorError, OfflineInstallError, OSError, subprocess.SubprocessError) as error:
         parser.exit(1, f"ERROR: {error}\n")
     return 0

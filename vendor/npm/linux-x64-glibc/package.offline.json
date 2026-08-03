@@ -1,0 +1,11 @@
+{
+  "description": "Generated minimal npm toolchain for Linux chat/code checks; do not edit.",
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "esbuild": "0.28.1",
+    "typescript": "7.0.2"
+  },
+  "name": "site-catalog",
+  "private": true,
+  "version": "1.0.0"
+}

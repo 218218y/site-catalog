@@ -78,6 +78,25 @@ def test_offline_install_is_atomic_idempotent_and_repairs_changes(tmp_path: Path
     assert main_js.read_bytes() == expected
 
 
+def test_npm_postinstall_core_binary_layout_is_accepted(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    copy_inputs(root)
+    MODULE.install_esbuild(root, platform_key="linux-x64", verify_runtime=False, quiet=True)
+
+    core_binary = root / MODULE.CORE_INSTALL_PATH / "bin/esbuild"
+    platform_binary = root / MODULE.PLATFORM_INSTALL_PATHS["linux-x64"] / "bin/esbuild"
+    shutil.copy2(platform_binary, core_binary)
+
+    MODULE.verify_offline_installation(root, platform_key="linux-x64")
+    assert not MODULE.install_esbuild(
+        root,
+        platform_key="linux-x64",
+        verify_runtime=False,
+        quiet=True,
+    )
+
+
 @pytest.mark.skipif(
     platform.system() != "Linux" or platform.machine().lower() not in {"x86_64", "amd64", "x64"},
     reason="runtime probe uses the Linux x64 vendored binary",

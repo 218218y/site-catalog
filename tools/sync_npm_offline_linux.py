@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synchronize or verify the lockfile-driven Linux x64/glibc npm mirror."""
+"""Synchronize or verify the minimal Linux x64/glibc npm mirror for chat checks."""
 from __future__ import annotations
 
 import argparse
@@ -13,6 +13,15 @@ if str(TOOLS_DIRECTORY) not in sys.path:
 from npm_offline_linux import OfflineMirrorError, project_root, sync_mirror, verify_mirror
 
 
+def _summary(prefix: str, manifest: dict[str, object]) -> None:
+    roots = ", ".join(manifest["rootPackages"])
+    excluded = ", ".join(manifest["excludedRootPackages"]) or "none"
+    print(
+        f"{prefix}: {manifest['packageCount']} packages / {manifest['archivePackageCount']} archives; "
+        f"chat roots: {roots}; excluded roots: {excluded}."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Verify the mirror without network or writes")
@@ -20,21 +29,13 @@ def main() -> int:
     try:
         if args.check:
             manifest = verify_mirror(project_root())
-            print(
-                "Linux npm offline mirror is valid: "
-                f"{manifest['packageCount']} packages, {manifest['archivePackageCount']} archives, "
-                f"{manifest['registryPackPackageCount']} registry packages recovered with npm pack."
-            )
+            _summary("Linux chat npm offline mirror is valid", manifest)
         else:
             manifest = sync_mirror(project_root())
+            _summary("Linux chat npm offline mirror updated from package-lock.json", manifest)
             print(
-                "Linux npm offline mirror updated from package-lock.json: "
-                f"{manifest['packageCount']} packages, {manifest['archivePackageCount']} archives, "
-                f"{manifest['registryPackPackageCount']} registry packages recovered with npm pack."
-            )
-            print(
-                "Every selected package has its own local tarball; "
-                "Playwright browser binaries are intentionally excluded."
+                "Only dependencies reachable from the chat/test roots are retained. "
+                "Wrangler/Cloudflare runtimes and Playwright browser binaries are intentionally excluded."
             )
     except OfflineMirrorError as error:
         parser.exit(1, f"ERROR: {error}\n")
