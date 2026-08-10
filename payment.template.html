@@ -165,7 +165,22 @@
       <dl class="payment-bank-details">
         <div>
           <dt>בנק</dt>
-          <dd><bdi dir="ltr">12</bdi><span aria-hidden="true"> · </span>בנק הפועלים</dd>
+          <dd class="payment-bank-copy-row">
+            <span><bdi dir="ltr">12</bdi><span aria-hidden="true"> · </span>בנק הפועלים</span>
+            <button
+              class="payment-bank-copy-button"
+              type="button"
+              data-bank-copy-value="12"
+              data-bank-copy-label="מספר הבנק"
+              aria-label="העתקת מספר הבנק 12"
+              title="העתקת מספר הבנק"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect x="8" y="8" width="10" height="11" rx="2"/>
+                <path d="M16 8V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h1"/>
+              </svg>
+            </button>
+          </dd>
         </div>
         <div>
           <dt>סניף</dt>

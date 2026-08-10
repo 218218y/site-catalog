@@ -228,6 +228,22 @@ def test_shared_header_favorites_styles_ship_on_every_application_route() -> Non
     assert "BEGIN SOURCE: src/css/85-favorites-routing.css" not in catalog_bundle
 
 
+def test_payment_styles_stay_out_of_application_route_bundles() -> None:
+    specs = css_specs()
+    payment_module = "src/css/52-payment.css"
+
+    assert payment_module in specs["styles.css"].modules
+    core_bundle = (ROOT / "styles.css").read_text(encoding="utf-8")
+    assert f"BEGIN SOURCE: {payment_module}" in core_bundle
+    assert ".payment-bank-transfer-card {" in core_bundle
+
+    for output_name in ("styles-catalog.css", "styles-favorites.css", "styles-viewer.css"):
+        assert payment_module not in specs[output_name].modules
+        bundle = (ROOT / output_name).read_text(encoding="utf-8")
+        assert f"BEGIN SOURCE: {payment_module}" not in bundle
+        assert ".payment-bank-transfer-card {" not in bundle
+
+
 def test_shared_floating_ui_styles_ship_on_every_application_route() -> None:
     specs = css_specs()
     shared_module = "src/css/08-shared-floating-ui.css"

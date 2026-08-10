@@ -74,6 +74,7 @@ const controlPanelApi = fs.readFileSync(path.join(root, 'src', 'control-panel', 
 const controlServer = fs.readFileSync(path.join(root, 'tools', 'catalog_control_server.py'), 'utf8');
 const deployTool = fs.readFileSync(path.join(root, 'tools', 'deploy_cloudflare_pages.py'), 'utf8');
 const footerLegalCssSource = fs.readFileSync(path.join(root, 'src', 'css', '50-footer-legal.css'), 'utf8');
+const paymentCssSource = fs.readFileSync(path.join(root, 'src', 'css', '52-payment.css'), 'utf8');
 const css = readAllCssBundles();
 
 assert.match(template, /\{\{SITE_FOOTER\}\}/);
@@ -121,11 +122,13 @@ assert.doesNotMatch(
 );
 assert.match(paymentTemplate, /id="paymentShareToast" role="status" aria-live="polite" aria-atomic="true"/);
 assert.match(paymentTemplate, /class="payment-form-kicker">תשלום מאובטח עבור עסקה קיימת<\/span>[\s\S]*?<h1 id="paymentPageTitle">תשלום חוב<\/h1>/);
+assert.match(paymentTemplate, /data-bank-copy-value="12"[\s\S]*?data-bank-copy-label="מספר הבנק"/);
 assert.match(paymentTemplate, /data-bank-copy-value="655"[\s\S]*?data-bank-copy-label="מספר הסניף"/);
 assert.match(paymentTemplate, /data-bank-copy-value="634063"[\s\S]*?data-bank-copy-label="מספר החשבון"/);
-assert.match(footerLegalCssSource, /\.payment-intro-card h1,\s*\.payment-form-card h2\s*\{[\s\S]*?font-size:\s*clamp\(1\.35rem, 2vw, 1\.75rem\);[\s\S]*?line-height:\s*1\.25;/);
+assert.match(paymentCssSource, /\.payment-intro-card h1,\s*\.payment-form-card h2\s*\{[\s\S]*?font-size:\s*clamp\(1\.35rem, 2vw, 1\.75rem\);[\s\S]*?line-height:\s*1\.25;/);
 assert.match(footerLegalCssSource, /\.legal-header-actions\s*\{[\s\S]*?display:\s*inline-flex;[\s\S]*?gap:\s*9px;/);
-assert.match(footerLegalCssSource, /\.payment-share-link\s*\{[\s\S]*?min-width:\s*40px;[\s\S]*?min-height:\s*40px;/);
+assert.match(paymentCssSource, /\.payment-share-link\s*\{[\s\S]*?min-width:\s*40px;[\s\S]*?min-height:\s*40px;/);
+assert.doesNotMatch(footerLegalCssSource, /\.payment-(?:main|layout|intro-card|form-card|bank-transfer-card|share-link)/, "payment-only styles must stay out of shared footer/legal CSS");
 assert.match(footerLegalCssSource, /@media \(max-width: 460px\)[\s\S]*?\.legal-header-actions \.legal-back-link span\s*\{\s*display:\s*none;/);
 assert.match(controlPanel, /<h2>עריכת טקסט הפוטר<\/h2>/);
 assert.match(controlPanel, /id="footerEditorGroups"/);

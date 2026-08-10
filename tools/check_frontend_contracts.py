@@ -567,6 +567,7 @@ CSS_IMPORTANT_BUDGET_BY_FILE: Mapping[str, int] = {
     "30-media-components.css": 0,
     "40-catalog-refinements.css": 0,
     "50-footer-legal.css": 0,
+    "52-payment.css": 0,
     "80-responsive-shell.css": 0,
     "85-favorites-routing.css": 0,
     "87-favorites-workspace.css": 1,

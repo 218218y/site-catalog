@@ -28,7 +28,7 @@ from typing import Mapping, Sequence
 CORE_CSS_MODULES: tuple[str, ...] = (
     "src/css/00-foundation.css", "src/css/06-shell-components.css",
     "src/css/30-media-components.css", "src/css/50-footer-legal.css",
-    "src/css/80-responsive-shell.css", "src/css/90-visual-polish.css",
+    "src/css/52-payment.css", "src/css/80-responsive-shell.css", "src/css/90-visual-polish.css",
     "src/css/95-accessibility-consistency.css", "src/css/97-seo-foundation.css",
 )
 CATALOG_CSS_MODULES: tuple[str, ...] = (
