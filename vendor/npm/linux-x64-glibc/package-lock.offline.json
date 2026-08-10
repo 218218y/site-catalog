@@ -5,7 +5,7 @@
     "": {
       "devDependencies": {
         "@playwright/test": "1.62.1",
-        "esbuild": "0.28.1",
+        "esbuild": "0.28.2",
         "typescript": "7.0.2"
       },
       "hasInstallScript": true,
@@ -20,14 +20,14 @@
       "engines": {
         "node": ">=18"
       },
-      "integrity": "sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==",
+      "integrity": "sha512-4xTZr1FUmSoQW4XIWmit3tzQrUTZM+N3P0XV8xROKYF50XfI7xeO90+1bZvNwxIufQ9hDQVRJH5YhgPVF8A/HQ==",
       "license": "MIT",
       "optional": true,
       "os": [
         "linux"
       ],
-      "resolved": "file:vendor/npm/linux-x64-glibc/archives/@esbuild/linux-x64/0.28.1.tgz",
-      "version": "0.28.1"
+      "resolved": "file:vendor/npm/linux-x64-glibc/archives/@esbuild/linux-x64/0.28.2.tgz",
+      "version": "0.28.2"
     },
     "node_modules/@playwright/test": {
       "bin": {
@@ -71,38 +71,38 @@
         "node": ">=18"
       },
       "hasInstallScript": true,
-      "integrity": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
+      "integrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
       "license": "MIT",
       "optionalDependencies": {
-        "@esbuild/aix-ppc64": "0.28.1",
-        "@esbuild/android-arm": "0.28.1",
-        "@esbuild/android-arm64": "0.28.1",
-        "@esbuild/android-x64": "0.28.1",
-        "@esbuild/darwin-arm64": "0.28.1",
-        "@esbuild/darwin-x64": "0.28.1",
-        "@esbuild/freebsd-arm64": "0.28.1",
-        "@esbuild/freebsd-x64": "0.28.1",
-        "@esbuild/linux-arm": "0.28.1",
-        "@esbuild/linux-arm64": "0.28.1",
-        "@esbuild/linux-ia32": "0.28.1",
-        "@esbuild/linux-loong64": "0.28.1",
-        "@esbuild/linux-mips64el": "0.28.1",
-        "@esbuild/linux-ppc64": "0.28.1",
-        "@esbuild/linux-riscv64": "0.28.1",
-        "@esbuild/linux-s390x": "0.28.1",
-        "@esbuild/linux-x64": "0.28.1",
-        "@esbuild/netbsd-arm64": "0.28.1",
-        "@esbuild/netbsd-x64": "0.28.1",
-        "@esbuild/openbsd-arm64": "0.28.1",
-        "@esbuild/openbsd-x64": "0.28.1",
-        "@esbuild/openharmony-arm64": "0.28.1",
-        "@esbuild/sunos-x64": "0.28.1",
-        "@esbuild/win32-arm64": "0.28.1",
-        "@esbuild/win32-ia32": "0.28.1",
-        "@esbuild/win32-x64": "0.28.1"
+        "@esbuild/aix-ppc64": "0.28.2",
+        "@esbuild/android-arm": "0.28.2",
+        "@esbuild/android-arm64": "0.28.2",
+        "@esbuild/android-x64": "0.28.2",
+        "@esbuild/darwin-arm64": "0.28.2",
+        "@esbuild/darwin-x64": "0.28.2",
+        "@esbuild/freebsd-arm64": "0.28.2",
+        "@esbuild/freebsd-x64": "0.28.2",
+        "@esbuild/linux-arm": "0.28.2",
+        "@esbuild/linux-arm64": "0.28.2",
+        "@esbuild/linux-ia32": "0.28.2",
+        "@esbuild/linux-loong64": "0.28.2",
+        "@esbuild/linux-mips64el": "0.28.2",
+        "@esbuild/linux-ppc64": "0.28.2",
+        "@esbuild/linux-riscv64": "0.28.2",
+        "@esbuild/linux-s390x": "0.28.2",
+        "@esbuild/linux-x64": "0.28.2",
+        "@esbuild/netbsd-arm64": "0.28.2",
+        "@esbuild/netbsd-x64": "0.28.2",
+        "@esbuild/openbsd-arm64": "0.28.2",
+        "@esbuild/openbsd-x64": "0.28.2",
+        "@esbuild/openharmony-arm64": "0.28.2",
+        "@esbuild/sunos-x64": "0.28.2",
+        "@esbuild/win32-arm64": "0.28.2",
+        "@esbuild/win32-ia32": "0.28.2",
+        "@esbuild/win32-x64": "0.28.2"
       },
-      "resolved": "file:vendor/npm/linux-x64-glibc/archives/esbuild/0.28.1.tgz",
-      "version": "0.28.1"
+      "resolved": "file:vendor/npm/linux-x64-glibc/archives/esbuild/0.28.2.tgz",
+      "version": "0.28.2"
     },
     "node_modules/playwright": {
       "bin": {

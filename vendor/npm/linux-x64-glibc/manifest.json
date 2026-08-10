@@ -3,20 +3,20 @@
   "excludedRootPackages": [
     "wrangler"
   ],
-  "lockfileSha256": "f2b6b4dffa453b1e763cfc085fb4bd2581d373caa67d4ded569a56900af34d6c",
+  "lockfileSha256": "24b311e0cb58cf892716aebc582e7abac2868512842e7724afdf5538dac4a555",
   "offlineLock": "vendor/npm/linux-x64-glibc/package-lock.offline.json",
   "offlinePackage": "vendor/npm/linux-x64-glibc/package.offline.json",
   "packageCount": 7,
   "packages": [
     {
-      "archive": "vendor/npm/linux-x64-glibc/archives/@esbuild/linux-x64/0.28.1.tgz",
+      "archive": "vendor/npm/linux-x64-glibc/archives/@esbuild/linux-x64/0.28.2.tgz",
       "installPath": "node_modules/@esbuild/linux-x64",
-      "integrity": "sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==",
+      "integrity": "sha512-4xTZr1FUmSoQW4XIWmit3tzQrUTZM+N3P0XV8xROKYF50XfI7xeO90+1bZvNwxIufQ9hDQVRJH5YhgPVF8A/HQ==",
       "metadataSource": "lockfile",
       "name": "@esbuild/linux-x64",
       "optional": true,
-      "registryResolved": "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.1.tgz",
-      "version": "0.28.1"
+      "registryResolved": "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.2.tgz",
+      "version": "0.28.2"
     },
     {
       "archive": "vendor/npm/linux-x64-glibc/archives/@playwright/test/1.62.1.tgz",
@@ -39,14 +39,14 @@
       "version": "7.0.2"
     },
     {
-      "archive": "vendor/npm/linux-x64-glibc/archives/esbuild/0.28.1.tgz",
+      "archive": "vendor/npm/linux-x64-glibc/archives/esbuild/0.28.2.tgz",
       "installPath": "node_modules/esbuild",
-      "integrity": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
+      "integrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
       "metadataSource": "lockfile",
       "name": "esbuild",
       "optional": false,
-      "registryResolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.1.tgz",
-      "version": "0.28.1"
+      "registryResolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
+      "version": "0.28.2"
     },
     {
       "archive": "vendor/npm/linux-x64-glibc/archives/playwright/1.62.1.tgz",
