@@ -2791,7 +2791,7 @@ var SEARCH_INPUT_DEBOUNCE_MS = 90, SEARCH_INDEX_PRELOAD_DELAY_MS = 6e3, MOBILE_R
 });
 
 // src/js/50-search-ui.js
-var globalSearchRenderTimer = 0, lightboxSearchRenderTimer = 0, globalSearchAppendTimer = 0, globalSearchRenderSequence = 0, lightboxSearchRenderSequence = 0, lastGlobalSearchResults = [], lastLightboxSearchResults = [], lastGlobalSearchKey = "", lastLightboxSearchKey = "", GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 6, GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 6;
+var globalSearchRenderTimer = 0, lightboxSearchRenderTimer = 0, globalSearchAppendFrame = 0, globalSearchRenderSequence = 0, lightboxSearchRenderSequence = 0, lastGlobalSearchResults = [], lastLightboxSearchResults = [], lastGlobalSearchKey = "", lastLightboxSearchKey = "", GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 3, GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 3;
 function isSearchIndexReady() {
   return catalogSearch.isReady();
 }
@@ -2817,10 +2817,10 @@ function scheduleSearchIndexPreload() {
   }, SEARCH_INDEX_PRELOAD_DELAY_MS));
 }
 function cancelScheduledSearch(channel) {
-  channel === "global" ? (window.clearTimeout(globalSearchRenderTimer), window.clearTimeout(globalSearchAppendTimer), globalSearchRenderTimer = 0, globalSearchAppendTimer = 0, globalSearchRenderSequence += 1) : (window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = 0, lightboxSearchRenderSequence += 1), catalogSearch.cancel(channel);
+  channel === "global" ? (window.clearTimeout(globalSearchRenderTimer), window.cancelAnimationFrame(globalSearchAppendFrame), globalSearchRenderTimer = 0, globalSearchAppendFrame = 0, globalSearchRenderSequence += 1) : (window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = 0, lightboxSearchRenderSequence += 1), catalogSearch.cancel(channel);
 }
 function cancelGlobalSearchResultAppend() {
-  window.clearTimeout(globalSearchAppendTimer), globalSearchAppendTimer = 0;
+  window.cancelAnimationFrame(globalSearchAppendFrame), globalSearchAppendFrame = 0;
 }
 function scheduleSearchRender(channel, query, options = {}) {
   let delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS, callback = channel === "global" ? () => renderSearchResults(query) : () => renderLightboxSearchResults(query);
@@ -2854,7 +2854,7 @@ function setGlobalSearchPanelOpen(open, options = {}) {
   let shouldOpen = !!open;
   if (searchState.globalSearchOpen = shouldOpen, !!searchElements.catalogSearch) {
     if (searchElements.catalogSearch.classList.toggle("hidden", !shouldOpen), searchElements.catalogSearch.classList.toggle("is-open", shouldOpen), searchElements.catalogSearch.setAttribute("aria-hidden", shouldOpen ? "false" : "true"), searchElements.globalSearchOpen?.classList.toggle("is-active", shouldOpen), searchElements.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false"), shouldOpen) {
-      renderGlobalSearchScopeMenu(), renderSearchResults(searchElements.globalSearchInput?.value || ""), options.focus !== !1 && window.requestAnimationFrame(() => searchElements.globalSearchInput?.focus({ preventScroll: !0 }));
+      syncGlobalSearchScopeUi(), renderSearchResults(searchElements.globalSearchInput?.value || ""), options.focus !== !1 && window.requestAnimationFrame(() => searchElements.globalSearchInput?.focus({ preventScroll: !0 }));
       return;
     }
     closeGlobalSearchScopeMenu(), hideSearchFloatingPreview(), cancelScheduledSearch("global"), options.hideResults !== !1 && searchElements.globalSearchResults?.classList.add("hidden"), options.focusButton && window.requestAnimationFrame(() => searchElements.globalSearchOpen?.focus({ preventScroll: !0 }));
@@ -3314,19 +3314,19 @@ function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuer
     0,
     GLOBAL_SEARCH_INITIAL_RENDER_COUNT
   ), appendNextBatch = () => {
-    if (globalSearchAppendTimer = 0, !!isCurrentGlobalSearchRender(renderSequence, rawQuery)) {
+    if (globalSearchAppendFrame = 0, !!isCurrentGlobalSearchRender(renderSequence, rawQuery)) {
       if (nextIndex = appendGlobalSearchResultBatch(
         results,
         nextIndex,
         GLOBAL_SEARCH_RENDER_CHUNK_SIZE
       ), nextIndex < results.length) {
-        globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0);
+        globalSearchAppendFrame = window.requestAnimationFrame(appendNextBatch);
         return;
       }
       searchElements.globalSearchResults.removeAttribute("aria-busy");
     }
   };
-  nextIndex < results.length ? globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0) : searchElements.globalSearchResults.removeAttribute("aria-busy");
+  nextIndex < results.length ? globalSearchAppendFrame = window.requestAnimationFrame(appendNextBatch) : searchElements.globalSearchResults.removeAttribute("aria-busy");
 }
 async function renderSearchResults(query) {
   let rawQuery = String(query || "").trim();

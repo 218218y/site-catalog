@@ -34,7 +34,7 @@ import { searchCatalogDomain } from "./39-search-catalog-domain.js";
 
 let globalSearchRenderTimer = 0;
 let lightboxSearchRenderTimer = 0;
-let globalSearchAppendTimer = 0;
+let globalSearchAppendFrame = 0;
 let globalSearchRenderSequence = 0;
 let lightboxSearchRenderSequence = 0;
 /** @type {Array<CatalogSearchResult>} */
@@ -43,8 +43,8 @@ let lastGlobalSearchResults = [];
 let lastLightboxSearchResults = [];
 let lastGlobalSearchKey = "";
 let lastLightboxSearchKey = "";
-const GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 6;
-const GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 6;
+const GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 3;
+const GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 3;
 
 function isSearchIndexReady() {
   return catalogSearch.isReady();
@@ -107,9 +107,9 @@ function scheduleSearchIndexPreload() {
 function cancelScheduledSearch(channel) {
   if (channel === "global") {
     window.clearTimeout(globalSearchRenderTimer);
-    window.clearTimeout(globalSearchAppendTimer);
+    window.cancelAnimationFrame(globalSearchAppendFrame);
     globalSearchRenderTimer = 0;
-    globalSearchAppendTimer = 0;
+    globalSearchAppendFrame = 0;
     globalSearchRenderSequence += 1;
   } else {
     window.clearTimeout(lightboxSearchRenderTimer);
@@ -120,8 +120,8 @@ function cancelScheduledSearch(channel) {
 }
 
 function cancelGlobalSearchResultAppend() {
-  window.clearTimeout(globalSearchAppendTimer);
-  globalSearchAppendTimer = 0;
+  window.cancelAnimationFrame(globalSearchAppendFrame);
+  globalSearchAppendFrame = 0;
 }
 
 /** @param {SearchChannel} channel @param {unknown} query @param {SearchScheduleOptions} [options] */
@@ -197,7 +197,10 @@ function setGlobalSearchPanelOpen(open, options = {}) {
   searchElements.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
 
   if (shouldOpen) {
-    renderGlobalSearchScopeMenu();
+    // Categories are static for the lifetime of the page and the menu is built
+    // during initialization. Rebuilding it inside the click interaction adds
+    // avoidable DOM/style work to the user's first search response.
+    syncGlobalSearchScopeUi();
     renderSearchResults(searchElements.globalSearchInput?.value || "");
     if (options.focus !== false) {
       window.requestAnimationFrame(() => searchElements.globalSearchInput?.focus({ preventScroll: true }));
@@ -1127,7 +1130,7 @@ function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuer
   );
 
   const appendNextBatch = () => {
-    globalSearchAppendTimer = 0;
+    globalSearchAppendFrame = 0;
     if (!isCurrentGlobalSearchRender(renderSequence, rawQuery)) return;
 
     nextIndex = appendGlobalSearchResultBatch(
@@ -1136,14 +1139,17 @@ function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuer
       GLOBAL_SEARCH_RENDER_CHUNK_SIZE
     );
     if (nextIndex < results.length) {
-      globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0);
+      // One small batch per frame guarantees a paint/input opportunity between
+      // chunks. Back-to-back zero-delay timers can monopolize the main thread
+      // under CPU throttling even though each individual batch is small.
+      globalSearchAppendFrame = window.requestAnimationFrame(appendNextBatch);
       return;
     }
     searchElements.globalSearchResults.removeAttribute("aria-busy");
   };
 
   if (nextIndex < results.length) {
-    globalSearchAppendTimer = window.setTimeout(appendNextBatch, 0);
+    globalSearchAppendFrame = window.requestAnimationFrame(appendNextBatch);
   } else {
     searchElements.globalSearchResults.removeAttribute("aria-busy");
   }

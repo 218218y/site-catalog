@@ -121,7 +121,29 @@ async function preparePage(page, options = {}) {
       };
     }
     if (enableTelemetry) window.__BARGIG_ENABLE_TELEMETRY__ = true;
-    if (enableVitalsDiagnostics) window.__BARGIG_ENABLE_VITALS_DIAGNOSTICS__ = true;
+    if (enableVitalsDiagnostics) {
+      window.__BARGIG_ENABLE_VITALS_DIAGNOSTICS__ = true;
+      window.__BARGIG_E2E_INTERACTIONS__ = [];
+      if (typeof PerformanceObserver === "function" && PerformanceObserver.supportedEntryTypes?.includes("event")) {
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (!entry.interactionId) continue;
+            const target = entry.target instanceof Element
+              ? entry.target.id || entry.target.classList?.[0] || entry.target.tagName.toLowerCase()
+              : "unknown";
+            window.__BARGIG_E2E_INTERACTIONS__.push({
+              name: entry.name,
+              target,
+              duration: entry.duration,
+              inputDelay: Math.max(0, entry.processingStart - entry.startTime),
+              processing: Math.max(0, entry.processingEnd - entry.processingStart),
+              presentation: Math.max(0, entry.startTime + entry.duration - entry.processingEnd),
+              interactionId: entry.interactionId
+            });
+          }
+        }).observe({ type: "event", buffered: true, durationThreshold: 16 });
+      }
+    }
     if (sessionStorage.getItem("bargig.e2e-onboarding-prepared") !== "1") {
       if (onboardingSeen) localStorage.setItem(onboardingKey, "1");
       else localStorage.removeItem(onboardingKey);
@@ -1323,10 +1345,17 @@ test.describe("critical catalog journeys", () => {
 
       await expect.poll(() => page.evaluate(() => window.__BARGIG_WEB_VITALS__?.LCP || 0)).toBeGreaterThan(0);
       await expect.poll(() => page.evaluate(() => window.__BARGIG_WEB_VITALS__?.INP || 0)).toBeGreaterThan(0);
-      const vitals = await page.evaluate(() => ({ ...window.__BARGIG_WEB_VITALS__ }));
-      expect(vitals.LCP).toBeLessThanOrEqual(budgets.LCP);
-      expect(vitals.INP).toBeLessThanOrEqual(budgets.INP);
-      expect(vitals.CLS).toBeLessThanOrEqual(budgets.CLS);
+      const diagnostics = await page.evaluate(() => ({
+        vitals: { ...window.__BARGIG_WEB_VITALS__ },
+        interactions: [...(window.__BARGIG_E2E_INTERACTIONS__ || [])]
+          .sort((left, right) => right.duration - left.duration)
+          .slice(0, 8),
+        renderedResults: document.querySelectorAll("#globalSearchResults [data-search-catalog]").length
+      }));
+      const detail = JSON.stringify(diagnostics);
+      expect(diagnostics.vitals.LCP, detail).toBeLessThanOrEqual(budgets.LCP);
+      expect(diagnostics.vitals.INP, detail).toBeLessThanOrEqual(budgets.INP);
+      expect(diagnostics.vitals.CLS, detail).toBeLessThanOrEqual(budgets.CLS);
     } finally {
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
     }
