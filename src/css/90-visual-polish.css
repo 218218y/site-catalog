@@ -458,8 +458,7 @@
   .favorite-card,
   .search-result-card,
   .button,
-  .small-button,
-  .reader-button {
+  .small-button {
     transform: none !important;
   }
 }

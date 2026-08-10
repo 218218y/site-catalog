@@ -3049,8 +3049,7 @@ body[data-app-ready="true"] > .site-footer {
   .favorite-card,
   .search-result-card,
   .button,
-  .small-button,
-  .reader-button {
+  .small-button {
     transform: none !important;
   }
 }

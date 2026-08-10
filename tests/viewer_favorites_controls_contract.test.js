@@ -13,6 +13,7 @@ const css = readAllCssBundles();
 const viewerCss = readCssBundle('viewer');
 const favoritesStateSource = fs.readFileSync(path.join(root, 'src/js/14-favorites-state.js'), 'utf8');
 const favoritesShareSource = fs.readFileSync(path.join(root, 'src/js/30-favorites-share.js'), 'utf8');
+const visualPolishSource = fs.readFileSync(path.join(root, 'src/css/90-visual-polish.css'), 'utf8');
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxFavoritesButton"[^>]*href="favorites\.html"/);
@@ -49,6 +50,11 @@ assert.match(viewerCss, /@media \(max-width: 640px\)[\s\S]*?\.viewer-auto-zoom-b
 assert.match(css, /\.lightbox-favorites-button\s*\{[\s\S]*?order:\s*10;/);
 assert.match(css, /\.header-favorites-count\.lightbox-favorites-count\s*\{/);
 assert.doesNotMatch(viewerCss, /\.viewer-auto-zoom-button\s*\{[^}]*(?:left:\s*50%|top:\s*var\(--viewer-side-control-lower-top\)|transform:\s*translateY\(-50%\))/);
+assert.doesNotMatch(
+  visualPolishSource,
+  /\.reader-button\s*\{[^}]*transform:\s*none(?:\s*!important)?;/,
+  'reduced motion must preserve structural transforms owned by reader button variants'
+);
 assert.doesNotMatch(css, /\.viewer-favorite-button\s*\{[\s\S]*?top:\s*calc\(50% - 142px\)/);
 
 console.log('viewer_favorites_controls_contract.test.js: PASS');
