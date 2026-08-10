@@ -66,7 +66,7 @@ async function shareOrCopyPaymentLink() {
     try {
       await navigator.share({
         title: document.title,
-        text: "תשלום חוב קיים · רהיטי ברגיג",
+        text: "תשלום חוב · רהיטי ברגיג",
         url: link
       });
       return;
