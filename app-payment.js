@@ -34,7 +34,7 @@ var form = (
 ), shareToast = (
   /** @type {HTMLElement | null} */
   document.getElementById("paymentShareToast")
-), shareToastTimer = 0;
+), bankCopyButtons = Array.from(document.querySelectorAll("[data-bank-copy-value]")), shareToastTimer = 0;
 async function copyTextToClipboard(value) {
   if (navigator.clipboard?.writeText && window.isSecureContext) {
     await navigator.clipboard.writeText(value);
@@ -78,6 +78,15 @@ async function shareOrCopyPaymentLink() {
   } catch {
     showShareToast("לא ניתן להעתיק אוטומטית", "warning"), window.prompt("אפשר להעתיק את הקישור מכאן:", link);
   }
+}
+async function copyBankDetail(button) {
+  let value = String(button.dataset.bankCopyValue || "").trim(), label = String(button.dataset.bankCopyLabel || "המספר").trim();
+  if (value)
+    try {
+      await copyTextToClipboard(value), showShareToast(`${label} הועתק`);
+    } catch {
+      showShareToast("לא ניתן להעתיק אוטומטית", "warning"), window.prompt(`אפשר להעתיק את ${label} מכאן:`, value);
+    }
 }
 function parseBoolean(value) {
   return String(value).trim().toLowerCase() === "true";
@@ -150,5 +159,9 @@ form instanceof HTMLFormElement && (form.addEventListener("input", updateSubmitS
 shareButton instanceof HTMLButtonElement && shareButton.addEventListener("click", () => {
   shareOrCopyPaymentLink();
 });
+for (let button of bankCopyButtons)
+  button instanceof HTMLButtonElement && button.addEventListener("click", () => {
+    copyBankDetail(button);
+  });
 updateSubmitState();
 markAppReady();

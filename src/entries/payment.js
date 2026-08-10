@@ -10,6 +10,7 @@ const orderNumberInput = /** @type {HTMLInputElement | null} */ (document.getEle
 const termsCheckbox = /** @type {HTMLInputElement | null} */ (document.getElementById("paymentTermsAccepted"));
 const shareButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("paymentShareLink"));
 const shareToast = /** @type {HTMLElement | null} */ (document.getElementById("paymentShareToast"));
+const bankCopyButtons = Array.from(document.querySelectorAll("[data-bank-copy-value]"));
 let shareToastTimer = 0;
 
 /** @param {string} value @returns {Promise<void>} */
@@ -83,6 +84,21 @@ async function shareOrCopyPaymentLink() {
   } catch (_error) {
     showShareToast("לא ניתן להעתיק אוטומטית", "warning");
     window.prompt("אפשר להעתיק את הקישור מכאן:", link);
+  }
+}
+
+/** @param {HTMLButtonElement} button */
+async function copyBankDetail(button) {
+  const value = String(button.dataset.bankCopyValue || "").trim();
+  const label = String(button.dataset.bankCopyLabel || "המספר").trim();
+  if (!value) return;
+
+  try {
+    await copyTextToClipboard(value);
+    showShareToast(`${label} הועתק`);
+  } catch (_error) {
+    showShareToast("לא ניתן להעתיק אוטומטית", "warning");
+    window.prompt(`אפשר להעתיק את ${label} מכאן:`, value);
   }
 }
 
@@ -206,6 +222,13 @@ if (form instanceof HTMLFormElement) {
 if (shareButton instanceof HTMLButtonElement) {
   shareButton.addEventListener("click", () => {
     void shareOrCopyPaymentLink();
+  });
+}
+
+for (const button of bankCopyButtons) {
+  if (!(button instanceof HTMLButtonElement)) continue;
+  button.addEventListener("click", () => {
+    void copyBankDetail(button);
   });
 }
 

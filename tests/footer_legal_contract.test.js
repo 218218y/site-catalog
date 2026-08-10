@@ -120,6 +120,10 @@ assert.doesNotMatch(
   "payment share control must not drift back into the opposite-side action group",
 );
 assert.match(paymentTemplate, /id="paymentShareToast" role="status" aria-live="polite" aria-atomic="true"/);
+assert.match(paymentTemplate, /class="payment-form-kicker">תשלום מאובטח עבור עסקה קיימת<\/span>[\s\S]*?<h1 id="paymentPageTitle">תשלום חוב<\/h1>/);
+assert.match(paymentTemplate, /data-bank-copy-value="655"[\s\S]*?data-bank-copy-label="מספר הסניף"/);
+assert.match(paymentTemplate, /data-bank-copy-value="634063"[\s\S]*?data-bank-copy-label="מספר החשבון"/);
+assert.match(footerLegalCssSource, /\.payment-intro-card h1,\s*\.payment-form-card h2\s*\{[\s\S]*?font-size:\s*clamp\(1\.35rem, 2vw, 1\.75rem\);[\s\S]*?line-height:\s*1\.25;/);
 assert.match(footerLegalCssSource, /\.legal-header-actions\s*\{[\s\S]*?display:\s*inline-flex;[\s\S]*?gap:\s*9px;/);
 assert.match(footerLegalCssSource, /\.payment-share-link\s*\{[\s\S]*?min-width:\s*40px;[\s\S]*?min-height:\s*40px;/);
 assert.match(footerLegalCssSource, /@media \(max-width: 460px\)[\s\S]*?\.legal-header-actions \.legal-back-link span\s*\{\s*display:\s*none;/);
@@ -209,6 +213,8 @@ assert.match(paymentSource, /navigator\.share\(\{[\s\S]*?url: link/);
 assert.match(paymentSource, /navigator\.clipboard\?\.writeText/);
 assert.match(paymentSource, /document\.execCommand\("copy"\)/);
 assert.match(paymentSource, /showShareToast\("הקישור הועתק"\)/);
+assert.match(paymentSource, /function copyBankDetail\(button\)[\s\S]*?copyTextToClipboard\(value\)[\s\S]*?showShareToast\(`\$\{label\} הועתק`\)/);
+assert.match(paymentSource, /bankCopyButtons[\s\S]*?button\.addEventListener\("click"/);
 assert.match(paymentSource, /shareButton\.addEventListener\("click"/);
 
 
