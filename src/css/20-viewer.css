@@ -840,8 +840,7 @@ a.reader-home:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-thumb,
-  .lightbox-image-frame.page-swap-enter {
+  .page-thumb {
     animation: none !important;
     opacity: 1;
     filter: none;

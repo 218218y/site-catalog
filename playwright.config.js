@@ -45,7 +45,9 @@ module.exports = defineConfig({
     timezoneId: "Asia/Jerusalem",
     viewport: { width: 1440, height: 900 },
     colorScheme: "light",
-    reducedMotion: "reduce",
+    contextOptions: {
+      reducedMotion: "reduce"
+    },
     actionTimeout: 7_000,
     navigationTimeout: 15_000,
     screenshot: "only-on-failure",

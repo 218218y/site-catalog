@@ -2879,8 +2879,7 @@ a.reader-home:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-thumb,
-  .lightbox-image-frame.page-swap-enter {
+  .page-thumb {
     animation: none !important;
     opacity: 1;
     filter: none;
@@ -6858,6 +6857,16 @@ body[data-page="viewer"] {
     animation: none !important;
     opacity: .24;
     transform: none;
+  }
+
+
+
+  .lightbox-image-frame.page-swap-enter {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    scale: 1;
+    transition: none;
   }
   body[data-app-ready="true"] > .site-footer { transition: none !important; }
   .catalog-card,

@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { readAllCssBundles } = require("./frontend_test_assets");
+const { readAllCssBundles, readCssBundle } = require("./frontend_test_assets");
 
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -16,6 +16,7 @@ const viewerImage = read("src/js/53-viewer-image.js");
 const sharedUi = read("src/js/20-shared-ui.js");
 const catalogGrid = read("src/js/40-catalog-grid.js");
 const catalogInitialHydration = read("src/js/41-catalog-initial-hydration.js");
+const playwrightConfig = require("../playwright.config.js");
 const css = readAllCssBundles();
 const catalogs = JSON.parse(read("catalogs.generated.json"));
 
@@ -66,8 +67,18 @@ assert.match(sharedUi, /const observedCatalogPageSizes = new WeakMap\(\);/);
 assert.doesNotMatch(sharedUi, /catalog\.pageSizes\s*=|catalog\.pageSizes\s*\[/);
 assert.match(css, /html\s*\{[\s\S]*?scrollbar-gutter:\s*stable;/);
 assert.match(css, /html\.viewer-open\s*\{[\s\S]*?scrollbar-gutter:\s*auto;/);
+assert.equal(playwrightConfig.use.contextOptions?.reducedMotion, "reduce");
+assert.equal(Object.hasOwn(playwrightConfig.use, "reducedMotion"), false);
 assert.match(css, /\.lightbox-image-frame\s*\{[\s\S]*?contain:\s*layout paint style;[\s\S]*?transition:\s*\n?\s*box-shadow/);
 assert.doesNotMatch(css, /\.lightbox-image-frame\s*\{[^}]*transition:[^}]*\b(?:width|height)\b/s);
+for (const route of ["catalog", "favorites", "viewer"]) {
+  const routeCss = readCssBundle(route);
+  assert.match(
+    routeCss,
+    /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.lightbox-image-frame\.page-swap-enter\s*\{[^}]*animation:\s*none;[^}]*opacity:\s*1;[^}]*filter:\s*none;[^}]*scale:\s*1;[^}]*transition:\s*none;/,
+    `${route} route must neutralize viewer frame scaling when motion is reduced`
+  );
+}
 assert.match(css, /img\[data-brand-logo="1"\]\s*\{[\s\S]*?aspect-ratio:\s*786\s*\/\s*317;/);
 
 console.log("cls_layout_stability_contract.test.js: PASS");

@@ -442,6 +442,16 @@
     opacity: .24;
     transform: none;
   }
+  /* Viewer sessions can open inside catalog and favorites documents, whose
+     route bundles intentionally omit 20-viewer.css. Keep the frame's painted
+     box identical to its primed geometry on every route when motion is reduced. */
+  .lightbox-image-frame.page-swap-enter {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    scale: 1;
+    transition: none;
+  }
   body[data-app-ready="true"] > .site-footer { transition: none !important; }
   .catalog-card,
   .page-card,

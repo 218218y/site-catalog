@@ -3033,6 +3033,16 @@ body[data-app-ready="true"] > .site-footer {
     opacity: .24;
     transform: none;
   }
+
+
+
+  .lightbox-image-frame.page-swap-enter {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    scale: 1;
+    transition: none;
+  }
   body[data-app-ready="true"] > .site-footer { transition: none !important; }
   .catalog-card,
   .page-card,
