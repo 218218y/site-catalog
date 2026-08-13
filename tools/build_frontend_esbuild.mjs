@@ -5,8 +5,6 @@ import path from "node:path";
 import process from "node:process";
 import { build, version as esbuildVersion } from "esbuild";
 
-const EXPECTED_ESBUILD_VERSION = "0.28.1";
-
 function parseArguments(argv) {
   const values = new Map();
   for (let index = 0; index < argv.length; index += 2) {
@@ -17,16 +15,17 @@ function parseArguments(argv) {
     }
     values.set(name.slice(2), value);
   }
-  for (const required of ["root", "entry", "outfile", "metafile", "capabilities", "external-modules"]) {
+  for (const required of ["root", "entry", "outfile", "metafile", "capabilities", "external-modules", "expected-version"]) {
     if (!values.has(required)) throw new Error(`Missing required --${required}`);
   }
   return Object.fromEntries(values);
 }
 
 const args = parseArguments(process.argv.slice(2));
-if (esbuildVersion !== EXPECTED_ESBUILD_VERSION) {
+const expectedEsbuildVersion = args["expected-version"];
+if (esbuildVersion !== expectedEsbuildVersion) {
   throw new Error(
-    `Unsupported esbuild version ${esbuildVersion}; expected ${EXPECTED_ESBUILD_VERSION}. Run python tools/bootstrap_esbuild_offline.py (or npm ci for the full toolchain).`,
+    `Unsupported esbuild version ${esbuildVersion}; expected ${expectedEsbuildVersion} from package-lock.json. Run python tools/bootstrap_esbuild_offline.py (or npm ci for the full toolchain).`,
   );
 }
 

@@ -28,7 +28,7 @@ const verifier = read("tools/verify_project.py");
 
 assert.equal(packageJson.devDependencies.typescript, "7.0.2");
 assert.equal(Object.hasOwn(packageJson.devDependencies, "typescript-5-8"), false);
-assert.equal(packageJson.devDependencies.esbuild, "0.28.1");
+assert.equal(packageLock.packages[""].devDependencies.esbuild, packageJson.devDependencies.esbuild);
 assert.equal(packageLock.packages[""].devDependencies.typescript, "7.0.2");
 assert.equal(Object.hasOwn(packageLock.packages[""].devDependencies, "typescript-5-8"), false);
 assert.equal(packageLock.packages["node_modules/typescript"].version, "7.0.2");

@@ -78,7 +78,7 @@
 
 ## בניית ES Modules וגרפי מסלולים
 
-- `esbuild` הוא `devDependency` ישיר ומקובע בדיוק ל־`0.28.1`; גם `package-lock.json` מקבע את חבילת הליבה ואת הבינארי הפלטפורמי. `tools/build_frontend_esbuild.mjs` מסרב לעבוד עם גרסה אחרת.
+- `esbuild` הוא `devDependency` ישיר עם גרסה מדויקת; `package-lock.json` הוא מקור האמת לגרסה המותקנת ומקבע גם את חבילת הליבה וגם את הבינארי הפלטפורמי. כלי הבנייה מקבלים את הגרסה הצפויה מה־lockfile ומסרבים לעבוד עם התקנה שאינה תואמת, בלי להחזיק מספר גרסה נוסף בקוד.
 - נקודות הכניסה הן `src/entries/catalog.js`, `src/entries/favorites.js` ו־`src/entries/viewer.js`. הן מכילות imports סטטיים בלבד ואינן מחזיקות state או לוגיקה עסקית.
 - `tools/build_frontend_assets.py` מחזיק חוזי Route ו־capability, לא snapshot ידני של כל הקבצים הטרנזיטיביים. entrypoint ו־composition roots נדרשים חייבים להופיע; owner של capability כבוי חייב להיעדר; ומודולי Viewer מזוהים אוטומטית לפי גבול ownership. כך helper משותף חדש יכול להיכנס דרך import רגיל בלי manifest churn, אך זליגת Feature עדיין מכשילה את הבנייה. לאחר bundling קובצי מקור פיזיים מופרדים מקלטי compiler וירטואליים כגון `<define:...>`, וקלט וירטואלי לא מוכר נשאר כשל קשיח.
 - שמות תוצרי המסלולים נשמרים: `app-catalog.js`, `app-favorites.js`, `app-viewer.js`, ‏`app-payment.js`. מסלול התשלום נשאר bundle עצמאי ורזה שאינו טוען את runtime הקטלוגים. שירותי `catalog-search.js`, `tooltip-manager.js`, `favorites-store.js` ו־`site-routes.js` נוצרים גם הם כ־ESM נפרד ומיובאים מפורשות משלושת Route bundles של הקטלוגים; `app-payment.js` אינו תלוי בהם. הפורמט הוא `esm`, וה־HTML טוען רק את Route entry באמצעות `<script type="module">`; אין מעטפת IIFE סביב התוצר, classic script עסקי או loader היסטורי. בדיקת החוזה בוחנת את המבנה החיצוני בלבד כדי לא לפסול ביטויי אתחול מקומיים תקינים.

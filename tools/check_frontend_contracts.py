@@ -808,18 +808,25 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     try:
         package = json.loads(package_path.read_text(encoding="utf-8"))
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
-        if package.get("devDependencies", {}).get("esbuild") != "0.28.1":
-            failures.append("esbuild must be a direct exact devDependency at version 0.28.1")
-        if lock.get("packages", {}).get("", {}).get("devDependencies", {}).get("esbuild") != "0.28.1":
-            failures.append("package-lock.json does not pin the root esbuild devDependency")
+        expected_esbuild = package.get("devDependencies", {}).get("esbuild")
+        if not isinstance(expected_esbuild, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", expected_esbuild):
+            failures.append("esbuild must be a direct exact-version devDependency")
+            expected_esbuild = None
+        lock_root_esbuild = lock.get("packages", {}).get("", {}).get("devDependencies", {}).get("esbuild")
+        if expected_esbuild is not None and lock_root_esbuild != expected_esbuild:
+            failures.append("package.json and package-lock.json disagree about the root esbuild version")
         locked_esbuild = lock.get("packages", {}).get("node_modules/esbuild", {})
-        if locked_esbuild.get("version") != "0.28.1":
-            failures.append("package-lock.json does not lock esbuild 0.28.1")
-        if not locked_esbuild.get("resolved", "").endswith("/esbuild-0.28.1.tgz") or not locked_esbuild.get("integrity"):
-            failures.append("package-lock.json is missing reproducible esbuild registry metadata")
+        if expected_esbuild is not None and locked_esbuild.get("version") != expected_esbuild:
+            failures.append("package-lock.json does not lock the direct esbuild version selected by package.json")
+        if expected_esbuild is not None:
+            resolved = locked_esbuild.get("resolved", "")
+            if not resolved.endswith(f"/esbuild-{expected_esbuild}.tgz") or not locked_esbuild.get("integrity"):
+                failures.append("package-lock.json is missing reproducible esbuild registry metadata")
         locked_linux = lock.get("packages", {}).get("node_modules/@esbuild/linux-x64", {})
-        if locked_linux.get("version") != "0.28.1" or not locked_linux.get("integrity"):
-            failures.append("package-lock.json is missing the locked Linux esbuild binary metadata")
+        if expected_esbuild is not None and (
+            locked_linux.get("version") != expected_esbuild or not locked_linux.get("integrity")
+        ):
+            failures.append("package-lock.json is missing matching Linux esbuild binary metadata")
     except (OSError, json.JSONDecodeError) as error:
         failures.append(f"could not validate pinned esbuild dependency: {error}")
 

@@ -6,7 +6,7 @@
  *   - src/runtime/tooltip-manager.js
  * Compiler virtual inputs: none
  * Output format: native browser ES module
- * Bundler: esbuild 0.28.1 (direct pinned devDependency)
+ * Bundler: esbuild 0.28.2 (lockfile-selected direct devDependency)
  * Build command: python tools/build_frontend_assets.py
  */
 // src/runtime/tooltip-manager.js

@@ -189,6 +189,16 @@ ESBUILD_RUNNER = Path(__file__).with_name("build_frontend_esbuild.mjs")
 CSS_CASCADE_LAYER = "bargig.application"
 
 
+def expected_esbuild_version(root: Path | None = None) -> str:
+    """Return the exact esbuild version selected by the project lockfile."""
+
+    try:
+        from bootstrap_esbuild_offline import locked_version
+    except ImportError as error:
+        raise RuntimeError("Cannot load the repository-local esbuild version resolver") from error
+    return locked_version((root or project_root()).resolve())
+
+
 def ensure_local_esbuild() -> None:
     """Use exact local esbuild; bootstrap only from vendored Linux archives."""
 
@@ -449,6 +459,7 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
             "--outfile", str(raw_output), "--metafile", str(metafile_path),
             "--capabilities", json.dumps(capabilities, separators=(",", ":")),
             "--external-modules", json.dumps(dict(spec.external_modules or {}), separators=(",", ":")),
+            "--expected-version", expected_esbuild_version(),
         ]
         environment = os.environ.copy()
         environment.pop("ESBUILD_BINARY_PATH", None)
@@ -547,7 +558,7 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
         f"{external_manifest}"
         f" * Compiler virtual inputs: {', '.join(virtual_inputs) if virtual_inputs else 'none'}\n"
         " * Output format: native browser ES module\n"
-        " * Bundler: esbuild 0.28.1 (direct pinned devDependency)\n"
+        f" * Bundler: esbuild {expected_esbuild_version()} (lockfile-selected direct devDependency)\n"
         " * Build command: python tools/build_frontend_assets.py\n */\n"
     )
     return normalize_text(banner + raw_bundle)

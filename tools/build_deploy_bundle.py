@@ -55,6 +55,7 @@ from build_frontend_assets import (
     RUNTIME_EXTERNAL_MODULES,
     build_frontend_assets,
     ensure_local_esbuild,
+    expected_esbuild_version,
 )
 from catalog_compiler import compile_current_project_catalog_data
 from catalog_image_policy import (
@@ -693,6 +694,8 @@ def optimize_deploy_assets(
                 str(manifest_path),
                 "--report",
                 str(report_path),
+                "--expected-version",
+                expected_esbuild_version(project_root()),
             ],
             cwd=project_root(),
             env=environment,
@@ -710,7 +713,7 @@ def optimize_deploy_assets(
 
     if report.get("profile") != DEPLOY_OPTIMIZATION_PROFILE:
         raise RuntimeError("Deploy optimizer reported an unexpected optimization profile")
-    if report.get("esbuildVersion") != "0.28.1":
+    if report.get("esbuildVersion") != expected_esbuild_version(project_root()):
         raise RuntimeError("Deploy optimizer reported an unexpected esbuild version")
     report_assets = report.get("assets")
     if not isinstance(report_assets, list):

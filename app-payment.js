@@ -6,7 +6,7 @@
  *   - src/entries/payment.js
  * Compiler virtual inputs: <define:__BARGIG_FEATURE_CAPABILITIES__>
  * Output format: native browser ES module
- * Bundler: esbuild 0.28.1 (direct pinned devDependency)
+ * Bundler: esbuild 0.28.2 (lockfile-selected direct devDependency)
  * Build command: python tools/build_frontend_assets.py
  */
 // src/entries/payment.js

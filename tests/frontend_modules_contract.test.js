@@ -20,6 +20,7 @@ const contractChecker = fs.readFileSync(path.join(root, 'tools', 'check_frontend
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
 const telemetrySource = fs.readFileSync(path.join(root, 'src', 'js', '15-telemetry.js'), 'utf8');
+const expectedEsbuildVersion = packageJson.devDependencies.esbuild;
 
 const sourceMarker = (relativePath) => ` *   - ${relativePath}`;
 
@@ -50,7 +51,7 @@ function hasLegacyTopLevelIifeWrapper(source) {
 
 for (const bundle of [catalogBundle, favoritesBundle, viewerBundle]) {
   assert.match(bundle, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
-  assert.match(bundle, /Bundler: esbuild 0\.28\.1 \(direct pinned devDependency\)/);
+  assert.ok(bundle.includes(`Bundler: esbuild ${expectedEsbuildVersion} (lockfile-selected direct devDependency)`));
   assert.match(bundle, /Output format: native browser ES module/);
   assert.equal((bundle.match(/\binitResult\s*=\s*(?:true|!0)\s*;/g) || []).length, 1);
   assert.equal((bundle.match(/\binitResult\s*=\s*init\(\)\s*;/g) || []).length, 1);
@@ -64,12 +65,12 @@ for (const css of [catalogCss, favoritesCss, viewerCss]) {
   assert.equal((css.match(/@layer bargig\.application \{/g) || []).length, 1);
 }
 
-assert.equal(packageJson.devDependencies.esbuild, '0.28.1');
-assert.equal(packageLock.packages[''].devDependencies.esbuild, '0.28.1');
-assert.equal(packageLock.packages['node_modules/esbuild'].version, '0.28.1');
-assert.match(packageLock.packages['node_modules/esbuild'].resolved, /esbuild-0\.28\.1\.tgz$/);
+assert.match(expectedEsbuildVersion, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
+assert.equal(packageLock.packages[''].devDependencies.esbuild, expectedEsbuildVersion);
+assert.equal(packageLock.packages['node_modules/esbuild'].version, expectedEsbuildVersion);
+assert.ok(packageLock.packages['node_modules/esbuild'].resolved.endsWith(`/esbuild-${expectedEsbuildVersion}.tgz`));
 assert.ok(packageLock.packages['node_modules/esbuild'].integrity);
-assert.equal(packageLock.packages['node_modules/@esbuild/linux-x64'].version, '0.28.1');
+assert.equal(packageLock.packages['node_modules/@esbuild/linux-x64'].version, expectedEsbuildVersion);
 assert.ok(packageLock.packages['node_modules/@esbuild/linux-x64'].integrity);
 
 assert.match(frontendBuilder, /BUNDLE_SPECS:\s*tuple\[FrontendBundleSpec, \.\.\.\]/);
@@ -88,7 +89,9 @@ assert.match(frontendBuilder, /CSS_CASCADE_LAYER = \"bargig\.application\"/);
 assert.match(frontendBuilder, /return tuple\(build_one/);
 assert.match(frontendBuilder, /_partition_metafile_inputs/);
 assert.match(esbuildRunner, /import \{ build, version as esbuildVersion \} from "esbuild"/);
-assert.match(esbuildRunner, /EXPECTED_ESBUILD_VERSION = "0\.28\.1"/);
+assert.match(esbuildRunner, /expectedEsbuildVersion = args\["expected-version"\]/);
+assert.match(esbuildRunner, /from package-lock\.json/);
+assert.doesNotMatch(esbuildRunner, /EXPECTED_ESBUILD_VERSION/);
 assert.match(esbuildRunner, /entryPoints: \[entry\]/);
 assert.match(esbuildRunner, /bundle: true/);
 assert.match(esbuildRunner, /format: "esm"/);

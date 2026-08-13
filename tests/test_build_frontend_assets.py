@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import os
 import shutil
 import sys
@@ -167,15 +168,16 @@ def test_esbuild_is_an_exact_direct_reproducible_dependency() -> None:
     package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
 
-    assert package["devDependencies"]["esbuild"] == "0.28.1"
-    assert lock["packages"][""]["devDependencies"]["esbuild"] == "0.28.1"
+    expected = package["devDependencies"]["esbuild"]
+    assert re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", expected)
+    assert lock["packages"][""]["devDependencies"]["esbuild"] == expected
     locked = lock["packages"]["node_modules/esbuild"]
-    assert locked["version"] == "0.28.1"
-    assert locked["resolved"].endswith("/esbuild-0.28.1.tgz")
+    assert locked["version"] == expected
+    assert locked["resolved"].endswith(f"/esbuild-{expected}.tgz")
     assert locked["integrity"].startswith("sha512-")
     linux_binary = lock["packages"]["node_modules/@esbuild/linux-x64"]
-    assert linux_binary["version"] == "0.28.1"
-    assert linux_binary["resolved"].endswith("/linux-x64-0.28.1.tgz")
+    assert linux_binary["version"] == expected
+    assert linux_binary["resolved"].endswith(f"/linux-x64-{expected}.tgz")
     assert linux_binary["integrity"].startswith("sha512-")
 
 
@@ -277,7 +279,7 @@ def test_generated_bundles_publish_the_reviewed_esbuild_graph() -> None:
             continue
 
         assert f"ES module entrypoint: {spec.entrypoint}" in output
-        assert "Bundler: esbuild 0.28.1 (direct pinned devDependency)" in output
+        assert f"Bundler: esbuild {MODULE.expected_esbuild_version()} (lockfile-selected direct devDependency)" in output
         for relative in spec.required_inputs:
             assert f" *   - {relative}" in output
         assert "Output format: native browser ES module" in output
