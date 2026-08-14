@@ -52,10 +52,30 @@ def test_clamping_is_bounded_idempotent_and_monotonic_for_generated_inputs() -> 
 
 
 def test_invalid_values_fall_back_without_escaping_the_catalog_domain() -> None:
-    invalid_values: tuple[Any, ...] = (None, object(), "", "not-a-page", [], {}, float("nan"))
+    invalid_values: tuple[Any, ...] = (
+        None,
+        object(),
+        "",
+        "1",
+        "not-a-page",
+        False,
+        True,
+        1.0,
+        [],
+        {},
+        float("nan"),
+    )
     for catalog in generated_catalogs(0xFA11, 100):
         first = MODULE.first_display_page(catalog)
         for value in invalid_values:
             assert MODULE.clamp_display_page(catalog, value) == first
             assert MODULE.display_to_asset_page(catalog, value) == 1
             assert MODULE.asset_to_display_page(catalog, value) == first
+
+
+def test_page_count_accepts_only_real_integers() -> None:
+    assert MODULE.page_count({"pages": 3}) == 3
+    assert MODULE.page_count({"pages": 0}) == 0
+    assert MODULE.page_count({"pages": -3}) == 0
+    for value in (None, False, True, 3.0, "3", "03", [], {}):
+        assert MODULE.page_count({"pages": value}) == 0

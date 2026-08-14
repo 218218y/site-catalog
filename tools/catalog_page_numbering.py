@@ -11,12 +11,14 @@ def page_number_start(catalog: Mapping[str, object] | None) -> int:
     return 0 if isinstance(value, int) and not isinstance(value, bool) and value == 0 else DEFAULT_PAGE_NUMBER_START
 
 
+def _integer_or(value: object, fallback: int) -> int:
+    """Return a real integer value without accepting coercible lookalikes."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else fallback
+
+
 def page_count(catalog: Mapping[str, object] | None) -> int:
-    try:
-        value = int((catalog or {}).get("pages", 0) or 0)
-    except (TypeError, ValueError):
-        return 0
-    return max(0, value)
+    value = catalog.get("pages") if catalog is not None else None
+    return max(0, _integer_or(value, 0))
 
 
 def first_display_page(catalog: Mapping[str, object] | None) -> int:
@@ -32,10 +34,7 @@ def last_display_page(catalog: Mapping[str, object] | None) -> int:
 def clamp_display_page(catalog: Mapping[str, object] | None, display_page: object) -> int:
     first = first_display_page(catalog)
     last = last_display_page(catalog)
-    try:
-        value = int(display_page)
-    except (TypeError, ValueError):
-        value = first
+    value = _integer_or(display_page, first)
     return min(max(value, first), last)
 
 
@@ -45,10 +44,7 @@ def display_to_asset_page(catalog: Mapping[str, object] | None, display_page: ob
 
 def asset_to_display_page(catalog: Mapping[str, object] | None, asset_page: object) -> int:
     count = max(1, page_count(catalog))
-    try:
-        value = int(asset_page)
-    except (TypeError, ValueError):
-        value = 1
+    value = _integer_or(asset_page, 1)
     return first_display_page(catalog) + min(max(value, 1), count) - 1
 
 
