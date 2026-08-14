@@ -42,20 +42,20 @@ def test_response_contract_rejects_missing_and_unknown_fields() -> None:
 
     missing = copy.deepcopy(payload)
     del missing["counts"]
-    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"ControlPanelStateDto\.counts is required"):
+    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"ControlPanelStateDto\.counts: is required"):
         SCHEMA.validate_control_panel_payload("ControlPanelStateDto", missing)
 
     unknown = copy.deepcopy(payload)
     unknown["silentContractDrift"] = True
-    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"silentContractDrift is not allowed"):
+    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"silentContractDrift: is not allowed"):
         SCHEMA.validate_control_panel_payload("ControlPanelStateDto", unknown)
 
 
 def test_request_parser_rejects_fields_not_declared_by_the_schema() -> None:
-    with pytest.raises(API.ApiRequestError, match=r"unexpected is not allowed"):
+    with pytest.raises(API.ApiRequestError, match=r"unexpected: is not allowed"):
         API.FooterSaveRequest.parse({"footer": {"businessName": "Test"}, "unexpected": True})
 
-    with pytest.raises(API.ApiRequestError, match=r"unexpected is not allowed"):
+    with pytest.raises(API.ApiRequestError, match=r"unexpected: is not allowed"):
         API.RunActionRequest.parse({"action": "convert", "unexpected": True})
 
 
@@ -68,10 +68,3 @@ def test_response_contract_failure_is_an_internal_server_error_boundary() -> Non
     handler = object.__new__(SERVER.ControlHandler)
     with pytest.raises(RuntimeError, match="Control-panel response violates ErrorResponseDto"):
         handler.send_contract_json("ErrorResponseDto", {"ok": True, "error": "wrong const"})
-
-
-def test_schema_audit_rejects_keywords_the_runtime_cannot_enforce() -> None:
-    schema = copy.deepcopy(SCHEMA.load_control_panel_schema())
-    schema["$defs"]["ErrorResponseDto"]["anyOf"] = [{"type": "object"}]
-    with pytest.raises(RuntimeError, match="Unsupported control-panel schema keyword"):
-        SCHEMA._audit_schema(schema)

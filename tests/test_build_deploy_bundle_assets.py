@@ -55,6 +55,7 @@ def test_catalog_authoritative_sources_and_compiler_are_bundle_freshness_inputs(
         "schemas/catalogs.build-state.schema.json",
         "tools/catalog_compiler.py",
         "tools/catalog_schema.py",
+        "tools/json_schema.py",
     ):
         assert relative in inputs
 

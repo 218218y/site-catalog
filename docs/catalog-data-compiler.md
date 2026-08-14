@@ -44,9 +44,12 @@ catalogs.search.schema.json
 catalogs.search-index.schema.json
 ```
 
-`tools/catalog_schema.py` validates those contracts without adding a new runtime
-package. It also enforces cross-file invariants such as unique IDs, taxonomy
-coverage, matching generated/search order, page bounds and canonical asset paths.
+`tools/json_schema.py` owns the single strict Draft 2020-12 subset used by every
+Python-side JSON contract. It audits checked-in schemas before validation and
+fails closed if a schema introduces a keyword or reference form the runtime cannot
+enforce. `tools/catalog_schema.py` adds catalog-specific semantic invariants such
+as unique IDs, taxonomy coverage, matching generated/search order, page bounds
+and canonical asset paths.
 
 ## Commands
 

@@ -162,7 +162,7 @@
 - `core/dom.js` הוא המקום היחיד שמאתר IDs גלובליים ומחלק לכל Feature רק את האלמנטים שבבעלותו. Feature רשאי לבצע query מקומי בתוך container שקיבל, אך אינו מחפש DOM של תחום אחר.
 - `features/catalogs.js`, `taxonomy.js`, `footer.js`, `jobs.js`, `pdf.js` ו־`system.js` אינם מייבאים זה את זה. תיאום חוצה־תחומים עובר דרך callbacks או ports שה־composition root מזריק.
 - `schemas/control-panel-api.schema.json` הוא מקור האמת היחיד לחוזי הבקשות והתגובות. `tools/generate_control_panel_api_types.py` מייצר ממנו את `types/control-panel-api.d.ts`; `--check` נכשל כאשר הקובץ stale.
-- `tools/control_panel_api_schema.py` מאמת את אותו schema בצד Python. parsers מאמתים בקשות לפני שימוש, ו־`send_contract_json()` מאמת תגובות לפני כתיבה לרשת. שינוי DTO שאינו מסונכרן נכשל בבדיקת החוזה, לא רק בזמן פתיחת הדפדפן.
+- `tools/control_panel_api_schema.py` מאמת את אותו schema בצד Python דרך `tools/json_schema.py`, מנוע החוזים המשותף לכל סכמות ה־JSON בפרויקט. המנוע מבצע audit קשיח ונכשל אם נוסף keyword שאינו נאכף; parsers מאמתים בקשות לפני שימוש, ו־`send_contract_json()` מאמת תגובות לפני כתיבה לרשת. שינוי DTO שאינו מסונכרן נכשל בבדיקת החוזה, לא רק בזמן פתיחת הדפדפן.
 - השרת, הנעילות והעסקאות נשארים owners של normalization, validation וכתיבה אטומית. הפיצול בצד הדפדפן אינו משכפל לוגיקת שרת ואינו מחליש את גבול העסקה.
 
 `tests/control_panel_modular_architecture_contract.test.js` אוכף גרף ESM ללא מחזורים, איסור imports בין Features, owner יחיד ל־DOM ול־state, ו־entry קטן. `tests/test_control_panel_api_schema.py` מוכיח שהטיפוסים generated עדכניים ושהחוזה דוחה שדות חסרים, שדות לא מוכרים וסטייה בין state חי ל־schema.

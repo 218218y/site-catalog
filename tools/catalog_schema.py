@@ -2,18 +2,32 @@
 """Schema-backed validation for catalog source and compiler data.
 
 The JSON files in ``schemas/`` are the public, editor-friendly contracts.  This
-module intentionally implements the small Draft 2020-12 subset used by those
-schemas, avoiding a runtime dependency on a general-purpose schema package.
-Semantic checks that JSON Schema cannot express cleanly (cross-file taxonomy
-coverage and duplicate ids/slugs) live beside the structural validation.
+module delegates structural enforcement to the shared strict Draft 2020-12
+subset in ``tools/json_schema.py``. Semantic checks that JSON Schema cannot
+express cleanly (cross-file taxonomy coverage and duplicate ids/slugs) live
+beside the structural validation.
 """
 from __future__ import annotations
 
 import json
-import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+try:
+    from tools.json_schema import (
+        JsonSchemaDefinitionError,
+        JsonSchemaValidationError,
+        audit_json_schema,
+        validate_json_schema,
+    )
+except ModuleNotFoundError:  # Direct execution from tools/
+    from json_schema import (
+        JsonSchemaDefinitionError,
+        JsonSchemaValidationError,
+        audit_json_schema,
+        validate_json_schema,
+    )
 
 try:
     from tools.catalog_page_numbering import first_display_page, last_display_page, page_number_start
@@ -55,130 +69,15 @@ def load_schema(project_root: Path, name: str) -> dict[str, Any]:
     return payload
 
 
-def _resolve_ref(root_schema: Mapping[str, Any], reference: str) -> Mapping[str, Any]:
-    if not reference.startswith("#/"):
-        raise SchemaValidationError(f"Unsupported external schema reference: {reference}")
-    value: Any = root_schema
-    for part in reference[2:].split("/"):
-        key = part.replace("~1", "/").replace("~0", "~")
-        if not isinstance(value, Mapping) or key not in value:
-            raise SchemaValidationError(f"Broken local schema reference: {reference}")
-        value = value[key]
-    if not isinstance(value, Mapping):
-        raise SchemaValidationError(f"Schema reference does not target an object: {reference}")
-    return value
-
-
-def _matches_type(value: Any, expected: str) -> bool:
-    if expected == "object":
-        return isinstance(value, Mapping)
-    if expected == "array":
-        return isinstance(value, list)
-    if expected == "string":
-        return isinstance(value, str)
-    if expected == "boolean":
-        return isinstance(value, bool)
-    if expected == "integer":
-        return isinstance(value, int) and not isinstance(value, bool)
-    if expected == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-    if expected == "null":
-        return value is None
-    raise SchemaValidationError(f"Unsupported schema type: {expected}")
-
-
-def _display_path(path: tuple[Any, ...]) -> str:
-    result = "$"
-    for part in path:
-        result += f"[{part}]" if isinstance(part, int) else f".{part}"
-    return result
-
-
-def _fail(path: tuple[Any, ...], message: str) -> None:
-    raise SchemaValidationError(f"{_display_path(path)}: {message}")
-
-
-def _validate(value: Any, schema: Mapping[str, Any], root_schema: Mapping[str, Any], path: tuple[Any, ...]) -> None:
-    all_of = schema.get("allOf")
-    if isinstance(all_of, list):
-        for branch in all_of:
-            if not isinstance(branch, Mapping):
-                raise SchemaValidationError("Schema allOf entries must be objects")
-            _validate(value, branch, root_schema, path)
-
-    reference = schema.get("$ref")
-    if isinstance(reference, str):
-        _validate(value, _resolve_ref(root_schema, reference), root_schema, path)
-        return
-
-    if "const" in schema and value != schema["const"]:
-        _fail(path, f"must equal {schema['const']!r}")
-    if "enum" in schema and value not in schema["enum"]:
-        _fail(path, f"must be one of {schema['enum']!r}")
-
-    expected_type = schema.get("type")
-    if isinstance(expected_type, str):
-        if not _matches_type(value, expected_type):
-            _fail(path, f"must be {expected_type}, got {type(value).__name__}")
-    elif isinstance(expected_type, list):
-        if not any(_matches_type(value, item) for item in expected_type):
-            _fail(path, f"must match one of the allowed types: {expected_type!r}")
-
-    if isinstance(value, Mapping):
-        required = schema.get("required", [])
-        for key in required if isinstance(required, list) else []:
-            if key not in value:
-                _fail(path, f"is missing required property {key!r}")
-        properties = schema.get("properties", {})
-        properties = properties if isinstance(properties, Mapping) else {}
-        if schema.get("additionalProperties") is False:
-            extras = sorted(str(key) for key in value if key not in properties)
-            if extras:
-                _fail(path, f"contains unsupported properties: {', '.join(extras)}")
-        for key, item in value.items():
-            child_schema = properties.get(key)
-            if isinstance(child_schema, Mapping):
-                _validate(item, child_schema, root_schema, (*path, key))
-
-    if isinstance(value, list):
-        minimum = schema.get("minItems")
-        maximum = schema.get("maxItems")
-        if isinstance(minimum, int) and len(value) < minimum:
-            _fail(path, f"must contain at least {minimum} item(s)")
-        if isinstance(maximum, int) and len(value) > maximum:
-            _fail(path, f"must contain at most {maximum} item(s)")
-        item_schema = schema.get("items")
-        if isinstance(item_schema, Mapping):
-            for index, item in enumerate(value):
-                _validate(item, item_schema, root_schema, (*path, index))
-        if schema.get("uniqueItems") is True:
-            serialized = [json.dumps(item, ensure_ascii=False, sort_keys=True) for item in value]
-            if len(serialized) != len(set(serialized)):
-                _fail(path, "must contain unique items")
-
-    if isinstance(value, str):
-        minimum = schema.get("minLength")
-        maximum = schema.get("maxLength")
-        if isinstance(minimum, int) and len(value) < minimum:
-            _fail(path, f"must contain at least {minimum} character(s)")
-        if isinstance(maximum, int) and len(value) > maximum:
-            _fail(path, f"must contain at most {maximum} character(s)")
-        pattern = schema.get("pattern")
-        if isinstance(pattern, str) and re.search(pattern, value) is None:
-            _fail(path, f"does not match required pattern {pattern!r}")
-
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        minimum = schema.get("minimum")
-        maximum = schema.get("maximum")
-        if isinstance(minimum, (int, float)) and value < minimum:
-            _fail(path, f"must be at least {minimum}")
-        if isinstance(maximum, (int, float)) and value > maximum:
-            _fail(path, f"must be at most {maximum}")
-
-
 def validate_against_schema(value: Any, project_root: Path, schema_name: str) -> None:
     schema = load_schema(project_root, schema_name)
-    _validate(value, schema, schema, ())
+    try:
+        audit_json_schema(schema)
+        validate_json_schema(value, schema)
+    except JsonSchemaDefinitionError as exc:
+        raise SchemaValidationError(f"Invalid schema {schema_name}: {exc}") from exc
+    except JsonSchemaValidationError as exc:
+        raise SchemaValidationError(str(exc)) from exc
 
 
 def _ensure_unique(rows: Sequence[Mapping[str, Any]], key: str, *, label: str) -> None:

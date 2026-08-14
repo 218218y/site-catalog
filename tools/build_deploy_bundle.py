@@ -249,6 +249,7 @@ BUILD_TOOL_FILES = (
     "tools/build_big_pages_viewer.py",
     "tools/catalog_compiler.py",
     "tools/catalog_schema.py",
+    "tools/json_schema.py",
     "tools/catalog_search_index.py",
     "tools/seo_site.py",
     "tools/seo_route_lock.py",

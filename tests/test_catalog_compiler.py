@@ -113,6 +113,22 @@ def test_official_schemas_are_draft_2020_12_documents(schema_name: str) -> None:
 
 
 
+def test_search_index_schema_enforces_dynamic_object_value_contracts() -> None:
+    search_index = json.loads((ROOT / COMPILER.SEARCH_INDEX_FILE).read_text(encoding="utf-8"))
+
+    invalid_category_pages = deepcopy(search_index)
+    category = next(iter(invalid_category_pages["stats"]["categoryPages"]))
+    invalid_category_pages["stats"]["categoryPages"][category] = "1"
+    with pytest.raises(SCHEMA.SchemaValidationError, match=r"categoryPages.*must be integer"):
+        SCHEMA.validate_search_index(invalid_category_pages, ROOT)
+
+    invalid_terms = deepcopy(search_index)
+    token = next(iter(invalid_terms["terms"]))
+    invalid_terms["terms"][token] = "not-an-array"
+    with pytest.raises(SCHEMA.SchemaValidationError, match=r"terms.*must be array"):
+        SCHEMA.validate_search_index(invalid_terms, ROOT)
+
+
 def test_search_index_keeps_pages_without_extractable_text_searchable_by_metadata(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
@@ -262,7 +278,7 @@ def test_every_managed_public_catalog_output_is_reconstructable() -> None:
 def test_schema_rejects_unowned_catalog_fields(field_name: str) -> None:
     catalogs = json.loads((ROOT / "catalogs.config.json").read_text(encoding="utf-8"))
     catalogs[0][field_name] = "unsupported"
-    with pytest.raises(SCHEMA.SchemaValidationError, match="unsupported properties"):
+    with pytest.raises(SCHEMA.SchemaValidationError, match="unsupported property"):
         SCHEMA.validate_catalog_config(catalogs, ROOT)
 
 
