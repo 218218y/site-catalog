@@ -66,18 +66,10 @@ and reconstructable:
 python tools/catalog_compiler.py --check
 ```
 
-A legacy project that does not yet have `catalogs.build-state.json` may perform
-one explicit migration:
-
-```bat
-python tools/catalog_compiler.py --migrate-legacy-state
-```
-
-Normal compilation never falls back to public generated files. A missing or
-invalid build-state file is a hard error, preventing generated output from
-quietly becoming a second source of truth. The explicit migration command may
-read a matched legacy pair of `catalogs.search.json` and `catalogs.search.js`;
-normal compilation never reads or rewrites that retired pair.
+`catalogs.build-state.json` is a required authoritative input. A missing or
+invalid build-state file is a hard error; generated/public outputs are never
+accepted as compiler inputs and there is no migration or fallback path from
+retired search artifacts.
 
 Normal compilation and deployment treat `catalogs.build-state.json` as
 read-only. Only PDF conversion and explicit catalog ID deletion/rename flows

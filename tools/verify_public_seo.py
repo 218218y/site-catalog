@@ -64,9 +64,6 @@ def normalized_output_inventory(state: Mapping[str, object]) -> dict[str, dict[s
 
     inventory: dict[str, dict[str, object]] = {}
     for name, raw_record in sorted(raw_inventory.items()):
-        if isinstance(raw_record, str):
-            inventory[str(name)] = {"sha256": raw_record}
-            continue
         if not isinstance(raw_record, dict) or not isinstance(raw_record.get("sha256"), str):
             raise ValueError(f"Public SEO bundle state has an invalid output record: {name}")
         inventory[str(name)] = {

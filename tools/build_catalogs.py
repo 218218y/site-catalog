@@ -32,7 +32,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Literal, Sequence, TypedDict, cast
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageFilter, ImageOps
@@ -56,6 +56,13 @@ except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
         compile_and_write_catalog_data,
         load_build_state,
     )
+
+try:
+    from tools.catalog_schema import validate_catalog_config
+    from tools.catalog_types import CatalogArtifact, CatalogConfig, CatalogSource, SearchPage
+except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
+    from catalog_schema import validate_catalog_config
+    from catalog_types import CatalogArtifact, CatalogConfig, CatalogSource, SearchPage
 
 try:
     from tools.ocr_search_quality import (
@@ -88,7 +95,6 @@ except ImportError:  # Direct tools/build_catalogs.py execution.
 PAGE_FILE_RE = re.compile(r"^page-(\d{3})\.(webp|jpg|png)$", re.IGNORECASE)
 BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 MANUAL_SEARCH_FILE = "catalogs.search-overrides.json"
-CATALOG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 OCR_MAX_SIDE = 4600
 # Small model names in catalog pages are usually placed in fixed title areas.
 # Full-page OCR has to process furniture, shadows and decorative grooves, so it
@@ -175,6 +181,47 @@ class ExistingCatalogOutput:
     image_format: str
     is_complete: bool
     reason: str = ""
+
+
+class SourcePdfMetadata(TypedDict):
+    path: str
+    size: int
+    mtimeNs: int
+
+
+class ImageRenderOptionsMetadata(TypedDict):
+    dpi: int
+    maxWidth: int
+    maxHeight: int
+    mediumSize: int
+    thumbSize: int
+    quality: int
+    mediumQuality: int
+    thumbQuality: int
+    imageFormat: str
+    sharpen: float
+
+
+class SearchOptionsMetadata(TypedDict):
+    pipelineVersion: int
+    ocrMode: str
+    ocrLang: str
+    ocrDpi: int
+    ocrMinChars: int
+    ocrMinConfidence: int
+    ocrTitleMinConfidence: int
+    ocrMaxWordsPerPage: int
+    ocrFullPagePsm: int
+
+
+class RenderManifest(TypedDict):
+    version: Literal[2]
+    sourcePdf: SourcePdfMetadata
+    renderOptions: ImageRenderOptionsMetadata
+    searchOptions: SearchOptionsMetadata
+    pages: int
+    imageFormat: str
+    pageSizes: list[list[int]]
 
 
 def project_root() -> Path:
@@ -324,12 +371,7 @@ def catalog_asset_versions(out_dir: Path, image_format: str, page_count: int) ->
     return versions
 
 
-def catalog_asset_version(out_dir: Path, image_format: str, page_count: int) -> str:
-    """Backward-compatible composite cache version for the whole catalog."""
-    return catalog_asset_versions(out_dir, image_format, page_count)["catalog"]
-
-
-def source_pdf_metadata(pdf_path: Path) -> dict[str, Any]:
+def source_pdf_metadata(pdf_path: Path) -> SourcePdfMetadata:
     stat = pdf_path.stat()
     return {
         "path": rel_to_root(pdf_path),
@@ -338,85 +380,228 @@ def source_pdf_metadata(pdf_path: Path) -> dict[str, Any]:
     }
 
 
-def render_options_metadata(options: RenderOptions) -> dict[str, Any]:
+def render_options_metadata(options: RenderOptions) -> ImageRenderOptionsMetadata:
     """Return only the settings that affect rendered page/thumbnail images."""
     return {
-        "dpi": int(options.dpi),
-        "maxWidth": int(options.max_width),
-        "maxHeight": int(options.max_height),
-        "mediumSize": int(options.medium_size),
-        "thumbSize": int(options.thumb_size),
-        "quality": int(options.quality),
-        "mediumQuality": int(options.medium_quality),
-        "thumbQuality": int(options.thumb_quality),
-        "imageFormat": str(options.image_format),
-        "sharpen": float(options.sharpen),
+        "dpi": options.dpi,
+        "maxWidth": options.max_width,
+        "maxHeight": options.max_height,
+        "mediumSize": options.medium_size,
+        "thumbSize": options.thumb_size,
+        "quality": options.quality,
+        "mediumQuality": options.medium_quality,
+        "thumbQuality": options.thumb_quality,
+        "imageFormat": options.image_format,
+        "sharpen": options.sharpen,
     }
 
 
-def search_options_metadata(options: RenderOptions) -> dict[str, Any]:
+def search_options_metadata(options: RenderOptions) -> SearchOptionsMetadata:
     """Return settings that affect search text only and must not force image rebuilds."""
     return {
         "pipelineVersion": OCR_SEARCH_PIPELINE_VERSION,
-        "ocrMode": str(options.ocr_mode),
-        "ocrLang": str(options.ocr_lang),
-        "ocrDpi": int(options.ocr_dpi),
-        "ocrMinChars": int(options.ocr_min_chars),
-        "ocrMinConfidence": int(options.ocr_min_confidence),
-        "ocrTitleMinConfidence": int(options.ocr_title_min_confidence),
-        "ocrMaxWordsPerPage": int(options.ocr_max_words_per_page),
+        "ocrMode": options.ocr_mode,
+        "ocrLang": options.ocr_lang,
+        "ocrDpi": options.ocr_dpi,
+        "ocrMinChars": options.ocr_min_chars,
+        "ocrMinConfidence": options.ocr_min_confidence,
+        "ocrTitleMinConfidence": options.ocr_title_min_confidence,
+        "ocrMaxWordsPerPage": options.ocr_max_words_per_page,
         "ocrFullPagePsm": FULL_PAGE_OCR_PSM,
     }
 
 
-def _image_render_options_from_manifest(value: Any) -> dict[str, Any] | None:
-    """Read image-affecting render options from new or legacy manifests.
-
-    Older manifests stored OCR settings inside ``renderOptions``. OCR only
-    changes the search index, not the generated page images, so those legacy
-    fields are deliberately ignored here. This keeps a catalog rendered with
-    ``--ocr never`` from being rebuilt later only because a regular conversion
-    is run with ``--ocr auto``.
-    """
+def _manifest_object(value: object, expected: frozenset[str]) -> dict[str, object] | None:
     if not isinstance(value, dict):
         return None
+    payload = cast(dict[str, object], value)
+    if set(payload) != expected:
+        return None
+    return payload
 
-    keys = (
-        "dpi",
-        "maxWidth",
-        "maxHeight",
-        "mediumSize",
-        "thumbSize",
-        "quality",
-        "mediumQuality",
-        "thumbQuality",
-        "imageFormat",
-        "sharpen",
+
+def _manifest_positive_int(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return None
+    return value
+
+
+def _parse_source_pdf_metadata(value: object) -> SourcePdfMetadata | None:
+    payload = _manifest_object(value, frozenset({"path", "size", "mtimeNs"}))
+    if payload is None:
+        return None
+    path = payload["path"]
+    size = payload["size"]
+    mtime_ns = payload["mtimeNs"]
+    if not isinstance(path, str) or not path:
+        return None
+    if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+        return None
+    if isinstance(mtime_ns, bool) or not isinstance(mtime_ns, int) or mtime_ns < 0:
+        return None
+    return {"path": path, "size": size, "mtimeNs": mtime_ns}
+
+
+def _parse_image_render_options(value: object) -> ImageRenderOptionsMetadata | None:
+    keys = frozenset({
+        "dpi", "maxWidth", "maxHeight", "mediumSize", "thumbSize", "quality",
+        "mediumQuality", "thumbQuality", "imageFormat", "sharpen",
+    })
+    payload = _manifest_object(value, keys)
+    if payload is None:
+        return None
+    integer_keys = (
+        "dpi", "maxWidth", "maxHeight", "mediumSize", "thumbSize", "quality",
+        "mediumQuality", "thumbQuality",
     )
-    result: dict[str, Any] = {}
-    for key in keys:
-        if key not in value:
+    integers: dict[str, int] = {}
+    for key in integer_keys:
+        parsed = _manifest_positive_int(payload[key])
+        if parsed is None:
             return None
-        result[key] = value[key]
-    return result
+        integers[key] = parsed
+    image_format = payload["imageFormat"]
+    sharpen = payload["sharpen"]
+    if not isinstance(image_format, str) or image_format not in SUPPORTED_FORMATS:
+        return None
+    if isinstance(sharpen, bool) or not isinstance(sharpen, (int, float)) or float(sharpen) < 0:
+        return None
+    return {
+        "dpi": integers["dpi"],
+        "maxWidth": integers["maxWidth"],
+        "maxHeight": integers["maxHeight"],
+        "mediumSize": integers["mediumSize"],
+        "thumbSize": integers["thumbSize"],
+        "quality": integers["quality"],
+        "mediumQuality": integers["mediumQuality"],
+        "thumbQuality": integers["thumbQuality"],
+        "imageFormat": image_format,
+        "sharpen": float(sharpen),
+    }
+
+
+def _parse_search_options(value: object) -> SearchOptionsMetadata | None:
+    keys = frozenset({
+        "pipelineVersion", "ocrMode", "ocrLang", "ocrDpi", "ocrMinChars",
+        "ocrMinConfidence", "ocrTitleMinConfidence", "ocrMaxWordsPerPage",
+        "ocrFullPagePsm",
+    })
+    payload = _manifest_object(value, keys)
+    if payload is None:
+        return None
+    string_keys = ("ocrMode", "ocrLang")
+    for key in string_keys:
+        if not isinstance(payload[key], str):
+            return None
+    int_keys = (
+        "pipelineVersion", "ocrDpi", "ocrMinChars", "ocrMinConfidence",
+        "ocrTitleMinConfidence", "ocrMaxWordsPerPage", "ocrFullPagePsm",
+    )
+    integers: dict[str, int] = {}
+    for key in int_keys:
+        raw = payload[key]
+        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
+            return None
+        integers[key] = raw
+    return {
+        "pipelineVersion": integers["pipelineVersion"],
+        "ocrMode": cast(str, payload["ocrMode"]),
+        "ocrLang": cast(str, payload["ocrLang"]),
+        "ocrDpi": integers["ocrDpi"],
+        "ocrMinChars": integers["ocrMinChars"],
+        "ocrMinConfidence": integers["ocrMinConfidence"],
+        "ocrTitleMinConfidence": integers["ocrTitleMinConfidence"],
+        "ocrMaxWordsPerPage": integers["ocrMaxWordsPerPage"],
+        "ocrFullPagePsm": integers["ocrFullPagePsm"],
+    }
+
+
+def _parse_page_sizes(value: object, pages: int) -> list[list[int]] | None:
+    if not isinstance(value, list) or len(value) != pages:
+        return None
+    sizes: list[list[int]] = []
+    for item in value:
+        if not isinstance(item, list) or len(item) != 2:
+            return None
+        width = _manifest_positive_int(item[0])
+        height = _manifest_positive_int(item[1])
+        if width is None or height is None:
+            return None
+        sizes.append([width, height])
+    return sizes
+
+
+def _parse_render_manifest(value: object) -> RenderManifest | None:
+    keys = frozenset({
+        "version", "sourcePdf", "renderOptions", "searchOptions",
+        "pages", "imageFormat", "pageSizes",
+    })
+    payload = _manifest_object(value, keys)
+    if payload is None or payload["version"] != 2:
+        return None
+    pages = _manifest_positive_int(payload["pages"])
+    image_format = payload["imageFormat"]
+    source_pdf = _parse_source_pdf_metadata(payload["sourcePdf"])
+    render_options = _parse_image_render_options(payload["renderOptions"])
+    search_options = _parse_search_options(payload["searchOptions"])
+    if pages is None or not isinstance(image_format, str) or image_format not in SUPPORTED_FORMATS:
+        return None
+    page_sizes = _parse_page_sizes(payload["pageSizes"], pages)
+    if source_pdf is None or render_options is None or search_options is None or page_sizes is None:
+        return None
+    return {
+        "version": 2,
+        "sourcePdf": source_pdf,
+        "renderOptions": render_options,
+        "searchOptions": search_options,
+        "pages": pages,
+        "imageFormat": image_format,
+        "pageSizes": page_sizes,
+    }
 
 
 def render_manifest_path(out_dir: Path) -> Path:
     return out_dir / MANIFEST_FILE
 
 
-def load_render_manifest(out_dir: Path) -> dict[str, Any] | None:
+def load_render_manifest(out_dir: Path) -> RenderManifest | None:
     manifest_path = render_manifest_path(out_dir)
     if not manifest_path.exists():
         return None
-
     try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        raw: object = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"[warn] Could not read {rel_to_root(manifest_path)}: {exc}", file=sys.stderr)
         return None
+    payload = _parse_render_manifest(raw)
+    if payload is None:
+        print(f"[warn] Invalid or obsolete render manifest: {rel_to_root(manifest_path)}", file=sys.stderr)
+    return payload
 
-    return payload if isinstance(payload, dict) else None
+
+def _render_manifest_payload(
+    pdf_path: Path,
+    options: RenderOptions,
+    pages: int,
+    image_format: str,
+    page_sizes: Sequence[Sequence[int]],
+) -> RenderManifest:
+    if isinstance(pages, bool) or not isinstance(pages, int) or pages < 1:
+        raise ValueError("Render manifest page count must be a positive integer")
+    if image_format not in SUPPORTED_FORMATS:
+        raise ValueError(f"Unsupported render-manifest image format: {image_format!r}")
+    normalized_sizes = _parse_page_sizes([list(size) for size in page_sizes], pages)
+    if normalized_sizes is None:
+        raise ValueError(f"Render manifest requires exactly {pages} valid page-size entries")
+    return {
+        "version": 2,
+        "sourcePdf": source_pdf_metadata(pdf_path),
+        "renderOptions": render_options_metadata(options),
+        "searchOptions": search_options_metadata(options),
+        "pages": pages,
+        "imageFormat": image_format,
+        "pageSizes": normalized_sizes,
+    }
 
 
 def write_render_manifest(
@@ -425,20 +610,9 @@ def write_render_manifest(
     options: RenderOptions,
     pages: int,
     image_format: str,
-    page_sizes: list[list[int]],
+    page_sizes: Sequence[Sequence[int]],
 ) -> None:
-    if not pdf_path.exists():
-        return
-
-    payload = {
-        "version": 2,
-        "sourcePdf": source_pdf_metadata(pdf_path),
-        "renderOptions": render_options_metadata(options),
-        "searchOptions": search_options_metadata(options),
-        "pages": int(pages),
-        "imageFormat": str(image_format),
-        "pageSizes": page_sizes[: max(0, int(pages))],
-    }
+    payload = _render_manifest_payload(pdf_path, options, pages, image_format, page_sizes)
     manifest_path = render_manifest_path(out_dir)
     manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -448,46 +622,10 @@ def render_manifest_bytes(
     options: RenderOptions,
     pages: int,
     image_format: str,
-    page_sizes: list[list[int]],
+    page_sizes: Sequence[Sequence[int]],
 ) -> bytes:
-    payload = {
-        "version": 2,
-        "sourcePdf": source_pdf_metadata(pdf_path),
-        "renderOptions": render_options_metadata(options),
-        "searchOptions": search_options_metadata(options),
-        "pages": int(pages),
-        "imageFormat": str(image_format),
-        "pageSizes": page_sizes[: max(0, int(pages))],
-    }
+    payload = _render_manifest_payload(pdf_path, options, pages, image_format, page_sizes)
     return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-
-
-def output_newest_mtime_ns(out_dir: Path, image_format: str, page_count: int) -> int:
-    newest = 0
-    for page_number in range(1, max(0, int(page_count)) + 1):
-        for relative in (
-            Path(f"page-{page_number:03d}.{image_format}"),
-            Path("medium") / f"page-{page_number:03d}.{image_format}",
-            Path("thumbs") / f"page-{page_number:03d}.{image_format}",
-        ):
-            file_path = out_dir / relative
-            if not file_path.is_file():
-                continue
-            try:
-                newest = max(newest, int(file_path.stat().st_mtime_ns))
-            except OSError:
-                continue
-    return newest
-
-
-def source_pdf_is_newer_than_output(pdf_path: Path, out_dir: Path, image_format: str, page_count: int) -> bool:
-    try:
-        pdf_mtime = int(pdf_path.stat().st_mtime_ns)
-    except OSError:
-        return False
-
-    newest_output = output_newest_mtime_ns(out_dir, image_format, page_count)
-    return bool(newest_output and pdf_mtime > newest_output)
 
 
 def render_manifest_mismatch_reason(
@@ -503,20 +641,17 @@ def render_manifest_mismatch_reason(
     if not manifest:
         return "missing render manifest"
 
-    source_pdf = manifest.get("sourcePdf")
+    source_pdf = manifest["sourcePdf"]
     expected_pdf = source_pdf_metadata(pdf_path)
-    if not isinstance(source_pdf, dict):
-        return "render manifest has no source PDF data"
-    if source_pdf.get("size") != expected_pdf.get("size") or source_pdf.get("mtimeNs") != expected_pdf.get("mtimeNs"):
+    if source_pdf["size"] != expected_pdf["size"] or source_pdf["mtimeNs"] != expected_pdf["mtimeNs"]:
         return "source PDF changed since the previous conversion"
 
-    render_options = _image_render_options_from_manifest(manifest.get("renderOptions"))
-    if render_options != render_options_metadata(options):
+    if manifest["renderOptions"] != render_options_metadata(options):
         return "image conversion settings changed since the previous conversion"
 
-    if int(manifest.get("pages", 0) or 0) != int(existing_output.pages):
+    if manifest["pages"] != existing_output.pages:
         return "page count changed since the previous conversion"
-    if str(manifest.get("imageFormat", "")).lower() != str(existing_output.image_format).lower():
+    if manifest["imageFormat"].lower() != existing_output.image_format.lower():
         return "image format changed since the previous conversion"
 
     return ""
@@ -528,10 +663,7 @@ def search_manifest_mismatch_reason(out_dir: Path, options: RenderOptions) -> st
     if not manifest:
         return "missing render manifest"
 
-    search_options = manifest.get("searchOptions")
-    if not isinstance(search_options, dict):
-        return "render manifest has no search/OCR settings"
-    if search_options != search_options_metadata(options):
+    if manifest["searchOptions"] != search_options_metadata(options):
         return "search/OCR settings changed since the previous conversion"
 
     return ""
@@ -539,86 +671,45 @@ def search_manifest_mismatch_reason(out_dir: Path, options: RenderOptions) -> st
 
 
 
-def catalog_ocr_enabled(item: dict[str, Any]) -> bool:
-    """Return whether this catalog is allowed to use OCR during search indexing.
-
-    Missing values default to True so older catalogs keep their existing behavior.
-    Use ``"ocr": false`` in catalogs.config.json for catalogs that should never
-    run OCR even when the global conversion command uses ``--ocr auto``.
-    """
-    value = item.get("ocr", True)
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    normalized = str(value).strip().lower()
-    if normalized in {"0", "false", "no", "off", "never", "none", "לא", "בלי", "ללא"}:
-        return False
-    return True
+def catalog_ocr_enabled(item: CatalogSource) -> bool:
+    """Return whether this validated catalog allows OCR during search indexing."""
+    return item["ocr"]
 
 
-def effective_catalog_options(item: dict[str, Any], base_options: RenderOptions) -> RenderOptions:
+def effective_catalog_options(item: CatalogSource, base_options: RenderOptions) -> RenderOptions:
     """Apply catalog-level conversion policy on top of the command-line options."""
-    if catalog_ocr_enabled(item):
-        return base_options
-    if base_options.ocr_mode == "never":
+    if catalog_ocr_enabled(item) or base_options.ocr_mode == "never":
         return base_options
     return replace(base_options, ocr_mode="never")
 
 
-def load_previous_search_pages(root: Path) -> dict[str, list[dict[str, Any]]]:
-    """Load PDF-derived search text from compiler state, never public output."""
+def load_previous_search_pages(root: Path) -> dict[str, list[SearchPage]]:
+    """Load PDF-derived search text from authoritative compiler state."""
     state_path = root / "catalogs.build-state.json"
     if not state_path.is_file():
         return {}
     # Build state is authoritative. Corruption must abort rather than silently
     # replacing valid OCR/search data with an empty index.
-    state = load_build_state(root, allow_legacy_migration=False)
+    state = load_build_state(root)
     return {
-        str(entry.get("id", "")): [dict(page) for page in entry.get("searchPages", []) if isinstance(page, dict)]
-        for entry in state.get("catalogs", [])
-        if isinstance(entry, dict) and str(entry.get("id", "")).strip()
+        entry["id"]: [dict(page) for page in entry["searchPages"]]
+        for entry in state["catalogs"]
     }
 
 
-def _read_config_payload(config_path: Path) -> list[dict[str, Any]]:
+def _read_config_payload(config_path: Path) -> object:
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
-
-    data = json.loads(config_path.read_text(encoding="utf-8-sig"))
-    if not isinstance(data, list):
-        raise ValueError("catalogs.config.json must contain a JSON array")
-
-    return data
+    return json.loads(config_path.read_text(encoding="utf-8-sig"))
 
 
-def load_config(config_path: Path) -> list[dict[str, Any]]:
-    data = _read_config_payload(config_path)
-
-    required = {"id", "title", "pdf"}
-    seen_ids: set[str] = set()
-    for index, item in enumerate(data, start=1):
-        if not isinstance(item, dict):
-            raise ValueError(f"Catalog #{index} must be an object")
-        missing = required - set(item)
-        if missing:
-            raise ValueError(f"Catalog #{index} is missing: {', '.join(sorted(missing))}")
-        safe_id = str(item["id"]).strip().lower()
-        if not CATALOG_ID_RE.fullmatch(safe_id):
-            raise ValueError(
-                f"Catalog #{index} has unsafe id: {safe_id!r}. "
-                "Use lowercase english letters, numbers and dashes only, e.g. qualita-2026"
-            )
-        if safe_id in seen_ids:
-            raise ValueError(f"Catalog #{index} uses duplicate id: {safe_id!r}")
-        item["id"] = safe_id
-        item.pop("shareSlug", None)
-        seen_ids.add(safe_id)
-    return data
+def load_config(config_path: Path) -> CatalogConfig:
+    """Load catalog config through the canonical schema boundary."""
+    return validate_catalog_config(_read_config_payload(config_path), config_path.parent)
 
 
-def write_config_atomic(config_path: Path, config: list[dict[str, Any]]) -> None:
-    """Persist the normalized catalog config without exposing a partially-written file."""
+def write_config_atomic(config_path: Path, config: CatalogConfig) -> None:
+    """Persist validated catalog config without exposing a partially-written file."""
     config_path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(config, ensure_ascii=False, indent=2) + "\n"
     temp_path: Path | None = None
@@ -643,46 +734,38 @@ def write_config_atomic(config_path: Path, config: list[dict[str, Any]]) -> None
 def remove_catalogs_with_missing_pdfs(
     root: Path,
     config_path: Path,
-    config: list[dict[str, Any]],
+    config: CatalogConfig,
     *,
     persist: bool = True,
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Explicitly prune config entries whose source PDF no longer exists.
-
-    Callers must request this operation explicitly.  Normal conversion treats
-    a missing source file as an error and leaves config and public output alone.
-    """
-    kept: list[dict[str, Any]] = []
+) -> tuple[CatalogConfig, list[str]]:
+    """Explicitly prune config entries whose source PDF no longer exists."""
+    kept: CatalogConfig = []
     removed_ids: list[str] = []
-
     for item in config:
-        pdf_path = (root / str(item["pdf"])).resolve()
+        pdf_path = (root / item["pdf"]).resolve()
         if pdf_path.is_file():
             kept.append(item)
             continue
-
-        catalog_id = str(item["id"])
+        catalog_id = item["id"]
         removed_ids.append(catalog_id)
         print(
             f"[delete-missing-pdf] Removing catalog {catalog_id!r} from {rel_to_root(config_path)} "
             f"because its source PDF is missing: {rel_to_root(pdf_path)}"
         )
-
     if removed_ids and persist:
         write_config_atomic(config_path, kept)
         print(f"[config] Removed {len(removed_ids)} catalog(s) whose source PDF no longer exists.")
-
     return kept, removed_ids
 
 
 def catalog_entries_with_missing_pdfs(
     root: Path,
-    config: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    config: CatalogConfig,
+) -> CatalogConfig:
     return [
         item
         for item in config
-        if not (root / str(item["pdf"])).resolve().is_file()
+        if not (root / item["pdf"]).resolve().is_file()
     ]
 
 
@@ -1066,7 +1149,7 @@ def build_page_search_text(
     return _combine_search_texts(text_parts)
 
 
-def _manual_text_from_value(value: Any) -> str:
+def _manual_text_from_value(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, str):
@@ -1084,7 +1167,7 @@ def _manual_text_from_value(value: Any) -> str:
     return normalize_search_text(str(value))
 
 
-def _page_number_from_key(key: Any) -> int | None:
+def _page_number_from_key(key: object) -> int | None:
     if isinstance(key, int):
         return key
     match = re.search(r"\d+", str(key or ""))
@@ -1145,13 +1228,13 @@ def load_manual_search_overrides(root: Path) -> dict[str, dict[int, str]]:
     return result
 
 
-def _merge_manual_search_text(existing_text: Any, manual_text: Any) -> str:
+def _merge_manual_search_text(existing_text: object, manual_text: object) -> str:
     """Return one normalized text containing exactly one manual override copy.
 
     Older builds could append the same manual suffix on every skipped conversion
     because the previous search text already contained the override. Work with
     normalized token sequences so page text remains stable across repeated runs
-    and legacy duplicate suffixes are repaired deterministically.
+    and duplicate suffixes from earlier runs are repaired deterministically.
     """
     existing = normalize_search_text(existing_text)
     manual = normalize_search_text(manual_text)
@@ -1166,7 +1249,7 @@ def _merge_manual_search_text(existing_text: Any, manual_text: Any) -> str:
     if not manual_length:
         return existing
 
-    # Collapse one or more legacy copies at the end, then append one canonical
+    # Collapse one or more duplicate copies at the end, then append one canonical
     # copy. Manual overrides are deliberately appended after extracted/OCR text.
     stripped_tokens = list(existing_tokens)
     removed_suffix = False
@@ -1185,21 +1268,17 @@ def _merge_manual_search_text(existing_text: Any, manual_text: Any) -> str:
 
 
 def merge_manual_search_pages(
-    search_pages: list[dict[str, Any]],
+    search_pages: list[SearchPage],
     manual_pages: dict[int, str] | None,
     page_count: int | None = None,
-) -> list[dict[str, Any]]:
+) -> list[SearchPage]:
     if not manual_pages:
         return search_pages
 
     merged: dict[int, str] = {}
     for page in search_pages:
-        if not isinstance(page, dict):
-            continue
-        page_number = _page_number_from_key(page.get("page"))
-        if not page_number:
-            continue
-        text = normalize_search_text(str(page.get("text", "")))
+        page_number = page["page"]
+        text = normalize_search_text(page["text"])
         if text:
             merged[page_number] = _combine_search_texts([merged.get(page_number, ""), text])
 
@@ -1218,7 +1297,7 @@ def build_pdf_search_pages(
     pdf_path: Path,
     options: RenderOptions,
     manual_pages: dict[int, str] | None = None,
-) -> tuple[int, list[dict[str, Any]]]:
+) -> tuple[int, list[SearchPage]]:
     """Build the search index from a PDF without touching rendered page images.
 
     This is used when the catalog images are already complete but the previous
@@ -1232,7 +1311,7 @@ def build_pdf_search_pages(
             raise ValueError(f"PDF has no pages: {pdf_path}")
 
         ocr = OcrRunner(options)
-        search_pages: list[dict[str, Any]] = []
+        search_pages: list[SearchPage] = []
         for page_number, page in enumerate(doc, start=1):
             label = f"{pdf_path.name} page {page_number}/{len(doc)}"
             page_text = build_page_search_text(page, ocr, options, label, (manual_pages or {}).get(page_number, ""))
@@ -1241,7 +1320,7 @@ def build_pdf_search_pages(
         return len(doc), search_pages
 
 
-def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pages: dict[int, str] | None = None) -> tuple[int, list[dict[str, Any]], list[list[int]]]:
+def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pages: dict[int, str] | None = None) -> tuple[int, list[SearchPage], list[list[int]]]:
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
@@ -1255,7 +1334,7 @@ def render_pdf(pdf_path: Path, out_dir: Path, options: RenderOptions, manual_pag
         ext = options.image_format
 
         ocr = OcrRunner(options)
-        search_pages: list[dict[str, Any]] = []
+        search_pages: list[SearchPage] = []
         page_sizes: list[list[int]] = []
 
         for page_number, page in enumerate(doc, start=1):
@@ -1313,9 +1392,9 @@ def build_catalog_artifact(
     out_dir: Path,
     image_format: str,
     options: RenderOptions,
-    search_pages: list[dict[str, Any]],
+    search_pages: list[SearchPage],
     page_sizes: list[list[int]] | None = None,
-) -> dict[str, Any]:
+) -> CatalogArtifact:
     """Create compiler state from one validated rendered catalog."""
     asset_versions = catalog_asset_versions(out_dir, image_format, pages)
     return build_artifact_entry(
@@ -1469,7 +1548,7 @@ def build_options_from_args(args: argparse.Namespace) -> RenderOptions:
 
 def validate_missing_pdf_prune_confirmation(
     args: argparse.Namespace,
-    missing_entries: Sequence[Mapping[str, Any]],
+    missing_entries: Sequence[CatalogSource],
 ) -> None:
     confirmed = tuple(sorted({str(value).strip() for value in args.confirmed_missing_pdf_id if str(value).strip()}))
     if confirmed and not args.prune_missing_pdfs:
@@ -1514,7 +1593,7 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
     stale_output_dirs = stale_catalog_output_dirs(root, configured_ids)
 
     with ProjectTransaction(root, prefix=".catalog-build-transaction-") as transaction:
-        artifacts: list[dict[str, Any]] = []
+        artifacts: list[CatalogArtifact] = []
         previous_search_pages = load_previous_search_pages(root)
         manual_search_overrides = load_manual_search_overrides(root)
         staged_replacements: list[tuple[Path, Path]] = []
@@ -1532,17 +1611,11 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
             if catalog_options.ocr_mode == "never" and options.ocr_mode != "never":
                 print("[ocr] Disabled for this catalog by catalogs.config.json (ocr=false).")
             rebuild_reason = ""
-            adopt_legacy_manifest = False
 
             if existing_output and existing_output.is_complete and not args.force and pdf_path.exists():
-                mismatch_reason = render_manifest_mismatch_reason(out_dir, pdf_path, catalog_options, existing_output)
-                if mismatch_reason == "missing render manifest":
-                    if source_pdf_is_newer_than_output(pdf_path, out_dir, existing_output.image_format, existing_output.pages):
-                        rebuild_reason = "source PDF is newer than the existing converted images"
-                    else:
-                        adopt_legacy_manifest = True
-                elif mismatch_reason:
-                    rebuild_reason = mismatch_reason
+                rebuild_reason = render_manifest_mismatch_reason(
+                    out_dir, pdf_path, catalog_options, existing_output
+                )
 
             reuse_existing_images = bool(
                 existing_output
@@ -1554,8 +1627,6 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
 
                 previous_pages_for_catalog = previous_search_pages.get(catalog_id, [])
                 search_refresh_reason = ""
-                if adopt_legacy_manifest:
-                    print(f"[adopt] Existing images do not have {MANIFEST_FILE}; adopting them for future change detection.")
                 if args.force and args.skip_existing:
                     search_refresh_reason = "forced OCR/search refresh with existing images preserved"
                 elif not previous_pages_for_catalog:
@@ -1577,7 +1648,7 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
                 if not search_pages:
                     print("[warn] No previous OCR/search text found for this skipped catalog; images will still be shown.")
                 page_sizes = collect_page_sizes(out_dir, existing_output.image_format, existing_output.pages)
-                if adopt_legacy_manifest or search_refresh_reason:
+                if search_refresh_reason:
                     pending_manifests.append((
                         render_manifest_path(out_dir),
                         render_manifest_bytes(

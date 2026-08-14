@@ -31,8 +31,8 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping, Sequence, cast
-from urllib.parse import parse_qs, unquote, urlparse
+from typing import Mapping, Sequence, cast
+from urllib.parse import ParseResult, parse_qs, unquote, urlparse
 
 TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
@@ -74,7 +74,9 @@ from catalog_compiler import (
 from catalog_conversion_profiles import conversion_profile_command
 from catalog_page_numbering import page_number_start
 
-from catalog_schema import CATALOG_CONFIG_SCHEMA, validate_against_schema
+from catalog_types import CatalogConfig, CatalogSource
+
+from catalog_schema import validate_catalog_config
 
 from control_panel_api_schema import ControlPanelSchemaError, validate_control_panel_payload
 
@@ -228,22 +230,16 @@ def rel_to_root(path: Path) -> str:
         return path.as_posix()
 
 
-def read_json_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
-    """Backward-compatible name for the bounded typed JSON reader."""
+def read_json_body(handler: BaseHTTPRequestHandler) -> dict[str, object]:
+    """Read one bounded JSON object from a control-panel request."""
     return read_json_object(handler)
 
 
-def read_config() -> list[dict[str, Any]]:
+def read_config() -> CatalogConfig:
     if not CONFIG_FILE.exists():
         return []
-    payload = json.loads(CONFIG_FILE.read_text(encoding="utf-8-sig"))
-    validate_against_schema(payload, PROJECT_ROOT, CATALOG_CONFIG_SCHEMA)
-    result: list[dict[str, Any]] = []
-    for index, item in enumerate(payload, start=1):
-        if not isinstance(item, dict):
-            raise ValueError(f"Catalog #{index} must be an object")
-        result.append(dict(item))
-    return result
+    payload: object = json.loads(CONFIG_FILE.read_text(encoding="utf-8-sig"))
+    return validate_catalog_config(payload, PROJECT_ROOT)
 
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
@@ -279,11 +275,11 @@ def restore_file_bytes(path: Path, previous: bytes | None) -> None:
         atomic_write_bytes(path, previous)
 
 
-def current_taxonomy_state(catalogs: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
+def current_taxonomy_state(catalogs: Sequence[Mapping[str, object]] | None = None) -> dict[str, object]:
     return taxonomy_editor_state(PROJECT_ROOT, list(catalogs) if catalogs is not None else read_config())
 
 
-def taxonomy_action_availability(action_key: str, taxonomy_state: Mapping[str, Any]) -> tuple[bool, str]:
+def taxonomy_action_availability(action_key: str, taxonomy_state: Mapping[str, object]) -> tuple[bool, str]:
     if action_key not in {"bundle_r2", "cloudflare_pages_deploy"}:
         return True, ""
     issues = taxonomy_state.get("issues", [])
@@ -293,8 +289,8 @@ def taxonomy_action_availability(action_key: str, taxonomy_state: Mapping[str, A
 
 
 def atomic_write_catalogs_and_taxonomy(
-    catalogs: list[dict[str, Any]],
-    taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
+    catalogs: list[dict[str, object]],
+    taxonomy: Mapping[str, Sequence[Mapping[str, object]]],
     *,
     transaction: ProjectTransaction | None = None,
 ) -> dict[str, list[str]]:
@@ -359,9 +355,9 @@ def route_lock_sync_warnings(sync: Mapping[str, Sequence[str]]) -> list[str]:
 
 
 def prepare_taxonomy_and_catalogs_for_save(
-    taxonomy_value: Any,
-    catalogs: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, str]]], dict[str, list[str]]]:
+    taxonomy_value: object,
+    catalogs: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], dict[str, list[dict[str, str]]], dict[str, list[str]]]:
     source = taxonomy_value if taxonomy_value is not None else current_taxonomy_state(catalogs)
     normalized = normalize_taxonomy_draft(source)
     catalogs_after_renames = apply_taxonomy_renames_to_catalogs(catalogs, normalized)
@@ -370,7 +366,7 @@ def prepare_taxonomy_and_catalogs_for_save(
 
 
 def save_footer_content_and_render_pages(
-    value: Any,
+    value: object,
     *,
     root: Path = PROJECT_ROOT,
 ) -> dict[str, str]:
@@ -421,61 +417,47 @@ def save_footer_content_and_render_pages(
     return normalized
 
 
-def group_value(value: Any) -> str:
+def group_value(value: object) -> str:
     return str(value or "").strip()
 
 
-def group_catalogs_by_category_subcategory(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Stable grouping used before saving the control-panel edits.
-
-    The first appearance of a category determines the category-block order.
-    Inside each category, the first appearance of a subcategory determines the
-    subcategory-block order. Catalogs inside the same subcategory keep their
-    existing relative order. This matches the UI behavior: changing one catalog
-    to an earlier category appends it to that category block on save, rather
-    than alphabetically jumping around.
-    """
-    categories: list[dict[str, Any]] = []
-    category_map: dict[str, dict[str, Any]] = {}
+def group_catalogs_by_category_subcategory(config: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Group edits stably without building heterogeneous nested dictionaries."""
+    category_order: list[str] = []
+    subcategory_order: dict[str, list[str]] = {}
+    buckets: dict[tuple[str, str], list[dict[str, object]]] = {}
 
     for item in config:
-        category_key = group_value(item.get("category"))
-        category = category_map.get(category_key)
-        if category is None:
-            category = {"subcategories": [], "subcategory_map": {}}
-            category_map[category_key] = category
-            categories.append(category)
+        category = group_value(item.get("category"))
+        subcategory = group_value(item.get("subcategory"))
+        if category not in subcategory_order:
+            category_order.append(category)
+            subcategory_order[category] = []
+        if subcategory not in subcategory_order[category]:
+            subcategory_order[category].append(subcategory)
+        buckets.setdefault((category, subcategory), []).append(item)
 
-        subcategory_key = group_value(item.get("subcategory", ""))
-        subcategory_map = category["subcategory_map"]
-        subcategory = subcategory_map.get(subcategory_key)
-        if subcategory is None:
-            subcategory = []
-            subcategory_map[subcategory_key] = subcategory
-            category["subcategories"].append(subcategory)
-        subcategory.append(item)
-
-    grouped: list[dict[str, Any]] = []
-    for category in categories:
-        for subcategory in category["subcategories"]:
-            grouped.extend(subcategory)
-    return grouped
+    return [
+        item
+        for category in category_order
+        for subcategory in subcategory_order[category]
+        for item in buckets[(category, subcategory)]
+    ]
 
 
 def is_safe_catalog_id(catalog_id: str) -> bool:
     return bool(CATALOG_ID_RE.fullmatch(str(catalog_id or "")))
 
 
-def strip_control_panel_fields(item: dict[str, Any]) -> dict[str, Any]:
+def strip_control_panel_fields(item: dict[str, object]) -> dict[str, object]:
     row = dict(item)
     row.pop("status", None)
     row.pop("originalId", None)
-    row.pop("_originalId", None)
     row.pop("__original_id", None)
     return row
 
 
-def build_catalog_rename_map(config: list[dict[str, Any]]) -> dict[str, str]:
+def build_catalog_rename_map(config: list[dict[str, object]]) -> dict[str, str]:
     rename_map: dict[str, str] = {}
     for item in config:
         original_id = str(item.get("__original_id", item.get("id", ""))).strip()
@@ -485,8 +467,8 @@ def build_catalog_rename_map(config: list[dict[str, Any]]) -> dict[str, str]:
     return rename_map
 
 
-def config_for_file(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
+def config_for_file(config: list[dict[str, object]]) -> CatalogConfig:
+    rows: list[dict[str, object]] = []
     for item in config:
         row = strip_control_panel_fields(item)
         if page_number_start(row) == 1:
@@ -494,8 +476,7 @@ def config_for_file(config: list[dict[str, Any]]) -> list[dict[str, Any]]:
         else:
             row["pageNumberStart"] = 0
         rows.append(row)
-    validate_against_schema(rows, PROJECT_ROOT, CATALOG_CONFIG_SCHEMA)
-    return rows
+    return validate_catalog_config(rows, PROJECT_ROOT)
 
 
 def apply_pages_dir_renames(
@@ -573,9 +554,9 @@ def apply_pages_dir_renames(
     return warnings
 
 
-def merge_override_terms(existing: Any, incoming: Any) -> Any:
+def merge_override_terms(existing: object, incoming: object) -> object:
     if isinstance(existing, list) and isinstance(incoming, list):
-        merged: list[Any] = []
+        merged: list[object] = []
         for value in [*existing, *incoming]:
             if value not in merged:
                 merged.append(value)
@@ -623,15 +604,15 @@ def sync_search_overrides_after_id_rename(
 
 
 def compile_catalog_outputs_after_source_save(
-    catalogs: list[dict[str, Any]],
-    taxonomy: Mapping[str, Sequence[Mapping[str, Any]]],
+    catalogs: list[dict[str, object]],
+    taxonomy: Mapping[str, Sequence[Mapping[str, object]]],
     rename_map: Mapping[str, str],
     *,
     transaction: ProjectTransaction,
 ) -> list[str]:
     """Recompile every catalog-derived output through the shared compiler."""
     warnings: list[str] = []
-    build_state = load_build_state(PROJECT_ROOT, allow_legacy_migration=False)
+    build_state = load_build_state(PROJECT_ROOT)
     build_state = rename_build_state_catalogs(build_state, rename_map)
     build_state = retain_build_state_catalogs(
         build_state,
@@ -663,7 +644,7 @@ def compile_catalog_outputs_after_source_save(
     return warnings
 
 
-def normalize_catalog_for_ui(item: dict[str, Any]) -> dict[str, Any]:
+def normalize_catalog_for_ui(item: CatalogSource) -> dict[str, object]:
     row = dict(item)
     row["originalId"] = str(row.get("id", ""))
     row["ocr"] = catalog_ocr_enabled(row)
@@ -672,16 +653,14 @@ def normalize_catalog_for_ui(item: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def catalog_ocr_enabled(item: dict[str, Any]) -> bool:
+def catalog_ocr_enabled(item: Mapping[str, object]) -> bool:
     value = item.get("ocr", True)
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    return str(value).strip().lower() not in {"0", "false", "no", "off", "never", "none", "לא", "בלי", "ללא"}
+    if not isinstance(value, bool):
+        raise ValueError("Catalog ocr must be a boolean")
+    return value
 
 
-def normalized_project_path(path_value: Any) -> str:
+def normalized_project_path(path_value: object) -> str:
     raw = str(path_value or "").strip().replace("\\", "/")
     if not raw:
         return ""
@@ -700,7 +679,7 @@ def iter_pdf_files() -> list[Path]:
     )
 
 
-def normalize_pdf_for_config(path_value: Any) -> str:
+def normalize_pdf_for_config(path_value: object) -> str:
     raw = str(path_value or "").strip().replace("\\", "/")
     if not raw:
         return ""
@@ -723,7 +702,7 @@ def normalize_pdf_for_config(path_value: Any) -> str:
     return resolved.relative_to(project_root).as_posix()
 
 
-def pdf_file_payload(path: Path) -> dict[str, Any]:
+def pdf_file_payload(path: Path) -> dict[str, object]:
     stat = path.stat()
     relative_to_pdfs = path.relative_to(PDF_DIR).as_posix()
     folder = path.parent.relative_to(PDF_DIR).as_posix()
@@ -737,7 +716,7 @@ def pdf_file_payload(path: Path) -> dict[str, Any]:
     }
 
 
-def pdf_files_payload() -> list[dict[str, Any]]:
+def pdf_files_payload() -> list[dict[str, object]]:
     return [pdf_file_payload(path) for path in iter_pdf_files()]
 
 
@@ -840,7 +819,7 @@ def target_pdf_path_for_filename(filename: str) -> tuple[str, Path]:
     return safe_name, target
 
 
-def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, Any]:
+def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, object]:
     with ProjectMutationLock(PROJECT_ROOT, "העלאת PDF מלוח השליטה"):
         safe_name, target = target_pdf_path_for_filename(filename)
 
@@ -867,7 +846,7 @@ def save_uploaded_pdf(filename: str, content: bytes) -> dict[str, Any]:
         return {"path": rel_to_root(target), "name": safe_name, "status": "created"}
 
 
-def selected_pdf_payload(source_path: Path) -> dict[str, Any]:
+def selected_pdf_payload(source_path: Path) -> dict[str, object]:
     source = source_path.resolve(strict=False)
     if not source.is_file():
         raise ValueError(f"קובץ ה-PDF לא נמצא: {source_path}")
@@ -980,7 +959,7 @@ def pick_pdf_with_tkinter() -> str:
         root.destroy()
 
 
-def pick_native_pdf_file() -> dict[str, Any]:
+def pick_native_pdf_file() -> dict[str, object]:
     if not native_dialog_lock.acquire(blocking=False):
         raise ValueError("חלון בחירת PDF כבר פתוח. סגור אותו לפני פתיחת חלון נוסף.")
     try:
@@ -1003,7 +982,7 @@ def pick_native_pdf_file() -> dict[str, Any]:
         native_dialog_lock.release()
 
 
-def validate_asset_delete_requests(value: Any, remaining_config: list[dict[str, Any]]) -> tuple[list[AssetDeleteTarget], list[str]]:
+def validate_asset_delete_requests(value: object, remaining_config: list[dict[str, object]]) -> tuple[list[AssetDeleteTarget], list[str]]:
     if value in (None, ""):
         return [], []
     if not isinstance(value, list):
@@ -1117,12 +1096,12 @@ def finalize_staged_deletions(staged: list[StagedAssetDelete], temp_root: Path |
     return warnings
 
 
-def missing_pdf_count(config: list[dict[str, Any]]) -> int:
+def missing_pdf_count(config: CatalogConfig) -> int:
     configured = {normalized_project_path(item.get("pdf")) for item in config if item.get("pdf")}
     return sum(1 for path in iter_pdf_files() if normalized_project_path(path) not in configured)
 
 
-def catalog_output_status(catalog_id: str) -> dict[str, Any]:
+def catalog_output_status(catalog_id: str) -> dict[str, object]:
     catalog_id = str(catalog_id or "").strip()
     out_dir = PAGES_DIR / catalog_id if catalog_id else PAGES_DIR / "__missing__"
     if not out_dir.is_dir():
@@ -1165,7 +1144,7 @@ def catalog_output_status(catalog_id: str) -> dict[str, Any]:
     return {"state": "empty", "label": "תיקייה קיימת בלי עמודים"}
 
 
-def state_payload() -> dict[str, Any]:
+def state_payload() -> dict[str, object]:
     config = read_config()
     taxonomy = current_taxonomy_state(config)
     missing_configured = configured_missing_pdfs(config)
@@ -1176,7 +1155,7 @@ def state_payload() -> dict[str, Any]:
     active_job = max(active_jobs, key=lambda item: item.started_at) if active_jobs else None
     mutation_active = bool(mutation.get("token") or active_job)
     mutation_action = str(mutation.get("action") or (active_job.label if active_job else ""))
-    actions: list[dict[str, Any]] = []
+    actions: list[dict[str, object]] = []
     for key, action in ACTIONS.items():
         enabled, reason = taxonomy_action_availability(key, taxonomy)
         if enabled and mutation_active:
@@ -1227,18 +1206,29 @@ def state_payload() -> dict[str, Any]:
     return payload
 
 
-def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
+CONTROL_CATALOG_SAVE_FIELDS = frozenset({
+    "id", "originalId", "title", "description", "category", "subcategory",
+    "pdf", "ocr", "pageNumberStart", "sort", "badge", "status",
+})
+
+
+def validate_catalogs_for_save(value: object) -> list[dict[str, object]]:
     if not isinstance(value, list):
         raise ValueError("catalogs must be an array")
     seen: set[str] = set()
     seen_original: set[str] = set()
-    result: list[dict[str, Any]] = []
+    result: list[dict[str, object]] = []
     for index, item in enumerate(value, start=1):
         if not isinstance(item, dict):
             raise ValueError(f"Catalog #{index} must be an object")
         row = dict(item)
+        extras = sorted(str(key) for key in row if key not in CONTROL_CATALOG_SAVE_FIELDS)
+        if extras:
+            raise ValueError(
+                f"Catalog #{index} contains unsupported properties: {', '.join(extras)}"
+            )
         catalog_id = str(row.get("id", "")).strip().lower()
-        original_id = str(row.get("originalId", row.get("_originalId", catalog_id))).strip().lower() or catalog_id
+        original_id = str(row.get("originalId", catalog_id)).strip().lower() or catalog_id
         pdf = str(row.get("pdf", "")).strip()
         title = str(row.get("title", "")).strip()
         if not catalog_id:
@@ -1263,7 +1253,6 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
         row["pdf"] = normalized_pdf
         row["ocr"] = catalog_ocr_enabled(row)
         row["pageNumberStart"] = page_number_start(row)
-        row.pop("shareSlug", None)
         row.pop("status", None)
         seen.add(catalog_id)
         seen_original.add(original_id)
@@ -1271,7 +1260,7 @@ def validate_catalogs_for_save(value: Any) -> list[dict[str, Any]]:
     return result
 
 
-def configured_missing_pdfs(config: Sequence[Mapping[str, Any]] | None = None) -> list[dict[str, str]]:
+def configured_missing_pdfs(config: Sequence[Mapping[str, object]] | None = None) -> list[dict[str, str]]:
     rows = list(config) if config is not None else read_config()
     missing: list[dict[str, str]] = []
     for item in rows:
@@ -1304,10 +1293,10 @@ def _transactional_delete_assets(
 
 
 def save_catalogs_transactionally(
-    catalogs_value: Any,
-    taxonomy_value: Any,
-    asset_deletes_value: Any,
-) -> dict[str, Any]:
+    catalogs_value: object,
+    taxonomy_value: object,
+    asset_deletes_value: object,
+) -> dict[str, object]:
     """Commit one complete control-panel catalog save or restore everything."""
 
     with ProjectMutationLock(PROJECT_ROOT, "שמירת קטלוגים מלוח השליטה"):
@@ -1360,7 +1349,7 @@ def save_catalogs_transactionally(
         }
 
 
-def save_taxonomy_transactionally(taxonomy_value: Any) -> dict[str, Any]:
+def save_taxonomy_transactionally(taxonomy_value: object) -> dict[str, object]:
     with ProjectMutationLock(PROJECT_ROOT, "שמירת טקסונומיה מלוח השליטה"):
         catalogs = validate_catalogs_for_save(read_config())
         catalogs, taxonomy, auto_added = prepare_taxonomy_and_catalogs_for_save(
@@ -1591,7 +1580,7 @@ def run_job(job: Job, action_command: Sequence[str]) -> None:
                 job.log.append("[cancel] canceled before worker startup")
                 return
 
-        popen_options: dict[str, Any] = {}
+        popen_options: dict[str, object] = {}
         if os.name == "nt":
             popen_options["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         else:
@@ -1660,7 +1649,7 @@ def append_job_log(job: Job, line: str) -> None:
             job.log = job.log[-3000:]
 
 
-def serialize_job(job: Job, include_log: bool = True) -> dict[str, Any]:
+def serialize_job(job: Job, include_log: bool = True) -> dict[str, object]:
     data = {
         "id": job.id,
         "actionKey": job.action_key,
@@ -1806,7 +1795,7 @@ class ControlHandler(BaseHTTPRequestHandler):
         if settings.token and not hmac.compare_digest(self._request_token(), settings.token):
             raise ApiRequestError(HTTPStatus.UNAUTHORIZED, "Control token is required")
 
-    def _accept_token_bootstrap(self, parsed: Any) -> bool:
+    def _accept_token_bootstrap(self, parsed: ParseResult) -> bool:
         settings = self.control_settings
         if not settings.token or parsed.path not in {"/", "", "/catalog-control-panel", "/catalog-control-panel/", "/catalog-control-panel.html"}:
             return False
@@ -1980,14 +1969,14 @@ class ControlHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
 
-    def send_contract_json(self, contract: str, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def send_contract_json(self, contract: str, payload: object, status: HTTPStatus = HTTPStatus.OK) -> None:
         try:
             validate_control_panel_payload(contract, payload)
         except ControlPanelSchemaError as exc:
             raise RuntimeError(f"Control-panel response violates {contract}: {exc}") from exc
         self.send_json(payload, status=status)
 
-    def send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def send_json(self, payload: object, status: HTTPStatus = HTTPStatus.OK) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self._send_security_headers()
@@ -2007,7 +1996,7 @@ class ControlHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def log_message(self, format: str, *args: Any) -> None:
+    def log_message(self, format: str, *args: object) -> None:
         print(f"[{self.log_date_time_string()}] {format % args}")
 
 

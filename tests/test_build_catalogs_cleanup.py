@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Callable
 
 import fitz
 import pytest
@@ -232,3 +233,69 @@ def test_two_consecutive_full_conversions_leave_no_byte_diff(
         if path.is_file() and ".site-catalog.mutation.lock" not in path.name
     }
     assert second == first
+
+
+def valid_render_manifest() -> dict[str, object]:
+    return {
+        "version": 2,
+        "sourcePdf": {"path": "assets/pdfs/one.pdf", "size": 100, "mtimeNs": 200},
+        "renderOptions": {
+            "dpi": 144,
+            "maxWidth": 1800,
+            "maxHeight": 2400,
+            "mediumSize": 1200,
+            "thumbSize": 240,
+            "quality": 82,
+            "mediumQuality": 80,
+            "thumbQuality": 75,
+            "imageFormat": "webp",
+            "sharpen": 0.5,
+        },
+        "searchOptions": {
+            "pipelineVersion": BUILD.OCR_SEARCH_PIPELINE_VERSION,
+            "ocrMode": "auto",
+            "ocrLang": "heb+eng",
+            "ocrDpi": 200,
+            "ocrMinChars": 12,
+            "ocrMinConfidence": 50,
+            "ocrTitleMinConfidence": 65,
+            "ocrMaxWordsPerPage": 500,
+            "ocrFullPagePsm": BUILD.FULL_PAGE_OCR_PSM,
+        },
+        "pages": 1,
+        "imageFormat": "webp",
+        "pageSizes": [[1200, 1600]],
+    }
+
+
+def test_render_manifest_accepts_only_current_exact_contract(tmp_path: Path) -> None:
+    out_dir = tmp_path / "assets/pages/one"
+    out_dir.mkdir(parents=True)
+    manifest_path = out_dir / BUILD.MANIFEST_FILE
+    payload = valid_render_manifest()
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert BUILD.load_render_manifest(out_dir) == payload
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda payload: payload.__setitem__("version", 1),
+        lambda payload: payload.__setitem__("legacy", True),
+        lambda payload: payload["renderOptions"].__setitem__("ocrMode", "auto"),
+        lambda payload: payload["sourcePdf"].__setitem__("mtimeNs", "200"),
+        lambda payload: payload.__setitem__("pageSizes", []),
+    ],
+)
+def test_render_manifest_rejects_obsolete_or_coercible_shapes(
+    tmp_path: Path,
+    mutate: Callable[[dict[str, object]], None],
+) -> None:
+    out_dir = tmp_path / "assets/pages/one"
+    out_dir.mkdir(parents=True)
+    payload = valid_render_manifest()
+    mutate(payload)
+    (out_dir / BUILD.MANIFEST_FILE).write_text(json.dumps(payload), encoding="utf-8")
+
+    assert BUILD.load_render_manifest(out_dir) is None

@@ -39,8 +39,8 @@ import time
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from pathlib import Path, PurePosixPath
+from typing import Iterable, Mapping, Sequence, TypedDict, cast
 
 try:
     from tools.project_mutation import MutationBusyError, ProjectMutationLock, ProjectTransaction
@@ -276,6 +276,32 @@ class DeployOptimizationStats:
         return self.bytes_before - self.bytes_after
 
 
+class BuildOptions(TypedDict):
+    signatureVersion: str
+    externalAssetsUrl: str
+    seoMode: str
+    confirmPublicIndexing: bool
+    includeJson: bool
+    includeBigPagesViewer: bool
+    frontendOptimizationProfile: str
+
+
+class ArtifactFileRecord(TypedDict):
+    sha256: str
+    size: int
+    mtimeNs: int
+
+
+class ArtifactState(TypedDict):
+    schema: int
+    sourceSignature: str
+    releaseId: str
+    options: BuildOptions
+    inputs: dict[str, str]
+    outputFiles: dict[str, ArtifactFileRecord]
+    builtAtUtc: str
+
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -343,7 +369,7 @@ def build_options_payload(
     confirm_public_indexing: bool = False,
     include_json: bool = False,
     include_big_pages_viewer: bool = False,
-) -> dict[str, object]:
+) -> BuildOptions:
     return {
         "signatureVersion": BUILD_SIGNATURE_VERSION,
         "externalAssetsUrl": normalize_base_url(external_assets_url),
@@ -368,7 +394,7 @@ def build_input_hashes(
     }
 
 
-def source_signature(inputs: dict[str, str], options: dict[str, object]) -> str:
+def source_signature(inputs: Mapping[str, str], options: Mapping[str, object]) -> str:
     payload = json.dumps(
         {"inputs": inputs, "options": options},
         ensure_ascii=False,
@@ -378,7 +404,7 @@ def source_signature(inputs: dict[str, str], options: dict[str, object]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def deployment_release_id(inputs: dict[str, str], options: dict[str, object]) -> str:
+def deployment_release_id(inputs: Mapping[str, str], options: Mapping[str, object]) -> str:
     """Return one deterministic deployment id shared by every route bundle."""
 
     return f"deploy-{source_signature(inputs, options)[:16]}"
@@ -408,10 +434,10 @@ def stamp_deployment_release_id(out_dir: Path, release_id: str) -> int:
     return stamped
 
 
-def artifact_inventory(out_dir: Path) -> dict[str, dict[str, object]]:
+def artifact_inventory(out_dir: Path) -> dict[str, ArtifactFileRecord]:
     if not out_dir.is_dir():
         return {}
-    inventory: dict[str, dict[str, object]] = {}
+    inventory: dict[str, ArtifactFileRecord] = {}
     for path in sorted(iter_files(out_dir), key=lambda item: item.relative_to(out_dir).as_posix()):
         stat = path.stat()
         inventory[path.relative_to(out_dir).as_posix()] = {
@@ -422,27 +448,171 @@ def artifact_inventory(out_dir: Path) -> dict[str, dict[str, object]]:
     return inventory
 
 
-def load_artifact_state(out_dir: Path) -> dict[str, object] | None:
-    path = artifact_state_path(out_dir)
-    if not path.is_file():
+def _artifact_state_object(value: object, *, expected_keys: frozenset[str]) -> Mapping[str, object] | None:
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(payload, dict) or payload.get("schema") != ARTIFACT_STATE_SCHEMA:
+    payload = cast(Mapping[str, object], value)
+    if set(payload) != expected_keys:
         return None
     return payload
 
 
+def _parse_build_options(value: object) -> BuildOptions | None:
+    keys = frozenset(
+        {
+            "signatureVersion",
+            "externalAssetsUrl",
+            "seoMode",
+            "confirmPublicIndexing",
+            "includeJson",
+            "includeBigPagesViewer",
+            "frontendOptimizationProfile",
+        }
+    )
+    payload = _artifact_state_object(value, expected_keys=keys)
+    if payload is None:
+        return None
+    signature_version = payload["signatureVersion"]
+    external_assets_url = payload["externalAssetsUrl"]
+    seo_mode = payload["seoMode"]
+    confirm_public_indexing = payload["confirmPublicIndexing"]
+    include_json = payload["includeJson"]
+    include_big_pages_viewer = payload["includeBigPagesViewer"]
+    optimization_profile = payload["frontendOptimizationProfile"]
+    if signature_version != BUILD_SIGNATURE_VERSION:
+        return None
+    if not isinstance(external_assets_url, str) or not external_assets_url.strip():
+        return None
+    if seo_mode not in {"private", "public"}:
+        return None
+    if not isinstance(confirm_public_indexing, bool):
+        return None
+    if not isinstance(include_json, bool):
+        return None
+    if not isinstance(include_big_pages_viewer, bool):
+        return None
+    if optimization_profile != DEPLOY_OPTIMIZATION_PROFILE:
+        return None
+    return {
+        "signatureVersion": BUILD_SIGNATURE_VERSION,
+        "externalAssetsUrl": external_assets_url,
+        "seoMode": cast(str, seo_mode),
+        "confirmPublicIndexing": confirm_public_indexing,
+        "includeJson": include_json,
+        "includeBigPagesViewer": include_big_pages_viewer,
+        "frontendOptimizationProfile": DEPLOY_OPTIMIZATION_PROFILE,
+    }
+
+
+def _parse_string_map(value: object) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, str] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not key or not isinstance(item, str) or not item:
+            return None
+        result[key] = item
+    return result
+
+
+def _valid_artifact_relative_path(value: str) -> bool:
+    if not value or "\\" in value or value.startswith("/"):
+        return False
+    path = PurePosixPath(value)
+    return not path.is_absolute() and ".." not in path.parts and "." not in path.parts
+
+
+def _parse_artifact_inventory(value: object) -> dict[str, ArtifactFileRecord] | None:
+    if not isinstance(value, dict) or not value:
+        return None
+    result: dict[str, ArtifactFileRecord] = {}
+    record_keys = frozenset({"sha256", "size", "mtimeNs"})
+    for name, raw_record in value.items():
+        if not isinstance(name, str) or not _valid_artifact_relative_path(name):
+            return None
+        record = _artifact_state_object(raw_record, expected_keys=record_keys)
+        if record is None:
+            return None
+        digest = record["sha256"]
+        size = record["size"]
+        mtime_ns = record["mtimeNs"]
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            return None
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            return None
+        if not isinstance(mtime_ns, int) or isinstance(mtime_ns, bool) or mtime_ns < 0:
+            return None
+        result[name] = {"sha256": digest, "size": size, "mtimeNs": mtime_ns}
+    return result
+
+
+def _parse_artifact_state(value: object) -> ArtifactState | None:
+    root_keys = frozenset(
+        {
+            "schema",
+            "sourceSignature",
+            "releaseId",
+            "options",
+            "inputs",
+            "outputFiles",
+            "builtAtUtc",
+        }
+    )
+    payload = _artifact_state_object(value, expected_keys=root_keys)
+    if payload is None:
+        return None
+    schema = payload["schema"]
+    source_signature_value = payload["sourceSignature"]
+    release_id = payload["releaseId"]
+    built_at = payload["builtAtUtc"]
+    if not isinstance(schema, int) or isinstance(schema, bool) or schema != ARTIFACT_STATE_SCHEMA:
+        return None
+    if not isinstance(source_signature_value, str) or re.fullmatch(r"[0-9a-f]{64}", source_signature_value) is None:
+        return None
+    if not isinstance(release_id, str) or re.fullmatch(r"deploy-[0-9a-f]{16}", release_id) is None:
+        return None
+    if not isinstance(built_at, str):
+        return None
+    try:
+        built_at_value = datetime.fromisoformat(built_at)
+    except ValueError:
+        return None
+    if built_at_value.tzinfo is None:
+        return None
+    options = _parse_build_options(payload["options"])
+    inputs = _parse_string_map(payload["inputs"])
+    output_files = _parse_artifact_inventory(payload["outputFiles"])
+    if options is None or inputs is None or output_files is None:
+        return None
+    return {
+        "schema": ARTIFACT_STATE_SCHEMA,
+        "sourceSignature": source_signature_value,
+        "releaseId": release_id,
+        "options": options,
+        "inputs": inputs,
+        "outputFiles": output_files,
+        "builtAtUtc": built_at,
+    }
+
+
+def load_artifact_state(out_dir: Path) -> ArtifactState | None:
+    path = artifact_state_path(out_dir)
+    if not path.is_file():
+        return None
+    try:
+        payload: object = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return _parse_artifact_state(payload)
+
+
 def write_artifact_state(
-    root: Path,
     out_dir: Path,
     *,
     inputs: dict[str, str],
-    options: dict[str, object],
-) -> dict[str, object]:
-    state = {
+    options: BuildOptions,
+) -> ArtifactState:
+    state: ArtifactState = {
         "schema": ARTIFACT_STATE_SCHEMA,
         "sourceSignature": source_signature(inputs, options),
         "releaseId": deployment_release_id(inputs, options),
@@ -463,19 +633,18 @@ def write_artifact_state(
     return state
 
 
-def changed_build_inputs(previous: object, current: dict[str, str]) -> list[str]:
-    old = previous if isinstance(previous, dict) else {}
-    names = sorted(set(old) | set(current))
-    return [name for name in names if old.get(name) != current.get(name)]
+def changed_build_inputs(previous: Mapping[str, str], current: Mapping[str, str]) -> list[str]:
+    names = sorted(set(previous) | set(current))
+    return [name for name in names if previous.get(name) != current.get(name)]
 
 
 def validate_artifact_inventory(
     out_dir: Path,
-    expected: object,
+    expected: Mapping[str, ArtifactFileRecord],
     *,
     full_hash: bool = True,
 ) -> None:
-    if not isinstance(expected, dict) or not expected:
+    if not expected:
         raise ValueError(f"Artifact state has no output inventory: {rel_to_root(out_dir)}")
     current_paths = {
         path.relative_to(out_dir).as_posix(): path
@@ -487,22 +656,15 @@ def validate_artifact_inventory(
     extra = sorted(current_names - expected_names)
     changed: list[str] = []
     for name in sorted(expected_names & current_names):
-        record = expected.get(name)
+        record = expected[name]
         path = current_paths[name]
-        if isinstance(record, str):
-            if full_hash and sha256_file(path) != record:
-                changed.append(name)
-            continue
-        if not isinstance(record, dict):
-            changed.append(name)
-            continue
         stat = path.stat()
-        if stat.st_size != record.get("size"):
+        if stat.st_size != record["size"]:
             changed.append(name)
             continue
-        if not full_hash and stat.st_mtime_ns == record.get("mtimeNs"):
+        if not full_hash and stat.st_mtime_ns == record["mtimeNs"]:
             continue
-        if sha256_file(path) != record.get("sha256"):
+        if sha256_file(path) != record["sha256"]:
             changed.append(name)
     if missing or extra or changed:
         details: list[str] = []
@@ -521,10 +683,10 @@ def validate_current_artifact(
     root: Path,
     out_dir: Path,
     *,
-    options: dict[str, object],
+    options: BuildOptions,
     full_inventory: bool = True,
     inputs: dict[str, str] | None = None,
-) -> dict[str, object]:
+) -> ArtifactState:
     if not out_dir.is_dir():
         raise FileNotFoundError(f"Built site folder does not exist: {rel_to_root(out_dir)}")
     state = load_artifact_state(out_dir)
@@ -534,16 +696,16 @@ def validate_current_artifact(
         )
     current_inputs = inputs or build_input_hashes(
         root,
-        include_big_pages_viewer=bool(options.get("includeBigPagesViewer")),
+        include_big_pages_viewer=options["includeBigPagesViewer"],
     )
     expected_signature = source_signature(current_inputs, options)
-    if state.get("sourceSignature") != expected_signature or state.get("options") != options:
-        changed = changed_build_inputs(state.get("inputs"), current_inputs)
+    if state["sourceSignature"] != expected_signature or state["options"] != options:
+        changed = changed_build_inputs(state["inputs"], current_inputs)
         summary = ", ".join(changed[:10]) if changed else "build options changed"
         raise ValueError(
             f"Built site is stale: {rel_to_root(out_dir)}. Changed inputs: {summary}"
         )
-    validate_artifact_inventory(out_dir, state.get("outputFiles"), full_hash=full_inventory)
+    validate_artifact_inventory(out_dir, state["outputFiles"], full_hash=full_inventory)
     if full_inventory:
         validate_fingerprinted_bundle(out_dir)
     return state
@@ -553,7 +715,7 @@ def artifact_is_current(
     root: Path,
     out_dir: Path,
     *,
-    options: dict[str, object],
+    options: BuildOptions,
     inputs: dict[str, str] | None = None,
 ) -> tuple[bool, str]:
     try:
@@ -575,9 +737,9 @@ def mirror_artifact(root: Path, source_dir: Path, target_dir: Path) -> bool:
         raise ValueError(f"Cannot mirror an artifact without build state: {rel_to_root(source_dir)}")
 
     target_state = load_artifact_state(target_dir)
-    if target_state and target_state.get("sourceSignature") == source_state.get("sourceSignature"):
+    if target_state and target_state["sourceSignature"] == source_state["sourceSignature"]:
         try:
-            validate_artifact_inventory(target_dir, source_state.get("outputFiles"), full_hash=False)
+            validate_artifact_inventory(target_dir, source_state["outputFiles"], full_hash=False)
             print(f"[mirror] Already current: {rel_to_root(target_dir)}")
             return False
         except (FileNotFoundError, ValueError):
@@ -1703,9 +1865,7 @@ def _main_unlocked() -> int:
                 inputs=inputs,
             )
             if current:
-                state = load_artifact_state(out_dir) or {}
-                output_files = state.get("outputFiles")
-                file_count = len(output_files) if isinstance(output_files, dict) else 0
+                file_count = sum(1 for _path in iter_files(out_dir))
                 print(f"[build] No source or configuration changes detected; reusing {rel_to_root(out_dir)} ({file_count} files).")
                 for mirror_dir in mirror_dirs:
                     mirror_artifact(root, out_dir, mirror_dir)
@@ -1852,11 +2012,11 @@ def _main_unlocked() -> int:
             print(f"[publish-gate] Passed: {total_assets} exact versioned image URLs are available.")
 
         replace_output_dir(staging_dir, out_dir)
-        state = write_artifact_state(root, out_dir, inputs=inputs, options=options)
+        state = write_artifact_state(out_dir, inputs=inputs, options=options)
         # write_artifact_state just hashed every output file. Rechecking hashes
         # immediately would reopen all generated pages for no additional safety;
         # size/mtime verification still detects any concurrent replacement.
-        validate_artifact_inventory(out_dir, state.get("outputFiles"), full_hash=False)
+        validate_artifact_inventory(out_dir, state["outputFiles"], full_hash=False)
         finalize_seconds = time.perf_counter() - finalize_started
 
         mirror_started = time.perf_counter()

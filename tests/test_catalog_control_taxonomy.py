@@ -315,15 +315,21 @@ def test_control_panel_rejects_noncanonical_catalog_fields(
     with pytest.raises(ValueError, match="unsupported properties"):
         SERVER.read_config()
 
-    normalized = SERVER.validate_catalogs_for_save(
-        [
-            {
-                "id": "catalog",
-                "title": "Catalog",
-                "pdf": "assets/pdfs/catalog.pdf",
-                "subCategory": "Old alias",
-            }
-        ]
-    )
     with pytest.raises(ValueError, match="unsupported properties"):
-        SERVER.config_for_file(normalized)
+        SERVER.validate_catalogs_for_save(
+            [
+                {
+                    "id": "catalog",
+                    "title": "Catalog",
+                    "pdf": "assets/pdfs/catalog.pdf",
+                    "subCategory": "Old alias",
+                }
+            ]
+        )
+
+
+def test_control_panel_rejects_coercible_ocr_values() -> None:
+    with pytest.raises(ValueError, match="ocr must be a boolean"):
+        SERVER.validate_catalogs_for_save(
+            [{"id": "catalog", "title": "Catalog", "pdf": "assets/pdfs/catalog.pdf", "ocr": "false"}]
+        )

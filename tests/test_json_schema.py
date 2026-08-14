@@ -78,7 +78,7 @@ def test_object_contracts_enforce_required_declared_and_dynamic_properties() -> 
 
     closed = {"type": "object", "properties": {}, "additionalProperties": False}
     SCHEMA.audit_json_schema(closed)
-    with pytest.raises(SCHEMA.JsonSchemaValidationError, match=r"extra: is not allowed"):
+    with pytest.raises(SCHEMA.JsonSchemaValidationError, match=r"contains unsupported properties: extra"):
         SCHEMA.validate_json_schema({"extra": True}, closed)
 
 

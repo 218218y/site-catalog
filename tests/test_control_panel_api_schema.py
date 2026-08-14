@@ -47,15 +47,15 @@ def test_response_contract_rejects_missing_and_unknown_fields() -> None:
 
     unknown = copy.deepcopy(payload)
     unknown["silentContractDrift"] = True
-    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"silentContractDrift: is not allowed"):
+    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"contains unsupported properties: silentContractDrift"):
         SCHEMA.validate_control_panel_payload("ControlPanelStateDto", unknown)
 
 
 def test_request_parser_rejects_fields_not_declared_by_the_schema() -> None:
-    with pytest.raises(API.ApiRequestError, match=r"unexpected: is not allowed"):
+    with pytest.raises(API.ApiRequestError, match=r"contains unsupported properties: unexpected"):
         API.FooterSaveRequest.parse({"footer": {"businessName": "Test"}, "unexpected": True})
 
-    with pytest.raises(API.ApiRequestError, match=r"unexpected: is not allowed"):
+    with pytest.raises(API.ApiRequestError, match=r"contains unsupported properties: unexpected"):
         API.RunActionRequest.parse({"action": "convert", "unexpected": True})
 
 

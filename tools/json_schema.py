@@ -281,12 +281,15 @@ def _validate(
                 _fail(root_label, (*path, name), "is required")
 
         additional = schema.get("additionalProperties", True)
+        if additional is False:
+            extras = sorted(str(name) for name in value if name not in properties)
+            if extras:
+                _fail(root_label, path, f"contains unsupported properties: {', '.join(extras)}")
+
         for name, item in value.items():
             child_schema = properties.get(name)
             if isinstance(child_schema, Mapping):
                 _validate(item, child_schema, root_schema, root_label, (*path, name))
-            elif additional is False:
-                _fail(root_label, (*path, name), "is not allowed (unsupported property)")
             elif isinstance(additional, Mapping):
                 _validate(item, additional, root_schema, root_label, (*path, name))
 

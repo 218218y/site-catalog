@@ -10,6 +10,7 @@ next lock owner restores the interrupted transaction before doing new work.
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import socket
@@ -17,15 +18,21 @@ import tempfile
 import time
 import uuid
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from types import TracebackType
+from typing import BinaryIO, Iterable, Literal, Mapping, Sequence, TypeAlias, cast
 
 LOCK_FILENAME = ".site-catalog.mutation.lock"
 LOCK_MARKER = b"L"
 FAULT_ENV = "SITE_CATALOG_FAULT_POINT"
 TRANSACTION_JOURNAL = ".site-catalog.transaction.json"
 TRANSACTION_SCHEMA = 1
+
+JsonScalar: TypeAlias = str | int | float | bool | None
+JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+TransactionState: TypeAlias = Literal["active", "committed", "rolledback"]
+DirectoryOperation: TypeAlias = Literal["delete", "replace"]
 
 
 class MutationBusyError(RuntimeError):
@@ -38,6 +45,87 @@ class InjectedMutationFault(RuntimeError):
 
 class TransactionRecoveryError(RuntimeError):
     """Raised when an interrupted transaction cannot be restored safely."""
+
+
+@dataclass(frozen=True)
+class _FileJournalEntry:
+    path: str
+    existed: bool
+    backup: str | None
+
+
+@dataclass(frozen=True)
+class _DirectoryReplacementJournalEntry:
+    target: str
+    had_target: bool
+    backup: str | None
+    operation: DirectoryOperation
+
+
+@dataclass(frozen=True)
+class _PathRenameJournalEntry:
+    original: str
+    target: str
+    staged: str
+
+
+@dataclass(frozen=True)
+class _RenameBatchJournalEntry:
+    install_started: bool
+    records: tuple[_PathRenameJournalEntry, ...]
+
+
+@dataclass(frozen=True)
+class _TransactionJournal:
+    transaction_id: str
+    state: TransactionState
+    created_at: float
+    files: tuple[_FileJournalEntry, ...]
+    directory_replacements: tuple[_DirectoryReplacementJournalEntry, ...]
+    rename_batches: tuple[_RenameBatchJournalEntry, ...]
+    recovered_at: float | None = None
+
+    def to_json(self) -> dict[str, JsonValue]:
+        payload: dict[str, JsonValue] = {
+            "schema": TRANSACTION_SCHEMA,
+            "transactionId": self.transaction_id,
+            "state": self.state,
+            "createdAt": self.created_at,
+            "files": [
+                {
+                    "path": entry.path,
+                    "existed": entry.existed,
+                    "backup": entry.backup,
+                }
+                for entry in self.files
+            ],
+            "directoryReplacements": [
+                {
+                    "target": entry.target,
+                    "hadTarget": entry.had_target,
+                    "backup": entry.backup,
+                    "operation": entry.operation,
+                }
+                for entry in self.directory_replacements
+            ],
+            "renameBatches": [
+                {
+                    "installStarted": batch.install_started,
+                    "records": [
+                        {
+                            "original": record.original,
+                            "target": record.target,
+                            "staged": record.staged,
+                        }
+                        for record in batch.records
+                    ],
+                }
+                for batch in self.rename_batches
+            ],
+        }
+        if self.recovered_at is not None:
+            payload["recoveredAt"] = self.recovered_at
+        return payload
 
 
 def trigger_fault(point: str) -> None:
@@ -110,11 +198,11 @@ def _remove_path(path: Path) -> None:
         path.unlink()
 
 
-def _metadata_tail(metadata: Mapping[str, Any]) -> bytes:
+def _metadata_tail(metadata: Mapping[str, JsonValue]) -> bytes:
     return b"\n" + json.dumps(dict(metadata), ensure_ascii=False, sort_keys=True).encode("utf-8") + b"\n"
 
 
-def _write_lock_metadata(handle: Any, metadata: Mapping[str, Any]) -> None:
+def _write_lock_metadata(handle: BinaryIO, metadata: Mapping[str, JsonValue]) -> None:
     """Write metadata after the dedicated byte used by the Windows lock.
 
     ``msvcrt.locking`` denies reads of the locked byte through another handle.
@@ -129,7 +217,7 @@ def _write_lock_metadata(handle: Any, metadata: Mapping[str, Any]) -> None:
     os.fsync(handle.fileno())
 
 
-def read_lock_metadata(root: Path) -> dict[str, Any] | None:
+def read_lock_metadata(root: Path) -> dict[str, JsonValue] | None:
     path = Path(root) / LOCK_FILENAME
     try:
         with path.open("rb") as handle:
@@ -145,7 +233,9 @@ def read_lock_metadata(root: Path) -> dict[str, Any] | None:
         value = json.loads(raw.decode("utf-8-sig"))
     except (ValueError, UnicodeDecodeError):
         return None
-    return value if isinstance(value, dict) else None
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        return None
+    return value
 
 
 def describe_lock_owner(root: Path) -> str:
@@ -173,8 +263,8 @@ def _relative_to(base: Path, path: Path, *, label: str) -> str:
     return relative.as_posix()
 
 
-def _resolve_journal_path(base: Path, value: Any, *, label: str) -> Path:
-    text = str(value or "").strip().replace("\\", "/")
+def _resolve_journal_path(base: Path, value: str, *, label: str) -> Path:
+    text = value.strip().replace("\\", "/")
     candidate = Path(text)
     if not text or candidate.is_absolute() or ".." in candidate.parts:
         raise TransactionRecoveryError(f"Unsafe {label} in transaction journal: {text!r}")
@@ -186,49 +276,250 @@ def _resolve_journal_path(base: Path, value: Any, *, label: str) -> Path:
     return resolved
 
 
-def _read_transaction_journal(temp_root: Path) -> dict[str, Any]:
-    journal_path = temp_root / TRANSACTION_JOURNAL
-    try:
-        payload = json.loads(journal_path.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise TransactionRecoveryError(f"Could not read interrupted transaction journal: {journal_path}") from exc
-    if not isinstance(payload, dict) or payload.get("schema") != TRANSACTION_SCHEMA:
-        raise TransactionRecoveryError(f"Unsupported transaction journal: {journal_path}")
+def _journal_object(value: object, *, label: str) -> Mapping[str, object]:
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        raise TransactionRecoveryError(f"Invalid {label} in transaction journal")
+    return cast(Mapping[str, object], value)
+
+
+def _journal_list(value: object, *, label: str) -> list[object]:
+    if not isinstance(value, list):
+        raise TransactionRecoveryError(f"Invalid {label} in transaction journal")
+    return cast(list[object], value)
+
+
+def _journal_string(value: object, *, label: str, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or (not allow_empty and not value.strip()):
+        raise TransactionRecoveryError(f"Invalid {label} in transaction journal")
+    return value
+
+
+def _journal_optional_string(value: object, *, label: str) -> str | None:
+    if value is None:
+        return None
+    return _journal_string(value, label=label)
+
+
+def _journal_bool(value: object, *, label: str) -> bool:
+    if not isinstance(value, bool):
+        raise TransactionRecoveryError(f"Invalid {label} in transaction journal")
+    return value
+
+
+def _journal_number(value: object, *, label: str) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise TransactionRecoveryError(f"Invalid {label} in transaction journal")
+    number = float(value)
+    if not math.isfinite(number):
+        raise TransactionRecoveryError(f"Invalid {label} in transaction journal: must be finite")
+    return number
+
+
+def _strict_journal_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    payload: dict[str, object] = {}
+    for key, value in pairs:
+        if key in payload:
+            raise TransactionRecoveryError(f"Duplicate property in transaction journal: {key}")
+        payload[key] = value
     return payload
 
 
-def _write_transaction_journal(temp_root: Path, payload: Mapping[str, Any]) -> None:
-    data = (json.dumps(dict(payload), ensure_ascii=False, indent=2, sort_keys=False) + "\n").encode("utf-8")
+def _reject_nonfinite_json_constant(value: str) -> object:
+    raise TransactionRecoveryError(f"Invalid non-finite number in transaction journal: {value}")
+
+
+def _journal_exact_keys(
+    value: Mapping[str, object],
+    *,
+    label: str,
+    required: frozenset[str],
+    optional: frozenset[str] = frozenset(),
+) -> None:
+    actual = set(value)
+    missing = sorted(required - actual)
+    extras = sorted(actual - required - optional)
+    if missing:
+        raise TransactionRecoveryError(
+            f"Invalid {label} in transaction journal: missing {', '.join(missing)}"
+        )
+    if extras:
+        raise TransactionRecoveryError(
+            f"Invalid {label} in transaction journal: unsupported properties {', '.join(extras)}"
+        )
+
+
+def _parse_file_journal_entry(value: object, *, index: int) -> _FileJournalEntry:
+    label = f"files[{index}]"
+    payload = _journal_object(value, label=label)
+    _journal_exact_keys(
+        payload,
+        label=label,
+        required=frozenset({"path", "existed", "backup"}),
+    )
+    return _FileJournalEntry(
+        path=_journal_string(payload["path"], label=f"{label}.path"),
+        existed=_journal_bool(payload["existed"], label=f"{label}.existed"),
+        backup=_journal_optional_string(payload["backup"], label=f"{label}.backup"),
+    )
+
+
+def _parse_directory_replacement_journal_entry(
+    value: object,
+    *,
+    index: int,
+) -> _DirectoryReplacementJournalEntry:
+    label = f"directoryReplacements[{index}]"
+    payload = _journal_object(value, label=label)
+    _journal_exact_keys(
+        payload,
+        label=label,
+        required=frozenset({"target", "hadTarget", "backup", "operation"}),
+    )
+    operation_value = _journal_string(payload["operation"], label=f"{label}.operation")
+    if operation_value not in {"delete", "replace"}:
+        raise TransactionRecoveryError(f"Invalid {label}.operation in transaction journal")
+    operation = cast(DirectoryOperation, operation_value)
+    return _DirectoryReplacementJournalEntry(
+        target=_journal_string(payload["target"], label=f"{label}.target"),
+        had_target=_journal_bool(payload["hadTarget"], label=f"{label}.hadTarget"),
+        backup=_journal_optional_string(payload["backup"], label=f"{label}.backup"),
+        operation=operation,
+    )
+
+
+def _parse_path_rename_journal_entry(
+    value: object,
+    *,
+    batch_index: int,
+    record_index: int,
+) -> _PathRenameJournalEntry:
+    label = f"renameBatches[{batch_index}].records[{record_index}]"
+    payload = _journal_object(value, label=label)
+    _journal_exact_keys(
+        payload,
+        label=label,
+        required=frozenset({"original", "target", "staged"}),
+    )
+    return _PathRenameJournalEntry(
+        original=_journal_string(payload["original"], label=f"{label}.original"),
+        target=_journal_string(payload["target"], label=f"{label}.target"),
+        staged=_journal_string(payload["staged"], label=f"{label}.staged"),
+    )
+
+
+def _parse_rename_batch_journal_entry(value: object, *, index: int) -> _RenameBatchJournalEntry:
+    label = f"renameBatches[{index}]"
+    payload = _journal_object(value, label=label)
+    _journal_exact_keys(
+        payload,
+        label=label,
+        required=frozenset({"installStarted", "records"}),
+    )
+    records = _journal_list(payload["records"], label=f"{label}.records")
+    return _RenameBatchJournalEntry(
+        install_started=_journal_bool(payload["installStarted"], label=f"{label}.installStarted"),
+        records=tuple(
+            _parse_path_rename_journal_entry(
+                record,
+                batch_index=index,
+                record_index=record_index,
+            )
+            for record_index, record in enumerate(records)
+        ),
+    )
+
+
+def _parse_transaction_journal(value: object) -> _TransactionJournal:
+    payload = _journal_object(value, label="root")
+    _journal_exact_keys(
+        payload,
+        label="root",
+        required=frozenset(
+            {
+                "schema",
+                "transactionId",
+                "state",
+                "createdAt",
+                "files",
+                "directoryReplacements",
+                "renameBatches",
+            }
+        ),
+        optional=frozenset({"recoveredAt"}),
+    )
+    schema = payload["schema"]
+    if not isinstance(schema, int) or isinstance(schema, bool) or schema != TRANSACTION_SCHEMA:
+        raise TransactionRecoveryError(f"Unsupported transaction journal schema: {schema!r}")
+    state_value = _journal_string(payload["state"], label="state")
+    if state_value not in {"active", "committed", "rolledback"}:
+        raise TransactionRecoveryError(f"Unknown transaction state {state_value!r}")
+    state = cast(TransactionState, state_value)
+    files = _journal_list(payload["files"], label="files")
+    replacements = _journal_list(payload["directoryReplacements"], label="directoryReplacements")
+    rename_batches = _journal_list(payload["renameBatches"], label="renameBatches")
+    recovered_value = payload.get("recoveredAt")
+    return _TransactionJournal(
+        transaction_id=_journal_string(payload["transactionId"], label="transactionId"),
+        state=state,
+        created_at=_journal_number(payload["createdAt"], label="createdAt"),
+        files=tuple(_parse_file_journal_entry(item, index=index) for index, item in enumerate(files)),
+        directory_replacements=tuple(
+            _parse_directory_replacement_journal_entry(item, index=index)
+            for index, item in enumerate(replacements)
+        ),
+        rename_batches=tuple(
+            _parse_rename_batch_journal_entry(item, index=index)
+            for index, item in enumerate(rename_batches)
+        ),
+        recovered_at=(
+            _journal_number(recovered_value, label="recoveredAt")
+            if recovered_value is not None
+            else None
+        ),
+    )
+
+
+def _read_transaction_journal(temp_root: Path) -> _TransactionJournal:
+    journal_path = temp_root / TRANSACTION_JOURNAL
+    try:
+        payload: object = json.loads(
+            journal_path.read_text(encoding="utf-8-sig"),
+            object_pairs_hook=_strict_journal_json_object,
+            parse_constant=_reject_nonfinite_json_constant,
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise TransactionRecoveryError(f"Could not read interrupted transaction journal: {journal_path}") from exc
+    try:
+        return _parse_transaction_journal(payload)
+    except TransactionRecoveryError as exc:
+        raise TransactionRecoveryError(f"Invalid interrupted transaction journal {journal_path}: {exc}") from exc
+
+
+def _write_transaction_journal(temp_root: Path, journal: _TransactionJournal) -> None:
+    data = (json.dumps(journal.to_json(), ensure_ascii=False, indent=2, sort_keys=False) + "\n").encode("utf-8")
     _atomic_write_bytes(temp_root / TRANSACTION_JOURNAL, data)
 
 
 def _rollback_rename_batches(
     root: Path,
     temp_root: Path,
-    batches: Sequence[Mapping[str, Any]],
+    batches: Sequence[_RenameBatchJournalEntry],
 ) -> list[str]:
     errors: list[str] = []
     for batch in reversed(list(batches)):
-        records = batch.get("records", [])
-        if not isinstance(records, list):
-            errors.append("Invalid rename batch records")
-            continue
-        install_started = bool(batch.get("installStarted"))
         resolved_records: list[tuple[Path, Path, Path]] = []
         try:
-            for item in records:
-                if not isinstance(item, Mapping):
-                    raise TransactionRecoveryError("Invalid rename record")
+            for item in batch.records:
                 resolved_records.append((
-                    _resolve_journal_path(root, item.get("original"), label="rename original"),
-                    _resolve_journal_path(root, item.get("target"), label="rename target"),
-                    _resolve_journal_path(temp_root, item.get("staged"), label="rename staging path"),
+                    _resolve_journal_path(root, item.original, label="rename original"),
+                    _resolve_journal_path(root, item.target, label="rename target"),
+                    _resolve_journal_path(temp_root, item.staged, label="rename staging path"),
                 ))
         except Exception as exc:
             errors.append(str(exc))
             continue
 
-        if install_started:
+        if batch.install_started:
             for original, target, staged in reversed(resolved_records):
                 try:
                     if staged.exists():
@@ -264,28 +555,16 @@ def _rollback_rename_batches(
     return errors
 
 
-def _rollback_transaction_payload(root: Path, temp_root: Path, payload: Mapping[str, Any]) -> None:
+def _rollback_transaction_journal(root: Path, temp_root: Path, journal: _TransactionJournal) -> None:
     errors: list[str] = []
-    rename_batches = payload.get("renameBatches", [])
-    if isinstance(rename_batches, list):
-        errors.extend(_rollback_rename_batches(root, temp_root, rename_batches))
-    else:
-        errors.append("Invalid renameBatches journal field")
+    errors.extend(_rollback_rename_batches(root, temp_root, journal.rename_batches))
 
-    replacements = payload.get("directoryReplacements", [])
-    if not isinstance(replacements, list):
-        errors.append("Invalid directoryReplacements journal field")
-        replacements = []
-    for item in reversed(replacements):
+    for item in reversed(journal.directory_replacements):
         try:
-            if not isinstance(item, Mapping):
-                raise TransactionRecoveryError("Invalid directory replacement record")
-            target = _resolve_journal_path(root, item.get("target"), label="directory target")
-            had_target = bool(item.get("hadTarget"))
-            backup_value = item.get("backup")
+            target = _resolve_journal_path(root, item.target, label="directory target")
             backup = (
-                _resolve_journal_path(temp_root, backup_value, label="directory backup")
-                if backup_value
+                _resolve_journal_path(temp_root, item.backup, label="directory backup")
+                if item.backup is not None
                 else None
             )
             if backup is not None and backup.exists():
@@ -293,7 +572,7 @@ def _rollback_transaction_payload(root: Path, temp_root: Path, payload: Mapping[
                     _remove_path(target)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 backup.rename(target)
-            elif had_target:
+            elif item.had_target:
                 if not target.exists():
                     raise TransactionRecoveryError(
                         f"Missing original directory and transaction backup: {target}"
@@ -303,21 +582,13 @@ def _rollback_transaction_payload(root: Path, temp_root: Path, payload: Mapping[
         except Exception as exc:
             errors.append(str(exc))
 
-    files = payload.get("files", [])
-    if not isinstance(files, list):
-        errors.append("Invalid files journal field")
-        files = []
-    for item in reversed(files):
+    for item in reversed(journal.files):
         try:
-            if not isinstance(item, Mapping):
-                raise TransactionRecoveryError("Invalid file snapshot record")
-            path = _resolve_journal_path(root, item.get("path"), label="file target")
-            existed = bool(item.get("existed"))
-            backup_value = item.get("backup")
-            if existed:
-                if not backup_value:
+            path = _resolve_journal_path(root, item.path, label="file target")
+            if item.existed:
+                if item.backup is None:
                     raise TransactionRecoveryError(f"Missing backup reference for {path}")
-                backup = _resolve_journal_path(temp_root, backup_value, label="file backup")
+                backup = _resolve_journal_path(temp_root, item.backup, label="file backup")
                 if not backup.is_file():
                     raise TransactionRecoveryError(f"Missing file backup for {path}")
                 _atomic_write_bytes(path, backup.read_bytes())
@@ -349,18 +620,15 @@ def recover_incomplete_transactions(root: Path) -> list[Path]:
         journal_path = candidate / TRANSACTION_JOURNAL
         if not journal_path.is_file():
             continue
-        payload = _read_transaction_journal(candidate)
-        state = str(payload.get("state") or "active")
-        if state == "active":
-            _rollback_transaction_payload(project_root, candidate, payload)
-            recovered_payload = dict(payload)
-            recovered_payload["state"] = "rolledback"
-            recovered_payload["recoveredAt"] = time.time()
-            _write_transaction_journal(candidate, recovered_payload)
-        elif state not in {"committed", "rolledback"}:
-            raise TransactionRecoveryError(
-                f"Unknown transaction state {state!r} in {journal_path}"
+        journal = _read_transaction_journal(candidate)
+        if journal.state == "active":
+            _rollback_transaction_journal(project_root, candidate, journal)
+            recovered_journal = replace(
+                journal,
+                state="rolledback",
+                recovered_at=time.time(),
             )
+            _write_transaction_journal(candidate, recovered_journal)
         shutil.rmtree(candidate)
         _fsync_directory(project_root)
         recovered.append(candidate)
@@ -375,7 +643,7 @@ class ProjectMutationLock(AbstractContextManager["ProjectMutationLock"]):
         self.path = self.root / LOCK_FILENAME
         self.action = str(action or "project mutation").strip()
         self.token = token or uuid.uuid4().hex
-        self._file: Any = None
+        self._file: BinaryIO | None = None
         self._acquired = False
         self.recovered_transactions: list[Path] = []
 
@@ -388,7 +656,7 @@ class ProjectMutationLock(AbstractContextManager["ProjectMutationLock"]):
             return self
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o666)
-        handle = os.fdopen(descriptor, "r+b", buffering=0)
+        handle = cast(BinaryIO, os.fdopen(descriptor, "r+b", buffering=0))
         try:
             # msvcrt cannot lock a byte that has never existed.  Initializing the
             # marker before acquisition is safe even if two first-time processes
@@ -410,7 +678,7 @@ class ProjectMutationLock(AbstractContextManager["ProjectMutationLock"]):
         self._file = handle
         self._acquired = True
         try:
-            metadata = {
+            metadata: dict[str, JsonValue] = {
                 "schema": 1,
                 "token": self.token,
                 "action": self.action,
@@ -430,7 +698,7 @@ class ProjectMutationLock(AbstractContextManager["ProjectMutationLock"]):
             raise
 
     @staticmethod
-    def _lock_file(handle: Any) -> None:
+    def _lock_file(handle: BinaryIO) -> None:
         if os.name == "nt":  # pragma: no cover - exercised on Windows installations
             import msvcrt
 
@@ -442,7 +710,7 @@ class ProjectMutationLock(AbstractContextManager["ProjectMutationLock"]):
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     @staticmethod
-    def _unlock_file(handle: Any) -> None:
+    def _unlock_file(handle: BinaryIO) -> None:
         if os.name == "nt":  # pragma: no cover - exercised on Windows installations
             import msvcrt
 
@@ -470,7 +738,12 @@ class ProjectMutationLock(AbstractContextManager["ProjectMutationLock"]):
     def __enter__(self) -> "ProjectMutationLock":
         return self.acquire()
 
-    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         self.release()
 
 
@@ -486,7 +759,7 @@ class _DirectoryReplacement:
     target: Path
     had_target: bool
     backup: Path | None
-    operation: str
+    operation: DirectoryOperation
 
 
 @dataclass
@@ -515,7 +788,7 @@ class ProjectTransaction(AbstractContextManager["ProjectTransaction"]):
         self._directory_replacements: list[_DirectoryReplacement] = []
         self._rename_batches: list[_RenameBatch] = []
         self._finished = False
-        self._state = "active"
+        self._state: TransactionState = "active"
         try:
             self._persist_journal()
         except Exception:
@@ -542,55 +815,54 @@ class ProjectTransaction(AbstractContextManager["ProjectTransaction"]):
             raise ValueError("A staged replacement must be below the transaction directory")
         return resolved
 
-    def _journal_payload(self, *, state: str | None = None) -> dict[str, Any]:
-        return {
-            "schema": TRANSACTION_SCHEMA,
-            "transactionId": self.transaction_id,
-            "state": state or self._state,
-            "createdAt": self.created_at,
-            "files": [
-                {
-                    "path": _relative_to(self.root, snapshot.path, label="file snapshot"),
-                    "existed": snapshot.existed,
-                    "backup": (
+    def _journal(self, *, state: TransactionState | None = None) -> _TransactionJournal:
+        return _TransactionJournal(
+            transaction_id=self.transaction_id,
+            state=state or self._state,
+            created_at=self.created_at,
+            files=tuple(
+                _FileJournalEntry(
+                    path=_relative_to(self.root, snapshot.path, label="file snapshot"),
+                    existed=snapshot.existed,
+                    backup=(
                         _relative_to(self.temp_root, snapshot.backup, label="file backup")
                         if snapshot.backup is not None
                         else None
                     ),
-                }
+                )
                 for snapshot in (self._files[path] for path in self._file_order)
-            ],
-            "directoryReplacements": [
-                {
-                    "target": _relative_to(self.root, record.target, label="directory target"),
-                    "hadTarget": record.had_target,
-                    "backup": (
+            ),
+            directory_replacements=tuple(
+                _DirectoryReplacementJournalEntry(
+                    target=_relative_to(self.root, record.target, label="directory target"),
+                    had_target=record.had_target,
+                    backup=(
                         _relative_to(self.temp_root, record.backup, label="directory backup")
                         if record.backup is not None
                         else None
                     ),
-                    "operation": record.operation,
-                }
+                    operation=record.operation,
+                )
                 for record in self._directory_replacements
-            ],
-            "renameBatches": [
-                {
-                    "installStarted": batch.install_started,
-                    "records": [
-                        {
-                            "original": _relative_to(self.root, record.original, label="rename original"),
-                            "target": _relative_to(self.root, record.target, label="rename target"),
-                            "staged": _relative_to(self.temp_root, record.staged, label="rename staging path"),
-                        }
+            ),
+            rename_batches=tuple(
+                _RenameBatchJournalEntry(
+                    install_started=batch.install_started,
+                    records=tuple(
+                        _PathRenameJournalEntry(
+                            original=_relative_to(self.root, record.original, label="rename original"),
+                            target=_relative_to(self.root, record.target, label="rename target"),
+                            staged=_relative_to(self.temp_root, record.staged, label="rename staging path"),
+                        )
                         for record in batch.records
-                    ],
-                }
+                    ),
+                )
                 for batch in self._rename_batches
-            ],
-        }
+            ),
+        )
 
-    def _persist_journal(self, *, state: str | None = None) -> None:
-        _write_transaction_journal(self.temp_root, self._journal_payload(state=state))
+    def _persist_journal(self, *, state: TransactionState | None = None) -> None:
+        _write_transaction_journal(self.temp_root, self._journal(state=state))
 
     def track_file(self, path: Path) -> None:
         resolved = self._project_path(path)
@@ -714,7 +986,7 @@ class ProjectTransaction(AbstractContextManager["ProjectTransaction"]):
             errors = _rollback_rename_batches(
                 self.root,
                 self.temp_root,
-                self._journal_payload().get("renameBatches", [])[-1:],
+                self._journal().rename_batches[-1:],
             )
             if not errors:
                 self._rename_batches.pop()
@@ -727,8 +999,8 @@ class ProjectTransaction(AbstractContextManager["ProjectTransaction"]):
     def rollback(self) -> None:
         if self._finished:
             return
-        payload = self._journal_payload(state="active")
-        _rollback_transaction_payload(self.root, self.temp_root, payload)
+        journal = self._journal(state="active")
+        _rollback_transaction_journal(self.root, self.temp_root, journal)
         self._state = "rolledback"
         self._persist_journal(state="rolledback")
         self._cleanup_temp()
@@ -759,7 +1031,12 @@ class ProjectTransaction(AbstractContextManager["ProjectTransaction"]):
     def __enter__(self) -> "ProjectTransaction":
         return self
 
-    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         if self._finished:
             return
         if exc_type is None:

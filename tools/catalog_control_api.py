@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol, cast
 
 TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
@@ -20,9 +20,17 @@ MAX_JSON_BODY_BYTES = 1_000_000
 MAX_PDF_UPLOAD_BYTES = 160 * 1024 * 1024
 
 
+class HeaderReader(Protocol):
+    def get(self, name: str, default: str | None = None) -> str | None: ...
+
+
+class BinaryReader(Protocol):
+    def read(self, size: int = -1) -> bytes: ...
+
+
 class RequestBodyReader(Protocol):
-    headers: Any
-    rfile: Any
+    headers: HeaderReader
+    rfile: BinaryReader
 
 
 class ApiRequestError(ValueError):
@@ -31,7 +39,7 @@ class ApiRequestError(ValueError):
         self.status = status
 
 
-def validate_request_payload(name: str, payload: dict[str, Any]) -> None:
+def validate_request_payload(name: str, payload: dict[str, object]) -> None:
     try:
         validate_control_panel_payload(name, payload)
     except ControlPanelSchemaError as exc:
@@ -51,7 +59,7 @@ def content_length(handler: RequestBodyReader, *, maximum: int) -> int:
     return length
 
 
-def read_json_object(handler: RequestBodyReader) -> dict[str, Any]:
+def read_json_object(handler: RequestBodyReader) -> dict[str, object]:
     content_type = str(handler.headers.get("Content-Type", "") or "").lower()
     if not content_type.startswith("application/json"):
         raise ApiRequestError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Content-Type must be application/json")
@@ -67,31 +75,31 @@ def read_json_object(handler: RequestBodyReader) -> dict[str, Any]:
         raise ApiRequestError(HTTPStatus.BAD_REQUEST, "Invalid JSON body") from exc
     if not isinstance(payload, dict):
         raise ApiRequestError(HTTPStatus.BAD_REQUEST, "JSON body must be an object")
-    return payload
+    return cast(dict[str, object], payload)
 
 
-def _require_list(payload: dict[str, Any], key: str) -> list[Any]:
+def _require_list(payload: dict[str, object], key: str) -> list[object]:
     value = payload.get(key)
     if not isinstance(value, list):
         raise ApiRequestError(HTTPStatus.BAD_REQUEST, f"{key} must be an array")
-    return value
+    return cast(list[object], value)
 
 
-def _require_object(payload: dict[str, Any], key: str) -> dict[str, Any]:
+def _require_object(payload: dict[str, object], key: str) -> dict[str, object]:
     value = payload.get(key)
     if not isinstance(value, dict):
         raise ApiRequestError(HTTPStatus.BAD_REQUEST, f"{key} must be an object")
-    return value
+    return cast(dict[str, object], value)
 
 
 @dataclass(frozen=True)
 class CatalogSaveRequest:
-    catalogs: list[Any]
-    taxonomy: dict[str, Any]
-    asset_deletes: list[Any]
+    catalogs: list[object]
+    taxonomy: dict[str, object]
+    asset_deletes: list[object]
 
     @classmethod
-    def parse(cls, payload: dict[str, Any]) -> "CatalogSaveRequest":
+    def parse(cls, payload: dict[str, object]) -> "CatalogSaveRequest":
         catalogs = _require_list(payload, "catalogs")
         taxonomy = _require_object(payload, "taxonomy")
         deletes = payload.get("assetDeletes", [])
@@ -105,10 +113,10 @@ class CatalogSaveRequest:
 
 @dataclass(frozen=True)
 class TaxonomySaveRequest:
-    taxonomy: dict[str, Any]
+    taxonomy: dict[str, object]
 
     @classmethod
-    def parse(cls, payload: dict[str, Any]) -> "TaxonomySaveRequest":
+    def parse(cls, payload: dict[str, object]) -> "TaxonomySaveRequest":
         taxonomy = _require_object(payload, "taxonomy")
         validate_request_payload("TaxonomySaveRequestDto", payload)
         return cls(taxonomy=taxonomy)
@@ -116,10 +124,10 @@ class TaxonomySaveRequest:
 
 @dataclass(frozen=True)
 class FooterSaveRequest:
-    footer: dict[str, Any]
+    footer: dict[str, object]
 
     @classmethod
-    def parse(cls, payload: dict[str, Any]) -> "FooterSaveRequest":
+    def parse(cls, payload: dict[str, object]) -> "FooterSaveRequest":
         footer = _require_object(payload, "footer")
         validate_request_payload("FooterSaveRequestDto", payload)
         return cls(footer=footer)
@@ -132,7 +140,7 @@ class RunActionRequest:
     confirmed_missing_pdf_ids: tuple[str, ...]
 
     @classmethod
-    def parse(cls, payload: dict[str, Any]) -> "RunActionRequest":
+    def parse(cls, payload: dict[str, object]) -> "RunActionRequest":
         action = payload.get("action")
         if not isinstance(action, str) or not action.strip():
             raise ApiRequestError(HTTPStatus.BAD_REQUEST, "action must be a non-empty string")

@@ -522,24 +522,125 @@ def test_rename_recovery_accepts_an_original_that_was_already_restored(tmp_path:
     original.mkdir(parents=True)
     temp_root.mkdir()
 
-    errors = MUTATION._rollback_rename_batches(
-        root,
-        temp_root,
-        [
-            {
-                "installStarted": True,
-                "records": [
-                    {
-                        "original": original.relative_to(root).as_posix(),
-                        "target": target.relative_to(root).as_posix(),
-                        "staged": staged.relative_to(temp_root).as_posix(),
-                    }
-                ],
-            }
-        ],
+    batch = MUTATION._parse_rename_batch_journal_entry(
+        {
+            "installStarted": True,
+            "records": [
+                {
+                    "original": original.relative_to(root).as_posix(),
+                    "target": target.relative_to(root).as_posix(),
+                    "staged": staged.relative_to(temp_root).as_posix(),
+                }
+            ],
+        },
+        index=0,
     )
+    errors = MUTATION._rollback_rename_batches(root, temp_root, [batch])
 
     assert errors == []
     assert original.is_dir()
     assert not target.exists()
     assert not staged.exists()
+
+
+def test_transaction_journal_rejects_coercible_boolean_values(tmp_path: Path) -> None:
+    temp_root = tmp_path / ".transaction"
+    temp_root.mkdir()
+    payload = {
+        "schema": MUTATION.TRANSACTION_SCHEMA,
+        "transactionId": "transaction",
+        "state": "active",
+        "createdAt": 1.0,
+        "files": [{"path": "state.txt", "existed": "false", "backup": None}],
+        "directoryReplacements": [],
+        "renameBatches": [],
+    }
+    (temp_root / MUTATION.TRANSACTION_JOURNAL).write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(MUTATION.TransactionRecoveryError, match=r"files\[0\]\.existed"):
+        MUTATION._read_transaction_journal(temp_root)
+
+
+def test_transaction_journal_rejects_unowned_fields(tmp_path: Path) -> None:
+    temp_root = tmp_path / ".transaction"
+    temp_root.mkdir()
+    payload = {
+        "schema": MUTATION.TRANSACTION_SCHEMA,
+        "transactionId": "transaction",
+        "state": "active",
+        "createdAt": 1.0,
+        "files": [],
+        "directoryReplacements": [],
+        "renameBatches": [],
+        "legacyFallback": True,
+    }
+    (temp_root / MUTATION.TRANSACTION_JOURNAL).write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(MUTATION.TransactionRecoveryError, match="unsupported properties legacyFallback"):
+        MUTATION._read_transaction_journal(temp_root)
+
+
+def test_transaction_journal_rejects_unknown_directory_operations(tmp_path: Path) -> None:
+    temp_root = tmp_path / ".transaction"
+    temp_root.mkdir()
+    payload = {
+        "schema": MUTATION.TRANSACTION_SCHEMA,
+        "transactionId": "transaction",
+        "state": "active",
+        "createdAt": 1.0,
+        "files": [],
+        "directoryReplacements": [
+            {
+                "target": "assets/pages/catalog",
+                "hadTarget": False,
+                "backup": None,
+                "operation": "move",
+            }
+        ],
+        "renameBatches": [],
+    }
+    (temp_root / MUTATION.TRANSACTION_JOURNAL).write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(MUTATION.TransactionRecoveryError, match=r"directoryReplacements\[0\]\.operation"):
+        MUTATION._read_transaction_journal(temp_root)
+
+
+def test_transaction_journal_rejects_duplicate_json_properties(tmp_path: Path) -> None:
+    temp_root = tmp_path / ".transaction"
+    temp_root.mkdir()
+    journal = (
+        '{'
+        '"schema":1,'
+        '"transactionId":"transaction",'
+        '"state":"active",'
+        '"createdAt":1.0,'
+        '"files":[],'
+        '"directoryReplacements":[],'
+        '"renameBatches":[],'
+        '"state":"committed"'
+        '}'
+    )
+    (temp_root / MUTATION.TRANSACTION_JOURNAL).write_text(journal, encoding="utf-8")
+
+    with pytest.raises(MUTATION.TransactionRecoveryError, match="Duplicate property.*state"):
+        MUTATION._read_transaction_journal(temp_root)
+
+
+def test_transaction_journal_rejects_nonfinite_timestamps(tmp_path: Path) -> None:
+    temp_root = tmp_path / ".transaction"
+    temp_root.mkdir()
+    journal = (
+        '{'
+        '"schema":1,'
+        '"transactionId":"transaction",'
+        '"state":"active",'
+        '"createdAt":NaN,'
+        '"files":[],'
+        '"directoryReplacements":[],'
+        '"renameBatches":[]'
+        '}'
+    )
+    (temp_root / MUTATION.TRANSACTION_JOURNAL).write_text(journal, encoding="utf-8")
+
+    with pytest.raises(MUTATION.TransactionRecoveryError, match="non-finite number"):
+        MUTATION._read_transaction_journal(temp_root)

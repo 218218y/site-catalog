@@ -31,7 +31,7 @@ Editable runtime sources live under `src/runtime/`; generated data comes from th
 
 - `catalogs.generated.json` is the canonical machine-readable projection used by build, SEO, R2, telemetry and maintenance tools.
 - `catalogs.search-index.json` is the active normalized worker index.
-- `catalogs.search.json` and `catalogs.search.js` are retired. A read-only adapter remains only for the explicit `--migrate-legacy-state` command; normal builds neither read nor recreate them.
+- `catalogs.search.json` and `catalogs.search.js` are retired completely. No compiler, build or migration path reads or recreates them; `catalogs.build-state.json` is required instead.
 
 ## Isolated diagnostic snapshot
 

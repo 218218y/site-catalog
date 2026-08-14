@@ -596,7 +596,7 @@ def test_artifact_state_detects_source_changes_without_rebuilding(
         seo_mode="private",
     )
     inputs = MODULE.build_input_hashes(root)
-    MODULE.write_artifact_state(root, out, inputs=inputs, options=options)
+    MODULE.write_artifact_state(out, inputs=inputs, options=options)
 
     current, reason = MODULE.artifact_is_current(root, out, options=options)
     assert current is True
@@ -610,6 +610,55 @@ def test_artifact_state_detects_source_changes_without_rebuilding(
     current, reason = MODULE.artifact_is_current(root, out, options=options)
     assert current is False
     assert "src/input.js" in reason
+
+
+def test_artifact_state_rejects_legacy_string_inventory_records(tmp_path: Path) -> None:
+    out = tmp_path / "dist/site-upload-r2"
+    write_asset(out, "index.html", b"<!doctype html>")
+    options = MODULE.build_options_payload(
+        external_assets_url="https://cdn.example.com",
+        seo_mode="private",
+    )
+    MODULE.write_artifact_state(out, inputs={"src/input.js": "a" * 64}, options=options)
+    state_path = MODULE.artifact_state_path(out)
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload["outputFiles"]["index.html"] = payload["outputFiles"]["index.html"]["sha256"]
+    state_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert MODULE.load_artifact_state(out) is None
+
+
+def test_artifact_state_rejects_coercible_option_types_and_extra_fields(tmp_path: Path) -> None:
+    out = tmp_path / "dist/site-upload-r2"
+    write_asset(out, "index.html", b"<!doctype html>")
+    options = MODULE.build_options_payload(
+        external_assets_url="https://cdn.example.com",
+        seo_mode="private",
+    )
+    MODULE.write_artifact_state(out, inputs={"src/input.js": "a" * 64}, options=options)
+    state_path = MODULE.artifact_state_path(out)
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload["options"]["includeJson"] = 0
+    payload["legacyFallback"] = True
+    state_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert MODULE.load_artifact_state(out) is None
+
+
+def test_artifact_state_rejects_unsafe_inventory_paths(tmp_path: Path) -> None:
+    out = tmp_path / "dist/site-upload-r2"
+    write_asset(out, "index.html", b"<!doctype html>")
+    options = MODULE.build_options_payload(
+        external_assets_url="https://cdn.example.com",
+        seo_mode="private",
+    )
+    MODULE.write_artifact_state(out, inputs={"src/input.js": "a" * 64}, options=options)
+    state_path = MODULE.artifact_state_path(out)
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload["outputFiles"]["../outside.html"] = payload["outputFiles"].pop("index.html")
+    state_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert MODULE.load_artifact_state(out) is None
 
 
 def test_mirror_artifact_reuses_one_validated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -631,7 +680,6 @@ def test_mirror_artifact_reuses_one_validated_output(tmp_path: Path, monkeypatch
         seo_mode="private",
     )
     MODULE.write_artifact_state(
-        root,
         source_dir,
         inputs=MODULE.build_input_hashes(root),
         options=options,

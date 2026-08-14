@@ -278,7 +278,7 @@ def test_every_managed_public_catalog_output_is_reconstructable() -> None:
 def test_schema_rejects_unowned_catalog_fields(field_name: str) -> None:
     catalogs = json.loads((ROOT / "catalogs.config.json").read_text(encoding="utf-8"))
     catalogs[0][field_name] = "unsupported"
-    with pytest.raises(SCHEMA.SchemaValidationError, match="unsupported property"):
+    with pytest.raises(SCHEMA.SchemaValidationError, match="unsupported properties"):
         SCHEMA.validate_catalog_config(catalogs, ROOT)
 
 
@@ -290,8 +290,8 @@ def test_normal_compilation_never_uses_public_outputs_as_input(tmp_path: Path) -
     write_sources(root, catalogs, state)
     (root / COMPILER.GENERATED_JSON_FILE).write_text('[{"id":"tampered"}]\n', encoding="utf-8")
     (root / COMPILER.GENERATED_MODULE_FILE).write_text("tampered\n", encoding="utf-8")
-    legacy_search_json = root / COMPILER.LEGACY_SEARCH_JSON_FILE
-    legacy_search_js = root / COMPILER.LEGACY_SEARCH_JS_FILE
+    legacy_search_json = root / "catalogs.search.json"
+    legacy_search_js = root / "catalogs.search.js"
     legacy_search_json.write_text('[{"catalogId":"tampered","pages":[]}]\n', encoding="utf-8")
     legacy_search_js.write_text("tampered\n", encoding="utf-8")
 
@@ -345,36 +345,20 @@ def test_orphan_build_state_requires_explicit_reconciliation(tmp_path: Path) -> 
         COMPILER.compile_current_project_catalog_data(root, writer=lambda _path, _data: None)
 
 
-def test_explicit_legacy_migration_requires_matching_search_json_and_js(tmp_path: Path) -> None:
+def test_legacy_public_outputs_cannot_seed_missing_build_state(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
     catalogs = [source_catalog("one", "One", pdf="assets/pdfs/one.pdf")]
-    expected = COMPILER.compile_catalog_data(
-        catalogs,
-        taxonomy(),
-        {"version": 1, "catalogs": [artifact("one")]},
-        root,
-    )
-    (root / COMPILER.GENERATED_JSON_FILE).write_bytes(
-        COMPILER.compiled_catalog_file_bytes(expected)[Path(COMPILER.GENERATED_JSON_FILE)]
-    )
-    legacy_search_payload = json.dumps(expected.search, ensure_ascii=False, indent=2) + "\n"
-    (root / COMPILER.LEGACY_SEARCH_JSON_FILE).write_text(legacy_search_payload, encoding="utf-8")
-    (root / COMPILER.LEGACY_SEARCH_JS_FILE).write_text(
-        "window.BARGIG_CATALOG_SEARCH = "
-        + json.dumps(expected.search, ensure_ascii=False, indent=2)
-        + ";\n",
-        encoding="utf-8",
-    )
-
-    migrated = COMPILER.migrate_legacy_outputs_to_build_state(root)
-    assert migrated == expected.build_state
-
-    (root / COMPILER.LEGACY_SEARCH_JS_FILE).write_text(
+    write_sources(root, catalogs, {"version": 1, "catalogs": [artifact("one")]})
+    (root / COMPILER.BUILD_STATE_FILE).unlink()
+    (root / COMPILER.GENERATED_JSON_FILE).write_text("[]\n", encoding="utf-8")
+    (root / "catalogs.search.json").write_text("[]\n", encoding="utf-8")
+    (root / "catalogs.search.js").write_text(
         "window.BARGIG_CATALOG_SEARCH = [];\n", encoding="utf-8"
     )
-    with pytest.raises(RuntimeError, match="different data"):
-        COMPILER.migrate_legacy_outputs_to_build_state(root)
+
+    with pytest.raises(FileNotFoundError, match=COMPILER.BUILD_STATE_FILE):
+        COMPILER.load_build_state(root)
 
 
 def test_schema_rejects_cross_file_and_asset_path_drift() -> None:
