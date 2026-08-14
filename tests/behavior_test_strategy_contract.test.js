@@ -14,7 +14,7 @@ const behaviorTests = [
 
 for (const name of behaviorTests) {
   const source = fs.readFileSync(path.join(__dirname, name), "utf8");
-  assert.match(source, /importFrontendTestModule/, `${name}: must execute a production owner module`);
+  assert.match(source, /importFrontendModule/, `${name}: must execute a production owner module`);
   assert.doesNotMatch(source, /readFileSync\([^\n]*src[\\/]js/, `${name}: must not inspect production source text`);
   assert.doesNotMatch(source, /sourceBetween|extractFunction|new Function|\beval\s*\(/, `${name}: dynamic source extraction is forbidden`);
 }

@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 class FakeElement {
   constructor(tagName) { this.tagName = tagName; }
@@ -23,7 +23,7 @@ global.Element = FakeElement;
 global.HTMLImageElement = FakeHTMLImageElement;
 
 const { telemetryClassifyWindowError: classify, telemetryIsRuntimeErrorEvent: isRuntime } =
-  importFrontendTestModule("src/js/15-telemetry.js", "telemetry");
+  importFrontendModule("src/js/15-telemetry.js");
 
 const scriptError = { type: "error", target: new FakeElement("SCRIPT") };
 const linkError = { type: "error", target: new FakeElement("LINK") };

@@ -443,50 +443,16 @@ function releaseViewerRetainedResolutionCommand() {
   return true;
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-state-transitions"] = Object.freeze({
-    assertViewerNavigationCommand,
-    assertViewerStateInvariants,
-    beginViewerImageSwapCommand,
-    beginViewerPageTransitionCommand,
-    beginViewerResolutionCommand,
-    attachViewerResolutionStopCommand,
-    cancelViewerResolutionCommand,
-    captureViewerStateInvariantSnapshot,
-    commitViewerResolutionCommand,
-    invalidateViewerImageSwapCommand,
-    isViewerImageSwapCurrent,
-    createViewerNavigationCommand,
-    finalizeViewerClosedStateCommand,
-    initializeViewerOpenStateCommand,
-    markViewerResolutionReadyCommand,
-    releaseViewerRetainedResolutionCommand,
-    resetViewerGestureCommand,
-    resetViewerNavigationGestureCommand,
-    retainViewerResolutionForSwapCommand
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
 export {
-  VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN,
-  VIEWER_NAVIGATION_SOURCE_BUTTON,
-  VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING,
-  VIEWER_NAVIGATION_SOURCE_HOME_END,
-  VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE,
-  VIEWER_NAVIGATION_SOURCE_KEYBOARD,
-  VIEWER_NAVIGATION_SOURCE_MOMENTUM,
-  VIEWER_NAVIGATION_SOURCE_PAGE_RAIL,
-  VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC,
-  VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE,
-  VIEWER_NAVIGATION_SOURCE_WHEEL,
+  assertViewerNavigationCommand,
   assertViewerStateInvariants,
   attachViewerResolutionStopCommand,
   beginViewerImageSwapCommand,
   beginViewerPageTransitionCommand,
   beginViewerResolutionCommand,
   cancelViewerResolutionCommand,
+  captureViewerStateInvariantSnapshot,
   commitViewerResolutionCommand,
   createViewerNavigationCommand,
   finalizeViewerClosedStateCommand,
@@ -497,5 +463,16 @@ export {
   releaseViewerRetainedResolutionCommand,
   resetViewerGestureCommand,
   resetViewerNavigationGestureCommand,
-  retainViewerResolutionForSwapCommand
+  retainViewerResolutionForSwapCommand,
+  VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN,
+  VIEWER_NAVIGATION_SOURCE_BUTTON,
+  VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING,
+  VIEWER_NAVIGATION_SOURCE_HOME_END,
+  VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE,
+  VIEWER_NAVIGATION_SOURCE_KEYBOARD,
+  VIEWER_NAVIGATION_SOURCE_MOMENTUM,
+  VIEWER_NAVIGATION_SOURCE_PAGE_RAIL,
+  VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC,
+  VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE,
+  VIEWER_NAVIGATION_SOURCE_WHEEL
 };

@@ -1,13 +1,13 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
-const pageNumbering = importFrontendTestModule("src/js/06-catalog-page-numbering.js", "catalog-page-numbering");
+const pageNumbering = importFrontendModule("src/js/06-catalog-page-numbering.js");
 Object.assign(globalThis, pageNumbering);
 
-const domain = importFrontendTestModule("src/js/39-search-catalog-domain.js", "search-catalog");
-const registry = importFrontendTestModule("src/js/10-app-state.js", "feature-registry");
+const { searchCatalogDomain: domain } = importFrontendModule("src/js/39-search-catalog-domain.js");
+const registry = importFrontendModule("src/js/10-app-state.js");
 assert.throws(
   () => registry.requireFeatureInterface("catalog-grid"),
   /Required feature interface is unavailable: catalog-grid/,

@@ -1,12 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
-const pageNumbering = importFrontendTestModule(
-  "src/js/06-catalog-page-numbering.js",
-  "catalog-page-numbering"
-);
+const pageNumbering = importFrontendModule("src/js/06-catalog-page-numbering.js");
 
 const regular = { id: "regular", pages: 3 };
 assert.equal(pageNumbering.catalogFirstPage(regular), 1);

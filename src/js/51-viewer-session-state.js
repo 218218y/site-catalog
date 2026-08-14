@@ -83,23 +83,12 @@ function isViewerFullscreenPending() {
     || viewerSessionState.viewerFullscreenPhase === VIEWER_FULLSCREEN_EXITING;
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-session-state"] = Object.freeze({
-    transitionStatePhase,
-    transitionViewerPhase,
-    isViewerSessionOpen,
-    isViewerSessionVisible,
-    transitionViewerFullscreenPhase,
-    isViewerFullscreenPending
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
 export {
   isViewerFullscreenPending,
   isViewerSessionOpen,
   isViewerSessionVisible,
+  transitionStatePhase,
   transitionViewerFullscreenPhase,
   transitionViewerPhase
 };

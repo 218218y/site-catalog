@@ -7,8 +7,8 @@ const root = path.join(__dirname, '..');
 global.location = { pathname: '/', search: '', origin: 'http://localhost:8080' };
 global.window = { location: global.location };
 global.document = { body: { dataset: { page: 'home' } } };
-const { importStandaloneRuntimeModule } = require('./frontend_test_module');
-const routes = importStandaloneRuntimeModule('src/runtime/site-routes.js');
+const { importFrontendModule } = require('./frontend_test_module');
+const routes = importFrontendModule('src/runtime/site-routes.js');
 
 assert.ok(routes, 'route API should be exported');
 assert.equal(routes.homeUrl(), '/');

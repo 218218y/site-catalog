@@ -125,25 +125,5 @@ function bindFeatureEventsOnce(featureName, binder) {
   return true;
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["feature-registry"] = Object.freeze({
-    registerFeatureInterface,
-    getFeatureInterface,
-    requireFeatureInterface
-  });
-  __BARGIG_TEST_EXPORTS__["catalog-image-policy"] = Object.freeze({
-    CATALOG_ASSET_URL_SCHEMA_VERSION,
-    CATALOG_ASSET_VERSION_PARAM,
-    CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY,
-    CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE,
-    CATALOG_IMAGE_RETRY_PARAM,
-    CATALOG_IMAGE_TIER_FULL,
-    CATALOG_IMAGE_TIER_MEDIUM,
-    CATALOG_IMAGE_TIER_THUMB,
-    DEFAULT_CATALOG_MEDIUM_MAX_SIDE
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
 export { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_EAGER_COVER_COUNT, CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY, CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE, CATALOG_IMAGE_PRELOAD_CACHE_LIMIT, CATALOG_IMAGE_RETRY_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, DEFAULT_CATALOG_MEDIUM_MAX_SIDE, bindFeatureEventsOnce, catalogAssetState, featureInterfacesByEscapePriority, getFeatureInterface, registerFeatureInterface, requireFeatureInterface, uiRuntime };

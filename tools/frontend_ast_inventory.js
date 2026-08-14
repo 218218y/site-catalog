@@ -77,6 +77,24 @@ function declarationProperties(node, is) {
   return [];
 }
 
+function enclosingFunctionName(node, is) {
+  let current = node.parent;
+  while (current) {
+    if (is.isFunctionDeclaration(current) && current.name) return current.name.text;
+    if (is.isMethodDeclaration(current)) return propertyNameText(current.name, is);
+    if (is.isFunctionExpression(current) || is.isArrowFunction(current)) {
+      const parent = current.parent;
+      if (parent && is.isVariableDeclaration(parent) && is.isIdentifier(parent.name)) {
+        return parent.name.text;
+      }
+      if (parent && is.isPropertyAssignment(parent)) return propertyNameText(parent.name, is);
+      return null;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
 function walk(node, visitor) {
   visitor(node);
   node.forEachChild((child) => walk(child, visitor));
@@ -86,7 +104,10 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
   const staticImports = [];
   const dynamicImports = [];
   const identifiers = new Set();
+  const stringLiterals = new Set();
+  const numericLiterals = new Set();
   const propertyAccesses = [];
+  const objectPropertyLiterals = [];
   const objectDeclarations = Object.create(null);
   const literalDeclarations = Object.create(null);
   const functionDeclarations = [];
@@ -134,6 +155,31 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
 
   walk(sourceFile, (node) => {
     if (is.isIdentifier(node)) identifiers.add(node.text);
+    if (is.isStringLiteralLikeNode(node)) stringLiterals.add(node.text);
+    if (
+      [
+        SyntaxKind.NoSubstitutionTemplateLiteral,
+        SyntaxKind.TemplateHead,
+        SyntaxKind.TemplateMiddle,
+        SyntaxKind.TemplateTail,
+      ].includes(node.kind)
+      && typeof node.text === "string"
+    ) {
+      stringLiterals.add(node.text);
+    }
+    if (is.isNumericLiteral(node)) numericLiterals.add(Number(node.text));
+
+    if (is.isPropertyAssignment(node)) {
+      const property = propertyNameText(node.name, is);
+      const value = literalValue(node.initializer, is, SyntaxKind);
+      if (property && value !== undefined) {
+        objectPropertyLiterals.push({
+          property,
+          value,
+          enclosingFunction: enclosingFunctionName(node, is),
+        });
+      }
+    }
 
     if (is.isPropertyAccessExpression(node) || is.isElementAccessExpression(node)) {
       const accessPath = expressionPath(node, is, SyntaxKind);
@@ -172,6 +218,7 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
         callee,
         arguments: args,
         path: expressionPath(node, is, SyntaxKind),
+        enclosingFunction: enclosingFunctionName(node, is),
       });
       if (node.expression.kind === SyntaxKind.ImportKeyword) {
         const first = node.arguments[0];
@@ -206,7 +253,10 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
     staticImports,
     dynamicImports,
     identifiers: [...identifiers].sort(),
+    stringLiterals: [...stringLiterals].sort(),
+    numericLiterals: [...numericLiterals].sort((left, right) => left - right),
     propertyAccesses,
+    objectPropertyLiterals,
     objectDeclarations,
     literalDeclarations,
     functionDeclarations,

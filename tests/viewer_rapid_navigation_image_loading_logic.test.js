@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 class ControlledImage {
   static instances = [];
@@ -68,7 +68,7 @@ async function testPreparationLifecycle() {
     telemetryTrackImageRecovery() {},
   });
 
-  const shared = importFrontendTestModule("src/js/20-shared-ui.js", "shared-ui");
+  const shared = importFrontendModule("src/js/20-shared-ui.js");
   const requestContext = Object.freeze({
     requestId: "ir-stage-shared1",
     detail: "viewer-single",
@@ -174,7 +174,7 @@ function testNeighborPreloadCoalescing() {
     isSaveDataEnabled: () => false,
   });
 
-  const viewerImage = importFrontendTestModule("src/js/53-viewer-image.js", "viewer-image");
+  const viewerImage = importFrontendModule("src/js/53-viewer-image.js");
 
   viewerImage.preloadNeighbors();
   const firstTimer = imageState.neighborPreloadTimer;

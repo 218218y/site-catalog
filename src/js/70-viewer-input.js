@@ -639,24 +639,22 @@ function handleLightboxPointerDownCapture(event) {
   hideLightboxTopSearchFromViewerInteraction(event);
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-input"] = Object.freeze({
-    captureViewerPointer,
-    releaseViewerPointerCapture,
-    getViewerPointerEventTime,
-    stopViewerTouchMomentum,
-    getViewerPointerMoveSamples,
-    updateViewerPointerVelocity,
-    consumeViewerPointerPanSamples,
-    clampViewerTouchMomentumVelocity,
-    runViewerTouchMomentumFrame,
-    startViewerTouchMomentum,
-    handleViewerPageSwipe,
-    getWheelZoomFactor,
-    handleZoomSurfaceWheel
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
-export { attachViewerGestures, handleLightboxPointerDownCapture, handleViewerSurfacePointerDown, stopViewerTouchMomentum };
+export {
+  attachViewerGestures,
+  captureViewerPointer,
+  clampViewerTouchMomentumVelocity,
+  consumeViewerPointerPanSamples,
+  getViewerPointerEventTime,
+  getViewerPointerMoveSamples,
+  getWheelZoomFactor,
+  handleLightboxPointerDownCapture,
+  handleViewerPageSwipe,
+  handleViewerSurfacePointerDown,
+  handleZoomSurfaceWheel,
+  releaseViewerPointerCapture,
+  runViewerTouchMomentumFrame,
+  startViewerTouchMomentum,
+  stopViewerTouchMomentum,
+  updateViewerPointerVelocity
+};

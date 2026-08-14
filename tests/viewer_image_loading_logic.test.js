@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { importFrontendTestModule } = require('./frontend_test_module');
+const { importFrontendModule } = require('./frontend_test_module');
 
 Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
 Object.assign(globalThis, {
@@ -10,7 +10,7 @@ Object.assign(globalThis, {
   CATALOG_IMAGE_RETRY_PARAM: 'bargig_retry',
   CATALOG_ASSET_VERSION_PARAM: 'v'
 });
-const api = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');
+const api = importFrontendModule('src/js/20-shared-ui.js');
 
 const candidates = api.catalogImageRecoveryCandidates(
   'https://cdn.example.test/full.webp?v=release-full-u2',
@@ -63,7 +63,7 @@ assert.doesNotMatch(manual[0].src, /old/);
     },
     showSingleLightboxImage: (...args) => calls.push(args)
   });
-  const navigation = importFrontendTestModule("src/js/58-viewer-navigation.js", "viewer-navigation");
+  const navigation = importFrontendModule("src/js/58-viewer-navigation.js");
   navigation.retryCurrentViewerImage();
   assert.deepEqual(calls, [[catalog, 4, request.primarySrc, { imageRequest: request, forceRefresh: true }]]);
 

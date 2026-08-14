@@ -514,6 +514,22 @@ def check_test_strategy(base: Path, failures: list[str]) -> None:
         if "assert.match(" in text or "assert.doesNotMatch(" in text:
             failures.append(f"{relative} must not regress to source-regex structure assertions")
 
+    mixed_ast_structural_tests = (
+        "tests/frontend_modules_contract.test.js",
+        "tests/catalog_search_architecture_contract.test.js",
+        "tests/catalog_navigation_search_contract.test.js",
+        "tests/telemetry_security_contract.test.js",
+        "tests/viewer_paged_mode_contract.test.js",
+    )
+    for relative in mixed_ast_structural_tests:
+        path = base / relative
+        if not path.is_file():
+            failures.append(f"required mixed AST structural contract is missing: {relative}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "frontend_ast.js" not in text:
+            failures.append(f"{relative} must use the shared TypeScript AST helper for JavaScript structure")
+
     required_behavior_tests = (
         "tests/search_catalog_domain_logic.test.js",
         "tests/search_catalog_viewer_integration.test.js",
@@ -524,35 +540,27 @@ def check_test_strategy(base: Path, failures: list[str]) -> None:
             failures.append(f"required Search/Catalog behavior test is missing: {relative}")
             continue
         text = path.read_text(encoding="utf-8")
-        if "importFrontendTestModule" not in text:
-            failures.append(f"{relative} must import the production test module instead of reading source text")
+        if "importFrontendModule" not in text:
+            failures.append(f"{relative} must import the production ES module instead of reading source text")
 
 
-def check_test_only_exports(base: Path, sources: list[Path], failures: list[str]) -> None:
-    """Require explicit source-owned test APIs and prove they never ship."""
+def check_frontend_behavior_test_boundary(base: Path, failures: list[str]) -> None:
+    """Require behavior tests to execute the real ES-module export surface."""
 
     helper = base / "tests/frontend_test_module.js"
     if not helper.is_file():
-        failures.append("source-owned frontend test module loader is missing")
-    else:
-        helper_text = helper.read_text(encoding="utf-8")
-        if "__BARGIG_TEST_EXPORTS__" not in helper_text or "compileFrontendModuleForTest" not in helper_text:
-            failures.append("frontend test module loader does not compile the complete source-owned ES module")
+        failures.append("frontend behavior-test module loader is missing")
+        return
 
-    for path in sources:
-        text = path.read_text(encoding="utf-8")
-        begins = text.count("/* TEST-ONLY EXPORTS: BEGIN */")
-        ends = text.count("/* TEST-ONLY EXPORTS: END */")
-        if begins != ends:
-            failures.append(f"unbalanced test-only export boundary: {path.relative_to(base).as_posix()}")
-
-    for output in ("app-catalog.js", "app-favorites.js", "app-viewer.js", "app-payment.js"):
-        path = base / output
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8")
-        if "__BARGIG_TEST_EXPORTS__" in text or "TEST-ONLY EXPORTS" in text:
-            failures.append(f"{output} ships test-only source exports")
+    helper_text = helper.read_text(encoding="utf-8")
+    required_markers = (
+        "compileFrontendModuleForTest",
+        "importFrontendModule",
+        "return testModule.exports",
+    )
+    for marker in required_markers:
+        if marker not in helper_text:
+            failures.append(f"frontend test module loader is missing canonical module boundary marker: {marker}")
 
 
 
@@ -737,7 +745,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
                 )
 
     check_test_strategy(base, failures)
-    check_test_only_exports(base, sources, failures)
+    check_frontend_behavior_test_boundary(base, failures)
     check_css_architecture(base, failures)
 
     for path in sources:

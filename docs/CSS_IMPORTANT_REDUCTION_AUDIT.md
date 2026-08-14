@@ -79,14 +79,8 @@ A Chromium comparison rendered the affected controls from both the original and 
 8. On `viewer.html`, verify the normal site header, global search, main content, scroll-to-top control, favorites panel, and footer remain hidden while the floating search preview is still available.
 9. Open the favorites transfer dialog and verify the summary uses dark text with a 13px gap above it.
 
-## Remaining Regex-to-AST work
+## Structural-contract boundary after Stage 3
 
-The critical AST slice from the quality-modernization phase is complete, but the entire test suite is not yet free of structural source Regex. The next valuable conversion should be a separate test-only slice covering:
+The high-value JavaScript Regex-to-AST migration is complete for the frontend test architecture. Entrypoint ownership, Search/Catalog architecture, navigation search, telemetry structure, and the JavaScript portion of paged Viewer contracts now use the shared TypeScript AST inventory instead of matching implementation source text. Behavior tests execute the real named ES-module exports rather than a parallel test-only registry.
 
-- `tests/frontend_modules_contract.test.js` — import/export and entrypoint ownership.
-- `tests/catalog_search_architecture_contract.test.js` and `tests/catalog_navigation_search_contract.test.js` — function declarations, calls, and module boundaries.
-- `tests/catalog_control_panel_boundary_contract.test.js` and `tests/catalog_compiler_contract.test.js` — JavaScript AST plus a shared Python AST inventory.
-- `tests/telemetry_security_contract.test.js` — structural handler/guard checks, while retaining runtime security fixtures.
-- The JavaScript-only portions of `tests/viewer_paged_mode_contract.test.js`; its HTML and CSS assertions should remain textual.
-
-HTML structure, CSS selectors/declarations, generated file headers, package scripts, and documentation contracts are intentionally still tested as text because text is the actual artifact contract in those cases.
+Mixed contracts intentionally remain mixed: HTML structure, CSS selectors/declarations, generated file headers, package scripts, documentation, and Python source contracts may still be asserted textually when the text itself is the artifact being governed. This is not considered frontend structural Regex debt. Any future Python-AST work for control-panel/compiler contracts belongs with Python tooling modernization rather than reopening the frontend test boundary.

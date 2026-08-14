@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readBundle, readCssBundle } = require('./frontend_test_assets');
+const { hasPropertyPath, inventoryProjectFiles } = require('./helpers/frontend_ast.js');
 
 const root = path.join(__dirname, '..');
 const catalogBundle = readBundle('catalog');
@@ -19,8 +20,13 @@ const esbuildRunner = fs.readFileSync(path.join(root, 'tools', 'build_frontend_e
 const contractChecker = fs.readFileSync(path.join(root, 'tools', 'check_frontend_contracts.py'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-const telemetrySource = fs.readFileSync(path.join(root, 'src', 'js', '15-telemetry.js'), 'utf8');
 const expectedEsbuildVersion = packageJson.devDependencies.esbuild;
+const moduleAst = inventoryProjectFiles(root, [
+  'src/entries/catalog.js',
+  'src/entries/favorites.js',
+  'src/entries/viewer.js',
+  'src/js/15-telemetry.js',
+]);
 
 const sourceMarker = (relativePath) => ` *   - ${relativePath}`;
 
@@ -56,7 +62,6 @@ for (const bundle of [catalogBundle, favoritesBundle, viewerBundle]) {
   assert.equal((bundle.match(/\binitResult\s*=\s*(?:true|!0)\s*;/g) || []).length, 1);
   assert.equal((bundle.match(/\binitResult\s*=\s*init\(\)\s*;/g) || []).length, 1);
   assert.equal(hasLegacyTopLevelIifeWrapper(bundle), false);
-  assert.doesNotMatch(bundle, /__BARGIG_TEST_EXPORTS__/);
 }
 for (const css of [catalogCss, favoritesCss, viewerCss]) {
   assert.match(css, /GENERATED FILE — DO NOT EDIT DIRECTLY/);
@@ -138,11 +143,13 @@ assert.ok(viewerBundle.includes(sourceMarker('src/js/40-catalog-grid.js')));
 assert.match(viewerBundle, /getFeatureInterface\("search"\)/);
 
 for (const route of ['catalog', 'favorites', 'viewer']) {
-  const entry = fs.readFileSync(path.join(root, 'src', 'entries', `${route}.js`), 'utf8');
-  assert.match(entry, /^\/\*\* Route entry:/);
-  assert.match(entry, /import "\.\.\/js\/80-app-shell\.js";/);
-  assert.match(entry, /import "\.\.\/js\/90-bootstrap\.js";/);
-  assert.doesNotMatch(entry, /import\s*\(/);
+  const relative = `src/entries/${route}.js`;
+  const entrySource = fs.readFileSync(path.join(root, relative), 'utf8');
+  const entryAst = moduleAst[relative];
+  assert.match(entrySource, /^\/\*\* Route entry:/);
+  assert.equal(entryAst.staticImports.includes('../js/80-app-shell.js'), true);
+  assert.equal(entryAst.staticImports.includes('../js/90-bootstrap.js'), true);
+  assert.deepEqual(entryAst.dynamicImports, []);
 }
 
 assert.match(contractChecker, /runtime source is not an ES module/);
@@ -155,7 +162,8 @@ assert.doesNotMatch(contractChecker, /if \"\(\(\) => \\{\" in text/);
 assert.match(contractChecker, /native ES module depends on document\.currentScript/);
 assert.match(contractChecker, /def check_css_architecture/);
 assert.match(contractChecker, /unreviewed z-index declaration/);
-assert.doesNotMatch(telemetrySource, /document\.currentScript/);
-assert.match(telemetrySource, /script\[type=module\]\[data-bargig-route-module\]/);
+const telemetryAst = moduleAst['src/js/15-telemetry.js'];
+assert.equal(hasPropertyPath(telemetryAst, 'document.currentScript'), false);
+assert.equal(telemetryAst.stringLiterals.includes('script[type=module][data-bargig-route-module]'), true);
 
 console.log('frontend_modules_contract.test.js: PASS');

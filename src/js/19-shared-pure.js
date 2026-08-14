@@ -13,10 +13,5 @@ function buildViewerInquiryMailtoUrl(emailAddress, reference) {
   return `mailto:${String(emailAddress || "")}?subject=${subject}&body=${body}`;
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["shared-pure"] = Object.freeze({ buildViewerInquiryMailtoUrl });
-}
-/* TEST-ONLY EXPORTS: END */
 
 export { buildViewerInquiryMailtoUrl };

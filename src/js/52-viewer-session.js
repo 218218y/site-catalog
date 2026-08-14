@@ -138,16 +138,6 @@ function returnToMainSiteFromLightbox(event = null) {
   navigateTo(homeDocumentUrl());
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-browser-session"] = Object.freeze({
-    handleBrowserFullscreenChange,
-    isBrowserFullscreenActive,
-    reconcileViewerFullscreenPhase,
-    viewerUsesInDocumentFullscreenNavigation
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
 export {
   exitBrowserFullscreen,

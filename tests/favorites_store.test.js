@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { importStandaloneRuntimeModule } = require('./frontend_test_module');
+const { importFrontendModule } = require('./frontend_test_module');
 const {
   STORAGE_KEY,
   createStore,
@@ -9,7 +9,7 @@ const {
   MAX_NOTE_LENGTH,
   parsePayload,
   serializePayload
-} = importStandaloneRuntimeModule('src/runtime/favorites-store.js');
+} = importFrontendModule('src/runtime/favorites-store.js');
 
 function createMemoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));

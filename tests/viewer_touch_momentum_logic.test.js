@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { importFrontendTestModule } = require('./frontend_test_module');
+const { importFrontendModule } = require('./frontend_test_module');
 
 const state = {
   viewerPhase: "open",
@@ -72,8 +72,8 @@ Object.assign(globalThis, {
   moveLightbox: (...args) => discreteMoveCalls.push(args),
   moveLightboxFromPageTurn: (...args) => scrollMoveCalls.push(args)
 });
-Object.assign(globalThis, importFrontendTestModule('src/js/17-viewer-state-transitions.js', 'viewer-state-transitions'));
-const api = importFrontendTestModule('src/js/70-viewer-input.js', 'viewer-input');
+Object.assign(globalThis, importFrontendModule('src/js/17-viewer-state-transitions.js'));
+const api = importFrontendModule('src/js/70-viewer-input.js');
 
 function flushNextFrame(timestamp) {
   const entry = frames.entries().next().value;

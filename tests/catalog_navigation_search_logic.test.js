@@ -7,8 +7,8 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const catalogRecords = [];
 global.window = {};
-const { importStandaloneRuntimeModule } = require("./frontend_test_module");
-const catalogSearch = importStandaloneRuntimeModule("src/runtime/catalog-search.js", { catalogs: catalogRecords });
+const { importFrontendModule } = require("./frontend_test_module");
+const catalogSearch = importFrontendModule("src/runtime/catalog-search.js", { catalogs: catalogRecords });
 
 assert.ok(catalogSearch, "catalog search runtime should expose its public API");
 assert.equal(catalogSearch.normalize("פרד״י"), "פרדי");

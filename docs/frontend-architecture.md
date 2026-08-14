@@ -139,12 +139,12 @@
 בדיקות התנהגות אינן קוראות גוף פונקציה מתוך קובץ מקור ואינן מפעילות אותו באמצעות `new Function`, `eval` או `vm`. קובץ המקור של הייצור הוא מקור האמת היחיד.
 
 - לוגיקה טהורה נמצאת במודולי domain כגון `19-shared-pure.js`, `29-favorites-portability.js` ו־`39-search-catalog-domain.js`. ה־owners של ה־UI מאצילים אליהם במקום לשכפל אלגוריתם בבדיקה.
-- כאשר owner ותיק עדיין תלוי ב־DOM או ב־state, הוא רשאי לפרסם API בדיקה קטן בתוך גבול `TEST-ONLY EXPORTS`. `tests/frontend_test_module.js` טוען את קובץ המקור האמיתי ומקבל את ה־API הזה; ה־builder מסיר את הגבול כולו מכל bundle ייצור.
+- בדיקות behavior מפעילות את ה־named exports האמיתיים של מודולי ה־ESM. `tests/frontend_test_module.js` מעביר את אותו קובץ מקור דרך esbuild ומחזיר את `module.exports` שנוצר מה־exports של הייצור; אין registry גלובלי, API בדיקה מקביל או קוד שה־builder צריך להסיר. כאשר helper פנימי הוא חלק מחוזה התנהגותי יציב, הוא מיוצא במפורש מן ה־owner שלו ונבדק דרך אותו גבול מודולרי. imports של תלויות מוזרקים ב־Node כ־fixture ports בלבד, בעוד חוזי הגרף מאמתים בנפרד את wiring של הייצור.
 - source-text tests נשארים רק לחוזים שבהם מבנה הקוד הוא המוצר הנבדק: גבולות Route/capability, היעדר Feature ממסלול, markup/CSS נדרש, CSP או wiring של build. הם אינם מחלצים או מבצעים לוגיקה עסקית. Wave 4 העביר את מדיניות תמונות responsive, מצב Fit ומספור עמודים לבדיקות שמפעילות את ה־API האמיתי ואת תוצאת ה־DOM.
 - תוצרי `app-*.js` הקריאים שבשורש נבדקים רק כחוזי build/route: banner, entrypoint, מודולים נדרשים או אסורים והיעדר runtime היסטורי. בדיקות מימוש אינן מחפשות פונקציות או הצהרות בתוך פלט esbuild, משום שגם בניית הבסיס רשאית לשנות `const` ל־`var`, ערכי boolean ל־`!0` וצורות שקולות נוספות. בדיקה נפרדת מוכיחה שכל קובצי הקוד ב־deploy ממוזערים, ללא source map, ושקובצי השורש לא השתנו.
 - נרמול החיפוש נבדק מול `tests/fixtures/search_normalization_vectors.json`, אותו corpus שמורץ גם נגד Python Compiler וגם נגד Worker JavaScript. שינוי ב־Unicode, באותיות סופיות, במקף עברי, ב־quotes או ב־loose matching אינו יכול לסטות בין build ל־runtime.
 - seams בין Features נבדקים דרך ports מחייבים. לדוגמה, `Search` אינו רשאי לדווח הצלחה כאשר `Catalog Grid` או `Viewer` חסרים; אינטגרציה נדרשת נפתרת באמצעות `requireFeatureInterface()` ונכשלת בקול ברור.
-- `tools/check_frontend_contracts.py` דוחה חזרה ל־dynamic source execution ומוודא ש־test-only exports אינם מגיעים ל־`app-catalog.js`, `app-favorites.js`, `app-viewer.js` או `app-payment.js`.
+- `tools/check_frontend_contracts.py` דוחה חזרה ל־dynamic source execution ומוודא שבדיקות behavior טוענות את מודול ה־ESM האמיתי דרך ה־loader הקנוני.
 
 תוצאה רצויה: שינוי שם מקומי, פיצול פונקציה או שינוי אינדנטציה אינם שוברים בדיקת התנהגות; שינוי API, תוצאה או אינטגרציה כן שוברים אותה.
 

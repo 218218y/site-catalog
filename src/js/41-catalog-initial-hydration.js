@@ -36,10 +36,6 @@ function canHydrateInitialCatalogCards(grid, columns, catalogs) {
 
 requireFeatureInterface("catalog-grid").setInitialLayoutHydrator(canHydrateInitialCatalogCards);
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["catalog-initial-hydration"] = Object.freeze({
-    canHydrateInitialCatalogCards
-  });
-}
-/* TEST-ONLY EXPORTS: END */
+export {
+  canHydrateInitialCatalogCards
+};

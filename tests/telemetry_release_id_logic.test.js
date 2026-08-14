@@ -1,12 +1,12 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 global.window = {};
 global.document = { querySelector: () => null };
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
-const { telemetryResolveReleaseId } = importFrontendTestModule("src/js/15-telemetry.js", "telemetry");
+const { telemetryResolveReleaseId } = importFrontendModule("src/js/15-telemetry.js");
 
 function resolve(windowValue, scriptSrc) {
   global.window = windowValue;

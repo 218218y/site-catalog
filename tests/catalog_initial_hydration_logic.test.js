@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 class FakeHTMLElement {
   constructor(dataset = {}) {
@@ -10,9 +10,7 @@ class FakeHTMLElement {
 }
 
 let registeredHydrator = null;
-const api = importFrontendTestModule(
-  "src/js/41-catalog-initial-hydration.js",
-  "catalog-initial-hydration",
+const api = importFrontendModule("src/js/41-catalog-initial-hydration.js",
   {
     HTMLElement: FakeHTMLElement,
     requireFeatureInterface: (name) => {

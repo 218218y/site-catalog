@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { importFrontendTestModule } = require('./frontend_test_module');
+const { importFrontendModule } = require('./frontend_test_module');
 
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'src/js/56-viewer-shell.js'), 'utf8');
@@ -45,10 +45,10 @@ Object.assign(globalThis, {
 });
 Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
 window.location = { href: 'https://example.test/' };
-const shared = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');
+const shared = importFrontendModule('src/js/20-shared-ui.js');
 global.hasHoverPointer = shared.hasHoverPointer;
 global.isTouchLikePointer = shared.isTouchLikePointer;
-const shell = importFrontendTestModule('src/js/56-viewer-shell.js', 'viewer-shell');
+const shell = importFrontendModule('src/js/56-viewer-shell.js');
 
 assert.deepEqual(shell.getRightEdgeViewerNavigationRect(), navRects.prev);
 assert.equal(shell.isPointInPageRailEdgeActivationZone({ x: 961, y: 100 }), true);

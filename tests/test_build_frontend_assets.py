@@ -284,8 +284,6 @@ def test_generated_bundles_publish_the_reviewed_esbuild_graph() -> None:
             assert f" *   - {relative}" in output
         assert "Output format: native browser ES module" in output
         assert "\n(() => {" not in output
-        assert "__BARGIG_TEST_EXPORTS__" not in output
-        assert "TEST-ONLY EXPORTS" not in output
 
 
 def test_route_bundles_keep_forbidden_features_physically_absent() -> None:

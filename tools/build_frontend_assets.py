@@ -400,7 +400,6 @@ def render_css_bundle(root: Path, spec: FrontendBundleSpec) -> str:
 ESBUILD_DEFINE_INPUT_RE = re.compile(r"^<define:(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)>$")
 ALLOWED_ESBUILD_DEFINE_INPUTS = frozenset({
     "__BARGIG_FEATURE_CAPABILITIES__",
-    "__BARGIG_TEST_EXPORTS__",
 })
 
 
@@ -544,9 +543,6 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
             f"External runtime imports were tree-shaken unexpectedly for {spec.output_name}: "
             f"{missing_runtime_references}"
         )
-    if "__BARGIG_TEST_EXPORTS__" in raw_bundle or "TEST-ONLY EXPORTS" in raw_bundle:
-        raise RuntimeError(f"Test-only exports leaked into {spec.output_name}")
-
     external_manifest = (
         f" * External browser modules:\n{source_manifest_text(tuple((spec.external_modules or {}).keys()))}\n"
         if spec.external_modules else ""

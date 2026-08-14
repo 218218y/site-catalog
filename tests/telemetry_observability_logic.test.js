@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 class FakeElement {
   constructor({ tagName = "DIV", token = "", matches = [] } = {}) {
@@ -48,7 +48,7 @@ Object.assign(globalThis, {
   eventTargetElement: (value) => value
 });
 
-const api = importFrontendTestModule("src/js/15-telemetry.js", "telemetry");
+const api = importFrontendModule("src/js/15-telemetry.js");
 
 const explicit = new FakeElement({ token: "Hero Banner 01" });
 assert.equal(api.telemetryComponentToken(explicit), "hero-banner-01");

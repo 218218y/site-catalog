@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { importFrontendTestModule } = require('./frontend_test_module');
+const { importFrontendModule } = require('./frontend_test_module');
 
 const WheelEventValue = { DOM_DELTA_PIXEL: 0, DOM_DELTA_LINE: 1, DOM_DELTA_PAGE: 2 };
 const viewerState = { viewerPhase: 'open', zoom: 1, viewerTouchMomentumRaf: 0, viewerTouchMomentumLastTime: 0, viewerTouchMomentumVelocityX: 0, viewerTouchMomentumVelocityY: 0 };
@@ -29,7 +29,7 @@ Object.assign(globalThis, {
   setZoom: (...args) => zoomCalls.push(args),
   window: { cancelAnimationFrame: (id) => { cancelledFrame = id; } }
 });
-const api = importFrontendTestModule('src/js/70-viewer-input.js', 'viewer-input');
+const api = importFrontendModule('src/js/70-viewer-input.js');
 
 const firefoxMouseIn = api.getWheelZoomFactor({ deltaY: -3, deltaMode: WheelEventValue.DOM_DELTA_LINE, currentTarget: surface });
 const chromeMouseIn = api.getWheelZoomFactor({ deltaY: -100, deltaMode: WheelEventValue.DOM_DELTA_PIXEL, currentTarget: surface });

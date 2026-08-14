@@ -328,23 +328,18 @@ function handleViewerPageWheel(event) {
   return true;
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-navigation"] = Object.freeze({
-    normalizeViewerPageWheelAxisDelta,
-    normalizeViewerPageWheelDeltas,
-    getViewerPageWheelLogicalDelta,
-    getViewerPageWheelRequestedSteps,
-    getSingleViewerPageTurnIntent,
-    getViewerPageTurnNavigationCommand,
-    moveLightboxFromPageTurn,
-    consumeSingleViewerBoundaryInput,
-    consumeViewerPageWheelResetContinuation,
-    handleViewerPageWheel,
-    clearViewerPageWheelGesture,
-    retryCurrentViewerImage
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
-export { clearViewerPageWheelGesture, consumeSingleViewerBoundaryInput, handleViewerPageWheel, moveLightboxFromPageTurn, retryCurrentViewerImage };
+export {
+  clearViewerPageWheelGesture,
+  consumeSingleViewerBoundaryInput,
+  consumeViewerPageWheelResetContinuation,
+  getSingleViewerPageTurnIntent,
+  getViewerPageTurnNavigationCommand,
+  getViewerPageWheelLogicalDelta,
+  getViewerPageWheelRequestedSteps,
+  handleViewerPageWheel,
+  moveLightboxFromPageTurn,
+  normalizeViewerPageWheelAxisDelta,
+  normalizeViewerPageWheelDeltas,
+  retryCurrentViewerImage
+};

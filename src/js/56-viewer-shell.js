@@ -725,19 +725,41 @@ function syncViewerLayoutModeUi() {
   viewerElements.lightboxImageFrame?.classList.remove("hidden");
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-shell"] = Object.freeze({
-    getViewportPointer,
-    getRightEdgeViewerNavigationRect,
-    isPointInPageRailNavigationConflictZone,
-    isPointInPageRailEdgeActivationZone,
-    shouldUseLightboxHoverPointer,
-    shouldUsePageRailHover,
-    syncLightboxProgress,
-    syncViewerFitModeUi
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
-export { handleLightboxEdgeHoverMove, handleLightboxEdgeHoverViewportExit, handleLightboxPageRailEdgePointerDown, handlePageRailPointerOutside, hideLightboxFloatingPreview, hideViewerPageIndicator, hideViewerZoomIndicator, keepPageRailOpen, keepPageRailOpenFromHover, markTouchLikeRailInput, markTouchLikeViewportInput, openPageRailFromHotspot, openPageRailFromTouch, openTopUiFromHotspot, renderLightboxPageRail, schedulePageRailClose, scheduleTopUiClose, showPageRailFromHover, showTopUiTemporarily, showViewerZoomIndicator, showPageRailTemporarily, syncLightboxModeUi, syncLightboxProgress, syncLightboxTopSafeArea, syncTopUiPinnedUi, syncViewerAutoZoomButtonUi, syncViewerFitModeUi, syncViewerMobileMoreMenuState, updateLightboxThumbs };
+export {
+  getRightEdgeViewerNavigationRect,
+  getViewportPointer,
+  handleLightboxEdgeHoverMove,
+  handleLightboxEdgeHoverViewportExit,
+  handleLightboxPageRailEdgePointerDown,
+  handlePageRailPointerOutside,
+  hideLightboxFloatingPreview,
+  hideViewerPageIndicator,
+  hideViewerZoomIndicator,
+  isPointInPageRailEdgeActivationZone,
+  isPointInPageRailNavigationConflictZone,
+  keepPageRailOpen,
+  keepPageRailOpenFromHover,
+  markTouchLikeRailInput,
+  markTouchLikeViewportInput,
+  openPageRailFromHotspot,
+  openPageRailFromTouch,
+  openTopUiFromHotspot,
+  renderLightboxPageRail,
+  schedulePageRailClose,
+  scheduleTopUiClose,
+  shouldUseLightboxHoverPointer,
+  shouldUsePageRailHover,
+  showPageRailFromHover,
+  showPageRailTemporarily,
+  showTopUiTemporarily,
+  showViewerZoomIndicator,
+  syncLightboxModeUi,
+  syncLightboxProgress,
+  syncLightboxTopSafeArea,
+  syncTopUiPinnedUi,
+  syncViewerAutoZoomButtonUi,
+  syncViewerFitModeUi,
+  syncViewerMobileMoreMenuState,
+  updateLightboxThumbs
+};

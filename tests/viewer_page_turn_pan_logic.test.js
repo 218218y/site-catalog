@@ -1,9 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
-const pageNumbering = importFrontendTestModule("src/js/06-catalog-page-numbering.js", "catalog-page-numbering");
+const pageNumbering = importFrontendModule("src/js/06-catalog-page-numbering.js");
 Object.assign(globalThis, pageNumbering);
 
 const clampValue = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
@@ -74,8 +74,8 @@ Object.assign(globalThis, {
     };
   }
 });
-const geometry = importFrontendTestModule("src/js/54-viewer-geometry.js", "viewer-geometry");
-const transitions = importFrontendTestModule("src/js/17-viewer-state-transitions.js", "viewer-state-transitions");
+const geometry = importFrontendModule("src/js/54-viewer-geometry.js");
+const transitions = importFrontendModule("src/js/17-viewer-state-transitions.js");
 Object.assign(globalThis, transitions);
 
 assert.equal(geometry.getViewerPageTurnBuffer("y"), 288);
@@ -186,7 +186,7 @@ Object.assign(globalThis, {
   VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING: "continuous-reading",
   VIEWER_NAVIGATION_SOURCE_WHEEL: "wheel"
 });
-const navigation = importFrontendTestModule("src/js/58-viewer-navigation.js", "viewer-navigation");
+const navigation = importFrontendModule("src/js/58-viewer-navigation.js");
 
 assert.deepEqual(
   navigation.getSingleViewerPageTurnIntent({ remainingDeltaX: 0, remainingDeltaY: 12 }, 1, 20),

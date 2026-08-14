@@ -89,14 +89,14 @@ function coverThumbSrc(catalog) {
   return thumbSrc(catalog, catalogFirstPage(catalog));
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["catalog-asset-urls"] = Object.freeze({
-    catalogAssetVersionForTier,
-    resolveCatalogAssetUrl,
-    withAssetVersion
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
-export { catalogDir, coverThumbSrc, imageExt, pageSrc, resolveCatalogAssetUrl, thumbSrc, withAssetVersion };
+export {
+  catalogAssetVersionForTier,
+  catalogDir,
+  coverThumbSrc,
+  imageExt,
+  pageSrc,
+  resolveCatalogAssetUrl,
+  thumbSrc,
+  withAssetVersion
+};

@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 const viewerState = {
   imageFitMode: "height",
@@ -74,15 +74,15 @@ Object.assign(globalThis, {
   refreshSingleViewerImageResolution() {},
   showTopUiTemporarily() {}
 });
-const geometry = importFrontendTestModule("src/js/54-viewer-geometry.js", "viewer-geometry");
+const geometry = importFrontendModule("src/js/54-viewer-geometry.js");
 Object.assign(globalThis, {
   normalizeViewerFitMode: geometry.normalizeViewerFitMode,
   normalizeViewerFitModeSource: geometry.normalizeViewerFitModeSource,
   getAutomaticViewerFitMode: geometry.getAutomaticViewerFitMode,
   viewerUsesAutomaticFitMode: geometry.viewerUsesAutomaticFitMode
 });
-const fitController = importFrontendTestModule("src/js/57-viewer-fit-controller.js", "viewer-fit-controller");
-const shell = importFrontendTestModule("src/js/56-viewer-shell.js", "viewer-shell");
+const fitController = importFrontendModule("src/js/57-viewer-fit-controller.js");
+const shell = importFrontendModule("src/js/56-viewer-shell.js");
 globalThis.syncViewerFitModeUi = shell.syncViewerFitModeUi;
 
 assert.equal(geometry.getAutomaticViewerFitMode(), "height", "portrait page should prefer height when its width remains visible");

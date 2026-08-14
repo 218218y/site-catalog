@@ -992,26 +992,32 @@ function telemetryInit(options = {}) {
   });
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__.telemetry = Object.freeze({
-    telemetryResolveReleaseId,
-    telemetryCleanText,
-    telemetryStableResourceUrl,
-    telemetryResourceSourceName,
-    telemetryResourceScope,
-    telemetryErrorSourceScope,
-    telemetryIsRuntimeErrorEvent,
-    telemetryClassifyWindowError,
-    telemetryCleanToken,
-    telemetryComponentToken,
-    telemetryDominantLayoutShiftComponent,
-    telemetryCreateImageRequestContext,
-    telemetryImageVisibility,
-    telemetryCleanImageTier,
-    telemetryNetworkState
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
-export { telemetryCatalogImageContext, telemetryCleanText, telemetryCreateImageRequestContext, telemetryFlush, telemetryInit, telemetryTrack, telemetryTrackCatalogOpen, telemetryTrackFavorite, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure, telemetryTrackSearch, telemetryTrackSearchIndexFailure };
+export {
+  telemetryCatalogImageContext,
+  telemetryClassifyWindowError,
+  telemetryCleanImageTier,
+  telemetryCleanText,
+  telemetryCleanToken,
+  telemetryComponentToken,
+  telemetryCreateImageRequestContext,
+  telemetryDominantLayoutShiftComponent,
+  telemetryErrorSourceScope,
+  telemetryFlush,
+  telemetryImageVisibility,
+  telemetryInit,
+  telemetryIsRuntimeErrorEvent,
+  telemetryNetworkState,
+  telemetryResolveReleaseId,
+  telemetryResourceScope,
+  telemetryResourceSourceName,
+  telemetryStableResourceUrl,
+  telemetryTrack,
+  telemetryTrackCatalogOpen,
+  telemetryTrackFavorite,
+  telemetryTrackImageAttemptFailure,
+  telemetryTrackImageRecovery,
+  telemetryTrackImageTerminalFailure,
+  telemetryTrackSearch,
+  telemetryTrackSearchIndexFailure
+};

@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 const session = {};
 const viewport = {};
@@ -53,7 +53,7 @@ Object.assign(globalThis, {
   viewerImageState: image,
   viewerNavigationState: navigation,
 });
-const api = importFrontendTestModule("src/js/17-viewer-state-transitions.js", "viewer-state-transitions");
+const api = importFrontendModule("src/js/17-viewer-state-transitions.js");
 
 const sources = [
   "button", "keyboard", "home-end", "page-rail", "programmatic",

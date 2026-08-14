@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readAllBundles } = require('./frontend_test_assets');
-const { importFrontendTestModule } = require('./frontend_test_module');
+const { importFrontendModule } = require('./frontend_test_module');
 
 const root = path.join(__dirname, '..');
 const hierarchySource = fs.readFileSync(path.join(root, 'src', 'js', '20-shared-ui.js'), 'utf8');
@@ -21,7 +21,7 @@ const sharedInquiry = fs.readFileSync(path.join(root, 'src', 'js', '32-shared-in
 global.window = { location: { href: 'https://example.test/' } };
 Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
 global.requiredElement = () => ({});
-const { handleTopLayerEscape } = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');
+const { handleTopLayerEscape } = importFrontendModule('src/js/20-shared-ui.js');
 
 function createHarness(layerResults) {
   const calls = [];

@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 global.window = {
   location: {
@@ -13,7 +13,7 @@ global.document = { querySelector: () => null };
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
 global.CATALOG_IMAGE_RETRY_PARAM = "retry";
 
-const helpers = importFrontendTestModule("src/js/15-telemetry.js", "telemetry");
+const helpers = importFrontendModule("src/js/15-telemetry.js");
 const beacon = "https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496";
 assert.equal(helpers.telemetryResourceSourceName(beacon), "beacon.min.js");
 assert.equal(helpers.telemetryResourceScope(beacon), "cloudflare-observability");

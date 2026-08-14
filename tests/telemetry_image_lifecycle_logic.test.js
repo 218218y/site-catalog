@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 global.HTMLElement = class HTMLElement {};
 
@@ -59,7 +59,7 @@ function createApi(log) {
     telemetryTrackImageRecovery: (src, options) => log.push(["recovered", src, options]),
     telemetryTrackImageTerminalFailure: (src, options) => log.push(["terminal", src, options])
   });
-  return importFrontendTestModule("src/js/20-shared-ui.js", "shared-ui");
+  return importFrontendModule("src/js/20-shared-ui.js");
 }
 
 {

@@ -1,13 +1,13 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 Object.assign(globalThis, {
   catalogLastPage: (catalog) => (catalog.pageNumberStart === 0 ? catalog.pages - 1 : catalog.pages),
   catalogPageOrdinal: (catalog, page) => page - (catalog.pageNumberStart === 0 ? 0 : 1) + 1
 });
-const controller = importFrontendTestModule("src/js/59-viewer-page-controller.js", "viewer-page-controller");
+const controller = importFrontendModule("src/js/59-viewer-page-controller.js");
 
 const catalog = { pages: 10, pageNumberStart: 0 };
 assert.deepEqual(controller.catalogPageProgress(catalog, 0), {
@@ -50,7 +50,7 @@ Object.assign(globalThis, {
   isViewerSessionOpen: () => true,
   window: { clearTimeout() {}, setTimeout() { return 1; } }
 });
-const shell = importFrontendTestModule("src/js/56-viewer-shell.js", "viewer-shell");
+const shell = importFrontendModule("src/js/56-viewer-shell.js");
 const progress = controller.catalogPageProgress(catalog, 0);
 shell.syncLightboxProgress(progress.current, progress.total, progress.title, progress.options);
 

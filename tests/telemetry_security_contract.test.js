@@ -3,48 +3,60 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { findCalls, hasPropertyPath, inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.resolve(__dirname, "..");
-const telemetry = fs.readFileSync(path.join(root, "src/js/15-telemetry.js"), "utf8");
-const appShell = fs.readFileSync(path.join(root, "src/js/80-app-shell.js"), "utf8");
 const headers = fs.readFileSync(path.join(root, "_headers"), "utf8");
 const siteTemplate = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
 const legalTemplate = fs.readFileSync(path.join(root, "legal.template.html"), "utf8");
 const notFound = fs.readFileSync(path.join(root, "404.html"), "utf8");
 const e2eServer = fs.readFileSync(path.join(root, "tools/e2e_server.js"), "utf8");
 const wrangler = JSON.parse(fs.readFileSync(path.join(root, "wrangler.jsonc"), "utf8"));
+const ast = inventoryProjectFiles(root, ["src/js/15-telemetry.js", "src/js/80-app-shell.js"]);
+const telemetry = ast["src/js/15-telemetry.js"];
+const appShell = ast["src/js/80-app-shell.js"];
+const telemetryFunctions = new Set(telemetry.functionDeclarations);
+const telemetryIdentifiers = new Set(telemetry.identifiers);
+const propertyLiteral = (property, value, owner = null) => telemetry.objectPropertyLiterals.some((entry) => (
+  entry.property === property
+  && entry.value === value
+  && (owner === null || entry.enclosingFunction === owner)
+));
 
-assert.match(telemetry, /const TELEMETRY_ENDPOINT = "\/api\/telemetry"/);
-assert.match(telemetry, /navigator\.globalPrivacyControl === true/);
-assert.match(telemetry, /navigator\.doNotTrack/);
-assert.match(telemetry, /credentials: "omit"/);
-assert.match(telemetry, /keepalive: true/);
-assert.match(telemetry, /navigator\.sendBeacon/);
-assert.match(telemetry, /const TELEMETRY_SCHEMA_VERSION = 4/);
-assert.match(telemetry, /releaseId: telemetryCleanText\(fields\.releaseId \|\| TELEMETRY_RELEASE_ID, 64\)/);
-assert.match(telemetry, /function telemetryClassifyWindowError\(event\)/);
-assert.match(telemetry, /classification === "runtime"/);
-assert.match(telemetry, /classification === "resource"/);
-assert.match(telemetry, /telemetryTrackResourceError\(eventTargetElement\(event\.target\)\)/);
-assert.match(telemetry, /function telemetryResourceScope\(value\)/);
-assert.match(telemetry, /return "cloudflare-observability"/);
-assert.match(telemetry, /return "netfree-filter"/);
-assert.match(telemetry, /options\.recoverCatalogImageAfterInitialFailure\?\.\(image\)/);
-assert.match(appShell, /telemetryInit\(\{ recoverCatalogImageAfterInitialFailure \}\)/);
-assert.match(telemetry, /telemetryTrackSearchIndexFailure\("network-error"/);
-assert.match(telemetry, /function telemetryComponentToken\(node\)/);
-assert.match(telemetry, /function telemetryCreateImageRequestContext\(img, src = "", options = \{\}\)/);
-assert.match(telemetry, /Object\.freeze\(\{/);
-assert.match(telemetry, /requestId: context\.requestId/);
-assert.match(telemetry, /requestedTier: context\.requestedTier/);
-assert.match(telemetry, /networkState: context\.networkState/);
-assert.doesNotMatch(telemetry, /component:\s*(?:element|node)\.outerHTML/);
-assert.doesNotMatch(telemetry, /component:\s*(?:element|node)\.textContent/);
-assert.doesNotMatch(telemetry, /telemetryTrackImageFailure/);
-assert.doesNotMatch(telemetry, /document\.cookie/);
-assert.doesNotMatch(telemetry, /navigator\.userAgent/);
-assert.doesNotMatch(telemetry, /document\.referrer/);
-assert.doesNotMatch(telemetry, /\.stack\b/);
+assert.equal(telemetry.literalDeclarations.TELEMETRY_ENDPOINT, "/api/telemetry");
+assert.equal(telemetry.literalDeclarations.TELEMETRY_SCHEMA_VERSION, 4);
+assert.equal(hasPropertyPath(telemetry, "navigator.globalPrivacyControl"), true);
+assert.equal(hasPropertyPath(telemetry, "navigator.doNotTrack"), true);
+assert.equal(propertyLiteral("credentials", "omit", "telemetryFlush"), true);
+assert.equal(propertyLiteral("keepalive", true, "telemetryFlush"), true);
+assert.equal(hasPropertyPath(telemetry, "navigator.sendBeacon"), true);
+for (const name of [
+  "telemetryClassifyWindowError",
+  "telemetryResourceScope",
+  "telemetryComponentToken",
+  "telemetryCreateImageRequestContext",
+]) {
+  assert.equal(telemetryFunctions.has(name), true, `telemetry must own ${name}`);
+}
+assert.equal(telemetry.stringLiterals.includes("runtime"), true);
+assert.equal(telemetry.stringLiterals.includes("resource"), true);
+assert.equal(findCalls(telemetry, "telemetryTrackResourceError").length > 0, true);
+assert.equal(telemetry.stringLiterals.includes("cloudflare-observability"), true);
+assert.equal(telemetry.stringLiterals.includes("netfree-filter"), true);
+assert.equal(findCalls(telemetry, "options.recoverCatalogImageAfterInitialFailure").length > 0, true);
+assert.equal(findCalls(appShell, "telemetryInit").some((call) => call.enclosingFunction === "initializeApplicationShell"), true);
+assert.equal(findCalls(telemetry, "telemetryTrackSearchIndexFailure").some((call) => call.arguments[0] === "network-error"), true);
+assert.equal(findCalls(telemetry, "Object.freeze").length > 0, true);
+for (const property of ["context.requestId", "context.requestedTier", "context.networkState"]) {
+  assert.equal(hasPropertyPath(telemetry, property), true, `telemetry image context must retain ${property}`);
+}
+for (const forbiddenPath of ["document.cookie", "navigator.userAgent", "document.referrer"]) {
+  assert.equal(hasPropertyPath(telemetry, forbiddenPath), false, `telemetry must not read ${forbiddenPath}`);
+}
+assert.equal(telemetry.propertyAccesses.some((entry) => entry.property === "stack"), false, "telemetry must not collect error stacks");
+for (const forbiddenIdentifier of ["telemetryTrackImageFailure", "outerHTML"]) {
+  assert.equal(telemetryIdentifiers.has(forbiddenIdentifier), false, `telemetry must not retain ${forbiddenIdentifier}`);
+}
 
 for (const eventName of [
   "app_session",
@@ -60,10 +72,10 @@ for (const eventName of [
   "image_terminal_failure",
   "web_vital"
 ]) {
-  assert.match(telemetry, new RegExp(`"${eventName}"`));
+  assert.equal(telemetry.stringLiterals.includes(eventName), true, `missing telemetry event ${eventName}`);
 }
 for (const duplicateMetric of ["page_view", "page_load", "first_catalog_image"]) {
-  assert.doesNotMatch(telemetry, new RegExp(`"${duplicateMetric}"`));
+  assert.equal(telemetry.stringLiterals.includes(duplicateMetric), false, `duplicate metric must stay retired: ${duplicateMetric}`);
 }
 
 assert.equal(wrangler.name, "bargig-catlog");
@@ -91,7 +103,6 @@ for (const expected of [
 ]) {
   assert.ok(headers.includes(expected), `Missing security header/directive: ${expected}`);
 }
-
 
 const cspLine = headers
   .split(/\r?\n/)

@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 function createStyleDeclaration() {
   const values = new Map();
@@ -73,7 +73,7 @@ Object.assign(globalThis, {
   showTopUiTemporarily() { uiCalls += 1; },
   syncViewerAutoZoomButtonUi() { autoZoomUiCalls += 1; }
 });
-const geometry = importFrontendTestModule("src/js/54-viewer-geometry.js", "viewer-geometry");
+const geometry = importFrontendModule("src/js/54-viewer-geometry.js");
 Object.assign(globalThis, {
   applyZoom: geometry.applyZoom,
   clearSingleImagePendingPosition: geometry.clearSingleImagePendingPosition,
@@ -81,7 +81,7 @@ Object.assign(globalThis, {
   isAutoViewerZoom: geometry.isAutoViewerZoom,
   resetImagePosition: geometry.resetImagePosition
 });
-const api = importFrontendTestModule("src/js/55-viewer-zoom-controller.js", "viewer-zoom-controller");
+const api = importFrontendModule("src/js/55-viewer-zoom-controller.js");
 
 const originalClear = api.clearSingleImagePendingPosition;
 assert.equal(typeof originalClear, "undefined", "test API exposes behavior, not mutable internals");

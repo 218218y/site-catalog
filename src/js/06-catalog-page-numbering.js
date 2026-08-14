@@ -82,22 +82,6 @@ function catalogPageNumbers(catalog) {
   return Array.from({ length: catalogPageCount(catalog) }, (_unused, index) => firstPage + index);
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["catalog-page-numbering"] = Object.freeze({
-    assetPageToDisplayPage,
-    catalogFirstPage,
-    catalogLastPage,
-    catalogPageCount,
-    catalogPageNumberStart,
-    catalogPageNumbers,
-    catalogPageOrdinal,
-    clampCatalogPage,
-    displayPageToAssetPage,
-    isCatalogPage
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
 export {
   DEFAULT_CATALOG_PAGE_NUMBER_START,

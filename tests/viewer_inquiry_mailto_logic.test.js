@@ -1,9 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
-const { buildViewerInquiryMailtoUrl } = importFrontendTestModule("src/js/19-shared-pure.js", "shared-pure");
+const { buildViewerInquiryMailtoUrl } = importFrontendModule("src/js/19-shared-pure.js");
 const reference = {
   subject: "בירור על דגם – קטלוג לדוגמה, עמוד 5",
   text: "שלום,\nרציתי לברר לגבי הדגם הבא:\nקישור ישיר: https://example.com/catalog/demo/page/5/"

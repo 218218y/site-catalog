@@ -35,9 +35,7 @@ const outfile = path.resolve(args.outfile);
 const metafilePath = path.resolve(args.metafile);
 const capabilities = JSON.parse(args.capabilities);
 const externalModules = JSON.parse(args["external-modules"]);
-const compileTimeDefines = {
-  __BARGIG_TEST_EXPORTS__: "undefined",
-};
+const compileTimeDefines = {};
 if (capabilities !== null) {
   compileTimeDefines.__BARGIG_FEATURE_CAPABILITIES__ = JSON.stringify(capabilities);
 }

@@ -395,30 +395,30 @@ function normalizeWheelDeltaToPixels(delta, deltaMode, pageSize = 0) {
   return delta;
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-geometry"] = Object.freeze({
-    normalizeViewerFitMode,
-    normalizeViewerFitModeSource,
-    viewerUsesAutomaticFitMode,
-    getAutomaticViewerFitMode,
-    getSafeViewerZoom,
-    isAutoViewerZoom,
-    applyZoom,
-    primeLightboxFrameForCatalogPage,
-    clearSingleImagePendingPosition,
-    resetImagePosition,
-    singleViewerUsesBoundaryPan,
-    getViewerPageTurnBuffer,
-    getSinglePanBounds,
-    clampSinglePan,
-    captureSingleImageRelativePosition,
-    applyPendingSingleImagePosition,
-    applySingleZoom,
-    consumeSingleViewerPanInput,
-    normalizeWheelDeltaToPixels
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
-export { applyLightboxFrameGeometry, applyZoom, captureSingleImageRelativePosition, clearSingleImagePendingPosition, consumeSingleViewerPanInput, getAutomaticViewerFitMode, getPointerList, getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, normalizeViewerFitModeSource, normalizeWheelDeltaToPixels, pointerDistance, pointerMidpoint, primeLightboxFrameForCatalogPage, resetImagePosition, singleViewerUsesBoundaryPan, updateHash, viewerUsesAutomaticFitMode };
+export {
+  applyLightboxFrameGeometry,
+  applyPendingSingleImagePosition,
+  applySingleZoom,
+  applyZoom,
+  captureSingleImageRelativePosition,
+  clampSinglePan,
+  clearSingleImagePendingPosition,
+  consumeSingleViewerPanInput,
+  getAutomaticViewerFitMode,
+  getPointerList,
+  getSafeViewerZoom,
+  getSinglePanBounds,
+  getViewerPageTurnBuffer,
+  isAutoViewerZoom,
+  normalizeViewerFitMode,
+  normalizeViewerFitModeSource,
+  normalizeWheelDeltaToPixels,
+  pointerDistance,
+  pointerMidpoint,
+  primeLightboxFrameForCatalogPage,
+  resetImagePosition,
+  singleViewerUsesBoundaryPan,
+  updateHash,
+  viewerUsesAutomaticFitMode
+};

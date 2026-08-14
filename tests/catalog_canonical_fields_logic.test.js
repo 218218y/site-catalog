@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
 
@@ -17,7 +17,7 @@ Object.assign(globalThis, {
   ],
 });
 
-const shared = importFrontendTestModule("src/js/20-shared-ui.js", "shared-ui");
+const shared = importFrontendModule("src/js/20-shared-ui.js");
 const groups = shared.getCatalogCategoryGroups();
 
 assert.equal(groups.length, 1);

@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 function createClassList(initial = []) {
   const values = new Set(initial);
@@ -65,11 +65,8 @@ function createFixture(overrides = {}) {
     viewerOnboardingState: state,
     viewerElements: { lightboxImageFrame: { classList } }
   });
-  Object.assign(globalThis, importFrontendTestModule(
-    "src/js/17-viewer-state-transitions.js",
-    "viewer-state-transitions"
-  ));
-  const api = importFrontendTestModule("src/js/53-viewer-image.js", "viewer-image");
+  Object.assign(globalThis, importFrontendModule("src/js/17-viewer-state-transitions.js"));
+  const api = importFrontendModule("src/js/53-viewer-image.js");
   return { api, state, image, classList, getStopCalls: () => stopCalls };
 }
 

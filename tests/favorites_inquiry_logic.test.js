@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 const entries = [
   { catalog: { id: "chairs", title: "כיסאות", pages: 8 }, page: 2, note: "לבדוק רוחב 180" },
@@ -47,7 +47,7 @@ Object.assign(globalThis, {
   showActionToast() {},
   FAVORITES_NOTE_MAX_LENGTH: 280
 });
-const api = importFrontendTestModule("src/js/35-favorites-workspace.js", "favorites-workspace");
+const api = importFrontendModule("src/js/35-favorites-workspace.js");
 
 const allReference = api.favoriteWorkspaceInquiryReference(entries, { selected: false });
 assert.equal(allReference.kind, "favorites");

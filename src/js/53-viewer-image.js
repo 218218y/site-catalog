@@ -621,21 +621,24 @@ function preloadNeighbors() {
 }
 
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-image"] = Object.freeze({
-    retainSingleViewerResolutionLayerForSwap,
-    releaseSingleViewerRetainedResolutionLayer,
-    shouldWarmSingleViewerFullResolution,
-    renderedViewerPagePhysicalLongSide,
-    preferredViewerImageTier,
-    viewerPageImageRequest,
-    cancelSingleViewerStagePreparation,
-    clearViewerNeighborPreloadSchedule,
-    runViewerNeighborPreloads,
-    preloadNeighbors
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
-export { activeSingleViewerImageLogicalSrc, activeSingleViewerImageTier, clearSingleViewerResolutionUpgrade, clearViewerImagePreparations, preloadNeighbors, refreshSingleViewerImageResolution, setViewerLoading, shouldWarmSingleViewerFullResolution, showSingleLightboxImage, viewerPageImageRequest, viewerPageSrc };
+export {
+  activeSingleViewerImageLogicalSrc,
+  activeSingleViewerImageTier,
+  cancelSingleViewerStagePreparation,
+  clearSingleViewerResolutionUpgrade,
+  clearViewerImagePreparations,
+  clearViewerNeighborPreloadSchedule,
+  preferredViewerImageTier,
+  preloadNeighbors,
+  refreshSingleViewerImageResolution,
+  releaseSingleViewerRetainedResolutionLayer,
+  renderedViewerPagePhysicalLongSide,
+  retainSingleViewerResolutionLayerForSwap,
+  runViewerNeighborPreloads,
+  setViewerLoading,
+  shouldWarmSingleViewerFullResolution,
+  showSingleLightboxImage,
+  viewerPageImageRequest,
+  viewerPageSrc
+};

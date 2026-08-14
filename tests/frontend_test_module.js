@@ -6,14 +6,15 @@ const path = require("node:path");
 const esbuild = require("esbuild");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const SOURCE_ROOT = path.join(PROJECT_ROOT, "src", "js");
+const FRONTEND_SOURCE_ROOTS = Object.freeze([
+  path.join(PROJECT_ROOT, "src", "js"),
+  path.join(PROJECT_ROOT, "src", "runtime"),
+]);
 
 /**
- * Compile one complete source-owned ES module as a CommonJS test harness.
- * esbuild is already the production bundler, so tests exercise the same parser
- * and JavaScript lowering boundary instead of depending on a legacy TypeScript
- * Compiler API. Production integration is separately verified through the real
- * route bundles.
+ * Compile one complete browser ES module as CommonJS for Node-owned behavior
+ * tests. esbuild is the production parser/lowering boundary; tests therefore
+ * execute the owner's real named exports instead of a parallel test registry.
  *
  * @param {string} source
  * @param {string} filename
@@ -30,15 +31,15 @@ function compileFrontendModuleForTest(source, filename) {
       sourcemap: false,
     }).code;
   } catch (error) {
-    throw new Error(`Could not compile frontend test module ${filename}.`, {
+    throw new Error(`Could not compile frontend module ${filename} for test execution.`, {
       cause: error,
     });
   }
 }
 
 /**
- * Resolve one named test port lazily from globalThis. Function ports remain
- * live bindings so tests may replace them after the owner module is loaded.
+ * Resolve one named dependency port lazily from globalThis. Function ports stay
+ * live bindings so a fixture may replace a dependency after the owner loads.
  *
  * @param {string} name
  */
@@ -75,9 +76,9 @@ function frontendTestPort(name) {
 }
 
 /**
- * Build a virtual CommonJS dependency namespace for transformed static imports.
- * Source tests intentionally resolve imports by exported symbol name rather than
- * loading neighboring production modules, preserving explicit test ports.
+ * Build the virtual CommonJS dependency namespace consumed by transformed
+ * static imports. Dependencies remain explicit fixture ports while the module
+ * under test is always the complete production owner.
  */
 function createFrontendTestPortModule() {
   return new Proxy(Object.create(null), {
@@ -106,78 +107,40 @@ function createFrontendTestPortModule() {
   });
 }
 
-/**
- * Load an explicit source-owned test API without extracting or copying
- * individual functions. The whole owner module remains the implementation under
- * test, while imported dependencies are supplied as explicit test ports.
- *
- * @param {string} relativePath
- * @param {string} exportKey
- * @param {Record<string, unknown>} [globals]
- */
-function importFrontendTestModule(relativePath, exportKey, globals = {}) {
-  for (const [name, value] of Object.entries(globals)) {
-    Object.defineProperty(globalThis, name, { value, writable: true, configurable: true });
-  }
-
+/** @param {string} relativePath */
+function resolveFrontendSourcePath(relativePath) {
   const absolutePath = path.resolve(PROJECT_ROOT, relativePath);
-  if (absolutePath !== SOURCE_ROOT && !absolutePath.startsWith(`${SOURCE_ROOT}${path.sep}`)) {
-    throw new Error(`Frontend test modules must live under src/js: ${relativePath}`);
+  const insideApprovedRoot = FRONTEND_SOURCE_ROOTS.some(
+    (sourceRoot) => absolutePath === sourceRoot || absolutePath.startsWith(`${sourceRoot}${path.sep}`),
+  );
+  if (!insideApprovedRoot) {
+    throw new Error(`Frontend test modules must live under src/js or src/runtime: ${relativePath}`);
   }
-
-  const registry = Object.create(null);
-  Object.defineProperty(globalThis, "__BARGIG_TEST_EXPORTS__", {
-    value: registry,
-    writable: true,
-    configurable: true,
-  });
-
-  try {
-    const source = fs.readFileSync(absolutePath, "utf8");
-    const compiledSource = compileFrontendModuleForTest(source, absolutePath);
-    const testModule = new Module(`${absolutePath}.test-harness`, module);
-    testModule.filename = absolutePath;
-    testModule.paths = Module._nodeModulePaths(path.dirname(absolutePath));
-    testModule.require = () => createFrontendTestPortModule();
-    testModule._compile(compiledSource, absolutePath);
-  } finally {
-    delete globalThis.__BARGIG_TEST_EXPORTS__;
-  }
-
-  const api = registry[exportKey];
-  if (!api || typeof api !== "object") {
-    throw new Error(`Source module ${relativePath} did not register test API ${exportKey}`);
-  }
-  return api;
+  return absolutePath;
 }
 
 /**
- * Import one ESM owner under src/runtime. Static imports are supplied from the
- * explicit globals test port; production graph validation separately proves
- * that only reviewed browser modules can be imported.
+ * Import one complete browser source owner and return its real ES module
+ * exports. Static imports are supplied by explicit fixture ports from globals;
+ * production graph validation separately proves the reviewed browser graph.
  *
  * @param {string} relativePath
  * @param {Record<string, unknown>} [globals]
  */
-function importStandaloneRuntimeModule(relativePath, globals = {}) {
+function importFrontendModule(relativePath, globals = {}) {
   for (const [name, value] of Object.entries(globals)) {
     Object.defineProperty(globalThis, name, { value, writable: true, configurable: true });
   }
 
-  const runtimeRoot = path.join(PROJECT_ROOT, "src", "runtime");
-  const absolutePath = path.resolve(PROJECT_ROOT, relativePath);
-  if (absolutePath !== runtimeRoot && !absolutePath.startsWith(`${runtimeRoot}${path.sep}`)) {
-    throw new Error(`Standalone runtime test modules must live under src/runtime: ${relativePath}`);
-  }
-
+  const absolutePath = resolveFrontendSourcePath(relativePath);
   const source = fs.readFileSync(absolutePath, "utf8");
   const compiledSource = compileFrontendModuleForTest(source, absolutePath);
-  const runtimeModule = new Module(`${absolutePath}.test-runtime`, module);
-  runtimeModule.filename = absolutePath;
-  runtimeModule.paths = Module._nodeModulePaths(path.dirname(absolutePath));
-  runtimeModule.require = () => createFrontendTestPortModule();
-  runtimeModule._compile(compiledSource, absolutePath);
-  return runtimeModule.exports;
+  const testModule = new Module(`${absolutePath}.test-harness`, module);
+  testModule.filename = absolutePath;
+  testModule.paths = Module._nodeModulePaths(path.dirname(absolutePath));
+  testModule.require = () => createFrontendTestPortModule();
+  testModule._compile(compiledSource, absolutePath);
+  return testModule.exports;
 }
 
-module.exports = { compileFrontendModuleForTest, importFrontendTestModule, importStandaloneRuntimeModule };
+module.exports = { compileFrontendModuleForTest, importFrontendModule };

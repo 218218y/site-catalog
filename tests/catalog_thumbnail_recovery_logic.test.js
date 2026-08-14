@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 const root = path.resolve(__dirname, "..");
 const attempts = [];
@@ -36,7 +36,7 @@ frame.classList = {
   remove: (...names) => names.forEach((name) => frameClasses.delete(name)),
   toggle(name, enabled) { if (enabled) frameClasses.add(name); else frameClasses.delete(name); }
 };
-const api = importFrontendTestModule("src/js/20-shared-ui.js", "shared-ui");
+const api = importFrontendModule("src/js/20-shared-ui.js");
 
 class FakeImage {
   constructor() {

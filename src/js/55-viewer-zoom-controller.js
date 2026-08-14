@@ -155,16 +155,11 @@ function toggleZoomAtPoint(clientX, clientY) {
   }
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-zoom-controller"] = Object.freeze({
-    finalizeSingleViewerZoomChange,
-    zoomSingleContentPointToViewportCenter,
-    zoomClientPointToViewportCenter,
-    setZoom,
-    toggleZoomAtPoint
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
-export { setZoom, toggleZoomAtPoint };
+export {
+  finalizeSingleViewerZoomChange,
+  setZoom,
+  toggleZoomAtPoint,
+  zoomClientPointToViewportCenter,
+  zoomSingleContentPointToViewportCenter
+};

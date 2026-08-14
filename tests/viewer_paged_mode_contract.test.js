@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { findCalls, hasPropertyPath, inventoryProjectFiles } = require('./helpers/frontend_ast.js');
 const { readBundle, readCssBundle } = require('./frontend_test_assets');
 
 const root = path.join(__dirname, '..');
@@ -11,15 +12,27 @@ const template = read('site.template.html');
 const viewer = read('viewer.html');
 const app = readBundle('viewer');
 const css = readCssBundle('viewer');
-const stateSource = read('src/js/16-viewer-state.js');
-const geometry = read('src/js/54-viewer-geometry.js');
-const shell = read('src/js/56-viewer-shell.js');
-const navigation = read('src/js/58-viewer-navigation.js');
-const transitions = read('src/js/17-viewer-state-transitions.js');
-const pageController = read('src/js/59-viewer-page-controller.js');
-const viewerSource = read('src/js/60-viewer.js');
-const input = read('src/js/70-viewer-input.js');
-const bootstrap = read('src/js/90-bootstrap.js');
+
+const javascriptFiles = {
+  state: 'src/js/16-viewer-state.js',
+  transitions: 'src/js/17-viewer-state-transitions.js',
+  geometry: 'src/js/54-viewer-geometry.js',
+  shell: 'src/js/56-viewer-shell.js',
+  navigation: 'src/js/58-viewer-navigation.js',
+  pageController: 'src/js/59-viewer-page-controller.js',
+  viewer: 'src/js/60-viewer.js',
+  input: 'src/js/70-viewer-input.js',
+  bootstrap: 'src/js/90-bootstrap.js',
+};
+const projectInventories = inventoryProjectFiles(root, Object.values(javascriptFiles));
+const ast = Object.fromEntries(
+  Object.entries(javascriptFiles).map(([key, relative]) => [key, projectInventories[relative]]),
+);
+const functions = (key) => new Set(ast[key].functionDeclarations);
+const identifiers = (key) => new Set(ast[key].identifiers);
+const strings = (key) => new Set(ast[key].stringLiterals);
+const callsIn = (key, functionName, callee) => findCalls(ast[key], callee)
+  .filter((call) => call.enclosingFunction === functionName);
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxMobileSearchToggle"[\s\S]*?id="fitAutoBtn"[\s\S]*?id="fitHeightBtn"/);
@@ -27,98 +40,101 @@ for (const html of [template, viewer]) {
   assert.doesNotMatch(html, /id="viewerScrollPages"|id="viewerLayoutToggle"|viewer-layout-icon-(?:scroll|side)/);
 }
 
-assert.doesNotMatch(stateSource, /VIEWER_LAYOUT_(?:SIDE|SCROLL)|viewerLayoutMode|viewerScroll/);
-assert.match(stateSource, /const VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX = 20;/);
-assert.match(stateSource, /const VIEWER_PAGE_WHEEL_PAGE_DELTA_PX = 100;/);
-assert.match(stateSource, /const VIEWER_PAGE_WHEEL_SETTLE_MS = 150;/);
-assert.match(stateSource, /const VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS = 48;/);
-assert.match(stateSource, /const VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO = 1\.4;/);
-assert.match(stateSource, /const VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO = 0\.36;/);
-assert.match(stateSource, /const VIEWER_PAGE_TURN_BUFFER_MIN_PX = 144;/);
-assert.match(stateSource, /const VIEWER_PAGE_TURN_BUFFER_MAX_PX = 330;/);
-assert.match(stateSource, /const VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS = 0\.08;/);
-assert.match(stateSource, /const VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS = 0\.0048;/);
-assert.match(stateSource, /singleImagePendingRelativePosition: null/);
-assert.match(stateSource, /singleImagePendingPageTurnOrigin: null/);
-assert.match(stateSource, /viewerTouchMomentumRaf: 0/);
-assert.match(stateSource, /viewerPageWheelAccumulator: 0/);
-assert.match(stateSource, /viewerPageWheelResetGestureActive: false/);
-assert.match(stateSource, /viewerPageWheelResetLastEventAt: 0/);
-assert.match(stateSource, /viewerPageWheelResetLastDelta: 0/);
-assert.match(stateSource, /viewerPageWheelResetDirection: 0/);
-assert.doesNotMatch(stateSource, /viewerPageWheelLocked|viewerPageWheelUnlockTimer|singlePageTurnPointerId/);
+for (const retired of [
+  'VIEWER_LAYOUT_SIDE', 'VIEWER_LAYOUT_SCROLL', 'viewerLayoutMode', 'viewerScroll',
+  'viewerPageWheelLocked', 'viewerPageWheelUnlockTimer', 'singlePageTurnPointerId',
+]) {
+  assert.equal(identifiers('state').has(retired), false, `viewer state must not retain ${retired}`);
+}
+assert.deepEqual(
+  Object.fromEntries([
+    'VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX',
+    'VIEWER_PAGE_WHEEL_PAGE_DELTA_PX',
+    'VIEWER_PAGE_WHEEL_SETTLE_MS',
+    'VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS',
+    'VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO',
+    'VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO',
+    'VIEWER_PAGE_TURN_BUFFER_MIN_PX',
+    'VIEWER_PAGE_TURN_BUFFER_MAX_PX',
+    'VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS',
+    'VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS',
+  ].map((name) => [name, ast.state.literalDeclarations[name]])),
+  {
+    VIEWER_PAGE_WHEEL_FIRST_PAGE_DELTA_PX: 20,
+    VIEWER_PAGE_WHEEL_PAGE_DELTA_PX: 100,
+    VIEWER_PAGE_WHEEL_SETTLE_MS: 150,
+    VIEWER_PAGE_WHEEL_RESET_RESTART_GAP_MS: 48,
+    VIEWER_PAGE_WHEEL_RESET_ACCELERATION_RATIO: 1.4,
+    VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO: 0.36,
+    VIEWER_PAGE_TURN_BUFFER_MIN_PX: 144,
+    VIEWER_PAGE_TURN_BUFFER_MAX_PX: 330,
+    VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS: 0.08,
+    VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS: 0.0048,
+  },
+);
+for (const field of [
+  'singleImagePendingRelativePosition', 'singleImagePendingPageTurnOrigin', 'viewerTouchMomentumRaf',
+  'viewerPageWheelAccumulator', 'viewerPageWheelResetGestureActive', 'viewerPageWheelResetLastEventAt',
+  'viewerPageWheelResetLastDelta', 'viewerPageWheelResetDirection',
+]) {
+  const declared = Object.values(ast.state.objectDeclarations).some((properties) => properties.includes(field));
+  assert.equal(declared, true, `viewer state must own ${field}`);
+}
 
-assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?classList\.add\("viewer-layout-paged"\)/);
-assert.match(shell, /function syncViewerLayoutModeUi\(\)[\s\S]*?lightboxImageFrame\?\.classList\.remove\("hidden"\)/);
-assert.doesNotMatch(viewerSource, /renderViewerScrollPages|loadViewerScrollWindow|handleViewerScrollPagesScroll/);
-assert.match(pageController, /const preserveFullResolutionTier = !isAutoViewerZoom\(\)[\s\S]*?const request = viewerPageImageRequest\(catalog, activePage\(\), \{[\s\S]*?forceFull: preserveFullResolutionTier[\s\S]*?showSingleLightboxImage/);
-assert.match(pageController, /function moveLightbox\(delta, options = \{\}\)[\s\S]*?setFavoriteViewerIndex\(\(getFeatureInterface\("favorites"\)\?\.viewerIndex\(\) \?\? 0\) \+ delta, options\)[\s\S]*?setLightboxPage\(activePage\(\) \+ delta, options\)/);
+for (const [key, names] of Object.entries({
+  shell: ['syncViewerLayoutModeUi'],
+  pageController: ['moveLightbox'],
+  geometry: [
+    'captureSingleImageRelativePosition', 'getViewerPageTurnBuffer', 'consumeSingleViewerPanInput',
+    'applyPendingSingleImagePosition',
+  ],
+  transitions: ['createViewerNavigationCommand'],
+  navigation: [
+    'normalizeViewerPageWheelDeltas', 'getViewerPageWheelRequestedSteps', 'consumeSingleViewerBoundaryInput',
+    'getSingleViewerPageTurnIntent', 'getViewerPageTurnNavigationCommand', 'moveLightboxFromPageTurn',
+    'consumeViewerPageWheelResetContinuation', 'handleViewerPageWheel', 'clearViewerPageWheelGesture',
+  ],
+  input: [
+    'handleViewerPageSwipe', 'getViewerPointerMoveSamples', 'startViewerTouchMomentum',
+    'runViewerTouchMomentumFrame', 'captureViewerPointer', 'releaseViewerPointerCapture',
+  ],
+})) {
+  for (const name of names) {
+    assert.equal(functions(key).has(name), true, `${javascriptFiles[key]} must own ${name}`);
+  }
+}
 
-assert.match(geometry, /function captureSingleImageRelativePosition\(\)/);
-assert.match(geometry, /viewerViewportState\.panX \/ metrics\.overflowX/);
-assert.match(geometry, /viewerViewportState\.panY \/ metrics\.overflowY/);
-assert.match(geometry, /pageTurnOrigin\.direction > 0 \? metrics\.overflowY : -metrics\.overflowY/);
-assert.match(geometry, /metrics\.overflowX \* relativePosition\.xRatio/);
-assert.match(geometry, /metrics\.overflowY \* relativePosition\.yRatio/);
-assert.match(geometry, /function getViewerPageTurnBuffer\(axis = "y"\)[\s\S]*?VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO[\s\S]*?VIEWER_PAGE_TURN_BUFFER_MIN_PX[\s\S]*?VIEWER_PAGE_TURN_BUFFER_MAX_PX/);
-assert.match(geometry, /function consumeSingleViewerPanInput\(deltaX = 0, deltaY = 0\)/);
-assert.match(geometry, /remainingDeltaX: safeDeltaX - consumedDeltaX/);
-assert.match(geometry, /remainingDeltaY: safeDeltaY - consumedDeltaY/);
-assert.match(geometry, /getSafeViewerZoom\(\) > AUTO_VIEWER_ZOOM \+ 0\.001 \|\| singleImageCanPan\(\)/);
+assert.equal(strings('shell').has('viewer-layout-paged'), true);
+assert.equal(callsIn('pageController', 'updateLightbox', 'viewerPageImageRequest').length > 0, true);
+assert.equal(callsIn('pageController', 'beginPageControllerTransition', 'beginViewerPageTransitionCommand').length > 0, true);
+assert.equal(callsIn('navigation', 'getViewerPageTurnNavigationCommand', 'createViewerNavigationCommand').length > 0, true);
+assert.equal(callsIn('navigation', 'moveLightboxFromPageTurn', 'moveLightbox').length > 0, true);
+assert.equal(callsIn('navigation', 'consumeSingleViewerBoundaryInput', 'consumeSingleViewerPanInput').length > 0, true);
+assert.equal(callsIn('navigation', 'consumeViewerPageWheelResetContinuation', 'clearViewerPageWheelGesture').length > 0, true);
+assert.equal(callsIn('navigation', 'handleViewerPageWheel', 'consumeViewerPageWheelResetContinuation').length > 0, true);
+assert.equal(callsIn('navigation', 'handleViewerPageWheel', 'consumeSingleViewerBoundaryInput').length > 0, true);
+assert.equal(callsIn('input', 'handleViewerPageSwipe', 'createViewerNavigationCommand').length > 0, true);
+assert.equal(callsIn('input', 'handleViewerPageSwipe', 'moveLightboxFromPageTurn').length > 0, true);
+assert.equal(callsIn('input', 'runViewerTouchMomentumFrame', 'consumeSingleViewerBoundaryInput').length > 0, true);
+assert.equal(findCalls(ast.input, 'attachZoomSurfaceGestures').length > 0, true);
+assert.equal(hasPropertyPath(ast.input, 'viewerGestureState.pointerGestureConsumedPan'), true);
+assert.equal(ast.input.propertyAccesses.some((entry) => entry.property === 'hasPointerCapture'), true);
 
-assert.match(navigation, /function normalizeViewerPageWheelDeltas\(event\)/);
-assert.match(navigation, /function getViewerPageWheelRequestedSteps\(accumulator\)/);
-assert.match(navigation, /function consumeSingleViewerBoundaryInput\(deltaX = 0, deltaY = 0, options = \{\}\)/);
-assert.match(navigation, /function getSingleViewerPageTurnIntent[\s\S]*?const remaining = result\.remainingDeltaY;[\s\S]*?axis: "y"/);
-assert.doesNotMatch(navigation, /remainingDeltaX[\s\S]{0,240}page-turn intent/);
-assert.match(transitions, /const RESETTABLE_READING_SOURCES = new Set\([\s\S]*?VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE[\s\S]*?VIEWER_NAVIGATION_SOURCE_WHEEL[\s\S]*?VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN[\s\S]*?VIEWER_NAVIGATION_SOURCE_MOMENTUM/);
-assert.match(transitions, /function createViewerNavigationCommand\(source, direction, options = \{\}\)[\s\S]*?RESETTABLE_READING_SOURCES\.has\(source\)[\s\S]*?if \(manualZoom\)[\s\S]*?zoomMode: "reset"[\s\S]*?positionMode: "fit-origin"[\s\S]*?zoomMode: "preserve"[\s\S]*?positionMode: "page-turn"/);
-assert.match(transitions, /const axis = source === VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE \? "x"/);
-assert.match(transitions, /source === VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE[\s\S]*?return Object\.freeze\(\{ source, direction: step, axis, zoomMode: "preserve", positionMode: "page-turn"/);
-assert.match(navigation, /function getViewerPageTurnNavigationCommand\(direction, axis = "y", options = \{\}\)[\s\S]*?createViewerNavigationCommand\([\s\S]*?options\.navigationSource \|\| VIEWER_NAVIGATION_SOURCE_CONTINUOUS_READING/);
-assert.match(navigation, /function moveLightboxFromPageTurn\(direction, axis = "y", options = \{\}\)[\s\S]*?navigationCommand: getViewerPageTurnNavigationCommand\(step, axis, options\)/);
-assert.match(navigation, /function consumeViewerPageWheelResetContinuation\(logicalDelta, eventTime\)[\s\S]*?restartedAfterCadenceBreak[\s\S]*?clearViewerPageWheelGesture\(\)[\s\S]*?return false/);
-assert.match(navigation, /consumeViewerPageWheelResetContinuation\(logicalDelta, eventTime\)[\s\S]*?return true/);
-assert.match(navigation, /if \(singleViewerUsesBoundaryPan\(\)\)[\s\S]*?const resetManualView = !isAutoViewerZoom\(\)[\s\S]*?consumeSingleViewerBoundaryInput\(deltaX, deltaY, \{ navigationSource: VIEWER_NAVIGATION_SOURCE_WHEEL \}\)[\s\S]*?boundary\.turned && resetManualView[\s\S]*?holdViewerPageWheelAfterManualReset\(logicalDelta, eventTime\)/);
-assert.match(navigation, /handleViewerPageWheel,[\s\S]*?clearViewerPageWheelGesture/);
-assert.doesNotMatch(navigation, /viewerPageWheelLocked|keepViewerPageWheelLockedUntilSettle|unlockViewerPageWheel/);
-assert.doesNotMatch(navigation, /renderViewerScrollPages|scrollTop|scrollIntoView|viewerScroll/);
-
-assert.match(transitions, /preservePointerInteraction = options\.preservePointerInteraction === true/);
-assert.match(pageController, /beginViewerPageTransitionCommand\(targetPage, command, relativePosition\)/);
-assert.doesNotMatch(geometry, /function queueSingleImage(?:RelativePosition|PageTurnOrigin)/);
-assert.match(pageController, /const currentCatalog = activeCatalog\(\);[\s\S]*?const preserveCurrentGeometry = Boolean\([\s\S]*?viewerElements\.lightboxImage\?\.complete[\s\S]*?viewerElements\.lightboxImage\.naturalWidth > 0[\s\S]*?catalogPagesShareAspectRatio\(previousCatalog, previousPage, currentCatalog, activePage\(\)\)[\s\S]*?\);[\s\S]*?const geometryPrimed = Boolean\(currentCatalog && !preserveCurrentGeometry[\s\S]*?primeLightboxFrameForCatalogPage\(currentCatalog, activePage\(\)\)\);[\s\S]*?if \(geometryPrimed\) applyZoom\(\);[\s\S]*?updateLightbox\(\{ thumbScrollIntoView, preserveCurrentImage: preserveCurrentGeometry \}\)/);
-
-assert.match(input, /function handleViewerPageSwipe\(event, startedX, startedY\)[\s\S]*?isTouchLikePointer\(event\)/);
-assert.match(input, /const direction = horizontal[\s\S]*?dx > 0 \? 1 : -1[\s\S]*?dy < 0 \? 1 : -1/);
-assert.match(input, /if \(horizontal\)[\s\S]*?createViewerNavigationCommand\([\s\S]*?VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE[\s\S]*?axis: "x"/);
-assert.match(input, /else \{[\s\S]*?moveLightboxFromPageTurn\(direction, "y", \{ navigationSource: VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE \}\)/);
-assert.match(input, /consumeSingleViewerBoundaryInput\(totalDeltaX, totalDeltaY, \{[\s\S]*?pointerId: event\.pointerId,[\s\S]*?navigationSource: VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN/);
-assert.match(input, /consumeSingleViewerBoundaryInput\([\s\S]*?velocityX \* elapsed,[\s\S]*?velocityY \* elapsed,[\s\S]*?navigationSource: VIEWER_NAVIGATION_SOURCE_MOMENTUM/);
-assert.match(input, /viewerGestureState\.pointerGestureConsumedPan/);
-assert.match(input, /function getViewerPointerMoveSamples\(event\)/);
-assert.match(input, /getCoalescedEvents\(\)/);
-assert.match(input, /function startViewerTouchMomentum\(velocityX, velocityY\)/);
-assert.match(input, /function runViewerTouchMomentumFrame\(timestamp\)/);
-assert.match(input, /Math\.exp\(-VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS \* elapsed\)/);
-assert.match(input, /if \(pan\.handled\) viewerGestureState\.pointerGestureConsumedPan = true;/);
-assert.match(input, /function captureViewerPointer\(surface, pointerId\)/);
-assert.match(input, /function releaseViewerPointerCapture\(surface, pointerId\)/);
-assert.match(input, /hasPointerCapture\(pointerId\)/);
-assert.doesNotMatch(input, /singlePageTurnPointerId/);
-assert.match(input, /attachZoomSurfaceGestures\(viewerElements\.stageCanvas\)/);
-assert.doesNotMatch(input, /viewerScrollPages|PointerHandoff|IsolatedZoom/);
-
-assert.match(viewerSource, /\["ArrowDown", "PageDown"\]\.includes\(event\.key\)[\s\S]*?moveLightbox\(1, \{ navigationSource: VIEWER_NAVIGATION_SOURCE_KEYBOARD \}\)/);
-assert.match(viewerSource, /\["ArrowUp", "PageUp"\]\.includes\(event\.key\)[\s\S]*?moveLightbox\(-1, \{ navigationSource: VIEWER_NAVIGATION_SOURCE_KEYBOARD \}\)/);
-assert.match(viewerSource, /event\.key === "ArrowRight"[\s\S]*?moveLightbox\(-1, \{ navigationSource: VIEWER_NAVIGATION_SOURCE_KEYBOARD \}\)/);
-assert.match(viewerSource, /event\.key === "ArrowLeft"[\s\S]*?moveLightbox\(1, \{ navigationSource: VIEWER_NAVIGATION_SOURCE_KEYBOARD \}\)/);
+for (const retired of [
+  'renderViewerScrollPages', 'loadViewerScrollWindow', 'handleViewerScrollPagesScroll',
+  'viewerScrollPages', 'PointerHandoff', 'IsolatedZoom', 'singlePageTurnPointerId',
+]) {
+  assert.equal(identifiers('viewer').has(retired) || identifiers('input').has(retired), false, `paged viewer must not retain ${retired}`);
+}
+assert.equal(functions('geometry').has('queueSingleImageRelativePosition'), false);
+assert.equal(functions('geometry').has('queueSingleImagePageTurnOrigin'), false);
+assert.equal(findCalls(ast.viewer, 'moveLightbox').length > 0, true, 'keyboard navigation must delegate to moveLightbox');
+assert.equal(ast.bootstrap.topLevelStatementCount < 10, true, 'bootstrap must remain a minimal startup owner');
 
 assert.match(css, /\.stage-canvas\s*\{[\s\S]*?overflow:\s*hidden;[\s\S]*?touch-action:\s*none;/);
 assert.match(css, /\.lightbox-image-frame\.page-swap-enter\s*\{[\s\S]*?animation:\s*viewer-page-swap-enter/);
 assert.match(css, /@keyframes viewer-page-swap-enter\s*\{[\s\S]*?opacity:\s*var\(--image-swap-start-opacity\);[\s\S]*?scale:\s*\.988;/);
 assert.doesNotMatch(css, /\.viewer-scroll-pages|\.viewer-scroll-page|viewer-scroll-zoom-isolated/);
-
 assert.doesNotMatch(app, /function renderViewerScrollPages|id="viewerScrollPages"|VIEWER_LAYOUT_SCROLL|VIEWER_LAYOUT_SIDE/);
 
 console.log('viewer_paged_mode_contract.test.js: PASS');

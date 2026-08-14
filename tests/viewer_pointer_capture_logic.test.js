@@ -1,9 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { importFrontendTestModule } = require('./frontend_test_module');
+const { importFrontendModule } = require('./frontend_test_module');
 
-const api = importFrontendTestModule('src/js/70-viewer-input.js', 'viewer-input');
+const api = importFrontendModule('src/js/70-viewer-input.js');
 
 const missingPointer = new Error('missing pointer');
 missingPointer.name = 'NotFoundError';

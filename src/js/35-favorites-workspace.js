@@ -574,12 +574,7 @@ registerFeatureInterface("favorites-workspace", {
   closeNoteEditor: (options = {}) => closeFavoriteNoteEditor(options)
 });
 
-
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["favorites-workspace"] = Object.freeze({
-    favoriteWorkspaceInquiryReference,
-    openFavoriteWorkspaceInquiry
-  });
-}
-/* TEST-ONLY EXPORTS: END */
+export {
+  favoriteWorkspaceInquiryReference,
+  openFavoriteWorkspaceInquiry
+};

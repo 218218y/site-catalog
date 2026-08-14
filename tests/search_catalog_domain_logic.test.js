@@ -1,9 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
-const domain = importFrontendTestModule("src/js/39-search-catalog-domain.js", "search-catalog", {
+const { searchCatalogDomain: domain } = importFrontendModule("src/js/39-search-catalog-domain.js", {
   clampCatalogPage: (page, catalog) => {
     const first = catalog?.pageNumberStart === 0 ? 0 : 1;
     const last = first + Math.max(1, Number(catalog?.pages || 1)) - 1;

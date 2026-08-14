@@ -1,12 +1,10 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { importFrontendTestModule, importStandaloneRuntimeModule } = require('./frontend_test_module');
-const { normalizeItems } = importStandaloneRuntimeModule('src/runtime/favorites-store.js');
+const { importFrontendModule } = require('./frontend_test_module');
+const { normalizeItems } = importFrontendModule('src/runtime/favorites-store.js');
 
-const { createFavoritesPortabilityDomain } = importFrontendTestModule(
-  'src/js/29-favorites-portability.js',
-  'favorites-portability',
+const { createFavoritesPortabilityDomain } = importFrontendModule('src/js/29-favorites-portability.js',
   {
     isCatalogPage: (catalog, page) => {
       const first = catalog?.pageNumberStart === 0 ? 0 : 1;

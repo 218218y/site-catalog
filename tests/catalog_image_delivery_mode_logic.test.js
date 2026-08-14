@@ -1,9 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { importFrontendTestModule } = require('./frontend_test_module');
+const { importFrontendModule } = require('./frontend_test_module');
 
-const pageNumbering = importFrontendTestModule('src/js/06-catalog-page-numbering.js', 'catalog-page-numbering');
+const pageNumbering = importFrontendModule('src/js/06-catalog-page-numbering.js');
 Object.assign(globalThis, pageNumbering);
 
 const network = { saveData: false, effectiveType: '4g' };
@@ -28,7 +28,7 @@ Object.assign(globalThis, {
   CATALOG_IMAGE_TIER_FULL: 'full',
   DEFAULT_CATALOG_MEDIUM_MAX_SIDE: 1600
 });
-const shared = importFrontendTestModule('src/js/20-shared-ui.js', 'shared-ui');
+const shared = importFrontendModule('src/js/20-shared-ui.js');
 
 function setNetwork({ mode = 'responsive', saveData = false, effectiveType = '4g' } = {}) {
   window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = mode;
@@ -94,7 +94,7 @@ Object.assign(globalThis, {
   pad: (page) => String(page).padStart(3, '0'),
   imageExt: () => 'webp'
 });
-const viewerImage = importFrontendTestModule('src/js/53-viewer-image.js', 'viewer-image');
+const viewerImage = importFrontendModule('src/js/53-viewer-image.js');
 
 viewerState.zoom = 1.02; setNetwork();
 assert.equal(viewerImage.shouldWarmSingleViewerFullResolution(1), true);

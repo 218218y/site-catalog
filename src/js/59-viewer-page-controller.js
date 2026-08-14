@@ -257,14 +257,10 @@ function attachViewerPageControllerEvents() {
   viewerElements.lightboxPageThumbs?.addEventListener("click", handleViewerPageRailClick);
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-page-controller"] = Object.freeze({ catalogPageProgress });
-}
-/* TEST-ONLY EXPORTS: END */
 
 export {
   attachViewerPageControllerEvents,
+  catalogPageProgress,
   moveLightbox,
   setFavoriteViewerIndex,
   setLightboxPage,

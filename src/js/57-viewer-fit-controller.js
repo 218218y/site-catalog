@@ -72,14 +72,5 @@ function syncAutomaticViewerFitMode(options = {}) {
   return true;
 }
 
-/* TEST-ONLY EXPORTS: BEGIN */
-if (typeof __BARGIG_TEST_EXPORTS__ !== "undefined") {
-  __BARGIG_TEST_EXPORTS__["viewer-fit-controller"] = Object.freeze({
-    setViewerFitMode,
-    setViewerAutomaticFitMode,
-    syncAutomaticViewerFitMode
-  });
-}
-/* TEST-ONLY EXPORTS: END */
 
 export { setViewerAutomaticFitMode, setViewerFitMode, syncAutomaticViewerFitMode };

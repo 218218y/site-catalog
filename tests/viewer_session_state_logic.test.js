@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { importFrontendTestModule } = require("./frontend_test_module");
+const { importFrontendModule } = require("./frontend_test_module");
 
 const warnings = [];
 let fullscreenLayoutRefreshes = 0;
@@ -50,7 +50,7 @@ Object.assign(globalThis, {
 const originalWarn = console.warn;
 console.warn = (...args) => warnings.push(args);
 
-const stateApi = importFrontendTestModule("src/js/51-viewer-session-state.js", "viewer-session-state");
+const stateApi = importFrontendModule("src/js/51-viewer-session-state.js");
 Object.assign(globalThis, stateApi);
 
 assert.equal(stateApi.isViewerSessionOpen(), false);
@@ -69,7 +69,7 @@ assert.equal(stateApi.isViewerSessionVisible(), true);
 assert.equal(stateApi.transitionViewerPhase("closed", "hidden"), true);
 assert.equal(stateApi.isViewerSessionVisible(), false);
 
-const browserApi = importFrontendTestModule("src/js/52-viewer-session.js", "viewer-browser-session");
+const browserApi = importFrontendModule("src/js/52-viewer-session.js");
 assert.equal(browserApi.viewerUsesInDocumentFullscreenNavigation(), false);
 assert.equal(stateApi.transitionViewerPhase("opening", "fullscreen-open"), true);
 assert.equal(stateApi.transitionViewerPhase("open", "fullscreen-ready"), true);
