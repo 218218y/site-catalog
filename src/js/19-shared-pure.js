@@ -13,5 +13,19 @@ function buildViewerInquiryMailtoUrl(emailAddress, reference) {
   return `mailto:${String(emailAddress || "")}?subject=${subject}&body=${body}`;
 }
 
+/** @param {number} value @param {number} min @param {number} max */
+function clampValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
 
-export { buildViewerInquiryMailtoUrl };
+/** @param {unknown} value */
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+export { buildViewerInquiryMailtoUrl, clampValue, escapeHtml };

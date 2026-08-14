@@ -15,7 +15,9 @@ import { telemetryTrack } from "./15-telemetry.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { catalogLastPage } from "./06-catalog-page-numbering.js";
 import { buildViewerInquiryMailtoUrl } from "./19-shared-pure.js";
-import { clampPage, focusHtmlElement, isHtmlElement, pageSrc, showActionToast, syncDocumentLock, thumbSrc } from "./20-shared-ui.js";
+import { clampPage } from "./20-catalog-runtime.js";
+import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
+import { focusHtmlElement, isHtmlElement, showActionToast, syncDocumentLock } from "./21-ui-runtime.js";
 import { copyTextToClipboard } from "./30-favorites-share.js";
 
 /** @type {{open:boolean, returnFocus:HTMLElement|null, reference:InquiryReference|null, tipOpenCount:number, tipShown:boolean}} */

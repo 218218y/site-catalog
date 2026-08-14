@@ -14,8 +14,11 @@ import { catalogs } from "./03-runtime-context.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { catalogElements, catalogState } from "./12-catalog-state.js";
 import { activeCatalog, activeViewerSource, setActiveLocation } from "./18-navigation-feature.js";
-import { applyCatalogImageDimensions, buildCategoryShareRouteHash, catalogCategorySharePath, catalogCoverLoadingAttributes, catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, catalogSubcategorySharePath, categorySectionId, categoryShareSlug, clampValue, coverThumbSrc, decodeHashRouteSegment, encodeHashRouteSegment, escapeHtml, focusHtmlElement, getCatalogCategoryGroups, isHtmlElement, normalizeShareRoutePath, pageAspectVariableStyle, setCatalogImageSource, setTooltipText, subcategorySectionId, subcategoryShareSlug, thumbSrc } from "./20-shared-ui.js";
+import { applyCatalogImageDimensions, buildCategoryShareRouteHash, catalogCategorySharePath, catalogCoverLoadingAttributes, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, catalogSubcategorySharePath, categorySectionId, categoryShareSlug, decodeHashRouteSegment, encodeHashRouteSegment, getCatalogCategoryGroups, normalizeShareRoutePath, pageAspectVariableStyle, subcategorySectionId, subcategoryShareSlug } from "./20-catalog-runtime.js";
+import { clampValue, escapeHtml } from "./19-shared-pure.js";
+import { coverThumbSrc, thumbSrc } from "./17-catalog-asset-urls.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
+import { focusHtmlElement, isHtmlElement, setTooltipText } from "./21-ui-runtime.js";
 import { catalogFirstPage, catalogPageNumbers } from "./06-catalog-page-numbering.js";
 import { searchCatalogDomain } from "./39-search-catalog-domain.js";
 import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-search-ui.js";
@@ -540,7 +543,7 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   return `
     <article class="catalog-card">
       <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageRecoveryAttributes(catalog, 1, "cover", "catalog-grid")}${catalogImageCrossOriginAttribute(cover)} />
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageRecoveryAttributes(catalog, 1, "cover", "catalog-grid")} />
         <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
       </a>
       <div class="catalog-body">
@@ -741,7 +744,7 @@ function renderPageGrid() {
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
           <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
-            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "catalog-page-grid")}${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "catalog-page-grid")} />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">
@@ -896,7 +899,7 @@ function renderCatalogDetail() {
   updateDetailCatalogMenuLabel(catalog);
   if (catalogElements.catalogCoverPreview) {
     applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, catalogFirstPage(catalog));
-    setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog));
+    catalogElements.catalogCoverPreview.src = coverThumbSrc(catalog);
     catalogElements.catalogCoverPreview.loading = "lazy";
     catalogElements.catalogCoverPreview.decoding = "async";
     catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`;

@@ -10,7 +10,7 @@
 import { homeDocumentUrl, navigateTo } from "./00-navigation.js";
 import { getFeatureInterface } from "./10-app-state.js";
 import { VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, viewerElements, viewerSessionState } from "./16-viewer-state.js";
-import { flashActionButton, setTooltipText } from "./20-shared-ui.js";
+import { flashActionButton, setTooltipText } from "./21-ui-runtime.js";
 import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-search-ui.js";
 import {
   isViewerFullscreenPending,

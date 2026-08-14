@@ -38,8 +38,8 @@ ELEMENT_OWNERS: Mapping[str, str] = {
 # the owning feature boundary. A state declaration may live in a small state
 # module while the implementation is split across a reviewed set of files.
 DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
-    "catalogAssetState": ("src/js/10-app-state.js", "src/js/20-shared-ui.js"),
-    "uiRuntime": ("src/js/10-app-state.js", "src/js/20-shared-ui.js"),
+    "catalogAssetState": ("src/js/10-app-state.js", "src/js/20-catalog-runtime.js"),
+    "uiRuntime": ("src/js/10-app-state.js", "src/js/21-ui-runtime.js"),
     "navigationState": ("src/js/00-navigation.js", "src/js/11-navigation-state.js", "src/js/18-navigation-feature.js"),
     "shellElements": ("src/js/11-navigation-state.js", "src/js/18-navigation-feature.js"),
     "catalogState": ("src/js/12-catalog-state.js", "src/js/40-catalog-grid.js"),

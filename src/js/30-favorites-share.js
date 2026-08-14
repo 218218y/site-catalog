@@ -17,7 +17,9 @@ import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigat
 import { FAVORITES_SHARE_PARAM, FAVORITES_SHARE_VERSION, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
 import { telemetryTrackFavorite } from "./15-telemetry.js";
 import { activeCatalog, activePage, activeViewerSource, setActiveLocation } from "./18-navigation-feature.js";
-import { clampPage, clampValue, findCatalogById, flashActionButton, focusHtmlElement, isHtmlElement, setTooltipText, showActionToast, syncDocumentLock } from "./20-shared-ui.js";
+import { clampPage, findCatalogById } from "./20-catalog-runtime.js";
+import { clampValue } from "./19-shared-pure.js";
+import { flashActionButton, focusHtmlElement, isHtmlElement, setTooltipText, showActionToast, syncDocumentLock } from "./21-ui-runtime.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { createFavoritesPortabilityDomain } from "./29-favorites-portability.js";
 

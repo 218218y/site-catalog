@@ -45,7 +45,7 @@ Object.assign(globalThis, {
 });
 Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
 window.location = { href: 'https://example.test/' };
-const shared = importFrontendModule('src/js/20-shared-ui.js');
+const shared = importFrontendModule('src/js/21-ui-runtime.js');
 global.hasHoverPointer = shared.hasHoverPointer;
 global.isTouchLikePointer = shared.isTouchLikePointer;
 const shell = importFrontendModule('src/js/56-viewer-shell.js');

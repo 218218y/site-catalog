@@ -7,11 +7,12 @@
  */
 
 /** @import { ViewerPointerPoint } from "../../types/frontend-contracts.js" */
+import { isTouchLikePointer } from "./21-ui-runtime.js";
 
 import { getFeatureInterface } from "./10-app-state.js";
 import { DOUBLE_TAP_DELAY, DOUBLE_TAP_DISTANCE, TAP_MOVE_TOLERANCE, VIEWER_PAGE_SWIPE_AXIS_RATIO, VIEWER_PAGE_SWIPE_MIN_DISTANCE, VIEWER_PAGE_TURN_REMAINDER_EPSILON, VIEWER_TOUCH_MOMENTUM_FRICTION_PER_MS, VIEWER_TOUCH_MOMENTUM_MAX_FRAME_MS, VIEWER_TOUCH_MOMENTUM_MAX_SPEED_PX_PER_MS, VIEWER_TOUCH_MOMENTUM_MIN_SPEED_PX_PER_MS, VIEWER_TOUCH_VELOCITY_BLEND, VIEWER_TOUCH_VELOCITY_SAMPLE_MAX_AGE_MS, viewerElements, viewerGestureState, viewerViewportState } from "./16-viewer-state.js";
 import { VIEWER_NAVIGATION_SOURCE_BOUNDARY_PAN, VIEWER_NAVIGATION_SOURCE_HORIZONTAL_SWIPE, VIEWER_NAVIGATION_SOURCE_MOMENTUM, VIEWER_NAVIGATION_SOURCE_VERTICAL_SWIPE, assertViewerStateInvariants, createViewerNavigationCommand } from "./17-viewer-state-transitions.js";
-import { clampValue, isTouchLikePointer } from "./20-shared-ui.js";
+import { clampValue } from "./19-shared-pure.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { hideLightboxSearchResults } from "./50-search-ui.js";
 import { isViewerSessionOpen } from "./51-viewer-session-state.js";

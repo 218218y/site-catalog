@@ -36,7 +36,7 @@ frame.classList = {
   remove: (...names) => names.forEach((name) => frameClasses.delete(name)),
   toggle(name, enabled) { if (enabled) frameClasses.add(name); else frameClasses.delete(name); }
 };
-const api = importFrontendModule("src/js/20-shared-ui.js");
+const api = importFrontendModule("src/js/20-catalog-runtime.js");
 
 class FakeImage {
   constructor() {

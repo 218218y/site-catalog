@@ -59,7 +59,7 @@ function createApi(log) {
     telemetryTrackImageRecovery: (src, options) => log.push(["recovered", src, options]),
     telemetryTrackImageTerminalFailure: (src, options) => log.push(["terminal", src, options])
   });
-  return importFrontendModule("src/js/20-shared-ui.js");
+  return importFrontendModule("src/js/20-catalog-runtime.js");
 }
 
 {

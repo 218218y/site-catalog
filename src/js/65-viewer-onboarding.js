@@ -7,10 +7,12 @@
  */
 
 /** @import { PositionedPoint, RectLike, ViewerOnboardingCloseOptions, ViewerOnboardingPlacement, ViewerOnboardingStep, ViewerOnboardingStepOptions, ViewerOnboardingTargetDefinition } from "../../types/frontend-contracts.js" */
+import { focusHtmlElement, isHtmlElement } from "./21-ui-runtime.js";
 
 import { getFeatureInterface } from "./10-app-state.js";
 import { VIEWER_ONBOARDING_STORAGE_KEY, viewerChromeState, viewerElements, viewerOnboardingState } from "./16-viewer-state.js";
-import { clampValue, focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";
+import { clampValue } from "./19-shared-pure.js";
+
 import { isViewerSessionOpen } from "./51-viewer-session-state.js";
 
 function getViewerOnboardingStorage() {

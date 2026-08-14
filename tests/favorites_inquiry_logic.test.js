@@ -38,7 +38,6 @@ Object.assign(globalThis, {
   pageSrc: () => "",
   pageAspectStyle: () => "",
   catalogImageDimensionAttributes: () => "",
-  catalogImageCrossOriginAttribute: () => "",
   favoritesStore: null,
   closeFavoriteNoteEditor() {},
   renderFavoritesWorkspace() {},

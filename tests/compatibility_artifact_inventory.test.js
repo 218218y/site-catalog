@@ -54,14 +54,16 @@ assert.match(deploy, /DEPLOY_EXTERNAL_MODULE_FILES/);
 const frontendBuilder = fs.readFileSync(path.join(root, "tools", "build_frontend_assets.py"), "utf8");
 const frontendRunner = fs.readFileSync(path.join(root, "tools", "build_frontend_esbuild.mjs"), "utf8");
 const frontendContracts = fs.readFileSync(path.join(root, "tools", "check_frontend_contracts.py"), "utf8");
-const sharedUi = fs.readFileSync(path.join(root, "src", "js", "20-shared-ui.js"), "utf8");
+const sharedRuntimeSources = ["20-catalog-runtime.js", "21-ui-runtime.js"]
+  .map((name) => fs.readFileSync(path.join(root, "src", "js", name), "utf8"))
+  .join("\n");
 const viewerShare = fs.readFileSync(path.join(root, "src", "js", "31-viewer-share.js"), "utf8");
 const snapshotModule = fs.readFileSync(path.join(root, "catalog-snapshot.js"), "utf8");
 assert.doesNotMatch(frontendBuilder, /OBSOLETE_GENERATED_FILES|remove_obsolete_generated_files|app\.js/);
 assert.match(frontendBuilder, /RUNTIME_EXTERNAL_MODULES/);
 assert.match(frontendBuilder, /GENERATED_DATA_EXTERNAL_MODULES/);
 assert.doesNotMatch(frontendContracts, /obsolete compatibility loader remains|base \/ "app\.js"/);
-assert.doesNotMatch(sharedUi, /catalog-snapshot\.js|catalogSnapshotApi/);
+assert.doesNotMatch(sharedRuntimeSources, /catalog-snapshot\.js|catalogSnapshotApi/);
 assert.match(viewerShare, /import catalogSnapshotApi from "\.\.\/\.\.\/catalog-snapshot\.js";/);
 assert.match(frontendRunner, /external:\s*true/);
 assert.match(snapshotModule, /export default catalogSnapshotApi/);

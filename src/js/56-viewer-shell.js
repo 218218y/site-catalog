@@ -12,8 +12,11 @@ import { catalogPageNumbers } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface } from "./10-app-state.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerChromeState, viewerElements, viewerOnboardingState, viewerViewportState } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
-import { catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, clampValue, escapeHtml, findCatalogById, hasHoverPointer, isTouchLikePointer, pageSrc, setCatalogImageSource, setTooltipText, thumbSrc } from "./20-shared-ui.js";
+import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, findCatalogById } from "./20-catalog-runtime.js";
+import { clampValue, escapeHtml } from "./19-shared-pure.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
+import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
+import { hasHoverPointer, isTouchLikePointer, setTooltipText } from "./21-ui-runtime.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
 import { isViewerSessionOpen } from "./51-viewer-session-state.js";
 import { getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
@@ -297,7 +300,7 @@ function showLightboxFloatingPreview(button) {
   previewImage.removeAttribute("width");
   previewImage.removeAttribute("height");
   previewImage.onload = () => positionLightboxFloatingPreview(button);
-  setCatalogImageSource(previewImage, src);
+  previewImage.src = src;
   previewImage.alt = `${previewCatalog.title} - עמוד ${page}`;
   if (viewerElements.lightboxFloatingPreviewPage) {
     viewerElements.lightboxFloatingPreviewPage.textContent = isFavoritesLightboxMode()
@@ -354,7 +357,7 @@ function renderLightboxPageRail() {
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${active ? " active" : ""}" type="button" data-favorite-index="${index}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר למועדף ${index + 1}: ${title}, עמוד ${page}"${active ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
-            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-thumbnail-rail")}${catalogImageCrossOriginAttribute(thumb)} />
+            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-thumbnail-rail")} />
           </span>
           <span class="lightbox-page-thumb-number">${index + 1}</span>
         </button>
@@ -370,7 +373,7 @@ function renderLightboxPageRail() {
       thumbs.push(`
         <button class="lightbox-page-thumb lightbox-page-thumb-frame catalog-image-frame${page === activePage() ? " active" : ""}" type="button" data-page="${page}" data-preview-catalog="${escapeHtml(catalog.id)}" data-preview-page="${page}" data-preview-src="${thumb}" aria-label="מעבר לעמוד ${page}"${page === activePage() ? ' aria-current="page"' : ""}>
           <span class="lightbox-page-thumb-image-wrap">
-            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-thumbnail-rail")}${catalogImageCrossOriginAttribute(thumb)} />
+            <img src="${thumb}" alt=""${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-thumbnail-rail")} />
           </span>
           <span class="lightbox-page-thumb-number">${page}</span>
         </button>

@@ -7,7 +7,7 @@ const { readAllBundles } = require('./frontend_test_assets');
 const { importFrontendModule } = require('./frontend_test_module');
 
 const root = path.join(__dirname, '..');
-const hierarchySource = fs.readFileSync(path.join(root, 'src', 'js', '20-shared-ui.js'), 'utf8');
+const hierarchySource = fs.readFileSync(path.join(root, 'src', 'js', '21-ui-runtime.js'), 'utf8');
 const appShell = fs.readFileSync(path.join(root, 'src', 'js', '80-app-shell.js'), 'utf8');
 const bootstrap = fs.readFileSync(path.join(root, 'src', 'js', '90-bootstrap.js'), 'utf8');
 const app = readAllBundles();
@@ -21,7 +21,7 @@ const sharedInquiry = fs.readFileSync(path.join(root, 'src', 'js', '32-shared-in
 global.window = { location: { href: 'https://example.test/' } };
 Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
 global.requiredElement = () => ({});
-const { handleTopLayerEscape } = importFrontendModule('src/js/20-shared-ui.js');
+const { handleTopLayerEscape } = importFrontendModule('src/js/21-ui-runtime.js');
 
 function createHarness(layerResults) {
   const calls = [];

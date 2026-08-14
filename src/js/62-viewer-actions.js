@@ -7,7 +7,7 @@
  */
 
 import { VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, viewerChromeState, viewerElements } from "./16-viewer-state.js";
-import { focusHtmlElement, isHtmlElement } from "./20-shared-ui.js";
+import { focusHtmlElement, isHtmlElement } from "./21-ui-runtime.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { downloadCurrentLightboxImage } from "./31-viewer-share.js";
 import { isViewerSessionOpen } from "./51-viewer-session-state.js";

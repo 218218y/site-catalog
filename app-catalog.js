@@ -17,7 +17,9 @@
  *   - src/js/15-telemetry.js
  *   - src/js/17-catalog-asset-urls.js
  *   - src/js/18-navigation-feature.js
- *   - src/js/20-shared-ui.js
+ *   - src/js/19-shared-pure.js
+ *   - src/js/20-catalog-runtime.js
+ *   - src/js/21-ui-runtime.js
  *   - src/js/29-favorites-portability.js
  *   - src/js/30-favorites-share.js
  *   - src/js/39-search-catalog-domain.js
@@ -1118,26 +1120,16 @@ function telemetryInit(options = {}) {
   })));
 }
 
-// src/js/20-shared-ui.js
-import { tooltips } from "./tooltip-manager.js";
-var uiElements = Object.freeze({
-  siteActionToast: requiredElement("siteActionToast")
-}), observedCatalogPageSizes = /* @__PURE__ */ new WeakMap();
-function isHtmlElement(value) {
-  return value instanceof HTMLElement;
+// src/js/19-shared-pure.js
+function clampValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
-function focusHtmlElement(value, options) {
-  return value instanceof HTMLElement ? (value.focus(options), !0) : !1;
+function escapeHtml(value) {
+  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
-function catalogImageCrossOriginAttribute(_url = "") {
-  return "";
-}
-function applyCatalogImageCrossOrigin(img) {
-  img && img.removeAttribute("crossorigin");
-}
-function setCatalogImageSource(img, url) {
-  img && (applyCatalogImageCrossOrigin(img), img.src = url);
-}
+
+// src/js/20-catalog-runtime.js
+var observedCatalogPageSizes = /* @__PURE__ */ new WeakMap();
 function networkInformation() {
   return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
 }
@@ -1239,7 +1231,7 @@ function loadCatalogImageWithRecovery(img, options = {}) {
         }), options.onFailure?.(candidate, { failedAttempts, attempts: index }), attempt();
       }
     };
-    img.addEventListener("load", () => settle(!0), { once: !0 }), img.addEventListener("error", () => settle(!1), { once: !0 }), options.onAttempt?.(candidate, { failedAttempts, attempts: index }), setCatalogImageSource(img, candidate.src), img.complete && queueMicrotask(() => settle(!!img.naturalWidth));
+    img.addEventListener("load", () => settle(!0), { once: !0 }), img.addEventListener("error", () => settle(!1), { once: !0 }), options.onAttempt?.(candidate, { failedAttempts, attempts: index }), img.src = candidate.src, img.complete && queueMicrotask(() => settle(!!img.naturalWidth));
   };
   return attempt(), () => {
     stopped = !0;
@@ -1278,14 +1270,122 @@ function recoverCatalogImageAfterInitialFailure(img) {
     onExhausted: () => syncImagePlaceholderState(img)
   }), !0;
 }
-function clampValue(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-function pad(value) {
+function padImagePage(value) {
   return String(value).padStart(3, "0");
 }
-function escapeHtml(value) {
-  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+function catalogImageVariant(catalog, tier) {
+  if (tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled()) return null;
+  let variants = catalog?.imageVariants;
+  if (variants && typeof variants == "object" && variants[tier] && typeof variants[tier] == "object")
+    return variants[tier];
+  if (tier === CATALOG_IMAGE_TIER_THUMB) return { directory: "thumbs", maxSide: 420 };
+  if (tier === CATALOG_IMAGE_TIER_FULL) {
+    let size = pageSize(catalog, catalogFirstPage(catalog));
+    return { directory: "", maxSide: size ? Math.max(size.width, size.height) : 2800 };
+  }
+  return null;
+}
+function mediumSrc(catalog, page) {
+  let variant = catalogImageVariant(catalog, CATALOG_IMAGE_TIER_MEDIUM);
+  if (!variant) return "";
+  let directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
+  return withAssetVersion(
+    `${catalogDir(catalog)}/${directory}/page-${padImagePage(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
+    catalog,
+    CATALOG_IMAGE_TIER_MEDIUM
+  );
+}
+function pageSize(catalog, page) {
+  let assetPage = displayPageToAssetPage(catalog, page), observed = catalog ? observedCatalogPageSizes.get(catalog)?.get(assetPage) : null;
+  if (observed) return observed;
+  let size = (Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [])[assetPage - 1];
+  if (!Array.isArray(size) || size.length < 2) return null;
+  let width = Number(size[0]), height = Number(size[1]);
+  return !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 ? null : { width, height };
+}
+function catalogImageDimensionAttributes(catalog, page) {
+  let size = pageSize(catalog, page);
+  return size ? ` width="${size.width}" height="${size.height}"` : "";
+}
+function applyCatalogImageDimensions(image, catalog, page) {
+  if (!image) return;
+  let size = pageSize(catalog, page);
+  if (!size) {
+    image.removeAttribute("width"), image.removeAttribute("height");
+    return;
+  }
+  image.width = size.width, image.height = size.height;
+}
+function catalogCoverLoadingAttributes(catalog) {
+  let index = catalogs.findIndex((item) => item?.id === catalog?.id);
+  return index >= 0 && index < 2 ? ' loading="eager" decoding="async" fetchpriority="high"' : ' loading="lazy" decoding="async" fetchpriority="low"';
+}
+function pageAspectVariableStyle(catalog, page, variableName = "--page-aspect-ratio") {
+  let size = pageSize(catalog, page);
+  return size ? ` style="${variableName}: ${size.width} / ${size.height}"` : "";
+}
+var IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
+  ".catalog-image-frame",
+  ".lightbox-image-frame",
+  ".search-result-thumb-frame",
+  ".reader-search-thumb-frame",
+  ".favorite-image-frame",
+  ".lightbox-page-thumb-frame",
+  ".reader-page-frame",
+  ".reader-page-thumb-frame"
+].join(", ");
+function imagePlaceholderFrame(img) {
+  if (img?.dataset?.placeholderIgnore === "true") return null;
+  let frame = img?.closest?.(IMAGE_PLACEHOLDER_FRAME_SELECTOR) || null;
+  return frame instanceof HTMLElement ? frame : null;
+}
+function syncImagePlaceholderState(img) {
+  let frame = imagePlaceholderFrame(img);
+  if (!frame) return;
+  frame.classList.add("image-placeholder-frame");
+  let pending = img.dataset.imageLoadPending === "true", isReady = !pending && !!(img.complete && img.naturalWidth > 0), isError = !pending && !!(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
+  frame.classList.toggle("image-ready", isReady), frame.classList.toggle("image-error", isError), frame.classList.toggle("image-loading", pending || !isReady && !isError);
+}
+function prepareImagePlaceholder(img) {
+  let frame = imagePlaceholderFrame(img);
+  if (frame) {
+    if (frame.classList.add("image-placeholder-frame"), img.dataset.imageLoadPending === "true") {
+      frame.classList.remove("image-ready", "image-error"), frame.classList.add("image-loading");
+      return;
+    }
+    if (img.complete) {
+      syncImagePlaceholderState(img);
+      return;
+    }
+    frame.classList.remove("image-ready", "image-error"), frame.classList.add("image-loading");
+  }
+}
+function initImagePlaceholderObserver() {
+  if (document.querySelectorAll(`${IMAGE_PLACEHOLDER_FRAME_SELECTOR} img`).forEach((image) => {
+    image instanceof HTMLImageElement && prepareImagePlaceholder(image);
+  }), document.addEventListener("load", (event) => {
+    event.target instanceof HTMLImageElement && syncImagePlaceholderState(event.target);
+  }, !0), document.addEventListener("error", (event) => {
+    event.target instanceof HTMLImageElement && syncImagePlaceholderState(event.target);
+  }, !0), !("MutationObserver" in window) || !document.body) return;
+  new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === "attributes" && mutation.target instanceof HTMLImageElement) {
+        prepareImagePlaceholder(mutation.target);
+        return;
+      }
+      mutation.addedNodes.forEach((node) => {
+        node instanceof Element && (node instanceof HTMLImageElement && prepareImagePlaceholder(node), node.querySelectorAll?.("img").forEach((image) => {
+          image instanceof HTMLImageElement && prepareImagePlaceholder(image);
+        }));
+      });
+    });
+  }).observe(document.body, {
+    subtree: !0,
+    childList: !0,
+    attributes: !0,
+    attributeFilter: ["src", "data-src"]
+  });
 }
 function catalogCategoryName(catalog) {
   return String(catalog?.category || "").trim() || "קטלוגים";
@@ -1363,59 +1463,51 @@ function getCatalogCategoryGroups() {
     group.hasSubcategories = group.subcategories.length > 0, delete group.subcategoryMap;
   }), groups;
 }
-function catalogImageVariant(catalog, tier) {
-  if (tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled()) return null;
-  let variants = catalog?.imageVariants;
-  if (variants && typeof variants == "object" && variants[tier] && typeof variants[tier] == "object")
-    return variants[tier];
-  if (tier === CATALOG_IMAGE_TIER_THUMB) return { directory: "thumbs", maxSide: 420 };
-  if (tier === CATALOG_IMAGE_TIER_FULL) {
-    let size = pageSize(catalog, catalogFirstPage(catalog));
-    return { directory: "", maxSide: size ? Math.max(size.width, size.height) : 2800 };
-  }
-  return null;
-}
-function mediumSrc(catalog, page) {
-  let variant = catalogImageVariant(catalog, CATALOG_IMAGE_TIER_MEDIUM);
-  if (!variant) return "";
-  let directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
-  return withAssetVersion(
-    `${catalogDir(catalog)}/${directory}/page-${pad(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
-    catalog,
-    CATALOG_IMAGE_TIER_MEDIUM
-  );
-}
-function pageSize(catalog, page) {
-  let assetPage = displayPageToAssetPage(catalog, page), observed = catalog ? observedCatalogPageSizes.get(catalog)?.get(assetPage) : null;
-  if (observed) return observed;
-  let size = (Array.isArray(catalog?.pageSizes) ? catalog.pageSizes : [])[assetPage - 1];
-  if (!Array.isArray(size) || size.length < 2) return null;
-  let width = Number(size[0]), height = Number(size[1]);
-  return !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 ? null : { width, height };
-}
-function catalogImageDimensionAttributes(catalog, page) {
-  let size = pageSize(catalog, page);
-  return size ? ` width="${size.width}" height="${size.height}"` : "";
-}
-function applyCatalogImageDimensions(image, catalog, page) {
-  if (!image) return;
-  let size = pageSize(catalog, page);
-  if (!size) {
-    image.removeAttribute("width"), image.removeAttribute("height");
-    return;
-  }
-  image.width = size.width, image.height = size.height;
-}
-function catalogCoverLoadingAttributes(catalog) {
-  let index = catalogs.findIndex((item) => item?.id === catalog?.id);
-  return index >= 0 && index < 2 ? ' loading="eager" decoding="async" fetchpriority="high"' : ' loading="lazy" decoding="async" fetchpriority="low"';
-}
-function pageAspectVariableStyle(catalog, page, variableName = "--page-aspect-ratio") {
-  let size = pageSize(catalog, page);
-  return size ? ` style="${variableName}: ${size.width} / ${size.height}"` : "";
-}
 function clampPage(page, catalog = activeCatalog()) {
   return clampCatalogPage(page, catalog);
+}
+function encodeHashRouteSegment(value) {
+  return encodeURIComponent(String(value ?? ""));
+}
+function decodeHashRouteSegment(value) {
+  let segment = String(value || "");
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+function encodeShareRoutePath(path) {
+  let normalizedPath = normalizeShareRoutePath(path);
+  return normalizedPath ? normalizedPath.split("/").map(encodeHashRouteSegment).join("/") : "";
+}
+function buildCategoryShareRouteHash(path) {
+  let encodedPath = encodeShareRoutePath(path);
+  return encodedPath ? `#cat/${encodedPath}` : "";
+}
+function findCatalogById(id) {
+  let catalogId = String(id || "");
+  return catalogs.find((item) => String(item.id || "") === catalogId) || null;
+}
+
+// src/js/21-ui-runtime.js
+import { tooltips } from "./tooltip-manager.js";
+var uiElements = Object.freeze({
+  siteActionToast: requiredElement("siteActionToast")
+});
+function isHtmlElement(value) {
+  return value instanceof HTMLElement;
+}
+function focusHtmlElement(value, options) {
+  return value instanceof HTMLElement ? (value.focus(options), !0) : !1;
+}
+function hasHoverPointer() {
+  if (typeof window.matchMedia != "function") return !0;
+  let primaryFineHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches, anyFineHover = window.matchMedia("(any-hover: hover) and (any-pointer: fine)").matches;
+  return primaryFineHover || anyFineHover;
+}
+function isTouchLikePointer(event) {
+  return !!(event && "pointerType" in event && (event.pointerType === "touch" || event.pointerType === "pen"));
 }
 function getTooltipText(button) {
   return tooltips.getText(button || null) || button?.getAttribute?.("title") || "";
@@ -1441,100 +1533,6 @@ function showActionToast(message, options = {}) {
       uiElements.siteActionToast.classList.contains("visible") || uiElements.siteActionToast.classList.add("hidden");
     }, 180);
   }, duration);
-}
-var IMAGE_PLACEHOLDER_FRAME_SELECTOR = [
-  ".catalog-image-frame",
-  ".lightbox-image-frame",
-  ".search-result-thumb-frame",
-  ".reader-search-thumb-frame",
-  ".favorite-image-frame",
-  ".lightbox-page-thumb-frame",
-  ".reader-page-frame",
-  ".reader-page-thumb-frame"
-].join(", ");
-function imagePlaceholderFrame(img) {
-  if (img?.dataset?.placeholderIgnore === "true") return null;
-  let frame = img?.closest?.(IMAGE_PLACEHOLDER_FRAME_SELECTOR) || null;
-  return frame instanceof HTMLElement ? frame : null;
-}
-function syncImagePlaceholderState(img) {
-  let frame = imagePlaceholderFrame(img);
-  if (!frame) return;
-  frame.classList.add("image-placeholder-frame");
-  let pending = img.dataset.imageLoadPending === "true", isReady = !pending && !!(img.complete && img.naturalWidth > 0), isError = !pending && !!(img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute("src")));
-  frame.classList.toggle("image-ready", isReady), frame.classList.toggle("image-error", isError), frame.classList.toggle("image-loading", pending || !isReady && !isError);
-}
-function prepareImagePlaceholder(img) {
-  let frame = imagePlaceholderFrame(img);
-  if (frame) {
-    if (frame.classList.add("image-placeholder-frame"), img.dataset.imageLoadPending === "true") {
-      frame.classList.remove("image-ready", "image-error"), frame.classList.add("image-loading");
-      return;
-    }
-    if (img.complete) {
-      syncImagePlaceholderState(img);
-      return;
-    }
-    frame.classList.remove("image-ready", "image-error"), frame.classList.add("image-loading");
-  }
-}
-function initImagePlaceholderObserver() {
-  if (document.querySelectorAll(`${IMAGE_PLACEHOLDER_FRAME_SELECTOR} img`).forEach((image) => {
-    image instanceof HTMLImageElement && prepareImagePlaceholder(image);
-  }), document.addEventListener("load", (event) => {
-    event.target instanceof HTMLImageElement && syncImagePlaceholderState(event.target);
-  }, !0), document.addEventListener("error", (event) => {
-    event.target instanceof HTMLImageElement && syncImagePlaceholderState(event.target);
-  }, !0), !("MutationObserver" in window) || !document.body) return;
-  new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      if (mutation.type === "attributes" && mutation.target instanceof HTMLImageElement) {
-        prepareImagePlaceholder(mutation.target);
-        return;
-      }
-      mutation.addedNodes.forEach((node) => {
-        node instanceof Element && (node instanceof HTMLImageElement && prepareImagePlaceholder(node), node.querySelectorAll?.("img").forEach((image) => {
-          image instanceof HTMLImageElement && prepareImagePlaceholder(image);
-        }));
-      });
-    });
-  }).observe(document.body, {
-    subtree: !0,
-    childList: !0,
-    attributes: !0,
-    attributeFilter: ["src", "data-src"]
-  });
-}
-function hasHoverPointer() {
-  if (typeof window.matchMedia != "function") return !0;
-  let primaryFineHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches, anyFineHover = window.matchMedia("(any-hover: hover) and (any-pointer: fine)").matches;
-  return primaryFineHover || anyFineHover;
-}
-function isTouchLikePointer(event) {
-  return !!(event && "pointerType" in event && (event.pointerType === "touch" || event.pointerType === "pen"));
-}
-function encodeHashRouteSegment(value) {
-  return encodeURIComponent(String(value ?? ""));
-}
-function decodeHashRouteSegment(value) {
-  let segment = String(value || "");
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
-}
-function encodeShareRoutePath(path) {
-  let normalizedPath = normalizeShareRoutePath(path);
-  return normalizedPath ? normalizedPath.split("/").map(encodeHashRouteSegment).join("/") : "";
-}
-function buildCategoryShareRouteHash(path) {
-  let encodedPath = encodeShareRoutePath(path);
-  return encodedPath ? `#cat/${encodedPath}` : "";
-}
-function findCatalogById(id) {
-  let catalogId = String(id || "");
-  return catalogs.find((item) => String(item.id || "") === catalogId) || null;
 }
 function syncDocumentLock() {
   let documentLocked = !!(getFeatureInterface("favorites")?.requiresDocumentLock() || getFeatureInterface("inquiry")?.requiresDocumentLock() || getFeatureInterface("viewer")?.requiresDocumentLock()), viewerOpen = !!getFeatureInterface("viewer")?.isViewerOpen();
@@ -2524,7 +2522,7 @@ function showSearchFloatingPreview(target) {
   let src = String(target.dataset.searchPreviewSrc || "").trim();
   if (!src) return;
   let label = searchPreviewPageLabel(target), previewImage = searchElements.searchFloatingPreviewImage;
-  previewImage.removeAttribute("width"), previewImage.removeAttribute("height"), previewImage.onload = () => positionSearchFloatingPreview(target), setCatalogImageSource(previewImage, src), searchElements.searchFloatingPreviewImage.alt = label, searchElements.searchFloatingPreviewPage && (searchElements.searchFloatingPreviewPage.textContent = label), searchElements.searchFloatingPreview.classList.add("visible"), positionSearchFloatingPreview(target);
+  previewImage.removeAttribute("width"), previewImage.removeAttribute("height"), previewImage.onload = () => positionSearchFloatingPreview(target), previewImage.src = src, searchElements.searchFloatingPreviewImage.alt = label, searchElements.searchFloatingPreviewPage && (searchElements.searchFloatingPreviewPage.textContent = label), searchElements.searchFloatingPreview.classList.add("visible"), positionSearchFloatingPreview(target);
 }
 function bindSearchFloatingPreviewEvents(container) {
   container && container.querySelectorAll("[data-search-preview-src]").forEach((candidate) => {
@@ -2642,7 +2640,7 @@ async function renderLightboxSearchResults(query) {
         <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
           <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
           <span class="reader-search-thumb-frame catalog-image-frame">
-            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-search-results")}${catalogImageCrossOriginAttribute(rawImage)} />
+            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-search-results")} />
           </span>
           <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
         </button>
@@ -2737,7 +2735,7 @@ function globalSearchResultMarkup(result) {
       <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
         <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
         <span class="search-result-thumb-frame catalog-image-frame">
-          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "global-search-results")}${catalogImageCrossOriginAttribute(rawImage)} />
+          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "global-search-results")} />
         </span>
         <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
       </button>
@@ -3147,7 +3145,7 @@ function renderCatalogCard(catalog, headingLevel = 3) {
   return `
     <article class="catalog-card">
       <a class="catalog-cover-frame catalog-image-frame catalog-cover-button" href="${catalogHref}" data-open-catalog-entry="${safeCatalogId}" aria-label="פתיחת הקטלוג ${safeTitle}">
-        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageRecoveryAttributes(catalog, 1, "cover", "catalog-grid")}${catalogImageCrossOriginAttribute(cover)} />
+        <img class="catalog-cover" src="${escapeHtml(cover)}" alt="כריכת ${safeTitle}"${catalogImageDimensionAttributes(catalog, 1)}${catalogCoverLoadingAttributes(catalog)}${catalogImageRecoveryAttributes(catalog, 1, "cover", "catalog-grid")} />
         <span class="catalog-cover-card-entry-hint" aria-hidden="true">פתיחת הקטלוג</span>
       </a>
       <div class="catalog-body">
@@ -3278,7 +3276,7 @@ function renderPageGrid() {
       <article class="page-card">
         <a class="page-button" href="${escapeHtml(viewerDocumentUrl(catalog.id, page))}" data-open-page="${page}">
           <div class="page-thumb-wrap"${pageAspectVariableStyle(catalog, page, "--page-thumb-aspect-ratio")}>
-            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "catalog-page-grid")}${catalogImageCrossOriginAttribute(thumbSrc(catalog, page))} />
+            <img class="page-thumb" src="${escapeHtml(thumbSrc(catalog, page))}" alt="${escapeHtml(catalog.title)} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async" fetchpriority="low"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "catalog-page-grid")} />
             <span class="page-number-badge">${page}</span>
           </div>
           <div class="page-card-body">
@@ -3364,7 +3362,7 @@ function renderDetailCatalogMenu() {
 }
 function renderCatalogDetail() {
   let catalog = activeCatalog();
-  catalog && (showCatalogDetail(), catalogElements.catalogTitle.textContent = catalog.title, catalogElements.catalogDescription.textContent = catalog.description || "", updateDetailCatalogMenuLabel(catalog), catalogElements.catalogCoverPreview && (applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, catalogFirstPage(catalog)), setCatalogImageSource(catalogElements.catalogCoverPreview, coverThumbSrc(catalog)), catalogElements.catalogCoverPreview.loading = "lazy", catalogElements.catalogCoverPreview.decoding = "async", catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`), catalogElements.openCatalogEntryFromDetail && (catalogElements.openCatalogEntryFromDetail.disabled = catalog.pages < 1), catalogElements.catalogMenu && !catalogElements.catalogMenu.classList.contains("hidden") && renderDetailCatalogMenu(), renderPageGrid(), scheduleCatalogScrollTopButtonUpdate());
+  catalog && (showCatalogDetail(), catalogElements.catalogTitle.textContent = catalog.title, catalogElements.catalogDescription.textContent = catalog.description || "", updateDetailCatalogMenuLabel(catalog), catalogElements.catalogCoverPreview && (applyCatalogImageDimensions(catalogElements.catalogCoverPreview, catalog, catalogFirstPage(catalog)), catalogElements.catalogCoverPreview.src = coverThumbSrc(catalog), catalogElements.catalogCoverPreview.loading = "lazy", catalogElements.catalogCoverPreview.decoding = "async", catalogElements.catalogCoverPreview.alt = `שער ${catalog.title}`), catalogElements.openCatalogEntryFromDetail && (catalogElements.openCatalogEntryFromDetail.disabled = catalog.pages < 1), catalogElements.catalogMenu && !catalogElements.catalogMenu.classList.contains("hidden") && renderDetailCatalogMenu(), renderPageGrid(), scheduleCatalogScrollTopButtonUpdate());
 }
 function openCatalog(id, options = {}) {
   let { scroll = !1, openPage = null, scrollBehavior = "smooth" } = options, catalog = catalogs.find((item) => item.id === id) || null;

@@ -13,7 +13,8 @@ import { catalogDocumentUrl, isAppPage, updateDocumentMetadata, viewerDocumentUr
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { AUTO_VIEWER_ZOOM, MAX_VIEWER_ZOOM, MIN_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_TURN_BUFFER_MAX_PX, VIEWER_PAGE_TURN_BUFFER_MIN_PX, VIEWER_PAGE_TURN_BUFFER_VIEWPORT_RATIO, viewerElements, viewerGestureState, viewerViewportState } from "./16-viewer-state.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
-import { clampValue, pageSize } from "./20-shared-ui.js";
+import { clampValue } from "./19-shared-pure.js";
+import { pageSize } from "./20-catalog-runtime.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
 
 function updateHash() {

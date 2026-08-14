@@ -77,9 +77,9 @@ same meaning and ordering.
 ### Runtime delta for canonical-only closeout
 
 The closeout intentionally removes executable compatibility logic, so the three
-routes that include `20-shared-ui.js` are no longer byte-identical to the
+routes that included the former shared UI owner are no longer byte-identical to the
 pre-closeout build. The builder diff was isolated to the body of
-`catalogSubcategoryName`; all other generated assets stayed byte-identical.
+`catalogSubcategoryName` (now owned by `20-catalog-runtime.js`); all other generated assets stayed byte-identical.
 
 | Asset | Before bytes | After bytes | Delta | SHA-256 prefix after |
 | --- | ---: | ---: | ---: | --- |

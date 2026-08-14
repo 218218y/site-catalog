@@ -68,7 +68,7 @@ async function testPreparationLifecycle() {
     telemetryTrackImageRecovery() {},
   });
 
-  const shared = importFrontendModule("src/js/20-shared-ui.js");
+  const shared = importFrontendModule("src/js/20-catalog-runtime.js");
   const requestContext = Object.freeze({
     requestId: "ir-stage-shared1",
     detail: "viewer-single",

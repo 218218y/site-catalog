@@ -28,7 +28,7 @@ Object.assign(globalThis, {
   CATALOG_IMAGE_TIER_FULL: 'full',
   DEFAULT_CATALOG_MEDIUM_MAX_SIDE: 1600
 });
-const shared = importFrontendModule('src/js/20-shared-ui.js');
+const shared = importFrontendModule('src/js/20-catalog-runtime.js');
 
 function setNetwork({ mode = 'responsive', saveData = false, effectiveType = '4g' } = {}) {
   window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = mode;

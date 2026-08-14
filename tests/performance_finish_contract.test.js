@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const appState = fs.readFileSync(path.join(root, "src/js/10-app-state.js"), "utf8");
-const sharedUi = fs.readFileSync(path.join(root, "src/js/20-shared-ui.js"), "utf8");
+const imageRuntime = fs.readFileSync(path.join(root, "src/js/20-catalog-runtime.js"), "utf8");
 const catalogGrid = fs.readFileSync(path.join(root, "src/js/40-catalog-grid.js"), "utf8");
 const telemetry = fs.readFileSync(path.join(root, "src/js/15-telemetry.js"), "utf8");
 const telemetryFunction = fs.readFileSync(path.join(root, "functions/api/telemetry.js"), "utf8");
@@ -15,9 +15,9 @@ const verifier = fs.readFileSync(path.join(root, "tools/verify_project.py"), "ut
 const budgets = JSON.parse(fs.readFileSync(path.join(root, "performance-budgets.json"), "utf8"));
 
 assert.match(appState, /const CATALOG_EAGER_COVER_COUNT = 2;/);
-assert.match(sharedUi, /function catalogImageDimensionAttributes\(/);
-assert.match(sharedUi, /function catalogCoverLoadingAttributes\(/);
-assert.match(sharedUi, /loading="eager" decoding="async" fetchpriority="high"/);
+assert.match(imageRuntime, /function catalogImageDimensionAttributes\(/);
+assert.match(imageRuntime, /function catalogCoverLoadingAttributes\(/);
+assert.match(imageRuntime, /loading="eager" decoding="async" fetchpriority="high"/);
 assert.match(catalogGrid, /catalogImageDimensionAttributes\(catalog, 1\)/);
 assert.match(catalogGrid, /catalogCoverLoadingAttributes\(catalog\)/);
 assert.match(pageBuilder, /width="\{width\}" height="\{height\}" loading="\{loading\}"/);

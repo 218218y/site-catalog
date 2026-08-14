@@ -12,8 +12,11 @@
 import { absoluteDocumentUrl, viewerDocumentUrl } from "./00-navigation.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { FAVORITES_NOTE_MAX_LENGTH, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
-import { catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, escapeHtml, flashActionButton, focusHtmlElement, isHtmlElement, pageAspectStyle, showActionToast, syncDocumentLock, thumbSrc } from "./20-shared-ui.js";
+import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, pageAspectStyle } from "./20-catalog-runtime.js";
+import { escapeHtml } from "./19-shared-pure.js";
+import { flashActionButton, focusHtmlElement, isHtmlElement, showActionToast, syncDocumentLock } from "./21-ui-runtime.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
+import { thumbSrc } from "./17-catalog-asset-urls.js";
 import { buildFavoritesShareUrl, copyTextToClipboard, favoritesPortabilityDomain, getFavoriteEntries, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary } from "./30-favorites-share.js";
 
 /** @param {FavoriteEntry} entry */
@@ -224,7 +227,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
       </button>
       <button class="favorite-preview-button" type="button" data-open-favorite="1" aria-label="פתיחת ${title}, עמוד ${page}">
         <span class="favorite-image-frame catalog-image-frame"${pageAspectStyle(catalog, page)}>
-          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "favorites-grid")}${catalogImageCrossOriginAttribute(image)} />
+          <img src="${escapeHtml(image)}" alt="${title} - עמוד ${page}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "favorites-grid")} />
         </span>
         <span class="favorite-card-meta">
           <strong>${title}</strong>

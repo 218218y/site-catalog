@@ -14,7 +14,8 @@ import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface, r
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { telemetryInit } from "./15-telemetry.js";
 import { clearActiveLocation, navigationFeature } from "./18-navigation-feature.js";
-import { findCatalogById, handleTopLayerEscape, initImagePlaceholderObserver, recoverCatalogImageAfterInitialFailure, syncDocumentLock } from "./20-shared-ui.js";
+import { findCatalogById, initImagePlaceholderObserver, recoverCatalogImageAfterInitialFailure } from "./20-catalog-runtime.js";
+import { handleTopLayerEscape, syncDocumentLock } from "./21-ui-runtime.js";
 
 function attachShellEvents() {
   const catalogGrid = requireFeatureInterface("catalog-grid");

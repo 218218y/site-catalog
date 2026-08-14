@@ -17,7 +17,7 @@ Object.assign(globalThis, {
   ],
 });
 
-const shared = importFrontendModule("src/js/20-shared-ui.js");
+const shared = importFrontendModule("src/js/20-catalog-runtime.js");
 const groups = shared.getCatalogCategoryGroups();
 
 assert.equal(groups.length, 1);

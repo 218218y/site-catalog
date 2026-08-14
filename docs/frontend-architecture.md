@@ -87,7 +87,7 @@
 - route capability flags מוזרקים בזמן build דרך `01-route-capabilities.js`, אבל הם אינם תחליף ל־tree shaking: Feature שאינו במסלול חייב להיעדר פיזית מהגרף.
 - `dynamic import` אינו מאושר כרגע: אין בפרויקט יכולת אופציונלית כבדה שמצדיקה chunk נוסף, נתיב פריסה נוסף ומסלול כשל נוסף. `catalog-snapshot.js` קטן ומיובא רק מה־adapter של Viewer, ללא script עצמאי, ללא בקשת רשת נוספת וללא כניסה לגרפי Catalog/Favorites. `catalog` ו־`favorites` כבר מפוצלים לפי מסלול, ואילו Search, Catalog Grid ו־Favorites Workspace ב־Viewer נשארים eager באותו document כדי שמעבר בזמן fullscreen לא יגרום ליציאה ממסך מלא.
 - גרף ה־imports נבדק באמצעות strongly connected components, וכל מחזור אסור ללא allowlist או חריגים. תת־מודולי ה־Viewer בנויים כשכבות חד־כיווניות: state ו־geometry בתחתית, controllers לפקודות zoom/fit/page/layout מעליהם, shell להצגת UI, ו־`60-viewer.js` כ־composition/lifecycle root עליון שאף תת־מודול אינו מייבא. כך סדר האתחול נגזר מהגרף עצמו ואינו נשען על TDZ, side effects או הסכמה ידנית למחזור.
-- `02-dom-contracts.js`, `03-runtime-context.js` ו־`17-catalog-asset-urls.js` הם owners נמוכים ועצמאיים שנועדו למנוע תלות הפוכה בין Navigation, Shared UI, Telemetry ו־App Shell. Telemetry מקבלת callback לשחזור תמונה דרך dependency injection, ו־Navigation מבקש render מחדש דרך חוזה `app-shell` במקום לייבא את ה־composition root.
+- `02-dom-contracts.js`, `03-runtime-context.js`, `17-catalog-asset-urls.js`, `19-shared-pure.js`, `20-catalog-runtime.js` ו־`21-ui-runtime.js` הם owners נמוכים וממוקדים שנועדו למנוע תלות הפוכה בין Navigation, Catalog, Media, Telemetry ו־App Shell. Telemetry מקבלת callback לשחזור תמונה דרך dependency injection, ו־Navigation מבקש render מחדש דרך חוזה `app-shell` במקום לייבא את ה־composition root.
 
 ## מודולי JavaScript
 
@@ -95,7 +95,7 @@
 |---|---|
 | `00-navigation.js` | כתובות, history, ניווט פנימי ומטא־דאטה |
 | `01-route-capabilities.js` | יכולות Route מוזרקות בזמן build ומאומתות כקלט compiler וירטואלי |
-| `02-dom-contracts.js` | lookup טיפוסי וחוזי DOM משותפים |
+| `02-dom-contracts.js` | lookup טיפוסי, focus וחוזי pointer/DOM משותפים |
 | `03-runtime-context.js` | נתוני bootstrap לקריאה בלבד: קטלוגים, חיפוש ו־routes |
 | `05-app-contracts.js` | טיפוסי JSDoc וחוזי Feature משותפים |
 | `10-app-state.js` | שירותים route-neutral ורישום Feature Interfaces |
@@ -107,8 +107,9 @@
 | `16-viewer-state.js` | מצב ו־DOM של Viewer בלבד |
 | `17-catalog-asset-urls.js` | יצירת כתובות נכסי קטלוג וגרסאות cache |
 | `18-navigation-feature.js` | facade טיפוסי לבעלות ניווט ו־Route shell |
-| `19-shared-pure.js` | מדיניות טהורה משותפת, ללא DOM או state |
-| `20-shared-ui.js` | שירותי UI משותפים שאינם בבעלות Feature יחיד |
+| `19-shared-pure.js` | primitives ומדיניות טהורה משותפת, ללא DOM או state |
+| `20-catalog-runtime.js` | catalog grouping/share routes לצד image delivery/recovery/preload ו־placeholder lifecycle |
+| `21-ui-runtime.js` | focus/pointer primitives, feedback, tooltips, document lock ו־top-layer coordination |
 | `29-favorites-portability.js` | codec ומדיניות טהורה לייבוא, מיזוג ושיתוף מועדפים |
 | `30-favorites-share.js` | store ושיתוף בסיסי של מועדפים |
 | `31-viewer-share.js` | שיתוף וצילום שתלויים ב־Viewer |

@@ -10,7 +10,7 @@ Object.assign(globalThis, {
   CATALOG_IMAGE_RETRY_PARAM: 'bargig_retry',
   CATALOG_ASSET_VERSION_PARAM: 'v'
 });
-const api = importFrontendModule('src/js/20-shared-ui.js');
+const api = importFrontendModule('src/js/20-catalog-runtime.js');
 
 const candidates = api.catalogImageRecoveryCandidates(
   'https://cdn.example.test/full.webp?v=release-full-u2',

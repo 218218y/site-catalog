@@ -7,6 +7,7 @@
  */
 
 /** @import { CatalogSearchResult } from "../../types/frontend-contracts.js" */
+import { hasHoverPointer, isHtmlElement, isTouchLikePointer } from "./21-ui-runtime.js";
 
 import { tooltips } from "../runtime/tooltip-manager.js";
 import { catalogDocumentUrl, currentAppPage, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
@@ -15,8 +16,10 @@ import { getFeatureInterface, registerFeatureInterface, requireFeatureInterface 
 import { MOBILE_READER_SEARCH_MEDIA, SEARCH_INDEX_PRELOAD_DELAY_MS, SEARCH_INPUT_DEBOUNCE_MS, SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, searchElements, searchState } from "./13-search-state.js";
 import { telemetryCleanText, telemetryFlush, telemetryTrackSearch, telemetryTrackSearchIndexFailure } from "./15-telemetry.js";
 import { activeCatalog } from "./18-navigation-feature.js";
-import { catalogImageCrossOriginAttribute, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, clampValue, escapeHtml, getCatalogCategoryGroups, hasHoverPointer, isHtmlElement, isSaveDataEnabled, isTouchLikePointer, mediumSrc, pageSrc, setCatalogImageSource, thumbSrc } from "./20-shared-ui.js";
+import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, getCatalogCategoryGroups, isSaveDataEnabled, mediumSrc } from "./20-catalog-runtime.js";
+import { clampValue, escapeHtml } from "./19-shared-pure.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
+import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
 import { searchCatalogDomain } from "./39-search-catalog-domain.js";
 
 /** @typedef {"global"|"viewer"} SearchChannel */
@@ -664,7 +667,7 @@ function showSearchFloatingPreview(target) {
   previewImage.removeAttribute("width");
   previewImage.removeAttribute("height");
   previewImage.onload = () => positionSearchFloatingPreview(target);
-  setCatalogImageSource(previewImage, src);
+  previewImage.src = src;
   searchElements.searchFloatingPreviewImage.alt = label;
   if (searchElements.searchFloatingPreviewPage) searchElements.searchFloatingPreviewPage.textContent = label;
 
@@ -929,7 +932,7 @@ async function renderLightboxSearchResults(query) {
         <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
           <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
           <span class="reader-search-thumb-frame catalog-image-frame">
-            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-search-results")}${catalogImageCrossOriginAttribute(rawImage)} />
+            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-search-results")} />
           </span>
           <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
         </button>
@@ -1070,7 +1073,7 @@ function globalSearchResultMarkup(result) {
       <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
         <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
         <span class="search-result-thumb-frame catalog-image-frame">
-          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "global-search-results")}${catalogImageCrossOriginAttribute(rawImage)} />
+          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "global-search-results")} />
         </span>
         <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
       </button>

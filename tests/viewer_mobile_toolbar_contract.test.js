@@ -9,7 +9,7 @@ const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const app = readAllBundles();
 const searchStateSource = fs.readFileSync(path.join(root, 'src/js/13-search-state.js'), 'utf8');
-const sharedUiSource = fs.readFileSync(path.join(root, 'src/js/20-shared-ui.js'), 'utf8');
+const uiRuntimeSource = fs.readFileSync(path.join(root, 'src/js/21-ui-runtime.js'), 'utf8');
 const searchUiSource = fs.readFileSync(path.join(root, 'src/js/50-search-ui.js'), 'utf8');
 const viewerShellSource = fs.readFileSync(path.join(root, 'src/js/56-viewer-shell.js'), 'utf8');
 const viewerSource = fs.readFileSync(path.join(root, 'src/js/60-viewer.js'), 'utf8');
@@ -30,7 +30,7 @@ assert.match(searchUiSource, /getFeatureInterface\("viewer"\)\?\.syncMobileSearc
 assert.match(viewerSource, /syncMobileSearchUi: \(isOpen\) => viewerElements\.lightbox\?\.classList\.toggle\("mobile-search-open", Boolean\(isOpen\)\)/);
 assert.match(searchStateSource, /lightboxMobileSearchToggle: \$requiredButton\("lightboxMobileSearchToggle"\)/);
 assert.match(searchStateSource, /lightboxMobileSearchClose: \$requiredButton\("lightboxMobileSearchClose"\)/);
-assert.match(sharedUiSource, /function handleTopLayerEscape\(event\)[\s\S]*?featureInterfacesByEscapePriority\(\)[\s\S]*?api\.closeTopLayer\(event\)/);
+assert.match(uiRuntimeSource, /function handleTopLayerEscape\(event\)[\s\S]*?featureInterfacesByEscapePriority\(\)[\s\S]*?api\.closeTopLayer\(event\)/);
 assert.match(viewerSource, /closeTopLayer: \(event\) => \{[\s\S]*?viewerChromeState\.viewerMobileMoreOpen[\s\S]*?closeViewerMobileMoreMenu\(\{ returnFocus: true \}\)/);
 assert.match(viewerActionsSource, /function setViewerMobileMoreOpen\(open, options = \{\}\)/);
 assert.match(viewerShellSource, /function openTopUiFromHotspot\(event = null\)[\s\S]*?markTouchLikeViewportInput\(event\);[\s\S]*?showTopUiTemporarily\(0\);/);

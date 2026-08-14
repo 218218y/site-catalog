@@ -11,7 +11,7 @@ const contracts = read("types/frontend-contracts.d.ts");
 const globals = read("types/frontend-globals.d.ts");
 const catalogDataModule = read("catalogs.generated.module.js");
 const marker = read("src/js/05-app-contracts.js");
-const sharedUi = read("src/js/20-shared-ui.js");
+const catalogRuntime = read("src/js/20-catalog-runtime.js");
 const packageJson = JSON.parse(read("package.json"));
 const verifier = read("tools/verify_project.py");
 const frontendContracts = read("tools/check_frontend_contracts.py");
@@ -44,9 +44,9 @@ for (const nonCanonicalField of ["subCategory", "sub_category", "thumbDir", "med
   assert.doesNotMatch(generated, new RegExp(String.raw`\b${nonCanonicalField}\b`));
 }
 assert.equal(fs.existsSync(path.join(root, "types/catalog-legacy-input.d.ts")), false);
-assert.doesNotMatch(sharedUi, /LegacyCatalogRecordInput|catalog-legacy-input|subCategory|sub_category|thumbDir|mediumDir/);
+assert.doesNotMatch(catalogRuntime, /LegacyCatalogRecordInput|catalog-legacy-input|subCategory|sub_category|thumbDir|mediumDir/);
 assert.match(
-  sharedUi,
+  catalogRuntime,
   /function catalogSubcategoryName\(catalog\) \{\s*return String\(catalog\?\.subcategory \|\| ""\)\.trim\(\);\s*\}/,
 );
 
