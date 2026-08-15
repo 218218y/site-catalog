@@ -2,9 +2,9 @@
 """Create and maintain the project's isolated Python development environment.
 
 The environment lives in ``.venv`` and contains both catalog build requirements
-and development tooling.  Freshness is tied to the pinned requirements *and*
-the canonical Python runtime contract, so a runtime change cannot leave an old
-virtual environment incorrectly marked as current.
+and development tooling. Freshness is tied to the pinned requirements and the
+selected supported runtime, so changing Python minor versions cannot leave an
+old virtual environment incorrectly marked as current.
 """
 from __future__ import annotations
 
@@ -24,10 +24,10 @@ from python_toolchain import (
     PYTHON_VERSION_FILE,
     PythonRuntimeIdentity,
     inspect_python_runtime,
-    read_python_version_pin,
-    require_current_runtime,
+    read_python_version_baseline,
+    require_supported_current_runtime,
     runtime_identity_from_json,
-    runtime_matches_pin,
+    runtime_satisfies_baseline,
 )
 
 REQUIRED_IMPORTS: tuple[str, ...] = ("pytest", "fitz", "PIL", "ruff", "mypy")
@@ -179,26 +179,37 @@ def _load_environment_stamp(path: Path) -> EnvironmentStamp | None:
     return EnvironmentStamp(stamp_format, fingerprint, runtime)
 
 
-def environment_is_current(root: Path, python: Path, fingerprint: str) -> bool:
+def environment_is_current(
+    root: Path,
+    python: Path,
+    fingerprint: str,
+    host_runtime: PythonRuntimeIdentity,
+) -> bool:
     if not python.is_file():
         return False
     stamp = _load_environment_stamp(root / ".venv" / STAMP_NAME)
     if stamp is None or stamp.environment_fingerprint != fingerprint:
         return False
     runtime = inspect_python_runtime(python)
-    if runtime is None or runtime != stamp.runtime:
+    if runtime is None or runtime != stamp.runtime or runtime != host_runtime:
         return False
-    pin = read_python_version_pin(root)
-    if not runtime_matches_pin(runtime, pin):
+    baseline = read_python_version_baseline(root)
+    if not runtime_satisfies_baseline(runtime, baseline):
         return False
     return not missing_imports(python) and not mismatched_distribution_versions(python)
 
 
-def _environment_requires_rebuild(root: Path, python: Path) -> bool:
+def _environment_requires_rebuild(
+    root: Path,
+    python: Path,
+    host_runtime: PythonRuntimeIdentity,
+) -> bool:
     if not python.is_file():
         return True
     runtime = inspect_python_runtime(python)
-    if runtime is None or not runtime_matches_pin(runtime, read_python_version_pin(root)):
+    if runtime is None or runtime != host_runtime:
+        return True
+    if not runtime_satisfies_baseline(runtime, read_python_version_baseline(root)):
         return True
     stamp = _load_environment_stamp(root / ".venv" / STAMP_NAME)
     return stamp is None or stamp.runtime != runtime
@@ -216,27 +227,25 @@ def _recreate_environment(environment_dir: Path, *, quiet: bool) -> None:
 
 def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
     root = root.resolve()
-    host_runtime = require_current_runtime(root)
+    host_runtime = require_supported_current_runtime(root)
     environment_dir = root / ".venv"
     python = venv_python_path(root)
     fingerprint = environment_fingerprint(root)
 
-    if environment_is_current(root, python, fingerprint):
+    if environment_is_current(root, python, fingerprint, host_runtime):
         if not quiet:
             print(f"Python environment is ready: {python}")
         return python
 
-    if _environment_requires_rebuild(root, python):
+    if _environment_requires_rebuild(root, python, host_runtime):
         _recreate_environment(environment_dir, quiet=quiet)
         python = venv_python_path(root)
 
     environment_runtime = inspect_python_runtime(python)
-    if environment_runtime is None or not runtime_matches_pin(
-        environment_runtime,
-        read_python_version_pin(root),
-    ):
+    if environment_runtime is None or environment_runtime != host_runtime:
         raise RuntimeError(
-            f"Virtual environment does not use required Python {host_runtime.version_text}: {python}"
+            "Virtual environment runtime does not match the interpreter selected "
+            f"for setup (Python {host_runtime.version_text}): {python}"
         )
 
     requirements = root / "tools" / "requirements-dev.txt"

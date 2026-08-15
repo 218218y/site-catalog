@@ -35,9 +35,9 @@ def test_python_quality_configuration_is_a_deliberate_ratchet() -> None:
     ruff = config["tool"]["ruff"]
     mypy = config["tool"]["mypy"]
 
-    python_version = (ROOT / ".python-version").read_text(encoding="utf-8").strip()
-    assert ruff["target-version"] == f"py{python_version.replace('.', '')}"
-    assert mypy["python_version"] == python_version
+    python_baseline = (ROOT / ".python-version").read_text(encoding="utf-8").strip()
+    assert ruff["target-version"] == f"py{python_baseline.replace('.', '')}"
+    assert mypy["python_version"] == python_baseline
     assert ruff["lint"]["select"] == ["E9", "F63", "F7", "F82"]
     assert mypy["disallow_untyped_defs"] is True
     assert mypy["check_untyped_defs"] is True

@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Resolve a usable Python 3 interpreter and run a project Python tool safely.
+ * Resolve a supported Python 3 interpreter and run a project Python tool safely.
  *
  * By default the requested tool is executed through run_with_project_python.py,
  * which creates/validates the project-managed .venv before delegation. Pass
@@ -15,7 +15,7 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..");
 const PYTHON_VERSION_FILE = ".python-version";
 
-function readPythonPin(root = ROOT) {
+function readPythonBaseline(root = ROOT) {
   const pinPath = path.join(root, PYTHON_VERSION_FILE);
   const value = fs.readFileSync(pinPath, "utf8").trim();
   const match = /^(\d+)\.(\d+)$/u.exec(value);
@@ -25,9 +25,9 @@ function readPythonPin(root = ROOT) {
   return Object.freeze({ major: Number(match[1]), minor: Number(match[2]), text: value });
 }
 
-const REQUIRED_PYTHON = readPythonPin();
+const PYTHON_BASELINE = readPythonBaseline();
 
-function uniqueCandidates(required = REQUIRED_PYTHON) {
+function uniqueCandidates(baseline = PYTHON_BASELINE) {
   const candidates = [];
   const seen = new Set();
   const add = (command, prefix = []) => {
@@ -40,18 +40,23 @@ function uniqueCandidates(required = REQUIRED_PYTHON) {
 
   add(process.env.PYTHON, []);
   if (process.platform === "win32") {
-    add("py", [`-${required.major}.${required.minor}`]);
+    add("py", ["-3"]);
     add("python", []);
     add("python3", []);
+    add("py", [`-${baseline.major}.${baseline.minor}`]);
   } else {
-    add(`python${required.major}.${required.minor}`, []);
     add("python3", []);
     add("python", []);
+    add(`python${baseline.major}.${baseline.minor}`, []);
   }
   return candidates;
 }
 
-function probePython(candidate, required = REQUIRED_PYTHON) {
+function runtimeSatisfiesBaseline(major, minor, baseline = PYTHON_BASELINE) {
+  return major === baseline.major && minor >= baseline.minor;
+}
+
+function probePython(candidate, baseline = PYTHON_BASELINE) {
   const probe = spawnSync(
     candidate.command,
     [
@@ -73,7 +78,7 @@ function probePython(candidate, required = REQUIRED_PYTHON) {
     if (!Number.isInteger(major) || !Number.isInteger(minor) || typeof executable !== "string") {
       return null;
     }
-    if (major !== required.major || minor !== required.minor) {
+    if (!runtimeSatisfiesBaseline(major, minor, baseline)) {
       return null;
     }
     return Object.freeze({ ...candidate, major, minor, executable });
@@ -82,14 +87,14 @@ function probePython(candidate, required = REQUIRED_PYTHON) {
   }
 }
 
-function resolvePython(required = REQUIRED_PYTHON) {
-  for (const candidate of uniqueCandidates(required)) {
-    const resolved = probePython(candidate, required);
+function resolvePython(baseline = PYTHON_BASELINE) {
+  for (const candidate of uniqueCandidates(baseline)) {
+    const resolved = probePython(candidate, baseline);
     if (resolved) return resolved;
   }
   throw new Error(
-    `Python ${required.text} required by ${PYTHON_VERSION_FILE} was not found. ` +
-      "Install the pinned runtime, or set PYTHON to its full interpreter path.",
+    `Python ${baseline.text}+ within Python ${baseline.major}.x is required by ${PYTHON_VERSION_FILE}. ` +
+      "Install a supported runtime, or set PYTHON to its full interpreter path.",
   );
 }
 
@@ -172,15 +177,16 @@ function main(argv = process.argv.slice(2)) {
 
 module.exports = {
   PYTHON_VERSION_FILE,
-  REQUIRED_PYTHON,
+  PYTHON_BASELINE,
   ROOT,
   buildInvocation,
   main,
   parseArguments,
   probePython,
-  readPythonPin,
+  readPythonBaseline,
   resolveProjectScript,
   resolvePython,
+  runtimeSatisfiesBaseline,
   runInvocation,
   uniqueCandidates,
 };

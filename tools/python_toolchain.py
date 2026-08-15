@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Canonical Python runtime contract shared by project tooling.
+"""Canonical Python runtime compatibility contract shared by project tooling.
 
-The project pins one Python major/minor line in ``.python-version``.  Python
-bootstrap, diagnostics, CI, static analysis and the Node launcher all derive
-from that contract instead of carrying independent minimum-version rules.
+``.python-version`` defines the oldest supported Python major/minor line. CI and
+static analysis target that baseline, while local tooling accepts newer minor
+releases in the same major version. This keeps compatibility deliberate without
+forcing developers to install an older interpreter solely to run project tools.
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ RuntimeProbeRunner = Callable[..., subprocess.CompletedProcess[str]]
 
 
 @dataclass(frozen=True)
-class PythonVersionPin:
+class PythonVersionBaseline:
     major: int
     minor: int
 
@@ -45,17 +46,17 @@ class PythonRuntimeIdentity:
         return f"{self.major}.{self.minor}"
 
 
-def read_python_version_pin(root: Path) -> PythonVersionPin:
+def read_python_version_baseline(root: Path) -> PythonVersionBaseline:
     path = root / PYTHON_VERSION_FILE
     if not path.is_file():
-        raise FileNotFoundError(f"Missing Python toolchain pin: {path}")
+        raise FileNotFoundError(f"Missing Python compatibility baseline: {path}")
     value = path.read_text(encoding="utf-8").strip()
     match = _VERSION_PATTERN.fullmatch(value)
     if match is None:
         raise ValueError(
-            f"Invalid {PYTHON_VERSION_FILE}: expected '<major>.<minor>', got {value!r}"
+            f"Invalid {PYTHON_VERSION_FILE}: expected '<major>.<minor>' baseline, got {value!r}"
         )
-    return PythonVersionPin(int(match.group("major")), int(match.group("minor")))
+    return PythonVersionBaseline(int(match.group("major")), int(match.group("minor")))
 
 
 def current_runtime_identity() -> PythonRuntimeIdentity:
@@ -145,17 +146,25 @@ def inspect_python_runtime(
     return _runtime_from_mapping(payload)
 
 
-def runtime_matches_pin(identity: PythonRuntimeIdentity, pin: PythonVersionPin) -> bool:
-    return identity.major == pin.major and identity.minor == pin.minor
+def runtime_satisfies_baseline(
+    identity: PythonRuntimeIdentity,
+    baseline: PythonVersionBaseline,
+) -> bool:
+    return (
+        identity.major == baseline.major
+        and identity.minor >= baseline.minor
+    )
 
 
-def require_current_runtime(root: Path) -> PythonRuntimeIdentity:
-    pin = read_python_version_pin(root)
+def require_supported_current_runtime(root: Path) -> PythonRuntimeIdentity:
+    baseline = read_python_version_baseline(root)
     identity = current_runtime_identity()
-    if not runtime_matches_pin(identity, pin):
+    if not runtime_satisfies_baseline(identity, baseline):
         raise RuntimeError(
-            f"Python {pin.text} is required by {PYTHON_VERSION_FILE}; "
-            f"current interpreter is Python {identity.version_text}."
+            f"Python {baseline.text}+ is required by {PYTHON_VERSION_FILE}; "
+            f"current interpreter is Python {identity.version_text}. "
+            f"Use Python {baseline.major}.{baseline.minor} or a newer "
+            f"Python {baseline.major}.x release."
         )
     return identity
 

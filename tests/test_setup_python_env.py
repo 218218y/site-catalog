@@ -51,7 +51,7 @@ def test_venv_python_path_is_cross_platform(tmp_path: Path) -> None:
     assert MODULE.venv_python_path(tmp_path, platform="posix") == tmp_path / ".venv/bin/python"
 
 
-def test_environment_fingerprint_changes_with_dev_requirements_and_python_pin(tmp_path: Path) -> None:
+def test_environment_fingerprint_changes_with_dev_requirements_and_python_baseline(tmp_path: Path) -> None:
     _write_environment_inputs(tmp_path)
     first = MODULE.environment_fingerprint(tmp_path)
 
@@ -80,8 +80,8 @@ def test_environment_is_current_requires_structured_stamp_runtime_and_packages(
     monkeypatch.setattr(MODULE, "missing_imports", lambda executable: ())
     monkeypatch.setattr(MODULE, "mismatched_distribution_versions", lambda executable: ())
 
-    assert MODULE.environment_is_current(tmp_path, python, "expected") is True
-    assert MODULE.environment_is_current(tmp_path, python, "different") is False
+    assert MODULE.environment_is_current(tmp_path, python, "expected", _runtime()) is True
+    assert MODULE.environment_is_current(tmp_path, python, "different", _runtime()) is False
 
 
 def test_environment_is_not_current_for_legacy_or_wrong_runtime_stamp(tmp_path: Path, monkeypatch) -> None:
@@ -95,10 +95,10 @@ def test_environment_is_not_current_for_legacy_or_wrong_runtime_stamp(tmp_path: 
     monkeypatch.setattr(MODULE, "missing_imports", lambda executable: ())
     monkeypatch.setattr(MODULE, "mismatched_distribution_versions", lambda executable: ())
 
-    assert MODULE.environment_is_current(tmp_path, python, "expected") is False
+    assert MODULE.environment_is_current(tmp_path, python, "expected", _runtime()) is False
 
     _write_stamp(tmp_path, "expected", _runtime(minor=12))
-    assert MODULE.environment_is_current(tmp_path, python, "expected") is False
+    assert MODULE.environment_is_current(tmp_path, python, "expected", _runtime()) is False
 
 
 def test_environment_is_not_current_when_pinned_versions_drift(tmp_path: Path, monkeypatch) -> None:
@@ -115,7 +115,7 @@ def test_environment_is_not_current_when_pinned_versions_drift(tmp_path: Path, m
         lambda executable: ("Pillow==12.2.0 (expected 12.3.0)",),
     )
 
-    assert MODULE.environment_is_current(tmp_path, python, "expected") is False
+    assert MODULE.environment_is_current(tmp_path, python, "expected", _runtime()) is False
 
 
 def test_environment_rebuild_check_rejects_wrong_runtime_or_missing_provenance(
@@ -128,13 +128,30 @@ def test_environment_rebuild_check_rejects_wrong_runtime_or_missing_provenance(
     python.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime(minor=12))
-    assert MODULE._environment_requires_rebuild(tmp_path, python) is True
+    assert MODULE._environment_requires_rebuild(tmp_path, python, _runtime()) is True
 
     monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime())
-    assert MODULE._environment_requires_rebuild(tmp_path, python) is True
+    assert MODULE._environment_requires_rebuild(tmp_path, python, _runtime()) is True
 
     _write_stamp(tmp_path, "expected")
-    assert MODULE._environment_requires_rebuild(tmp_path, python) is False
+    assert MODULE._environment_requires_rebuild(tmp_path, python, _runtime()) is False
+
+
+def test_environment_rebuilds_when_supported_host_minor_changes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_environment_inputs(tmp_path)
+    python = MODULE.venv_python_path(tmp_path, platform="posix")
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    _write_stamp(tmp_path, "expected", _runtime(minor=13))
+    monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime(minor=13))
+
+    assert MODULE._environment_requires_rebuild(tmp_path, python, _runtime(minor=14)) is True
+    assert MODULE.environment_is_current(
+        tmp_path, python, "expected", _runtime(minor=14)
+    ) is False
 
 
 def test_environment_stamp_is_versioned_json() -> None:

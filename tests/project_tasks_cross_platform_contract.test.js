@@ -237,23 +237,56 @@ const managedInvocation = pythonLauncher.buildInvocation({
   arguments: ["--check"],
 });
 assert.equal(managedInvocation.args.includes("tools/run_with_project_python.py"), true);
-const pythonCandidates = pythonLauncher.uniqueCandidates(pythonLauncher.REQUIRED_PYTHON);
+const pythonCandidates = pythonLauncher.uniqueCandidates(pythonLauncher.PYTHON_BASELINE);
 if (process.platform === "win32") {
   assert.equal(
     pythonCandidates.some((candidate) =>
       candidate.command === "py" &&
-      candidate.prefix.includes(`-${pythonLauncher.REQUIRED_PYTHON.text}`)
+      candidate.prefix.includes("-3")
     ),
     true,
   );
 } else {
   assert.equal(
     pythonCandidates.some((candidate) =>
-      candidate.command === `python${pythonLauncher.REQUIRED_PYTHON.text}`
+      candidate.command === `python${pythonLauncher.PYTHON_BASELINE.text}`
     ),
     true,
   );
 }
+
+assert.equal(
+  pythonLauncher.runtimeSatisfiesBaseline(
+    pythonLauncher.PYTHON_BASELINE.major,
+    pythonLauncher.PYTHON_BASELINE.minor + 1,
+    pythonLauncher.PYTHON_BASELINE,
+  ),
+  true,
+  "a newer Python minor in the supported major must be accepted",
+);
+assert.equal(
+  pythonLauncher.runtimeSatisfiesBaseline(
+    pythonLauncher.PYTHON_BASELINE.major,
+    pythonLauncher.PYTHON_BASELINE.minor - 1,
+    pythonLauncher.PYTHON_BASELINE,
+  ),
+  false,
+  "a Python minor below the compatibility baseline must be rejected",
+);
+
+const simulatedNewerRuntime = pythonLauncher.probePython(
+  {
+    command: process.execPath,
+    prefix: [
+      "-e",
+      `console.log(JSON.stringify([${pythonLauncher.PYTHON_BASELINE.major}, ${pythonLauncher.PYTHON_BASELINE.minor + 1}, "simulated-python"]))`,
+      "--",
+    ],
+  },
+  pythonLauncher.PYTHON_BASELINE,
+);
+assert.ok(simulatedNewerRuntime, "the launcher probe must accept a newer supported Python minor");
+assert.equal(simulatedNewerRuntime.minor, pythonLauncher.PYTHON_BASELINE.minor + 1);
 
 for (const [name, command] of Object.entries(packageJson.scripts)) {
   assert.doesNotMatch(command, /^python(?:3)?\s/u, `${name} bypasses the Python resolver`);

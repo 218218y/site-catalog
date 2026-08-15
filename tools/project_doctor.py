@@ -21,8 +21,8 @@ from typing import Callable, Literal, Sequence
 from python_toolchain import (
     current_runtime_identity,
     inspect_python_runtime,
-    read_python_version_pin,
-    runtime_matches_pin,
+    read_python_version_baseline,
+    runtime_satisfies_baseline,
 )
 
 DoctorStatus = Literal["pass", "warn", "fail"]
@@ -140,14 +140,14 @@ def collect_doctor_checks(
     base = (root or project_root()).resolve()
     checks: list[DoctorCheck] = []
 
-    python_pin = read_python_version_pin(base)
+    python_baseline = read_python_version_baseline(base)
     system_runtime = current_runtime_identity()
     checks.append(_check(
         "python-runtime",
         "Python runtime",
-        runtime_matches_pin(system_runtime, python_pin),
-        f"Python {platform.python_version()}; project pin {python_pin.text}",
-        f"Install/use Python {python_pin.text} as pinned in .python-version.",
+        runtime_satisfies_baseline(system_runtime, python_baseline),
+        f"Python {platform.python_version()}; project baseline {python_baseline.text}+",
+        f"Install/use Python {python_baseline.text} or newer within Python {python_baseline.major}.x.",
     ))
 
     expected_node = (base / ".nvmrc").read_text(encoding="utf-8").strip()
@@ -174,7 +174,9 @@ def collect_doctor_checks(
     if local_python.is_file():
         managed_runtime = inspect_python_runtime(local_python)
         managed_runtime_ok = (
-            managed_runtime is not None and runtime_matches_pin(managed_runtime, python_pin)
+            managed_runtime is not None
+            and runtime_satisfies_baseline(managed_runtime, python_baseline)
+            and managed_runtime == system_runtime
         )
         managed_detail = (
             f"{local_python}; Python {managed_runtime.version_text}"
@@ -186,7 +188,7 @@ def collect_doctor_checks(
             "Project Python environment",
             managed_runtime_ok,
             managed_detail,
-            "Run `npm run setup:python` to rebuild .venv with the pinned runtime.",
+            "Run `npm run setup:python` to rebuild .venv with the selected supported runtime.",
         ))
     else:
         checks.append(_check(
