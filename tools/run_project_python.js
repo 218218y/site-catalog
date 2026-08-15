@@ -13,9 +13,21 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
-const MINIMUM_PYTHON = Object.freeze({ major: 3, minor: 10 });
+const PYTHON_VERSION_FILE = ".python-version";
 
-function uniqueCandidates() {
+function readPythonPin(root = ROOT) {
+  const pinPath = path.join(root, PYTHON_VERSION_FILE);
+  const value = fs.readFileSync(pinPath, "utf8").trim();
+  const match = /^(\d+)\.(\d+)$/u.exec(value);
+  if (!match) {
+    throw new Error(`Invalid ${PYTHON_VERSION_FILE}: expected <major>.<minor>, got ${JSON.stringify(value)}`);
+  }
+  return Object.freeze({ major: Number(match[1]), minor: Number(match[2]), text: value });
+}
+
+const REQUIRED_PYTHON = readPythonPin();
+
+function uniqueCandidates(required = REQUIRED_PYTHON) {
   const candidates = [];
   const seen = new Set();
   const add = (command, prefix = []) => {
@@ -28,17 +40,18 @@ function uniqueCandidates() {
 
   add(process.env.PYTHON, []);
   if (process.platform === "win32") {
-    add("py", ["-3"]);
+    add("py", [`-${required.major}.${required.minor}`]);
     add("python", []);
     add("python3", []);
   } else {
+    add(`python${required.major}.${required.minor}`, []);
     add("python3", []);
     add("python", []);
   }
   return candidates;
 }
 
-function probePython(candidate) {
+function probePython(candidate, required = REQUIRED_PYTHON) {
   const probe = spawnSync(
     candidate.command,
     [
@@ -60,10 +73,7 @@ function probePython(candidate) {
     if (!Number.isInteger(major) || !Number.isInteger(minor) || typeof executable !== "string") {
       return null;
     }
-    if (
-      major < MINIMUM_PYTHON.major ||
-      (major === MINIMUM_PYTHON.major && minor < MINIMUM_PYTHON.minor)
-    ) {
+    if (major !== required.major || minor !== required.minor) {
       return null;
     }
     return Object.freeze({ ...candidate, major, minor, executable });
@@ -72,14 +82,14 @@ function probePython(candidate) {
   }
 }
 
-function resolvePython() {
-  for (const candidate of uniqueCandidates()) {
-    const resolved = probePython(candidate);
+function resolvePython(required = REQUIRED_PYTHON) {
+  for (const candidate of uniqueCandidates(required)) {
+    const resolved = probePython(candidate, required);
     if (resolved) return resolved;
   }
   throw new Error(
-    `Python ${MINIMUM_PYTHON.major}.${MINIMUM_PYTHON.minor}+ was not found. ` +
-      "Install Python 3, or set PYTHON to the full interpreter path.",
+    `Python ${required.text} required by ${PYTHON_VERSION_FILE} was not found. ` +
+      "Install the pinned runtime, or set PYTHON to its full interpreter path.",
   );
 }
 
@@ -161,15 +171,18 @@ function main(argv = process.argv.slice(2)) {
 }
 
 module.exports = {
-  MINIMUM_PYTHON,
+  PYTHON_VERSION_FILE,
+  REQUIRED_PYTHON,
   ROOT,
   buildInvocation,
   main,
   parseArguments,
   probePython,
+  readPythonPin,
   resolveProjectScript,
   resolvePython,
   runInvocation,
+  uniqueCandidates,
 };
 
 if (require.main === module) {

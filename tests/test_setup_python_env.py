@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
 
 SPEC = importlib.util.spec_from_file_location("setup_python_env", TOOLS / "setup_python_env.py")
 assert SPEC and SPEC.loader
@@ -14,30 +17,66 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
+def _write_environment_inputs(root: Path, *, python_version: str = "3.13") -> None:
+    tools = root / "tools"
+    tools.mkdir(exist_ok=True)
+    (root / ".python-version").write_text(python_version + "\n", encoding="utf-8")
+    (tools / "requirements.txt").write_text("Pillow==12.3.0\n", encoding="utf-8")
+    (tools / "requirements-dev.txt").write_text(
+        "-r requirements.txt\npytest==9.1.1\n",
+        encoding="utf-8",
+    )
+
+
+def _runtime(*, minor: int = 13):
+    return MODULE.PythonRuntimeIdentity(
+        major=3,
+        minor=minor,
+        implementation="cpython",
+        cache_tag=f"cpython-3{minor}",
+        system="Linux",
+        machine="x86_64",
+    )
+
+
+def _write_stamp(root: Path, fingerprint: str, runtime=None) -> None:
+    stamp = MODULE.EnvironmentStamp(MODULE.STAMP_FORMAT, fingerprint, runtime or _runtime())
+    stamp_path = root / ".venv" / MODULE.STAMP_NAME
+    stamp_path.parent.mkdir(parents=True, exist_ok=True)
+    stamp_path.write_text(stamp.to_json(), encoding="utf-8")
+
+
 def test_venv_python_path_is_cross_platform(tmp_path: Path) -> None:
     assert MODULE.venv_python_path(tmp_path, platform="nt") == tmp_path / ".venv/Scripts/python.exe"
     assert MODULE.venv_python_path(tmp_path, platform="posix") == tmp_path / ".venv/bin/python"
 
 
-def test_requirements_fingerprint_changes_with_dev_requirements(tmp_path: Path) -> None:
-    tools = tmp_path / "tools"
-    tools.mkdir()
-    (tools / "requirements.txt").write_text("Pillow==12.3.0\n", encoding="utf-8")
-    dev = tools / "requirements-dev.txt"
-    dev.write_text("-r requirements.txt\npytest==9.1.1\n", encoding="utf-8")
-    first = MODULE.requirements_fingerprint(tmp_path)
+def test_environment_fingerprint_changes_with_dev_requirements_and_python_pin(tmp_path: Path) -> None:
+    _write_environment_inputs(tmp_path)
+    first = MODULE.environment_fingerprint(tmp_path)
 
-    dev.write_text("-r requirements.txt\npytest==9.1.2\n", encoding="utf-8")
-    second = MODULE.requirements_fingerprint(tmp_path)
+    (tmp_path / "tools" / "requirements-dev.txt").write_text(
+        "-r requirements.txt\npytest==9.1.2\n",
+        encoding="utf-8",
+    )
+    second = MODULE.environment_fingerprint(tmp_path)
     assert first != second
 
+    (tmp_path / ".python-version").write_text("3.14\n", encoding="utf-8")
+    third = MODULE.environment_fingerprint(tmp_path)
+    assert second != third
 
-def test_environment_is_current_requires_stamp_and_imports(tmp_path: Path, monkeypatch) -> None:
+
+def test_environment_is_current_requires_structured_stamp_runtime_and_packages(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_environment_inputs(tmp_path)
     python = MODULE.venv_python_path(tmp_path, platform="posix")
     python.parent.mkdir(parents=True)
     python.write_text("", encoding="utf-8")
-    stamp = tmp_path / ".venv" / MODULE.STAMP_NAME
-    stamp.write_text("expected\n", encoding="utf-8")
+    _write_stamp(tmp_path, "expected")
+    monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime())
     monkeypatch.setattr(MODULE, "missing_imports", lambda executable: ())
     monkeypatch.setattr(MODULE, "mismatched_distribution_versions", lambda executable: ())
 
@@ -45,12 +84,30 @@ def test_environment_is_current_requires_stamp_and_imports(tmp_path: Path, monke
     assert MODULE.environment_is_current(tmp_path, python, "different") is False
 
 
-def test_environment_is_not_current_when_pinned_versions_drift(tmp_path: Path, monkeypatch) -> None:
+def test_environment_is_not_current_for_legacy_or_wrong_runtime_stamp(tmp_path: Path, monkeypatch) -> None:
+    _write_environment_inputs(tmp_path)
     python = MODULE.venv_python_path(tmp_path, platform="posix")
     python.parent.mkdir(parents=True)
     python.write_text("", encoding="utf-8")
     stamp = tmp_path / ".venv" / MODULE.STAMP_NAME
-    stamp.write_text("expected\n", encoding="utf-8")
+    stamp.write_text("old-hash-only-format\n", encoding="utf-8")
+    monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime())
+    monkeypatch.setattr(MODULE, "missing_imports", lambda executable: ())
+    monkeypatch.setattr(MODULE, "mismatched_distribution_versions", lambda executable: ())
+
+    assert MODULE.environment_is_current(tmp_path, python, "expected") is False
+
+    _write_stamp(tmp_path, "expected", _runtime(minor=12))
+    assert MODULE.environment_is_current(tmp_path, python, "expected") is False
+
+
+def test_environment_is_not_current_when_pinned_versions_drift(tmp_path: Path, monkeypatch) -> None:
+    _write_environment_inputs(tmp_path)
+    python = MODULE.venv_python_path(tmp_path, platform="posix")
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    _write_stamp(tmp_path, "expected")
+    monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime())
     monkeypatch.setattr(MODULE, "missing_imports", lambda executable: ())
     monkeypatch.setattr(
         MODULE,
@@ -59,6 +116,42 @@ def test_environment_is_not_current_when_pinned_versions_drift(tmp_path: Path, m
     )
 
     assert MODULE.environment_is_current(tmp_path, python, "expected") is False
+
+
+def test_environment_rebuild_check_rejects_wrong_runtime_or_missing_provenance(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_environment_inputs(tmp_path)
+    python = MODULE.venv_python_path(tmp_path, platform="posix")
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime(minor=12))
+    assert MODULE._environment_requires_rebuild(tmp_path, python) is True
+
+    monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime())
+    assert MODULE._environment_requires_rebuild(tmp_path, python) is True
+
+    _write_stamp(tmp_path, "expected")
+    assert MODULE._environment_requires_rebuild(tmp_path, python) is False
+
+
+def test_environment_stamp_is_versioned_json() -> None:
+    stamp = MODULE.EnvironmentStamp(MODULE.STAMP_FORMAT, "abc123", _runtime())
+    payload = json.loads(stamp.to_json())
+    assert payload == {
+        "format": MODULE.STAMP_FORMAT,
+        "environment_fingerprint": "abc123",
+        "runtime": {
+            "cache_tag": "cpython-313",
+            "implementation": "cpython",
+            "machine": "x86_64",
+            "major": 3,
+            "minor": 13,
+            "system": "Linux",
+        },
+    }
 
 
 def test_expected_pins_include_all_test_runner_dependencies() -> None:

@@ -35,12 +35,15 @@ def test_python_quality_configuration_is_a_deliberate_ratchet() -> None:
     ruff = config["tool"]["ruff"]
     mypy = config["tool"]["mypy"]
 
-    assert ruff["target-version"] == "py311"
+    python_version = (ROOT / ".python-version").read_text(encoding="utf-8").strip()
+    assert ruff["target-version"] == f"py{python_version.replace('.', '')}"
+    assert mypy["python_version"] == python_version
     assert ruff["lint"]["select"] == ["E9", "F63", "F7", "F82"]
     assert mypy["disallow_untyped_defs"] is True
     assert mypy["check_untyped_defs"] is True
     assert mypy["no_implicit_optional"] is True
     assert "tools/project_doctor.py" in mypy["files"]
+    assert "tools/python_toolchain.py" in mypy["files"]
     assert "tools/check_frontend_contracts.py" in mypy["files"]
 
 

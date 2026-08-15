@@ -18,6 +18,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Literal, Sequence
 
+from python_toolchain import (
+    current_runtime_identity,
+    inspect_python_runtime,
+    read_python_version_pin,
+    runtime_matches_pin,
+)
+
 DoctorStatus = Literal["pass", "warn", "fail"]
 CommandRunner = Callable[[Sequence[str], Path], subprocess.CompletedProcess[str]]
 
@@ -133,12 +140,14 @@ def collect_doctor_checks(
     base = (root or project_root()).resolve()
     checks: list[DoctorCheck] = []
 
+    python_pin = read_python_version_pin(base)
+    system_runtime = current_runtime_identity()
     checks.append(_check(
         "python-runtime",
         "Python runtime",
-        sys.version_info >= (3, 11),
-        f"Python {platform.python_version()}",
-        "Install Python 3.11 or newer.",
+        runtime_matches_pin(system_runtime, python_pin),
+        f"Python {platform.python_version()}; project pin {python_pin.text}",
+        f"Install/use Python {python_pin.text} as pinned in .python-version.",
     ))
 
     expected_node = (base / ".nvmrc").read_text(encoding="utf-8").strip()
@@ -162,14 +171,32 @@ def collect_doctor_checks(
 
     local_python = base / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     python = str(local_python if local_python.is_file() else Path(sys.executable))
-    checks.append(_check(
-        "python-venv",
-        "Project Python environment",
-        local_python.is_file(),
-        str(local_python) if local_python.is_file() else f"using system interpreter {sys.executable}",
-        "Run `npm run setup:python` to create the isolated .venv.",
-        warning=True,
-    ))
+    if local_python.is_file():
+        managed_runtime = inspect_python_runtime(local_python)
+        managed_runtime_ok = (
+            managed_runtime is not None and runtime_matches_pin(managed_runtime, python_pin)
+        )
+        managed_detail = (
+            f"{local_python}; Python {managed_runtime.version_text}"
+            if managed_runtime is not None
+            else f"{local_python}; runtime could not be inspected"
+        )
+        checks.append(_check(
+            "python-venv",
+            "Project Python environment",
+            managed_runtime_ok,
+            managed_detail,
+            "Run `npm run setup:python` to rebuild .venv with the pinned runtime.",
+        ))
+    else:
+        checks.append(_check(
+            "python-venv",
+            "Project Python environment",
+            False,
+            f"using system interpreter {sys.executable}",
+            "Run `npm run setup:python` to create the isolated .venv.",
+            warning=True,
+        ))
     checks.append(_python_modules_check(base, runner, python))
 
     for key, label, command, remedy in (

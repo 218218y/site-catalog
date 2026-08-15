@@ -5,6 +5,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
 SPEC = importlib.util.spec_from_file_location("project_doctor_test_module", ROOT / "tools/project_doctor.py")
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
@@ -57,6 +60,10 @@ def test_python_package_probe_uses_the_selected_interpreter_and_imports_metadata
 
 def test_doctor_runs_independent_checks_without_fail_fast(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / ".nvmrc").write_text("24.18.0\n", encoding="utf-8")
+    (tmp_path / ".python-version").write_text(
+        f"{sys.version_info.major}.{sys.version_info.minor}\n",
+        encoding="utf-8",
+    )
     calls: list[tuple[str, ...]] = []
 
     def runner(command, cwd):

@@ -26,6 +26,7 @@ try {
     path.join(root, "tools", "run_project_python.js"),
     path.join(fixtureRoot, "tools", "run_project_python.js"),
   );
+  fs.copyFileSync(path.join(root, ".python-version"), path.join(fixtureRoot, ".python-version"));
   write("tools/python_probe.py", 'print("python-launcher-ok")\n');
   write("package.json", JSON.stringify({
     devDependencies: { wrangler: fixtureWranglerVersion },

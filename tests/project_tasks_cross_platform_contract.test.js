@@ -237,6 +237,23 @@ const managedInvocation = pythonLauncher.buildInvocation({
   arguments: ["--check"],
 });
 assert.equal(managedInvocation.args.includes("tools/run_with_project_python.py"), true);
+const pythonCandidates = pythonLauncher.uniqueCandidates(pythonLauncher.REQUIRED_PYTHON);
+if (process.platform === "win32") {
+  assert.equal(
+    pythonCandidates.some((candidate) =>
+      candidate.command === "py" &&
+      candidate.prefix.includes(`-${pythonLauncher.REQUIRED_PYTHON.text}`)
+    ),
+    true,
+  );
+} else {
+  assert.equal(
+    pythonCandidates.some((candidate) =>
+      candidate.command === `python${pythonLauncher.REQUIRED_PYTHON.text}`
+    ),
+    true,
+  );
+}
 
 for (const [name, command] of Object.entries(packageJson.scripts)) {
   assert.doesNotMatch(command, /^python(?:3)?\s/u, `${name} bypasses the Python resolver`);

@@ -530,7 +530,7 @@ npm run setup
 ```
 
 `npm run setup` מכין את סביבת Python המקומית `.venv` ומתקין את Chromium המבודד של Playwright. אפשר במקום זאת להריץ את `.20-setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
-גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`, ו־Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`. גרסת Node המומלצת ל־CI ולפיתוח נשמרת ב־`.nvmrc`.
+גרסת Python הקנונית נשמרת ב־`.python-version`, וגרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`. Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`. גרסת Node המומלצת ל־CI ולפיתוח נשמרת ב־`.nvmrc`.
 
 ### סביבת npm אופליין ללינוקס של הצ׳אט
 

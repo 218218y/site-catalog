@@ -42,7 +42,7 @@ mypy מופעל עם `disallow_untyped_defs`, `check_untyped_defs`, `no_implicit
 
 זהו ratchet אמיתי ולא `ignore_errors`: מודול שנכנס לרשימה חייב לעמוד בחוזה המלא. הרחבת הרשימה צריכה להתבצע owner אחר owner, בלי להכניס מאות suppressions.
 
-הגרסאות נעולות ב-`tools/requirements-dev.txt`, נבדקות ב-bootstrap של `.venv`, ונוספו כשלבים חובה לפני pytest ב-`tools/verify_project.py`.
+הגרסאות נעולות ב-`tools/requirements-dev.txt`, נבדקות ב-bootstrap של `.venv`, ונוספו כשלבים חובה לפני pytest ב-`tools/verify_project.py`. גרסת ה-runtime עצמה אינה עוד טווח רופף: `.python-version` הוא מקור האמת היחיד ל-major/minor, ו-CI, launcher, doctor, Ruff ו-mypy מיושרים אליו. ה-stamp של `.venv` הוא JSON versioned שמכיל גם fingerprint של דרישות/גרסת Python וגם runtime identity; סביבה בלי provenance קנוני או עם runtime שונה נבנית מחדש במקום להיות מאומצת.
 
 פקודות ייעודיות:
 
