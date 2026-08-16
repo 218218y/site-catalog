@@ -3,7 +3,6 @@ npm run build:pages
 npm run verify
 npm test
 
-
 בנייה ציבורית
 npm run build:seo:public
 העלאה ציבורית
