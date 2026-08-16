@@ -206,19 +206,39 @@ assert.match(verifier, /Playwright browser journeys/);
 assert.equal(fs.existsSync(path.join(root, "tools", "requirements-dev.txt")), true);
 assert.equal(fs.existsSync(path.join(root, "tools", "clean_project_artifacts.py")), true);
 assert.match(ciWorkflow, /PYTHONDONTWRITEBYTECODE: "1"/);
+assert.match(ciWorkflow, /runs-on: ubuntu-24\.04/);
+assert.match(ciWorkflow, /uses: actions\/checkout@v7/);
+assert.match(ciWorkflow, /uses: actions\/setup-node@v7/);
 assert.match(ciWorkflow, /node-version-file: \.nvmrc/);
 assert.match(ciWorkflow, /cache: npm[\s\S]{0,120}cache-dependency-path: package-lock\.json/);
+assert.match(ciWorkflow, /id: python-setup/);
+assert.match(ciWorkflow, /uses: actions\/setup-python@v7/);
+assert.match(pythonBaseline, /^\d+\.\d+$/u);
+assert.match(ciWorkflow, /python-version-file: \.python-version/);
+assert.doesNotMatch(ciWorkflow, /python-version:\s*["']?3\./u);
+assert.match(ciWorkflow, /Restore Python virtual environment[\s\S]{0,160}id: python-venv-cache/);
+assert.match(ciWorkflow, /path: \.venv/);
+assert.match(
+  ciWorkflow,
+  /key: python-venv-v1-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.python-setup\.outputs\.python-version \}\}-\$\{\{ hashFiles\('\.python-version', 'tools\/requirements\.txt', 'tools\/requirements-dev\.txt'\) \}\}/,
+);
 assert.match(ciWorkflow, /id: playwright-version/);
 assert.match(ciWorkflow, /node_modules\/playwright-core/);
-assert.match(ciWorkflow, /uses: actions\/cache@v4/);
+assert.match(ciWorkflow, /Restore Playwright browser cache[\s\S]{0,160}id: playwright-cache/);
+assert.match(ciWorkflow, /uses: actions\/cache@v6/);
 assert.match(ciWorkflow, /path: ~\/\.cache\/ms-playwright/);
 assert.match(
   ciWorkflow,
   /key: playwright-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.playwright-version\.outputs\.version \}\}/,
 );
-assert.match(pythonBaseline, /^\d+\.\d+$/u);
-assert.match(ciWorkflow, /python-version-file: \.python-version/);
-assert.doesNotMatch(ciWorkflow, /python-version:\s*["']?3\./u);
+assert.match(ciWorkflow, /Prepare Python environment[\s\S]{0,100}npm run setup:python/);
+assert.match(ciWorkflow, /Install Playwright OS dependencies[\s\S]{0,100}playwright install-deps chromium/);
+assert.match(
+  ciWorkflow,
+  /Install Playwright Chromium on cache miss[\s\S]{0,120}if: steps\.playwright-cache\.outputs\.cache-hit != 'true'[\s\S]{0,100}playwright install chromium/,
+);
+assert.doesNotMatch(ciWorkflow, /playwright install --with-deps chromium/);
+assert.match(ciWorkflow, /uses: actions\/upload-artifact@v7/);
 assert.match(pyproject, new RegExp(`target-version = "py${pythonBaseline.replace(".", "")}"`, "u"));
 assert.match(pyproject, new RegExp(`python_version = "${pythonBaseline.replace(".", "\\.")}"`, "u"));
 assert.match(ciWorkflow, /Remove ephemeral source artifacts[\s\S]*clean_project_artifacts\.py(?! --check)/);

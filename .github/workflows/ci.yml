@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       CI: "1"
@@ -22,23 +22,31 @@ jobs:
       PLAYWRIGHT_VISUAL_BASELINE: "1"
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        id: python-setup
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
           cache: pip
           cache-dependency-path: |
             tools/requirements.txt
             tools/requirements-dev.txt
+
+      - name: Restore Python virtual environment
+        id: python-venv-cache
+        uses: actions/cache@v6
+        with:
+          path: .venv
+          key: python-venv-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.python-setup.outputs.python-version }}-${{ hashFiles('.python-version', 'tools/requirements.txt', 'tools/requirements-dev.txt') }}
 
       - name: Resolve Playwright browser version
         id: playwright-version
@@ -47,7 +55,8 @@ jobs:
           echo "version=$PLAYWRIGHT_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Restore Playwright browser cache
-        uses: actions/cache@v4
+        id: playwright-cache
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
@@ -58,11 +67,15 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Install Python dependencies
+      - name: Prepare Python environment
         run: npm run setup:python
 
-      - name: Install Playwright Chromium and OS dependencies
-        run: npx --no-install playwright install --with-deps chromium
+      - name: Install Playwright OS dependencies
+        run: npx --no-install playwright install-deps chromium
+
+      - name: Install Playwright Chromium on cache miss
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx --no-install playwright install chromium
 
       - name: Run complete verification
         run: npm run verify
@@ -71,7 +84,7 @@ jobs:
         run: python tools/clean_project_artifacts.py --check
 
       - name: Upload public SEO preview
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: public-seo-preview
           if-no-files-found: error
@@ -80,7 +93,7 @@ jobs:
 
       - name: Upload Playwright diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-diagnostics
           if-no-files-found: ignore
