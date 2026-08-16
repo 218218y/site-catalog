@@ -207,6 +207,15 @@ assert.equal(fs.existsSync(path.join(root, "tools", "requirements-dev.txt")), tr
 assert.equal(fs.existsSync(path.join(root, "tools", "clean_project_artifacts.py")), true);
 assert.match(ciWorkflow, /PYTHONDONTWRITEBYTECODE: "1"/);
 assert.match(ciWorkflow, /node-version-file: \.nvmrc/);
+assert.match(ciWorkflow, /cache: npm[\s\S]{0,120}cache-dependency-path: package-lock\.json/);
+assert.match(ciWorkflow, /id: playwright-version/);
+assert.match(ciWorkflow, /node_modules\/playwright-core/);
+assert.match(ciWorkflow, /uses: actions\/cache@v4/);
+assert.match(ciWorkflow, /path: ~\/\.cache\/ms-playwright/);
+assert.match(
+  ciWorkflow,
+  /key: playwright-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.playwright-version\.outputs\.version \}\}/,
+);
 assert.match(pythonBaseline, /^\d+\.\d+$/u);
 assert.match(ciWorkflow, /python-version-file: \.python-version/);
 assert.doesNotMatch(ciWorkflow, /python-version:\s*["']?3\./u);
