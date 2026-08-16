@@ -6,7 +6,9 @@ every JavaScript contract file, and the Python suite. Complete verification also
 runs Playwright browser journeys and creates a clean deploy bundle with validated
 fingerprinted assets. Python tests run inside the project's ``.venv`` when it
 exists, so the command behaves consistently on Windows and Unix-like systems.
-Temporary deploy artifacts are removed even when a command fails.
+Temporary deploy artifacts are removed even when a command fails. CI can skip
+the browser journeys while retaining every source, unit, SEO, deploy-bundle and
+performance gate, allowing Playwright to run concurrently in a separate job.
 """
 from __future__ import annotations
 
@@ -117,6 +119,7 @@ def verification_steps(
     root: Path,
     *,
     quick: bool = False,
+    include_browser: bool = True,
     python_executable: str | None = None,
     scope: VerificationScope = "all",
 ) -> tuple[VerificationStep, ...]:
@@ -211,7 +214,7 @@ def verification_steps(
             )
         )
 
-    if scope == "all" and not quick:
+    if scope == "all" and not quick and include_browser:
         steps.extend((
             VerificationStep(
                 "Playwright Chromium is installed",
@@ -221,6 +224,10 @@ def verification_steps(
                 "Playwright browser journeys",
                 ("node", playwright_cli_path(root).relative_to(root).as_posix(), "test"),
             ),
+        ))
+
+    if scope == "all" and not quick:
+        steps.extend((
             VerificationStep(
                 "Clean Cloudflare Pages bundle",
                 (python, "tools/build_deploy_bundle.py", "--out", ".artifacts/verify-deploy"),
@@ -242,6 +249,7 @@ def verify_project(
     root: Path | None = None,
     *,
     quick: bool = False,
+    include_browser: bool = True,
     scope: VerificationScope = "all",
 ) -> int:
     base = (root or project_root()).resolve()
@@ -251,7 +259,13 @@ def verify_project(
 
     try:
         python = sys.executable if scope == "javascript" else resolve_project_python(base)
-        for step in verification_steps(base, quick=quick, python_executable=python, scope=scope):
+        for step in verification_steps(
+            base,
+            quick=quick,
+            include_browser=include_browser,
+            python_executable=python,
+            scope=scope,
+        ):
             run_step(base, step)
     except (FileNotFoundError, MissingPythonTestEnvironment, subprocess.CalledProcessError) as exc:
         print(f"\nVERIFICATION FAILED: {exc}", file=sys.stderr)
@@ -261,7 +275,7 @@ def verify_project(
             if path.exists():
                 shutil.rmtree(path, ignore_errors=True)
 
-    mode = scope if scope != "all" else ("quick" if quick else "complete")
+    mode = scope if scope != "all" else ("quick" if quick else ("complete" if include_browser else "core"))
     print(f"\nProject verification passed ({mode}).")
     return 0
 
@@ -274,6 +288,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         help=(
             "Run source, syntax, unit and cached public-SEO checks without "
             "browser journeys or a private deploy bundle."
+        ),
+    )
+    parser.add_argument(
+        "--skip-browser",
+        action="store_true",
+        help=(
+            "Run the complete non-browser verification, including clean deploy-bundle "
+            "and performance gates; intended for CI with a parallel Playwright job."
         ),
     )
     scope_group = parser.add_mutually_exclusive_group()
@@ -289,7 +311,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     scope: VerificationScope = "javascript" if args.javascript_only else ("python" if args.python_only else "all")
-    return verify_project(quick=args.quick, scope=scope)
+    return verify_project(
+        quick=args.quick,
+        include_browser=not args.skip_browser,
+        scope=scope,
+    )
 
 
 if __name__ == "__main__":

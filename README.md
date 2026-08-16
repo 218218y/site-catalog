@@ -720,7 +720,9 @@ python tools\verify_remote_catalog_assets.py --base-url https://cdn.bargig-furni
 
 ## CI ובדיקות דפדפן
 
-הקובץ `.github/workflows/ci.yml` מריץ ב־GitHub Actions את מסלול האימות המלא בכל push ובכל pull request: התקנת Node ו־Python, התקנת Chromium עם תלויות מערכת, בדיקות חוזה, כל בדיקות Python, מסעות Playwright ובניית באנדל נקי. בדיקות Playwright אינן דורשות את תמונות הקטלוגים ב־GitHub: הן מיירטות בקשות אל `assets/pages` ומחזירות תמונות SVG סינתטיות, כולל תרחישי כשל יזומים. במקרה כשל נשמרים דוח, trace וצילומי מסך כ־artifact למשך 14 יום.
+הקובץ `.github/workflows/ci.yml` מריץ ב־GitHub Actions שני jobs בלתי תלויים ובמקביל בכל push ובכל pull request. מסלול `Source, unit, build and quality checks` מריץ בדיקות חוזה, את כל בדיקות Python, אימות SEO ובניית באנדל נקי עם בדיקות תקציב; מסלול `Playwright browser tests` מתקין Chromium ומריץ בנפרד את מסעות הדפדפן. שני המסלולים משתמשים ב־cache של npm ושל סביבת Python, ורק מסלול Playwright משחזר את cache הדפדפן. בדיקות Playwright אינן דורשות את תמונות הקטלוגים ב־GitHub: הן מיירטות בקשות אל `assets/pages` ומחזירות תמונות SVG סינתטיות, כולל תרחישי כשל יזומים. במקרה כשל נשמרים דוח, trace וצילומי מסך כ־artifact למשך 14 יום.
+
+אפשר להריץ מקומית את אותם גבולות בדיוק באמצעות `npm run verify:core` למסלול הראשי ו־`npm run test:e2e` למסלול הדפדפן. `npm run verify` נשאר פקודת האימות המלאה והסדרתית לפיתוח מקומי.
 
 ## בדיקת release ציבורי בלי לפרסם
 

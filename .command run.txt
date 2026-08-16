@@ -1,7 +1,8 @@
 npm run build:frontend
 npm run build:pages
 npm run verify
-npm test
+npm run verify:core
+npm run test:e2e
 
 
 בנייה ציבורית

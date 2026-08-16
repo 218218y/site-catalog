@@ -184,6 +184,14 @@ assert.equal(packageJson.scripts.pretest, "node tools/run_project_python.js --sy
 assert.equal(packageJson.scripts.test, "node tools/run_project_python.js tools/verify_project.py --quick");
 assert.match(packageJson.scripts.preverify, /check_playwright_browser\.js/);
 assert.equal(packageJson.scripts.verify, "node tools/run_project_python.js tools/verify_project.py");
+assert.equal(
+  packageJson.scripts["preverify:core"],
+  "node tools/run_project_python.js --system tools/setup_python_env.py --quiet",
+);
+assert.equal(
+  packageJson.scripts["verify:core"],
+  "node tools/run_project_python.js tools/verify_project.py --skip-browser",
+);
 assert.equal(packageJson.scripts["check:seo-routes"], "node tools/run_project_python.js tools/seo_route_lock.py --check");
 assert.equal(packageJson.scripts["seo:routes:update"], "node tools/run_project_python.js tools/seo_route_lock.py --update");
 assert.equal(packageJson.scripts["verify:seo:public"], "node tools/run_project_python.js tools/verify_public_seo.py --out dist/site-public-preview --clean-legacy-artifacts");
@@ -206,6 +214,9 @@ assert.match(verifier, /Playwright browser journeys/);
 assert.equal(fs.existsSync(path.join(root, "tools", "requirements-dev.txt")), true);
 assert.equal(fs.existsSync(path.join(root, "tools", "clean_project_artifacts.py")), true);
 assert.match(ciWorkflow, /PYTHONDONTWRITEBYTECODE: "1"/);
+assert.match(ciWorkflow, /verification:\n\s+name: Source, unit, build and quality checks/);
+assert.match(ciWorkflow, /playwright:\n\s+name: Playwright browser tests/);
+assert.doesNotMatch(ciWorkflow, /^\s+needs:/mu);
 assert.match(ciWorkflow, /runs-on: ubuntu-24\.04/);
 assert.match(ciWorkflow, /uses: actions\/checkout@v7/);
 assert.match(ciWorkflow, /uses: actions\/setup-node@v7/);
@@ -220,7 +231,13 @@ assert.match(ciWorkflow, /Restore Python virtual environment[\s\S]{0,160}id: pyt
 assert.match(ciWorkflow, /path: \.venv/);
 assert.match(
   ciWorkflow,
-  /key: python-venv-v1-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.python-setup\.outputs\.python-version \}\}-\$\{\{ hashFiles\('\.python-version', 'tools\/requirements\.txt', 'tools\/requirements-dev\.txt'\) \}\}/,
+  /key: python-venv-v2-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.python-setup\.outputs\.python-version \}\}-\$\{\{ hashFiles\('\.python-version', 'tools\/requirements\.txt', 'tools\/requirements-dev\.txt', 'tools\/setup_python_env\.py', 'tools\/python_toolchain\.py'\) \}\}/,
+);
+assert.match(ciWorkflow, /uses: actions\/cache\/restore@v6/);
+assert.equal((ciWorkflow.match(/uses: actions\/cache\/save@v6/gu) || []).length, 1);
+assert.match(
+  ciWorkflow,
+  /Save Python virtual environment[\s\S]{0,140}if: steps\.python-venv-cache\.outputs\.cache-hit != 'true'[\s\S]{0,180}cache-primary-key/,
 );
 assert.match(ciWorkflow, /id: playwright-version/);
 assert.match(ciWorkflow, /node_modules\/playwright-core/);
@@ -243,7 +260,8 @@ assert.match(pyproject, new RegExp(`target-version = "py${pythonBaseline.replace
 assert.match(pyproject, new RegExp(`python_version = "${pythonBaseline.replace(".", "\\.")}"`, "u"));
 assert.match(ciWorkflow, /Remove ephemeral source artifacts[\s\S]*clean_project_artifacts\.py(?! --check)/);
 assert.match(ciWorkflow, /Verify tests left no source-tree caches[\s\S]*clean_project_artifacts\.py --check/);
-assert.match(ciWorkflow, /Run complete verification[\s\S]*npm run verify/);
+assert.match(ciWorkflow, /Run non-browser verification[\s\S]{0,100}npm run verify:core/);
+assert.match(ciWorkflow, /Run Playwright browser tests[\s\S]{0,100}npm run test:e2e/);
 assert.match(ciWorkflow, /Upload public SEO preview[\s\S]*dist\/site-public-preview\//);
 assert.equal(fs.existsSync(path.join(root, "seo-routes.lock.json")), true);
 assert.equal(fs.existsSync(path.join(root, "tools", "audit_public_seo.py")), true);

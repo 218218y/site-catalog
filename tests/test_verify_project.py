@@ -92,6 +92,34 @@ def test_complete_verification_builds_a_clean_deploy_bundle() -> None:
     assert "Playwright browser journeys" in titles
 
 
+def test_core_verification_keeps_deploy_gates_without_browser_journeys() -> None:
+    steps = MODULE.verification_steps(
+        ROOT,
+        quick=False,
+        include_browser=False,
+        python_executable="project-python",
+    )
+    titles = [step.title for step in steps]
+
+    assert "Playwright Chromium is installed" not in titles
+    assert "Playwright browser journeys" not in titles
+    assert "Clean Cloudflare Pages bundle" in titles
+    assert "Deploy performance budgets" in titles
+    assert MODULE.VerificationStep(
+        "Python tests", ("project-python", "-m", "pytest", "-q")
+    ) in steps
+    assert MODULE.VerificationStep(
+        "Guarded public SEO preview",
+        (
+            "project-python",
+            "tools/verify_public_seo.py",
+            "--out",
+            "dist/site-public-preview",
+            "--clean-legacy-artifacts",
+        ),
+    ) in steps
+
+
 def test_missing_environment_message_points_to_setup_command(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(MODULE, "venv_python_path", lambda root: tmp_path / "missing-python")
     monkeypatch.setattr(MODULE.sys, "executable", str(tmp_path / "system-python"))
