@@ -128,8 +128,8 @@ PAGE_DOCUMENTS = (
         content_filename="legal/terms.content.html",
         legal_eyebrow="שימוש, התקשרות ותשלום ברור",
         legal_heading="תקנון רכישה ותשלום",
-        legal_updated="30 ביולי 2026",
-        legal_summary="התקנון מסדיר את השימוש באתר ואת המעבר לתשלום חוב עבור הזמנה או עסקה שסוכמו מראש עם רהיטי ברגיג.",
+        legal_updated="18 באוגוסט 2026",
+        legal_summary="התקנון מסדיר את השימוש באתר, אספקה, ביטול, אחריות ואת המעבר לתשלום חוב עבור הזמנה או עסקה שסוכמו מראש עם רהיטי ברגיג.",
     ),
     PageDocument(
         "privacy.html",
