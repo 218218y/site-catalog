@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Final, Iterable
+from typing import Final, Iterable, Mapping
 
 TARGET_OS: Final = "linux"
 TARGET_CPU: Final = "x64"
@@ -97,6 +97,15 @@ def sha256_json(value: object) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def manifest_string_items(manifest: Mapping[str, object], key: str) -> tuple[str, ...]:
+    """Return one validated string-list field from an offline manifest."""
+
+    raw = manifest.get(key)
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        raise OfflineMirrorError(f"Offline manifest field {key!r} must be a list of strings.")
+    return tuple(raw)
 
 
 def sri_sha512(path: Path) -> str:

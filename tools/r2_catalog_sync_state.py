@@ -23,10 +23,12 @@ def project_root() -> Path:
 
 
 def _catalog_release_record(catalog: dict[str, Any]) -> dict[str, Any]:
-    variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), dict) else {}
+    variants_value = catalog.get("imageVariants")
+    variants = variants_value if isinstance(variants_value, dict) else {}
     normalized_variants: dict[str, dict[str, Any]] = {}
     for tier in ("thumb", "medium", "full"):
-        raw = variants.get(tier) if isinstance(variants.get(tier), dict) else {}
+        variant_value = variants.get(tier)
+        raw = variant_value if isinstance(variant_value, dict) else {}
         normalized_variants[tier] = {
             "directory": str(raw.get("directory") or "").strip().strip("/"),
             "maxSide": int(raw.get("maxSide") or 0),

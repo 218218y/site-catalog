@@ -22,6 +22,7 @@ from npm_offline_linux import (
     TARGET_LIBC,
     TARGET_OS,
     OfflineMirrorError,
+    manifest_string_items,
     npm_executable,
     project_root,
     sha256_file,
@@ -160,7 +161,7 @@ def main() -> int:
             print(
                 "Offline chat npm inputs are valid for Linux x64/glibc: "
                 f"{manifest['packageCount']} local tarballs; excluded roots: "
-                f"{', '.join(manifest['excludedRootPackages']) or 'none'}."
+                f"{', '.join(manifest_string_items(manifest, 'excludedRootPackages')) or 'none'}."
             )
         else:
             install(project_root())

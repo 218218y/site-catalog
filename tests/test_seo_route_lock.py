@@ -37,6 +37,18 @@ def test_route_lock_update_requires_explicit_confirmation(tmp_path: Path) -> Non
         MODULE.write_route_lock(tmp_path, confirmed=False)
 
 
+def test_subcategory_route_rejects_orphaned_taxonomy_branch() -> None:
+    item = MODULE.TaxonomySubcategory(
+        category="missing-category",
+        name="orphan",
+        slug="orphan",
+        description="",
+    )
+    taxonomy = MODULE.Taxonomy(categories=(), subcategories=(item,))
+    with pytest.raises(ValueError, match="unknown category"):
+        MODULE._subcategory_route(taxonomy, item)
+
+
 def write_control_panel_sources(
     root: Path,
     *,

@@ -254,7 +254,7 @@ def validate_module_manifest(module_paths: Sequence[str], *, expected_extension:
         previous_order = order
 
 
-def validate_js_spec(root: Path, spec: FrontendBundleSpec) -> None:
+def validate_js_spec(root: Path, spec: FrontendBundleSpec) -> str:
     if not spec.entrypoint or not spec.required_inputs:
         raise ValueError(f"JavaScript bundle {spec.output_name} requires an entrypoint and required input boundaries")
     expected_parent = "src/runtime" if spec.kind == "runtime-js" else "src/entries"
@@ -277,6 +277,7 @@ def validate_js_spec(root: Path, spec: FrontendBundleSpec) -> None:
             raise ValueError(f"External browser module has no approved owner: {source_path}")
         if Path(output_name).name != output_name or not output_name.endswith(".js"):
             raise ValueError(f"External runtime output must be a root JavaScript filename: {output_name}")
+    return spec.entrypoint
 
 
 def source_manifest_text(module_paths: Sequence[str]) -> str:
@@ -443,7 +444,7 @@ def _partition_metafile_inputs(
 
 
 def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
-    validate_js_spec(root, spec)
+    entrypoint = validate_js_spec(root, spec)
     ensure_local_esbuild()
     capabilities = None if spec.kind == "runtime-js" else {
         "viewer": False, "favoritesWorkspace": False, "catalogGrid": False, "search": False,
@@ -454,7 +455,7 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
         raw_output = temporary / spec.output_name
         metafile_path = temporary / "metafile.json"
         command = [
-            "node", str(ESBUILD_RUNNER), "--root", str(root), "--entry", spec.entrypoint,
+            "node", str(ESBUILD_RUNNER), "--root", str(root), "--entry", entrypoint,
             "--outfile", str(raw_output), "--metafile", str(metafile_path),
             "--capabilities", json.dumps(capabilities, separators=(",", ":")),
             "--external-modules", json.dumps(dict(spec.external_modules or {}), separators=(",", ":")),

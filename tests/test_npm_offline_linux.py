@@ -232,6 +232,14 @@ def test_lockfile_selection_keeps_only_chat_linux_packages_and_playwright_npm(tm
     assert MODULE.excluded_root_package_names(root) == ("wrangler",)
 
 
+def test_manifest_string_items_rejects_malformed_manifest_lists() -> None:
+    assert MODULE.manifest_string_items({"items": ["a", "b"]}, "items") == ("a", "b")
+    with pytest.raises(MODULE.OfflineMirrorError, match="list of strings"):
+        MODULE.manifest_string_items({"items": ["a", 7]}, "items")
+    with pytest.raises(MODULE.OfflineMirrorError, match="list of strings"):
+        MODULE.manifest_string_items({}, "items")
+
+
 def test_dependency_resolution_prefers_nested_lockfile_package(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()

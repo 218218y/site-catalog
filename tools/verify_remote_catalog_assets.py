@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 from catalog_image_policy import load_catalog_image_delivery_mode, runtime_uses_medium_images
 
@@ -104,8 +104,10 @@ def load_catalogs(path: Path) -> list[dict]:
 
 def catalog_asset_version_for_tier(catalog: dict, tier: str) -> str:
     normalized_tier = str(tier or "full").strip() or "full"
-    variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), dict) else {}
-    variant = variants.get(normalized_tier) if isinstance(variants.get(normalized_tier), dict) else {}
+    variants_value = catalog.get("imageVariants")
+    variants = variants_value if isinstance(variants_value, dict) else {}
+    variant_value = variants.get(normalized_tier)
+    variant = variant_value if isinstance(variant_value, dict) else {}
     base_version = str(variant.get("version") or catalog.get("assetVersion") or "").strip()
     if not base_version:
         return ""
@@ -129,8 +131,10 @@ def iter_expected_asset_references(
         if not directory or pages < 1:
             raise ValueError(f"Catalog {catalog_id} is missing a valid image directory/pages count")
 
-        variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), dict) else {}
-        medium = variants.get("medium") if isinstance(variants.get("medium"), dict) else None
+        variants_value = catalog.get("imageVariants")
+        variants = variants_value if isinstance(variants_value, dict) else {}
+        medium_value = variants.get("medium")
+        medium = medium_value if isinstance(medium_value, dict) else None
         medium_directory = str((medium or {}).get("directory") or "").strip().strip("/")
 
         for page in range(1, pages + 1):
@@ -177,7 +181,7 @@ def build_asset_urls(
     return urls
 
 
-def _response_result(url: str, response) -> AssetCheckResult:
+def _response_result(url: str, response: Any) -> AssetCheckResult:
     status = int(getattr(response, "status", 200) or 200)
     content_type = str(response.headers.get("Content-Type", "")).split(";", 1)[0].strip().lower()
     content_length = str(response.headers.get("Content-Length", "")).strip()

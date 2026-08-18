@@ -80,8 +80,8 @@ def transcode_one(source: Path, output_format: str, quality: int, skip_existing:
         return Stats(skipped=1)
 
     try:
-        with Image.open(source) as image:
-            image = ImageOps.exif_transpose(image)
+        with Image.open(source) as source_image:
+            image: Image.Image = ImageOps.exif_transpose(source_image)
             if image.mode not in ("RGB", "RGBA"):
                 image = image.convert("RGB")
             if output_format in {"jpg", "webp"} and image.mode == "RGBA":

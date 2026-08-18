@@ -10,32 +10,14 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Phase 4 starts with correctness rules that are safe to make mandatory across
-# the existing codebase. Style and import-order rules can be ratcheted later
-# without mixing mass reformatting into behavioral changes.
+# Correctness rules are mandatory across tools/tests. Formatting and import
+# ordering remain intentionally outside this gate so quality checks do not
+# create unrelated source churn.
 select = ["E9", "F63", "F7", "F82"]
 
 [tool.mypy]
 python_version = "3.13"
-files = [
-  "tools/catalog_page_numbering.py",
-  "tools/taxonomy_editor.py",
-  "tools/check_frontend_contracts.py",
-  "tools/project_doctor.py",
-  "tools/python_toolchain.py",
-  "tools/setup_python_env.py",
-  "tools/verify_project.py",
-  "tools/run_python_quality.py",
-  "tools/catalog_types.py",
-  "tools/catalog_schema.py",
-  "tools/catalog_search_index.py",
-  "tools/catalog_compiler.py",
-  "tools/seo_site.py",
-  "tools/build_site_pages.py",
-  "tools/build_deploy_bundle.py",
-  "tools/catalog_control_api.py",
-  "tools/catalog_control_server.py",
-]
+files = ["tools"]
 check_untyped_defs = true
 disallow_untyped_defs = true
 no_implicit_optional = true

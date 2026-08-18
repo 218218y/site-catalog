@@ -20,6 +20,7 @@ from build_site_pages import read_catalogs
 from seo_site import (
     CATALOG_ID_RE,
     Taxonomy,
+    TaxonomySubcategory,
     catalog_path,
     category_path,
     load_seo_config,
@@ -38,6 +39,15 @@ _ROUTE_GROUPS = (
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def _subcategory_route(taxonomy: Taxonomy, item: TaxonomySubcategory) -> str:
+    category = taxonomy.category_by_name(item.category)
+    if category is None:
+        raise ValueError(
+            f"Taxonomy subcategory {item.name!r} references unknown category {item.category!r}"
+        )
+    return f"/{subcategory_path(category, item)}"
 
 
 def _route_snapshot(root: Path, catalogs: Sequence[Mapping[str, Any]], taxonomy: Taxonomy) -> dict[str, Any]:
@@ -65,7 +75,7 @@ def _route_snapshot(root: Path, catalogs: Sequence[Mapping[str, Any]], taxonomy:
                 "category": item.category,
                 "name": item.name,
                 "slug": item.slug,
-                "route": f"/{subcategory_path(taxonomy.category_by_name(item.category), item)}",
+                "route": _subcategory_route(taxonomy, item),
             }
             for item in sorted(
                 taxonomy.subcategories,

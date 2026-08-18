@@ -24,6 +24,7 @@ if str(TOOLS_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIRECTORY))
 
 from npm_offline_linux import (
+    LockedPackage,
     OfflineMirrorError,
     directory_matches_archive,
     extract_npm_archive,
@@ -42,7 +43,7 @@ class BootstrapError(RuntimeError):
     """Raised when the focused TypeScript compiler cannot be trusted or installed."""
 
 
-def _locked(root: Path, install_path: str):
+def _locked(root: Path, install_path: str) -> LockedPackage:
     try:
         return locked_package(root, install_path)
     except OfflineMirrorError as error:

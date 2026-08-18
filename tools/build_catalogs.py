@@ -960,7 +960,7 @@ def build_targeted_title_ocr_text(ocr_image: Image.Image, ocr: "OcrRunner", labe
     return _combine_search_texts(title_line_parts or fallback_parts)
 
 
-def normalize_search_text(value: str) -> str:
+def normalize_search_text(value: object) -> str:
     """Normalize text before it is written to the client-side search index."""
     cleaned = BIDI_CONTROL_RE.sub("", str(value or "").replace("\u00ad", ""))
     return " ".join(cleaned.split())

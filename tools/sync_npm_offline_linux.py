@@ -10,12 +10,18 @@ TOOLS_DIRECTORY = Path(__file__).resolve().parent
 if str(TOOLS_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIRECTORY))
 
-from npm_offline_linux import OfflineMirrorError, project_root, sync_mirror, verify_mirror
+from npm_offline_linux import (
+    OfflineMirrorError,
+    manifest_string_items,
+    project_root,
+    sync_mirror,
+    verify_mirror,
+)
 
 
 def _summary(prefix: str, manifest: dict[str, object]) -> None:
-    roots = ", ".join(manifest["rootPackages"])
-    excluded = ", ".join(manifest["excludedRootPackages"]) or "none"
+    roots = ", ".join(manifest_string_items(manifest, "rootPackages"))
+    excluded = ", ".join(manifest_string_items(manifest, "excludedRootPackages")) or "none"
     print(
         f"{prefix}: {manifest['packageCount']} packages / {manifest['archivePackageCount']} archives; "
         f"chat roots: {roots}; excluded roots: {excluded}."

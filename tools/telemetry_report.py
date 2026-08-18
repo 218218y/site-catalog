@@ -835,7 +835,7 @@ def format_count(value: Any) -> str:
 
 
 def rows_by_section(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    grouped = {key: [] for key in SECTION_TITLES_HE}
+    grouped: dict[str, list[dict[str, Any]]] = {key: [] for key in SECTION_TITLES_HE}
     for row in rows:
         section = str(row.get("section") or "")
         grouped.setdefault(section, []).append(row)
@@ -1579,12 +1579,18 @@ def create_report_files(
     return paths
 
 
+if sys.platform == "win32":  # pragma: no cover - exercised on Windows installations
+    def _open_report_path(path: Path) -> bool:
+        os.startfile(str(path))
+        return True
+else:
+    def _open_report_path(path: Path) -> bool:
+        return bool(webbrowser.open(path.as_uri()))
+
+
 def open_report(path: Path) -> bool:
     try:
-        if os.name == "nt":
-            os.startfile(str(path))  # type: ignore[attr-defined]
-            return True
-        return bool(webbrowser.open(path.as_uri()))
+        return _open_report_path(path)
     except (OSError, webbrowser.Error):
         return False
 

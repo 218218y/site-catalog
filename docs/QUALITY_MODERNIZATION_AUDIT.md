@@ -1,8 +1,8 @@
-# ביקורת מודרניזציית בדיקות וכלי איכות — שלב 4
+# ביקורת מודרניזציית בדיקות וכלי איכות — מצב נוכחי
 
-## מטרת השלב
+## מטרת מעטפת האיכות
 
-השלב מחזק את מעטפת האיכות בלי לשנות קוד runtime, DOM, CSS או תוצרי האתר. העיקרון המנחה הוא להחליף חוזים שמזהים טקסט מקרי בחוזים שמבינים מבנה קוד, ולהוסיף בדיקות מבוססות invariants במקומות שבהם מספר שילובי הקלט גדול מדי לבדיקות דוגמה ידניות.
+מעטפת האיכות נועדה להגן על invariants והתנהגות בלי לנעול צורת מימוש מקרית. העיקרון המנחה הוא להשתמש בחוזים מבניים כאשר המבנה הוא החוזה, בבדיקות behavior כאשר ההתנהגות היא החוזה, ובבדיקות generated/property כאשר מספר שילובי הקלט גדול מדי לבדיקות דוגמה ידניות.
 
 ## 1. חוזים מבניים מבוססי AST
 
@@ -25,39 +25,29 @@
 
 בבסיס שלפני השינוי היו 1,444 assertions מסוג match/doesNotMatch ב-54 קובצי JavaScript. לאחר גל המודרניזציה הנוכחי יש 1,320 assertions ב-53 קבצים: 124 assertions מבניים הוסרו, בלי לבצע המרה עיוורת של חוזי HTML/CSS שבהם הטקסט עצמו הוא החוזה. חוזה נכסי ה-runtime משתמש כעת ב-TypeScript AST וב-constants אמיתיים של כלי ה-Python במקום לקרוא את קוד המימוש שלהם כטקסט, וגם extraction של גופי פונקציות Search באמצעות Regex הוחלף בשיוך AST לפי owner/function.
 
-## 2. Ruff ו-mypy כשערים מדורגים
+## 2. Ruff ו-mypy כשערי איכות מלאים לכל כלי הפרויקט
 
-נוסף `pyproject.toml` מרכזי.
+`pyproject.toml` הוא מקור האמת המרכזי לבדיקות Python.
 
-Ruff מתחיל ב-ratchet של שגיאות correctness בלבד (`E9`, `F63`, `F7`, `F82`) על `tools` ו-`tests`. הבחירה מכוונת: השלב אינו מערבב רפורמט רחב עם שינויי בדיקות, אך מעכשיו שגיאות תחביר, bindings בלתי חוקיים ושמות בלתי מוגדרים חוסמים verification. כללי style/import-order יתווספו בגלים נפרדים לאחר תיקון מדוד.
+Ruff אוכף שגיאות correctness (`E9`, `F63`, `F7`, `F82`) על `tools` ו-`tests`. כללי formatting ו-import-order נשארים מחוץ לשער בכוונה, כדי שלא לערבב churn סגנוני עם שינויים התנהגותיים.
 
-mypy מופעל עם `disallow_untyped_defs`, `check_untyped_defs`, `no_implicit_optional` ואזהרות על unreachable/ignores מיותרים. ה-ratchet כולל כעת גם את צינור הקטלוג וה-SEO המרכזי, ולא רק כלי bootstrap וחוזה:
+mypy מופעל עם `disallow_untyped_defs`, `check_untyped_defs`, `no_implicit_optional` ואזהרות על unreachable/ignores מיותרים. לאחר השלמת הסגירה של שכבת הכלים, היעד אינו עוד allowlist של מודולים שעברו migration: `files = ["tools"]` מכניס אוטומטית את כל כלי ה-Python לשער. במצב הנוכחי נבדקים 55 מודולים, כולל compiler/search/SEO, בנייה ופריסה, control panel, telemetry/reporting, R2, כלי התמונות, transaction recovery וכלי ה-offline/bootstrap.
 
-- `tools/catalog_page_numbering.py`
-- `tools/taxonomy_editor.py`
-- `tools/check_frontend_contracts.py`
-- `tools/project_doctor.py`
-- `tools/python_toolchain.py`
-- `tools/setup_python_env.py`
-- `tools/verify_project.py`
-- `tools/run_python_quality.py`
-- `tools/catalog_types.py`
-- `tools/catalog_schema.py`
-- `tools/catalog_search_index.py`
-- `tools/catalog_compiler.py`
-- `tools/seo_site.py`
-- `tools/build_site_pages.py`
-- `tools/build_deploy_bundle.py`
-- `tools/catalog_control_api.py`
-- `tools/catalog_control_server.py`
+המעבר לכיסוי מלא גם סגר כמה גבולות שהיו קלים לפספס בכיסוי חלקי:
 
-הגל הנוכחי סוגר owner שלם: JSON/schema → compiler/search → SEO/page rendering → deploy bundle → typed HTTP/control-panel boundary. כך שינוי במבנה נתוני קטלוג, מצב build או DTO של לוח השליטה נבדק סטטית לאורך השרשרת ולא רק בקובץ בודד.
+- JSON mappings נקראים פעם אחת, נבדקים ואז מצומצמים לטיפוס הנכון במקום לבצע `get()` כפול שמותיר union עמום;
+- transaction journal משתמש במשתנים נפרדים ל-directory entries ול-file entries, ולכן DTO אחד אינו יכול להיטעות כ-DTO אחר;
+- נעילת קובץ ופתיחת דוח ממומשות דרך adapters שמוגדרים לפי `sys.platform`, כך ש-typeshed בודק Windows ו-POSIX בלי להתחזות לכך ש-API של פלטפורמה אחת קיים בשנייה;
+- frontend bundle validation מחזיר entrypoint מאומת, ולכן `subprocess` לעולם אינו מקבל `None` ברשימת הפקודה;
+- SEO route lock נכשל במפורש על תת-קטגוריה יתומה במקום להעביר `None` עמוק יותר ליצירת URL;
+- שדות list מתוך npm offline manifest עוברים validation משותף לפני שימוש, במקום להסתמך על `dict[str, object]` בנקודות הצריכה;
+- Pillow image handles מצומצמים ל-`Image.Image` לאחר `exif_transpose`, בהתאם לטיפוס האמיתי שממשיך בצינור ההמרה.
 
-זהו ratchet אמיתי ולא `ignore_errors`: מודול שנכנס לרשימה חייב לעמוד בחוזה המלא. מאחר שכלי הפרויקט מורצים כקובצי script מתוך `tools/`, ‏mypy מוגדר עם `namespace_packages = false`; כך namespace הטיפוסים תואם ל-runtime הקנוני ולא נוצרת זהות כפולה מלאכותית של אותו קובץ כ-`foo` וכ-`tools.foo`. אין כאן `ignore_errors` או החלשה של בדיקת הפונקציות עצמן. הרחבת הרשימה ממשיכה owner אחר owner, בלי להכניס suppressions גורפים.
+זהו כעת חוזה אוטומטי: כלי חדש תחת `tools/` נכנס ל-mypy בלי שינוי תצורה נוסף. `namespace_packages = false` נשאר תואם לאופן ההרצה הקנוני של כלי הפרויקט כ-scripts, ואין `ignore_errors` או suppressions גורפים.
 
-ה-type gate אינו תלוי עוד בפלטפורמת ה-host שעליה במקרה רץ mypy. כל verification מריץ את אותו חוזה פעמיים, עם `--platform linux` ו-`--platform win32` וב-cache נפרד לכל יעד. כך API של typeshed שקיים רק ב-POSIX או רק ב-Windows נכשל כבר ב-CI גם אם ה-CI עצמו רץ על הפלטפורמה השנייה. `python_version = 3.13` נשאר קו השפה המינימלי, ולכן התקנה מקומית על Python 3.14 אינה משנה את חוזה התאימות.
+ה-type gate אינו תלוי בפלטפורמת ה-host שעליה במקרה רץ mypy. כל verification מריץ את אותו חוזה פעמיים, עם `--platform linux` ו-`--platform win32` וב-cache נפרד לכל יעד. כך API של typeshed שקיים רק ב-POSIX או רק ב-Windows נכשל כבר ב-CI גם אם ה-CI עצמו רץ על הפלטפורמה השנייה. `python_version = 3.13` נשאר קו השפה המינימלי, ולכן התקנה מקומית על Python 3.14 אינה משנה את חוזה התאימות.
 
-הגרסאות נעולות ב-`tools/requirements-dev.txt`, נבדקות ב-bootstrap של `.venv`, ונוספו כשלבים חובה לפני pytest ב-`tools/verify_project.py`. `.python-version` הוא מקור האמת לקו התאימות המינימלי: CI, Ruff ו-mypy מכוונים לגרסת הבסיס, בעוד launcher ו-doctor מקבלים minor חדש יותר באותו major. ה-stamp של `.venv` הוא JSON versioned שמכיל fingerprint של דרישות/קו התאימות וגם runtime identity; אם ה-runtime שנבחר משתנה (למשל 3.13 → 3.14), הסביבה נבנית מחדש ולא נעשה ערבוב בין interpreters.
+הגרסאות נעולות ב-`tools/requirements-dev.txt`, נבדקות ב-bootstrap של `.venv`, ונוספו כשלבים חובה לפני pytest ב-`tools/verify_project.py`. `.python-version` הוא מקור האמת לקו התאימות המינימלי: CI, Ruff ו-mypy מכוונים לגרסת הבסיס, בעוד launcher ו-doctor מקבלים minor חדש יותר באותו major. ה-stamp של `.venv` הוא JSON versioned שמכיל fingerprint של דרישות/קו התאימות וגם runtime identity; אם ה-runtime שנבחר משתנה, הסביבה נבנית מחדש ולא נעשה ערבוב בין interpreters.
 
 פקודות ייעודיות:
 
@@ -126,9 +116,9 @@ python tools/project_doctor.py --json
 - mypy אינו מופעל על כל `tools/` עם suppressions גורפים; הכיסוי מתרחב רק לאחר owner migration אמיתי.
 - ה-doctor מאבחן בלבד ואינו מתקין, מוחק או משנה סביבת עבודה.
 
-## 6. הוכחת גבול runtime
+## 6. גבול כלי האיכות מול runtime
 
-השינוי נוגע רק בכלי פיתוח, בדיקות, תצורה ותיעוד. כל 13 נכסי ה-frontend שנבדקו — ארבעת באנדלי JavaScript, ארבעת קובצי CSS, ארבעת מודולי runtime החיצוניים ו-Search Worker — נשארו זהים byte-for-byte לבסיס שלפני שלב 4.
+שינויים בשומרי חוזים, Ruff/mypy, doctor ובדיקות property אינם מחייבים שינוי בתוצרי האתר. שער `check:frontend` נשאר ההוכחה הקנונית לכך שכל generated runtime asset תואם למקורותיו; שינוי בתוצר מתבצע רק דרך ה-builder המתאים ולא כחלק מתיקון בדיקה.
 
 ## 7. Telemetry ingestion contract hardening
 

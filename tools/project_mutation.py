@@ -14,6 +14,7 @@ import math
 import os
 import shutil
 import socket
+import sys
 import tempfile
 import time
 import uuid
@@ -33,6 +34,26 @@ JsonScalar: TypeAlias = str | int | float | bool | None
 JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 TransactionState: TypeAlias = Literal["active", "committed", "rolledback"]
 DirectoryOperation: TypeAlias = Literal["delete", "replace"]
+
+
+if sys.platform == "win32":  # pragma: no cover - exercised on Windows installations
+    import msvcrt
+
+    def _lock_platform_file(handle: BinaryIO) -> None:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+
+    def _unlock_platform_file(handle: BinaryIO) -> None:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock_platform_file(handle: BinaryIO) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def _unlock_platform_file(handle: BinaryIO) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 class MutationBusyError(RuntimeError):
@@ -559,12 +580,12 @@ def _rollback_transaction_journal(root: Path, temp_root: Path, journal: _Transac
     errors: list[str] = []
     errors.extend(_rollback_rename_batches(root, temp_root, journal.rename_batches))
 
-    for item in reversed(journal.directory_replacements):
+    for directory_entry in reversed(journal.directory_replacements):
         try:
-            target = _resolve_journal_path(root, item.target, label="directory target")
+            target = _resolve_journal_path(root, directory_entry.target, label="directory target")
             backup = (
-                _resolve_journal_path(temp_root, item.backup, label="directory backup")
-                if item.backup is not None
+                _resolve_journal_path(temp_root, directory_entry.backup, label="directory backup")
+                if directory_entry.backup is not None
                 else None
             )
             if backup is not None and backup.exists():
@@ -572,7 +593,7 @@ def _rollback_transaction_journal(root: Path, temp_root: Path, journal: _Transac
                     _remove_path(target)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 backup.rename(target)
-            elif item.had_target:
+            elif directory_entry.had_target:
                 if not target.exists():
                     raise TransactionRecoveryError(
                         f"Missing original directory and transaction backup: {target}"
@@ -582,13 +603,13 @@ def _rollback_transaction_journal(root: Path, temp_root: Path, journal: _Transac
         except Exception as exc:
             errors.append(str(exc))
 
-    for item in reversed(journal.files):
+    for file_entry in reversed(journal.files):
         try:
-            path = _resolve_journal_path(root, item.path, label="file target")
-            if item.existed:
-                if item.backup is None:
+            path = _resolve_journal_path(root, file_entry.path, label="file target")
+            if file_entry.existed:
+                if file_entry.backup is None:
                     raise TransactionRecoveryError(f"Missing backup reference for {path}")
-                backup = _resolve_journal_path(temp_root, item.backup, label="file backup")
+                backup = _resolve_journal_path(temp_root, file_entry.backup, label="file backup")
                 if not backup.is_file():
                     raise TransactionRecoveryError(f"Missing file backup for {path}")
                 _atomic_write_bytes(path, backup.read_bytes())
@@ -699,27 +720,11 @@ class ProjectMutationLock(AbstractContextManager["ProjectMutationLock"]):
 
     @staticmethod
     def _lock_file(handle: BinaryIO) -> None:
-        if os.name == "nt":  # pragma: no cover - exercised on Windows installations
-            import msvcrt
-
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            return
-        import fcntl
-
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _lock_platform_file(handle)
 
     @staticmethod
     def _unlock_file(handle: BinaryIO) -> None:
-        if os.name == "nt":  # pragma: no cover - exercised on Windows installations
-            import msvcrt
-
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            return
-        import fcntl
-
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        _unlock_platform_file(handle)
 
     def release(self) -> None:
         if not self._acquired:
