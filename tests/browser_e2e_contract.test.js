@@ -24,6 +24,7 @@ const playwrightConfig = configModule.exports;
 const spec = fs.readFileSync(path.join(root, "tests", "e2e", "site-catalog.spec.js"), "utf8");
 const visualSpec = fs.readFileSync(path.join(root, "tests", "e2e", "visual-components.spec.js"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
+const browserCheck = fs.readFileSync(path.join(root, "tools", "check_playwright_browser.js"), "utf8");
 const prepublishGate = fs.readFileSync(path.join(root, "docs", "prepublish-quality-gate.md"), "utf8");
 
 function pngDimensions(relativePath) {
@@ -101,6 +102,10 @@ assert.match(visualSpec, /PLAYWRIGHT_VISUAL_BASELINE/);
 assert.match(visualSpec, /expectVisualComponent/);
 assert.match(visualSpec, /toHaveScreenshot/);
 assert.match(verifier, /Playwright browser journeys/);
+assert.match(browserCheck, /arg !== "--launch"/);
+assert.match(browserCheck, /chromium\.launch\(launchOptions\)/);
+assert.match(browserCheck, /await browser\.close\(\)/);
+assert.match(browserCheck, /process\.platform === "linux"/);
 assert.match(prepublishGate, /סקירה חזותית ידנית על מכשירים אמיתיים/);
 assert.match(prepublishGate, /LCP[\s\S]*INP[\s\S]*CLS/);
 assert.match(prepublishGate, /אחסון חסום/);

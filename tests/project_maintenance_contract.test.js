@@ -247,18 +247,39 @@ assert.match(
   ciWorkflow,
   /Save Python virtual environment[\s\S]{0,140}if: steps\.python-venv-cache\.outputs\.cache-hit != 'true'[\s\S]{0,180}cache-primary-key/,
 );
-const escapedPlaywrightVersion = playwrightVersion.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+assert.doesNotMatch(ciWorkflow, /^\s+container:/mu);
+assert.doesNotMatch(ciWorkflow, /mcr\.microsoft\.com\/playwright:/u);
+assert.match(ciWorkflow, /Resolve Playwright browser version[\s\S]{0,260}id: playwright-version/);
 assert.match(
   ciWorkflow,
-  new RegExp(`image: mcr\\.microsoft\\.com/playwright:v${escapedPlaywrightVersion}-noble`, "u"),
+  /require\("\.\/package-lock\.json"\)\.packages\["node_modules\/playwright-core"\]\.version/,
 );
-assert.match(ciWorkflow, /options: --ipc=host/);
-assert.equal((ciWorkflow.match(/mcr\.microsoft\.com\/playwright:/gu) || []).length, 1);
-assert.doesNotMatch(ciWorkflow, /id: playwright-version/);
-assert.doesNotMatch(ciWorkflow, /Restore Playwright browser cache/);
-assert.doesNotMatch(ciWorkflow, /path: ~\/\.cache\/ms-playwright/);
-assert.doesNotMatch(ciWorkflow, /playwright install-deps/);
-assert.doesNotMatch(ciWorkflow, /playwright install(?: --with-deps)? chromium/);
+assert.match(ciWorkflow, /Restore Playwright browser cache[\s\S]{0,180}id: playwright-cache/);
+assert.match(ciWorkflow, /uses: actions\/cache@v6/);
+assert.match(ciWorkflow, /path: ~\/\.cache\/ms-playwright/);
+assert.match(
+  ciWorkflow,
+  /key: playwright-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.playwright-version\.outputs\.version \}\}/,
+);
+assert.match(
+  ciWorkflow,
+  /Install Playwright Chromium on cache miss[\s\S]{0,180}if: steps\.playwright-cache\.outputs\.cache-hit != 'true'[\s\S]{0,120}playwright install chromium/,
+);
+assert.match(
+  ciWorkflow,
+  /Probe Playwright Chromium runtime[\s\S]{0,180}id: playwright-runtime[\s\S]{0,120}continue-on-error: true[\s\S]{0,120}check_playwright_browser\.js --launch/,
+);
+assert.match(
+  ciWorkflow,
+  /Repair Playwright system dependencies only if required[\s\S]{0,180}if: steps\.playwright-runtime\.outcome == 'failure'[\s\S]{0,140}playwright install --with-deps chromium/,
+);
+assert.match(
+  ciWorkflow,
+  /Verify Playwright Chromium runtime[\s\S]{0,120}check_playwright_browser\.js --launch/,
+);
+assert.equal((ciWorkflow.match(/playwright install --with-deps chromium/gu) || []).length, 1);
+assert.equal((ciWorkflow.match(/playwright install chromium/gu) || []).length, 1);
+assert.doesNotMatch(ciWorkflow, /playwright install-deps chromium/);
 assert.match(ciWorkflow, /Prepare Python environment[\s\S]{0,100}npm run setup:python/);
 assert.match(ciWorkflow, /uses: actions\/upload-artifact@v7/);
 assert.match(pyproject, new RegExp(`target-version = "py${pythonBaseline.replace(".", "")}"`, "u"));

@@ -82,12 +82,6 @@ jobs:
     name: Playwright browser tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Pin the official Playwright image to the exact @playwright/test version.
-    # It already contains Chromium and its Linux system dependencies, avoiding
-    # a network-sensitive apt install on every fresh GitHub-hosted runner.
-    container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
-      options: --ipc=host
     env:
       CI: "1"
       PYTHONDONTWRITEBYTECODE: "1"
@@ -123,6 +117,19 @@ jobs:
           path: .venv
           key: python-venv-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.python-setup.outputs.python-version }}-${{ hashFiles('.python-version', 'tools/requirements.txt', 'tools/requirements-dev.txt', 'tools/setup_python_env.py', 'tools/python_toolchain.py') }}
 
+      - name: Resolve Playwright browser version
+        id: playwright-version
+        run: |
+          PLAYWRIGHT_VERSION="$(node -p 'require("./package-lock.json").packages["node_modules/playwright-core"].version')"
+          echo "version=$PLAYWRIGHT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright browser cache
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Remove ephemeral source artifacts
         run: python tools/clean_project_artifacts.py
 
@@ -131,6 +138,25 @@ jobs:
 
       - name: Prepare Python environment
         run: npm run setup:python
+
+      - name: Install Playwright Chromium on cache miss
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx --no-install playwright install chromium
+
+      # GitHub's Ubuntu image normally already contains the shared libraries
+      # needed by Chromium. Probe the actual pinned Playwright browser first so
+      # apt is used only as a recovery path if the runner image ever lacks one.
+      - name: Probe Playwright Chromium runtime
+        id: playwright-runtime
+        continue-on-error: true
+        run: node tools/check_playwright_browser.js --launch
+
+      - name: Repair Playwright system dependencies only if required
+        if: steps.playwright-runtime.outcome == 'failure'
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: Verify Playwright Chromium runtime
+        run: node tools/check_playwright_browser.js --launch
 
       - name: Run Playwright browser tests
         run: npm run test:e2e
