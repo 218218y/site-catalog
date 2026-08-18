@@ -3,6 +3,7 @@
 /** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
 /** @import { CatalogCategoryGroup, CatalogSearchResult } from "../../types/frontend-contracts.js" */
 
+import { catalogAssetBaseUrl as configuredCatalogAssetBaseUrl, catalogImageDeliveryMode as configuredCatalogImageDeliveryMode } from "../../catalog-assets.config.js";
 import { catalogs as catalogRecords } from "../../catalogs.generated.module.js";
 
 /** @typedef {"category"|"subcategory"|"catalog"} NavigationResultType */
@@ -305,8 +306,8 @@ function displayPageToAssetPage(catalog, page) {
   return Math.min(Math.max(displayPage, firstPage), lastPage) - firstPage + 1;
 }
 
-function catalogAssetBaseUrl() {
-  const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
+function normalizedCatalogAssetBaseUrl() {
+  const rawBase = String(configuredCatalogAssetBaseUrl || "").trim();
   if (!rawBase) return "";
   return rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
 }
@@ -320,7 +321,7 @@ function isAbsoluteAssetUrl(path) {
 function resolveCatalogAssetUrl(path) {
   const cleanPath = String(path || "").trim();
   if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
-  const baseUrl = catalogAssetBaseUrl();
+  const baseUrl = normalizedCatalogAssetBaseUrl();
   if (!baseUrl) return cleanPath;
   try {
     return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
@@ -368,7 +369,7 @@ function thumbSrc(catalog, page) {
 
 /** @param {CatalogRecord} catalog @param {unknown} page */
 function mediumSrc(catalog, page) {
-  if (String(window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE || "").trim().toLowerCase() === "full-only") return "";
+  if (String(configuredCatalogImageDeliveryMode || "").trim().toLowerCase() === "full-only") return "";
   const variant = catalog?.imageVariants?.medium;
   if (!variant || typeof variant !== "object") return "";
   const directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";

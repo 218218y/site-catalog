@@ -215,6 +215,10 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
     (static_dir / index_name).write_bytes(index_content)
 
     data_sources = {
+        "catalog-assets.config": (
+            b'export const catalogAssetBaseUrl = "https://cdn.example.test/";\n'
+            b'export const catalogImageDeliveryMode = "responsive";\n'
+        ),
         "catalogs.generated.module": b"export const catalogs = Object.freeze([]);\n",
         "catalog-taxonomy.generated.module": b"export const catalogTaxonomy = Object.freeze({});\n",
     }
@@ -226,10 +230,11 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
 
     runtime_sources = {
         "catalog-search": (
+            f'import {{ catalogAssetBaseUrl }} from "./{runtime_names["catalog-assets.config"]}";\n'
             f'import {{ catalogs }} from "./{runtime_names["catalogs.generated.module"]}";\n'
             f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
             f'const SEARCH_INDEX_DATA_SRC = "{index_name}";\n'
-            'export const catalogSearch = { catalogs };\n'
+            'export const catalogSearch = { catalogAssetBaseUrl, catalogs };\n'
         ).encode("utf-8"),
         "tooltip-manager": b"export const tooltips = {};\n",
         "favorites-store": b"export function createStore() { return {}; }\n",
@@ -247,7 +252,7 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
     runtime_imports = "".join(
         f'import "./{runtime_names[stem]}";\n'
         for stem in (
-            "catalog-search", "tooltip-manager", "favorites-store", "site-routes",
+            "catalog-assets.config", "catalog-search", "tooltip-manager", "favorites-store", "site-routes",
             "catalogs.generated.module", "catalog-taxonomy.generated.module",
         )
     )

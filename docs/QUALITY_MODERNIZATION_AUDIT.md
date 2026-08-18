@@ -152,3 +152,8 @@ or User-Agent solely for throttling would also violate the existing privacy mode
 control remains an infrastructure concern, while the application contract minimizes and constrains
 what any accepted request can place in Analytics Engine.
 
+## 8. Full ESM runtime configuration boundary
+
+The catalog image deployment configuration is no longer a classic script or a pair of mutable `window` globals. `catalog-assets.config.js` is an immutable dependency-free ES module exporting `catalogAssetBaseUrl` and `catalogImageDeliveryMode`. Catalog routes and the external Search runtime import those bindings explicitly. The deploy graph fingerprints configuration before dependent runtime services and route bundles, so a CDN/policy change invalidates exactly the modules that depend on that configuration and cannot be mixed with an older generation.
+
+The checked-in delivery-policy parser now fails closed when the required ESM export is missing or invalid instead of silently falling back because a source-text pattern stopped matching. Route HTML contains only the route's native module entrypoint for application startup; `Window` no longer declares catalog asset configuration globals.

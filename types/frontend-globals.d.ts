@@ -22,8 +22,6 @@ declare global {
   }
 
   interface Window {
-    BARGIG_CATALOG_ASSET_BASE_URL?: string;
-    BARGIG_CATALOG_IMAGE_DELIVERY_MODE?: string;
     __BARGIG_RELEASE_ID__?: string;
     __BARGIG_DISABLE_TELEMETRY__?: boolean;
     __BARGIG_ENABLE_TELEMETRY__?: boolean;

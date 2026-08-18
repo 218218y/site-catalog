@@ -29,6 +29,7 @@
  *   - src/js/80-app-shell.js
  *   - src/js/90-bootstrap.js
  * External browser modules:
+ *   - catalog-assets.config.js
  *   - src/runtime/catalog-search.js
  *   - src/runtime/tooltip-manager.js
  *   - src/runtime/favorites-store.js
@@ -181,6 +182,7 @@ function eventTargetElement(target) {
 }
 
 // src/js/03-runtime-context.js
+import { catalogAssetBaseUrl, catalogImageDeliveryMode as configuredCatalogImageDeliveryMode } from "./catalog-assets.config.js";
 import { catalogSearch } from "./catalog-search.js";
 import { siteRoutes } from "./site-routes.js";
 import { catalogs } from "./catalogs.generated.module.js";
@@ -197,8 +199,8 @@ var LIGHTBOX_SOURCE_CATALOG = "catalog", LIGHTBOX_SOURCE_FAVORITES = "favorites"
 });
 
 // src/js/17-catalog-asset-urls.js
-function catalogAssetBaseUrl() {
-  let rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
+function normalizedCatalogAssetBaseUrl() {
+  let rawBase = String(catalogAssetBaseUrl || "").trim();
   return rawBase ? rawBase.endsWith("/") ? rawBase : `${rawBase}/` : "";
 }
 function isAbsoluteAssetUrl(path) {
@@ -207,7 +209,7 @@ function isAbsoluteAssetUrl(path) {
 function resolveCatalogAssetUrl(path) {
   let cleanPath = String(path || "").trim();
   if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
-  let baseUrl = catalogAssetBaseUrl();
+  let baseUrl = normalizedCatalogAssetBaseUrl();
   if (!baseUrl) return cleanPath;
   try {
     return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
@@ -1136,7 +1138,7 @@ function isSaveDataEnabled() {
   return !!networkInformation()?.saveData;
 }
 function catalogImageDeliveryMode() {
-  return String(window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE || "").trim().toLowerCase() === CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY ? CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY : CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
+  return String(configuredCatalogImageDeliveryMode || "").trim().toLowerCase() === CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY ? CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY : CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
 }
 function catalogMediumImagesEnabled() {
   return catalogImageDeliveryMode() === CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;

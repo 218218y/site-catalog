@@ -5,6 +5,7 @@
  * Bundled ES module graph:
  *   - src/runtime/catalog-search.js
  * External browser modules:
+ *   - catalog-assets.config.js
  *   - catalogs.generated.module.js
  * Compiler virtual inputs: none
  * Output format: native browser ES module
@@ -12,6 +13,7 @@
  * Build command: python tools/build_frontend_assets.py
  */
 // src/runtime/catalog-search.js
+import { catalogAssetBaseUrl as configuredCatalogAssetBaseUrl, catalogImageDeliveryMode as configuredCatalogImageDeliveryMode } from "./catalog-assets.config.js";
 import { catalogs as catalogRecords } from "./catalogs.generated.module.js";
 var SEARCH_WORKER_SCRIPT_SRC = "catalog-search-worker.js", SEARCH_INDEX_DATA_SRC = "catalogs.search-index.json", FINAL_LETTERS = /* @__PURE__ */ new Map([
   ["ך", "כ"],
@@ -159,8 +161,8 @@ function displayPageToAssetPage(catalog, page) {
   let firstPage = catalogFirstPage(catalog), pageCount = Math.max(1, Number.parseInt(String(catalog?.pages || 1), 10) || 1), parsed = Number.parseInt(String(page), 10), displayPage = Number.isFinite(parsed) ? parsed : firstPage, lastPage = firstPage + pageCount - 1;
   return Math.min(Math.max(displayPage, firstPage), lastPage) - firstPage + 1;
 }
-function catalogAssetBaseUrl() {
-  let rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
+function normalizedCatalogAssetBaseUrl() {
+  let rawBase = String(configuredCatalogAssetBaseUrl || "").trim();
   return rawBase ? rawBase.endsWith("/") ? rawBase : `${rawBase}/` : "";
 }
 function isAbsoluteAssetUrl(path) {
@@ -169,7 +171,7 @@ function isAbsoluteAssetUrl(path) {
 function resolveCatalogAssetUrl(path) {
   let cleanPath = String(path || "").trim();
   if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
-  let baseUrl = catalogAssetBaseUrl();
+  let baseUrl = normalizedCatalogAssetBaseUrl();
   if (!baseUrl) return cleanPath;
   try {
     return new URL(cleanPath.replace(/^\/+/, ""), baseUrl).href;
@@ -200,7 +202,7 @@ function thumbSrc(catalog, page) {
   return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(assetPage)}.${imageExt(catalog)}`, catalog, "thumb");
 }
 function mediumSrc(catalog, page) {
-  if (String(window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE || "").trim().toLowerCase() === "full-only") return "";
+  if (String(configuredCatalogImageDeliveryMode || "").trim().toLowerCase() === "full-only") return "";
   let variant = catalog?.imageVariants?.medium;
   if (!variant || typeof variant != "object") return "";
   let directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium", assetPage = displayPageToAssetPage(catalog, page);

@@ -61,6 +61,9 @@ VIEWER_CSS_MODULES: tuple[str, ...] = (
 )
 
 
+CONFIG_EXTERNAL_MODULES: Mapping[str, str] = {
+    "catalog-assets.config.js": "catalog-assets.config.js",
+}
 RUNTIME_EXTERNAL_MODULES: Mapping[str, str] = {
     "src/runtime/catalog-search.js": "catalog-search.js",
     "src/runtime/tooltip-manager.js": "tooltip-manager.js",
@@ -72,11 +75,13 @@ GENERATED_DATA_EXTERNAL_MODULES: Mapping[str, str] = {
     "catalog-taxonomy.generated.module.js": "catalog-taxonomy.generated.module.js",
 }
 ROUTE_EXTERNAL_MODULES: Mapping[str, str] = {
+    **CONFIG_EXTERNAL_MODULES,
     **RUNTIME_EXTERNAL_MODULES,
     **GENERATED_DATA_EXTERNAL_MODULES,
 }
 RUNTIME_EXTERNAL_DEPENDENCIES: Mapping[str, Mapping[str, str]] = {
     "src/runtime/catalog-search.js": {
+        "catalog-assets.config.js": "catalog-assets.config.js",
         "catalogs.generated.module.js": "catalogs.generated.module.js",
     },
 }
@@ -271,6 +276,7 @@ def validate_js_spec(root: Path, spec: FrontendBundleSpec) -> str:
         read_source_module(root, source_path)
         approved_source = (
             Path(source_path).parent.as_posix() == "src/runtime"
+            or source_path in CONFIG_EXTERNAL_MODULES
             or source_path in GENERATED_DATA_EXTERNAL_MODULES
         )
         if not approved_source:

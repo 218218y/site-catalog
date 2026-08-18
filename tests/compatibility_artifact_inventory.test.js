@@ -7,7 +7,7 @@ const { inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.resolve(__dirname, "..");
 const routeDocuments = ["index.html", "catalog.html", "favorites.html", "viewer.html", "site.template.html"];
-const classicConfigAssets = ["catalog-assets.config.js"];
+const deploymentConfigModules = ["catalog-assets.config.js"];
 const generatedDataModules = [
   "catalogs.generated.module.js",
   "catalog-taxonomy.generated.module.js",
@@ -22,6 +22,7 @@ const routeApps = ["app-catalog.js", "app-favorites.js", "app-viewer.js"];
 const javascriptFiles = [
   ...routeApps,
   "app-payment.js",
+  ...deploymentConfigModules,
   "catalog-search.js",
   "catalog-snapshot.js",
   ...generatedDataModules,
@@ -31,10 +32,7 @@ const ast = inventoryProjectFiles(root, javascriptFiles);
 
 for (const documentName of routeDocuments) {
   const source = fs.readFileSync(path.join(root, documentName), "utf8");
-  for (const asset of classicConfigAssets) {
-    assert.match(source, new RegExp(`<script src=["']${asset.replaceAll(".", "\\.")}["']></script>`), `${documentName}: ${asset}`);
-  }
-  for (const asset of generatedDataModules) {
+  for (const asset of [...deploymentConfigModules, ...generatedDataModules]) {
     assert.doesNotMatch(source, new RegExp(`<script[^>]+src=["']${asset.replaceAll(".", "\\.")}["']`), `${documentName}: ${asset} is imported by ESM`);
   }
   for (const asset of externalRuntimeAssets) {
@@ -55,6 +53,7 @@ for (const retired of [
 }
 
 const expectedExternalImports = new Set([
+  ...deploymentConfigModules.map((name) => `./${name}`),
   ...externalRuntimeAssets.map((name) => `./${name}`),
   ...generatedDataModules.map((name) => `./${name}`),
 ]);
@@ -64,10 +63,28 @@ for (const appName of routeApps) {
 }
 
 assert.deepEqual(ast["app-payment.js"].staticImports, [], "payment route stays runtime-module free");
-assert.deepEqual(ast["catalog-search.js"].staticImports, ["./catalogs.generated.module.js"]);
+assert.deepEqual(
+  ast["catalog-search.js"].staticImports,
+  ["./catalog-assets.config.js", "./catalogs.generated.module.js"],
+);
 assert.ok(
   ast["src/js/31-viewer-share.js"].staticImports.includes("../../catalog-snapshot.js"),
   "viewer sharing owns the catalog snapshot dependency",
+);
+
+const configAst = ast["catalog-assets.config.js"];
+assert.deepEqual(
+  configAst.variableDeclarations
+    .filter((declaration) => declaration.exported)
+    .map((declaration) => declaration.name),
+  ["catalogAssetBaseUrl", "catalogImageDeliveryMode"],
+  "deployment image config exposes only immutable ESM bindings",
+);
+assert.equal(configAst.staticImports.length, 0, "deployment image config must remain dependency-free");
+assert.equal(
+  configAst.assignmentTargets.some((target) => target.startsWith("window.")),
+  false,
+  "deployment image config must not publish window globals",
 );
 
 for (const [asset, exportedName] of [

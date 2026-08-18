@@ -8,7 +8,11 @@ const root = path.resolve(__dirname, "..");
 const catalogRecords = [];
 global.window = {};
 const { importFrontendModule } = require("./frontend_test_module");
-const catalogSearch = importFrontendModule("src/runtime/catalog-search.js", { catalogs: catalogRecords });
+const catalogSearch = importFrontendModule("src/runtime/catalog-search.js", {
+  catalogs: catalogRecords,
+  catalogAssetBaseUrl: "",
+  catalogImageDeliveryMode: "responsive",
+});
 
 assert.ok(catalogSearch, "catalog search runtime should expose its public API");
 assert.equal(catalogSearch.normalize("פרד״י"), "פרדי");

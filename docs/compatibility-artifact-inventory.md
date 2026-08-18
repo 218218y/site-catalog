@@ -2,18 +2,16 @@
 
 This contract defines the active runtime asset boundary independently of past migrations. Browser structure is verified from HTML and the TypeScript AST; build/deploy membership is verified from the Python builders' public constants rather than source-text patterns. It is enforced by `tests/compatibility_artifact_inventory.test.js` plus the corresponding builder unit tests.
 
-## Active browser bootstrap
+## Deployment-owned external ES module
 
-Route documents load one classic script before the native route module:
-
-- `catalog-assets.config.js` — deploy-time image origin and delivery policy.
-
-It is a small environment boundary, not a business API. Catalog data and taxonomy are not exposed through classic scripts or `window` globals.
+Route documents no longer load any classic application/configuration script before the native route module.
+`catalog-assets.config.js` is an immutable ES module that exports only the deploy-time image origin and delivery policy. The deploy builder rewrites the CDN origin, fingerprints the resulting module and rewrites every dependent import to that exact generation. No `window.BARGIG_CATALOG_*` configuration globals remain in the application runtime.
 
 ## Independently cached external ES modules
 
 Every catalog route imports the following typed modules explicitly; HTML does not load them as classic scripts:
 
+- `catalog-assets.config.js` — immutable deployment-owned image origin and delivery policy.
 - `catalogs.generated.module.js` — immutable generated catalog records.
 - `catalog-taxonomy.generated.module.js` — immutable generated taxonomy.
 - `catalog-search.js` — asynchronous search client.

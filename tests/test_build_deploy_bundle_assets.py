@@ -81,6 +81,7 @@ def test_runtime_deploy_manifest_excludes_retired_artifacts() -> None:
     published = set(MODULE.DEPLOY_FILES) | set(MODULE.OPTIONAL_DEPLOY_FILES) | set(MODULE.JSON_DEPLOY_FILES)
     assert retired.isdisjoint(published)
     assert set(MODULE.DEPLOY_EXTERNAL_MODULE_FILES) == {
+        "catalog-assets.config.js",
         "catalog-search.js",
         "tooltip-manager.js",
         "favorites-store.js",
@@ -174,8 +175,8 @@ def test_runtime_asset_config_preserves_full_only_delivery_mode(tmp_path: Path) 
     root.mkdir()
     out.mkdir()
     (root / "catalog-assets.config.js").write_text(
-        'window.BARGIG_CATALOG_ASSET_BASE_URL = "";\n'
-        'window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";\n',
+        'export const catalogAssetBaseUrl = "";\n'
+        'export const catalogImageDeliveryMode = "full-only";\n',
         encoding="utf-8",
     )
 
@@ -183,20 +184,59 @@ def test_runtime_asset_config_preserves_full_only_delivery_mode(tmp_path: Path) 
     generated = (out / "catalog-assets.config.js").read_text(encoding="utf-8")
 
     assert stats.files == 1
-    assert 'window.BARGIG_CATALOG_ASSET_BASE_URL = "https://cdn.example.test/";' in generated
-    assert 'window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";' in generated
+    assert 'export const catalogAssetBaseUrl = "https://cdn.example.test/";' in generated
+    assert 'export const catalogImageDeliveryMode = "full-only";' in generated
 
 
 def test_runtime_asset_config_rejects_unknown_delivery_mode(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
     (root / "catalog-assets.config.js").write_text(
-        'window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "mystery";\n',
+        'export const catalogImageDeliveryMode = "mystery";\n',
         encoding="utf-8",
     )
 
     with pytest.raises(ValueError, match="Unsupported catalog image delivery mode"):
         MODULE.catalog_image_delivery_mode(root)
+
+
+def test_runtime_asset_config_requires_explicit_delivery_mode_export(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "catalog-assets.config.js").write_text(
+        'export const catalogAssetBaseUrl = "";\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="must export catalogImageDeliveryMode"):
+        MODULE.catalog_image_delivery_mode(root)
+
+
+def test_config_fingerprint_propagates_through_search_and_routes(tmp_path: Path) -> None:
+    def build_generation(name: str, base_url: str) -> tuple[dict[str, str], str]:
+        out = tmp_path / name
+        out.mkdir()
+        for relative in (*MODULE.DEPLOY_EXTERNAL_MODULE_FILES, *MODULE.DEPLOY_APP_FILES):
+            source = ROOT / relative
+            (out / relative).write_bytes(source.read_bytes())
+        (out / "catalog-assets.config.js").write_text(
+            MODULE.asset_config_content(base_url, "responsive"),
+            encoding="utf-8",
+        )
+        targets = MODULE.fingerprint_external_modules(out)
+        route_text = (out / "app-catalog.js").read_text(encoding="utf-8")
+        return targets, route_text
+
+    first_targets, first_route = build_generation("first", "https://cdn-a.example.test/")
+    second_targets, second_route = build_generation("second", "https://cdn-b.example.test/")
+
+    assert first_targets["catalog-assets.config.js"] != second_targets["catalog-assets.config.js"]
+    assert first_targets["catalog-search.js"] != second_targets["catalog-search.js"]
+    assert first_route != second_route
+    assert Path(first_targets["catalog-assets.config.js"]).name in first_route
+    assert Path(second_targets["catalog-assets.config.js"]).name in second_route
+    assert Path(first_targets["catalog-search.js"]).name in first_route
+    assert Path(second_targets["catalog-search.js"]).name in second_route
 
 
 def test_atomic_output_replacement_publishes_only_complete_staging_bundle(tmp_path: Path) -> None:
@@ -228,6 +268,10 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
     index = index.rename(static / index_name)
 
     data_sources = {
+        "catalog-assets.config": (
+            'export const catalogAssetBaseUrl = "https://cdn.example.test/";\n'
+            'export const catalogImageDeliveryMode = "responsive";\n'
+        ),
         "catalogs.generated.module": "export const catalogs = Object.freeze([]);\n",
         "catalog-taxonomy.generated.module": "export const catalogTaxonomy = Object.freeze({});\n",
     }
@@ -240,10 +284,11 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
 
     runtime_sources = {
         "catalog-search": (
+            f'import {{ catalogAssetBaseUrl }} from "./{external_assets["catalog-assets.config"].name}";\n'
             f'import {{ catalogs }} from "./{external_assets["catalogs.generated.module"].name}";\n'
             f'const SEARCH_WORKER_SCRIPT_SRC = "static/{worker_name}";\n'
             f'const SEARCH_INDEX_DATA_SRC = "{index_name}";\n'
-            'export const catalogSearch = { catalogs };\n'
+            'export const catalogSearch = { catalogAssetBaseUrl, catalogs };\n'
         ),
         "tooltip-manager": "export const tooltips = {};\n",
         "favorites-store": "export function createStore() { return {}; }\n",
@@ -261,7 +306,7 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
     runtime_imports = "".join(
         f'import "./{external_assets[stem].name}";\n'
         for stem in (
-            "catalog-search", "tooltip-manager", "favorites-store", "site-routes",
+            "catalog-assets.config", "catalog-search", "tooltip-manager", "favorites-store", "site-routes",
             "catalogs.generated.module", "catalog-taxonomy.generated.module",
         )
     )
@@ -322,7 +367,7 @@ def test_bundle_validation_hashes_each_shared_asset_once(
 
     monkeypatch.setattr(MODULE, "content_hash", counting_content_hash)
 
-    assert MODULE.validate_fingerprinted_bundle(out) == 12
+    assert MODULE.validate_fingerprinted_bundle(out) == 13
     assert hash_calls == {path: 1 for path in assets.values()}
 
 

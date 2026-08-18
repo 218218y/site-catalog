@@ -125,7 +125,7 @@ dist/site-public-preview   מועמד public מאומת; אינו נפרס או�
 dist\site-upload-r2
 ```
 
-התיקייה כוללת את קבצי האתר, קבצי הנתונים וההגדרה `catalog-assets.config.js` שמפנה את התמונות לכתובת ה-CDN:
+התיקייה כוללת את קבצי האתר, קבצי הנתונים ומודול ה־ESM `catalog-assets.config.js` שמכיל את כתובת ה־CDN ומדיניות מסירת התמונות:
 
 ```text
 https://cdn.bargig-furniture.com/assets/pages/...
@@ -354,11 +354,13 @@ dist\site-upload-r2.zip
 
 ### בחירת שכבת התמונות בצופה
 
-הקובץ `catalog-assets.config.js` כולל מתג יחיד:
+הקובץ `catalog-assets.config.js` הוא מודול ESM immutable. לעריכת מדיניות מסירת התמונות משנים את ה־export הבא:
 
 ```js
-window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = "full-only";
+export const catalogImageDeliveryMode = "full-only";
 ```
+
+`catalogAssetBaseUrl` נשאר ריק בקובץ המקור המקומי; בזמן בניית חבילת R2 כלי הפריסה יוצר את אותו מודול עם כתובת ה־CDN שנבחרה, ממזער ומפענח אותו, ומשכתב את imports של Search והמסלולים לאותו דור בדיוק. אין `window` globals עבור הגדרת נכסי הקטלוג.
 
 - `"full-only"` — הצופה ותצוגות מקדימות גדולות אינם מבקשים כלל את תיקיית `medium`; כרטיסים ותמונות זעירות ממשיכים להשתמש ב־thumbnail, ובמקרה כשל בצופה thumbnail נשאר fallback חירום.
 - `"responsive"` — מחזיר את הבחירה האוטומטית בין Medium ל־Full לפי גודל התצוגה, צפיפות הפיקסלים והזום.
@@ -461,7 +463,7 @@ catalog-search.js                  תוצר ESM חיצוני ומפוענח של
 catalog-search-worker.js           מנוע החיפוש שרץ מחוץ ל־Main Thread
 catalogs.search-index.json         אינדקס הפוך ומנורמל שנבנה מראש בזמן Build
 catalog-snapshot.js                מקור ESM לצילום עמוד; מיובא רק מ־Viewer ואינו נפרס כקובץ עצמאי
-catalog-assets.config.js           כתובת בסיס התמונות ומדיניות responsive/full-only; בבאנדל R2 מוחלף רק URL ה-CDN
+catalog-assets.config.js           מודול ESM immutable לכתובת בסיס התמונות ולמדיניות responsive/full-only; בבאנדל R2 כתובת ה-CDN מוטבעת לפני fingerprinting
 social-share-default.png            תמונת ברירת המחדל לשיתוף קישור ותגיות Open Graph/Twitter (1200×630)
 catalogs.config.json               רשימת הקטלוגים לעריכה
 catalogs.build-state.json          מצב ההמרה הסמכותי: עמודים, גרסאות תמונה, מידות וטקסט חיפוש

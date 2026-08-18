@@ -44,7 +44,8 @@ Object.assign(globalThis, {
   CATALOG_IMAGE_TIER_THUMB: policy.CATALOG_IMAGE_TIER_THUMB,
   displayPageToAssetPage: (_catalog, page) => Number(page),
   catalogFirstPage: () => 1,
-  window: { BARGIG_CATALOG_ASSET_BASE_URL: "https://cdn.example.test/catalogs/" }
+  catalogAssetBaseUrl: "https://cdn.example.test/catalogs/",
+  catalogImageDeliveryMode: "responsive"
 });
 const urls = importFrontendModule("src/js/17-catalog-asset-urls.js");
 const catalog = {

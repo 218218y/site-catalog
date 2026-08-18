@@ -13,7 +13,7 @@ CATALOG_IMAGE_DELIVERY_MODES = frozenset(
 DEFAULT_CATALOG_IMAGE_DELIVERY_MODE = CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE
 CONFIG_FILE = "catalog-assets.config.js"
 DELIVERY_MODE_PATTERN = re.compile(
-    r"window\.BARGIG_CATALOG_IMAGE_DELIVERY_MODE\s*=\s*([\"'])(?P<mode>[^\"']+)\1\s*;"
+    r"export\s+const\s+catalogImageDeliveryMode\s*=\s*([\"'])(?P<mode>[^\"']+)\1\s*;"
 )
 
 
@@ -33,7 +33,11 @@ def load_catalog_image_delivery_mode(root: Path) -> str:
         raise FileNotFoundError(f"Runtime asset config is missing: {CONFIG_FILE}")
     text = source.read_text(encoding="utf-8-sig")
     match = DELIVERY_MODE_PATTERN.search(text)
-    return normalize_catalog_image_delivery_mode(match.group("mode") if match else "")
+    if match is None:
+        raise ValueError(
+            f"Runtime asset config must export catalogImageDeliveryMode: {CONFIG_FILE}"
+        )
+    return normalize_catalog_image_delivery_mode(match.group("mode"))
 
 
 def runtime_uses_medium_images(mode: str) -> bool:

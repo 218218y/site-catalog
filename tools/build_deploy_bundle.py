@@ -48,6 +48,7 @@ except ModuleNotFoundError:  # Direct execution
     from project_mutation import MutationBusyError, ProjectMutationLock, ProjectTransaction
 
 from build_frontend_assets import (
+    CONFIG_EXTERNAL_MODULES,
     DEPLOY_GENERATED_FILES as FRONTEND_GENERATED_FILES,
     GENERATED_DATA_EXTERNAL_MODULES,
     ROUTE_GENERATED_FILES,
@@ -133,9 +134,14 @@ DEPLOY_APP_FILES = tuple(
     name for name in ROUTE_GENERATED_FILES
     if name.startswith("app-") and name.endswith(".js")
 )
+DEPLOY_CONFIG_MODULE_FILES = tuple(CONFIG_EXTERNAL_MODULES.values())
 DEPLOY_RUNTIME_MODULE_FILES = tuple(RUNTIME_EXTERNAL_MODULES.values())
 DEPLOY_DATA_MODULE_FILES = tuple(GENERATED_DATA_EXTERNAL_MODULES.values())
-DEPLOY_EXTERNAL_MODULE_FILES = (*DEPLOY_RUNTIME_MODULE_FILES, *DEPLOY_DATA_MODULE_FILES)
+DEPLOY_EXTERNAL_MODULE_FILES = (
+    *DEPLOY_CONFIG_MODULE_FILES,
+    *DEPLOY_RUNTIME_MODULE_FILES,
+    *DEPLOY_DATA_MODULE_FILES,
+)
 DEPLOY_ESM_FILES = frozenset((*DEPLOY_APP_FILES, *DEPLOY_EXTERNAL_MODULE_FILES))
 RUNTIME_FREE_ROUTE_APP_STEMS = frozenset({"app-payment"})
 
@@ -787,13 +793,9 @@ def normalize_base_url(url: str) -> str:
 def asset_config_content(base_url: str, image_delivery_mode: str = DEFAULT_CATALOG_IMAGE_DELIVERY_MODE) -> str:
     mode = normalize_catalog_image_delivery_mode(image_delivery_mode)
     return (
-        "// Runtime catalog image storage configuration.\n"
-        "// R2 deployment mode: catalog page images stay outside the Cloudflare Pages upload folder.\n"
-        "// Relative image paths from catalogs.generated.* are resolved against this CDN/R2 base URL.\n"
-        f"window.BARGIG_CATALOG_ASSET_BASE_URL = {json.dumps(base_url, ensure_ascii=False)};\n"
-        "\n"
-        "// Runtime image delivery policy. Keep this aligned with the checked-in source config.\n"
-        f"window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = {json.dumps(mode, ensure_ascii=False)};\n"
+        "/** Immutable deployment-owned catalog image configuration. */\n"
+        f"export const catalogAssetBaseUrl = {json.dumps(base_url, ensure_ascii=False)};\n"
+        f"export const catalogImageDeliveryMode = {json.dumps(mode, ensure_ascii=False)};\n"
     )
 
 
@@ -1069,15 +1071,16 @@ def move_fingerprinted_module(out_dir: Path, logical_name: str) -> str:
 
 
 def fingerprint_external_modules(out_dir: Path) -> dict[str, str]:
-    """Fingerprint generated data and runtime ESM modules as one static graph.
+    """Fingerprint configuration, generated data and runtime ESM as one graph.
 
-    Data projections are hashed first. Runtime services that import them are
-    then rewritten before their own hash is computed. Finally every route bundle
-    is pointed at the same immutable module generation.
+    Deployment configuration and generated data are dependency-free leaves and
+    are hashed first. Runtime services are then rewritten to those immutable
+    leaves before their own hash is computed. Finally every route bundle is
+    pointed at the same immutable external-module generation.
     """
 
     targets: dict[str, str] = {}
-    for logical_name in DEPLOY_DATA_MODULE_FILES:
+    for logical_name in (*DEPLOY_CONFIG_MODULE_FILES, *DEPLOY_DATA_MODULE_FILES):
         targets[logical_name] = move_fingerprinted_module(out_dir, logical_name)
 
     runtime_source_by_output = {
@@ -1103,12 +1106,12 @@ def fingerprint_external_modules(out_dir: Path) -> dict[str, str]:
         )
         if imported != dependency_names:
             raise ValueError(
-                f"Runtime module {logical_name} data import set drifted; "
+                f"Runtime module {logical_name} external dependency set drifted; "
                 f"expected {sorted(dependency_names)}, found {sorted(imported)}"
             )
         stale = [f"./{name}" for name in dependency_names if f"./{name}" in runtime_text]
         if stale:
-            raise ValueError(f"Unfingerprinted data imports remain in {logical_name}: {stale}")
+            raise ValueError(f"Unfingerprinted external imports remain in {logical_name}: {stale}")
         source.write_text(runtime_text, encoding="utf-8", newline="\n")
         targets[logical_name] = move_fingerprinted_module(out_dir, logical_name)
 

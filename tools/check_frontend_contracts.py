@@ -189,6 +189,7 @@ def ast_owner_properties(inventory: AstInventory, owner: str) -> set[str]:
 
 APPROVED_DYNAMIC_IMPORTS: Mapping[str, tuple[str, ...]] = {}
 APPROVED_ROOT_BROWSER_MODULES: tuple[str, ...] = (
+    "catalog-assets.config.js",
     "catalog-snapshot.js",
     "catalogs.generated.module.js",
     "catalog-taxonomy.generated.module.js",
@@ -200,6 +201,8 @@ EXTERNAL_RUNTIME_MODULES: tuple[str, ...] = (
     "site-routes.js",
 )
 FORBIDDEN_RUNTIME_GLOBALS: tuple[str, ...] = (
+    "BARGIG_CATALOG_ASSET_BASE_URL",
+    "BARGIG_CATALOG_IMAGE_DELIVERY_MODE",
     "BargigCatalogSearch",
     "BargigTooltips",
     "BargigFavorites",

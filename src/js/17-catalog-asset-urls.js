@@ -5,11 +5,12 @@
 
 /** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
 
+import { catalogAssetBaseUrl as configuredCatalogAssetBaseUrl } from "./03-runtime-context.js";
 import { displayPageToAssetPage, catalogFirstPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_ASSET_URL_SCHEMA_VERSION, CATALOG_ASSET_VERSION_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_THUMB } from "./10-app-state.js";
 
-function catalogAssetBaseUrl() {
-  const rawBase = String(window.BARGIG_CATALOG_ASSET_BASE_URL || "").trim();
+function normalizedCatalogAssetBaseUrl() {
+  const rawBase = String(configuredCatalogAssetBaseUrl || "").trim();
   if (!rawBase) return "";
   return rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
 }
@@ -24,7 +25,7 @@ function resolveCatalogAssetUrl(path) {
   const cleanPath = String(path || "").trim();
   if (!cleanPath || isAbsoluteAssetUrl(cleanPath)) return cleanPath;
 
-  const baseUrl = catalogAssetBaseUrl();
+  const baseUrl = normalizedCatalogAssetBaseUrl();
   if (!baseUrl) return cleanPath;
 
   try {

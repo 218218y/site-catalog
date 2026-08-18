@@ -6,7 +6,7 @@
 /** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
 /** @import { CatalogCategoryGroup, CatalogImageCandidate, CatalogImageReadiness } from "../../types/frontend-contracts.js" */
 
-import { catalogs, catalogTaxonomy } from "./03-runtime-context.js";
+import { catalogs, catalogTaxonomy, configuredCatalogImageDeliveryMode } from "./03-runtime-context.js";
 import { catalogFirstPage, clampCatalogPage, displayPageToAssetPage, isCatalogPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_ASSET_VERSION_PARAM, CATALOG_EAGER_COVER_COUNT, CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY, CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE, CATALOG_IMAGE_PRELOAD_CACHE_LIMIT, CATALOG_IMAGE_RETRY_PARAM, CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, DEFAULT_CATALOG_MEDIUM_MAX_SIDE, catalogAssetState } from "./10-app-state.js";
 import { telemetryCatalogImageContext, telemetryCleanText, telemetryCreateImageRequestContext, telemetryTrackImageAttemptFailure, telemetryTrackImageRecovery, telemetryTrackImageTerminalFailure } from "./15-telemetry.js";
@@ -64,7 +64,7 @@ function isSaveDataEnabled() {
 }
 
 function catalogImageDeliveryMode() {
-  const configured = String(window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE || "").trim().toLowerCase();
+  const configured = String(configuredCatalogImageDeliveryMode || "").trim().toLowerCase();
   return configured === CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY
     ? CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY
     : CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;

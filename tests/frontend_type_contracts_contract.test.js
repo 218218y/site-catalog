@@ -57,7 +57,10 @@ assert.doesNotMatch(contracts, /declare global/);
 assert.doesNotMatch(marker, /@typedef|@callback|@template|declare global/);
 assert.match(globals, /declare global \{/);
 assert.match(globals, /export \{\};/);
-assert.doesNotMatch(globals, /CatalogRecord|BARGIG_CATALOGS|BARGIG_CATALOG_TAXONOMY/);
+assert.doesNotMatch(
+  globals,
+  /CatalogRecord|BARGIG_CATALOGS|BARGIG_CATALOG_TAXONOMY|BARGIG_CATALOG_ASSET_BASE_URL|BARGIG_CATALOG_IMAGE_DELIVERY_MODE/,
+);
 assert.match(catalogDataModule, /import\("\.\/types\/catalog-data\.generated\.js"\)\.CatalogRecord/);
 
 const declarationSources = [contracts, generated].join("\n");

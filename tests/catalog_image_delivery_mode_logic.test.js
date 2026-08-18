@@ -12,13 +12,13 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 Object.assign(globalThis, {
   window: {
-    BARGIG_CATALOG_IMAGE_DELIVERY_MODE: 'responsive',
     location: { href: 'https://example.test/viewer.html' },
     devicePixelRatio: 1,
     innerWidth: 800,
     innerHeight: 600
   },
   requiredElement: () => ({}),
+  configuredCatalogImageDeliveryMode: 'responsive',
   CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY: 'full-only',
   CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE: 'responsive',
   CATALOG_IMAGE_RETRY_PARAM: 'bargig_retry',
@@ -31,7 +31,7 @@ Object.assign(globalThis, {
 const shared = importFrontendModule('src/js/20-catalog-runtime.js');
 
 function setNetwork({ mode = 'responsive', saveData = false, effectiveType = '4g' } = {}) {
-  window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE = mode;
+  globalThis.configuredCatalogImageDeliveryMode = mode;
   network.saveData = saveData;
   network.effectiveType = effectiveType;
 }

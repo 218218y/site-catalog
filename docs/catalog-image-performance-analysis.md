@@ -45,8 +45,8 @@
 
 ## מדיניות הטעינה שהוטמעה
 
-המימוש שומר שתי מדיניות מלאות תחת המתג היחיד
-`window.BARGIG_CATALOG_IMAGE_DELIVERY_MODE` שב־`catalog-assets.config.js`:
+המימוש שומר שתי מדיניות מלאות תחת ה־ESM export היחיד
+`catalogImageDeliveryMode` שב־`catalog-assets.config.js`. בזמן deploy המודול מקבל גם את `catalogAssetBaseUrl` ומפוענח יחד עם שאר גרף ה־runtime:
 
 - `responsive` — המדיניות הרספונסיבית המקורית המתוארת להלן.
 - `full-only` — מצב הבדיקה הפעיל כעת: שכבת medium אינה נחשבת זמינה כלל בזמן ריצה.

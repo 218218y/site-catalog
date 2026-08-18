@@ -18,7 +18,7 @@ export const catalogs = Object.freeze(/* generated catalog records */);
 export const catalogTaxonomy = Object.freeze(/* generated taxonomy */);
 ```
 
-`catalog-assets.config.js` נשאר classic bootstrap קטן ונפרד, מפני שהוא מכיל מדיניות delivery ו־CDN שנקבעת בזמן הפריסה ולא נתוני קטלוג.
+`catalog-assets.config.js` הוא כעת מודול ESM immutable נפרד: הוא עדיין גבול deployment למדיניות delivery ול־CDN, אבל נטען דרך import מפורש ומפוענח יחד עם שאר גרף המודולים — ללא classic bootstrap וללא `window` globals.
 
 ## גרף בנייה ו־cache
 

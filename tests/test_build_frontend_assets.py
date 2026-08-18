@@ -52,6 +52,7 @@ def all_source_modules() -> tuple[str, ...]:
     return tuple(dict.fromkeys((
         *css_sources,
         *javascript_sources,
+        *MODULE.CONFIG_EXTERNAL_MODULES.keys(),
         *MODULE.GENERATED_DATA_EXTERNAL_MODULES.keys(),
         "catalog-snapshot.js",
     )))
@@ -80,6 +81,9 @@ def test_generated_frontend_assets_are_current() -> None:
 
 
 def test_external_browser_module_contract_is_explicit() -> None:
+    assert dict(MODULE.CONFIG_EXTERNAL_MODULES) == {
+        "catalog-assets.config.js": "catalog-assets.config.js",
+    }
     assert dict(MODULE.RUNTIME_EXTERNAL_MODULES) == {
         "src/runtime/catalog-search.js": "catalog-search.js",
         "src/runtime/tooltip-manager.js": "tooltip-manager.js",
@@ -91,11 +95,13 @@ def test_external_browser_module_contract_is_explicit() -> None:
         "catalog-taxonomy.generated.module.js": "catalog-taxonomy.generated.module.js",
     }
     assert dict(MODULE.ROUTE_EXTERNAL_MODULES) == {
+        **MODULE.CONFIG_EXTERNAL_MODULES,
         **MODULE.RUNTIME_EXTERNAL_MODULES,
         **MODULE.GENERATED_DATA_EXTERNAL_MODULES,
     }
     assert dict(MODULE.RUNTIME_EXTERNAL_DEPENDENCIES) == {
         "src/runtime/catalog-search.js": {
+            "catalog-assets.config.js": "catalog-assets.config.js",
             "catalogs.generated.module.js": "catalogs.generated.module.js",
         }
     }
