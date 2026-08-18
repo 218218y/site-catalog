@@ -247,22 +247,19 @@ assert.match(
   ciWorkflow,
   /Save Python virtual environment[\s\S]{0,140}if: steps\.python-venv-cache\.outputs\.cache-hit != 'true'[\s\S]{0,180}cache-primary-key/,
 );
-assert.match(ciWorkflow, /id: playwright-version/);
-assert.match(ciWorkflow, /node_modules\/playwright-core/);
-assert.match(ciWorkflow, /Restore Playwright browser cache[\s\S]{0,160}id: playwright-cache/);
-assert.match(ciWorkflow, /uses: actions\/cache@v6/);
-assert.match(ciWorkflow, /path: ~\/\.cache\/ms-playwright/);
+const escapedPlaywrightVersion = playwrightVersion.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 assert.match(
   ciWorkflow,
-  /key: playwright-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.playwright-version\.outputs\.version \}\}/,
+  new RegExp(`image: mcr\\.microsoft\\.com/playwright:v${escapedPlaywrightVersion}-noble`, "u"),
 );
+assert.match(ciWorkflow, /options: --ipc=host/);
+assert.equal((ciWorkflow.match(/mcr\.microsoft\.com\/playwright:/gu) || []).length, 1);
+assert.doesNotMatch(ciWorkflow, /id: playwright-version/);
+assert.doesNotMatch(ciWorkflow, /Restore Playwright browser cache/);
+assert.doesNotMatch(ciWorkflow, /path: ~\/\.cache\/ms-playwright/);
+assert.doesNotMatch(ciWorkflow, /playwright install-deps/);
+assert.doesNotMatch(ciWorkflow, /playwright install(?: --with-deps)? chromium/);
 assert.match(ciWorkflow, /Prepare Python environment[\s\S]{0,100}npm run setup:python/);
-assert.match(ciWorkflow, /Install Playwright OS dependencies[\s\S]{0,100}playwright install-deps chromium/);
-assert.match(
-  ciWorkflow,
-  /Install Playwright Chromium on cache miss[\s\S]{0,120}if: steps\.playwright-cache\.outputs\.cache-hit != 'true'[\s\S]{0,100}playwright install chromium/,
-);
-assert.doesNotMatch(ciWorkflow, /playwright install --with-deps chromium/);
 assert.match(ciWorkflow, /uses: actions\/upload-artifact@v7/);
 assert.match(pyproject, new RegExp(`target-version = "py${pythonBaseline.replace(".", "")}"`, "u"));
 assert.match(pyproject, new RegExp(`python_version = "${pythonBaseline.replace(".", "\\.")}"`, "u"));
