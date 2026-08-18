@@ -25,7 +25,10 @@ npm run check:offline:linux
 The updater follows the selected dependency graph from lockfile metadata,
 filters optional packages for Linux x64/glibc, authenticates every tarball, and
 prunes archives no longer reachable from the chat roots. Versions are never
-hard-coded in the Python tools.
+hard-coded in the Python tools. The manifest fingerprints this selected lock
+projection rather than the entire canonical lockfile, so changes confined to
+excluded deployment dependencies do not invalidate an unchanged chat toolchain.
+Changes to any selected package record still invalidate the mirror.
 
 Generated metadata:
 

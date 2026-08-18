@@ -132,6 +132,10 @@ def verification_steps(
     if scope in {"all", "javascript"}:
         steps.extend((
             VerificationStep(
+                "Linux npm offline mirror is current",
+                (python, "tools/sync_npm_offline_linux.py", "--check"),
+            ),
+            VerificationStep(
                 "Frontend bundles are current",
                 (python, "tools/build_frontend_assets.py", "--check"),
             ),

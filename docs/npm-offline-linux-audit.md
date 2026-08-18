@@ -55,6 +55,22 @@ Chromium ודפדפני Playwright אחרים אינם כלולים.
 
 `package.json` ו־`package-lock.json` המקוריים אינם משתנים.
 
+## טביעת אצבע סמנטית של הפרופיל
+
+ה־manifest אינו כבול עוד ל־SHA-256 של כל `package-lock.json`. במקום זאת הוא
+שומר `profileLockSha256`, שמחושב מ־projection קנוני של אותו subset בדיוק
+שממנו נבנה ה־offline lock: metadata של שורש הפרויקט לאחר הסרת roots מוחרגים,
+וכל package record שנגיש בפועל משורשי פרופיל הצ׳אט עבור Linux x64/glibc.
+
+לכן שינוי ב־`wrangler` או בתלות טרנזיטיבית שלו אינו פוסל מראה שלא השתנתה
+מבחינה פונקציונלית. לעומת זאת שינוי בגרסה, integrity, dependency edge או metadata
+של package שנבחר לפרופיל משנה את טביעת האצבע ונחסם עד לעדכון המראה. ה־projection
+משמש גם כבסיס לבניית `package-lock.offline.json`, כך שאין שני מודלים שונים של
+״מה שייך לפרופיל״ שעלולים לסטות זה מזה.
+
+בדיקת המראה משולבת גם ב־`verify_project.py`, ולכן `npm test`, `npm run verify`
+ו־`npm run verify:core` מזהים mirror מיושן כחלק משערי האיכות הרגילים.
+
 ## התקנה בטוחה
 
 המתקין יוצר פרויקט staging זמני בתוך הפרויקט, מקשר אליו את `vendor`, ומריץ בו

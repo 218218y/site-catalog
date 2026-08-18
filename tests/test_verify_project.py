@@ -32,9 +32,14 @@ def test_quick_verification_reuses_the_guarded_public_build() -> None:
     titles = [step.title for step in steps]
     commands = [step.command for step in steps]
 
-    assert titles[0] == "Frontend bundles are current"
+    assert titles[0] == "Linux npm offline mirror is current"
+    assert titles[1] == "Frontend bundles are current"
     assert "Generated site pages are current" in titles
-    assert commands[0][0] == "project-python"
+    assert commands[0] == (
+        "project-python",
+        "tools/sync_npm_offline_linux.py",
+        "--check",
+    )
     assert (
         "project-python",
         "tools/run_typescript_offline.py",
@@ -76,6 +81,10 @@ def test_complete_verification_builds_a_clean_deploy_bundle() -> None:
     titles = [step.title for step in steps]
     assert "Generated site pages are current" in titles
     assert MODULE.VerificationStep(
+        "Linux npm offline mirror is current",
+        ("project-python", "tools/sync_npm_offline_linux.py", "--check"),
+    ) in steps
+    assert MODULE.VerificationStep(
         "Python tests", ("project-python", "-m", "pytest", "-q")
     ) in steps
     assert MODULE.VerificationStep(
@@ -105,6 +114,10 @@ def test_core_verification_keeps_deploy_gates_without_browser_journeys() -> None
     assert "Playwright browser journeys" not in titles
     assert "Clean Cloudflare Pages bundle" in titles
     assert "Deploy performance budgets" in titles
+    assert MODULE.VerificationStep(
+        "Linux npm offline mirror is current",
+        ("project-python", "tools/sync_npm_offline_linux.py", "--check"),
+    ) in steps
     assert MODULE.VerificationStep(
         "Python tests", ("project-python", "-m", "pytest", "-q")
     ) in steps
@@ -143,6 +156,7 @@ def test_javascript_only_scope_does_not_require_python_tests_or_browser() -> Non
         ROOT, quick=False, python_executable="system-python", scope="javascript"
     )
     titles = [step.title for step in steps]
+    assert "Linux npm offline mirror is current" in titles
     assert "Generated site pages are current" in titles
     assert any(title.startswith("JavaScript contract:") for title in titles)
     assert "Python tests" not in titles

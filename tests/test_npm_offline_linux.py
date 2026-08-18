@@ -322,7 +322,7 @@ def test_unresolved_registry_package_is_not_misclassified_as_bundled(tmp_path: P
         MODULE.sync_mirror(root, download_missing=False)
 
 
-def test_lockfile_change_invalidates_the_manifest(
+def test_selected_profile_change_invalidates_the_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = tmp_path / "project"
@@ -334,8 +334,54 @@ def test_lockfile_change_invalidates_the_manifest(
     lock["packages"]["node_modules/offline-alpha"]["optional"] = True
     (root / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
 
-    with pytest.raises(MODULE.OfflineMirrorError, match="does not match package-lock.json"):
+    with pytest.raises(MODULE.OfflineMirrorError, match="selected package-lock.json dependency profile"):
         MODULE.verify_mirror(root)
+
+
+def test_excluded_dependency_tree_change_does_not_invalidate_the_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    sources = fixture_project(root)
+    install_fake_packer(monkeypatch, sources)
+    manifest = MODULE.sync_mirror(root)
+    profile_hash = MODULE.profile_lock_sha256(root)
+    whole_lock_hash = MODULE.sha256_file(root / "package-lock.json")
+    offline_lock = (root / MODULE.OFFLINE_LOCK_PATH).read_bytes()
+    offline_package = (root / MODULE.OFFLINE_PACKAGE_PATH).read_bytes()
+
+    lock_path = root / "package-lock.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    lock["packages"][""]["devDependencies"]["wrangler"] = "10.0.0"
+    lock["packages"]["node_modules/wrangler"].update(
+        {
+            "version": "10.0.0",
+            "resolved": "https://registry.npmjs.org/wrangler/-/wrangler-10.0.0.tgz",
+            "dependencies": {"offline-heavy-runtime": "10.0.0"},
+        }
+    )
+    lock["packages"]["node_modules/offline-heavy-runtime"].update(
+        {
+            "version": "10.0.0",
+            "resolved": (
+                "https://registry.npmjs.org/offline-heavy-runtime/"
+                "-/offline-heavy-runtime-10.0.0.tgz"
+            ),
+        }
+    )
+    lock_path.write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
+
+    package_path = root / "package.json"
+    package = json.loads(package_path.read_text(encoding="utf-8"))
+    package["devDependencies"]["wrangler"] = "10.0.0"
+    package_path.write_text(json.dumps(package, indent=2) + "\n", encoding="utf-8")
+
+    assert MODULE.sha256_file(lock_path) != whole_lock_hash
+    assert MODULE.profile_lock_sha256(root) == profile_hash
+    assert MODULE.verify_mirror(root) == manifest
+    assert (root / MODULE.OFFLINE_LOCK_PATH).read_bytes() == offline_lock
+    assert (root / MODULE.OFFLINE_PACKAGE_PATH).read_bytes() == offline_package
 
 
 def test_failed_registry_pack_preserves_legacy_mirror_before_prune(

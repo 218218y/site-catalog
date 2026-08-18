@@ -33,7 +33,7 @@ ARCHIVE_DIRECTORY: Final = MIRROR_DIRECTORY / "archives"
 MANIFEST_PATH: Final = MIRROR_DIRECTORY / "manifest.json"
 OFFLINE_LOCK_PATH: Final = MIRROR_DIRECTORY / "package-lock.offline.json"
 OFFLINE_PACKAGE_PATH: Final = MIRROR_DIRECTORY / "package.offline.json"
-MANIFEST_SCHEMA_VERSION: Final = 3
+MANIFEST_SCHEMA_VERSION: Final = 4
 CHAT_PROFILE_NAME: Final = "chat-tests"
 EXCLUDED_CHAT_ROOT_PACKAGES: Final = frozenset({"wrangler"})
 ROOT_DEPENDENCY_FIELDS: Final = ("dependencies", "devDependencies", "optionalDependencies")
@@ -87,6 +87,16 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def sha256_json(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def sri_sha512(path: Path) -> str:
@@ -709,14 +719,19 @@ def build_offline_package(root: Path) -> dict[str, object]:
     return result
 
 
-def build_offline_lock(
-    root: Path,
-    mirrored: tuple[MirroredPackage, ...],
-) -> dict[str, object]:
-    lock = copy.deepcopy(load_lockfile(root))
-    packages = lock.get("packages")
-    assert isinstance(packages, dict)
-    root_metadata = packages.get("")
+def build_profile_lock_projection(root: Path) -> dict[str, object]:
+    """Return the canonical lockfile subset that defines the offline profile.
+
+    The projection deliberately excludes package records that are unreachable
+    from the selected chat/test roots. This keeps deployment-only dependency
+    updates (currently Wrangler and its subtree) from invalidating an otherwise
+    identical offline toolchain, while retaining every selected package record
+    verbatim so meaningful lockfile changes remain detectable.
+    """
+    source_lock = load_lockfile(root)
+    source_packages = source_lock.get("packages")
+    assert isinstance(source_packages, dict)
+    root_metadata = source_packages.get("")
     if not isinstance(root_metadata, dict):
         raise OfflineMirrorError("package-lock.json does not contain root package metadata.")
 
@@ -728,21 +743,45 @@ def build_offline_lock(
         else:
             pruned_root.pop(field, None)
 
-    selected_paths = {item.locked.install_path for item in mirrored}
-    pruned_packages: dict[str, object] = {"": pruned_root}
-    for install_path in sorted(selected_paths):
-        metadata = packages.get(install_path)
+    projected_packages: dict[str, object] = {"": pruned_root}
+    for install_path in _selected_install_paths(root):
+        metadata = source_packages.get(install_path)
         if not isinstance(metadata, dict):
-            raise OfflineMirrorError(f"Missing {install_path} while building the offline lockfile.")
-        pruned_packages[install_path] = copy.deepcopy(metadata)
-    lock["packages"] = pruned_packages
+            raise OfflineMirrorError(f"Missing {install_path} while projecting the offline lockfile.")
+        projected_packages[install_path] = copy.deepcopy(metadata)
+
+    projection: dict[str, object] = {}
+    for field in ("name", "version", "lockfileVersion", "requires"):
+        if field in source_lock:
+            projection[field] = copy.deepcopy(source_lock[field])
+    projection["packages"] = projected_packages
+    return projection
+
+
+def profile_lock_sha256(root: Path) -> str:
+    return sha256_json(build_profile_lock_projection(root))
+
+
+def build_offline_lock(
+    root: Path,
+    mirrored: tuple[MirroredPackage, ...],
+) -> dict[str, object]:
+    lock = build_profile_lock_projection(root)
+    packages = lock.get("packages")
+    assert isinstance(packages, dict)
+
+    expected_paths = {item.locked.install_path for item in mirrored}
+    actual_paths = {install_path for install_path in packages if install_path}
+    if actual_paths != expected_paths:
+        raise OfflineMirrorError("Offline lock projection and mirrored package inventory disagree.")
 
     for item in mirrored:
-        metadata = pruned_packages.get(item.locked.install_path)
+        metadata = packages.get(item.locked.install_path)
         assert isinstance(metadata, dict)
         metadata["resolved"] = _offline_file_reference(item.archive_relative)
         metadata["integrity"] = item.integrity
     return lock
+
 
 def _manifest_data(root: Path, mirrored: tuple[MirroredPackage, ...]) -> dict[str, object]:
     records: list[dict[str, object]] = []
@@ -767,7 +806,7 @@ def _manifest_data(root: Path, mirrored: tuple[MirroredPackage, ...]) -> dict[st
         "schemaVersion": MANIFEST_SCHEMA_VERSION,
         "profile": CHAT_PROFILE_NAME,
         "target": {"os": TARGET_OS, "cpu": TARGET_CPU, "libc": TARGET_LIBC},
-        "lockfileSha256": sha256_file(root / "package-lock.json"),
+        "profileLockSha256": profile_lock_sha256(root),
         "rootPackages": list(selected_root_package_names(root)),
         "excludedRootPackages": list(excluded_root_package_names(root)),
         "packageCount": len(mirrored),
@@ -939,9 +978,9 @@ def verify_mirror(root: Path) -> dict[str, object]:
         raise OfflineMirrorError("The offline manifest root package inventory is stale.")
     if manifest.get("excludedRootPackages") != list(excluded_root_package_names(root)):
         raise OfflineMirrorError("The offline manifest excluded-root inventory is stale.")
-    if manifest.get("lockfileSha256") != sha256_file(root / "package-lock.json"):
+    if manifest.get("profileLockSha256") != profile_lock_sha256(root):
         raise OfflineMirrorError(
-            "The Linux npm offline mirror does not match package-lock.json. "
+            "The Linux npm offline mirror does not match the selected package-lock.json dependency profile. "
             "Run `npm run update:offline:linux` while online."
         )
 

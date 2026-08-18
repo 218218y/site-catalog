@@ -3,7 +3,6 @@
   "excludedRootPackages": [
     "wrangler"
   ],
-  "lockfileSha256": "0acdac8cfa5bcabdb5fa1bd6907760dd218c2d87c7c7a5b4f5e584e55483eb0a",
   "offlineLock": "vendor/npm/linux-x64-glibc/package-lock.offline.json",
   "offlinePackage": "vendor/npm/linux-x64-glibc/package.offline.json",
   "packageCount": 7,
@@ -81,13 +80,14 @@
   ],
   "playwrightBrowsersIncluded": false,
   "profile": "chat-tests",
+  "profileLockSha256": "09c8bd86493fb79084056bc162ce1ef61873826e11c19665d21712e5ecf6df01",
   "registryPackPackageCount": 0,
   "rootPackages": [
     "@playwright/test",
     "esbuild",
     "typescript"
   ],
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "target": {
     "cpu": "x64",
     "libc": "glibc",
