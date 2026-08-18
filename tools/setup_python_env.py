@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Sequence
 
+from python_offline_linux import (
+    PythonOfflineMirrorError,
+    VerifiedPythonMirror,
+    offline_pip_install_command,
+    require_install_host,
+    sha256_file,
+    verify_mirror,
+)
 from python_toolchain import (
     PYTHON_VERSION_FILE,
     PythonRuntimeIdentity,
@@ -130,7 +139,7 @@ def mismatched_distribution_versions(
     python: Path | str,
     expected: dict[str, str] | None = None,
 ) -> tuple[str, ...]:
-    pinned = expected or expected_pinned_distributions()
+    pinned = expected if expected is not None else expected_pinned_distributions()
     script = f"""
 import importlib.metadata
 import json
@@ -184,6 +193,8 @@ def environment_is_current(
     python: Path,
     fingerprint: str,
     host_runtime: PythonRuntimeIdentity,
+    *,
+    expected_versions: dict[str, str] | None = None,
 ) -> bool:
     if not python.is_file():
         return False
@@ -196,13 +207,20 @@ def environment_is_current(
     baseline = read_python_version_baseline(root)
     if not runtime_satisfies_baseline(runtime, baseline):
         return False
-    return not missing_imports(python) and not mismatched_distribution_versions(python)
+    mismatched = (
+        mismatched_distribution_versions(python)
+        if expected_versions is None
+        else mismatched_distribution_versions(python, expected_versions)
+    )
+    return not missing_imports(python) and not mismatched
 
 
 def _environment_requires_rebuild(
     root: Path,
     python: Path,
     host_runtime: PythonRuntimeIdentity,
+    *,
+    required_fingerprint: str | None = None,
 ) -> bool:
     if not python.is_file():
         return True
@@ -212,7 +230,9 @@ def _environment_requires_rebuild(
     if not runtime_satisfies_baseline(runtime, read_python_version_baseline(root)):
         return True
     stamp = _load_environment_stamp(root / ".venv" / STAMP_NAME)
-    return stamp is None or stamp.runtime != runtime
+    if stamp is None or stamp.runtime != runtime:
+        return True
+    return required_fingerprint is not None and stamp.environment_fingerprint != required_fingerprint
 
 
 def _recreate_environment(environment_dir: Path, *, quiet: bool) -> None:
@@ -225,19 +245,64 @@ def _recreate_environment(environment_dir: Path, *, quiet: bool) -> None:
     venv.EnvBuilder(with_pip=True).create(environment_dir)
 
 
-def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
+def _offline_environment_fingerprint(root: Path, mirror: VerifiedPythonMirror) -> str:
+    digest = hashlib.sha256()
+    digest.update(environment_fingerprint(root).encode("ascii"))
+    digest.update(b"\0")
+    digest.update(sha256_file(mirror.lock_path).encode("ascii"))
+    return digest.hexdigest()
+
+
+def _verified_offline_mirror(root: Path, host_runtime: PythonRuntimeIdentity) -> VerifiedPythonMirror:
+    libc_name, libc_version = platform.libc_ver()
+    require_install_host(
+        read_python_version_baseline(root),
+        system=host_runtime.system,
+        machine=host_runtime.machine,
+        implementation=host_runtime.implementation,
+        major=host_runtime.major,
+        minor=host_runtime.minor,
+        libc_name=libc_name,
+        libc_version=libc_version,
+    )
+    return verify_mirror(root)
+
+
+def create_or_update_environment(
+    root: Path,
+    *,
+    quiet: bool = False,
+    offline: bool = False,
+) -> Path:
     root = root.resolve()
     host_runtime = require_supported_current_runtime(root)
     environment_dir = root / ".venv"
     python = venv_python_path(root)
-    fingerprint = environment_fingerprint(root)
+    mirror = _verified_offline_mirror(root, host_runtime) if offline else None
+    expected_versions = mirror.expected_versions if mirror is not None else None
+    fingerprint = (
+        _offline_environment_fingerprint(root, mirror)
+        if mirror is not None
+        else environment_fingerprint(root)
+    )
 
-    if environment_is_current(root, python, fingerprint, host_runtime):
+    if environment_is_current(
+        root,
+        python,
+        fingerprint,
+        host_runtime,
+        expected_versions=expected_versions,
+    ):
         if not quiet:
             print(f"Python environment is ready: {python}")
         return python
 
-    if _environment_requires_rebuild(root, python, host_runtime):
+    if _environment_requires_rebuild(
+        root,
+        python,
+        host_runtime,
+        required_fingerprint=fingerprint if mirror is not None else None,
+    ):
         _recreate_environment(environment_dir, quiet=quiet)
         python = venv_python_path(root)
 
@@ -248,11 +313,11 @@ def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
             f"for setup (Python {host_runtime.version_text}): {python}"
         )
 
-    requirements = root / "tools" / "requirements-dev.txt"
-    if not quiet:
-        print(f"Installing Python development requirements from {requirements.relative_to(root)}")
-    subprocess.run(
-        (
+    if mirror is None:
+        requirements = root / "tools" / "requirements-dev.txt"
+        if not quiet:
+            print(f"Installing Python development requirements from {requirements.relative_to(root)}")
+        install_command: tuple[str, ...] = (
             str(python),
             "-m",
             "pip",
@@ -260,10 +325,16 @@ def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
             "--disable-pip-version-check",
             "-r",
             str(requirements),
-        ),
-        cwd=root,
-        check=True,
-    )
+        )
+    else:
+        if not quiet:
+            print(
+                "Installing Python development requirements from verified offline wheels: "
+                f"{mirror.directory.relative_to(root)}"
+            )
+        install_command = offline_pip_install_command(python, mirror)
+
+    subprocess.run(install_command, cwd=root, check=True)
 
     missing = missing_imports(python)
     if missing:
@@ -272,7 +343,11 @@ def create_or_update_environment(root: Path, *, quiet: bool = False) -> Path:
             + ", ".join(missing)
         )
 
-    mismatched = mismatched_distribution_versions(python)
+    mismatched = (
+        mismatched_distribution_versions(python)
+        if expected_versions is None
+        else mismatched_distribution_versions(python, expected_versions)
+    )
     if mismatched:
         raise RuntimeError(
             "Python environment was installed, but pinned versions do not match: "
@@ -296,11 +371,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Suppress status messages when the environment is already current.",
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Install exclusively from the verified Linux x64 wheel mirror (no package network access).",
+    )
     args = parser.parse_args(argv)
 
     try:
-        create_or_update_environment(project_root(), quiet=args.quiet)
-    except (FileNotFoundError, RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
+        create_or_update_environment(project_root(), quiet=args.quiet, offline=args.offline)
+    except (
+        FileNotFoundError,
+        PythonOfflineMirrorError,
+        RuntimeError,
+        ValueError,
+        subprocess.CalledProcessError,
+    ) as exc:
         print(f"\nPYTHON ENVIRONMENT SETUP FAILED: {exc}", file=sys.stderr)
         return 1
     return 0

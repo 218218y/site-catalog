@@ -65,6 +65,9 @@ const linuxDocs = fs.readFileSync(path.join(root, "docs", "linux-development.md"
 
 assert.equal(packageJson.private, true);
 assert.equal(packageJson.scripts["setup:python"], "node tools/run_project_python.js --system tools/setup_python_env.py");
+assert.equal(packageJson.scripts["update:python:offline:linux"], "node tools/run_project_python.js --system tools/sync_python_offline_linux.py");
+assert.equal(packageJson.scripts["check:python:offline:linux"], "node tools/run_project_python.js --system tools/sync_python_offline_linux.py --check");
+assert.equal(packageJson.scripts["setup:python:offline:linux"], "node tools/run_project_python.js --system tools/setup_python_env.py --offline");
 assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
 assert.equal(packageJson.scripts["update:offline:linux"], "node tools/run_project_python.js --system tools/sync_npm_offline_linux.py");
 assert.equal(packageJson.scripts["check:offline:linux"], "node tools/run_project_python.js --system tools/sync_npm_offline_linux.py --check");

@@ -29,3 +29,7 @@ reports/telemetry/
 .catalog-save-transaction-*/
 .taxonomy-save-transaction-*/
 .site-catalog-transaction-*/
+
+# Interrupted Python offline mirror refresh staging/backup directories.
+vendor/python/.python-offline-stage-*/
+vendor/python/.python-offline-backup-*/

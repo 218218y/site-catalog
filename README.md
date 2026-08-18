@@ -600,8 +600,48 @@ npm run setup:typescript:offline
 ```
 
 ב־Windows ממשיכים להשתמש ב־`npm ci` הרגיל. אין להוסיף ארכיוני Windows למראת
-הצ׳אט. בדיקות Python דורשות בנפרד את `.venv` והחבילות הנעולות תחת
-`tools/requirements*.txt`.
+הצ׳אט.
+
+### סביבת Python אופליין ללינוקס של הבדיקות
+
+לבדיקות Python יש מראת wheels נפרדת תחת `vendor/python`. בניגוד למראת npm,
+פקודת הרענון שלה היא **cross-download**: אפשר להריץ אותה ב־Windows והיא מורידה
+מראש wheels בינאריים עבור Linux x64 / glibc / גרסת CPython שמוגדרת
+ב־`.python-version`. כך אפשר להעביר את הפרויקט לסביבת הבדיקות וליצור `.venv`
+מלאה בלי גישה ל־PyPI.
+
+אחרי שינוי `.python-version` או `tools/requirements*.txt` מריצים במחשב שיש בו
+גישה לרשת:
+
+```bat
+npm run update:python:offline:linux
+npm run check:python:offline:linux
+```
+
+פקודת העדכון משתמשת רק ב־wheels (`--only-binary=:all:`), פותרת גם את כל
+התלויות הטרנזיטיביות, וכותבת `manifest.json` יחד עם
+`requirements.offline.lock.txt` שמכיל גרסה ו־SHA256 מדויקים לכל package.
+`colorama` שמוגבל ל־Windows אינו נכנס לפרופיל Linux. אם נוסף marker חדש שאינו
+מוגדר במפורש בחוזה ה־cross-download, הכלי נכשל במקום לנחש לאיזה target הוא
+שייך.
+
+בסביבת Linux x64 עם glibc 2.28+ וגרסת ה־CPython המדויקת של `.python-version`:
+
+```bash
+npm run check:python:offline:linux
+npm run setup:python:offline:linux
+```
+
+ההתקנה משתמשת ב־`--no-index`, ב־`--require-hashes` וב־wheelhouse המקומי בלבד.
+גם גרסאות טרנזיטיביות כמו תלויות mypy ננעלות במראה עצמה, ולכן רענון mirror
+אינו יכול לשנות בשקט סביבת בדיקה קיימת: חתימת ה־lock היא חלק מחותמת `.venv`,
+ושינוי שלה גורם לבנייה נקייה של הסביבה. ההתקנה הרגילה `npm run setup:python`
+נשארת זמינה למחשבי פיתוח עם רשת.
+
+הפרופיל כולל את כל סביבת הפיתוח והבדיקות, ובכלל זה PyMuPDF (`fitz`), Pillow
+(`PIL`), pytest, Ruff ו־mypy. קבצי ה־wheel עצמם אינם נוצרים אוטומטית בזמן
+בדיקה; יש לרענן אותם במפורש בפקודת `update:python:offline:linux` ולשמור אותם עם
+הפרויקט.
 
 
 הפקודות המרכזיות:

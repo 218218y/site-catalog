@@ -768,10 +768,10 @@ def check_feature_composition_roots(
             target = _resolve_static_import(relative, specifier)
             if target is None or target == relative:
                 continue
-            feature_name = FEATURE_COMPOSITION_ROOTS.get(target)
-            if feature_name is not None:
+            imported_feature_name = FEATURE_COMPOSITION_ROOTS.get(target)
+            if imported_feature_name is not None:
                 failures.append(
-                    f"{relative} imports {target} directly; consume {feature_name} through FeatureRegistry"
+                    f"{relative} imports {target} directly; consume {imported_feature_name} through FeatureRegistry"
                 )
 
 

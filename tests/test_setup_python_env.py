@@ -154,6 +154,28 @@ def test_environment_rebuilds_when_supported_host_minor_changes(
     ) is False
 
 
+
+def test_offline_fingerprint_requirement_forces_clean_rebuild(tmp_path: Path, monkeypatch) -> None:
+    _write_environment_inputs(tmp_path)
+    python = MODULE.venv_python_path(tmp_path, platform="posix")
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    _write_stamp(tmp_path, "old-offline-lock")
+    monkeypatch.setattr(MODULE, "inspect_python_runtime", lambda executable: _runtime())
+
+    assert MODULE._environment_requires_rebuild(
+        tmp_path,
+        python,
+        _runtime(),
+        required_fingerprint="new-offline-lock",
+    ) is True
+    assert MODULE._environment_requires_rebuild(
+        tmp_path,
+        python,
+        _runtime(),
+        required_fingerprint="old-offline-lock",
+    ) is False
+
 def test_environment_stamp_is_versioned_json() -> None:
     stamp = MODULE.EnvironmentStamp(MODULE.STAMP_FORMAT, "abc123", _runtime())
     payload = json.loads(stamp.to_json())

@@ -86,11 +86,13 @@ def test_doctor_runs_independent_checks_without_fail_fast(tmp_path: Path, monkey
         "python-packages",
         "typescript-7",
         "esbuild",
+        "python-offline-linux",
         "playwright",
         "tesseract",
     ]
     assert ("npm", "ls", "--depth=0", "--ignore-scripts") in calls
     assert any(any("bootstrap_typescript_offline.py" in part for part in command) for command in calls)
     assert any(any("bootstrap_esbuild_offline.py" in part for part in command) for command in calls)
+    assert any(any("sync_python_offline_linux.py" in part for part in command) for command in calls)
     assert checks[-1].status == "warn"
 

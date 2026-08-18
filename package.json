@@ -6,6 +6,9 @@
   "scripts": {
     "setup": "npm run setup:python && npm run setup:browsers",
     "setup:python": "node tools/run_project_python.js --system tools/setup_python_env.py",
+    "update:python:offline:linux": "node tools/run_project_python.js --system tools/sync_python_offline_linux.py",
+    "check:python:offline:linux": "node tools/run_project_python.js --system tools/sync_python_offline_linux.py --check",
+    "setup:python:offline:linux": "node tools/run_project_python.js --system tools/setup_python_env.py --offline",
     "setup:esbuild:offline": "node tools/run_project_python.js --system tools/bootstrap_esbuild_offline.py",
     "check:esbuild:offline": "node tools/run_project_python.js --system tools/bootstrap_esbuild_offline.py --check",
     "setup:typescript:offline": "node tools/run_project_python.js --system tools/bootstrap_typescript_offline.py",

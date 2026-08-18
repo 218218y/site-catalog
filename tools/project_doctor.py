@@ -221,6 +221,15 @@ def collect_doctor_checks(
 
     checks.append(_command_check(
         base, runner,
+        key="python-offline-linux",
+        label="Offline Linux Python verification wheels",
+        command=(sys.executable, "tools/sync_python_offline_linux.py", "--check"),
+        remedy="Run `npm run update:python:offline:linux` on a machine with package network access.",
+        warning=True,
+    ))
+
+    checks.append(_command_check(
+        base, runner,
         key="playwright",
         label="Playwright Chromium",
         command=("node", "tools/check_playwright_browser.js"),
