@@ -349,8 +349,8 @@ def discover_build_input_paths(root: Path, *, include_big_pages_viewer: bool = F
         if directory.is_dir():
             paths.update(path for path in directory.rglob("*") if path.is_file())
 
-    for relative in discover_web_app_assets(root):
-        path = root / relative
+    for web_asset in discover_web_app_assets(root):
+        path = root / web_asset
         if path.is_file():
             paths.add(path)
 
@@ -483,7 +483,7 @@ def _parse_build_options(value: object) -> BuildOptions | None:
         return None
     if not isinstance(external_assets_url, str) or not external_assets_url.strip():
         return None
-    if seo_mode not in {"private", "public"}:
+    if not isinstance(seo_mode, str) or seo_mode not in {"private", "public"}:
         return None
     if not isinstance(confirm_public_indexing, bool):
         return None
@@ -496,7 +496,7 @@ def _parse_build_options(value: object) -> BuildOptions | None:
     return {
         "signatureVersion": BUILD_SIGNATURE_VERSION,
         "externalAssetsUrl": external_assets_url,
-        "seoMode": cast(str, seo_mode),
+        "seoMode": seo_mode,
         "confirmPublicIndexing": confirm_public_indexing,
         "includeJson": include_json,
         "includeBigPagesViewer": include_big_pages_viewer,
@@ -1493,11 +1493,11 @@ def validate_fingerprinted_bundle(out_dir: Path) -> int:
             (FINGERPRINTED_SEARCH_INDEX_URL_RE, "catalogs.search-index", ".json", "search index"),
         )
         for runtime_pattern, expected_stem, expected_suffix, label in dynamic_specs:
-            match = runtime_pattern.search(runtime_text)
-            if match is None:
+            dynamic_match = runtime_pattern.search(runtime_text)
+            if dynamic_match is None:
                 invalid_assets.append(f"fingerprinted catalog-search.js is missing its {label} URL")
                 continue
-            dynamic_reference = match.group("url")
+            dynamic_reference = dynamic_match.group("url")
             raw_dynamic_relative = Path(dynamic_reference)
             if raw_dynamic_relative.is_absolute() or ".." in raw_dynamic_relative.parts:
                 invalid_assets.append(f"catalog-search.js -> {dynamic_reference} (unsafe path)")
@@ -1732,9 +1732,11 @@ def validate_catalog_assets(root: Path) -> list[str]:
                 continue
             if pages > 0:
                 first_page = dir_path / f"page-001.{image_ext}"
-                variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), dict) else {}
-                medium = variants.get("medium") if isinstance(variants.get("medium"), dict) else None
-                medium_directory = str((medium or {}).get("directory") or "").strip().strip("/")
+                variants_value = catalog.get("imageVariants")
+                variants = variants_value if isinstance(variants_value, dict) else {}
+                medium_value = variants.get("medium")
+                medium = medium_value if isinstance(medium_value, dict) else {}
+                medium_directory = str(medium.get("directory") or "").strip().strip("/")
                 first_medium = dir_path / medium_directory / f"page-001.{image_ext}" if medium_directory else None
                 first_thumb = dir_path / "thumbs" / f"page-001.{image_ext}"
                 if not first_page.is_file():

@@ -27,6 +27,7 @@ from footer_content import phone_href, read_footer_content, render_footer_templa
 from payment_config import read_payment_config
 from seo_site import (
     SeoConfig,
+    SeoPage,
     Taxonomy,
     TaxonomyCategory,
     TaxonomySubcategory,
@@ -275,7 +276,7 @@ def page_seo(
     page: PageDocument,
     mode: str,
     catalogs: Sequence[Mapping[str, Any]],
-) -> Any:
+) -> SeoPage:
     canonical = absolute_url(config, page.canonical_path)
     image = default_share_image_url(config)
     json_ld: list[Mapping[str, Any]] = [
@@ -302,7 +303,13 @@ def page_seo(
     )
 
 
-def common_page_replacements(seo: Any, config: SeoConfig, *, base_tag: str = "", route_preload: str = "") -> dict[str, str]:
+def common_page_replacements(
+    seo: SeoPage,
+    config: SeoConfig,
+    *,
+    base_tag: str = "",
+    route_preload: str = "",
+) -> dict[str, str]:
     return {
         "{{BASE_TAG}}": base_tag,
         "{{ROBOTS_CONTENT}}": html.escape(seo.robots, quote=True),
@@ -809,7 +816,19 @@ def default_site_shell_replacements(
     config: SeoConfig | None = None,
     asset_rewrites: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
+    initial_navigation = ""
+    initial_mobile_navigation = ""
+    initial_catalog_grid = ""
     home_ready = page.mode == "home" and taxonomy is not None and config is not None
+    if home_ready:
+        # Keep the optional public API narrow, then enter a fully typed home
+        # rendering branch only after both dependencies are proven present.
+        assert taxonomy is not None
+        assert config is not None
+        initial_navigation = static_home_navigation(taxonomy, catalogs)
+        initial_mobile_navigation = static_home_navigation(taxonomy, catalogs, mobile=True)
+        initial_catalog_grid = static_home_catalog_grid(catalogs, taxonomy, config)
+
     try:
         route_stylesheet, route_script = ROUTE_ASSETS[page.mode]
     except KeyError as exc:
@@ -828,17 +847,11 @@ def default_site_shell_replacements(
         ),
         "{{BRAND_HEADING_CLOSE}}": "</h1>" if page.mode == "home" else "</span>",
         "{{SITE_FOOTER}}": site_footer,
-        "{{INITIAL_CATEGORY_NAV}}": static_home_navigation(
-            taxonomy, catalogs
-        ) if home_ready else "",
-        "{{INITIAL_MOBILE_CATEGORY_NAV}}": static_home_navigation(
-            taxonomy, catalogs, mobile=True
-        ) if home_ready else "",
+        "{{INITIAL_CATEGORY_NAV}}": initial_navigation,
+        "{{INITIAL_MOBILE_CATEGORY_NAV}}": initial_mobile_navigation,
         "{{CATALOGS_SECTION_EXTRA_CLASS}}": "" if page.mode == "home" else " hidden",
         "{{CATALOG_GRID_BUSY}}": "false" if home_ready else "true",
-        "{{INITIAL_CATALOG_GRID}}": static_home_catalog_grid(
-            catalogs, taxonomy, config
-        ) if home_ready else "",
+        "{{INITIAL_CATALOG_GRID}}": initial_catalog_grid,
         "{{CATALOG_DETAIL_EXTRA_CLASS}}": "" if page.mode == "catalog" else " hidden",
         "{{CATALOG_DETAIL_HEADING_TAG}}": "h2",
         "{{CATALOG_DETAIL_TITLE}}": "קטלוג",

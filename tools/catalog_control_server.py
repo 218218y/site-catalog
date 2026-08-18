@@ -289,7 +289,7 @@ def taxonomy_action_availability(action_key: str, taxonomy_state: Mapping[str, o
 
 
 def atomic_write_catalogs_and_taxonomy(
-    catalogs: list[dict[str, object]],
+    catalogs: CatalogConfig,
     taxonomy: Mapping[str, Sequence[Mapping[str, object]]],
     *,
     transaction: ProjectTransaction | None = None,
@@ -308,7 +308,7 @@ def atomic_write_catalogs_and_taxonomy(
         if should_sync_route_lock and route_lock_path is not None
         else None
     )
-    route_lock_sync = {"added": [], "unresolved": []}
+    route_lock_sync: dict[str, list[str]] = {"added": [], "unresolved": []}
     write_bytes = transaction.write_bytes if transaction is not None else atomic_write_bytes
     if transaction is not None:
         transaction.track_files(
@@ -604,7 +604,7 @@ def sync_search_overrides_after_id_rename(
 
 
 def compile_catalog_outputs_after_source_save(
-    catalogs: list[dict[str, object]],
+    catalogs: CatalogConfig,
     taxonomy: Mapping[str, Sequence[Mapping[str, object]]],
     rename_map: Mapping[str, str],
     *,
@@ -1155,6 +1155,8 @@ def state_payload() -> dict[str, object]:
     active_job = max(active_jobs, key=lambda item: item.started_at) if active_jobs else None
     mutation_active = bool(mutation.get("token") or active_job)
     mutation_action = str(mutation.get("action") or (active_job.label if active_job else ""))
+    taxonomy_issues = taxonomy.get("issues")
+    taxonomy_missing = len(taxonomy_issues) if isinstance(taxonomy_issues, list) else 0
     actions: list[dict[str, object]] = []
     for key, action in ACTIONS.items():
         enabled, reason = taxonomy_action_availability(key, taxonomy)
@@ -1181,7 +1183,7 @@ def state_payload() -> dict[str, object]:
             "configuredMissingPdfs": len(missing_configured),
             "ocrDisabled": sum(1 for item in config if not catalog_ocr_enabled(item)),
             "converted": sum(1 for item in config if catalog_output_status(str(item.get("id", ""))).get("state") == "ready"),
-            "taxonomyMissing": len(taxonomy.get("issues", [])),
+            "taxonomyMissing": taxonomy_missing,
         },
         "files": {
             "config": rel_to_root(CONFIG_FILE),
@@ -1560,6 +1562,11 @@ def _recover_after_canceled_job(job: Job) -> str:
         raise RuntimeError(f"failed to recover the project after cancellation: {exc}") from exc
 
 
+def job_cancel_requested(job: Job) -> bool:
+    """Read cancellation state without carrying stale static narrowing across threads."""
+    return job.cancel_requested
+
+
 def run_job(job: Job, action_command: Sequence[str]) -> None:
     command = [python_executable(), *action_command]
     env = os.environ.copy()
@@ -1573,18 +1580,15 @@ def run_job(job: Job, action_command: Sequence[str]) -> None:
     append_job_log(job, f"$ {' '.join(action_command)}")
     try:
         with jobs_lock:
-            if job.cancel_requested:
+            if job_cancel_requested(job):
                 job.returncode = 130
                 job.finished_at = time.time()
                 job.status = "canceled"
                 job.log.append("[cancel] canceled before worker startup")
                 return
 
-        popen_options: dict[str, object] = {}
-        if os.name == "nt":
-            popen_options["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        else:
-            popen_options["start_new_session"] = True
+        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
+        start_new_session = os.name != "nt"
 
         process = subprocess.Popen(
             command,
@@ -1595,11 +1599,12 @@ def run_job(job: Job, action_command: Sequence[str]) -> None:
             encoding="utf-8",
             errors="replace",
             env=env,
-            **popen_options,
+            creationflags=creationflags,
+            start_new_session=start_new_session,
         )
         with jobs_lock:
             job.process = process
-            cancel_raced = job.cancel_requested
+            cancel_raced = job_cancel_requested(job)
 
         if cancel_raced and process.poll() is None:
             method = _signal_job_process(process)
@@ -1613,7 +1618,7 @@ def run_job(job: Job, action_command: Sequence[str]) -> None:
 
         recovery_message = ""
         recovery_error = ""
-        if job.cancel_requested:
+        if job_cancel_requested(job):
             try:
                 recovery_message = _recover_after_canceled_job(job)
             except Exception as exc:
@@ -1623,7 +1628,7 @@ def run_job(job: Job, action_command: Sequence[str]) -> None:
             job.process = None
             job.returncode = returncode
             job.finished_at = time.time()
-            if job.cancel_requested and not recovery_error:
+            if job_cancel_requested(job) and not recovery_error:
                 job.status = "canceled"
                 job.log.append(recovery_message)
                 job.log.append(f"[done] canceled; return code: {returncode}")
@@ -1650,7 +1655,7 @@ def append_job_log(job: Job, line: str) -> None:
 
 
 def serialize_job(job: Job, include_log: bool = True) -> dict[str, object]:
-    data = {
+    data: dict[str, object] = {
         "id": job.id,
         "actionKey": job.action_key,
         "label": job.label,
@@ -1845,11 +1850,11 @@ class ControlHandler(BaseHTTPRequestHandler):
                 job_id = path.rsplit("/", 1)[-1]
                 with jobs_lock:
                     job = jobs.get(job_id)
-                    payload = serialize_job(job) if job else None
-                if not payload:
+                    job_payload = serialize_job(job) if job else None
+                if not job_payload:
                     self.send_error_json(HTTPStatus.NOT_FOUND, "Job not found")
                     return
-                self.send_contract_json("ControlJobDto", payload)
+                self.send_contract_json("ControlJobDto", job_payload)
                 return
             self.serve_static(path)
         except ApiRequestError as exc:
@@ -1888,19 +1893,19 @@ class ControlHandler(BaseHTTPRequestHandler):
 
             payload = read_json_body(self)
             if path == "/api/footer":
-                request = FooterSaveRequest.parse(payload)
+                footer_request = FooterSaveRequest.parse(payload)
                 with footer_save_lock:
                     with ProjectMutationLock(PROJECT_ROOT, "שמירת הפוטר מלוח השליטה"):
-                        footer = save_footer_content_and_render_pages(request.footer)
+                        footer = save_footer_content_and_render_pages(footer_request.footer)
                 self.send_contract_json("FooterSaveResponseDto", {"ok": True, "footer": footer, "state": state_payload(), "updatedPages": [page.filename for page in PAGE_DOCUMENTS]})
                 return
             if path == "/api/catalogs":
-                request = CatalogSaveRequest.parse(payload)
+                catalog_request = CatalogSaveRequest.parse(payload)
                 with taxonomy_save_lock:
                     result = save_catalogs_transactionally(
-                        request.catalogs,
-                        request.taxonomy,
-                        request.asset_deletes,
+                        catalog_request.catalogs,
+                        catalog_request.taxonomy,
+                        catalog_request.asset_deletes,
                     )
                 self.send_contract_json("CatalogSaveResponseDto", {
                     "ok": True,
@@ -1913,9 +1918,9 @@ class ControlHandler(BaseHTTPRequestHandler):
                 })
                 return
             if path == "/api/taxonomy":
-                request = TaxonomySaveRequest.parse(payload)
+                taxonomy_request = TaxonomySaveRequest.parse(payload)
                 with taxonomy_save_lock:
-                    result = save_taxonomy_transactionally(request.taxonomy)
+                    result = save_taxonomy_transactionally(taxonomy_request.taxonomy)
                 self.send_contract_json("TaxonomySaveResponseDto", {
                     "ok": True,
                     "state": state_payload(),
@@ -1925,12 +1930,12 @@ class ControlHandler(BaseHTTPRequestHandler):
                 })
                 return
             if path == "/api/run":
-                request = RunActionRequest.parse(payload)
-                validate_missing_pdf_confirmation(request)
+                run_request = RunActionRequest.parse(payload)
+                validate_missing_pdf_confirmation(run_request)
                 job = start_job(
-                    request.action,
-                    prune_missing_pdfs=request.prune_missing_pdfs,
-                    confirmed_missing_pdf_ids=request.confirmed_missing_pdf_ids,
+                    run_request.action,
+                    prune_missing_pdfs=run_request.prune_missing_pdfs,
+                    confirmed_missing_pdf_ids=run_request.confirmed_missing_pdf_ids,
                 )
                 self.send_contract_json("RunActionResponseDto", {"ok": True, "job": serialize_job(job)})
                 return

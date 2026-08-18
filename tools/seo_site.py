@@ -318,8 +318,10 @@ CATALOG_ASSET_URL_SCHEMA_VERSION = 2
 
 def catalog_asset_version_for_tier(catalog: Mapping[str, Any], tier: str) -> str:
     normalized_tier = str(tier or "full").strip() or "full"
-    variants = catalog.get("imageVariants") if isinstance(catalog.get("imageVariants"), Mapping) else {}
-    variant = variants.get(normalized_tier) if isinstance(variants.get(normalized_tier), Mapping) else {}
+    variants_value = catalog.get("imageVariants")
+    variants: Mapping[str, Any] = variants_value if isinstance(variants_value, Mapping) else {}
+    variant_value = variants.get(normalized_tier)
+    variant: Mapping[str, Any] = variant_value if isinstance(variant_value, Mapping) else {}
     base_version = str(variant.get("version") or catalog.get("assetVersion") or "").strip()
     if not base_version:
         return ""

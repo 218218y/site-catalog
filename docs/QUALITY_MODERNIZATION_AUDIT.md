@@ -31,16 +31,28 @@
 
 Ruff מתחיל ב-ratchet של שגיאות correctness בלבד (`E9`, `F63`, `F7`, `F82`) על `tools` ו-`tests`. הבחירה מכוונת: השלב אינו מערבב רפורמט רחב עם שינויי בדיקות, אך מעכשיו שגיאות תחביר, bindings בלתי חוקיים ושמות בלתי מוגדרים חוסמים verification. כללי style/import-order יתווספו בגלים נפרדים לאחר תיקון מדוד.
 
-mypy מופעל עם `disallow_untyped_defs`, `check_untyped_defs`, `no_implicit_optional` ואזהרות על unreachable/ignores מיותרים. השער מתחיל במודולי תשתית וחוזה בעלי annotations מלאים:
+mypy מופעל עם `disallow_untyped_defs`, `check_untyped_defs`, `no_implicit_optional` ואזהרות על unreachable/ignores מיותרים. ה-ratchet כולל כעת גם את צינור הקטלוג וה-SEO המרכזי, ולא רק כלי bootstrap וחוזה:
 
 - `tools/catalog_page_numbering.py`
 - `tools/taxonomy_editor.py`
 - `tools/check_frontend_contracts.py`
 - `tools/project_doctor.py`
+- `tools/python_toolchain.py`
 - `tools/setup_python_env.py`
 - `tools/verify_project.py`
+- `tools/catalog_types.py`
+- `tools/catalog_schema.py`
+- `tools/catalog_search_index.py`
+- `tools/catalog_compiler.py`
+- `tools/seo_site.py`
+- `tools/build_site_pages.py`
+- `tools/build_deploy_bundle.py`
+- `tools/catalog_control_api.py`
+- `tools/catalog_control_server.py`
 
-זהו ratchet אמיתי ולא `ignore_errors`: מודול שנכנס לרשימה חייב לעמוד בחוזה המלא. הרחבת הרשימה צריכה להתבצע owner אחר owner, בלי להכניס מאות suppressions.
+הגל הנוכחי סוגר owner שלם: JSON/schema → compiler/search → SEO/page rendering → deploy bundle → typed HTTP/control-panel boundary. כך שינוי במבנה נתוני קטלוג, מצב build או DTO של לוח השליטה נבדק סטטית לאורך השרשרת ולא רק בקובץ בודד.
+
+זהו ratchet אמיתי ולא `ignore_errors`: מודול שנכנס לרשימה חייב לעמוד בחוזה המלא. מאחר שכלי הפרויקט מורצים כקובצי script מתוך `tools/`, ‏mypy מוגדר עם `namespace_packages = false`; כך namespace הטיפוסים תואם ל-runtime הקנוני ולא נוצרת זהות כפולה מלאכותית של אותו קובץ כ-`foo` וכ-`tools.foo`. אין כאן `ignore_errors` או החלשה של בדיקת הפונקציות עצמן. הרחבת הרשימה ממשיכה owner אחר owner, בלי להכניס suppressions גורפים.
 
 הגרסאות נעולות ב-`tools/requirements-dev.txt`, נבדקות ב-bootstrap של `.venv`, ונוספו כשלבים חובה לפני pytest ב-`tools/verify_project.py`. `.python-version` הוא מקור האמת לקו התאימות המינימלי: CI, Ruff ו-mypy מכוונים לגרסת הבסיס, בעוד launcher ו-doctor מקבלים minor חדש יותר באותו major. ה-stamp של `.venv` הוא JSON versioned שמכיל fingerprint של דרישות/קו התאימות וגם runtime identity; אם ה-runtime שנבחר משתנה (למשל 3.13 → 3.14), הסביבה נבנית מחדש ולא נעשה ערבוב בין interpreters.
 

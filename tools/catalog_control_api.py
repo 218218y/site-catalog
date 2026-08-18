@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Protocol, TypeVar, cast, overload
 
 TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
@@ -20,8 +20,15 @@ MAX_JSON_BODY_BYTES = 1_000_000
 MAX_PDF_UPLOAD_BYTES = 160 * 1024 * 1024
 
 
+_HeaderDefault = TypeVar("_HeaderDefault")
+
+
 class HeaderReader(Protocol):
-    def get(self, name: str, default: str | None = None) -> str | None: ...
+    @overload
+    def get(self, name: str) -> str | None: ...
+
+    @overload
+    def get(self, name: str, default: _HeaderDefault) -> str | _HeaderDefault: ...
 
 
 class BinaryReader(Protocol):
@@ -29,8 +36,11 @@ class BinaryReader(Protocol):
 
 
 class RequestBodyReader(Protocol):
-    headers: HeaderReader
-    rfile: BinaryReader
+    @property
+    def headers(self) -> HeaderReader: ...
+
+    @property
+    def rfile(self) -> BinaryReader: ...
 
 
 class ApiRequestError(ValueError):

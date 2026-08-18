@@ -25,6 +25,15 @@ files = [
   "tools/python_toolchain.py",
   "tools/setup_python_env.py",
   "tools/verify_project.py",
+  "tools/catalog_types.py",
+  "tools/catalog_schema.py",
+  "tools/catalog_search_index.py",
+  "tools/catalog_compiler.py",
+  "tools/seo_site.py",
+  "tools/build_site_pages.py",
+  "tools/build_deploy_bundle.py",
+  "tools/catalog_control_api.py",
+  "tools/catalog_control_server.py",
 ]
 check_untyped_defs = true
 disallow_untyped_defs = true
@@ -36,4 +45,5 @@ show_error_codes = true
 pretty = true
 ignore_missing_imports = true
 follow_imports = "silent"
+namespace_packages = false
 cache_dir = ".artifacts/mypy-cache"

@@ -42,9 +42,24 @@ def test_python_quality_configuration_is_a_deliberate_ratchet() -> None:
     assert mypy["disallow_untyped_defs"] is True
     assert mypy["check_untyped_defs"] is True
     assert mypy["no_implicit_optional"] is True
-    assert "tools/project_doctor.py" in mypy["files"]
-    assert "tools/python_toolchain.py" in mypy["files"]
-    assert "tools/check_frontend_contracts.py" in mypy["files"]
+    assert mypy["namespace_packages"] is False
+    typed_modules = set(mypy["files"])
+    assert {
+        "tools/project_doctor.py",
+        "tools/python_toolchain.py",
+        "tools/check_frontend_contracts.py",
+    }.issubset(typed_modules)
+    assert {
+        "tools/catalog_types.py",
+        "tools/catalog_schema.py",
+        "tools/catalog_search_index.py",
+        "tools/catalog_compiler.py",
+        "tools/seo_site.py",
+        "tools/build_site_pages.py",
+        "tools/build_deploy_bundle.py",
+        "tools/catalog_control_api.py",
+        "tools/catalog_control_server.py",
+    }.issubset(typed_modules)
 
 
 def test_python_verification_runs_lint_types_then_tests() -> None:
