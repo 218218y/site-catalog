@@ -11,7 +11,7 @@
 
 import { catalogDocumentUrl, categoryDocumentUrl, homeDocumentUrl, isAppPage, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
-import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { catalogElements, catalogState } from "./12-catalog-state.js";
 import { activeCatalog, activeViewerSource, setActiveLocation } from "./18-navigation-feature.js";
 import { applyCatalogImageDimensions, buildCategoryShareRouteHash, catalogCategorySharePath, catalogCoverLoadingAttributes, catalogImageDimensionAttributes, catalogImageRecoveryAttributes, catalogSubcategorySharePath, categorySectionId, categoryShareSlug, decodeHashRouteSegment, encodeHashRouteSegment, getCatalogCategoryGroups, normalizeShareRoutePath, pageAspectVariableStyle, subcategorySectionId, subcategoryShareSlug } from "./20-catalog-runtime.js";
@@ -21,7 +21,6 @@ import { eventTargetElement } from "./02-dom-contracts.js";
 import { focusHtmlElement, isHtmlElement, setTooltipText } from "./21-ui-runtime.js";
 import { catalogFirstPage, catalogPageNumbers } from "./06-catalog-page-numbering.js";
 import { searchCatalogDomain } from "./39-search-catalog-domain.js";
-import { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu } from "./50-search-ui.js";
 
 /** @typedef {{gap:number, minHeight:number, paddingX:number, fontSize:number}} CategoryNavMetrics */
 /** @typedef {{focusFirst?:boolean, focusButton?:boolean}} MobileCategoryMenuOptions */
@@ -973,7 +972,7 @@ function attachCatalogGridEvents() {
   catalogElements.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    getFeatureInterface("search")?.closeGlobalPanel({ focusButton: false });
+    requireFeatureInterface("search").closeGlobalPanel({ focusButton: false });
     setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
   });
 
@@ -986,8 +985,7 @@ function attachCatalogGridEvents() {
 
   catalogElements.catalogMenuToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
+    requireFeatureInterface("search").closeViewerMenus();
     renderDetailCatalogMenu();
     const isOpen = !catalogElements.catalogMenu?.classList.contains("hidden");
     catalogElements.catalogMenu?.classList.toggle("hidden", isOpen);

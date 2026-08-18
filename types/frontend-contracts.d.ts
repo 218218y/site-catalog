@@ -440,6 +440,9 @@ export type SearchCloseOptions = {
     blurTopUiFocus?: boolean;
     hideTopUi?: boolean;
 };
+export type SearchViewerPrepareOptions = {
+    renderCatalogMenu?: boolean;
+};
 export type DialogCloseOptions = {
     restoreFocus?: boolean;
     cleanUrl?: boolean;
@@ -634,6 +637,9 @@ export type SearchFeatureApi = {
     isLightboxMobileOpen: () => boolean;
     setLightboxMobileOpen: (open: boolean, options?: SearchCloseOptions) => void;
     containsLightboxResult: (target: Element | null) => boolean;
+    prepareViewer: (options?: SearchViewerPrepareOptions) => void;
+    syncViewerStatus: () => void;
+    closeViewerMenus: () => void;
     hideViewerResults: (options?: SearchCloseOptions) => void;
     closeGlobalPanel: (options?: SearchCloseOptions) => void;
     attachEvents: () => void;

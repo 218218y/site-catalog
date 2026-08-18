@@ -140,7 +140,7 @@ assert.ok(viewerBundle.includes(sourceMarker('src/js/32-shared-inquiry.js')));
 assert.ok(viewerBundle.includes(sourceMarker('src/js/60-viewer.js')));
 assert.ok(viewerBundle.includes(sourceMarker('src/js/35-favorites-workspace.js')));
 assert.ok(viewerBundle.includes(sourceMarker('src/js/40-catalog-grid.js')));
-assert.match(viewerBundle, /getFeatureInterface\("search"\)/);
+assert.match(viewerBundle, /requireFeatureInterface\("search"\)/);
 
 for (const route of ['catalog', 'favorites', 'viewer']) {
   const relative = `src/entries/${route}.js`;

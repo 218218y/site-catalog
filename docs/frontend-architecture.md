@@ -53,7 +53,7 @@
 
 ## Feature Interfaces
 
-החוזה הקנוני מוגדר ב־`src/js/05-app-contracts.js` כמפת `FeatureRegistry`. כל מפתח מצביע ל־API נפרד ומדויק, לדוגמה:
+החוזה הקנוני מוגדר ב־`types/frontend-contracts.d.ts` כמפת `FeatureRegistry`; ‏`src/js/05-app-contracts.js` נשאר רק marker תאימות ללא טיפוסים גלובליים או runtime. כל מפתח מצביע ל־API נפרד ומדויק, לדוגמה:
 
 - `navigation`: קטלוג ועמוד פעילים, מקור Viewer, Route shell ושחזור scroll.
 - `catalog-grid`: אתחול Grid, פתיחת קטלוג, רענון layout וסנכרון hash.
@@ -61,7 +61,7 @@
 - `favorites`: store, מצב Viewer של מועדפים וסנכרון הכפתורים.
 - `favorites-workspace`: רינדור, סינון, שיתוף וטיפול בעורך הערה.
 - `inquiry`: חלון הבירור המשותף, כולל focus trap, שיתוף, העתקה ונעילת המסמך.
-- `search`: סגירת שכבות חיפוש, חיפוש Viewer ומצב Mobile search.
+- `search`: lifecycle של החיפוש, הכנת Search עבור Viewer, סנכרון סטטוס וסגירת שכבות/תפריטי Viewer דרך API ציבורי יחיד.
 - `viewer`: פתיחה, סגירה, מעבר עמוד, lifecycle וממשק UI מצומצם.
 - `app-shell`: orchestration ברמת המסמך בלבד.
 
@@ -75,6 +75,7 @@
 4. רישום כפול, שם לא מוכר או Feature חסר נכשל בשער הארכיטקטורה.
 5. Interface נרשם כ־frozen object כדי למנוע החלפה שקטה בזמן ריצה.
 6. אירועים נרשמים פעם אחת בלבד באמצעות `bindFeatureEventsOnce()` ורק אחרי binder שהסתיים בהצלחה.
+7. composition roots הרשומים `40-catalog-grid.js`, `50-search-ui.js` ו־`60-viewer.js` אינם חושפים ES-module API ואינם מיובאים מתוך `src/js`; ה־entrypoints רשאים לטעון אותם לצורך registration, וכל צרכן runtime משתמש ב־`FeatureRegistry`.
 
 ## בניית ES Modules וגרפי מסלולים
 
@@ -86,7 +87,7 @@
 - האופטימיזציה מתבצעת לפני fingerprinting, ולכן ה־hash בשם הקובץ מייצג בדיוק את הקוד הממוזער שנשלח לדפדפן. ה־Route bundles ממוזערים לאחר הטבעת `__BARGIG_RELEASE_ID__`; ה־Search Worker ממוזער לפני חישוב שמו, ו־`catalog-search.js` ממוזער רק לאחר שהוזרקו אליו השמות הסופיים של ה־Worker והאינדקס. לאחר מכן כל ארבעת מודולי ה־runtime מקבלים hash עצמאי, imports של שלושת ה־Route bundles נכתבים לשמות האמיתיים, ורק אז גם ה־Routes מקבלים fingerprint. האימות הסופי עוקב אחר גרף HTML → Route ESM → runtime ESM → Worker/index ודוחה generation חסר, מעורב או לא־מקושר. אין יצירת source maps או `sourceMappingURL` בתוצר הציבורי. כל מעבר כותב תחילה temporary files ומחליף את הקבצים רק לאחר שכל ההמרות באותו מעבר הצליחו.
 - route capability flags מוזרקים בזמן build דרך `01-route-capabilities.js`, אבל הם אינם תחליף ל־tree shaking: Feature שאינו במסלול חייב להיעדר פיזית מהגרף.
 - `dynamic import` אינו מאושר כרגע: אין בפרויקט יכולת אופציונלית כבדה שמצדיקה chunk נוסף, נתיב פריסה נוסף ומסלול כשל נוסף. `catalog-snapshot.js` קטן ומיובא רק מה־adapter של Viewer, ללא script עצמאי, ללא בקשת רשת נוספת וללא כניסה לגרפי Catalog/Favorites. `catalog` ו־`favorites` כבר מפוצלים לפי מסלול, ואילו Search, Catalog Grid ו־Favorites Workspace ב־Viewer נשארים eager באותו document כדי שמעבר בזמן fullscreen לא יגרום ליציאה ממסך מלא.
-- גרף ה־imports נבדק באמצעות strongly connected components, וכל מחזור אסור ללא allowlist או חריגים. תת־מודולי ה־Viewer בנויים כשכבות חד־כיווניות: state ו־geometry בתחתית, controllers לפקודות zoom/fit/page/layout מעליהם, shell להצגת UI, ו־`60-viewer.js` כ־composition/lifecycle root עליון שאף תת־מודול אינו מייבא. כך סדר האתחול נגזר מהגרף עצמו ואינו נשען על TDZ, side effects או הסכמה ידנית למחזור.
+- גרף ה־imports נבדק באמצעות strongly connected components, וכל מחזור אסור ללא allowlist או חריגים. בנוסף `40-catalog-grid.js`, `50-search-ui.js` ו־`60-viewer.js` נאכפים כ־registry-only composition roots: אין להם exports ואין runtime module שמייבא אותם ישירות. תת־מודולי ה־Viewer בנויים כשכבות חד־כיווניות: state ו־geometry בתחתית, controllers לפקודות zoom/fit/page/layout מעליהם, shell להצגת UI, ו־`60-viewer.js` כ־composition/lifecycle root עליון. כך סדר האתחול נגזר מהגרף עצמו ואינו נשען על TDZ, side effects או API פנימי מקביל.
 - `02-dom-contracts.js`, `03-runtime-context.js`, `17-catalog-asset-urls.js`, `19-shared-pure.js`, `20-catalog-runtime.js` ו־`21-ui-runtime.js` הם owners נמוכים וממוקדים שנועדו למנוע תלות הפוכה בין Navigation, Catalog, Media, Telemetry ו־App Shell. Telemetry מקבלת callback לשחזור תמונה דרך dependency injection, ו־Navigation מבקש render מחדש דרך חוזה `app-shell` במקום לייבא את ה־composition root.
 
 ## מודולי JavaScript

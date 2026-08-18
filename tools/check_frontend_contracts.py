@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 import subprocess
 from pathlib import Path
@@ -26,6 +27,13 @@ STATE_OWNERS: Mapping[str, str] = {
     "viewerOnboardingState": "src/js/16-viewer-state.js",
     "inquiryState": "src/js/32-shared-inquiry.js",
 }
+FEATURE_COMPOSITION_ROOTS: Mapping[str, str] = {
+    "src/js/40-catalog-grid.js": "catalog-grid",
+    "src/js/50-search-ui.js": "search",
+    "src/js/60-viewer.js": "viewer",
+}
+
+
 ELEMENT_OWNERS: Mapping[str, str] = {
     "shellElements": "src/js/11-navigation-state.js",
     "catalogElements": "src/js/12-catalog-state.js",
@@ -713,6 +721,60 @@ def _has_legacy_top_level_iife_wrapper(source: str) -> bool:
     return re.search(r"\}\)\(\);?\s*$", body) is not None
 
 
+def _resolve_static_import(relative_source: str, specifier: str) -> str | None:
+    if not specifier.startswith("."):
+        return None
+    source_dir = posixpath.dirname(relative_source)
+    return posixpath.normpath(posixpath.join(source_dir, specifier))
+
+
+def check_feature_composition_roots(
+    base: Path,
+    sources: list[Path],
+    inventory: Mapping[str, AstInventory],
+    failures: list[str],
+) -> None:
+    """Keep public feature communication on FeatureRegistry, not module exports.
+
+    Route entries may import a composition root for registration side effects.
+    Runtime modules under src/js must consume that feature through its typed
+    registry API, so implementation helpers cannot quietly become a second API.
+    """
+
+    for relative_root, feature_name in FEATURE_COMPOSITION_ROOTS.items():
+        root_inventory = inventory.get(relative_root)
+        if root_inventory is None:
+            failures.append(f"feature composition root is missing from AST inventory: {relative_root}")
+            continue
+        registrations = [
+            call.get("arguments", [None])[0]
+            for call in ast_calls(root_inventory, "registerFeatureInterface")
+            if call.get("arguments")
+        ]
+        if feature_name not in registrations:
+            failures.append(
+                f"{relative_root} must register the {feature_name} feature interface"
+            )
+        if int(root_inventory.get("exportStatementCount", 0)) != 0:
+            failures.append(
+                f"{relative_root} exposes a module API; consume {feature_name} through FeatureRegistry"
+            )
+
+    for path in sources:
+        relative = path.relative_to(base).as_posix()
+        for specifier in inventory[relative].get("staticImports", []):
+            if not isinstance(specifier, str):
+                continue
+            target = _resolve_static_import(relative, specifier)
+            if target is None or target == relative:
+                continue
+            feature_name = FEATURE_COMPOSITION_ROOTS.get(target)
+            if feature_name is not None:
+                failures.append(
+                    f"{relative} imports {target} directly; consume {feature_name} through FeatureRegistry"
+                )
+
+
 def check_frontend_contracts(root: Path | None = None) -> None:
     base = (root or project_root()).resolve()
     sources = sorted((base / "src" / "js").glob("*.js"))
@@ -730,6 +792,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     check_typecheck_configuration(base, failures)
     check_es_module_imports(base, all_browser_sources, inventory, failures)
     check_feature_registry(base, sources, inventory, failures)
+    check_feature_composition_roots(base, sources, inventory, failures)
     check_bootstrap_boundary(base, inventory, failures)
 
     for path in [*runtime_sources, *(base / name for name in EXTERNAL_RUNTIME_MODULES)]:

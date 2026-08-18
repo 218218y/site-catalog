@@ -69,8 +69,26 @@ const cycles = components.filter((component) => (
 ));
 assert.deepEqual(cycles, [], "the frontend ES-module graph must remain acyclic without an allowlist");
 
-const viewerRootImporters = sourceNames.filter((name) => graph.get(name).has("60-viewer.js"));
-assert.deepEqual(viewerRootImporters, [], "no source module may import the Viewer composition root");
+const featureCompositionRoots = new Map([
+  ["40-catalog-grid.js", "catalog-grid"],
+  ["50-search-ui.js", "search"],
+  ["60-viewer.js", "viewer"],
+]);
+for (const [rootName, featureName] of featureCompositionRoots) {
+  const importers = sourceNames.filter((name) => graph.get(name).has(rootName));
+  assert.deepEqual(importers, [], `no source module may import the ${featureName} composition root`);
+  assert.equal(
+    inventories.get(rootName).exportStatementCount,
+    0,
+    `${rootName} must expose ${featureName} only through FeatureRegistry`,
+  );
+  assert.equal(
+    findCalls(inventories.get(rootName), "registerFeatureInterface")
+      .some((call) => call.arguments[0] === featureName),
+    true,
+    `${rootName} must register ${featureName}`,
+  );
+}
 
 const functions = (name) => new Set(inventories.get(name).functionDeclarations);
 const assignments = (name) => new Set(inventories.get(name).assignmentTargets);
@@ -112,6 +130,4 @@ assert.equal(findCalls(viewerRoot, "registerFeatureInterface").some((call) => ca
 for (const forbidden of ["setLightboxPage", "setFavoriteViewerIndex", "moveLightbox", "setZoom", "setViewerFitMode"]) {
   assert.equal(functions("60-viewer.js").has(forbidden), false, `Viewer root must not implement ${forbidden}`);
 }
-assert.equal(viewerRoot.exportStatementCount, 0, "Viewer composition root must not expose a public module API");
-
 console.log("viewer_dependency_graph_contract.test.js: PASS");

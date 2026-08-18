@@ -3143,707 +3143,6 @@ var searchCatalogDomain = (() => {
   });
 })();
 
-// src/js/50-search-ui.js
-import { tooltips as tooltips2 } from "./tooltip-manager.js";
-
-// src/js/13-search-state.js
-var SEARCH_INPUT_DEBOUNCE_MS = 90, SEARCH_INDEX_PRELOAD_DELAY_MS = 6e3, MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)", SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260, searchState = {
-  globalSearchCategory: "",
-  globalSearchOpen: !1,
-  lightboxSearchScope: "catalog",
-  lightboxMobileSearchOpen: !1,
-  searchIndexLoadState: catalogSearch.isReady() ? "ready" : "idle",
-  searchIndexLoadPromise: null,
-  searchIndexPreloadTimer: 0,
-  searchPreviewSuppressUntil: 0,
-  searchPreviewSuppressTimer: 0,
-  searchPreviewPointerClientX: null,
-  searchPreviewPointerClientY: null
-}, searchElements = Object.freeze({
-  catalogSearch: requiredElement("catalogSearch"),
-  globalSearchOpen: $requiredButton("globalSearchOpen"),
-  globalSearchClose: $requiredButton("globalSearchClose"),
-  globalSearchInput: $requiredInput("globalSearchInput"),
-  globalSearchResults: requiredElement("globalSearchResults"),
-  globalSearchClear: $requiredButton("globalSearchClear"),
-  globalSearchScopeToggle: $requiredButton("globalSearchScopeToggle"),
-  globalSearchScopeMenu: requiredElement("globalSearchScopeMenu"),
-  searchFloatingPreview: requiredElement("searchFloatingPreview"),
-  searchFloatingPreviewImage: $requiredImage("searchFloatingPreviewImage"),
-  searchFloatingPreviewPage: requiredElement("searchFloatingPreviewPage"),
-  lightboxSearchInput: $requiredInput("lightboxSearchInput"),
-  lightboxSearchPanel: requiredElement("lightboxSearchPanel"),
-  lightboxMobileSearchToggle: $requiredButton("lightboxMobileSearchToggle"),
-  lightboxMobileSearchClose: $requiredButton("lightboxMobileSearchClose"),
-  lightboxSearchResults: requiredElement("lightboxSearchResults"),
-  lightboxSearchStatus: requiredElement("lightboxSearchStatus"),
-  lightboxSearchClear: $requiredButton("lightboxSearchClear"),
-  lightboxSearchScopeToggle: $requiredButton("lightboxSearchScopeToggle"),
-  lightboxSearchScopeMenu: requiredElement("lightboxSearchScopeMenu"),
-  lightboxCatalogMenuToggle: $requiredButton("lightboxCatalogMenuToggle"),
-  lightboxCatalogMenu: requiredElement("lightboxCatalogMenu")
-});
-
-// src/js/50-search-ui.js
-var globalSearchRenderTimer = 0, lightboxSearchRenderTimer = 0, globalSearchAppendFrame = 0, globalSearchRenderSequence = 0, lightboxSearchRenderSequence = 0, lastGlobalSearchResults = [], lastLightboxSearchResults = [], lastGlobalSearchKey = "", lastLightboxSearchKey = "", GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 3, GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 3;
-function isSearchIndexReady() {
-  return catalogSearch.isReady();
-}
-function refreshSearchUiAfterIndexLoad() {
-  initSearchStatus(), initLightboxSearchStatus();
-}
-function ensureSearchIndexLoaded(options = {}) {
-  if (isSearchIndexReady())
-    return searchState.searchIndexLoadState = "ready", Promise.resolve(!0);
-  if (searchState.searchIndexLoadPromise) return searchState.searchIndexLoadPromise;
-  searchState.searchIndexLoadState = "loading", initLightboxSearchStatus();
-  let loadTrigger = telemetryCleanText(options.trigger || "interactive", 40);
-  return searchState.searchIndexLoadPromise = catalogSearch.ensureReady().then(() => (searchState.searchIndexLoadState = "ready", searchState.searchIndexLoadPromise = null, refreshSearchUiAfterIndexLoad(), !0)).catch((error) => {
-    throw searchState.searchIndexLoadState = "error", searchState.searchIndexLoadPromise = null, telemetryTrackSearchIndexFailure("network-error", { trigger: loadTrigger }), initSearchStatus(), initLightboxSearchStatus(), error;
-  }), searchState.searchIndexLoadPromise;
-}
-function scheduleSearchIndexPreload() {
-  window.clearTimeout(searchState.searchIndexPreloadTimer), !isSaveDataEnabled() && (searchState.searchIndexPreloadTimer = window.setTimeout(() => {
-    if (isSaveDataEnabled()) return;
-    let preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {
-    });
-    "requestIdleCallback" in window ? window.requestIdleCallback(preload, { timeout: 2500 }) : preload();
-  }, SEARCH_INDEX_PRELOAD_DELAY_MS));
-}
-function cancelScheduledSearch(channel) {
-  channel === "global" ? (window.clearTimeout(globalSearchRenderTimer), window.cancelAnimationFrame(globalSearchAppendFrame), globalSearchRenderTimer = 0, globalSearchAppendFrame = 0, globalSearchRenderSequence += 1) : (window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = 0, lightboxSearchRenderSequence += 1), catalogSearch.cancel(channel);
-}
-function cancelGlobalSearchResultAppend() {
-  window.cancelAnimationFrame(globalSearchAppendFrame), globalSearchAppendFrame = 0;
-}
-function scheduleSearchRender(channel, query, options = {}) {
-  let delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS, callback = channel === "global" ? () => renderSearchResults(query) : () => renderLightboxSearchResults(query);
-  catalogSearch.cancel(channel), channel === "global" ? (cancelGlobalSearchResultAppend(), globalSearchRenderSequence += 1, window.clearTimeout(globalSearchRenderTimer), globalSearchRenderTimer = window.setTimeout(callback, delay)) : (lightboxSearchRenderSequence += 1, window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = window.setTimeout(callback, delay));
-}
-function getGlobalSearchCategories() {
-  return getCatalogCategoryGroups().filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length).map((group) => ({ category: group.category }));
-}
-function hasGlobalSearchCategory(category) {
-  let requestedCategory = String(category || "").trim();
-  return requestedCategory ? getCatalogCategoryGroups().some((group) => group.category === requestedCategory) : !1;
-}
-function getGlobalSearchCategory() {
-  let selectedCategory = String(searchState.globalSearchCategory || "").trim();
-  return selectedCategory && hasGlobalSearchCategory(selectedCategory) ? selectedCategory : "";
-}
-function globalSearchScopeLabel(category = getGlobalSearchCategory()) {
-  return category || "בכל הקטלוגים";
-}
-function globalSearchPlaceholder() {
-  let category = getGlobalSearchCategory();
-  return category ? `חיפוש קטלוג, קטגוריה או דגם בתוך ${category}...` : "חיפוש קטגוריה, תת קטגוריה, קטלוג, דגם או טקסט...";
-}
-function closeGlobalSearchScopeMenu() {
-  searchElements.globalSearchScopeMenu?.classList.add("hidden"), searchElements.globalSearchScopeToggle?.setAttribute("aria-expanded", "false");
-}
-function isGlobalSearchPanelOpen() {
-  return !!(searchState.globalSearchOpen && searchElements.catalogSearch && !searchElements.catalogSearch.classList.contains("hidden"));
-}
-function setGlobalSearchPanelOpen(open, options = {}) {
-  let shouldOpen = !!open;
-  if (searchState.globalSearchOpen = shouldOpen, !!searchElements.catalogSearch) {
-    if (searchElements.catalogSearch.classList.toggle("hidden", !shouldOpen), searchElements.catalogSearch.classList.toggle("is-open", shouldOpen), searchElements.catalogSearch.setAttribute("aria-hidden", shouldOpen ? "false" : "true"), searchElements.globalSearchOpen?.classList.toggle("is-active", shouldOpen), searchElements.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false"), shouldOpen) {
-      syncGlobalSearchScopeUi(), renderSearchResults(searchElements.globalSearchInput?.value || ""), options.focus !== !1 && window.requestAnimationFrame(() => searchElements.globalSearchInput?.focus({ preventScroll: !0 }));
-      return;
-    }
-    closeGlobalSearchScopeMenu(), hideSearchFloatingPreview(), cancelScheduledSearch("global"), options.hideResults !== !1 && searchElements.globalSearchResults?.classList.add("hidden"), options.focusButton && window.requestAnimationFrame(() => searchElements.globalSearchOpen?.focus({ preventScroll: !0 }));
-  }
-}
-function closeGlobalSearchPanel(options = {}) {
-  setGlobalSearchPanelOpen(!1, options);
-}
-function renderGlobalSearchScopeMenu() {
-  if (!searchElements.globalSearchScopeMenu) return;
-  let categories = getGlobalSearchCategories();
-  searchElements.globalSearchScopeMenu.innerHTML = `
-    <button type="button" role="menuitemradio" aria-checked="true" data-global-search-category="">
-      <strong>בכל הקטלוגים</strong>
-    </button>
-    ${categories.map((group) => `
-      <button type="button" role="menuitemradio" aria-checked="false" data-global-search-category="${escapeHtml(group.category)}">
-        <strong>${escapeHtml(group.category)}</strong>
-      </button>
-    `).join("")}
-  `, syncGlobalSearchScopeUi();
-}
-function syncGlobalSearchScopeUi() {
-  let category = getGlobalSearchCategory();
-  searchElements.globalSearchScopeToggle && (searchElements.globalSearchScopeToggle.innerHTML = `${escapeHtml(globalSearchScopeLabel(category))} <span aria-hidden="true">⌄</span>`, searchElements.globalSearchScopeToggle.title = category ? `חיפוש רק בקטגוריית ${category}` : "חיפוש בכל הקטלוגים"), searchElements.globalSearchInput && (searchElements.globalSearchInput.placeholder = globalSearchPlaceholder(), searchElements.globalSearchInput.setAttribute("aria-label", globalSearchPlaceholder())), Array.from(searchElements.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]") || []).filter(isHtmlElement).forEach((button) => {
-    let selected = String(button.dataset.globalSearchCategory || "") === category;
-    button.classList.toggle("active", selected), button.setAttribute("aria-checked", selected ? "true" : "false");
-  });
-}
-function setGlobalSearchCategory(category, options = {}) {
-  let requestedCategory = String(category || "").trim(), nextCategory = requestedCategory && hasGlobalSearchCategory(requestedCategory) ? requestedCategory : "";
-  if (searchState.globalSearchCategory === nextCategory) {
-    syncGlobalSearchScopeUi(), closeGlobalSearchScopeMenu();
-    return;
-  }
-  searchState.globalSearchCategory = nextCategory, syncGlobalSearchScopeUi(), closeGlobalSearchScopeMenu(), initSearchStatus(), options.render !== !1 && searchElements.globalSearchInput && renderSearchResults(searchElements.globalSearchInput.value);
-}
-function initSearchStatus() {
-  syncGlobalSearchScopeUi();
-}
-function getLightboxSearchScope() {
-  return searchState.lightboxSearchScope === "all" ? "all" : "catalog";
-}
-function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
-  return scope === "all" ? "בכל הקטלוגים" : "בקטלוג הזה";
-}
-function lightboxSearchPlaceholder() {
-  if (getLightboxSearchScope() === "all") return "חיפוש דגם בכל הקטלוגים...";
-  let title = String(activeCatalog()?.title || "").trim();
-  return title ? `חיפוש ב: ${title}` : "חיפוש ב...";
-}
-function closeLightboxSearchScopeMenu() {
-  searchElements.lightboxSearchScopeMenu?.classList.add("hidden"), searchElements.lightboxSearchScopeToggle?.setAttribute("aria-expanded", "false");
-}
-function closeLightboxCatalogMenu() {
-  searchElements.lightboxCatalogMenu?.classList.add("hidden"), searchElements.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
-}
-function isMobileReaderSearchMode() {
-  return !!window.matchMedia?.(MOBILE_READER_SEARCH_MEDIA).matches;
-}
-function syncLightboxMobileSearchUi() {
-  let compactMode = isMobileReaderSearchMode(), isOpen = compactMode && searchState.lightboxMobileSearchOpen;
-  compactMode || (searchState.lightboxMobileSearchOpen = !1), getFeatureInterface("viewer")?.syncMobileSearchUi?.(isOpen), searchElements.lightboxMobileSearchToggle?.setAttribute("aria-expanded", isOpen ? "true" : "false"), searchElements.lightboxSearchPanel?.setAttribute("aria-hidden", compactMode && !isOpen ? "true" : "false");
-}
-function setLightboxMobileSearchOpen(open, options = {}) {
-  let { focusInput = !1, returnFocus = !1, hideResults = !0, hideTopUi = !1 } = options, shouldOpen = !!(open && getFeatureInterface("viewer")?.isViewerOpen?.() && isMobileReaderSearchMode());
-  if (searchState.lightboxMobileSearchOpen = shouldOpen, syncLightboxMobileSearchUi(), shouldOpen) {
-    closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), getFeatureInterface("viewer")?.showTopUi?.(), ensureSearchIndexLoaded().catch(() => {
-    }), focusInput && window.requestAnimationFrame(() => searchElements.lightboxSearchInput?.focus());
-    return;
-  }
-  hideResults && hideLightboxSearchResults({ blurTopUiFocus: !0, hideTopUi }), returnFocus && isMobileReaderSearchMode() && searchElements.lightboxMobileSearchToggle?.focus();
-}
-function syncLightboxSearchScopeUi() {
-  let scope = getLightboxSearchScope();
-  searchElements.lightboxSearchScopeToggle && (searchElements.lightboxSearchScopeToggle.innerHTML = `${escapeHtml(lightboxSearchScopeLabel(scope))} <span aria-hidden="true">⌄</span>`), searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.placeholder = lightboxSearchPlaceholder(), searchElements.lightboxSearchInput.setAttribute("aria-label", lightboxSearchPlaceholder())), Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
-    let selected = button.dataset.lightboxSearchScope === scope;
-    button.classList.toggle("active", selected), button.setAttribute("aria-checked", selected ? "true" : "false");
-  });
-}
-function setLightboxSearchScope(scope, options = {}) {
-  let nextScope = scope === "all" ? "all" : "catalog";
-  if (searchState.lightboxSearchScope === nextScope) {
-    syncLightboxSearchScopeUi(), closeLightboxSearchScopeMenu();
-    return;
-  }
-  searchState.lightboxSearchScope = nextScope, syncLightboxSearchScopeUi(), closeLightboxSearchScopeMenu(), initLightboxSearchStatus(), options.render !== !1 && searchElements.lightboxSearchInput && renderLightboxSearchResults(searchElements.lightboxSearchInput.value);
-}
-function hideLightboxSearchResults(options = {}) {
-  let { blurTopUiFocus = !1, hideTopUi = !1 } = options;
-  if (hideSearchFloatingPreview(), searchElements.lightboxSearchResults?.classList.add("hidden"), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), blurTopUiFocus) {
-    let activeElement = document.activeElement;
-    isHtmlElement(activeElement) && getFeatureInterface("viewer")?.containsTopBarElement(activeElement) && activeElement.blur();
-  }
-  hideTopUi && getFeatureInterface("viewer")?.hideTopUiForSearch?.();
-}
-function resetLightboxSearch() {
-  searchState.lightboxMobileSearchOpen = !1, syncLightboxMobileSearchUi(), searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.value = ""), hideLightboxSearchResults({ blurTopUiFocus: !0 }), searchElements.lightboxSearchResults && (searchElements.lightboxSearchResults.innerHTML = ""), searchElements.lightboxSearchClear?.classList.add("hidden"), syncLightboxSearchScopeUi(), initLightboxSearchStatus();
-}
-function lightboxSearchKey(query) {
-  let scope = getLightboxSearchScope();
-  return [String(query || "").trim(), scope, scope === "all" ? "" : activeCatalog()?.id || ""].join("\0");
-}
-async function getLightboxSearchResults(query, limit = 24, control = {}) {
-  let rawQuery = String(query || "").trim();
-  if (rawQuery.length < 2) return [];
-  if (await ensureSearchIndexLoaded({ trigger: "viewer-search" }), control.isCurrent && !control.isCurrent()) return [];
-  if (!catalogSearch.hasIndex()) return [];
-  let options = { limit, channel: "viewer" };
-  if (getLightboxSearchScope() !== "all") {
-    let catalog = activeCatalog();
-    if (!catalog) return [];
-    options.catalogId = catalog.id;
-  }
-  let results = await catalogSearch.search(rawQuery, options);
-  return Array.isArray(results) ? results : [];
-}
-async function trackCompletedLightboxSearch(completion, query = searchElements.lightboxSearchInput?.value || "") {
-  let rawQuery = String(query || "").trim(), scope = getLightboxSearchScope(), results = lightboxSearchKey(rawQuery) === lastLightboxSearchKey ? lastLightboxSearchResults : await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
-  return telemetryTrackSearch(rawQuery, results.length, {
-    surface: "viewer",
-    scope,
-    catalogId: scope === "all" ? "" : activeCatalog()?.id,
-    completion
-  }), results;
-}
-function openLightboxSearchResult(result) {
-  if (!result) return !1;
-  let catalog = activeCatalog(), targetCatalogId = String(result.catalogId || catalog?.id || "").trim(), sameCatalog = !!(catalog && String(catalog.id) === targetCatalogId), viewer = requireFeatureInterface("viewer"), handled = searchCatalogDomain.executeLightboxSearchResultAction(result, catalog, {
-    openCatalog: viewer.openCatalog,
-    setPage: viewer.setPage,
-    showTopUi: viewer.showTopUi
-  });
-  return !handled || !sameCatalog ? handled : (searchState.lightboxMobileSearchOpen ? setLightboxMobileSearchOpen(!1, { hideResults: !0 }) : hideLightboxSearchResults(), !0);
-}
-async function submitLightboxSearch() {
-  let rawQuery = String(searchElements.lightboxSearchInput?.value || "").trim(), results = await renderLightboxSearchResults(rawQuery);
-  return await trackCompletedLightboxSearch("submit", rawQuery), openLightboxSearchResult(results[0]);
-}
-function initLightboxSearchStatus() {
-  if (!searchElements.lightboxSearchStatus) return;
-  let hasCatalog = !!activeCatalog(), hasIndex = !!catalogSearch.hasIndex(), indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
-  if (searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.disabled = !hasCatalog), syncLightboxSearchScopeUi(), !hasCatalog) {
-    searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
-    return;
-  }
-  if (!hasIndex) {
-    searchElements.lightboxSearchStatus.textContent = indexPending ? "אינדקס החיפוש נטען לפי הצורך." : "אינדקס החיפוש אינו זמין כרגע.";
-    return;
-  }
-  searchElements.lightboxSearchStatus.textContent = getLightboxSearchScope() === "all" ? "הקלד לפחות 2 תווים לחיפוש בכל הקטלוגים." : "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
-}
-function hideSearchFloatingPreview() {
-  searchElements.searchFloatingPreview?.classList.remove("visible");
-}
-function isGlobalSearchScopeMenuOpen() {
-  return !!(searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden"));
-}
-function isLightboxSearchScopeMenuOpen() {
-  return !!(searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"));
-}
-function rememberSearchPreviewPointer(event) {
-  let clientX = Number(event?.clientX), clientY = Number(event?.clientY);
-  !Number.isFinite(clientX) || !Number.isFinite(clientY) || (searchState.searchPreviewPointerClientX = clientX, searchState.searchPreviewPointerClientY = clientY);
-}
-function searchPreviewTargetBelongsToOpenResults(target) {
-  return !target || !target.isConnected ? !1 : searchElements.globalSearchResults?.contains(target) ? isGlobalSearchPanelOpen() && !searchElements.globalSearchResults.classList.contains("hidden") : searchElements.lightboxSearchResults?.contains(target) ? !!getFeatureInterface("viewer")?.isViewerOpen?.() && !searchElements.lightboxSearchResults.classList.contains("hidden") : !1;
-}
-function isSearchPreviewBlockedByOpenMenu(target) {
-  return target instanceof Node ? !!(searchElements.globalSearchResults?.contains(target) && isGlobalSearchScopeMenuOpen() || searchElements.lightboxSearchResults?.contains(target) && isLightboxSearchScopeMenuOpen()) : !1;
-}
-function getSearchPreviewTargetAtLastPointer() {
-  let clientX = Number(searchState.searchPreviewPointerClientX), clientY = Number(searchState.searchPreviewPointerClientY);
-  if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) return null;
-  let target = document.elementFromPoint(clientX, clientY)?.closest?.("[data-search-preview-src]");
-  return target instanceof HTMLElement && searchPreviewTargetBelongsToOpenResults(target) ? target : null;
-}
-function isSearchPreviewSuppressed() {
-  return Date.now() < (searchState.searchPreviewSuppressUntil || 0);
-}
-function restoreSearchFloatingPreviewAfterSuppression() {
-  if (isSearchPreviewSuppressed() || !hasHoverPointer()) return;
-  let target = getSearchPreviewTargetAtLastPointer();
-  !target || isSearchPreviewBlockedByOpenMenu(target) || showSearchFloatingPreview(target);
-}
-function suppressSearchFloatingTooltip(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
-  tooltips2.suppress(duration, options);
-}
-function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
-  let { restoreAfter = !0 } = options, delay = Math.max(0, Number(duration) || 0);
-  suppressSearchFloatingTooltip(delay, { restoreAfter }), searchState.searchPreviewSuppressUntil = Math.max(
-    searchState.searchPreviewSuppressUntil || 0,
-    Date.now() + delay
-  ), hideSearchFloatingPreview(), window.clearTimeout(searchState.searchPreviewSuppressTimer), searchState.searchPreviewSuppressTimer = window.setTimeout(() => {
-    searchState.searchPreviewSuppressTimer = 0, restoreAfter && restoreSearchFloatingPreviewAfterSuppression();
-  }, delay + 20);
-}
-function searchPreviewPageLabel(target) {
-  return String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
-}
-function positionSearchFloatingPreview(target) {
-  let preview = searchElements.searchFloatingPreview;
-  if (!preview || !target) return;
-  let targetRect = target.getBoundingClientRect(), gap = 16, safeMargin = 12, fallbackWidth = Math.min(430, Math.max(180, window.innerWidth * 0.34)), fallbackHeight = Math.min(620, Math.max(180, window.innerHeight * 0.64)), previewRect = preview.getBoundingClientRect(), previewWidth = previewRect.width || fallbackWidth, previewHeight = previewRect.height || fallbackHeight, left;
-  targetRect.left - gap - previewWidth >= safeMargin ? left = targetRect.left - gap - previewWidth : targetRect.right + gap + previewWidth <= window.innerWidth - safeMargin ? left = targetRect.right + gap : left = targetRect.left + targetRect.width / 2 - previewWidth / 2;
-  let top = targetRect.top + targetRect.height / 2 - previewHeight / 2;
-  preview.style.left = `${clampValue(left, safeMargin, Math.max(safeMargin, window.innerWidth - previewWidth - safeMargin))}px`, preview.style.top = `${clampValue(top, safeMargin, Math.max(safeMargin, window.innerHeight - previewHeight - safeMargin))}px`;
-}
-function showSearchFloatingPreview(target) {
-  if (!target || !searchElements.searchFloatingPreview || !searchElements.searchFloatingPreviewImage || !searchPreviewTargetBelongsToOpenResults(target) || isSearchPreviewSuppressed() || isSearchPreviewBlockedByOpenMenu(target)) return;
-  let src = String(target.dataset.searchPreviewSrc || "").trim();
-  if (!src) return;
-  let label = searchPreviewPageLabel(target), previewImage = searchElements.searchFloatingPreviewImage;
-  previewImage.removeAttribute("width"), previewImage.removeAttribute("height"), previewImage.onload = () => positionSearchFloatingPreview(target), previewImage.src = src, searchElements.searchFloatingPreviewImage.alt = label, searchElements.searchFloatingPreviewPage && (searchElements.searchFloatingPreviewPage.textContent = label), searchElements.searchFloatingPreview.classList.add("visible"), positionSearchFloatingPreview(target);
-}
-function bindSearchFloatingPreviewEvents(container) {
-  container && container.querySelectorAll("[data-search-preview-src]").forEach((candidate) => {
-    if (!(candidate instanceof HTMLElement)) return;
-    let target = candidate;
-    target.addEventListener("pointerenter", (event) => {
-      rememberSearchPreviewPointer(event), !(!hasHoverPointer() || isTouchLikePointer(event) || isSearchPreviewSuppressed()) && showSearchFloatingPreview(target);
-    }), target.addEventListener("pointermove", (event) => {
-      if (rememberSearchPreviewPointer(event), !(!hasHoverPointer() || isTouchLikePointer(event))) {
-        if (isSearchPreviewSuppressed()) {
-          hideSearchFloatingPreview();
-          return;
-        }
-        positionSearchFloatingPreview(target);
-      }
-    }), target.addEventListener("pointerleave", (event) => {
-      rememberSearchPreviewPointer(event), hideSearchFloatingPreview();
-    }), target.addEventListener("focus", () => showSearchFloatingPreview(target)), target.addEventListener("blur", hideSearchFloatingPreview);
-  });
-}
-function handleSearchPreviewScrollIntent(event) {
-  rememberSearchPreviewPointer(event), suppressSearchFloatingPreview();
-}
-function normalizedWheelDeltaY(event, scrollTarget) {
-  let rawDelta = Number(event?.deltaY) || 0;
-  return rawDelta ? event.deltaMode === 1 ? rawDelta * 16 : event.deltaMode === 2 ? rawDelta * Math.max(1, scrollTarget?.clientHeight || window.innerHeight || 1) : rawDelta : 0;
-}
-function globalSearchWheelTarget(eventTarget) {
-  return eventTarget instanceof Node && isGlobalSearchScopeMenuOpen() && searchElements.globalSearchScopeMenu?.contains(eventTarget) ? searchElements.globalSearchScopeMenu : searchElements.globalSearchResults && !searchElements.globalSearchResults.classList.contains("hidden") ? searchElements.globalSearchResults : null;
-}
-function scrollElementByWheel(element, event) {
-  if (!element) return !1;
-  let deltaY = normalizedWheelDeltaY(event, element);
-  if (!deltaY) return !1;
-  let maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight), nextScrollTop = clampValue(element.scrollTop + deltaY, 0, maxScrollTop);
-  return Math.abs(nextScrollTop - element.scrollTop) > 0.5 && (element.scrollTop = nextScrollTop), !0;
-}
-function handleGlobalSearchPanelWheel(event) {
-  if (!isGlobalSearchPanelOpen() || !(event.target instanceof Node) || !searchElements.catalogSearch?.contains(event.target)) return;
-  handleSearchPreviewScrollIntent(event);
-  let scrollTarget = globalSearchWheelTarget(event.target);
-  scrollTarget && scrollElementByWheel(scrollTarget, event), event.preventDefault(), event.stopPropagation();
-}
-function normalizeSearchResultsDirection(container) {
-  container && container.setAttribute("dir", "rtl");
-}
-function lightboxSearchLayoutColumnLimit() {
-  let columns = getFeatureInterface("catalog-grid")?.layoutColumnCount?.(), width = Math.max(0, window.innerWidth || document.documentElement?.clientWidth || 0);
-  return searchCatalogDomain.lightboxSearchColumnLimit(columns, width);
-}
-function updateLightboxSearchResultsLayout(count = 0) {
-  if (!searchElements.lightboxSearchResults) return;
-  normalizeSearchResultsDirection(searchElements.lightboxSearchResults);
-  let resultCount = Math.max(0, Number(count) || 0), columns = Math.max(1, Math.min(resultCount || 1, lightboxSearchLayoutColumnLimit()));
-  searchElements.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns)), searchElements.lightboxSearchResults.dataset.resultColumns = String(columns), searchElements.lightboxSearchResults.dataset.resultCount = String(resultCount);
-}
-function searchEmptyStateMarkup(query, message, options = {}) {
-  let reader = options.reader === !0, wrapperClass = reader ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark" : "search-empty empty-state ui-state", actionAttribute = reader ? "data-lightbox-empty-search-clear" : "data-empty-search-clear";
-  return `
-    <article class="${wrapperClass}" data-state="empty" role="status">
-      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <circle cx="10.5" cy="10.5" r="5.8"></circle>
-          <path d="m15 15 4.2 4.2M8.2 8.2l4.6 4.6M12.8 8.2l-4.6 4.6"></path>
-        </svg>
-      </span>
-      <div class="empty-state-copy">
-        <strong>לא נמצאו תוצאות עבור “${escapeHtml(query)}”</strong>
-        <p>${escapeHtml(message)}</p>
-      </div>
-      <button class="button soft empty-state-action" type="button" ${actionAttribute}>נקה וחפש מחדש</button>
-    </article>
-  `;
-}
-function searchIndexErrorMarkup(options = {}) {
-  let reader = options.reader === !0;
-  return `
-    <article class="${reader ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark" : "search-empty empty-state ui-state"}" data-state="error" role="alert">
-      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
-      </span>
-      <div class="empty-state-copy">
-        <strong>החיפוש אינו זמין כרגע</strong>
-        <p>אינדקס החיפוש לא הצליח להיטען. אפשר לנסות שוב בלי לרענן את העמוד.</p>
-      </div>
-      <button class="button soft empty-state-action" type="button" ${reader ? "data-lightbox-search-index-retry" : "data-global-search-index-retry"}>נסה לטעון שוב</button>
-    </article>
-  `;
-}
-function retrySearchIndexLoad(options = {}) {
-  searchState.searchIndexLoadPromise = null, searchState.searchIndexLoadState = "idle", ensureSearchIndexLoaded({ trigger: "retry" }).then(() => {
-    options.reader ? renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "") : renderSearchResults(searchElements.globalSearchInput?.value || "");
-  }).catch(() => {
-    options.reader ? renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "") : renderSearchResults(searchElements.globalSearchInput?.value || "");
-  });
-}
-async function renderLightboxSearchResults(query) {
-  let rawQuery = String(query || "").trim();
-  if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
-  let renderSequence = ++lightboxSearchRenderSequence, renderKey = lightboxSearchKey(rawQuery);
-  if (normalizeSearchResultsDirection(searchElements.lightboxSearchResults), hideSearchFloatingPreview(), updateLightboxSearchResultsLayout(0), searchElements.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0), rawQuery.length < 2)
-    return catalogSearch.cancel("viewer"), lastLightboxSearchKey = "", lastLightboxSearchResults = [], searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.innerHTML = "", initLightboxSearchStatus(), [];
-  if (!activeCatalog())
-    return searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.", [];
-  searchElements.lightboxSearchResults.setAttribute("aria-busy", "true"), searchElements.lightboxSearchStatus.textContent = "מחפש באינדקס…";
-  try {
-    let scope = getLightboxSearchScope(), results = await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24, {
-      isCurrent: () => renderSequence === lightboxSearchRenderSequence && renderKey === lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")
-    });
-    return renderSequence !== lightboxSearchRenderSequence || renderKey !== lightboxSearchKey(searchElements.lightboxSearchInput?.value || "") ? [] : (lastLightboxSearchKey = lightboxSearchKey(rawQuery), lastLightboxSearchResults = results, updateLightboxSearchResultsLayout(results.length), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), results.length ? (searchElements.lightboxSearchStatus.textContent = scope === "all" ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.` : `נמצאו ${results.length} תוצאות בקטלוג הזה.`, searchElements.lightboxSearchResults.innerHTML = results.map((result) => {
-      let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || activeCatalog();
-      if (!catalog) return "";
-      let page = clampPage(result.page, catalog), rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page), rawImage = result.thumb || thumbSrc(catalog, page) || rawPreview, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
-      return `
-        <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
-          <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
-          <span class="reader-search-thumb-frame catalog-image-frame">
-            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-search-results")} />
-          </span>
-          <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
-        </button>
-      `;
-    }).join(""), bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults), Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button) => {
-      button.addEventListener("click", async () => {
-        await trackCompletedLightboxSearch("result-open"), hideSearchFloatingPreview(), openLightboxSearchResult({
-          catalogId: button.dataset.lightboxSearchCatalog,
-          page: button.dataset.lightboxSearchPage
-        });
-      });
-    }), results) : (searchElements.lightboxSearchStatus.textContent = scope === "all" ? "לא נמצאו תוצאות בכל הקטלוגים." : "לא נמצאו תוצאות בקטלוג הפתוח.", searchElements.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
-      rawQuery,
-      "נסה חלק קצר יותר של הדגם או מילה אחרת.",
-      { reader: !0 }
-    ), searchElements.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
-      event.stopPropagation(), searchElements.lightboxSearchInput.value = "", renderLightboxSearchResults(""), searchElements.lightboxSearchInput.focus();
-    }), []));
-  } catch (error) {
-    return catalogSearch.isCancelledError(error) || renderSequence !== lightboxSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: !0 }), searchElements.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: !0 })), searchElements.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.", []);
-  }
-}
-function renderLightboxCatalogMenu() {
-  getFeatureInterface("catalog-grid")?.renderCatalogMenu(searchElements.lightboxCatalogMenu, {
-    onSelect: (catalogId) => {
-      closeLightboxCatalogMenu(), catalogId !== activeCatalog()?.id && getFeatureInterface("viewer")?.openCatalog(catalogId);
-    }
-  });
-}
-function globalSearchKey(query) {
-  return [String(query || "").trim(), getGlobalSearchCategory()].join("\0");
-}
-async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
-  let rawQuery = String(query || "").trim(), category = getGlobalSearchCategory();
-  if (rawQuery.length < 2) return [];
-  if (await ensureSearchIndexLoaded({ trigger: "global-search" }), control.isCurrent && !control.isCurrent()) return [];
-  if (!catalogSearch.hasIndex({ category })) return [];
-  let options = { limit, channel: "global" };
-  category && (options.category = category);
-  let results = await catalogSearch.search(rawQuery, options);
-  return Array.isArray(results) ? results : [];
-}
-async function getGlobalSearchResults(query, limit = 72, control = {}) {
-  let rawQuery = String(query || "").trim(), navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
-    getCatalogCategoryGroups(),
-    rawQuery,
-    { category: getGlobalSearchCategory(), limit: 36 }
-  );
-  try {
-    return catalogSearch.mergeNavigationResults(
-      navigationResults,
-      await getGlobalOcrSearchResults(rawQuery, limit, control)
-    );
-  } catch (error) {
-    if (!navigationResults.length || catalogSearch.isCancelledError(error)) throw error;
-    return searchState.searchIndexLoadState = "error", navigationResults;
-  }
-}
-async function trackCompletedGlobalSearch(completion, query = searchElements.globalSearchInput?.value || "", options = {}) {
-  let rawQuery = String(query || "").trim(), category = getGlobalSearchCategory(), results = globalSearchKey(rawQuery) === lastGlobalSearchKey ? lastGlobalSearchResults : await getGlobalSearchResults(rawQuery, 72);
-  return telemetryTrackSearch(rawQuery, results.length, {
-    surface: "global",
-    scope: category || "all",
-    completion,
-    immediate: options.immediate === !0
-  }), results;
-}
-function flushGlobalSearchTelemetryBeforeNavigation() {
-  telemetryFlush().catch(() => {
-  });
-}
-function openGlobalSearchResult(result) {
-  if (!result) return !1;
-  hideSearchFloatingPreview(), closeGlobalSearchPanel({ focusButton: !1 });
-  let catalogGrid = requireFeatureInterface("catalog-grid");
-  return searchCatalogDomain.executeGlobalSearchResultAction(result, {
-    activateCategoryTarget: catalogGrid.activateCategoryTarget,
-    openCatalog: (catalogId) => navigateTo(catalogDocumentUrl(catalogId)),
-    openViewer: (catalogId, page) => navigateTo(viewerDocumentUrl(catalogId, page))
-  });
-}
-async function submitGlobalSearch() {
-  let rawQuery = String(searchElements.globalSearchInput?.value || "").trim(), results = await renderSearchResults(rawQuery);
-  return await trackCompletedGlobalSearch("submit", rawQuery, { immediate: !0 }), flushGlobalSearchTelemetryBeforeNavigation(), openGlobalSearchResult(results[0]);
-}
-function globalSearchResultMarkup(result) {
-  if (result?.resultType !== "ocr")
-    return catalogSearch ? catalogSearch.navigationResultMarkup(result) : "";
-  let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId), page = clampPage(result.page, catalog), rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : ""), rawPreview = result.image || (catalog ? mediumSrc(catalog, page) || pageSrc(catalog, page) : rawThumb), rawImage = rawThumb || rawPreview, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
-  return `
-    <article class="search-result-card">
-      <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
-        <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
-        <span class="search-result-thumb-frame catalog-image-frame">
-          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "global-search-results")} />
-        </span>
-        <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
-      </button>
-    </article>
-  `;
-}
-function bindGlobalSearchResultEvents(root) {
-  bindSearchFloatingPreviewEvents(root), Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button) => {
-    button.addEventListener("click", async () => {
-      await trackCompletedGlobalSearch("result-open", void 0, { immediate: !0 }), flushGlobalSearchTelemetryBeforeNavigation(), openGlobalSearchResult(button.dataset.searchNavigationType ? {
-        resultType: button.dataset.searchNavigationType,
-        targetId: button.dataset.searchNavigationTarget,
-        catalogId: button.dataset.searchNavigationCatalog
-      } : {
-        resultType: "ocr",
-        catalogId: button.dataset.searchCatalog,
-        page: button.dataset.searchPage
-      });
-    });
-  });
-}
-function appendGlobalSearchResultBatch(results, start, count) {
-  let template = document.createElement("template");
-  return template.innerHTML = results.slice(start, start + count).map(globalSearchResultMarkup).join(""), bindGlobalSearchResultEvents(template.content), searchElements.globalSearchResults.append(template.content), Math.min(results.length, start + count);
-}
-function isCurrentGlobalSearchRender(renderSequence, rawQuery) {
-  return renderSequence === globalSearchRenderSequence && globalSearchKey(rawQuery) === globalSearchKey(searchElements.globalSearchInput?.value || "") && isGlobalSearchPanelOpen();
-}
-function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery) {
-  cancelGlobalSearchResultAppend(), searchElements.globalSearchResults.replaceChildren(), searchElements.globalSearchResults.classList.remove("hidden");
-  let nextIndex = appendGlobalSearchResultBatch(
-    results,
-    0,
-    GLOBAL_SEARCH_INITIAL_RENDER_COUNT
-  ), appendNextBatch = () => {
-    if (globalSearchAppendFrame = 0, !!isCurrentGlobalSearchRender(renderSequence, rawQuery)) {
-      if (nextIndex = appendGlobalSearchResultBatch(
-        results,
-        nextIndex,
-        GLOBAL_SEARCH_RENDER_CHUNK_SIZE
-      ), nextIndex < results.length) {
-        globalSearchAppendFrame = window.requestAnimationFrame(appendNextBatch);
-        return;
-      }
-      searchElements.globalSearchResults.removeAttribute("aria-busy");
-    }
-  };
-  nextIndex < results.length ? globalSearchAppendFrame = window.requestAnimationFrame(appendNextBatch) : searchElements.globalSearchResults.removeAttribute("aria-busy");
-}
-async function renderSearchResults(query) {
-  let rawQuery = String(query || "").trim();
-  if (!searchElements.globalSearchResults) return [];
-  cancelGlobalSearchResultAppend();
-  let renderSequence = ++globalSearchRenderSequence, renderKey = globalSearchKey(rawQuery);
-  if (normalizeSearchResultsDirection(searchElements.globalSearchResults), hideSearchFloatingPreview(), searchElements.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0), rawQuery.length < 2)
-    return catalogSearch.cancel("global"), lastGlobalSearchKey = "", lastGlobalSearchResults = [], searchElements.globalSearchResults.classList.add("hidden"), searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.innerHTML = "", initSearchStatus(), [];
-  let category = getGlobalSearchCategory();
-  searchElements.globalSearchResults.setAttribute("aria-busy", "true");
-  try {
-    let results = await getGlobalSearchResults(rawQuery, 72, {
-      isCurrent: () => isCurrentGlobalSearchRender(renderSequence, rawQuery)
-    });
-    return renderSequence !== globalSearchRenderSequence || renderKey !== globalSearchKey(searchElements.globalSearchInput?.value || "") ? [] : (lastGlobalSearchKey = globalSearchKey(rawQuery), lastGlobalSearchResults = results, results.length ? (renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery), results) : (searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.classList.remove("hidden"), searchElements.globalSearchResults.innerHTML = searchEmptyStateMarkup(
-      rawQuery,
-      category ? "נסה שם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים." : "נסה שם קצר יותר, מספר דגם או חלק מהמילה."
-    ), searchElements.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
-      searchElements.globalSearchInput.value = "", renderSearchResults(""), searchElements.globalSearchInput.focus();
-    }), []));
-  } catch (error) {
-    return catalogSearch.isCancelledError(error) || renderSequence !== globalSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.classList.remove("hidden"), searchElements.globalSearchResults.innerHTML = searchIndexErrorMarkup(), searchElements.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad()), []);
-  }
-}
-function handleLightboxSearchResultsBackgroundClick(event) {
-  let result = eventTargetElement(event.target)?.closest?.("[data-lightbox-search-page]");
-  result && searchElements.lightboxSearchResults?.contains(result) || (event.preventDefault(), event.stopPropagation(), hideLightboxSearchResults({ blurTopUiFocus: !0, hideTopUi: !0 }));
-}
-function attachSearchUiEvents() {
-  searchElements.globalSearchOpen?.addEventListener("click", (event) => {
-    event.preventDefault(), ensureSearchIndexLoaded().catch(() => {
-    }), event.stopPropagation(), getFeatureInterface("catalog-detail")?.close(), closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: !0, focusButton: !0 });
-  }), searchElements.globalSearchClose?.addEventListener("click", (event) => {
-    event.preventDefault(), event.stopPropagation(), closeGlobalSearchPanel({ focusButton: !0 });
-  }), searchElements.globalSearchInput?.addEventListener("input", () => {
-    scheduleSearchRender("global", searchElements.globalSearchInput.value);
-  }), searchElements.globalSearchInput?.addEventListener("focus", () => {
-    ensureSearchIndexLoaded().catch(() => {
-    }), scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: !0 });
-  }), searchElements.globalSearchInput?.addEventListener("click", () => scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: !0 })), searchElements.globalSearchInput?.addEventListener("keydown", (event) => {
-    event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || (event.preventDefault(), submitGlobalSearch().catch(() => {
-    }));
-  }), searchElements.globalSearchClear?.addEventListener("click", () => {
-    cancelScheduledSearch("global"), searchElements.globalSearchInput.value = "", searchElements.globalSearchInput.focus(), renderSearchResults("");
-  }), searchElements.globalSearchScopeToggle?.addEventListener("click", (event) => {
-    event.stopPropagation(), hideSearchFloatingPreview(), getFeatureInterface("catalog-detail")?.close(), closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), renderGlobalSearchScopeMenu();
-    let isOpen = !searchElements.globalSearchScopeMenu?.classList.contains("hidden");
-    searchElements.globalSearchScopeMenu?.classList.toggle("hidden", isOpen), searchElements.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
-  }), searchElements.globalSearchScopeMenu?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    let button = eventTargetElement(event.target)?.closest("[data-global-search-category]");
-    !isHtmlElement(button) || !searchElements.globalSearchScopeMenu.contains(button) || (setGlobalSearchCategory(button.dataset.globalSearchCategory), searchElements.globalSearchInput?.focus());
-  }), searchElements.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: !1 }), searchElements.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: !0 }), searchElements.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: !0 }), searchElements.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchInput?.addEventListener("input", () => {
-    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value);
-  }), searchElements.lightboxSearchInput?.addEventListener("focus", () => {
-    getFeatureInterface("viewer")?.showTopUi?.(), ensureSearchIndexLoaded().catch(() => {
-    }), scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: !0 });
-  }), searchElements.lightboxSearchInput?.addEventListener("click", () => {
-    getFeatureInterface("viewer")?.showTopUi?.(), scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: !0 });
-  }), searchElements.lightboxSearchInput?.addEventListener("keydown", (event) => {
-    event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || (event.preventDefault(), submitLightboxSearch().catch(() => {
-    }));
-  }), searchElements.lightboxSearchClear?.addEventListener("click", () => {
-    cancelScheduledSearch("viewer"), searchElements.lightboxSearchInput.value = "", searchElements.lightboxSearchInput.focus(), renderLightboxSearchResults(""), getFeatureInterface("viewer")?.showTopUi?.();
-  }), searchElements.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
-    event.preventDefault(), event.stopPropagation(), setLightboxMobileSearchOpen(!searchState.lightboxMobileSearchOpen, {
-      focusInput: !0,
-      returnFocus: searchState.lightboxMobileSearchOpen
-    });
-  }), searchElements.lightboxMobileSearchClose?.addEventListener("click", (event) => {
-    event.preventDefault(), event.stopPropagation(), setLightboxMobileSearchOpen(!1, { returnFocus: !0, hideResults: !0 });
-  }), searchElements.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
-    event.stopPropagation(), hideSearchFloatingPreview(), getFeatureInterface("catalog-detail")?.close(), closeLightboxCatalogMenu();
-    let isOpen = !searchElements.lightboxSearchScopeMenu?.classList.contains("hidden");
-    searchElements.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen), searchElements.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true"), getFeatureInterface("viewer")?.showTopUi?.();
-  }), Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation(), setLightboxSearchScope(button.dataset.lightboxSearchScope), getFeatureInterface("viewer")?.showTopUi?.(), searchElements.lightboxSearchInput?.focus();
-    });
-  }), searchElements.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
-    event.stopPropagation(), getFeatureInterface("catalog-detail")?.close(), closeLightboxSearchScopeMenu(), renderLightboxCatalogMenu();
-    let isOpen = !searchElements.lightboxCatalogMenu?.classList.contains("hidden");
-    searchElements.lightboxCatalogMenu?.classList.toggle("hidden", isOpen), searchElements.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true"), getFeatureInterface("viewer")?.showTopUi?.();
-  }), searchElements.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation()), searchElements.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
-}
-function prepareSearchRoute(nextPage) {
-  closeGlobalSearchPanel({ focusButton: !1 }), closeGlobalSearchScopeMenu(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), nextPage !== "viewer" && setLightboxMobileSearchOpen(!1, { hideResults: !0 });
-}
-function handleSearchDocumentPointer(target) {
-  if (!(target instanceof Node))
-    return prepareSearchRoute(currentAppPage), !1;
-  let insideGlobalSearch = searchElements.catalogSearch.contains(target) || searchElements.globalSearchOpen.contains(target), insideMobileReaderSearch = searchElements.lightboxSearchPanel.contains(target) || searchElements.lightboxMobileSearchToggle.contains(target);
-  return insideGlobalSearch ? (!searchElements.globalSearchScopeMenu.contains(target) && !searchElements.globalSearchScopeToggle.contains(target) && closeGlobalSearchScopeMenu(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), getFeatureInterface("catalog-detail")?.close(), !0) : insideMobileReaderSearch || (searchState.lightboxMobileSearchOpen && setLightboxMobileSearchOpen(!1, { hideResults: !0 }), searchElements.lightboxSearchScopeMenu.contains(target) || searchElements.lightboxSearchScopeToggle.contains(target)) || searchElements.lightboxCatalogMenu.contains(target) || searchElements.lightboxCatalogMenuToggle.contains(target) ? !0 : (closeGlobalSearchPanel({ focusButton: !1 }), closeGlobalSearchScopeMenu(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), !1);
-}
-function initializeSearchUi() {
-  syncLightboxMobileSearchUi(), renderGlobalSearchScopeMenu(), scheduleSearchIndexPreload(), initSearchStatus();
-}
-function handleSearchResize() {
-  hideSearchFloatingPreview(), updateLightboxSearchResultsLayout(Number(searchElements.lightboxSearchResults.dataset.resultCount || 0)), syncLightboxMobileSearchUi();
-}
-function handleSearchScroll() {
-  hideSearchFloatingPreview();
-}
-registerFeatureInterface("search", {
-  escapePriority: 300,
-  closeTopLayer: () => isGlobalSearchPanelOpen() ? (searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden") ? closeGlobalSearchScopeMenu() : closeGlobalSearchPanel({ focusButton: !0 }), !0) : !1,
-  closeViewerTopLayer: () => searchState.lightboxMobileSearchOpen ? (setLightboxMobileSearchOpen(!1, { returnFocus: !0, hideResults: !0 }), !0) : searchElements.lightboxCatalogMenu && !searchElements.lightboxCatalogMenu.classList.contains("hidden") || searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden") ? (closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), !0) : !1,
-  isLightboxMobileOpen: () => searchState.lightboxMobileSearchOpen,
-  setLightboxMobileOpen: (open, options = {}) => setLightboxMobileSearchOpen(open, options),
-  containsLightboxResult: (target) => !!(target?.closest?.("[data-lightbox-search-page]") && searchElements.lightboxSearchResults.contains(target.closest("[data-lightbox-search-page]"))),
-  hideViewerResults: (options = {}) => hideLightboxSearchResults(options),
-  closeGlobalPanel: (options = {}) => closeGlobalSearchPanel(options),
-  attachEvents: attachSearchUiEvents,
-  initialize: initializeSearchUi,
-  prepareRoute: prepareSearchRoute,
-  handleDocumentPointer: handleSearchDocumentPointer,
-  handleResize: handleSearchResize,
-  handleScroll: handleSearchScroll
-});
-
 // src/js/40-catalog-grid.js
 function initRevealObserver() {
   let nodes = document.querySelectorAll(".reveal");
@@ -4336,12 +3635,12 @@ function handleCatalogGridScroll() {
 }
 function attachCatalogGridEvents() {
   catalogElements.mobileCategoryMenuToggle?.addEventListener("click", (event) => {
-    event.preventDefault(), event.stopPropagation(), getFeatureInterface("search")?.closeGlobalPanel({ focusButton: !1 }), setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
+    event.preventDefault(), event.stopPropagation(), requireFeatureInterface("search").closeGlobalPanel({ focusButton: !1 }), setMobileCategoryMenuOpen(!isMobileCategoryMenuOpen());
   }), catalogElements.mobileCategoryMenu?.addEventListener("click", (event) => {
     let link = eventTargetElement(event.target)?.closest(".category-nav-link");
     !(link instanceof HTMLAnchorElement) || !catalogElements.mobileCategoryMenu.contains(link) || (closeMobileCategoryMenu(), handleCatalogFocusLinkClick(link, event));
   }), catalogElements.catalogMenuToggle?.addEventListener("click", (event) => {
-    event.stopPropagation(), closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu(), renderDetailCatalogMenu();
+    event.stopPropagation(), requireFeatureInterface("search").closeViewerMenus(), renderDetailCatalogMenu();
     let isOpen = !catalogElements.catalogMenu?.classList.contains("hidden");
     catalogElements.catalogMenu?.classList.toggle("hidden", isOpen), catalogElements.catalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
   }), catalogElements.catalogMenu?.addEventListener("click", (event) => event.stopPropagation()), catalogElements.openCatalogEntryFromDetail?.addEventListener("click", () => {
@@ -4397,6 +3696,716 @@ registerFeatureInterface("catalog-detail", {
   close: closeDetailCatalogMenu,
   containsTarget: (target) => target instanceof Node && (catalogElements.catalogMenu.contains(target) || catalogElements.catalogMenuToggle.contains(target)),
   closeTopLayer: () => catalogElements.catalogMenu.classList.contains("hidden") ? !1 : (closeDetailCatalogMenu(), !0)
+});
+
+// src/js/50-search-ui.js
+import { tooltips as tooltips2 } from "./tooltip-manager.js";
+
+// src/js/13-search-state.js
+var SEARCH_INPUT_DEBOUNCE_MS = 90, SEARCH_INDEX_PRELOAD_DELAY_MS = 6e3, MOBILE_READER_SEARCH_MEDIA = "(max-width: 760px)", SEARCH_PREVIEW_SCROLL_SUPPRESS_MS = 260, searchState = {
+  globalSearchCategory: "",
+  globalSearchOpen: !1,
+  lightboxSearchScope: "catalog",
+  lightboxMobileSearchOpen: !1,
+  searchIndexLoadState: catalogSearch.isReady() ? "ready" : "idle",
+  searchIndexLoadPromise: null,
+  searchIndexPreloadTimer: 0,
+  searchPreviewSuppressUntil: 0,
+  searchPreviewSuppressTimer: 0,
+  searchPreviewPointerClientX: null,
+  searchPreviewPointerClientY: null
+}, searchElements = Object.freeze({
+  catalogSearch: requiredElement("catalogSearch"),
+  globalSearchOpen: $requiredButton("globalSearchOpen"),
+  globalSearchClose: $requiredButton("globalSearchClose"),
+  globalSearchInput: $requiredInput("globalSearchInput"),
+  globalSearchResults: requiredElement("globalSearchResults"),
+  globalSearchClear: $requiredButton("globalSearchClear"),
+  globalSearchScopeToggle: $requiredButton("globalSearchScopeToggle"),
+  globalSearchScopeMenu: requiredElement("globalSearchScopeMenu"),
+  searchFloatingPreview: requiredElement("searchFloatingPreview"),
+  searchFloatingPreviewImage: $requiredImage("searchFloatingPreviewImage"),
+  searchFloatingPreviewPage: requiredElement("searchFloatingPreviewPage"),
+  lightboxSearchInput: $requiredInput("lightboxSearchInput"),
+  lightboxSearchPanel: requiredElement("lightboxSearchPanel"),
+  lightboxMobileSearchToggle: $requiredButton("lightboxMobileSearchToggle"),
+  lightboxMobileSearchClose: $requiredButton("lightboxMobileSearchClose"),
+  lightboxSearchResults: requiredElement("lightboxSearchResults"),
+  lightboxSearchStatus: requiredElement("lightboxSearchStatus"),
+  lightboxSearchClear: $requiredButton("lightboxSearchClear"),
+  lightboxSearchScopeToggle: $requiredButton("lightboxSearchScopeToggle"),
+  lightboxSearchScopeMenu: requiredElement("lightboxSearchScopeMenu"),
+  lightboxCatalogMenuToggle: $requiredButton("lightboxCatalogMenuToggle"),
+  lightboxCatalogMenu: requiredElement("lightboxCatalogMenu")
+});
+
+// src/js/50-search-ui.js
+var globalSearchRenderTimer = 0, lightboxSearchRenderTimer = 0, globalSearchAppendFrame = 0, globalSearchRenderSequence = 0, lightboxSearchRenderSequence = 0, lastGlobalSearchResults = [], lastLightboxSearchResults = [], lastGlobalSearchKey = "", lastLightboxSearchKey = "", GLOBAL_SEARCH_INITIAL_RENDER_COUNT = 3, GLOBAL_SEARCH_RENDER_CHUNK_SIZE = 3;
+function isSearchIndexReady() {
+  return catalogSearch.isReady();
+}
+function refreshSearchUiAfterIndexLoad() {
+  initSearchStatus(), initLightboxSearchStatus();
+}
+function ensureSearchIndexLoaded(options = {}) {
+  if (isSearchIndexReady())
+    return searchState.searchIndexLoadState = "ready", Promise.resolve(!0);
+  if (searchState.searchIndexLoadPromise) return searchState.searchIndexLoadPromise;
+  searchState.searchIndexLoadState = "loading", initLightboxSearchStatus();
+  let loadTrigger = telemetryCleanText(options.trigger || "interactive", 40);
+  return searchState.searchIndexLoadPromise = catalogSearch.ensureReady().then(() => (searchState.searchIndexLoadState = "ready", searchState.searchIndexLoadPromise = null, refreshSearchUiAfterIndexLoad(), !0)).catch((error) => {
+    throw searchState.searchIndexLoadState = "error", searchState.searchIndexLoadPromise = null, telemetryTrackSearchIndexFailure("network-error", { trigger: loadTrigger }), initSearchStatus(), initLightboxSearchStatus(), error;
+  }), searchState.searchIndexLoadPromise;
+}
+function scheduleSearchIndexPreload() {
+  window.clearTimeout(searchState.searchIndexPreloadTimer), !isSaveDataEnabled() && (searchState.searchIndexPreloadTimer = window.setTimeout(() => {
+    if (isSaveDataEnabled()) return;
+    let preload = () => ensureSearchIndexLoaded({ trigger: "preload" }).catch(() => {
+    });
+    "requestIdleCallback" in window ? window.requestIdleCallback(preload, { timeout: 2500 }) : preload();
+  }, SEARCH_INDEX_PRELOAD_DELAY_MS));
+}
+function cancelScheduledSearch(channel) {
+  channel === "global" ? (window.clearTimeout(globalSearchRenderTimer), window.cancelAnimationFrame(globalSearchAppendFrame), globalSearchRenderTimer = 0, globalSearchAppendFrame = 0, globalSearchRenderSequence += 1) : (window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = 0, lightboxSearchRenderSequence += 1), catalogSearch.cancel(channel);
+}
+function cancelGlobalSearchResultAppend() {
+  window.cancelAnimationFrame(globalSearchAppendFrame), globalSearchAppendFrame = 0;
+}
+function scheduleSearchRender(channel, query, options = {}) {
+  let delay = options.immediate ? 0 : SEARCH_INPUT_DEBOUNCE_MS, callback = channel === "global" ? () => renderSearchResults(query) : () => renderLightboxSearchResults(query);
+  catalogSearch.cancel(channel), channel === "global" ? (cancelGlobalSearchResultAppend(), globalSearchRenderSequence += 1, window.clearTimeout(globalSearchRenderTimer), globalSearchRenderTimer = window.setTimeout(callback, delay)) : (lightboxSearchRenderSequence += 1, window.clearTimeout(lightboxSearchRenderTimer), lightboxSearchRenderTimer = window.setTimeout(callback, delay));
+}
+function getGlobalSearchCategories() {
+  return getCatalogCategoryGroups().filter((group) => String(group.category || "").trim() && Array.isArray(group.items) && group.items.length).map((group) => ({ category: group.category }));
+}
+function hasGlobalSearchCategory(category) {
+  let requestedCategory = String(category || "").trim();
+  return requestedCategory ? getCatalogCategoryGroups().some((group) => group.category === requestedCategory) : !1;
+}
+function getGlobalSearchCategory() {
+  let selectedCategory = String(searchState.globalSearchCategory || "").trim();
+  return selectedCategory && hasGlobalSearchCategory(selectedCategory) ? selectedCategory : "";
+}
+function globalSearchScopeLabel(category = getGlobalSearchCategory()) {
+  return category || "בכל הקטלוגים";
+}
+function globalSearchPlaceholder() {
+  let category = getGlobalSearchCategory();
+  return category ? `חיפוש קטלוג, קטגוריה או דגם בתוך ${category}...` : "חיפוש קטגוריה, תת קטגוריה, קטלוג, דגם או טקסט...";
+}
+function closeGlobalSearchScopeMenu() {
+  searchElements.globalSearchScopeMenu?.classList.add("hidden"), searchElements.globalSearchScopeToggle?.setAttribute("aria-expanded", "false");
+}
+function isGlobalSearchPanelOpen() {
+  return !!(searchState.globalSearchOpen && searchElements.catalogSearch && !searchElements.catalogSearch.classList.contains("hidden"));
+}
+function setGlobalSearchPanelOpen(open, options = {}) {
+  let shouldOpen = !!open;
+  if (searchState.globalSearchOpen = shouldOpen, !!searchElements.catalogSearch) {
+    if (searchElements.catalogSearch.classList.toggle("hidden", !shouldOpen), searchElements.catalogSearch.classList.toggle("is-open", shouldOpen), searchElements.catalogSearch.setAttribute("aria-hidden", shouldOpen ? "false" : "true"), searchElements.globalSearchOpen?.classList.toggle("is-active", shouldOpen), searchElements.globalSearchOpen?.setAttribute("aria-expanded", shouldOpen ? "true" : "false"), shouldOpen) {
+      syncGlobalSearchScopeUi(), renderSearchResults(searchElements.globalSearchInput?.value || ""), options.focus !== !1 && window.requestAnimationFrame(() => searchElements.globalSearchInput?.focus({ preventScroll: !0 }));
+      return;
+    }
+    closeGlobalSearchScopeMenu(), hideSearchFloatingPreview(), cancelScheduledSearch("global"), options.hideResults !== !1 && searchElements.globalSearchResults?.classList.add("hidden"), options.focusButton && window.requestAnimationFrame(() => searchElements.globalSearchOpen?.focus({ preventScroll: !0 }));
+  }
+}
+function closeGlobalSearchPanel(options = {}) {
+  setGlobalSearchPanelOpen(!1, options);
+}
+function renderGlobalSearchScopeMenu() {
+  if (!searchElements.globalSearchScopeMenu) return;
+  let categories = getGlobalSearchCategories();
+  searchElements.globalSearchScopeMenu.innerHTML = `
+    <button type="button" role="menuitemradio" aria-checked="true" data-global-search-category="">
+      <strong>בכל הקטלוגים</strong>
+    </button>
+    ${categories.map((group) => `
+      <button type="button" role="menuitemradio" aria-checked="false" data-global-search-category="${escapeHtml(group.category)}">
+        <strong>${escapeHtml(group.category)}</strong>
+      </button>
+    `).join("")}
+  `, syncGlobalSearchScopeUi();
+}
+function syncGlobalSearchScopeUi() {
+  let category = getGlobalSearchCategory();
+  searchElements.globalSearchScopeToggle && (searchElements.globalSearchScopeToggle.innerHTML = `${escapeHtml(globalSearchScopeLabel(category))} <span aria-hidden="true">⌄</span>`, searchElements.globalSearchScopeToggle.title = category ? `חיפוש רק בקטגוריית ${category}` : "חיפוש בכל הקטלוגים"), searchElements.globalSearchInput && (searchElements.globalSearchInput.placeholder = globalSearchPlaceholder(), searchElements.globalSearchInput.setAttribute("aria-label", globalSearchPlaceholder())), Array.from(searchElements.globalSearchScopeMenu?.querySelectorAll("[data-global-search-category]") || []).filter(isHtmlElement).forEach((button) => {
+    let selected = String(button.dataset.globalSearchCategory || "") === category;
+    button.classList.toggle("active", selected), button.setAttribute("aria-checked", selected ? "true" : "false");
+  });
+}
+function setGlobalSearchCategory(category, options = {}) {
+  let requestedCategory = String(category || "").trim(), nextCategory = requestedCategory && hasGlobalSearchCategory(requestedCategory) ? requestedCategory : "";
+  if (searchState.globalSearchCategory === nextCategory) {
+    syncGlobalSearchScopeUi(), closeGlobalSearchScopeMenu();
+    return;
+  }
+  searchState.globalSearchCategory = nextCategory, syncGlobalSearchScopeUi(), closeGlobalSearchScopeMenu(), initSearchStatus(), options.render !== !1 && searchElements.globalSearchInput && renderSearchResults(searchElements.globalSearchInput.value);
+}
+function initSearchStatus() {
+  syncGlobalSearchScopeUi();
+}
+function getLightboxSearchScope() {
+  return searchState.lightboxSearchScope === "all" ? "all" : "catalog";
+}
+function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
+  return scope === "all" ? "בכל הקטלוגים" : "בקטלוג הזה";
+}
+function lightboxSearchPlaceholder() {
+  if (getLightboxSearchScope() === "all") return "חיפוש דגם בכל הקטלוגים...";
+  let title = String(activeCatalog()?.title || "").trim();
+  return title ? `חיפוש ב: ${title}` : "חיפוש ב...";
+}
+function closeLightboxSearchScopeMenu() {
+  searchElements.lightboxSearchScopeMenu?.classList.add("hidden"), searchElements.lightboxSearchScopeToggle?.setAttribute("aria-expanded", "false");
+}
+function closeLightboxCatalogMenu() {
+  searchElements.lightboxCatalogMenu?.classList.add("hidden"), searchElements.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
+}
+function closeLightboxViewerMenus() {
+  closeLightboxCatalogMenu(), closeLightboxSearchScopeMenu();
+}
+function isMobileReaderSearchMode() {
+  return !!window.matchMedia?.(MOBILE_READER_SEARCH_MEDIA).matches;
+}
+function syncLightboxMobileSearchUi() {
+  let compactMode = isMobileReaderSearchMode(), isOpen = compactMode && searchState.lightboxMobileSearchOpen;
+  compactMode || (searchState.lightboxMobileSearchOpen = !1), getFeatureInterface("viewer")?.syncMobileSearchUi?.(isOpen), searchElements.lightboxMobileSearchToggle?.setAttribute("aria-expanded", isOpen ? "true" : "false"), searchElements.lightboxSearchPanel?.setAttribute("aria-hidden", compactMode && !isOpen ? "true" : "false");
+}
+function setLightboxMobileSearchOpen(open, options = {}) {
+  let { focusInput = !1, returnFocus = !1, hideResults = !0, hideTopUi = !1 } = options, shouldOpen = !!(open && getFeatureInterface("viewer")?.isViewerOpen?.() && isMobileReaderSearchMode());
+  if (searchState.lightboxMobileSearchOpen = shouldOpen, syncLightboxMobileSearchUi(), shouldOpen) {
+    closeLightboxViewerMenus(), getFeatureInterface("viewer")?.showTopUi?.(), ensureSearchIndexLoaded().catch(() => {
+    }), focusInput && window.requestAnimationFrame(() => searchElements.lightboxSearchInput?.focus());
+    return;
+  }
+  hideResults && hideLightboxSearchResults({ blurTopUiFocus: !0, hideTopUi }), returnFocus && isMobileReaderSearchMode() && searchElements.lightboxMobileSearchToggle?.focus();
+}
+function syncLightboxSearchScopeUi() {
+  let scope = getLightboxSearchScope();
+  searchElements.lightboxSearchScopeToggle && (searchElements.lightboxSearchScopeToggle.innerHTML = `${escapeHtml(lightboxSearchScopeLabel(scope))} <span aria-hidden="true">⌄</span>`), searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.placeholder = lightboxSearchPlaceholder(), searchElements.lightboxSearchInput.setAttribute("aria-label", lightboxSearchPlaceholder())), Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
+    let selected = button.dataset.lightboxSearchScope === scope;
+    button.classList.toggle("active", selected), button.setAttribute("aria-checked", selected ? "true" : "false");
+  });
+}
+function setLightboxSearchScope(scope, options = {}) {
+  let nextScope = scope === "all" ? "all" : "catalog";
+  if (searchState.lightboxSearchScope === nextScope) {
+    syncLightboxSearchScopeUi(), closeLightboxSearchScopeMenu();
+    return;
+  }
+  searchState.lightboxSearchScope = nextScope, syncLightboxSearchScopeUi(), closeLightboxSearchScopeMenu(), initLightboxSearchStatus(), options.render !== !1 && searchElements.lightboxSearchInput && renderLightboxSearchResults(searchElements.lightboxSearchInput.value);
+}
+function hideLightboxSearchResults(options = {}) {
+  let { blurTopUiFocus = !1, hideTopUi = !1 } = options;
+  if (hideSearchFloatingPreview(), searchElements.lightboxSearchResults?.classList.add("hidden"), closeLightboxViewerMenus(), blurTopUiFocus) {
+    let activeElement = document.activeElement;
+    isHtmlElement(activeElement) && getFeatureInterface("viewer")?.containsTopBarElement(activeElement) && activeElement.blur();
+  }
+  hideTopUi && getFeatureInterface("viewer")?.hideTopUiForSearch?.();
+}
+function resetLightboxSearch() {
+  searchState.lightboxMobileSearchOpen = !1, syncLightboxMobileSearchUi(), searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.value = ""), hideLightboxSearchResults({ blurTopUiFocus: !0 }), searchElements.lightboxSearchResults && (searchElements.lightboxSearchResults.innerHTML = ""), searchElements.lightboxSearchClear?.classList.add("hidden"), syncLightboxSearchScopeUi(), initLightboxSearchStatus();
+}
+function lightboxSearchKey(query) {
+  let scope = getLightboxSearchScope();
+  return [String(query || "").trim(), scope, scope === "all" ? "" : activeCatalog()?.id || ""].join("\0");
+}
+async function getLightboxSearchResults(query, limit = 24, control = {}) {
+  let rawQuery = String(query || "").trim();
+  if (rawQuery.length < 2) return [];
+  if (await ensureSearchIndexLoaded({ trigger: "viewer-search" }), control.isCurrent && !control.isCurrent()) return [];
+  if (!catalogSearch.hasIndex()) return [];
+  let options = { limit, channel: "viewer" };
+  if (getLightboxSearchScope() !== "all") {
+    let catalog = activeCatalog();
+    if (!catalog) return [];
+    options.catalogId = catalog.id;
+  }
+  let results = await catalogSearch.search(rawQuery, options);
+  return Array.isArray(results) ? results : [];
+}
+async function trackCompletedLightboxSearch(completion, query = searchElements.lightboxSearchInput?.value || "") {
+  let rawQuery = String(query || "").trim(), scope = getLightboxSearchScope(), results = lightboxSearchKey(rawQuery) === lastLightboxSearchKey ? lastLightboxSearchResults : await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24);
+  return telemetryTrackSearch(rawQuery, results.length, {
+    surface: "viewer",
+    scope,
+    catalogId: scope === "all" ? "" : activeCatalog()?.id,
+    completion
+  }), results;
+}
+function openLightboxSearchResult(result) {
+  if (!result) return !1;
+  let catalog = activeCatalog(), targetCatalogId = String(result.catalogId || catalog?.id || "").trim(), sameCatalog = !!(catalog && String(catalog.id) === targetCatalogId), viewer = requireFeatureInterface("viewer"), handled = searchCatalogDomain.executeLightboxSearchResultAction(result, catalog, {
+    openCatalog: viewer.openCatalog,
+    setPage: viewer.setPage,
+    showTopUi: viewer.showTopUi
+  });
+  return !handled || !sameCatalog ? handled : (searchState.lightboxMobileSearchOpen ? setLightboxMobileSearchOpen(!1, { hideResults: !0 }) : hideLightboxSearchResults(), !0);
+}
+async function submitLightboxSearch() {
+  let rawQuery = String(searchElements.lightboxSearchInput?.value || "").trim(), results = await renderLightboxSearchResults(rawQuery);
+  return await trackCompletedLightboxSearch("submit", rawQuery), openLightboxSearchResult(results[0]);
+}
+function initLightboxSearchStatus() {
+  if (!searchElements.lightboxSearchStatus) return;
+  let hasCatalog = !!activeCatalog(), hasIndex = !!catalogSearch.hasIndex(), indexPending = !hasIndex && searchState.searchIndexLoadState !== "error";
+  if (searchElements.lightboxSearchInput && (searchElements.lightboxSearchInput.disabled = !hasCatalog), syncLightboxSearchScopeUi(), !hasCatalog) {
+    searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.";
+    return;
+  }
+  if (!hasIndex) {
+    searchElements.lightboxSearchStatus.textContent = indexPending ? "אינדקס החיפוש נטען לפי הצורך." : "אינדקס החיפוש אינו זמין כרגע.";
+    return;
+  }
+  searchElements.lightboxSearchStatus.textContent = getLightboxSearchScope() === "all" ? "הקלד לפחות 2 תווים לחיפוש בכל הקטלוגים." : "הקלד לפחות 2 תווים לחיפוש בתוך הקטלוג הפתוח.";
+}
+function hideSearchFloatingPreview() {
+  searchElements.searchFloatingPreview?.classList.remove("visible");
+}
+function isGlobalSearchScopeMenuOpen() {
+  return !!(searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden"));
+}
+function isLightboxSearchScopeMenuOpen() {
+  return !!(searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"));
+}
+function rememberSearchPreviewPointer(event) {
+  let clientX = Number(event?.clientX), clientY = Number(event?.clientY);
+  !Number.isFinite(clientX) || !Number.isFinite(clientY) || (searchState.searchPreviewPointerClientX = clientX, searchState.searchPreviewPointerClientY = clientY);
+}
+function searchPreviewTargetBelongsToOpenResults(target) {
+  return !target || !target.isConnected ? !1 : searchElements.globalSearchResults?.contains(target) ? isGlobalSearchPanelOpen() && !searchElements.globalSearchResults.classList.contains("hidden") : searchElements.lightboxSearchResults?.contains(target) ? !!getFeatureInterface("viewer")?.isViewerOpen?.() && !searchElements.lightboxSearchResults.classList.contains("hidden") : !1;
+}
+function isSearchPreviewBlockedByOpenMenu(target) {
+  return target instanceof Node ? !!(searchElements.globalSearchResults?.contains(target) && isGlobalSearchScopeMenuOpen() || searchElements.lightboxSearchResults?.contains(target) && isLightboxSearchScopeMenuOpen()) : !1;
+}
+function getSearchPreviewTargetAtLastPointer() {
+  let clientX = Number(searchState.searchPreviewPointerClientX), clientY = Number(searchState.searchPreviewPointerClientY);
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) return null;
+  let target = document.elementFromPoint(clientX, clientY)?.closest?.("[data-search-preview-src]");
+  return target instanceof HTMLElement && searchPreviewTargetBelongsToOpenResults(target) ? target : null;
+}
+function isSearchPreviewSuppressed() {
+  return Date.now() < (searchState.searchPreviewSuppressUntil || 0);
+}
+function restoreSearchFloatingPreviewAfterSuppression() {
+  if (isSearchPreviewSuppressed() || !hasHoverPointer()) return;
+  let target = getSearchPreviewTargetAtLastPointer();
+  !target || isSearchPreviewBlockedByOpenMenu(target) || showSearchFloatingPreview(target);
+}
+function suppressSearchFloatingTooltip(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
+  tooltips2.suppress(duration, options);
+}
+function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS_MS, options = {}) {
+  let { restoreAfter = !0 } = options, delay = Math.max(0, Number(duration) || 0);
+  suppressSearchFloatingTooltip(delay, { restoreAfter }), searchState.searchPreviewSuppressUntil = Math.max(
+    searchState.searchPreviewSuppressUntil || 0,
+    Date.now() + delay
+  ), hideSearchFloatingPreview(), window.clearTimeout(searchState.searchPreviewSuppressTimer), searchState.searchPreviewSuppressTimer = window.setTimeout(() => {
+    searchState.searchPreviewSuppressTimer = 0, restoreAfter && restoreSearchFloatingPreviewAfterSuppression();
+  }, delay + 20);
+}
+function searchPreviewPageLabel(target) {
+  return String(target?.dataset?.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
+}
+function positionSearchFloatingPreview(target) {
+  let preview = searchElements.searchFloatingPreview;
+  if (!preview || !target) return;
+  let targetRect = target.getBoundingClientRect(), gap = 16, safeMargin = 12, fallbackWidth = Math.min(430, Math.max(180, window.innerWidth * 0.34)), fallbackHeight = Math.min(620, Math.max(180, window.innerHeight * 0.64)), previewRect = preview.getBoundingClientRect(), previewWidth = previewRect.width || fallbackWidth, previewHeight = previewRect.height || fallbackHeight, left;
+  targetRect.left - gap - previewWidth >= safeMargin ? left = targetRect.left - gap - previewWidth : targetRect.right + gap + previewWidth <= window.innerWidth - safeMargin ? left = targetRect.right + gap : left = targetRect.left + targetRect.width / 2 - previewWidth / 2;
+  let top = targetRect.top + targetRect.height / 2 - previewHeight / 2;
+  preview.style.left = `${clampValue(left, safeMargin, Math.max(safeMargin, window.innerWidth - previewWidth - safeMargin))}px`, preview.style.top = `${clampValue(top, safeMargin, Math.max(safeMargin, window.innerHeight - previewHeight - safeMargin))}px`;
+}
+function showSearchFloatingPreview(target) {
+  if (!target || !searchElements.searchFloatingPreview || !searchElements.searchFloatingPreviewImage || !searchPreviewTargetBelongsToOpenResults(target) || isSearchPreviewSuppressed() || isSearchPreviewBlockedByOpenMenu(target)) return;
+  let src = String(target.dataset.searchPreviewSrc || "").trim();
+  if (!src) return;
+  let label = searchPreviewPageLabel(target), previewImage = searchElements.searchFloatingPreviewImage;
+  previewImage.removeAttribute("width"), previewImage.removeAttribute("height"), previewImage.onload = () => positionSearchFloatingPreview(target), previewImage.src = src, searchElements.searchFloatingPreviewImage.alt = label, searchElements.searchFloatingPreviewPage && (searchElements.searchFloatingPreviewPage.textContent = label), searchElements.searchFloatingPreview.classList.add("visible"), positionSearchFloatingPreview(target);
+}
+function bindSearchFloatingPreviewEvents(container) {
+  container && container.querySelectorAll("[data-search-preview-src]").forEach((candidate) => {
+    if (!(candidate instanceof HTMLElement)) return;
+    let target = candidate;
+    target.addEventListener("pointerenter", (event) => {
+      rememberSearchPreviewPointer(event), !(!hasHoverPointer() || isTouchLikePointer(event) || isSearchPreviewSuppressed()) && showSearchFloatingPreview(target);
+    }), target.addEventListener("pointermove", (event) => {
+      if (rememberSearchPreviewPointer(event), !(!hasHoverPointer() || isTouchLikePointer(event))) {
+        if (isSearchPreviewSuppressed()) {
+          hideSearchFloatingPreview();
+          return;
+        }
+        positionSearchFloatingPreview(target);
+      }
+    }), target.addEventListener("pointerleave", (event) => {
+      rememberSearchPreviewPointer(event), hideSearchFloatingPreview();
+    }), target.addEventListener("focus", () => showSearchFloatingPreview(target)), target.addEventListener("blur", hideSearchFloatingPreview);
+  });
+}
+function handleSearchPreviewScrollIntent(event) {
+  rememberSearchPreviewPointer(event), suppressSearchFloatingPreview();
+}
+function normalizedWheelDeltaY(event, scrollTarget) {
+  let rawDelta = Number(event?.deltaY) || 0;
+  return rawDelta ? event.deltaMode === 1 ? rawDelta * 16 : event.deltaMode === 2 ? rawDelta * Math.max(1, scrollTarget?.clientHeight || window.innerHeight || 1) : rawDelta : 0;
+}
+function globalSearchWheelTarget(eventTarget) {
+  return eventTarget instanceof Node && isGlobalSearchScopeMenuOpen() && searchElements.globalSearchScopeMenu?.contains(eventTarget) ? searchElements.globalSearchScopeMenu : searchElements.globalSearchResults && !searchElements.globalSearchResults.classList.contains("hidden") ? searchElements.globalSearchResults : null;
+}
+function scrollElementByWheel(element, event) {
+  if (!element) return !1;
+  let deltaY = normalizedWheelDeltaY(event, element);
+  if (!deltaY) return !1;
+  let maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight), nextScrollTop = clampValue(element.scrollTop + deltaY, 0, maxScrollTop);
+  return Math.abs(nextScrollTop - element.scrollTop) > 0.5 && (element.scrollTop = nextScrollTop), !0;
+}
+function handleGlobalSearchPanelWheel(event) {
+  if (!isGlobalSearchPanelOpen() || !(event.target instanceof Node) || !searchElements.catalogSearch?.contains(event.target)) return;
+  handleSearchPreviewScrollIntent(event);
+  let scrollTarget = globalSearchWheelTarget(event.target);
+  scrollTarget && scrollElementByWheel(scrollTarget, event), event.preventDefault(), event.stopPropagation();
+}
+function normalizeSearchResultsDirection(container) {
+  container && container.setAttribute("dir", "rtl");
+}
+function lightboxSearchLayoutColumnLimit() {
+  let columns = getFeatureInterface("catalog-grid")?.layoutColumnCount?.(), width = Math.max(0, window.innerWidth || document.documentElement?.clientWidth || 0);
+  return searchCatalogDomain.lightboxSearchColumnLimit(columns, width);
+}
+function updateLightboxSearchResultsLayout(count = 0) {
+  if (!searchElements.lightboxSearchResults) return;
+  normalizeSearchResultsDirection(searchElements.lightboxSearchResults);
+  let resultCount = Math.max(0, Number(count) || 0), columns = Math.max(1, Math.min(resultCount || 1, lightboxSearchLayoutColumnLimit()));
+  searchElements.lightboxSearchResults.style.setProperty("--reader-search-result-columns", String(columns)), searchElements.lightboxSearchResults.dataset.resultColumns = String(columns), searchElements.lightboxSearchResults.dataset.resultCount = String(resultCount);
+}
+function searchEmptyStateMarkup(query, message, options = {}) {
+  let reader = options.reader === !0, wrapperClass = reader ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark" : "search-empty empty-state ui-state", actionAttribute = reader ? "data-lightbox-empty-search-clear" : "data-empty-search-clear";
+  return `
+    <article class="${wrapperClass}" data-state="empty" role="status">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <circle cx="10.5" cy="10.5" r="5.8"></circle>
+          <path d="m15 15 4.2 4.2M8.2 8.2l4.6 4.6M12.8 8.2l-4.6 4.6"></path>
+        </svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>לא נמצאו תוצאות עבור “${escapeHtml(query)}”</strong>
+        <p>${escapeHtml(message)}</p>
+      </div>
+      <button class="button soft empty-state-action" type="button" ${actionAttribute}>נקה וחפש מחדש</button>
+    </article>
+  `;
+}
+function searchIndexErrorMarkup(options = {}) {
+  let reader = options.reader === !0;
+  return `
+    <article class="${reader ? "reader-search-empty lightbox-search-empty empty-state ui-state empty-state-dark" : "search-empty empty-state ui-state"}" data-state="error" role="alert">
+      <span class="empty-state-icon ui-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 9v4.5M12 16.8h.01"/></svg>
+      </span>
+      <div class="empty-state-copy">
+        <strong>החיפוש אינו זמין כרגע</strong>
+        <p>אינדקס החיפוש לא הצליח להיטען. אפשר לנסות שוב בלי לרענן את העמוד.</p>
+      </div>
+      <button class="button soft empty-state-action" type="button" ${reader ? "data-lightbox-search-index-retry" : "data-global-search-index-retry"}>נסה לטעון שוב</button>
+    </article>
+  `;
+}
+function retrySearchIndexLoad(options = {}) {
+  searchState.searchIndexLoadPromise = null, searchState.searchIndexLoadState = "idle", ensureSearchIndexLoaded({ trigger: "retry" }).then(() => {
+    options.reader ? renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "") : renderSearchResults(searchElements.globalSearchInput?.value || "");
+  }).catch(() => {
+    options.reader ? renderLightboxSearchResults(searchElements.lightboxSearchInput?.value || "") : renderSearchResults(searchElements.globalSearchInput?.value || "");
+  });
+}
+async function renderLightboxSearchResults(query) {
+  let rawQuery = String(query || "").trim();
+  if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
+  let renderSequence = ++lightboxSearchRenderSequence, renderKey = lightboxSearchKey(rawQuery);
+  if (normalizeSearchResultsDirection(searchElements.lightboxSearchResults), hideSearchFloatingPreview(), updateLightboxSearchResultsLayout(0), searchElements.lightboxSearchClear?.classList.toggle("hidden", rawQuery.length === 0), rawQuery.length < 2)
+    return catalogSearch.cancel("viewer"), lastLightboxSearchKey = "", lastLightboxSearchResults = [], searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.innerHTML = "", initLightboxSearchStatus(), [];
+  if (!activeCatalog())
+    return searchElements.lightboxSearchResults.classList.add("hidden"), searchElements.lightboxSearchStatus.textContent = "בחר קטלוג כדי לחפש.", [];
+  searchElements.lightboxSearchResults.setAttribute("aria-busy", "true"), searchElements.lightboxSearchStatus.textContent = "מחפש באינדקס…";
+  try {
+    let scope = getLightboxSearchScope(), results = await getLightboxSearchResults(rawQuery, scope === "all" ? 48 : 24, {
+      isCurrent: () => renderSequence === lightboxSearchRenderSequence && renderKey === lightboxSearchKey(searchElements.lightboxSearchInput?.value || "")
+    });
+    return renderSequence !== lightboxSearchRenderSequence || renderKey !== lightboxSearchKey(searchElements.lightboxSearchInput?.value || "") ? [] : (lastLightboxSearchKey = lightboxSearchKey(rawQuery), lastLightboxSearchResults = results, updateLightboxSearchResultsLayout(results.length), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), results.length ? (searchElements.lightboxSearchStatus.textContent = scope === "all" ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.` : `נמצאו ${results.length} תוצאות בקטלוג הזה.`, searchElements.lightboxSearchResults.innerHTML = results.map((result) => {
+      let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || activeCatalog();
+      if (!catalog) return "";
+      let page = clampPage(result.page, catalog), rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page), rawImage = result.thumb || thumbSrc(catalog, page) || rawPreview, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+      return `
+        <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+          <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
+          <span class="reader-search-thumb-frame catalog-image-frame">
+            <img class="reader-search-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "viewer-search-results")} />
+          </span>
+          <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
+        </button>
+      `;
+    }).join(""), bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults), Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button) => {
+      button.addEventListener("click", async () => {
+        await trackCompletedLightboxSearch("result-open"), hideSearchFloatingPreview(), openLightboxSearchResult({
+          catalogId: button.dataset.lightboxSearchCatalog,
+          page: button.dataset.lightboxSearchPage
+        });
+      });
+    }), results) : (searchElements.lightboxSearchStatus.textContent = scope === "all" ? "לא נמצאו תוצאות בכל הקטלוגים." : "לא נמצאו תוצאות בקטלוג הפתוח.", searchElements.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
+      rawQuery,
+      "נסה חלק קצר יותר של הדגם או מילה אחרת.",
+      { reader: !0 }
+    ), searchElements.lightboxSearchResults.querySelector("[data-lightbox-empty-search-clear]")?.addEventListener("click", (event) => {
+      event.stopPropagation(), searchElements.lightboxSearchInput.value = "", renderLightboxSearchResults(""), searchElements.lightboxSearchInput.focus();
+    }), []));
+  } catch (error) {
+    return catalogSearch.isCancelledError(error) || renderSequence !== lightboxSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.lightboxSearchResults.removeAttribute("aria-busy"), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.innerHTML = searchIndexErrorMarkup({ reader: !0 }), searchElements.lightboxSearchResults.querySelector("[data-lightbox-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad({ reader: !0 })), searchElements.lightboxSearchStatus.textContent = "אינדקס החיפוש אינו זמין כרגע.", []);
+  }
+}
+function renderLightboxCatalogMenu() {
+  getFeatureInterface("catalog-grid")?.renderCatalogMenu(searchElements.lightboxCatalogMenu, {
+    onSelect: (catalogId) => {
+      closeLightboxCatalogMenu(), catalogId !== activeCatalog()?.id && getFeatureInterface("viewer")?.openCatalog(catalogId);
+    }
+  });
+}
+function prepareViewerSearch(options = {}) {
+  options.renderCatalogMenu !== !1 && renderLightboxCatalogMenu(), resetLightboxSearch();
+}
+function globalSearchKey(query) {
+  return [String(query || "").trim(), getGlobalSearchCategory()].join("\0");
+}
+async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
+  let rawQuery = String(query || "").trim(), category = getGlobalSearchCategory();
+  if (rawQuery.length < 2) return [];
+  if (await ensureSearchIndexLoaded({ trigger: "global-search" }), control.isCurrent && !control.isCurrent()) return [];
+  if (!catalogSearch.hasIndex({ category })) return [];
+  let options = { limit, channel: "global" };
+  category && (options.category = category);
+  let results = await catalogSearch.search(rawQuery, options);
+  return Array.isArray(results) ? results : [];
+}
+async function getGlobalSearchResults(query, limit = 72, control = {}) {
+  let rawQuery = String(query || "").trim(), navigationResults = rawQuery.length < 2 ? [] : catalogSearch.searchNavigation(
+    getCatalogCategoryGroups(),
+    rawQuery,
+    { category: getGlobalSearchCategory(), limit: 36 }
+  );
+  try {
+    return catalogSearch.mergeNavigationResults(
+      navigationResults,
+      await getGlobalOcrSearchResults(rawQuery, limit, control)
+    );
+  } catch (error) {
+    if (!navigationResults.length || catalogSearch.isCancelledError(error)) throw error;
+    return searchState.searchIndexLoadState = "error", navigationResults;
+  }
+}
+async function trackCompletedGlobalSearch(completion, query = searchElements.globalSearchInput?.value || "", options = {}) {
+  let rawQuery = String(query || "").trim(), category = getGlobalSearchCategory(), results = globalSearchKey(rawQuery) === lastGlobalSearchKey ? lastGlobalSearchResults : await getGlobalSearchResults(rawQuery, 72);
+  return telemetryTrackSearch(rawQuery, results.length, {
+    surface: "global",
+    scope: category || "all",
+    completion,
+    immediate: options.immediate === !0
+  }), results;
+}
+function flushGlobalSearchTelemetryBeforeNavigation() {
+  telemetryFlush().catch(() => {
+  });
+}
+function openGlobalSearchResult(result) {
+  if (!result) return !1;
+  hideSearchFloatingPreview(), closeGlobalSearchPanel({ focusButton: !1 });
+  let catalogGrid = requireFeatureInterface("catalog-grid");
+  return searchCatalogDomain.executeGlobalSearchResultAction(result, {
+    activateCategoryTarget: catalogGrid.activateCategoryTarget,
+    openCatalog: (catalogId) => navigateTo(catalogDocumentUrl(catalogId)),
+    openViewer: (catalogId, page) => navigateTo(viewerDocumentUrl(catalogId, page))
+  });
+}
+async function submitGlobalSearch() {
+  let rawQuery = String(searchElements.globalSearchInput?.value || "").trim(), results = await renderSearchResults(rawQuery);
+  return await trackCompletedGlobalSearch("submit", rawQuery, { immediate: !0 }), flushGlobalSearchTelemetryBeforeNavigation(), openGlobalSearchResult(results[0]);
+}
+function globalSearchResultMarkup(result) {
+  if (result?.resultType !== "ocr")
+    return catalogSearch ? catalogSearch.navigationResultMarkup(result) : "";
+  let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId), page = clampPage(result.page, catalog), rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : ""), rawPreview = result.image || (catalog ? mediumSrc(catalog, page) || pageSrc(catalog, page) : rawThumb), rawImage = rawThumb || rawPreview, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+  return `
+    <article class="search-result-card">
+      <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
+        <span class="search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>
+        <span class="search-result-thumb-frame catalog-image-frame">
+          <img class="search-result-thumb" src="${escapeHtml(rawImage)}" alt="${escapeHtml(catalogTitle)}"${catalogImageDimensionAttributes(catalog, page)} loading="lazy" decoding="async"${catalogImageRecoveryAttributes(catalog, page, "thumbnail", "global-search-results")} />
+        </span>
+        <span class="search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
+      </button>
+    </article>
+  `;
+}
+function bindGlobalSearchResultEvents(root) {
+  bindSearchFloatingPreviewEvents(root), Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button) => {
+    button.addEventListener("click", async () => {
+      await trackCompletedGlobalSearch("result-open", void 0, { immediate: !0 }), flushGlobalSearchTelemetryBeforeNavigation(), openGlobalSearchResult(button.dataset.searchNavigationType ? {
+        resultType: button.dataset.searchNavigationType,
+        targetId: button.dataset.searchNavigationTarget,
+        catalogId: button.dataset.searchNavigationCatalog
+      } : {
+        resultType: "ocr",
+        catalogId: button.dataset.searchCatalog,
+        page: button.dataset.searchPage
+      });
+    });
+  });
+}
+function appendGlobalSearchResultBatch(results, start, count) {
+  let template = document.createElement("template");
+  return template.innerHTML = results.slice(start, start + count).map(globalSearchResultMarkup).join(""), bindGlobalSearchResultEvents(template.content), searchElements.globalSearchResults.append(template.content), Math.min(results.length, start + count);
+}
+function isCurrentGlobalSearchRender(renderSequence, rawQuery) {
+  return renderSequence === globalSearchRenderSequence && globalSearchKey(rawQuery) === globalSearchKey(searchElements.globalSearchInput?.value || "") && isGlobalSearchPanelOpen();
+}
+function renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery) {
+  cancelGlobalSearchResultAppend(), searchElements.globalSearchResults.replaceChildren(), searchElements.globalSearchResults.classList.remove("hidden");
+  let nextIndex = appendGlobalSearchResultBatch(
+    results,
+    0,
+    GLOBAL_SEARCH_INITIAL_RENDER_COUNT
+  ), appendNextBatch = () => {
+    if (globalSearchAppendFrame = 0, !!isCurrentGlobalSearchRender(renderSequence, rawQuery)) {
+      if (nextIndex = appendGlobalSearchResultBatch(
+        results,
+        nextIndex,
+        GLOBAL_SEARCH_RENDER_CHUNK_SIZE
+      ), nextIndex < results.length) {
+        globalSearchAppendFrame = window.requestAnimationFrame(appendNextBatch);
+        return;
+      }
+      searchElements.globalSearchResults.removeAttribute("aria-busy");
+    }
+  };
+  nextIndex < results.length ? globalSearchAppendFrame = window.requestAnimationFrame(appendNextBatch) : searchElements.globalSearchResults.removeAttribute("aria-busy");
+}
+async function renderSearchResults(query) {
+  let rawQuery = String(query || "").trim();
+  if (!searchElements.globalSearchResults) return [];
+  cancelGlobalSearchResultAppend();
+  let renderSequence = ++globalSearchRenderSequence, renderKey = globalSearchKey(rawQuery);
+  if (normalizeSearchResultsDirection(searchElements.globalSearchResults), hideSearchFloatingPreview(), searchElements.globalSearchClear?.classList.toggle("hidden", rawQuery.length === 0), rawQuery.length < 2)
+    return catalogSearch.cancel("global"), lastGlobalSearchKey = "", lastGlobalSearchResults = [], searchElements.globalSearchResults.classList.add("hidden"), searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.innerHTML = "", initSearchStatus(), [];
+  let category = getGlobalSearchCategory();
+  searchElements.globalSearchResults.setAttribute("aria-busy", "true");
+  try {
+    let results = await getGlobalSearchResults(rawQuery, 72, {
+      isCurrent: () => isCurrentGlobalSearchRender(renderSequence, rawQuery)
+    });
+    return renderSequence !== globalSearchRenderSequence || renderKey !== globalSearchKey(searchElements.globalSearchInput?.value || "") ? [] : (lastGlobalSearchKey = globalSearchKey(rawQuery), lastGlobalSearchResults = results, results.length ? (renderGlobalSearchResultsProgressively(results, renderSequence, rawQuery), results) : (searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.classList.remove("hidden"), searchElements.globalSearchResults.innerHTML = searchEmptyStateMarkup(
+      rawQuery,
+      category ? "נסה שם קצר יותר, חלק מהמילה, או חפש שוב בכל הקטלוגים." : "נסה שם קצר יותר, מספר דגם או חלק מהמילה."
+    ), searchElements.globalSearchResults.querySelector("[data-empty-search-clear]")?.addEventListener("click", () => {
+      searchElements.globalSearchInput.value = "", renderSearchResults(""), searchElements.globalSearchInput.focus();
+    }), []));
+  } catch (error) {
+    return catalogSearch.isCancelledError(error) || renderSequence !== globalSearchRenderSequence ? [] : (searchState.searchIndexLoadState = "error", searchElements.globalSearchResults.removeAttribute("aria-busy"), searchElements.globalSearchResults.classList.remove("hidden"), searchElements.globalSearchResults.innerHTML = searchIndexErrorMarkup(), searchElements.globalSearchResults.querySelector("[data-global-search-index-retry]")?.addEventListener("click", () => retrySearchIndexLoad()), []);
+  }
+}
+function handleLightboxSearchResultsBackgroundClick(event) {
+  let result = eventTargetElement(event.target)?.closest?.("[data-lightbox-search-page]");
+  result && searchElements.lightboxSearchResults?.contains(result) || (event.preventDefault(), event.stopPropagation(), hideLightboxSearchResults({ blurTopUiFocus: !0, hideTopUi: !0 }));
+}
+function attachSearchUiEvents() {
+  searchElements.globalSearchOpen?.addEventListener("click", (event) => {
+    event.preventDefault(), ensureSearchIndexLoaded().catch(() => {
+    }), event.stopPropagation(), getFeatureInterface("catalog-detail")?.close(), closeLightboxViewerMenus(), setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: !0, focusButton: !0 });
+  }), searchElements.globalSearchClose?.addEventListener("click", (event) => {
+    event.preventDefault(), event.stopPropagation(), closeGlobalSearchPanel({ focusButton: !0 });
+  }), searchElements.globalSearchInput?.addEventListener("input", () => {
+    scheduleSearchRender("global", searchElements.globalSearchInput.value);
+  }), searchElements.globalSearchInput?.addEventListener("focus", () => {
+    ensureSearchIndexLoaded().catch(() => {
+    }), scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: !0 });
+  }), searchElements.globalSearchInput?.addEventListener("click", () => scheduleSearchRender("global", searchElements.globalSearchInput.value, { immediate: !0 })), searchElements.globalSearchInput?.addEventListener("keydown", (event) => {
+    event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || (event.preventDefault(), submitGlobalSearch().catch(() => {
+    }));
+  }), searchElements.globalSearchClear?.addEventListener("click", () => {
+    cancelScheduledSearch("global"), searchElements.globalSearchInput.value = "", searchElements.globalSearchInput.focus(), renderSearchResults("");
+  }), searchElements.globalSearchScopeToggle?.addEventListener("click", (event) => {
+    event.stopPropagation(), hideSearchFloatingPreview(), getFeatureInterface("catalog-detail")?.close(), closeLightboxViewerMenus(), renderGlobalSearchScopeMenu();
+    let isOpen = !searchElements.globalSearchScopeMenu?.classList.contains("hidden");
+    searchElements.globalSearchScopeMenu?.classList.toggle("hidden", isOpen), searchElements.globalSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  }), searchElements.globalSearchScopeMenu?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    let button = eventTargetElement(event.target)?.closest("[data-global-search-category]");
+    !isHtmlElement(button) || !searchElements.globalSearchScopeMenu.contains(button) || (setGlobalSearchCategory(button.dataset.globalSearchCategory), searchElements.globalSearchInput?.focus());
+  }), searchElements.catalogSearch?.addEventListener("wheel", handleGlobalSearchPanelWheel, { passive: !1 }), searchElements.globalSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.globalSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchResults?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: !0 }), searchElements.lightboxSearchResults?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchScopeMenu?.addEventListener("wheel", handleSearchPreviewScrollIntent, { passive: !0 }), searchElements.lightboxSearchScopeMenu?.addEventListener("scroll", () => suppressSearchFloatingPreview(), { passive: !0 }), searchElements.lightboxSearchInput?.addEventListener("input", () => {
+    scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value);
+  }), searchElements.lightboxSearchInput?.addEventListener("focus", () => {
+    getFeatureInterface("viewer")?.showTopUi?.(), ensureSearchIndexLoaded().catch(() => {
+    }), scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: !0 });
+  }), searchElements.lightboxSearchInput?.addEventListener("click", () => {
+    getFeatureInterface("viewer")?.showTopUi?.(), scheduleSearchRender("viewer", searchElements.lightboxSearchInput.value, { immediate: !0 });
+  }), searchElements.lightboxSearchInput?.addEventListener("keydown", (event) => {
+    event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || (event.preventDefault(), submitLightboxSearch().catch(() => {
+    }));
+  }), searchElements.lightboxSearchClear?.addEventListener("click", () => {
+    cancelScheduledSearch("viewer"), searchElements.lightboxSearchInput.value = "", searchElements.lightboxSearchInput.focus(), renderLightboxSearchResults(""), getFeatureInterface("viewer")?.showTopUi?.();
+  }), searchElements.lightboxMobileSearchToggle?.addEventListener("click", (event) => {
+    event.preventDefault(), event.stopPropagation(), setLightboxMobileSearchOpen(!searchState.lightboxMobileSearchOpen, {
+      focusInput: !0,
+      returnFocus: searchState.lightboxMobileSearchOpen
+    });
+  }), searchElements.lightboxMobileSearchClose?.addEventListener("click", (event) => {
+    event.preventDefault(), event.stopPropagation(), setLightboxMobileSearchOpen(!1, { returnFocus: !0, hideResults: !0 });
+  }), searchElements.lightboxSearchScopeToggle?.addEventListener("click", (event) => {
+    event.stopPropagation(), hideSearchFloatingPreview(), getFeatureInterface("catalog-detail")?.close(), closeLightboxCatalogMenu();
+    let isOpen = !searchElements.lightboxSearchScopeMenu?.classList.contains("hidden");
+    searchElements.lightboxSearchScopeMenu?.classList.toggle("hidden", isOpen), searchElements.lightboxSearchScopeToggle.setAttribute("aria-expanded", isOpen ? "false" : "true"), getFeatureInterface("viewer")?.showTopUi?.();
+  }), Array.from(searchElements.lightboxSearchScopeMenu?.querySelectorAll("[data-lightbox-search-scope]") || []).filter(isHtmlElement).forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation(), setLightboxSearchScope(button.dataset.lightboxSearchScope), getFeatureInterface("viewer")?.showTopUi?.(), searchElements.lightboxSearchInput?.focus();
+    });
+  }), searchElements.lightboxCatalogMenuToggle?.addEventListener("click", (event) => {
+    event.stopPropagation(), getFeatureInterface("catalog-detail")?.close(), closeLightboxSearchScopeMenu(), renderLightboxCatalogMenu();
+    let isOpen = !searchElements.lightboxCatalogMenu?.classList.contains("hidden");
+    searchElements.lightboxCatalogMenu?.classList.toggle("hidden", isOpen), searchElements.lightboxCatalogMenuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true"), getFeatureInterface("viewer")?.showTopUi?.();
+  }), searchElements.lightboxCatalogMenu?.addEventListener("click", (event) => event.stopPropagation()), searchElements.lightboxSearchResults?.addEventListener("click", handleLightboxSearchResultsBackgroundClick);
+}
+function prepareSearchRoute(nextPage) {
+  closeGlobalSearchPanel({ focusButton: !1 }), closeGlobalSearchScopeMenu(), closeLightboxViewerMenus(), nextPage !== "viewer" && setLightboxMobileSearchOpen(!1, { hideResults: !0 });
+}
+function handleSearchDocumentPointer(target) {
+  if (!(target instanceof Node))
+    return prepareSearchRoute(currentAppPage), !1;
+  let insideGlobalSearch = searchElements.catalogSearch.contains(target) || searchElements.globalSearchOpen.contains(target), insideMobileReaderSearch = searchElements.lightboxSearchPanel.contains(target) || searchElements.lightboxMobileSearchToggle.contains(target);
+  return insideGlobalSearch ? (!searchElements.globalSearchScopeMenu.contains(target) && !searchElements.globalSearchScopeToggle.contains(target) && closeGlobalSearchScopeMenu(), closeLightboxViewerMenus(), getFeatureInterface("catalog-detail")?.close(), !0) : insideMobileReaderSearch || (searchState.lightboxMobileSearchOpen && setLightboxMobileSearchOpen(!1, { hideResults: !0 }), searchElements.lightboxSearchScopeMenu.contains(target) || searchElements.lightboxSearchScopeToggle.contains(target)) || searchElements.lightboxCatalogMenu.contains(target) || searchElements.lightboxCatalogMenuToggle.contains(target) ? !0 : (closeGlobalSearchPanel({ focusButton: !1 }), closeGlobalSearchScopeMenu(), closeLightboxViewerMenus(), !1);
+}
+function initializeSearchUi() {
+  syncLightboxMobileSearchUi(), renderGlobalSearchScopeMenu(), scheduleSearchIndexPreload(), initSearchStatus();
+}
+function handleSearchResize() {
+  hideSearchFloatingPreview(), updateLightboxSearchResultsLayout(Number(searchElements.lightboxSearchResults.dataset.resultCount || 0)), syncLightboxMobileSearchUi();
+}
+function handleSearchScroll() {
+  hideSearchFloatingPreview();
+}
+registerFeatureInterface("search", {
+  escapePriority: 300,
+  closeTopLayer: () => isGlobalSearchPanelOpen() ? (searchElements.globalSearchScopeMenu && !searchElements.globalSearchScopeMenu.classList.contains("hidden") ? closeGlobalSearchScopeMenu() : closeGlobalSearchPanel({ focusButton: !0 }), !0) : !1,
+  closeViewerTopLayer: () => searchState.lightboxMobileSearchOpen ? (setLightboxMobileSearchOpen(!1, { returnFocus: !0, hideResults: !0 }), !0) : searchElements.lightboxCatalogMenu && !searchElements.lightboxCatalogMenu.classList.contains("hidden") || searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden") ? (closeLightboxViewerMenus(), !0) : !1,
+  isLightboxMobileOpen: () => searchState.lightboxMobileSearchOpen,
+  setLightboxMobileOpen: (open, options = {}) => setLightboxMobileSearchOpen(open, options),
+  containsLightboxResult: (target) => !!(target?.closest?.("[data-lightbox-search-page]") && searchElements.lightboxSearchResults.contains(target.closest("[data-lightbox-search-page]"))),
+  prepareViewer: (options = {}) => prepareViewerSearch(options),
+  syncViewerStatus: initLightboxSearchStatus,
+  closeViewerMenus: closeLightboxViewerMenus,
+  hideViewerResults: (options = {}) => hideLightboxSearchResults(options),
+  closeGlobalPanel: (options = {}) => closeGlobalSearchPanel(options),
+  attachEvents: attachSearchUiEvents,
+  initialize: initializeSearchUi,
+  prepareRoute: prepareSearchRoute,
+  handleDocumentPointer: handleSearchDocumentPointer,
+  handleResize: handleSearchResize,
+  handleScroll: handleSearchScroll
 });
 
 // src/js/17-viewer-state-transitions.js
@@ -5183,7 +5192,7 @@ async function toggleBrowserFullscreen(sourceButton = null) {
   }
 }
 function returnToMainSiteFromLightbox(event = null) {
-  event?.preventDefault?.(), closeLightboxSearchScopeMenu(), closeLightboxCatalogMenu(), navigateTo(homeDocumentUrl());
+  event?.preventDefault?.(), requireFeatureInterface("search").closeViewerMenus(), navigateTo(homeDocumentUrl());
 }
 
 // src/js/53-viewer-image.js
@@ -5570,7 +5579,7 @@ function updateLightbox(options = {}) {
     let progress = catalogPageProgress(catalog, activePage());
     viewerElements.lightboxMeta.textContent = progress.title, syncLightboxProgress(progress.current, progress.total, progress.title, progress.options), viewerElements.prevPageBtn.disabled = activePage() <= catalogFirstPage(catalog), viewerElements.nextPageBtn.disabled = activePage() >= catalogLastPage(catalog);
   }
-  favorites?.syncViewerButton(), favoriteEntries || initLightboxSearchStatus();
+  favorites?.syncViewerButton(), favoriteEntries || requireFeatureInterface("search").syncViewerStatus();
   let preserveFullResolutionTier = !isAutoViewerZoom() && activeSingleViewerImageTier() === CATALOG_IMAGE_TIER_FULL, request = viewerPageImageRequest(catalog, activePage(), {
     forceFull: preserveFullResolutionTier
   }), src = request.primarySrc;
@@ -6442,7 +6451,9 @@ function isLightboxTopInteractiveTarget(target) {
   return !!(interactiveTarget && viewerElements.lightboxBar?.contains(interactiveTarget));
 }
 function hideLightboxTopSearchFromViewerInteraction(event) {
-  return !isViewerSessionOpen() || event?.button !== void 0 && event.button !== 0 || isLightboxTopInteractiveTarget(event?.target) ? !1 : (getFeatureInterface("search")?.isLightboxMobileOpen?.() ? getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0, hideTopUi: !0 }) : hideLightboxSearchResults({ blurTopUiFocus: !0, hideTopUi: !0 }), !0);
+  if (!isViewerSessionOpen() || event?.button !== void 0 && event.button !== 0 || isLightboxTopInteractiveTarget(event?.target)) return !1;
+  let search = requireFeatureInterface("search");
+  return search.isLightboxMobileOpen() ? search.setLightboxMobileOpen(!1, { hideResults: !0, hideTopUi: !0 }) : search.hideViewerResults({ blurTopUiFocus: !0, hideTopUi: !0 }), !0;
 }
 function handleViewerSurfacePointerDown(event) {
   hideLightboxTopSearchFromViewerInteraction(event);
@@ -6465,10 +6476,12 @@ function openLightbox(page = void 0, options = {}) {
   let favorites = getFeatureInterface("favorites");
   source === LIGHTBOX_SOURCE_FAVORITES ? favorites?.setViewerIndex(Math.max(0, Number.parseInt(String(options.favoriteIndex ?? ""), 10) || 0)) : favorites?.resetViewerSession(), setActivePage(clampPage(page, catalog)), viewerViewportState.imageFitModeSource = normalizeViewerFitModeSource(viewerViewportState.imageFitModeSource), viewerViewportState.imageFitMode = viewerUsesAutomaticFitMode() ? getAutomaticViewerFitMode() : normalizeViewerFitMode(viewerViewportState.imageFitMode), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), clearViewerImagePreparations(), initializeViewerOpenStateCommand(), hideViewerZoomIndicator(), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), transitionViewerPhase(VIEWER_PHASE_OPENING, "open-lightbox"), telemetryTrackCatalogOpen(catalog, activePage(), activeViewerSource()), primeLightboxFrameForCatalogPage(catalog, activePage());
   let initialSrc = viewerPageSrc(catalog, activePage());
-  viewerElements.lightboxImage?.getAttribute("src") !== initialSrc && (viewerElements.lightboxImage?.removeAttribute("src"), prepareImagePlaceholder(viewerElements.lightboxImage), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter")), viewerElements.lightbox.classList.remove("hidden"), viewerElements.lightbox.classList.remove("show-ui", "show-page-rail"), syncTopUiPinnedUi(), syncDocumentLock(), renderLightboxPageRail(), isFavoritesLightboxMode() || renderLightboxCatalogMenu(), resetLightboxSearch(), syncLightboxModeUi(), syncFullscreenButtonUi(), showTopUiTemporarily(1700), updateLightbox(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), transitionViewerPhase(VIEWER_PHASE_OPEN, "lightbox-ready"), window.requestAnimationFrame(showViewerOnboardingIfNeeded);
+  viewerElements.lightboxImage?.getAttribute("src") !== initialSrc && (viewerElements.lightboxImage?.removeAttribute("src"), prepareImagePlaceholder(viewerElements.lightboxImage), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter")), viewerElements.lightbox.classList.remove("hidden"), viewerElements.lightbox.classList.remove("show-ui", "show-page-rail"), syncTopUiPinnedUi(), syncDocumentLock(), renderLightboxPageRail(), requireFeatureInterface("search").prepareViewer({
+    renderCatalogMenu: !isFavoritesLightboxMode()
+  }), syncLightboxModeUi(), syncFullscreenButtonUi(), showTopUiTemporarily(1700), updateLightbox(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), transitionViewerPhase(VIEWER_PHASE_OPEN, "lightbox-ready"), window.requestAnimationFrame(showViewerOnboardingIfNeeded);
 }
 function hideLightboxUi() {
-  transitionViewerPhase(VIEWER_PHASE_CLOSING, "hide-lightbox"), closeViewerOnboarding({ restoreFocus: !1 }), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0 }), invalidateViewerImageSwapCommand(), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), clearSingleImagePendingPosition(), clearViewerImagePreparations(), clearSingleViewerResolutionUpgrade(), window.clearTimeout(viewerImageState.singleImageAnimationTimer), viewerElements.lightbox?.classList.add("hidden"), viewerElements.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed"), syncViewerAutoZoomButtonUi(), hideViewerZoomIndicator(), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter"), setViewerLoading(!1), hideLightboxFloatingPreview(), window.clearTimeout(viewerChromeState.uiHideTimer), window.clearTimeout(viewerChromeState.pageRailHideTimer), hideViewerPageIndicator(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), setActiveViewerSource(LIGHTBOX_SOURCE_CATALOG), transitionViewerPhase(VIEWER_PHASE_CLOSED, "lightbox-hidden"), finalizeViewerClosedStateCommand(), syncDocumentLock();
+  transitionViewerPhase(VIEWER_PHASE_CLOSING, "hide-lightbox"), closeViewerOnboarding({ restoreFocus: !1 }), closeViewerInquiry({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), requireFeatureInterface("search").setLightboxMobileOpen(!1, { hideResults: !0 }), invalidateViewerImageSwapCommand(), stopViewerTouchMomentum(), clearViewerPageWheelGesture(), clearSingleImagePendingPosition(), clearViewerImagePreparations(), clearSingleViewerResolutionUpgrade(), window.clearTimeout(viewerImageState.singleImageAnimationTimer), viewerElements.lightbox?.classList.add("hidden"), viewerElements.lightbox?.classList.remove("show-ui", "show-page-rail", "catalog-entry-mode", "favorites-viewer-mode", "viewer-layout-paged", "viewer-layout-scroll", "viewer-layout-side", "viewer-scroll-zoom-isolated", "is-page-loading", "is-zoomed"), syncViewerAutoZoomButtonUi(), hideViewerZoomIndicator(), viewerElements.lightboxImageFrame?.classList.remove("page-swap-enter"), setViewerLoading(!1), hideLightboxFloatingPreview(), window.clearTimeout(viewerChromeState.uiHideTimer), window.clearTimeout(viewerChromeState.pageRailHideTimer), hideViewerPageIndicator(), getFeatureInterface("catalog-grid")?.scheduleScrollTopButtonUpdate?.(), setActiveViewerSource(LIGHTBOX_SOURCE_CATALOG), transitionViewerPhase(VIEWER_PHASE_CLOSED, "lightbox-hidden"), finalizeViewerClosedStateCommand(), syncDocumentLock();
 }
 function closeLightbox(options = {}) {
   let wasFavoritesViewer = isFavoritesLightboxMode(), { restoreFavorites = wasFavoritesViewer } = options;
@@ -6561,7 +6574,9 @@ registerFeatureInterface("viewer", {
   refresh: (options = {}) => updateLightbox(options),
   renderPageRail: renderLightboxPageRail,
   prepareInquiry: () => {
-    viewerOnboardingState.viewerOnboardingOpen && closeViewerOnboarding({ restoreFocus: !1 }), closeViewerMobileMoreMenu(), getFeatureInterface("search")?.isLightboxMobileOpen?.() && getFeatureInterface("search")?.setLightboxMobileOpen?.(!1, { hideResults: !0 });
+    viewerOnboardingState.viewerOnboardingOpen && closeViewerOnboarding({ restoreFocus: !1 }), closeViewerMobileMoreMenu();
+    let search = requireFeatureInterface("search");
+    search.isLightboxMobileOpen() && search.setLightboxMobileOpen(!1, { hideResults: !0 });
   },
   setPage: (page, options = {}) => setLightboxPage(page, { navigationSource: VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC, ...options }),
   syncMobileSearchUi: (isOpen) => viewerElements.lightbox?.classList.toggle("mobile-search-open", !!isOpen),
@@ -6577,12 +6592,13 @@ registerFeatureInterface("viewer", {
       return closeViewerMobileMoreMenu({ returnFocus: !0 }), !0;
     if (viewerOnboardingState.viewerOnboardingOpen)
       return closeViewerOnboarding(), !0;
-    if (getFeatureInterface("search")?.closeViewerTopLayer?.()) return !0;
+    let search = requireFeatureInterface("search");
+    if (search.closeViewerTopLayer()) return !0;
     if (isBrowserFullscreenActive())
       return exitBrowserFullscreen().catch(() => {
       }), !0;
     let target = eventTargetElement(event?.target || null);
-    return target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ? (getFeatureInterface("search")?.hideViewerResults?.({ blurTopUiFocus: !0 }), !0) : (closeLightbox(), !0);
+    return target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ? (search.hideViewerResults({ blurTopUiFocus: !0 }), !0) : (closeLightbox(), !0);
   }
 });
 

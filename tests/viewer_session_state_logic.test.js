@@ -5,6 +5,8 @@ const { importFrontendModule } = require("./frontend_test_module");
 
 const warnings = [];
 let fullscreenLayoutRefreshes = 0;
+let viewerSearchMenuClosures = 0;
+let navigationTargets = [];
 const documentValue = {
   body: { dataset: {} },
   documentElement: { dataset: {} },
@@ -41,10 +43,14 @@ Object.assign(globalThis, {
   getFeatureInterface: (name) => name === "viewer"
     ? { handleResize: () => { fullscreenLayoutRefreshes += 1; } }
     : null,
+  requireFeatureInterface: (name) => {
+    if (name === "search") {
+      return { closeViewerMenus: () => { viewerSearchMenuClosures += 1; } };
+    }
+    throw new Error(`Unexpected required feature: ${name}`);
+  },
   showTopUiTemporarily() {},
-  closeLightboxSearchScopeMenu() {},
-  closeLightboxCatalogMenu() {},
-  navigateTo() {},
+  navigateTo: (target) => navigationTargets.push(target),
   homeDocumentUrl: () => "/"
 });
 const originalWarn = console.warn;
@@ -85,6 +91,13 @@ documentValue.fullscreenElement = null;
 browserApi.reconcileViewerFullscreenPhase("browser-exited");
 assert.equal(viewerState.viewerFullscreenPhase, "inactive");
 assert.equal(browserApi.viewerUsesInDocumentFullscreenNavigation(), false);
+let preventedReturnNavigation = false;
+browserApi.returnToMainSiteFromLightbox({
+  preventDefault() { preventedReturnNavigation = true; }
+});
+assert.equal(preventedReturnNavigation, true);
+assert.equal(viewerSearchMenuClosures, 1, "viewer exit must close Search-owned menus through SearchFeatureApi");
+assert.deepEqual(navigationTargets, ["/"]);
 console.warn = originalWarn;
 
 console.log("viewer_session_state_logic.test.js: PASS");

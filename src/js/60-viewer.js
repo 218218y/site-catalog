@@ -12,7 +12,7 @@
 import { canReturnToSameSite, catalogDocumentUrl, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, viewerDocumentUrl } from "./00-navigation.js";
 import { catalogs } from "./03-runtime-context.js";
 import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
-import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { telemetryTrackCatalogOpen } from "./15-telemetry.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, viewerChromeState, viewerElements, viewerImageState, viewerOnboardingState, viewerViewportState } from "./16-viewer-state.js";
@@ -24,7 +24,6 @@ import { eventTargetElement } from "./02-dom-contracts.js";
 import { isFavoritesLightboxMode } from "./30-favorites-share.js";
 import { attachViewerShareEvents } from "./31-viewer-share.js";
 import { closeViewerInquiry } from "./32-shared-inquiry.js";
-import { renderLightboxCatalogMenu, resetLightboxSearch } from "./50-search-ui.js";
 import { isViewerSessionOpen, transitionViewerPhase } from "./51-viewer-session-state.js";
 import { exitBrowserFullscreen, handleBrowserFullscreenChange, isBrowserFullscreenActive, reconcileViewerFullscreenPhase, returnToMainSiteFromLightbox, syncFullscreenButtonUi, toggleBrowserFullscreen, viewerUsesInDocumentFullscreenNavigation } from "./52-viewer-session.js";
 import { clearSingleViewerResolutionUpgrade, clearViewerImagePreparations, setViewerLoading, viewerPageSrc } from "./53-viewer-image.js";
@@ -89,8 +88,9 @@ function openLightbox(page = undefined, options = {}) {
   syncTopUiPinnedUi();
   syncDocumentLock();
   renderLightboxPageRail();
-  if (!isFavoritesLightboxMode()) renderLightboxCatalogMenu();
-  resetLightboxSearch();
+  requireFeatureInterface("search").prepareViewer({
+    renderCatalogMenu: !isFavoritesLightboxMode()
+  });
   syncLightboxModeUi();
   syncFullscreenButtonUi();
   showTopUiTemporarily(1700);
@@ -106,7 +106,7 @@ function hideLightboxUi() {
   closeViewerOnboarding({ restoreFocus: false });
   closeViewerInquiry({ restoreFocus: false });
   closeViewerMobileMoreMenu();
-  getFeatureInterface("search")?.setLightboxMobileOpen?.(false, { hideResults: true });
+  requireFeatureInterface("search").setLightboxMobileOpen(false, { hideResults: true });
   invalidateViewerImageSwapCommand();
   stopViewerTouchMomentum();
   clearViewerPageWheelGesture();
@@ -339,8 +339,9 @@ registerFeatureInterface("viewer", {
   prepareInquiry: () => {
     if (viewerOnboardingState.viewerOnboardingOpen) closeViewerOnboarding({ restoreFocus: false });
     closeViewerMobileMoreMenu();
-    if (getFeatureInterface("search")?.isLightboxMobileOpen?.()) {
-      getFeatureInterface("search")?.setLightboxMobileOpen?.(false, { hideResults: true });
+    const search = requireFeatureInterface("search");
+    if (search.isLightboxMobileOpen()) {
+      search.setLightboxMobileOpen(false, { hideResults: true });
     }
   },
   setPage: (page, options = {}) => setLightboxPage(page, { navigationSource: VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC, ...options }),
@@ -363,7 +364,8 @@ registerFeatureInterface("viewer", {
       closeViewerOnboarding();
       return true;
     }
-    if (getFeatureInterface("search")?.closeViewerTopLayer?.()) return true;
+    const search = requireFeatureInterface("search");
+    if (search.closeViewerTopLayer()) return true;
     if (isBrowserFullscreenActive()) {
       exitBrowserFullscreen().catch(() => {});
       return true;
@@ -371,7 +373,7 @@ registerFeatureInterface("viewer", {
 
     const target = eventTargetElement(event?.target || null);
     if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) {
-      getFeatureInterface("search")?.hideViewerResults?.({ blurTopUiFocus: true });
+      search.hideViewerResults({ blurTopUiFocus: true });
       return true;
     }
     closeLightbox();

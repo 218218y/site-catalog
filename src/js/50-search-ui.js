@@ -6,7 +6,7 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
-/** @import { CatalogSearchResult } from "../../types/frontend-contracts.js" */
+/** @import { CatalogSearchResult, SearchViewerPrepareOptions } from "../../types/frontend-contracts.js" */
 import { hasHoverPointer, isHtmlElement, isTouchLikePointer } from "./21-ui-runtime.js";
 
 import { tooltips } from "../runtime/tooltip-manager.js";
@@ -317,6 +317,11 @@ function closeLightboxCatalogMenu() {
   searchElements.lightboxCatalogMenuToggle?.setAttribute("aria-expanded", "false");
 }
 
+function closeLightboxViewerMenus() {
+  closeLightboxCatalogMenu();
+  closeLightboxSearchScopeMenu();
+}
+
 function isMobileReaderSearchMode() {
   return Boolean(window.matchMedia?.(MOBILE_READER_SEARCH_MEDIA).matches);
 }
@@ -344,8 +349,7 @@ function setLightboxMobileSearchOpen(open, options = {}) {
   syncLightboxMobileSearchUi();
 
   if (shouldOpen) {
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
+    closeLightboxViewerMenus();
     getFeatureInterface("viewer")?.showTopUi?.();
     ensureSearchIndexLoaded().catch(() => {});
     if (focusInput) {
@@ -403,8 +407,7 @@ function hideLightboxSearchResults(options = {}) {
 
   hideSearchFloatingPreview();
   searchElements.lightboxSearchResults?.classList.add("hidden");
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
+  closeLightboxViewerMenus();
 
   if (blurTopUiFocus) {
     const activeElement = document.activeElement;
@@ -973,6 +976,12 @@ function renderLightboxCatalogMenu() {
   });
 }
 
+/** @param {SearchViewerPrepareOptions} [options] */
+function prepareViewerSearch(options = {}) {
+  if (options.renderCatalogMenu !== false) renderLightboxCatalogMenu();
+  resetLightboxSearch();
+}
+
 /** @param {unknown} query */
 function globalSearchKey(query) {
   return [String(query || "").trim(), getGlobalSearchCategory()].join("\u0000");
@@ -1240,8 +1249,7 @@ function attachSearchUiEvents() {
     ensureSearchIndexLoaded().catch(() => {});
     event.stopPropagation();
     getFeatureInterface("catalog-detail")?.close();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
+    closeLightboxViewerMenus();
     setGlobalSearchPanelOpen(!isGlobalSearchPanelOpen(), { focus: true, focusButton: true });
   });
   searchElements.globalSearchClose?.addEventListener("click", (event) => {
@@ -1274,8 +1282,7 @@ function attachSearchUiEvents() {
     event.stopPropagation();
     hideSearchFloatingPreview();
     getFeatureInterface("catalog-detail")?.close();
-    closeLightboxCatalogMenu();
-    closeLightboxSearchScopeMenu();
+    closeLightboxViewerMenus();
     renderGlobalSearchScopeMenu();
     const isOpen = !searchElements.globalSearchScopeMenu?.classList.contains("hidden");
     searchElements.globalSearchScopeMenu?.classList.toggle("hidden", isOpen);
@@ -1371,8 +1378,7 @@ function attachSearchUiEvents() {
 function prepareSearchRoute(nextPage) {
   closeGlobalSearchPanel({ focusButton: false });
   closeGlobalSearchScopeMenu();
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
+  closeLightboxViewerMenus();
   if (nextPage !== "viewer") setLightboxMobileSearchOpen(false, { hideResults: true });
 }
 
@@ -1388,8 +1394,7 @@ function handleSearchDocumentPointer(target) {
     if (!searchElements.globalSearchScopeMenu.contains(target) && !searchElements.globalSearchScopeToggle.contains(target)) {
       closeGlobalSearchScopeMenu();
     }
-    closeLightboxSearchScopeMenu();
-    closeLightboxCatalogMenu();
+    closeLightboxViewerMenus();
     getFeatureInterface("catalog-detail")?.close();
     return true;
   }
@@ -1399,8 +1404,7 @@ function handleSearchDocumentPointer(target) {
   if (searchElements.lightboxCatalogMenu.contains(target) || searchElements.lightboxCatalogMenuToggle.contains(target)) return true;
   closeGlobalSearchPanel({ focusButton: false });
   closeGlobalSearchScopeMenu();
-  closeLightboxSearchScopeMenu();
-  closeLightboxCatalogMenu();
+  closeLightboxViewerMenus();
   return false;
 }
 
@@ -1441,8 +1445,7 @@ registerFeatureInterface("search", {
       (searchElements.lightboxCatalogMenu && !searchElements.lightboxCatalogMenu.classList.contains("hidden")) ||
       (searchElements.lightboxSearchScopeMenu && !searchElements.lightboxSearchScopeMenu.classList.contains("hidden"))
     ) {
-      closeLightboxCatalogMenu();
-      closeLightboxSearchScopeMenu();
+      closeLightboxViewerMenus();
       return true;
     }
     return false;
@@ -1453,6 +1456,9 @@ registerFeatureInterface("search", {
     target?.closest?.("[data-lightbox-search-page]") &&
     searchElements.lightboxSearchResults.contains(target.closest("[data-lightbox-search-page]"))
   ),
+  prepareViewer: (options = {}) => prepareViewerSearch(options),
+  syncViewerStatus: initLightboxSearchStatus,
+  closeViewerMenus: closeLightboxViewerMenus,
   hideViewerResults: (options = {}) => hideLightboxSearchResults(options),
   closeGlobalPanel: (options = {}) => closeGlobalSearchPanel(options),
   attachEvents: attachSearchUiEvents,
@@ -1463,4 +1469,3 @@ registerFeatureInterface("search", {
   handleScroll: handleSearchScroll
 });
 
-export { closeLightboxCatalogMenu, closeLightboxSearchScopeMenu, hideLightboxSearchResults, initLightboxSearchStatus, renderLightboxCatalogMenu, resetLightboxSearch };
