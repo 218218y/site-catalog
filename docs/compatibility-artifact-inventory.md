@@ -1,6 +1,6 @@
-# Frontend compatibility and generated artifact inventory
+# Frontend runtime asset boundaries
 
-This inventory distinguishes active runtime assets from reconstruction or diagnostic outputs. It is enforced by `tests/compatibility_artifact_inventory.test.js`.
+This contract defines the active runtime asset boundary independently of past migrations. Browser structure is verified from HTML and the TypeScript AST; build/deploy membership is verified from the Python builders' public constants rather than source-text patterns. It is enforced by `tests/compatibility_artifact_inventory.test.js` plus the corresponding builder unit tests.
 
 ## Active browser bootstrap
 

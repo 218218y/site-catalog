@@ -25,6 +25,7 @@ files = [
   "tools/python_toolchain.py",
   "tools/setup_python_env.py",
   "tools/verify_project.py",
+  "tools/run_python_quality.py",
   "tools/catalog_types.py",
   "tools/catalog_schema.py",
   "tools/catalog_search_index.py",

@@ -114,7 +114,7 @@ assert.doesNotMatch(favoritesRoutingCss, /(?:^|\n)\.header-favorites-count\s*\{/
 assert.match(responsiveCss, /@media \(max-width: 760px\)/);
 assert.match(favoritesRoutingCss, /\.favorites-panel/);
 assert.match(favoritesRoutingCss, /Multi-document application layout/);
-assert.match(visualPolishCss, /Stage 12/);
-assert.match(visualPolishCss, /Favorites sharing/);
+assert.match(visualPolishCss, /\.image-placeholder-frame\s*\{/);
+assert.match(visualPolishCss, /\.favorites-share-inline\s*\{/);
 
 console.log("feature_event_ownership_contract.test.js: PASS");

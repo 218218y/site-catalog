@@ -13,12 +13,36 @@ def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+MYPY_PLATFORM_TARGETS: tuple[tuple[str, str], ...] = (
+    ("Linux", "linux"),
+    ("Windows", "win32"),
+)
+
+
+def python_typecheck_commands(python: str) -> tuple[tuple[str, ...], ...]:
+    """Return deterministic mypy commands for every supported host platform."""
+    return tuple(
+        (
+            python,
+            "-m",
+            "mypy",
+            "--config-file",
+            "pyproject.toml",
+            "--platform",
+            platform,
+            "--cache-dir",
+            f".artifacts/mypy-cache/{platform}",
+        )
+        for _, platform in MYPY_PLATFORM_TARGETS
+    )
+
+
 def quality_commands(*, lint: bool, types: bool) -> tuple[tuple[str, ...], ...]:
     commands: list[tuple[str, ...]] = []
     if lint:
         commands.append((sys.executable, "-m", "ruff", "check", "tools", "tests"))
     if types:
-        commands.append((sys.executable, "-m", "mypy", "--config-file", "pyproject.toml"))
+        commands.extend(python_typecheck_commands(sys.executable))
     return tuple(commands)
 
 

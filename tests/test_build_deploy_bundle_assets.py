@@ -69,6 +69,27 @@ def test_catalog_snapshot_is_bundled_into_viewer_not_deployed_standalone() -> No
     assert "catalog-snapshot.js" not in MODULE.JSON_DEPLOY_FILES
 
 
+def test_runtime_deploy_manifest_excludes_retired_artifacts() -> None:
+    retired = {
+        "app.js",
+        "catalog-snapshot.js",
+        "catalogs.search.js",
+        "catalogs.search.json",
+        "catalogs.generated.js",
+        "catalog-taxonomy.generated.js",
+    }
+    published = set(MODULE.DEPLOY_FILES) | set(MODULE.OPTIONAL_DEPLOY_FILES) | set(MODULE.JSON_DEPLOY_FILES)
+    assert retired.isdisjoint(published)
+    assert set(MODULE.DEPLOY_EXTERNAL_MODULE_FILES) == {
+        "catalog-search.js",
+        "tooltip-manager.js",
+        "favorites-store.js",
+        "site-routes.js",
+        "catalogs.generated.module.js",
+        "catalog-taxonomy.generated.module.js",
+    }
+
+
 def test_manifest_assets_and_custom_icon_family_are_copied(tmp_path: Path) -> None:
     root = tmp_path / "project"
     out = tmp_path / "bundle"

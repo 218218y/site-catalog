@@ -111,6 +111,7 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
   const objectDeclarations = Object.create(null);
   const literalDeclarations = Object.create(null);
   const functionDeclarations = [];
+  const variableDeclarations = [];
   const calls = [];
   const newExpressions = [];
   const assignmentTargets = [];
@@ -137,8 +138,12 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
       functionDeclarations.push(statement.name.text);
     }
     if (is.isVariableStatement(statement)) {
+      const exported = Boolean(
+        statement.modifiers?.some((modifier) => modifier.kind === SyntaxKind.ExportKeyword),
+      );
       for (const declaration of statement.declarationList.declarations) {
         if (!is.isIdentifier(declaration.name)) continue;
+        variableDeclarations.push({ name: declaration.name.text, exported });
         const literal = declaration.initializer
           ? literalValue(declaration.initializer, is, SyntaxKind)
           : undefined;
@@ -260,6 +265,7 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
     objectDeclarations,
     literalDeclarations,
     functionDeclarations,
+    variableDeclarations,
     calls,
     newExpressions,
     assignmentTargets,

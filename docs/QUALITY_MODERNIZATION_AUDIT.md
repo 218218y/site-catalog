@@ -23,7 +23,7 @@
 
 `tests/feature_event_ownership_contract.test.js` משתמש ב-AST עבור JavaScript ומשאיר Regex רק לחוזי CSS, שבהם הטקסט וה-selectors הם החוזה עצמו.
 
-בבסיס שלפני השינוי היו 1,444 assertions מסוג match/doesNotMatch ב-54 קובצי JavaScript. לאחר השלב יש 1,358 assertions ב-50 קבצים: 86 assertions מבניים הוסרו מהמוקדים הקריטיים, בלי לבצע המרה עיוורת של חוזי HTML/CSS לגישה מורכבת יותר.
+בבסיס שלפני השינוי היו 1,444 assertions מסוג match/doesNotMatch ב-54 קובצי JavaScript. לאחר גל המודרניזציה הנוכחי יש 1,320 assertions ב-53 קבצים: 124 assertions מבניים הוסרו, בלי לבצע המרה עיוורת של חוזי HTML/CSS שבהם הטקסט עצמו הוא החוזה. חוזה נכסי ה-runtime משתמש כעת ב-TypeScript AST וב-constants אמיתיים של כלי ה-Python במקום לקרוא את קוד המימוש שלהם כטקסט, וגם extraction של גופי פונקציות Search באמצעות Regex הוחלף בשיוך AST לפי owner/function.
 
 ## 2. Ruff ו-mypy כשערים מדורגים
 
@@ -40,6 +40,7 @@ mypy מופעל עם `disallow_untyped_defs`, `check_untyped_defs`, `no_implicit
 - `tools/python_toolchain.py`
 - `tools/setup_python_env.py`
 - `tools/verify_project.py`
+- `tools/run_python_quality.py`
 - `tools/catalog_types.py`
 - `tools/catalog_schema.py`
 - `tools/catalog_search_index.py`
@@ -53,6 +54,8 @@ mypy מופעל עם `disallow_untyped_defs`, `check_untyped_defs`, `no_implicit
 הגל הנוכחי סוגר owner שלם: JSON/schema → compiler/search → SEO/page rendering → deploy bundle → typed HTTP/control-panel boundary. כך שינוי במבנה נתוני קטלוג, מצב build או DTO של לוח השליטה נבדק סטטית לאורך השרשרת ולא רק בקובץ בודד.
 
 זהו ratchet אמיתי ולא `ignore_errors`: מודול שנכנס לרשימה חייב לעמוד בחוזה המלא. מאחר שכלי הפרויקט מורצים כקובצי script מתוך `tools/`, ‏mypy מוגדר עם `namespace_packages = false`; כך namespace הטיפוסים תואם ל-runtime הקנוני ולא נוצרת זהות כפולה מלאכותית של אותו קובץ כ-`foo` וכ-`tools.foo`. אין כאן `ignore_errors` או החלשה של בדיקת הפונקציות עצמן. הרחבת הרשימה ממשיכה owner אחר owner, בלי להכניס suppressions גורפים.
+
+ה-type gate אינו תלוי עוד בפלטפורמת ה-host שעליה במקרה רץ mypy. כל verification מריץ את אותו חוזה פעמיים, עם `--platform linux` ו-`--platform win32` וב-cache נפרד לכל יעד. כך API של typeshed שקיים רק ב-POSIX או רק ב-Windows נכשל כבר ב-CI גם אם ה-CI עצמו רץ על הפלטפורמה השנייה. `python_version = 3.13` נשאר קו השפה המינימלי, ולכן התקנה מקומית על Python 3.14 אינה משנה את חוזה התאימות.
 
 הגרסאות נעולות ב-`tools/requirements-dev.txt`, נבדקות ב-bootstrap של `.venv`, ונוספו כשלבים חובה לפני pytest ב-`tools/verify_project.py`. `.python-version` הוא מקור האמת לקו התאימות המינימלי: CI, Ruff ו-mypy מכוונים לגרסת הבסיס, בעוד launcher ו-doctor מקבלים minor חדש יותר באותו major. ה-stamp של `.venv` הוא JSON versioned שמכיל fingerprint של דרישות/קו התאימות וגם runtime identity; אם ה-runtime שנבחר משתנה (למשל 3.13 → 3.14), הסביבה נבנית מחדש ולא נעשה ערבוב בין interpreters.
 

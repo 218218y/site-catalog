@@ -79,6 +79,28 @@ def test_generated_frontend_assets_are_current() -> None:
     assert all(result.changed is False for result in results)
 
 
+def test_external_browser_module_contract_is_explicit() -> None:
+    assert dict(MODULE.RUNTIME_EXTERNAL_MODULES) == {
+        "src/runtime/catalog-search.js": "catalog-search.js",
+        "src/runtime/tooltip-manager.js": "tooltip-manager.js",
+        "src/runtime/favorites-store.js": "favorites-store.js",
+        "src/runtime/site-routes.js": "site-routes.js",
+    }
+    assert dict(MODULE.GENERATED_DATA_EXTERNAL_MODULES) == {
+        "catalogs.generated.module.js": "catalogs.generated.module.js",
+        "catalog-taxonomy.generated.module.js": "catalog-taxonomy.generated.module.js",
+    }
+    assert dict(MODULE.ROUTE_EXTERNAL_MODULES) == {
+        **MODULE.RUNTIME_EXTERNAL_MODULES,
+        **MODULE.GENERATED_DATA_EXTERNAL_MODULES,
+    }
+    assert dict(MODULE.RUNTIME_EXTERNAL_DEPENDENCIES) == {
+        "src/runtime/catalog-search.js": {
+            "catalogs.generated.module.js": "catalogs.generated.module.js",
+        }
+    }
+
+
 def test_frontend_manifests_define_real_route_boundaries() -> None:
     assert MODULE.ROUTE_ASSETS == {
         "home": ("styles-catalog.css", "app-catalog.js"),

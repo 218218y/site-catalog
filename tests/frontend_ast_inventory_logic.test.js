@@ -13,6 +13,7 @@ const text = 'registerFeatureInterface("string-only", {})';
 import value from "./real.js";
 export { value as forwarded } from "./forwarded.js";
 const owner = Object.freeze({ ready: false, count: 0 });
+export const publicValue = 1;
 function init() {
   registerFeatureInterface("viewer", { init() {} });
   requireFeatureInterface("app-shell").initialize();
@@ -26,6 +27,11 @@ const inventory = inventorySource(source, "fixture.js");
 assert.deepEqual(inventory.staticImports, ["./real.js", "./forwarded.js"]);
 assert.deepEqual(inventory.dynamicImports, [{ specifier: "./lazy.js", static: true }]);
 assert.deepEqual(inventory.functionDeclarations, ["init"]);
+assert.deepEqual(inventory.variableDeclarations, [
+  { name: "text", exported: false },
+  { name: "owner", exported: false },
+  { name: "publicValue", exported: true },
+]);
 assert.deepEqual(inventory.objectDeclarations.owner, ["ready", "count"]);
 assert.deepEqual(findCalls(inventory, "registerFeatureInterface").map((call) => call.arguments[0]), ["viewer"]);
 assert.equal(findCalls(inventory, 'requireFeatureInterface("app-shell").initialize').length, 1);

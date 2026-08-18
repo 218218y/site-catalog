@@ -1473,6 +1473,24 @@ def start_job(
         return job
 
 
+if sys.platform == "win32":
+    def _signal_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> None:
+        """Reject POSIX-only group signals on Windows."""
+        raise OSError("POSIX process-group signals are unavailable on Windows")
+
+    def _force_kill_process_group(process: subprocess.Popen[str]) -> None:
+        """Force-stop the Windows worker process."""
+        process.kill()
+else:
+    def _signal_process_group(process: subprocess.Popen[str], sig: signal.Signals) -> None:
+        """Signal the POSIX worker process group created by start_new_session."""
+        os.killpg(process.pid, sig)
+
+    def _force_kill_process_group(process: subprocess.Popen[str]) -> None:
+        """Force-stop the POSIX worker process group."""
+        os.killpg(process.pid, signal.SIGKILL)
+
+
 def _signal_job_process(process: subprocess.Popen[str]) -> str:
     """Request cooperative cancellation for a worker process group."""
     if process.poll() is not None:
@@ -1487,7 +1505,7 @@ def _signal_job_process(process: subprocess.Popen[str]) -> str:
                 pass
     else:
         try:
-            os.killpg(process.pid, signal.SIGINT)
+            _signal_process_group(process, signal.SIGINT)
             return "sigint-group"
         except (OSError, ProcessLookupError):
             pass
@@ -1504,7 +1522,7 @@ def _escalate_job_cancellation(job: Job, process: subprocess.Popen[str]) -> None
 
     try:
         if os.name != "nt":
-            os.killpg(process.pid, signal.SIGTERM)
+            _signal_process_group(process, signal.SIGTERM)
         else:
             process.terminate()
         process.wait(timeout=4)
@@ -1514,10 +1532,7 @@ def _escalate_job_cancellation(job: Job, process: subprocess.Popen[str]) -> None
 
     append_job_log(job, "[cancel] termination timed out; forcing process exit")
     try:
-        if os.name != "nt":
-            os.killpg(process.pid, signal.SIGKILL)
-        else:
-            process.kill()
+        _force_kill_process_group(process)
     except (OSError, ProcessLookupError):
         pass
 

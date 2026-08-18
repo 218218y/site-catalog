@@ -48,6 +48,7 @@ def test_python_quality_configuration_is_a_deliberate_ratchet() -> None:
         "tools/project_doctor.py",
         "tools/python_toolchain.py",
         "tools/check_frontend_contracts.py",
+        "tools/run_python_quality.py",
     }.issubset(typed_modules)
     assert {
         "tools/catalog_types.py",
@@ -71,14 +72,34 @@ def test_python_verification_runs_lint_types_then_tests() -> None:
     )
     assert [step.title for step in steps] == [
         "Python Ruff correctness lint",
-        "Python static type contracts",
+        "Python static type contracts (Linux)",
+        "Python static type contracts (Windows)",
         "Python tests",
     ]
     assert steps[0].command == (
         "python-under-test", "-m", "ruff", "check", "tools", "tests",
     )
     assert steps[1].command == (
-        "python-under-test", "-m", "mypy", "--config-file", "pyproject.toml",
+        "python-under-test",
+        "-m",
+        "mypy",
+        "--config-file",
+        "pyproject.toml",
+        "--platform",
+        "linux",
+        "--cache-dir",
+        ".artifacts/mypy-cache/linux",
+    )
+    assert steps[2].command == (
+        "python-under-test",
+        "-m",
+        "mypy",
+        "--config-file",
+        "pyproject.toml",
+        "--platform",
+        "win32",
+        "--cache-dir",
+        ".artifacts/mypy-cache/win32",
     )
 
 
@@ -90,4 +111,28 @@ def test_package_scripts_expose_doctor_and_individual_quality_gates() -> None:
     assert scripts["check:python-types"].endswith("tools/run_python_quality.py --types")
     assert run_python_quality.quality_commands(lint=True, types=False) == (
         (sys.executable, "-m", "ruff", "check", "tools", "tests"),
+    )
+    assert run_python_quality.quality_commands(lint=False, types=True) == (
+        (
+            sys.executable,
+            "-m",
+            "mypy",
+            "--config-file",
+            "pyproject.toml",
+            "--platform",
+            "linux",
+            "--cache-dir",
+            ".artifacts/mypy-cache/linux",
+        ),
+        (
+            sys.executable,
+            "-m",
+            "mypy",
+            "--config-file",
+            "pyproject.toml",
+            "--platform",
+            "win32",
+            "--cache-dir",
+            ".artifacts/mypy-cache/win32",
+        ),
     )

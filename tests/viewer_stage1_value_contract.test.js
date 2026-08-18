@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { readAllBundles, readAllCssBundles } = require("./frontend_test_assets");
+const { findCalls, inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.join(__dirname, "..");
 const app = readAllBundles();
@@ -16,6 +17,10 @@ const pageControllerSource = fs.readFileSync(path.join(root, "src/js/59-viewer-p
 const viewerSource = fs.readFileSync(path.join(root, "src/js/60-viewer.js"), "utf8");
 const viewerActionsSource = fs.readFileSync(path.join(root, "src/js/62-viewer-actions.js"), "utf8");
 const telemetrySource = fs.readFileSync(path.join(root, "src/js/15-telemetry.js"), "utf8");
+const sourceAst = inventoryProjectFiles(root, [
+  "src/js/50-search-ui.js",
+]);
+const searchAst = sourceAst["src/js/50-search-ui.js"];
 assert.doesNotMatch(sharedInquirySource, /setTooltipText\(viewerElements\.viewerInquiryButton/, "inquiry button must not be registered with the tooltip manager");
 
 for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.html"]) {
@@ -64,17 +69,42 @@ assert.match(pageControllerSource, /function updateLightbox\([\s\S]*?syncViewerI
 assert.match(viewerActionsSource, /function handleViewerMobileMoreKeydown\([\s\S]*?ArrowDown[\s\S]*?ArrowUp[\s\S]*?Home[\s\S]*?End/);
 assert.match(viewerSource, /function hideLightboxUi\([\s\S]*?closeViewerInquiry\(\{ restoreFocus: false \}\)[\s\S]*?closeViewerMobileMoreMenu\(\)/);
 
-const lightboxRender = searchUiSource.match(/async function renderLightboxSearchResults\(query\) \{([\s\S]*?)\n\}\n\nfunction renderLightboxCatalogMenu/)?.[1];
-const globalRender = searchUiSource.match(/async function renderSearchResults\(query\) \{([\s\S]*?)\n\}\n\nfunction attachSearchUiEvents/)?.[1];
-assert.ok(lightboxRender, "lightbox search renderer should be extractable");
-assert.ok(globalRender, "global search renderer should be extractable");
-assert.doesNotMatch(lightboxRender, /telemetryTrackSearch/);
-assert.doesNotMatch(globalRender, /telemetryTrackSearch/);
-assert.match(searchUiSource, /function submitLightboxSearch\([\s\S]*?trackCompletedLightboxSearch\("submit", rawQuery\)/);
-assert.match(searchUiSource, /function submitGlobalSearch\([\s\S]*?trackCompletedGlobalSearch\("submit", rawQuery, \{ immediate: true \}\)/);
-assert.match(searchUiSource, /trackCompletedLightboxSearch\("result-open"\)/);
-assert.match(searchUiSource, /trackCompletedGlobalSearch\("result-open", undefined, \{ immediate: true \}\)/);
-assert.match(searchUiSource, /function flushGlobalSearchTelemetryBeforeNavigation\([\s\S]*?telemetryFlush\(\)/);
+assert.equal(
+  findCalls(searchAst, "telemetryTrackSearch")
+    .some((call) => ["renderLightboxSearchResults", "renderSearchResults"].includes(call.enclosingFunction)),
+  false,
+  "rendering search results must remain telemetry-free",
+);
+assert.equal(
+  findCalls(searchAst, "trackCompletedLightboxSearch")
+    .some((call) => call.enclosingFunction === "submitLightboxSearch" && call.arguments[0] === "submit"),
+  true,
+  "lightbox search completion is owned by explicit submit",
+);
+assert.equal(
+  findCalls(searchAst, "trackCompletedGlobalSearch")
+    .some((call) => call.enclosingFunction === "submitGlobalSearch" && call.arguments[0] === "submit"),
+  true,
+  "global search completion is owned by explicit submit",
+);
+assert.equal(
+  findCalls(searchAst, "trackCompletedLightboxSearch")
+    .some((call) => call.arguments[0] === "result-open"),
+  true,
+  "lightbox result navigation records a completed search",
+);
+assert.equal(
+  findCalls(searchAst, "trackCompletedGlobalSearch")
+    .some((call) => call.arguments[0] === "result-open"),
+  true,
+  "global result navigation records a completed search",
+);
+assert.equal(
+  findCalls(searchAst, "telemetryFlush")
+    .some((call) => call.enclosingFunction === "flushGlobalSearchTelemetryBeforeNavigation"),
+  true,
+  "global search telemetry flushes before navigation",
+);
 assert.match(telemetrySource, /function telemetryTrackSearch\([\s\S]*?completion = telemetryCleanText\(options\.completion \|\| "submit"[\s\S]*?action: completion[\s\S]*?immediate: options\.immediate === true/);
 assert.doesNotMatch(telemetrySource + searchUiSource, /TELEMETRY_SEARCH_DELAY_MS|searchTimers/);
 

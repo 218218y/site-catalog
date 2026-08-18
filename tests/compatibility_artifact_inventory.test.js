@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.resolve(__dirname, "..");
 const routeDocuments = ["index.html", "catalog.html", "favorites.html", "viewer.html", "site.template.html"];
@@ -17,6 +18,16 @@ const externalRuntimeAssets = [
   "favorites-store.js",
   "site-routes.js",
 ];
+const routeApps = ["app-catalog.js", "app-favorites.js", "app-viewer.js"];
+const javascriptFiles = [
+  ...routeApps,
+  "app-payment.js",
+  "catalog-search.js",
+  "catalog-snapshot.js",
+  ...generatedDataModules,
+  "src/js/31-viewer-share.js",
+];
+const ast = inventoryProjectFiles(root, javascriptFiles);
 
 for (const documentName of routeDocuments) {
   const source = fs.readFileSync(path.join(root, documentName), "utf8");
@@ -43,53 +54,44 @@ for (const retired of [
   assert.equal(fs.existsSync(path.join(root, retired)), false, `${retired} must remain retired`);
 }
 
-const deploy = fs.readFileSync(path.join(root, "tools", "build_deploy_bundle.py"), "utf8");
-const deployFiles = deploy.split("DEPLOY_FILES =", 2)[1].split("OPTIONAL_DEPLOY_FILES", 1)[0];
-assert.doesNotMatch(deployFiles, /catalogs\.search\.js/);
-assert.doesNotMatch(deployFiles, /catalogs\.search\.json/);
-assert.doesNotMatch(deployFiles, /catalog-snapshot\.js/);
-assert.match(deploy, /fingerprint_external_modules/);
-assert.match(deploy, /DEPLOY_EXTERNAL_MODULE_FILES/);
-
-const frontendBuilder = fs.readFileSync(path.join(root, "tools", "build_frontend_assets.py"), "utf8");
-const frontendRunner = fs.readFileSync(path.join(root, "tools", "build_frontend_esbuild.mjs"), "utf8");
-const frontendContracts = fs.readFileSync(path.join(root, "tools", "check_frontend_contracts.py"), "utf8");
-const sharedRuntimeSources = ["20-catalog-runtime.js", "21-ui-runtime.js"]
-  .map((name) => fs.readFileSync(path.join(root, "src", "js", name), "utf8"))
-  .join("\n");
-const viewerShare = fs.readFileSync(path.join(root, "src", "js", "31-viewer-share.js"), "utf8");
-const snapshotModule = fs.readFileSync(path.join(root, "catalog-snapshot.js"), "utf8");
-assert.doesNotMatch(frontendBuilder, /OBSOLETE_GENERATED_FILES|remove_obsolete_generated_files|app\.js/);
-assert.match(frontendBuilder, /RUNTIME_EXTERNAL_MODULES/);
-assert.match(frontendBuilder, /GENERATED_DATA_EXTERNAL_MODULES/);
-assert.doesNotMatch(frontendContracts, /obsolete compatibility loader remains|base \/ "app\.js"/);
-assert.doesNotMatch(sharedRuntimeSources, /catalog-snapshot\.js|catalogSnapshotApi/);
-assert.match(viewerShare, /import catalogSnapshotApi from "\.\.\/\.\.\/catalog-snapshot\.js";/);
-assert.match(frontendRunner, /external:\s*true/);
-assert.match(snapshotModule, /export default catalogSnapshotApi/);
-assert.doesNotMatch(snapshotModule, /window\.CatalogSnapshot|module\.exports/);
-
-for (const appName of ["app-catalog.js", "app-favorites.js", "app-viewer.js"]) {
-  const app = fs.readFileSync(path.join(root, appName), "utf8");
-  for (const asset of [...externalRuntimeAssets, ...generatedDataModules]) {
-    assert.match(app, new RegExp(`from ["']\\./${asset.replaceAll(".", "\\.")}["']`), `${appName}: ${asset}`);
-  }
+const expectedExternalImports = new Set([
+  ...externalRuntimeAssets.map((name) => `./${name}`),
+  ...generatedDataModules.map((name) => `./${name}`),
+]);
+for (const appName of routeApps) {
+  const imports = new Set(ast[appName].staticImports);
+  assert.deepEqual(imports, expectedExternalImports, `${appName}: external module boundary`);
 }
 
-const paymentApp = fs.readFileSync(path.join(root, "app-payment.js"), "utf8");
-assert.match(paymentApp, /src\/entries\/payment\.js/);
-for (const asset of [...externalRuntimeAssets, ...generatedDataModules]) {
-  assert.doesNotMatch(paymentApp, new RegExp(`from ["']\\./${asset.replaceAll(".", "\\.")}["']`), `app-payment.js: ${asset} must remain absent`);
+assert.deepEqual(ast["app-payment.js"].staticImports, [], "payment route stays runtime-module free");
+assert.deepEqual(ast["catalog-search.js"].staticImports, ["./catalogs.generated.module.js"]);
+assert.ok(
+  ast["src/js/31-viewer-share.js"].staticImports.includes("../../catalog-snapshot.js"),
+  "viewer sharing owns the catalog snapshot dependency",
+);
+
+for (const [asset, exportedName] of [
+  ["catalogs.generated.module.js", "catalogs"],
+  ["catalog-taxonomy.generated.module.js", "catalogTaxonomy"],
+]) {
+  const exportedVariables = ast[asset].variableDeclarations
+    .filter((declaration) => declaration.exported)
+    .map((declaration) => declaration.name);
+  assert.deepEqual(exportedVariables, [exportedName], `${asset}: canonical generated export`);
+  assert.equal(ast[asset].staticImports.length, 0, `${asset}: generated data is dependency-free`);
+  assert.equal(
+    ast[asset].propertyAccesses.some((access) => /^(?:window|document|globalThis)\./.test(access.path)),
+    false,
+    `${asset}: generated data must remain runtime-neutral`,
+  );
 }
 
-const searchRuntime = fs.readFileSync(path.join(root, "catalog-search.js"), "utf8");
-assert.match(searchRuntime, /from ["']\.\/catalogs\.generated\.module\.js["']/);
-assert.doesNotMatch(searchRuntime, /BARGIG_CATALOGS|BARGIG_CATALOG_TAXONOMY/);
-
-for (const asset of generatedDataModules) {
-  const source = fs.readFileSync(path.join(root, asset), "utf8");
-  assert.match(source, /export const (?:catalogs|catalogTaxonomy) = Object\.freeze\(/);
-  assert.doesNotMatch(source, /window\.|document\.|globalThis\./);
-}
+const snapshotAst = ast["catalog-snapshot.js"];
+assert.ok(snapshotAst.exportStatementCount >= 1, "catalog snapshot must remain an ES module");
+assert.equal(
+  snapshotAst.assignmentTargets.some((target) => target.startsWith("window.") || target === "module.exports"),
+  false,
+  "catalog snapshot must not expose compatibility globals",
+);
 
 console.log("compatibility_artifact_inventory.test.js: PASS");
