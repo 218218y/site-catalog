@@ -13,6 +13,8 @@ const text = 'registerFeatureInterface("string-only", {})';
 import value from "./real.js";
 export { value as forwarded } from "./forwarded.js";
 const owner = Object.freeze({ ready: false, count: 0 });
+const roles = new Set(["viewer", "catalog"]);
+const modes = Object.freeze(["single", "paged"]);
 export const publicValue = 1;
 function init() {
   registerFeatureInterface("viewer", { init() {} });
@@ -30,9 +32,13 @@ assert.deepEqual(inventory.functionDeclarations, ["init"]);
 assert.deepEqual(inventory.variableDeclarations, [
   { name: "text", exported: false },
   { name: "owner", exported: false },
+  { name: "roles", exported: false },
+  { name: "modes", exported: false },
   { name: "publicValue", exported: true },
 ]);
 assert.deepEqual(inventory.objectDeclarations.owner, ["ready", "count"]);
+assert.deepEqual(inventory.literalArrayDeclarations.roles, ["viewer", "catalog"]);
+assert.deepEqual(inventory.literalArrayDeclarations.modes, ["single", "paged"]);
 assert.deepEqual(findCalls(inventory, "registerFeatureInterface").map((call) => call.arguments[0]), ["viewer"]);
 assert.equal(findCalls(inventory, 'requireFeatureInterface("app-shell").initialize').length, 1);
 assert.equal(hasPropertyPath(inventory, "window.RealRuntime"), true);

@@ -129,3 +129,36 @@ python tools/project_doctor.py --json
 ## 6. הוכחת גבול runtime
 
 השינוי נוגע רק בכלי פיתוח, בדיקות, תצורה ותיעוד. כל 13 נכסי ה-frontend שנבדקו — ארבעת באנדלי JavaScript, ארבעת קובצי CSS, ארבעת מודולי runtime החיצוניים ו-Search Worker — נשארו זהים byte-for-byte לבסיס שלפני שלב 4.
+
+## 7. Telemetry ingestion contract hardening
+
+The telemetry endpoint now treats the browser/server boundary as a versioned data contract rather
+than a permissive sanitizer. Active ingestion accepts schema v4 only and derives its accepted event
+set from one `EVENT_FIELDS` owner. Each event is projected onto its own field set before storage, so
+a globally known field cannot leak into an unrelated event merely because the storage layout has a
+column for it. Retired `image_error` data remains readable in historical reports but is no longer an
+ingestion event.
+
+Additional invariants are enforced at the boundary:
+
+- batches larger than the browser's 20-event contract are rejected atomically instead of truncated;
+- the JSON media type is parsed exactly instead of accepting arbitrary `application/json...` prefixes;
+- path values lose query strings and fragments before storage;
+- low-cardinality action/rating/navigation values are allowlisted;
+- error identifiers must be first-party short fingerprints;
+- non-applicable image lifecycle fields are stored as empty values rather than synthetic `unknown`
+  values on every unrelated event;
+- JSON responses opt into `Cross-Origin-Resource-Policy: same-origin` and `Referrer-Policy: no-referrer`.
+
+The browser's retired `durationMs` field was removed from the active client payload contract. The
+Analytics Engine numeric slot remains stable as zero so historical column positions and report
+compatibility are not rewritten. Contract tests compare the active ingestion event owner against the
+browser event inventory and exercise malformed content types, legacy versions, retired events, field
+projection, path minimization and oversized batches through real `Request`/`Response` objects.
+
+No process-local pseudo-rate-limiter or visitor identifier was introduced. Pages Functions are
+distributed and such a limiter would not provide a trustworthy global abuse boundary; collecting IP
+or User-Agent solely for throttling would also violate the existing privacy model. Volumetric abuse
+control remains an infrastructure concern, while the application contract minimizes and constrains
+what any accepted request can place in Analytics Engine.
+

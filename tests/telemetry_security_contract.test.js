@@ -12,9 +12,14 @@ const legalTemplate = fs.readFileSync(path.join(root, "legal.template.html"), "u
 const notFound = fs.readFileSync(path.join(root, "404.html"), "utf8");
 const e2eServer = fs.readFileSync(path.join(root, "tools/e2e_server.js"), "utf8");
 const wrangler = JSON.parse(fs.readFileSync(path.join(root, "wrangler.jsonc"), "utf8"));
-const ast = inventoryProjectFiles(root, ["src/js/15-telemetry.js", "src/js/80-app-shell.js"]);
+const ast = inventoryProjectFiles(root, [
+  "src/js/15-telemetry.js",
+  "src/js/80-app-shell.js",
+  "functions/api/telemetry.js"
+]);
 const telemetry = ast["src/js/15-telemetry.js"];
 const appShell = ast["src/js/80-app-shell.js"];
+const telemetryIngest = ast["functions/api/telemetry.js"];
 const telemetryFunctions = new Set(telemetry.functionDeclarations);
 const telemetryIdentifiers = new Set(telemetry.identifiers);
 const propertyLiteral = (property, value, owner = null) => telemetry.objectPropertyLiterals.some((entry) => (
@@ -25,6 +30,7 @@ const propertyLiteral = (property, value, owner = null) => telemetry.objectPrope
 
 assert.equal(telemetry.literalDeclarations.TELEMETRY_ENDPOINT, "/api/telemetry");
 assert.equal(telemetry.literalDeclarations.TELEMETRY_SCHEMA_VERSION, 4);
+assert.equal(telemetryIngest.literalDeclarations.TELEMETRY_SCHEMA_VERSION, 4);
 assert.equal(hasPropertyPath(telemetry, "navigator.globalPrivacyControl"), true);
 assert.equal(hasPropertyPath(telemetry, "navigator.doNotTrack"), true);
 assert.equal(propertyLiteral("credentials", "omit", "telemetryFlush"), true);
@@ -54,26 +60,23 @@ for (const forbiddenPath of ["document.cookie", "navigator.userAgent", "document
   assert.equal(hasPropertyPath(telemetry, forbiddenPath), false, `telemetry must not read ${forbiddenPath}`);
 }
 assert.equal(telemetry.propertyAccesses.some((entry) => entry.property === "stack"), false, "telemetry must not collect error stacks");
-for (const forbiddenIdentifier of ["telemetryTrackImageFailure", "outerHTML"]) {
+for (const forbiddenIdentifier of ["telemetryTrackImageFailure", "outerHTML", "durationMs"]) {
   assert.equal(telemetryIdentifiers.has(forbiddenIdentifier), false, `telemetry must not retain ${forbiddenIdentifier}`);
 }
 
-for (const eventName of [
-  "app_session",
-  "catalog_open",
-  "search",
-  "favorite",
-  "contact",
-  "js_error",
-  "resource_error",
-  "search_index_load_failed",
-  "image_attempt_failed",
-  "image_recovered",
-  "image_terminal_failure",
-  "web_vital"
-]) {
-  assert.equal(telemetry.stringLiterals.includes(eventName), true, `missing telemetry event ${eventName}`);
-}
+const activeTelemetryEvents = telemetry.literalArrayDeclarations.TELEMETRY_EVENT_NAMES;
+assert.ok(Array.isArray(activeTelemetryEvents) && activeTelemetryEvents.length > 0,
+  "browser telemetry event contract must be a literal Set/array for AST verification");
+assert.deepEqual(
+  [...telemetryIngest.objectDeclarations.EVENT_FIELDS].sort(),
+  [...activeTelemetryEvents].sort(),
+  "ingestion event schema must exactly match the active browser telemetry contract"
+);
+assert.equal(activeTelemetryEvents.includes("image_error"), false,
+  "historical image_error must not remain in the active browser telemetry contract");
+assert.equal(telemetryIngest.stringLiterals.includes("image_error"), false,
+  "historical image_error rows may remain reportable but must not be accepted by ingestion");
+
 for (const duplicateMetric of ["page_view", "page_load", "first_catalog_image"]) {
   assert.equal(telemetry.stringLiterals.includes(duplicateMetric), false, `duplicate metric must stay retired: ${duplicateMetric}`);
 }

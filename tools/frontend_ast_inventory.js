@@ -67,6 +67,37 @@ function unwrapObjectLiteral(initializer, is, SyntaxKind) {
   return null;
 }
 
+function literalArrayValues(initializer, is, SyntaxKind) {
+  if (!initializer) return null;
+  let array = null;
+  if (is.isArrayLiteralExpression(initializer)) {
+    array = initializer;
+  } else if (
+    is.isCallExpression(initializer)
+    && expressionPath(initializer.expression, is, SyntaxKind) === "Object.freeze"
+    && initializer.arguments.length === 1
+    && is.isArrayLiteralExpression(initializer.arguments[0])
+  ) {
+    array = initializer.arguments[0];
+  } else if (
+    is.isNewExpression(initializer)
+    && expressionPath(initializer.expression, is, SyntaxKind) === "Set"
+    && initializer.arguments?.length === 1
+    && is.isArrayLiteralExpression(initializer.arguments[0])
+  ) {
+    array = initializer.arguments[0];
+  }
+  if (!array) return null;
+
+  const values = [];
+  for (const element of array.elements) {
+    const value = literalValue(element, is, SyntaxKind);
+    if (value === undefined) return null;
+    values.push(value);
+  }
+  return values;
+}
+
 function declarationProperties(node, is) {
   if (is.isInterfaceDeclaration(node)) {
     return node.members.map((member) => propertyNameText(member.name, is)).filter(Boolean);
@@ -109,6 +140,7 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
   const propertyAccesses = [];
   const objectPropertyLiterals = [];
   const objectDeclarations = Object.create(null);
+  const literalArrayDeclarations = Object.create(null);
   const literalDeclarations = Object.create(null);
   const functionDeclarations = [];
   const variableDeclarations = [];
@@ -154,6 +186,8 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
             .map((property) => propertyNameText(property.name, is))
             .filter(Boolean);
         }
+        const arrayValues = literalArrayValues(declaration.initializer, is, SyntaxKind);
+        if (arrayValues) literalArrayDeclarations[declaration.name.text] = arrayValues;
       }
     }
   }
@@ -263,6 +297,7 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
     propertyAccesses,
     objectPropertyLiterals,
     objectDeclarations,
+    literalArrayDeclarations,
     literalDeclarations,
     functionDeclarations,
     variableDeclarations,

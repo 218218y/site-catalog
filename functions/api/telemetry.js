@@ -6,28 +6,55 @@
  * read or stored.
  */
 
-const ALLOWED_EVENTS = new Set([
-  "app_session",
-  "catalog_open",
-  "search",
-  "favorite",
-  "contact",
-  "js_error",
-  "resource_error",
-  "search_index_load_failed",
-  "image_error",
-  "image_attempt_failed",
-  "image_recovered",
-  "image_terminal_failure",
-  "web_vital"
+const TELEMETRY_SCHEMA_VERSION = 4;
+const IMAGE_EVENT_FIELDS = Object.freeze([
+  "catalogId",
+  "pageNumber",
+  "detail",
+  "action",
+  "source",
+  "value",
+  "error",
+  "surface",
+  "requestId",
+  "visibility",
+  "requestedTier",
+  "networkState"
 ]);
+const EVENT_FIELDS = Object.freeze({
+  app_session: Object.freeze(["action", "visibility"]),
+  catalog_open: Object.freeze(["catalogId", "pageNumber", "source"]),
+  search: Object.freeze(["catalogId", "query", "scope", "action", "source", "value"]),
+  favorite: Object.freeze(["catalogId", "action", "pageNumber", "value"]),
+  contact: Object.freeze(["catalogId", "action", "detail", "source", "pageNumber", "value"]),
+  js_error: Object.freeze([
+    "catalogId", "action", "detail", "scope", "source", "pageNumber", "secondaryValue", "error"
+  ]),
+  resource_error: Object.freeze(["action", "detail", "scope", "source", "error"]),
+  search_index_load_failed: Object.freeze(["action", "detail", "scope", "source", "error"]),
+  image_attempt_failed: IMAGE_EVENT_FIELDS,
+  image_recovered: IMAGE_EVENT_FIELDS,
+  image_terminal_failure: IMAGE_EVENT_FIELDS,
+  web_vital: Object.freeze(["action", "detail", "source", "component", "value"])
+});
+const ALLOWED_EVENTS = new Set(Object.keys(EVENT_FIELDS));
 const ALLOWED_HOSTS = new Set(["bargig-furniture.com", "www.bargig-furniture.com"]);
 const ALLOWED_VIEWPORTS = new Set(["xs", "sm", "md", "lg", "xl"]);
 const ALLOWED_VISIBILITY = new Set(["visible", "hidden", "preload", "background", "unknown"]);
 const ALLOWED_IMAGE_TIERS = new Set(["thumb", "medium", "full", "unknown"]);
 const ALLOWED_NETWORK_STATES = new Set(["online", "offline", "unknown"]);
+const NAVIGATION_ACTIONS = new Set(["navigate", "reload", "back_forward", "prerender"]);
+const EVENT_ACTIONS = Object.freeze({
+  app_session: NAVIGATION_ACTIONS,
+  search: new Set(["submit", "result-open"]),
+  favorite: new Set(["add", "remove", "clear"]),
+  contact: new Set(["phone", "email", "gmail", "copy", "share"]),
+  web_vital: new Set(["LCP", "INP", "CLS"])
+});
+const WEB_VITAL_RATINGS = new Set(["good", "needs-improvement", "poor"]);
 const RELEASE_ID_RE = /^(?:deploy-[a-f0-9]{16}|app-[a-f0-9]{8,16}|app-unversioned|unknown-release)$/i;
 const REQUEST_ID_RE = /^ir-[a-z0-9-]{8,45}$/i;
+const ERROR_FINGERPRINT_RE = /^e[a-f0-9]{8}$/i;
 const MAX_BODY_BYTES = 32 * 1024;
 const MAX_EVENTS = 20;
 
@@ -43,6 +70,12 @@ function cleanNumber(value, min = 0, max = 86_400_000) {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
   return Math.min(max, Math.max(min, number));
+}
+
+function cleanPath(value) {
+  const rawPath = cleanText(value, 180) || "/";
+  const path = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+  return path.split(/[?#]/, 1)[0] || "/";
 }
 
 function cleanViewport(value) {
@@ -69,6 +102,21 @@ function cleanEnumToken(value, allowed, limit = 20) {
   return allowed.has(token) ? token : "unknown";
 }
 
+function cleanEnumText(value, allowed, limit = 50) {
+  const text = cleanText(value, limit);
+  return allowed.has(text) ? text : "";
+}
+
+function cleanEventAction(eventName, value) {
+  const allowed = EVENT_ACTIONS[eventName];
+  return allowed ? cleanEnumText(value, allowed, 50) : cleanText(value, 50);
+}
+
+function cleanErrorFingerprint(value) {
+  const fingerprint = cleanText(value, 16).toLowerCase();
+  return ERROR_FINGERPRINT_RE.test(fingerprint) ? fingerprint : "";
+}
+
 function cleanRequestId(value) {
   const requestId = cleanToken(value, 48);
   return REQUEST_ID_RE.test(requestId) ? requestId : "";
@@ -83,6 +131,8 @@ function responseHeaders(extra = {}) {
   return {
     "Cache-Control": "no-store",
     "Content-Type": "application/json; charset=utf-8",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
     ...extra
   };
@@ -111,30 +161,39 @@ function normalizeEvent(raw) {
   const name = cleanText(raw.name, 40);
   if (!ALLOWED_EVENTS.has(name)) return null;
 
-  const path = cleanText(raw.path, 180) || "/";
+  const allowedFields = EVENT_FIELDS[name];
+  const field = (key) => allowedFields.includes(key) ? raw[key] : undefined;
   return {
     name,
     page: cleanText(raw.page, 30),
-    path: path.startsWith("/") ? path : `/${path}`,
-    catalogId: cleanText(raw.catalogId, 100),
-    query: cleanText(raw.query, 80),
-    scope: cleanText(raw.scope, 50),
-    action: cleanText(raw.action, 50),
-    detail: cleanText(raw.detail, 120),
-    error: cleanText(raw.error, 80),
+    path: cleanPath(raw.path),
+    catalogId: cleanText(field("catalogId"), 100),
+    query: cleanText(field("query"), 80),
+    scope: cleanText(field("scope"), 50),
+    action: cleanEventAction(name, field("action")),
+    detail: name === "web_vital"
+      ? cleanEnumText(field("detail"), WEB_VITAL_RATINGS, 24)
+      : cleanText(field("detail"), 120),
+    error: cleanErrorFingerprint(field("error")),
     viewport: cleanViewport(raw.viewport),
-    source: cleanText(raw.source, 80),
-    value: cleanNumber(raw.value, -1_000_000, 1_000_000),
-    durationMs: cleanNumber(raw.durationMs),
-    pageNumber: cleanNumber(raw.pageNumber, 0, 100_000),
-    secondaryValue: cleanNumber(raw.secondaryValue, -1_000_000, 1_000_000),
+    source: name === "web_vital"
+      ? cleanEnumText(field("source"), NAVIGATION_ACTIONS, 24)
+      : cleanText(field("source"), 80),
+    value: cleanNumber(field("value"), -1_000_000, 1_000_000),
+    durationMs: cleanNumber(field("durationMs")),
+    pageNumber: cleanNumber(field("pageNumber"), 0, 100_000),
+    secondaryValue: cleanNumber(field("secondaryValue"), -1_000_000, 1_000_000),
     releaseId: cleanReleaseId(raw.releaseId),
-    component: cleanToken(raw.component, 50),
-    surface: cleanToken(raw.surface, 50),
-    requestId: cleanRequestId(raw.requestId),
-    visibility: cleanVisibility(raw.visibility),
-    requestedTier: cleanEnumToken(raw.requestedTier, ALLOWED_IMAGE_TIERS, 16),
-    networkState: cleanEnumToken(raw.networkState, ALLOWED_NETWORK_STATES, 16)
+    component: cleanToken(field("component"), 50),
+    surface: cleanToken(field("surface"), 50),
+    requestId: cleanRequestId(field("requestId")),
+    visibility: allowedFields.includes("visibility") ? cleanVisibility(raw.visibility) : "",
+    requestedTier: allowedFields.includes("requestedTier")
+      ? cleanEnumToken(raw.requestedTier, ALLOWED_IMAGE_TIERS, 16)
+      : "",
+    networkState: allowedFields.includes("networkState")
+      ? cleanEnumToken(raw.networkState, ALLOWED_NETWORK_STATES, 16)
+      : ""
   };
 }
 
@@ -186,7 +245,8 @@ export async function onRequestPost(context) {
   }
 
   const contentType = String(request.headers.get("Content-Type") || "").toLowerCase();
-  if (!contentType.startsWith("application/json")) {
+  const mediaType = contentType.split(";", 1)[0].trim();
+  if (mediaType !== "application/json") {
     return jsonResponse({ ok: false, error: "content-type" }, 415);
   }
 
@@ -212,11 +272,20 @@ export async function onRequestPost(context) {
     return jsonResponse({ ok: false, error: "invalid-json" }, 400);
   }
 
-  if (![1, 2, 3, 4].includes(payload?.version) || !Array.isArray(payload.events)) {
+  if (
+    !payload
+    || typeof payload !== "object"
+    || Array.isArray(payload)
+    || payload.version !== TELEMETRY_SCHEMA_VERSION
+    || !Array.isArray(payload.events)
+  ) {
     return jsonResponse({ ok: false, error: "invalid-schema" }, 400);
   }
+  if (payload.events.length > MAX_EVENTS) {
+    return jsonResponse({ ok: false, error: "too-many-events" }, 413);
+  }
 
-  const events = payload.events.slice(0, MAX_EVENTS).map(normalizeEvent).filter(Boolean);
+  const events = payload.events.map(normalizeEvent).filter(Boolean);
   if (!events.length) return jsonResponse({ ok: true, accepted: 0 }, 202);
 
   const dataset = env?.SITE_TELEMETRY;

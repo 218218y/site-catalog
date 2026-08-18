@@ -11,7 +11,7 @@ persistent visitor profile.
 
 1. `src/js/15-telemetry.js` records a strict list of operational events.
 2. Events are batched and posted to the same-origin endpoint `/api/telemetry`.
-3. `functions/api/telemetry.js` validates and sanitizes every field.
+3. `functions/api/telemetry.js` validates and sanitizes every field against the current v4 ingestion contract.
 4. The Pages Function writes the accepted fields to the Cloudflare Workers
    Analytics Engine binding `SITE_TELEMETRY`.
 5. `tools/telemetry_report.py` reads aggregated results through Cloudflare's SQL
@@ -21,6 +21,33 @@ The public deploy bundle still contains only fingerprinted browser assets. The
 `functions/` directory and `wrangler.jsonc` remain at the project root so
 Wrangler can deploy the Pages Function and its binding together with the static
 bundle.
+
+### Ingestion contract
+
+The browser and ingestion endpoint use telemetry schema **v4** only. Older schema
+versions are rejected rather than kept as an open-ended compatibility surface; stale
+browser tabs lose only their telemetry batch and never block the catalog UI. The
+endpoint accepts at most 20 events per request and rejects an oversized batch as a
+whole instead of silently truncating it. `Content-Type` must resolve exactly to
+`application/json` (an optional charset parameter is allowed).
+
+Every active event has its own server-side field projection. Fields that are valid in
+the global storage layout but meaningless for that event are discarded before the
+Analytics Engine write. Low-cardinality values such as Web Vital names/ratings,
+search/favorite/contact actions, navigation type, viewport, release ID, image tier,
+visibility and network state are allowlisted. Error IDs must match the short
+first-party fingerprint format. Paths are stored as pathnames only: query strings and
+fragments are removed at ingestion even if a malformed or forged client sends them.
+The historical `image_error` event remains queryable by `tools/telemetry_report.py`
+for old rows, but new ingestion no longer accepts it.
+
+The `Origin`/`Sec-Fetch-Site` checks are a browser cross-origin barrier, not a claim of
+non-browser authentication because arbitrary HTTP clients can forge headers. Volume
+abuse therefore belongs at the Cloudflare/WAF/rate-limiting layer. The application
+deliberately does not invent an in-memory Worker limiter or start collecting IP/UA
+identifiers just to approximate per-client throttling. Regardless of request source,
+the ingestion schema limits what can reach the dataset and keeps high-cardinality
+fields bounded.
 
 ## Collected events
 
@@ -37,7 +64,7 @@ bundle.
 | `image_attempt_failed` | One failed catalog-image attempt | frozen request ID, catalog/page, surface, visibility, requested tier, request-start network state, role, attempt number |
 | `image_recovered` | Catalog image recovered after retry/fallback | same frozen request context, successful role, failed-attempt count |
 | `image_terminal_failure` | Catalog image exhausted its managed recovery path | same frozen request context, final role, failed-attempt count |
-| `image_error` | Historical pre-classification image failures | catalog/page, image role |
+| `image_error` | Historical report-only pre-classification image failures; v4 ingestion rejects new rows | catalog/page, image role |
 | `web_vital` | Coarse real-user LCP/INP/CLS quality | metric name, rating, numeric value, allowlisted component token for LCP/CLS |
 
 Each ingestion request receives a random, short-lived batch key used only as the Analytics Engine sampling index. Each managed image lifecycle receives a separate random request ID that is reused only across its attempt/recovery/terminal events. Neither value persists across page loads or identifies a visitor. Component values come from a closed token map or an explicit sanitized `data-telemetry-component`; arbitrary selectors, HTML, and DOM text are not sent.

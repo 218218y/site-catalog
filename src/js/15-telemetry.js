@@ -28,7 +28,6 @@ import { activeCatalog, activePage } from "./18-navigation-feature.js";
  * @property {unknown} [error]
  * @property {unknown} [source]
  * @property {unknown} [value]
- * @property {unknown} [durationMs]
  * @property {unknown} [pageNumber]
  * @property {unknown} [secondaryValue]
  * @property {unknown} [releaseId]
@@ -258,7 +257,6 @@ function telemetryNormalizeEvent(name, fields = {}) {
     viewport: telemetryViewportValue(fields.viewport),
     source: telemetryCleanText(fields.source, 50),
     value: telemetryNumber(fields.value, -1_000_000, 1_000_000),
-    durationMs: telemetryNumber(fields.durationMs),
     pageNumber: telemetryNumber(fields.pageNumber, 0, 100_000),
     secondaryValue: telemetryNumber(fields.secondaryValue, -1_000_000, 1_000_000),
     releaseId: telemetryCleanText(fields.releaseId || TELEMETRY_RELEASE_ID, 64),

@@ -647,7 +647,6 @@ function telemetryNormalizeEvent(name, fields = {}) {
     viewport: telemetryViewportValue(fields.viewport),
     source: telemetryCleanText(fields.source, 50),
     value: telemetryNumber(fields.value, -1e6, 1e6),
-    durationMs: telemetryNumber(fields.durationMs),
     pageNumber: telemetryNumber(fields.pageNumber, 0, 1e5),
     secondaryValue: telemetryNumber(fields.secondaryValue, -1e6, 1e6),
     releaseId: telemetryCleanText(fields.releaseId || TELEMETRY_RELEASE_ID, 64),
