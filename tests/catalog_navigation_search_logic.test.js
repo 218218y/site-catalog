@@ -105,10 +105,10 @@ assert.equal(
 
 catalogRecords.splice(0, catalogRecords.length, frediOpening, frediKids, frediBedrooms, tbiBedrooms);
 const merged = catalogSearch.mergeNavigationResults(frediResults, [
-  { catalogId: "opening-fredi", page: 1, matchField: "title" },
-  { catalogId: "kids-fredi", page: 2, matchField: "page" },
-  { catalogId: "bedrooms-fredi", page: 1, matchField: "category" },
-  { catalogId: "bedrooms-tbi", page: 3, matchField: "page" }
+  { resultType: "ocr", catalogId: "opening-fredi", page: 1, matchField: "title" },
+  { resultType: "ocr", catalogId: "kids-fredi", page: 2, matchField: "page" },
+  { resultType: "ocr", catalogId: "bedrooms-fredi", page: 1, matchField: "category" },
+  { resultType: "ocr", catalogId: "bedrooms-tbi", page: 3, matchField: "page" }
 ]);
 assert.deepEqual(
   Array.from(merged.filter((result) => result.resultType === "ocr"), (result) => `${result.catalogId}:${result.page}`),
@@ -118,8 +118,8 @@ assert.deepEqual(
 
 const bedroomNavigation = catalogSearch.searchNavigation(groups, "חדרי שינה");
 const categoryMerged = catalogSearch.mergeNavigationResults(bedroomNavigation, [
-  { catalogId: "bedrooms-fredi", page: 1, matchField: "category" },
-  { catalogId: "bedrooms-tbi", page: 2, matchField: "page" }
+  { resultType: "ocr", catalogId: "bedrooms-fredi", page: 1, matchField: "category" },
+  { resultType: "ocr", catalogId: "bedrooms-tbi", page: 2, matchField: "page" }
 ]);
 assert.deepEqual(
   Array.from(categoryMerged.filter((result) => result.resultType === "ocr"), (result) => `${result.catalogId}:${result.page}`),

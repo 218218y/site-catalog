@@ -67,7 +67,8 @@ function begin(channel) {
   );
   assert.ok(matchingResult, "selective page token should return its source page");
   assert.equal(matchingResult.matchField, "page");
-  assert.match(matchingResult.matchReason, /טקסט העמוד/);
+  assert.equal(matchingResult.resultType, "ocr");
+assert.match(matchingResult.matchReason, /טקסט העמוד/);
   assert.ok(matchingResult.excerpt.length > 0);
   assert.ok(matchingResult.highlights.length > 0, "result excerpt should identify highlighted ranges");
 

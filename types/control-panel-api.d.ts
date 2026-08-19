@@ -1,7 +1,7 @@
 // Generated from schemas/control-panel-api.schema.json. Do not edit manually.
 
 interface ControlCatalogStatusDto {
-  state: string;
+  state: "missing" | "ready" | "partial" | "empty";
   label: string;
 }
 
@@ -80,7 +80,7 @@ interface ControlPdfFileDto {
   label?: string;
   size?: number;
   modifiedAt?: number;
-  status?: string;
+  status?: "existing" | "created" | "selected" | "copied";
 }
 
 interface ControlMissingPdfDto {
@@ -99,10 +99,10 @@ interface ControlFooterFieldDto {
   key: string;
   label?: string;
   value?: string;
-  dir?: string;
+  dir?: "ltr";
   required?: boolean;
   help?: string;
-  type?: string;
+  type?: "text" | "email" | "tel";
   rows?: number;
   maxLength?: number;
 }
@@ -122,7 +122,7 @@ interface ControlJobDto {
   id: string;
   actionKey: string;
   label: string;
-  status: string;
+  status: "running" | "canceling" | "canceled" | "success" | "failed";
   returncode: number | null;
   startedAt: number;
   finishedAt: number | null;

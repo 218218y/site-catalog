@@ -1,9 +1,11 @@
 /** Typed external ESM runtime: application route parsing and URL generation. */
 
+/** @import { LightboxSource } from "../../types/frontend-contracts.js" */
+
 /** @typedef {"home"|"catalog"|"favorites"|"viewer"} SitePage */
 /** @typedef {{pathname?:string, search?:string, origin?:string}} LocationLike */
-/** @typedef {{source?:string}} ViewerRouteOptions */
-/** @typedef {{page:SitePage, catalogId:string, currentPage:number, source:string}} SiteRoute */
+/** @typedef {{source?:LightboxSource}} ViewerRouteOptions */
+/** @typedef {{page:SitePage, catalogId:string, currentPage:number, source:LightboxSource}} SiteRoute */
 
 const PAGE_HOME = /** @type {const} */ ("home");
 const PAGE_CATALOG = /** @type {const} */ ("catalog");

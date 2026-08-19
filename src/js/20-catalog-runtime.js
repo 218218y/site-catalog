@@ -18,7 +18,7 @@ import { escapeHtml } from "./19-shared-pure.js";
 const observedCatalogPageSizes = new WeakMap();
 
 /** @typedef {CatalogImageCandidate & {fallback:boolean}} CatalogImageRecoveryCandidate */
-/** @typedef {{primaryTier?:string, forceRefresh?:boolean, forceRefreshRole?:string, fallbackTier?:string, fallbackCandidates?:Array<CatalogImageCandidate>}} CatalogImageRecoveryCandidateOptions */
+/** @typedef {{primaryTier?:CatalogImageTier, forceRefresh?:boolean, forceRefreshRole?:string, fallbackTier?:CatalogImageTier, fallbackCandidates?:Array<CatalogImageCandidate>}} CatalogImageRecoveryCandidateOptions */
 /** @typedef {{failedAttempts:number, attempts:number}} CatalogImageRecoveryProgress */
 /** @typedef {{failedAttempts:number, lastCandidate:CatalogImageRecoveryCandidate|null}} CatalogImageRecoveryExhausted */
 /**
@@ -140,13 +140,13 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
   const fallback = normalizeCatalogImageUrl(fallbackSrc);
   /** @type {Array<CatalogImageRecoveryCandidate>} */
   const candidates = [];
-  /** @param {string} src @param {string} role @param {string} [tier] */
+  /** @param {string} src @param {string} role @param {CatalogImageTier|""} [tier] */
   const push = (src, role, tier = "") => {
     if (!src || candidates.some((candidate) => candidate.src === src)) return;
     candidates.push({ src, role, tier, fallback: role.startsWith("fallback") });
   };
 
-  const primaryTier = String(options.primaryTier || "");
+  const primaryTier = options.primaryTier || "";
   push(
     options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary,
     options.forceRefresh ? String(options.forceRefreshRole || "manual") : "primary",
@@ -156,13 +156,13 @@ function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = 
   if (unversionedPrimary && unversionedPrimary !== primary) {
     push(cacheBustedCatalogImageUrl(unversionedPrimary), "direct-retry", primaryTier);
   }
-  if (fallback && fallback !== primary) push(fallback, "fallback", String(options.fallbackTier || ""));
+  if (fallback && fallback !== primary) push(fallback, "fallback", options.fallbackTier || "");
   (Array.isArray(options.fallbackCandidates) ? options.fallbackCandidates : []).forEach((candidate, index) => {
     if (!candidate || typeof candidate !== "object") return;
     push(
       normalizeCatalogImageUrl(candidate.src),
       String(candidate.role || `fallback-${index + 1}`),
-      String(candidate.tier || "")
+      candidate.tier || ""
     );
   });
   return candidates;
@@ -479,7 +479,7 @@ function mediumSrc(catalog, page) {
   );
 }
 
-/** @param {CatalogRecord} catalog @param {number|string} page @param {string} tier */
+/** @param {CatalogRecord} catalog @param {number|string} page @param {CatalogImageTier} tier */
 function catalogPageImageSrc(catalog, page, tier) {
   if (tier === CATALOG_IMAGE_TIER_THUMB) return thumbSrc(catalog, page);
   if (tier === CATALOG_IMAGE_TIER_MEDIUM) return mediumSrc(catalog, page);

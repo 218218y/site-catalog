@@ -7,7 +7,12 @@
       "type": "object",
       "properties": {
         "state": {
-          "type": "string"
+          "enum": [
+            "missing",
+            "ready",
+            "partial",
+            "empty"
+          ]
         },
         "label": {
           "type": "string"
@@ -301,7 +306,12 @@
           "type": "number"
         },
         "status": {
-          "type": "string"
+          "enum": [
+            "existing",
+            "created",
+            "selected",
+            "copied"
+          ]
         }
       },
       "required": [
@@ -370,7 +380,9 @@
           "type": "string"
         },
         "dir": {
-          "type": "string"
+          "enum": [
+            "ltr"
+          ]
         },
         "required": {
           "type": "boolean"
@@ -379,7 +391,11 @@
           "type": "string"
         },
         "type": {
-          "type": "string"
+          "enum": [
+            "text",
+            "email",
+            "tel"
+          ]
         },
         "rows": {
           "type": "integer"
@@ -448,7 +464,13 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "enum": [
+            "running",
+            "canceling",
+            "canceled",
+            "success",
+            "failed"
+          ]
         },
         "returncode": {
           "oneOf": [

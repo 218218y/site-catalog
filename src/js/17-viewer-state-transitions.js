@@ -5,7 +5,7 @@
  * must pass through this module.
  */
 
-/** @import { ViewerNavigationCommand, ViewerNavigationSource, ViewerRelativePosition, ViewerStateInvariantSnapshot } from "../../types/frontend-contracts.js" */
+/** @import { CatalogImageTier, ViewerNavigationCommand, ViewerNavigationSource, ViewerRelativePosition, ViewerStateInvariantSnapshot } from "../../types/frontend-contracts.js" */
 
 import {
   AUTO_VIEWER_ZOOM,
@@ -362,20 +362,19 @@ function cancelViewerResolutionCommand() {
   assertViewerStateInvariants("cancel-resolution");
 }
 
-/** @param {string} targetSrc @param {string} targetTier @param {boolean} commitPending */
+/** @param {string} targetSrc @param {CatalogImageTier} targetTier @param {boolean} commitPending */
 function beginViewerResolutionCommand(targetSrc, targetTier, commitPending) {
   if (typeof targetSrc !== "string" || typeof targetTier !== "string" || typeof commitPending !== "boolean") {
     throw new TypeError("Viewer resolution transition requires string targets and a boolean commit policy.");
   }
   const normalizedTargetSrc = targetSrc.trim();
-  const normalizedTargetTier = targetTier.trim();
-  if (!normalizedTargetSrc || !normalizedTargetTier) {
+  if (!normalizedTargetSrc || !targetTier) {
     throw new TypeError("Viewer resolution transition requires a target source and tier.");
   }
   cancelViewerResolutionCommand();
   const token = viewerImageState.singleImageResolutionLoadToken;
   viewerImageState.singleImageResolutionTargetSrc = normalizedTargetSrc;
-  viewerImageState.singleImageResolutionTargetTier = normalizedTargetTier;
+  viewerImageState.singleImageResolutionTargetTier = targetTier;
   viewerImageState.singleImageResolutionCommitPending = Boolean(commitPending);
   assertViewerStateInvariants("begin-resolution");
   return token;

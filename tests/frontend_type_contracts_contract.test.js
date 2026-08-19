@@ -50,8 +50,14 @@ assert.match(
   /function catalogSubcategoryName\(catalog\) \{\s*return String\(catalog\?\.subcategory \|\| ""\)\.trim\(\);\s*\}/,
 );
 
-assert.match(contracts, /import type \{ CatalogImageVariant, CatalogRecord \} from "\.\/catalog-data\.generated\.js"/);
-assert.match(contracts, /export type \{ CatalogImageVariant, CatalogRecord \} from "\.\/catalog-data\.generated\.js"/);
+const catalogTypeImport = contracts.match(/import type \{([^}]+)\} from "\.\/catalog-data\.generated\.js"/);
+const catalogTypeExport = contracts.match(/export type \{([^}]+)\} from "\.\/catalog-data\.generated\.js"/);
+assert.ok(catalogTypeImport, "frontend contracts must import canonical generated catalog types");
+assert.ok(catalogTypeExport, "frontend contracts must re-export canonical generated catalog types");
+for (const typeName of ["CatalogImageTier", "CatalogImageVariant", "CatalogRecord"]) {
+  assert.ok(catalogTypeImport[1].split(",").map((item) => item.trim()).includes(typeName), `missing imported ${typeName}`);
+  assert.ok(catalogTypeExport[1].split(",").map((item) => item.trim()).includes(typeName), `missing re-exported ${typeName}`);
+}
 assert.match(contracts, /export type AppNavigationOptions =/);
 assert.doesNotMatch(contracts, /declare global/);
 assert.doesNotMatch(marker, /@typedef|@callback|@template|declare global/);

@@ -7,7 +7,7 @@
  * 56-viewer-shell.js as a presentation owner and avoids reverse dependencies.
  */
 
-/** @import { ViewerFitModeOptions } from "../../types/frontend-contracts.js" */
+/** @import { ViewerFitMode, ViewerFitModeOptions } from "../../types/frontend-contracts.js" */
 
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, viewerViewportState } from "./16-viewer-state.js";
 import { resetViewerGestureCommand } from "./17-viewer-state-transitions.js";
@@ -26,7 +26,7 @@ import {
 } from "./56-viewer-shell.js";
 import { clearViewerPageWheelGesture } from "./58-viewer-navigation.js";
 
-/** @param {string} fitMode @param {ViewerFitModeOptions} [options] */
+/** @param {ViewerFitMode} fitMode @param {ViewerFitModeOptions} [options] */
 function setViewerFitMode(fitMode, options = {}) {
   const nextFitMode = normalizeViewerFitMode(fitMode);
   const {

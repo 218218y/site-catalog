@@ -1,11 +1,11 @@
 /** Typed external ESM runtime: favorites persistence and normalization. */
 
-/** @import { FavoriteItem, FavoriteMutationResult, FavoritesStore } from "../../types/frontend-contracts.js" */
+/** @import { FavoriteItem, FavoriteMutationOperation, FavoriteMutationReason, FavoriteMutationResult, FavoritesPersistenceReason, FavoritesStore } from "../../types/frontend-contracts.js" */
 
 /** @typedef {{getItem?:(key:string)=>string|null, setItem?:(key:string, value:string)=>void}} FavoritesStorage */
 /** @typedef {{storageKey?:string, storage?:FavoritesStorage|null}} FavoritesStoreOptions */
-/** @typedef {{persisted:boolean, reason:string}} PersistenceState */
-/** @typedef {{active?:boolean, reason?:string}} MutationExtra */
+/** @typedef {{persisted:boolean, reason:FavoritesPersistenceReason}} PersistenceState */
+/** @typedef {{active?:boolean, reason?:FavoriteMutationReason}} MutationExtra */
 /** @typedef {{catalogId?:unknown, page?:unknown, savedAt?:unknown, note?:unknown}} FavoriteItemInput */
 
 const STORAGE_KEY = "bargig.catalog-favorites.v1";
@@ -87,7 +87,7 @@ function serializePayload(items) {
   });
 }
 
-/** @param {unknown} error @param {string} [fallback] */
+/** @param {unknown} error @param {FavoritesPersistenceReason} [fallback] @returns {FavoritesPersistenceReason} */
 function persistenceFailureReason(error, fallback = "write-failed") {
   const candidate = /** @type {{name?:unknown, message?:unknown}|null} */ (
     error && typeof error === "object" ? error : null
@@ -119,7 +119,7 @@ function createStore(options = {}) {
   }
 
   /**
-   * @param {string} operation
+   * @param {FavoriteMutationOperation} operation
    * @param {boolean} changed
    * @param {PersistenceState} writeResult
    * @param {MutationExtra} [extra]
@@ -130,7 +130,7 @@ function createStore(options = {}) {
       operation,
       changed: Boolean(changed),
       persisted: Boolean(writeResult.persisted),
-      reason: String(extra.reason || writeResult.reason || ""),
+      reason: extra.reason || writeResult.reason,
       items: memoryItems.slice(),
       ...(typeof extra.active === "boolean" ? { active: extra.active } : {})
     };
@@ -176,7 +176,7 @@ function createStore(options = {}) {
     return persistenceSnapshot();
   }
 
-  /** @param {string} operation @param {MutationExtra} [extra] */
+  /** @param {FavoriteMutationOperation} operation @param {MutationExtra} [extra] */
   function unchanged(operation, extra = {}) {
     return mutationResult(operation, false, persistenceSnapshot(), extra);
   }
@@ -226,6 +226,7 @@ function createStore(options = {}) {
       return mutationResult("update", true, persist(nextItems));
     },
     setNoteDetailed(item, note) {
+      /** @type {FavoriteMutationResult} */
       const result = { ...this.updateDetailed(item, { note: normalizeNote(note) }), operation: "set-note" };
       lastMutation = result;
       return result;
@@ -249,6 +250,7 @@ function createStore(options = {}) {
       return mutationResult("remove", true, persist(nextItems), { active: false });
     },
     toggleDetailed(item) {
+      /** @type {FavoriteMutationResult} */
       const result = this.has(item)
         ? { ...this.removeDetailed(item), operation: "toggle", active: false }
         : { ...this.addDetailed(item), operation: "toggle", active: true };

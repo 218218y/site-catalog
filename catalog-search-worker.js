@@ -438,6 +438,7 @@
       .map((result) => {
         const excerpt = resultExcerpt(result.document, result.catalog, result.matchedFields, parsedQuery);
         return {
+          resultType: "ocr",
           catalogId: result.catalogId,
           catalogTitle: result.catalogTitle,
           page: result.page,

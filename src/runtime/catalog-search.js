@@ -1,20 +1,20 @@
 /** Typed external ESM runtime: catalog navigation and worker-backed OCR search client. */
 
 /** @import { CatalogImageTier, CatalogRecord } from "../../types/catalog-data.generated.js" */
-/** @import { CatalogCategoryGroup, CatalogSearchResult } from "../../types/frontend-contracts.js" */
+/** @import { CatalogCategoryGroup, CatalogNavigationSearchResult, CatalogOcrSearchResult, CatalogSearchResult } from "../../types/frontend-contracts.js" */
 
 import { catalogAssetBaseUrl as configuredCatalogAssetBaseUrl, catalogImageDeliveryMode as configuredCatalogImageDeliveryMode } from "../../catalog-assets.config.js";
 import { catalogs as catalogRecords } from "../../catalogs.generated.module.js";
 
 /** @typedef {"category"|"subcategory"|"catalog"} NavigationResultType */
-/** @typedef {CatalogSearchResult & {resultType:NavigationResultType, label:string, category:string, score:number, sourceOrder:number}} NavigationSearchResult */
+/** @typedef {CatalogNavigationSearchResult & {label:string, category:string, score:number, sourceOrder:number}} NavigationSearchResult */
 /** @typedef {{category?:string, limit?:number}} NavigationSearchOptions */
 /** @typedef {Record<string, unknown> & {channel?:string, category?:string, limit?:number, catalogId?:string}} CatalogSearchOptions */
 /** @typedef {{tokens:string[], value:string}} ExactSearchTerm */
 /** @typedef {{looseTokens:string[], exactTerms:ExactSearchTerm[]}} ParsedSearchQuery */
 /** @typedef {{pages?:number, categoryPages?:Record<string, number>}} SearchReadyStats */
 /** @typedef {{stats?:SearchReadyStats}} SearchReadyMetadata */
-/** @typedef {{resolve:(value:CatalogSearchResult[])=>void, reject:(reason:unknown)=>void, channel:string}} PendingSearchRequest */
+/** @typedef {{resolve:(value:CatalogOcrSearchResult[])=>void, reject:(reason:unknown)=>void, channel:string}} PendingSearchRequest */
 /** @typedef {{type?:string, metadata?:SearchReadyMetadata, requestId?:unknown, results?:unknown, message?:string, stage?:string}} SearchWorkerMessage */
 const SEARCH_WORKER_SCRIPT_SRC = "catalog-search-worker.js";
 const SEARCH_INDEX_DATA_SRC = "catalogs.search-index.json";
@@ -199,7 +199,7 @@ function searchNavigation(groups, query, options = {}) {
     .slice(0, limit);
 }
 
-/** @param {NavigationSearchResult[]} navigationResults @param {CatalogSearchResult[]} ocrResults @returns {CatalogSearchResult[]} */
+/** @param {NavigationSearchResult[]} navigationResults @param {CatalogOcrSearchResult[]} ocrResults @returns {CatalogSearchResult[]} */
 function mergeNavigationResults(navigationResults, ocrResults) {
   const navigation = Array.isArray(navigationResults) ? navigationResults : [];
   const matchedCatalogIds = new Set(navigation.filter((result) => result.resultType === "catalog").map((result) => result.catalogId));
@@ -209,7 +209,7 @@ function mergeNavigationResults(navigationResults, ocrResults) {
     if (result?.matchField !== "category") return true;
     return !matchedCategories.has(String(findCatalog(result.catalogId)?.category || "").trim());
   });
-  return [...navigation, ...filteredOcr.map((result) => ({ ...result, resultType: "ocr" }))];
+  return [...navigation, ...filteredOcr];
 }
 
 /** @param {unknown} value */
@@ -222,9 +222,9 @@ function escapeNavigationMarkup(value) {
     .replaceAll("'", "&#039;");
 }
 
-/** @param {CatalogSearchResult} result */
+/** @param {CatalogNavigationSearchResult} result */
 function navigationResultMarkup(result) {
-  const type = String(result?.resultType || "catalog");
+  const type = result.resultType;
   const typeLabel = type === "category" ? "קטגוריה" : (type === "subcategory" ? "תת קטגוריה" : "קטלוג");
   const action = type === "category"
     ? "פתיחת הקטגוריה במסך הראשי"
@@ -232,7 +232,7 @@ function navigationResultMarkup(result) {
   const context = type === "subcategory"
     ? (result?.category ? ` · בתוך ${result.category}` : "")
     : (type === "catalog" ? ` · ${[result?.category, result?.subcategory].filter(Boolean).join(" · ")}` : "");
-  const catalog = type === "catalog" ? findCatalog(result?.catalogId) : null;
+  const catalog = type === "catalog" ? findCatalog(result.catalogId) : null;
   if (catalog) {
     const page = catalogFirstPage(catalog);
     const title = String(result?.label || catalog.title || "קטלוג").trim() || "קטלוג";
@@ -252,7 +252,7 @@ function navigationResultMarkup(result) {
   }
   return `
     <article class="search-result-card search-navigation-result-card">
-      <button type="button" class="search-result-button search-navigation-result-button" data-search-navigation-type="${escapeNavigationMarkup(type)}" data-search-navigation-target="${escapeNavigationMarkup(result?.targetId || "")}" data-search-navigation-catalog="${escapeNavigationMarkup(result?.catalogId || "")}">
+      <button type="button" class="search-result-button search-navigation-result-button" data-search-navigation-type="${escapeNavigationMarkup(type)}" data-search-navigation-target="${escapeNavigationMarkup(type === "catalog" ? "" : result.targetId)}" data-search-navigation-catalog="${escapeNavigationMarkup(type === "catalog" ? result.catalogId : "")}">
         <span class="search-result-title" title="${escapeNavigationMarkup(result?.label || "")}"><small class="search-navigation-result-kind">${escapeNavigationMarkup(typeLabel)}</small>${escapeNavigationMarkup(result?.label || "")}</span>
         <span class="search-result-copy"><span class="search-result-meta">${escapeNavigationMarkup(action + context)}</span></span>
       </button>
@@ -447,7 +447,7 @@ function handleWorkerMessage(event) {
       pending.reject(makeCancelledError());
       return;
     }
-    const results = /** @type {CatalogSearchResult[]} */ (Array.isArray(message.results) ? message.results : []);
+    const results = /** @type {CatalogOcrSearchResult[]} */ (Array.isArray(message.results) ? message.results : []);
     pending.resolve(results.map((result) => {
       const catalog = findCatalog(result.catalogId);
       return {
@@ -513,7 +513,7 @@ function cancel(channel = "default") {
   worker?.postMessage?.({ type: "cancel", channel: key, requestId });
 }
 
-/** @param {unknown} query @param {CatalogSearchOptions} [options] @returns {Promise<CatalogSearchResult[]>} */
+/** @param {unknown} query @param {CatalogSearchOptions} [options] @returns {Promise<CatalogOcrSearchResult[]>} */
 async function search(query, options = {}) {
   await ensureReady();
   const channel = String(options.channel || "default");

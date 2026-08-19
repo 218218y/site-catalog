@@ -8,6 +8,8 @@
  * same state contract without creating an architectural cycle.
  */
 
+/** @import { ViewerFullscreenPhase, ViewerPhase } from "../../types/frontend-contracts.js" */
+
 import { VIEWER_FULLSCREEN_ACTIVE, VIEWER_FULLSCREEN_ENTERING, VIEWER_FULLSCREEN_EXITING, VIEWER_FULLSCREEN_INACTIVE, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, viewerSessionState } from "./16-viewer-state.js";
 
 const VIEWER_PHASE_TRANSITIONS = Object.freeze({
@@ -25,7 +27,8 @@ const VIEWER_FULLSCREEN_TRANSITIONS = Object.freeze({
 });
 
 /**
- * @param {{current:string, next:string, transitions:Readonly<Record<string, Set<string>>>, label:string, reason:string}} options
+ * @template {string} Phase
+ * @param {{current:Phase, next:Phase, transitions:Readonly<Record<Phase, ReadonlySet<Phase>>>, label:string, reason:string}} options
  */
 function transitionStatePhase({ current, next, transitions, label, reason }) {
   const allowed = transitions[current];
@@ -36,7 +39,7 @@ function transitionStatePhase({ current, next, transitions, label, reason }) {
   return true;
 }
 
-/** @param {string} nextPhase @param {string} [reason] */
+/** @param {ViewerPhase} nextPhase @param {string} [reason] */
 function transitionViewerPhase(nextPhase, reason = "unspecified") {
   const currentPhase = viewerSessionState.viewerPhase || VIEWER_PHASE_CLOSED;
   if (!transitionStatePhase({
@@ -61,7 +64,7 @@ function isViewerSessionVisible() {
   return isViewerSessionOpen() || viewerSessionState.viewerPhase === VIEWER_PHASE_CLOSING;
 }
 
-/** @param {string} nextPhase @param {string} [reason] */
+/** @param {ViewerFullscreenPhase} nextPhase @param {string} [reason] */
 function transitionViewerFullscreenPhase(nextPhase, reason = "unspecified") {
   const currentPhase = viewerSessionState.viewerFullscreenPhase || VIEWER_FULLSCREEN_INACTIVE;
   if (!transitionStatePhase({

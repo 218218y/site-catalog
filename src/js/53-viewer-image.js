@@ -179,12 +179,16 @@ function activeSingleViewerImageLogicalSrc() {
   return normalizeCatalogImageUrl(viewerElements.lightboxImage?.dataset.logicalSrc || viewerElements.lightboxImage?.getAttribute("src") || "");
 }
 
+/** @returns {CatalogImageTier|""} */
 function activeSingleViewerImageTier() {
   if (viewerImageState.singleImageResolutionRetainedForSwap) return CATALOG_IMAGE_TIER_FULL;
   if (viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionTargetTier) {
     return viewerImageState.singleImageResolutionTargetTier;
   }
-  return String(viewerElements.lightboxImage?.dataset.loadedTier || "");
+  const loadedTier = viewerElements.lightboxImage?.dataset.loadedTier || "";
+  return loadedTier === CATALOG_IMAGE_TIER_THUMB || loadedTier === CATALOG_IMAGE_TIER_MEDIUM || loadedTier === CATALOG_IMAGE_TIER_FULL
+    ? loadedTier
+    : "";
 }
 
 function shouldWarmSingleViewerFullResolution(previousZoom = viewerViewportState.zoom) {
@@ -468,7 +472,7 @@ function renderedViewerPagePhysicalLongSide(catalog, page, zoom = viewerViewport
   return Math.max(size.width, size.height) * Math.max(0.01, scale) * dpr * Math.max(1, Number(zoom) || 1);
 }
 
-/** @param {CatalogRecord} catalog @param {number} page @param {ViewerImageRequestOptions} [options] */
+/** @param {CatalogRecord} catalog @param {number} page @param {ViewerImageRequestOptions} [options] @returns {CatalogImageTier} */
 function preferredViewerImageTier(catalog, page, options = {}) {
   if (options.forceFull || !catalogSupportsImageTier(catalog, CATALOG_IMAGE_TIER_MEDIUM)) {
     return CATALOG_IMAGE_TIER_FULL;
@@ -515,7 +519,7 @@ function viewerPageSrc(catalog, page, options = {}) {
   return viewerPageImageRequest(catalog, page, options).primarySrc;
 }
 
-/** @param {string} tier */
+/** @param {CatalogImageTier|""} tier */
 function catalogImageTierRank(tier) {
   if (tier === CATALOG_IMAGE_TIER_FULL) return 3;
   if (tier === CATALOG_IMAGE_TIER_MEDIUM) return 2;

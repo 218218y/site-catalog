@@ -4,9 +4,17 @@
  * These declarations are imported explicitly by each JavaScript module; they
  * intentionally do not contribute names to the global TypeScript namespace.
  */
-import type { CatalogImageVariant, CatalogRecord } from "./catalog-data.generated.js";
+import type { CatalogImageTier, CatalogImageVariant, CatalogRecord } from "./catalog-data.generated.js";
 
-export type { CatalogImageVariant, CatalogRecord } from "./catalog-data.generated.js";
+export type { CatalogImageTier, CatalogImageVariant, CatalogRecord } from "./catalog-data.generated.js";
+
+export type LightboxSource = "catalog" | "favorites";
+export type ViewerPhase = "closed" | "opening" | "open" | "closing";
+export type ViewerFullscreenPhase = "inactive" | "entering" | "active" | "exiting";
+export type ViewerFitMode = "height" | "width";
+export type ViewerFitModeSource = "auto" | "manual";
+export type LightboxSearchScope = "catalog" | "all";
+export type SearchIndexLoadState = "idle" | "loading" | "ready" | "error";
 
 export type SearchHighlightRange = {
     start?: number;
@@ -24,33 +32,57 @@ export type CatalogCategoryGroup = {
     subcategoryMap?: Map<string, CatalogSubcategoryGroup>;
     hasSubcategories?: boolean;
 };
-export type CatalogSearchResult = {
-    catalogId?: string;
-    page?: number | string;
-    catalog?: CatalogRecord | null;
-    title?: string;
-    excerpt?: string;
-    kind?: string;
-    resultType?: string;
+export type CatalogSearchMatchField = "page" | "title" | "description" | "category";
+export type CatalogCategorySearchResult = {
+    resultType: "category";
+    targetId: string;
+    label?: string;
+    category?: string;
+    score?: number;
+    sourceOrder?: number;
+};
+export type CatalogSubcategorySearchResult = {
+    resultType: "subcategory";
+    targetId: string;
     label?: string;
     category?: string;
     subcategory?: string;
     score?: number;
     sourceOrder?: number;
-    matchField?: string;
-    targetId?: string;
+};
+export type CatalogNavigationCatalogSearchResult = {
+    resultType: "catalog";
+    catalogId: string;
+    label?: string;
+    category?: string;
+    subcategory?: string;
+    score?: number;
+    sourceOrder?: number;
+};
+export type CatalogNavigationSearchResult =
+    | CatalogCategorySearchResult
+    | CatalogSubcategorySearchResult
+    | CatalogNavigationCatalogSearchResult;
+export type CatalogOcrSearchResult = {
+    resultType: "ocr";
+    catalogId: string;
+    page: number;
+    catalog?: CatalogRecord | null;
     catalogTitle?: string;
+    excerpt?: string;
+    score?: number;
+    matchField?: CatalogSearchMatchField;
+    matchedFields?: Array<CatalogSearchMatchField>;
     image?: string;
     thumb?: string;
     matchReason?: string;
     highlights?: Array<SearchHighlightRange>;
-    categoryTarget?: string;
-    subcategoryTarget?: string;
 };
+export type CatalogSearchResult = CatalogNavigationSearchResult | CatalogOcrSearchResult;
 export type NavigationState = {
     catalog: CatalogRecord | null;
     page: number;
-    lightboxSource: string;
+    lightboxSource: LightboxSource;
 };
 export type CatalogState = {
     catalogLayoutColumns: number;
@@ -63,9 +95,9 @@ export type CatalogState = {
 export type SearchState = {
     globalSearchCategory: string;
     globalSearchOpen: boolean;
-    lightboxSearchScope: string;
+    lightboxSearchScope: LightboxSearchScope;
     lightboxMobileSearchOpen: boolean;
-    searchIndexLoadState: string;
+    searchIndexLoadState: SearchIndexLoadState;
     searchIndexLoadPromise: Promise<boolean> | null;
     searchIndexPreloadTimer: number;
     searchPreviewSuppressUntil: number;
@@ -89,16 +121,16 @@ export type FavoritesState = {
     favoriteNoteReturnFocus: HTMLElement | null;
 };
 export type ViewerSessionState = {
-    viewerPhase: string;
+    viewerPhase: ViewerPhase;
     viewerPhaseReason: string;
-    viewerFullscreenPhase: string;
+    viewerFullscreenPhase: ViewerFullscreenPhase;
     viewerFullscreenReason: string;
 };
 export type ViewerViewportState = {
     zoom: number;
     fitScale: number;
-    imageFitMode: string;
-    imageFitModeSource: string;
+    imageFitMode: ViewerFitMode;
+    imageFitModeSource: ViewerFitModeSource;
     singleImageFitOriginPending: boolean;
     singleImagePendingRelativePosition: ViewerRelativePosition | null;
     singleImagePendingPageTurnOrigin: ViewerPageTurnOrigin | null;
@@ -146,7 +178,7 @@ export type ViewerImageState = {
     singleImageResolutionStop: (() => void) | null;
     singleImageResolutionImage: HTMLImageElement | null;
     singleImageResolutionTargetSrc: string;
-    singleImageResolutionTargetTier: string;
+    singleImageResolutionTargetTier: CatalogImageTier | "";
     singleImageResolutionReady: boolean;
     singleImageResolutionVisible: boolean;
     singleImageResolutionCommitPending: boolean;
@@ -210,12 +242,12 @@ export type ViewerPageSwapAnimationOptions = {
 };
 export type CatalogImageCandidate = {
     src: string;
-    tier: string;
+    tier: CatalogImageTier | "";
     role?: string;
 };
 export type CatalogImageRequest = {
     primarySrc: string;
-    primaryTier: string;
+    primaryTier: CatalogImageTier;
     fallbackCandidates: Array<CatalogImageCandidate>;
 };
 export type ViewerResolutionUpgradeOptions = {
@@ -274,7 +306,7 @@ export type ViewerRailRenderOptions = {
 };
 export type ViewerFitModeOptions = {
     showUi?: boolean;
-    source?: string;
+    source?: ViewerFitModeSource;
     refreshLayout?: boolean;
 };
 export type ViewerPageIndicatorOptions = {
@@ -333,11 +365,14 @@ export type CatalogAssetState = {
 export type UiRuntimeState = {
     actionToastTimer: number;
 };
+export type FavoriteMutationOperation = "add" | "update" | "set-note" | "reorder" | "remove" | "toggle" | "clear" | "replace";
+export type FavoritesPersistenceReason = "" | "unavailable" | "read-failed" | "write-failed" | "quota-exceeded" | "blocked" | "verification-failed";
+export type FavoriteMutationReason = FavoritesPersistenceReason | "invalid-item" | "invalid-update" | "not-found" | "invalid-order";
 export type FavoriteMutationResult = {
-    operation: string;
+    operation: FavoriteMutationOperation;
     changed: boolean;
     persisted: boolean;
-    reason: string;
+    reason: FavoriteMutationReason;
     items: Array<FavoriteItem>;
     active?: boolean;
 };
@@ -347,7 +382,7 @@ export type FavoritesStore = {
     reload: () => Array<FavoriteItem>;
     status: () => ({
         persisted: boolean;
-        reason: string;
+        reason: FavoritesPersistenceReason;
     });
     lastMutation: () => FavoriteMutationResult | null;
     has: (item: FavoriteItem) => boolean;
@@ -447,7 +482,7 @@ export type ViewerCloseOptions = {
     restoreFocus?: boolean;
 };
 export type ViewerOpenOptions = {
-    source?: string;
+    source?: LightboxSource;
     favoriteIndex?: number;
 };
 export type ViewerRefreshOptions = {
@@ -469,7 +504,7 @@ export type ViewerSetPageOptions = {
     navigationSource?: ViewerNavigationSource;
 };
 export type ViewerStateInvariantSnapshot = {
-    phase: string;
+    phase: ViewerPhase;
     pointerCount: number;
     momentumActive: boolean;
     pendingViewportModes: number;
@@ -536,10 +571,10 @@ export type EscapeFeatureApi = {
 export type NavigationFeatureApi = {
     catalog: () => CatalogRecord | null;
     page: () => number;
-    source: () => string;
-    setLocation: (catalog: CatalogRecord | null, page?: number, source?: string) => void;
+    source: () => LightboxSource;
+    setLocation: (catalog: CatalogRecord | null, page?: number, source?: LightboxSource) => void;
     setPage: (page: number) => void;
-    setSource: (source: string) => void;
+    setSource: (source: LightboxSource) => void;
     clearLocation: () => void;
     setAppPage: (nextPage: string) => void;
     appPage: () => string;

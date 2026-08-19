@@ -7,7 +7,7 @@
  */
 
 /** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
-/** @import { PointLike, ViewerFrameGeometryOptions, ViewerGeometryResetOptions, ViewerPanBoundsOptions, ViewerPointerPoint } from "../../types/frontend-contracts.js" */
+/** @import { PointLike, ViewerFitMode, ViewerFitModeSource, ViewerFrameGeometryOptions, ViewerGeometryResetOptions, ViewerPanBoundsOptions, ViewerPointerPoint } from "../../types/frontend-contracts.js" */
 
 import { catalogDocumentUrl, isAppPage, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
@@ -62,12 +62,12 @@ function getSafeViewerZoom(value = viewerViewportState.zoom) {
   return clampValue(numeric, getMinimumViewerZoom(), MAX_VIEWER_ZOOM);
 }
 
-/** @param {string} fitMode */
+/** @param {unknown} fitMode @returns {ViewerFitMode} */
 function normalizeViewerFitMode(fitMode) {
   return fitMode === VIEWER_FIT_WIDTH ? VIEWER_FIT_WIDTH : VIEWER_FIT_HEIGHT;
 }
 
-/** @param {string} source */
+/** @param {unknown} source @returns {ViewerFitModeSource} */
 function normalizeViewerFitModeSource(source) {
   return source === VIEWER_FIT_SOURCE_AUTO
     ? VIEWER_FIT_SOURCE_AUTO
@@ -97,6 +97,7 @@ function getViewerFitViewportSize() {
   };
 }
 
+/** @returns {ViewerFitMode} */
 function getAutomaticViewerFitMode() {
   const viewport = getViewerFitViewportSize();
   const naturalSize = getActiveSingleImageNaturalSize();

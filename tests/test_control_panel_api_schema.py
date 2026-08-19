@@ -59,6 +59,38 @@ def test_request_parser_rejects_fields_not_declared_by_the_schema() -> None:
         API.RunActionRequest.parse({"action": "convert", "unexpected": True})
 
 
+
+def test_closed_control_panel_states_reject_unknown_values() -> None:
+    payload = SERVER.state_payload()
+    assert payload["catalogs"]
+    invalid_catalog = copy.deepcopy(payload["catalogs"][0])
+    invalid_catalog["status"]["state"] = "almost-ready"
+    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"ControlCatalogDto\.status\.state"):
+        SCHEMA.validate_control_panel_payload("ControlCatalogDto", invalid_catalog)
+
+    invalid_job = {
+        "id": "job-1",
+        "actionKey": "convert",
+        "label": "Convert",
+        "status": "finishing",
+        "returncode": None,
+        "startedAt": 1.0,
+        "finishedAt": None,
+        "cancelRequested": False,
+        "cancelRequestedAt": None,
+    }
+    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"ControlJobDto\.status"):
+        SCHEMA.validate_control_panel_payload("ControlJobDto", invalid_job)
+
+    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"ControlPdfFileDto\.status"):
+        SCHEMA.validate_control_panel_payload(
+            "ControlPdfFileDto",
+            {"name": "catalog.pdf", "path": "assets/pdfs/catalog.pdf", "status": "overwritten"},
+        )
+
+    with pytest.raises(SCHEMA.ControlPanelSchemaError, match=r"ControlFooterFieldDto\.type"):
+        SCHEMA.validate_control_panel_payload("ControlFooterFieldDto", {"key": "phone", "type": "number"})
+
 def test_named_contract_lookup_fails_closed() -> None:
     with pytest.raises(KeyError, match="Unknown control-panel schema definition"):
         SCHEMA.validate_control_panel_payload("MissingDto", {})

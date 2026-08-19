@@ -31,7 +31,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Mapping, Sequence, cast
+from typing import Literal, Mapping, Sequence, cast
 from urllib.parse import ParseResult, parse_qs, unquote, urlparse
 
 TOOLS_DIR = Path(__file__).resolve().parent
@@ -185,13 +185,16 @@ if os.environ.get("BARGIG_CONTROL_E2E") == "1":
     )
 
 
+JobStatus = Literal["running", "canceling", "canceled", "success", "failed"]
+
+
 @dataclass
 class Job:
     id: str
     action_key: str
     label: str
     started_at: float
-    status: str = "running"
+    status: JobStatus = "running"
     returncode: int | None = None
     finished_at: float | None = None
     cancel_requested: bool = False

@@ -50,17 +50,15 @@ function catalogDir(catalog) {
   return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
 }
 
-/** @param {CatalogRecord|null|undefined} catalog @param {unknown} tier */
+/** @param {CatalogRecord|null|undefined} catalog @param {CatalogImageTier} tier */
 function catalogAssetVersionForTier(catalog, tier) {
-  const normalizedTier = String(tier || CATALOG_IMAGE_TIER_FULL);
-  // @ts-expect-error Dynamic legacy tier input is normalized to the public tier key at this compatibility boundary.
-  const variantVersion = String(catalog?.imageVariants?.[normalizedTier]?.version || "").trim();
+  const variantVersion = String(catalog?.imageVariants?.[tier]?.version || "").trim();
   const baseVersion = variantVersion || String(catalog?.assetVersion || "").trim();
   if (!baseVersion) return "";
-  return `${baseVersion}-${normalizedTier}-u${CATALOG_ASSET_URL_SCHEMA_VERSION}`;
+  return `${baseVersion}-${tier}-u${CATALOG_ASSET_URL_SCHEMA_VERSION}`;
 }
 
-/** @param {string} url @param {CatalogRecord|null|undefined} catalog @param {string} [tier] */
+/** @param {string} url @param {CatalogRecord|null|undefined} catalog @param {CatalogImageTier} [tier] */
 function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
   const version = catalogAssetVersionForTier(catalog, tier);
   if (!version) return url;

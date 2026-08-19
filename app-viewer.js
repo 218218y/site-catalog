@@ -249,8 +249,8 @@ function catalogDir(catalog) {
   return resolveCatalogAssetUrl(catalog?.dir || `assets/pages/${catalog.id}`);
 }
 function catalogAssetVersionForTier(catalog, tier) {
-  let normalizedTier = String(tier || CATALOG_IMAGE_TIER_FULL), baseVersion = String(catalog?.imageVariants?.[normalizedTier]?.version || "").trim() || String(catalog?.assetVersion || "").trim();
-  return baseVersion ? `${baseVersion}-${normalizedTier}-u${2}` : "";
+  let baseVersion = String(catalog?.imageVariants?.[tier]?.version || "").trim() || String(catalog?.assetVersion || "").trim();
+  return baseVersion ? `${baseVersion}-${tier}-u${2}` : "";
 }
 function withAssetVersion(url, catalog, tier = CATALOG_IMAGE_TIER_FULL) {
   let version = catalogAssetVersionForTier(catalog, tier);
@@ -425,16 +425,16 @@ registerFeatureInterface("navigation", {
   page: () => navigationState.page,
   source: () => navigationState.lightboxSource,
   setLocation: (catalog, page = void 0, source = navigationState.lightboxSource) => {
-    navigationState.catalog = catalog, navigationState.page = clampCatalogPage(page, catalog), navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
+    navigationState.catalog = catalog, navigationState.page = clampCatalogPage(page, catalog), navigationState.lightboxSource = source;
   },
   setPage: (page) => {
     navigationState.page = clampCatalogPage(page, navigationState.catalog);
   },
   setSource: (source) => {
-    navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
+    navigationState.lightboxSource = source;
   },
   clearLocation: () => {
-    navigationState.catalog = null, navigationState.page = 1, navigationState.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
+    navigationState.catalog = null, navigationState.page = 1, navigationState.lightboxSource = "catalog";
   },
   setAppPage: setCurrentAppPage,
   appPage: () => currentAppPage,
@@ -1228,18 +1228,18 @@ function cacheBustedCatalogImageUrl(url) {
 function catalogImageRecoveryCandidates(primarySrc, fallbackSrc = "", options = {}) {
   let primary = normalizeCatalogImageUrl(primarySrc), fallback = normalizeCatalogImageUrl(fallbackSrc), candidates = [], push = (src, role, tier = "") => {
     !src || candidates.some((candidate) => candidate.src === src) || candidates.push({ src, role, tier, fallback: role.startsWith("fallback") });
-  }, primaryTier = String(options.primaryTier || "");
+  }, primaryTier = options.primaryTier || "";
   push(
     options.forceRefresh ? cacheBustedCatalogImageUrl(primary) : primary,
     options.forceRefresh ? String(options.forceRefreshRole || "manual") : "primary",
     primaryTier
   );
   let unversionedPrimary = unversionedCatalogImageUrl(primary);
-  return unversionedPrimary && unversionedPrimary !== primary && push(cacheBustedCatalogImageUrl(unversionedPrimary), "direct-retry", primaryTier), fallback && fallback !== primary && push(fallback, "fallback", String(options.fallbackTier || "")), (Array.isArray(options.fallbackCandidates) ? options.fallbackCandidates : []).forEach((candidate, index) => {
+  return unversionedPrimary && unversionedPrimary !== primary && push(cacheBustedCatalogImageUrl(unversionedPrimary), "direct-retry", primaryTier), fallback && fallback !== primary && push(fallback, "fallback", options.fallbackTier || ""), (Array.isArray(options.fallbackCandidates) ? options.fallbackCandidates : []).forEach((candidate, index) => {
     !candidate || typeof candidate != "object" || push(
       normalizeCatalogImageUrl(candidate.src),
       String(candidate.role || `fallback-${index + 1}`),
-      String(candidate.tier || "")
+      candidate.tier || ""
     );
   }), candidates;
 }
@@ -3119,7 +3119,10 @@ var searchCatalogDomain = (() => {
   }
   function resolveGlobalSearchResultAction(result) {
     if (!result) return null;
-    if (result.targetId) return { type: "category", targetId: String(result.targetId) };
+    if (result.resultType === "category" || result.resultType === "subcategory") {
+      let targetId = String(result.targetId || "").trim();
+      return targetId ? { type: "category", targetId } : null;
+    }
     let catalogId = String(result.catalogId || "").trim();
     return catalogId ? result.resultType === "catalog" ? { type: "catalog", catalogId } : { type: "viewer", catalogId, page: searchResultPage(result.page) } : null;
   }
@@ -4149,12 +4152,9 @@ async function renderLightboxSearchResults(query) {
           <span class="reader-search-result-copy">${searchCatalogDomain.searchResultDetailsMarkup(result)}</span>
         </button>
       `;
-    }).join(""), bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults), Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button) => {
+    }).join(""), bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults), Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button, index) => {
       button.addEventListener("click", async () => {
-        await trackCompletedLightboxSearch("result-open"), hideSearchFloatingPreview(), openLightboxSearchResult({
-          catalogId: button.dataset.lightboxSearchCatalog,
-          page: button.dataset.lightboxSearchPage
-        });
+        await trackCompletedLightboxSearch("result-open"), hideSearchFloatingPreview(), openLightboxSearchResult(results[index]);
       });
     }), results) : (searchElements.lightboxSearchStatus.textContent = scope === "all" ? "לא נמצאו תוצאות בכל הקטלוגים." : "לא נמצאו תוצאות בקטלוג הפתוח.", searchElements.lightboxSearchResults.innerHTML = searchEmptyStateMarkup(
       rawQuery,
@@ -4249,24 +4249,16 @@ function globalSearchResultMarkup(result) {
     </article>
   `;
 }
-function bindGlobalSearchResultEvents(root) {
-  bindSearchFloatingPreviewEvents(root), Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button) => {
+function bindGlobalSearchResultEvents(root, results) {
+  bindSearchFloatingPreviewEvents(root), Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button, index) => {
     button.addEventListener("click", async () => {
-      await trackCompletedGlobalSearch("result-open", void 0, { immediate: !0 }), flushGlobalSearchTelemetryBeforeNavigation(), openGlobalSearchResult(button.dataset.searchNavigationType ? {
-        resultType: button.dataset.searchNavigationType,
-        targetId: button.dataset.searchNavigationTarget,
-        catalogId: button.dataset.searchNavigationCatalog
-      } : {
-        resultType: "ocr",
-        catalogId: button.dataset.searchCatalog,
-        page: button.dataset.searchPage
-      });
+      await trackCompletedGlobalSearch("result-open", void 0, { immediate: !0 }), flushGlobalSearchTelemetryBeforeNavigation(), openGlobalSearchResult(results[index]);
     });
   });
 }
 function appendGlobalSearchResultBatch(results, start, count) {
-  let template = document.createElement("template");
-  return template.innerHTML = results.slice(start, start + count).map(globalSearchResultMarkup).join(""), bindGlobalSearchResultEvents(template.content), searchElements.globalSearchResults.append(template.content), Math.min(results.length, start + count);
+  let batch = results.slice(start, start + count), template = document.createElement("template");
+  return template.innerHTML = batch.map(globalSearchResultMarkup).join(""), bindGlobalSearchResultEvents(template.content, batch), searchElements.globalSearchResults.append(template.content), Math.min(results.length, start + count);
 }
 function isCurrentGlobalSearchRender(renderSequence, rawQuery) {
   return renderSequence === globalSearchRenderSequence && globalSearchKey(rawQuery) === globalSearchKey(searchElements.globalSearchInput?.value || "") && isGlobalSearchPanelOpen();
@@ -4589,12 +4581,12 @@ function cancelViewerResolutionCommand() {
 function beginViewerResolutionCommand(targetSrc, targetTier, commitPending) {
   if (typeof targetSrc != "string" || typeof targetTier != "string" || typeof commitPending != "boolean")
     throw new TypeError("Viewer resolution transition requires string targets and a boolean commit policy.");
-  let normalizedTargetSrc = targetSrc.trim(), normalizedTargetTier = targetTier.trim();
-  if (!normalizedTargetSrc || !normalizedTargetTier)
+  let normalizedTargetSrc = targetSrc.trim();
+  if (!normalizedTargetSrc || !targetTier)
     throw new TypeError("Viewer resolution transition requires a target source and tier.");
   cancelViewerResolutionCommand();
   let token = viewerImageState.singleImageResolutionLoadToken;
-  return viewerImageState.singleImageResolutionTargetSrc = normalizedTargetSrc, viewerImageState.singleImageResolutionTargetTier = normalizedTargetTier, viewerImageState.singleImageResolutionCommitPending = !!commitPending, assertViewerStateInvariants("begin-resolution"), token;
+  return viewerImageState.singleImageResolutionTargetSrc = normalizedTargetSrc, viewerImageState.singleImageResolutionTargetTier = targetTier, viewerImageState.singleImageResolutionCommitPending = !!commitPending, assertViewerStateInvariants("begin-resolution"), token;
 }
 function attachViewerResolutionStopCommand(token, stop) {
   if (stop !== null && typeof stop != "function")
@@ -5262,7 +5254,11 @@ function activeSingleViewerImageLogicalSrc() {
   return viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionTargetSrc ? viewerImageState.singleImageResolutionTargetSrc : normalizeCatalogImageUrl(viewerElements.lightboxImage?.dataset.logicalSrc || viewerElements.lightboxImage?.getAttribute("src") || "");
 }
 function activeSingleViewerImageTier() {
-  return viewerImageState.singleImageResolutionRetainedForSwap ? CATALOG_IMAGE_TIER_FULL : viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionTargetTier ? viewerImageState.singleImageResolutionTargetTier : String(viewerElements.lightboxImage?.dataset.loadedTier || "");
+  if (viewerImageState.singleImageResolutionRetainedForSwap) return CATALOG_IMAGE_TIER_FULL;
+  if (viewerImageState.singleImageResolutionVisible && viewerImageState.singleImageResolutionTargetTier)
+    return viewerImageState.singleImageResolutionTargetTier;
+  let loadedTier = viewerElements.lightboxImage?.dataset.loadedTier || "";
+  return loadedTier === CATALOG_IMAGE_TIER_THUMB || loadedTier === CATALOG_IMAGE_TIER_MEDIUM || loadedTier === CATALOG_IMAGE_TIER_FULL ? loadedTier : "";
 }
 function shouldWarmSingleViewerFullResolution(previousZoom = viewerViewportState.zoom) {
   if (isSaveDataEnabled()) return !1;

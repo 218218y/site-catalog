@@ -25,9 +25,9 @@ const globalPorts = {
   openViewer(catalogId, page) { calls.push(["viewer", catalogId, page]); }
 };
 
-assert.equal(domain.executeGlobalSearchResultAction({ targetId: "category-beds" }, globalPorts), true);
+assert.equal(domain.executeGlobalSearchResultAction({ resultType: "category", targetId: "category-beds" }, globalPorts), true);
 assert.equal(domain.executeGlobalSearchResultAction({ resultType: "catalog", catalogId: "comfort" }, globalPorts), true);
-assert.equal(domain.executeGlobalSearchResultAction({ catalogId: "comfort", page: 7 }, globalPorts), true);
+assert.equal(domain.executeGlobalSearchResultAction({ resultType: "ocr", catalogId: "comfort", page: 7 }, globalPorts), true);
 assert.deepEqual(calls, [
   ["category", "category-beds"],
   ["catalog", "comfort"],
@@ -35,7 +35,7 @@ assert.deepEqual(calls, [
 ]);
 
 assert.throws(
-  () => domain.executeGlobalSearchResultAction({ targetId: "category-beds" }, {}),
+  () => domain.executeGlobalSearchResultAction({ resultType: "category", targetId: "category-beds" }, {}),
   TypeError,
   "a Search/Catalog Grid contract mismatch must fail at the integration seam"
 );
@@ -44,7 +44,7 @@ assert.throws(
   TypeError
 );
 assert.throws(
-  () => domain.executeGlobalSearchResultAction({ catalogId: "comfort", page: 2 }, {}),
+  () => domain.executeGlobalSearchResultAction({ resultType: "ocr", catalogId: "comfort", page: 2 }, {}),
   TypeError
 );
 
@@ -56,24 +56,24 @@ const viewerPorts = {
 };
 const activeCatalog = { id: "comfort", pages: 5 };
 assert.equal(
-  domain.executeLightboxSearchResultAction({ catalogId: "comfort", page: 99 }, activeCatalog, viewerPorts),
+  domain.executeLightboxSearchResultAction({ resultType: "ocr", catalogId: "comfort", page: 99 }, activeCatalog, viewerPorts),
   true
 );
 assert.deepEqual(lightboxCalls, [["page", 5], ["ui"]], "same-catalog search stays in the Viewer and clamps the page");
 
 assert.equal(
-  domain.executeLightboxSearchResultAction({ catalogId: "other", page: 3 }, activeCatalog, viewerPorts),
+  domain.executeLightboxSearchResultAction({ resultType: "ocr", catalogId: "other", page: 3 }, activeCatalog, viewerPorts),
   true
 );
 assert.deepEqual(lightboxCalls[2], ["open", "other", 3], "cross-catalog search delegates to the Viewer navigation port");
 
 assert.throws(
-  () => domain.executeLightboxSearchResultAction({ catalogId: "comfort", page: 2 }, activeCatalog, { openCatalog() {} }),
+  () => domain.executeLightboxSearchResultAction({ resultType: "ocr", catalogId: "comfort", page: 2 }, activeCatalog, { openCatalog() {} }),
   TypeError,
   "Viewer integration cannot silently omit setPage/showTopUi"
 );
 assert.throws(
-  () => domain.executeLightboxSearchResultAction({ catalogId: "other", page: 2 }, activeCatalog, {}),
+  () => domain.executeLightboxSearchResultAction({ resultType: "ocr", catalogId: "other", page: 2 }, activeCatalog, {}),
   TypeError
 );
 assert.equal(domain.executeLightboxSearchResultAction(null, activeCatalog, viewerPorts), false);

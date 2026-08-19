@@ -109,13 +109,13 @@ function searchNavigation(groups, query, options = {}) {
 }
 function mergeNavigationResults(navigationResults, ocrResults) {
   let navigation = Array.isArray(navigationResults) ? navigationResults : [], matchedCatalogIds = new Set(navigation.filter((result) => result.resultType === "catalog").map((result) => result.catalogId)), matchedCategories = new Set(navigation.filter((result) => result.resultType === "category").map((result) => result.category)), filteredOcr = (Array.isArray(ocrResults) ? ocrResults : []).filter((result) => result?.matchField === "title" && matchedCatalogIds.has(result.catalogId) ? !1 : result?.matchField !== "category" ? !0 : !matchedCategories.has(String(findCatalog(result.catalogId)?.category || "").trim()));
-  return [...navigation, ...filteredOcr.map((result) => ({ ...result, resultType: "ocr" }))];
+  return [...navigation, ...filteredOcr];
 }
 function escapeNavigationMarkup(value) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 function navigationResultMarkup(result) {
-  let type = String(result?.resultType || "catalog"), typeLabel = type === "category" ? "קטגוריה" : type === "subcategory" ? "תת קטגוריה" : "קטלוג", action = type === "category" ? "פתיחת הקטגוריה במסך הראשי" : type === "subcategory" ? "הצגת תת הקטגוריה במסך הראשי" : "פתיחת דף הקטלוג", context = type === "subcategory" ? result?.category ? ` · בתוך ${result.category}` : "" : type === "catalog" ? ` · ${[result?.category, result?.subcategory].filter(Boolean).join(" · ")}` : "", catalog = type === "catalog" ? findCatalog(result?.catalogId) : null;
+  let type = result.resultType, typeLabel = type === "category" ? "קטגוריה" : type === "subcategory" ? "תת קטגוריה" : "קטלוג", action = type === "category" ? "פתיחת הקטגוריה במסך הראשי" : type === "subcategory" ? "הצגת תת הקטגוריה במסך הראשי" : "פתיחת דף הקטלוג", context = type === "subcategory" ? result?.category ? ` · בתוך ${result.category}` : "" : type === "catalog" ? ` · ${[result?.category, result?.subcategory].filter(Boolean).join(" · ")}` : "", catalog = type === "catalog" ? findCatalog(result.catalogId) : null;
   if (catalog) {
     let page = catalogFirstPage(catalog), title = String(result?.label || catalog.title || "קטלוג").trim() || "קטלוג", thumb = thumbSrc(catalog, page), preview = mediumSrc(catalog, page) || pageSrc(catalog, page) || thumb;
     return `
@@ -132,7 +132,7 @@ function navigationResultMarkup(result) {
   }
   return `
     <article class="search-result-card search-navigation-result-card">
-      <button type="button" class="search-result-button search-navigation-result-button" data-search-navigation-type="${escapeNavigationMarkup(type)}" data-search-navigation-target="${escapeNavigationMarkup(result?.targetId || "")}" data-search-navigation-catalog="${escapeNavigationMarkup(result?.catalogId || "")}">
+      <button type="button" class="search-result-button search-navigation-result-button" data-search-navigation-type="${escapeNavigationMarkup(type)}" data-search-navigation-target="${escapeNavigationMarkup(type === "catalog" ? "" : result.targetId)}" data-search-navigation-catalog="${escapeNavigationMarkup(type === "catalog" ? result.catalogId : "")}">
         <span class="search-result-title" title="${escapeNavigationMarkup(result?.label || "")}"><small class="search-navigation-result-kind">${escapeNavigationMarkup(typeLabel)}</small>${escapeNavigationMarkup(result?.label || "")}</span>
         <span class="search-result-copy"><span class="search-result-meta">${escapeNavigationMarkup(action + context)}</span></span>
       </button>
@@ -248,7 +248,7 @@ function handleWorkerMessage(event) {
       return;
     }
     let results = (
-      /** @type {CatalogSearchResult[]} */
+      /** @type {CatalogOcrSearchResult[]} */
       Array.isArray(message.results) ? message.results : []
     );
     pending.resolve(results.map((result) => {

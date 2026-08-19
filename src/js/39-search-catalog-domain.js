@@ -1,5 +1,5 @@
 /** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
-/** @import { CatalogCategoryGroup, CatalogSearchResult, CatalogSubcategoryGroup, SearchHighlightRange } from "../../types/frontend-contracts.js" */
+/** @import { CatalogCategoryGroup, CatalogOcrSearchResult, CatalogSearchResult, CatalogSubcategoryGroup, SearchHighlightRange } from "../../types/frontend-contracts.js" */
 
 import { clampCatalogPage } from "./06-catalog-page-numbering.js";
 
@@ -235,7 +235,7 @@ const searchCatalogDomain = (() => {
     return Number.isFinite(page) && page >= 0 ? page : 1;
   }
 
-  /** @param {CatalogSearchResult} result */
+  /** @param {CatalogOcrSearchResult} result */
   function searchResultDetailsMarkup(result) {
     const page = searchResultPage(result?.page);
     const reason = String(result?.matchReason || "התאמה בטקסט הקטלוג");
@@ -257,7 +257,10 @@ const searchCatalogDomain = (() => {
   /** @param {CatalogSearchResult|null|undefined} result @returns {GlobalSearchResultAction|null} */
   function resolveGlobalSearchResultAction(result) {
     if (!result) return null;
-    if (result.targetId) return { type: "category", targetId: String(result.targetId) };
+    if (result.resultType === "category" || result.resultType === "subcategory") {
+      const targetId = String(result.targetId || "").trim();
+      return targetId ? { type: "category", targetId } : null;
+    }
     const catalogId = String(result.catalogId || "").trim();
     if (!catalogId) return null;
     if (result.resultType === "catalog") return { type: "catalog", catalogId };
@@ -275,7 +278,7 @@ const searchCatalogDomain = (() => {
   }
 
   /**
-   * @param {CatalogSearchResult|null|undefined} result
+   * @param {CatalogOcrSearchResult|null|undefined} result
    * @param {CatalogRecord|null|undefined} activeCatalog
    * @param {LightboxSearchResultPorts} ports
    */

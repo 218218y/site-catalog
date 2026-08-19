@@ -123,7 +123,7 @@ export function createJobsFeature({ elements, controlApi, getTaxonomyIssues, onT
     }
   }
 
-  /** @param {string} status @returns {string} */
+  /** @param {ControlJobDto["status"]} status @returns {string} */
   function statusText(status) {
     if (status === 'running') return 'רץ';
     if (status === 'canceling') return 'נעצר ומחזיר מצב קודם';

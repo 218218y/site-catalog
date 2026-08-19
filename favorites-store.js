@@ -83,7 +83,7 @@ function createStore(options = {}) {
       operation,
       changed: !!changed,
       persisted: !!writeResult.persisted,
-      reason: String(extra.reason || writeResult.reason || ""),
+      reason: extra.reason || writeResult.reason,
       items: memoryItems.slice(),
       ...typeof extra.active == "boolean" ? { active: extra.active } : {}
     };

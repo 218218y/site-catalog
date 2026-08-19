@@ -6,7 +6,7 @@
  * bundled by the pinned esbuild tool into stable browser asset names.
  */
 
-/** @import { CatalogSearchResult, SearchViewerPrepareOptions } from "../../types/frontend-contracts.js" */
+/** @import { CatalogOcrSearchResult, CatalogSearchResult, LightboxSearchScope, SearchViewerPrepareOptions } from "../../types/frontend-contracts.js" */
 import { hasHoverPointer, isHtmlElement, isTouchLikePointer } from "./21-ui-runtime.js";
 
 import { tooltips } from "../runtime/tooltip-manager.js";
@@ -42,7 +42,7 @@ let globalSearchRenderSequence = 0;
 let lightboxSearchRenderSequence = 0;
 /** @type {Array<CatalogSearchResult>} */
 let lastGlobalSearchResults = [];
-/** @type {Array<CatalogSearchResult>} */
+/** @type {Array<CatalogOcrSearchResult>} */
 let lastLightboxSearchResults = [];
 let lastGlobalSearchKey = "";
 let lastLightboxSearchKey = "";
@@ -293,10 +293,12 @@ function initSearchStatus() {
   syncGlobalSearchScopeUi();
 }
 
+/** @returns {LightboxSearchScope} */
 function getLightboxSearchScope() {
   return searchState.lightboxSearchScope === "all" ? "all" : "catalog";
 }
 
+/** @param {LightboxSearchScope} [scope] */
 function lightboxSearchScopeLabel(scope = getLightboxSearchScope()) {
   return scope === "all" ? "בכל הקטלוגים" : "בקטלוג הזה";
 }
@@ -439,7 +441,7 @@ function lightboxSearchKey(query) {
   return [String(query || "").trim(), scope, scope === "all" ? "" : (activeCatalog()?.id || "")].join("\u0000");
 }
 
-/** @param {unknown} query @param {number} [limit] @param {SearchRequestControl} [control] @returns {Promise<Array<CatalogSearchResult>>} */
+/** @param {unknown} query @param {number} [limit] @param {SearchRequestControl} [control] @returns {Promise<Array<CatalogOcrSearchResult>>} */
 async function getLightboxSearchResults(query, limit = 24, control = {}) {
   const rawQuery = String(query || "").trim();
   if (rawQuery.length < 2) return [];
@@ -475,7 +477,7 @@ async function trackCompletedLightboxSearch(completion, query = searchElements.l
   return results;
 }
 
-/** @param {CatalogSearchResult|null|undefined} result */
+/** @param {CatalogOcrSearchResult|null|undefined} result */
 function openLightboxSearchResult(result) {
   if (!result) return false;
   const catalog = activeCatalog();
@@ -852,7 +854,7 @@ function retrySearchIndexLoad(options = {}) {
     });
 }
 
-/** @param {unknown} query @returns {Promise<Array<CatalogSearchResult>>} */
+/** @param {unknown} query @returns {Promise<Array<CatalogOcrSearchResult>>} */
 async function renderLightboxSearchResults(query) {
   const rawQuery = String(query || "").trim();
   if (!searchElements.lightboxSearchResults || !searchElements.lightboxSearchStatus) return [];
@@ -943,14 +945,11 @@ async function renderLightboxSearchResults(query) {
     }).join("");
 
     bindSearchFloatingPreviewEvents(searchElements.lightboxSearchResults);
-    Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button) => {
+    Array.from(searchElements.lightboxSearchResults.querySelectorAll("[data-lightbox-search-page]")).filter(isHtmlElement).forEach((button, index) => {
       button.addEventListener("click", async () => {
         await trackCompletedLightboxSearch("result-open");
         hideSearchFloatingPreview();
-        openLightboxSearchResult({
-          catalogId: button.dataset.lightboxSearchCatalog,
-          page: button.dataset.lightboxSearchPage
-        });
+        openLightboxSearchResult(results[index]);
       });
     });
     return results;
@@ -987,7 +986,7 @@ function globalSearchKey(query) {
   return [String(query || "").trim(), getGlobalSearchCategory()].join("\u0000");
 }
 
-/** @param {unknown} query @param {number} [limit] @param {SearchRequestControl} [control] @returns {Promise<Array<CatalogSearchResult>>} */
+/** @param {unknown} query @param {number} [limit] @param {SearchRequestControl} [control] @returns {Promise<Array<CatalogOcrSearchResult>>} */
 async function getGlobalOcrSearchResults(query, limit = 72, control = {}) {
   const rawQuery = String(query || "").trim();
   const category = getGlobalSearchCategory();
@@ -1090,34 +1089,24 @@ function globalSearchResultMarkup(result) {
   `;
 }
 
-/** @param {ParentNode} root */
-function bindGlobalSearchResultEvents(root) {
+/** @param {ParentNode} root @param {Array<CatalogSearchResult>} results */
+function bindGlobalSearchResultEvents(root, results) {
   bindSearchFloatingPreviewEvents(root);
-  Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button) => {
+  Array.from(root.querySelectorAll("[data-search-navigation-type], [data-search-catalog]")).filter(isHtmlElement).forEach((button, index) => {
     button.addEventListener("click", async () => {
       await trackCompletedGlobalSearch("result-open", undefined, { immediate: true });
       flushGlobalSearchTelemetryBeforeNavigation();
-      openGlobalSearchResult(button.dataset.searchNavigationType ? {
-        resultType: button.dataset.searchNavigationType,
-        targetId: button.dataset.searchNavigationTarget,
-        catalogId: button.dataset.searchNavigationCatalog
-      } : {
-        resultType: "ocr",
-        catalogId: button.dataset.searchCatalog,
-        page: button.dataset.searchPage
-      });
+      openGlobalSearchResult(results[index]);
     });
   });
 }
 
 /** @param {Array<CatalogSearchResult>} results @param {number} start @param {number} count */
 function appendGlobalSearchResultBatch(results, start, count) {
+  const batch = results.slice(start, start + count);
   const template = document.createElement("template");
-  template.innerHTML = results
-    .slice(start, start + count)
-    .map(globalSearchResultMarkup)
-    .join("");
-  bindGlobalSearchResultEvents(template.content);
+  template.innerHTML = batch.map(globalSearchResultMarkup).join("");
+  bindGlobalSearchResultEvents(template.content, batch);
   searchElements.globalSearchResults.append(template.content);
   return Math.min(results.length, start + count);
 }

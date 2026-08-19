@@ -7,12 +7,12 @@
  */
 
 /** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
-/** @import { NavigationFeatureApi, ScrollPosition } from "../../types/frontend-contracts.js" */
+/** @import { LightboxSource, NavigationFeatureApi, ScrollPosition } from "../../types/frontend-contracts.js" */
 
 import { attachNavigationEvents, currentAppPage, setCurrentAppPage } from "./00-navigation.js";
 import { clampCatalogPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
-import { LIGHTBOX_SOURCE_CATALOG, navigationState, shellElements } from "./11-navigation-state.js";
+import { navigationState, shellElements } from "./11-navigation-state.js";
 
 /** @param {string} nextPage */
 function syncDocumentRouteShell(nextPage) {
@@ -43,18 +43,18 @@ registerFeatureInterface("navigation", {
   setLocation: (catalog, page = undefined, source = navigationState.lightboxSource) => {
     navigationState.catalog = catalog;
     navigationState.page = clampCatalogPage(page, catalog);
-    navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
+    navigationState.lightboxSource = source;
   },
   setPage: (page) => {
     navigationState.page = clampCatalogPage(page, navigationState.catalog);
   },
   setSource: (source) => {
-    navigationState.lightboxSource = String(source || LIGHTBOX_SOURCE_CATALOG);
+    navigationState.lightboxSource = source;
   },
   clearLocation: () => {
     navigationState.catalog = null;
     navigationState.page = 1;
-    navigationState.lightboxSource = LIGHTBOX_SOURCE_CATALOG;
+    navigationState.lightboxSource = "catalog";
   },
   setAppPage: setCurrentAppPage,
   appPage: () => currentAppPage,
@@ -80,12 +80,12 @@ function activePage() {
   return navigationFeature().page();
 }
 
-/** @returns {string} */
+/** @returns {LightboxSource} */
 function activeViewerSource() {
   return navigationFeature().source();
 }
 
-/** @param {CatalogRecord|null} catalog @param {number} [page] @param {string} [source] */
+/** @param {CatalogRecord|null} catalog @param {number} [page] @param {LightboxSource} [source] */
 function setActiveLocation(catalog, page = undefined, source = activeViewerSource()) {
   navigationFeature().setLocation(catalog, page, source);
 }
@@ -95,7 +95,7 @@ function setActivePage(page) {
   navigationFeature().setPage(page);
 }
 
-/** @param {string} source */
+/** @param {LightboxSource} source */
 function setActiveViewerSource(source) {
   navigationFeature().setSource(source);
 }
