@@ -11,6 +11,7 @@ const taxonomyFeature = fs.readFileSync(path.join(root, 'src', 'control-panel', 
 const jobsFeature = fs.readFileSync(path.join(root, 'src', 'control-panel', 'features', 'jobs.js'), 'utf8');
 const panelCss = fs.readFileSync(path.join(root, 'src', 'control-panel', 'catalog-control-panel.css'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'tools', 'catalog_control_server.py'), 'utf8');
+const service = fs.readFileSync(path.join(root, 'tools', 'catalog_control_service.py'), 'utf8');
 const editor = fs.readFileSync(path.join(root, 'tools', 'taxonomy_editor.py'), 'utf8');
 const taxonomyAst = inventoryProjectFiles(root, ['src/control-panel/features/taxonomy.js'])['src/control-panel/features/taxonomy.js'];
 
@@ -35,13 +36,13 @@ assert.match(panelCss, /\.taxonomy-list \{[^}]*min-width: 680px;/);
 assert.match(jobsFeature, /\['bundle_r2', 'cloudflare_pages_deploy'\]/);
 
 assert.match(server, /if path == "\/api\/taxonomy"/);
-assert.match(server, /atomic_write_catalogs_and_taxonomy/);
-assert.match(server, /compile_catalog_outputs_after_source_save/);
-assert.match(server, /taxonomy_action_availability/);
+assert.match(service, /atomic_write_catalogs_and_taxonomy/);
+assert.match(service, /compile_catalog_outputs_after_source_save/);
+assert.match(service, /taxonomy_action_availability/);
 assert.match(server, /"taxonomy": taxonomy/);
-assert.match(server, /append_new_configured_routes_to_lock/);
+assert.match(service, /append_new_configured_routes_to_lock/);
 assert.match(server, /routeLockUpdates/);
-assert.match(server, /route_lock_sync_warnings/);
+assert.match(service, /route_lock_sync_warnings/);
 
 assert.match(editor, /def reconcile_taxonomy_with_catalogs/);
 assert.match(editor, /def apply_taxonomy_renames_to_catalogs/);

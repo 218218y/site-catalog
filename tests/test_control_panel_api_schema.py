@@ -35,6 +35,7 @@ def test_generated_browser_dtos_are_exactly_current() -> None:
 def test_live_state_payload_satisfies_the_canonical_response_contract() -> None:
     payload = SERVER.state_payload()
     SCHEMA.validate_control_panel_payload("ControlPanelStateDto", payload)
+    assert payload["files"]["footerContent"] == "partials/site-footer.content.json"
 
 
 def test_response_contract_rejects_missing_and_unknown_fields() -> None:

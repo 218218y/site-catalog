@@ -24,7 +24,8 @@ def load_module(name: str, filename: str):
 
 
 FOOTER = load_module("footer_content_under_test", "footer_content.py")
-SERVER = load_module("catalog_control_server_footer_test", "catalog_control_server.py")
+from build_site_pages import PAGE_DOCUMENTS
+import catalog_control_service as SERVICE
 
 
 def copy_page_sources(target: Path) -> None:
@@ -118,12 +119,12 @@ def test_control_panel_footer_save_updates_config_and_all_public_pages(tmp_path:
     content["email"] = "office@example.com"
     content["gmailSubject"] = "נושא חדש לבדיקה"
 
-    saved = SERVER.save_footer_content_and_render_pages(content, root=tmp_path)
+    saved = SERVICE.save_footer_content_and_render_pages(content, root=tmp_path)
 
     assert saved["businessName"] == "עסק בדיקה מקצועי"
     persisted = json.loads((tmp_path / "partials/site-footer.content.json").read_text(encoding="utf-8"))
     assert persisted == saved
-    for page in SERVER.PAGE_DOCUMENTS:
+    for page in PAGE_DOCUMENTS:
         html = (tmp_path / page.filename).read_text(encoding="utf-8")
         assert "עסק בדיקה מקצועי" in html
         assert 'href="mailto:office@example.com"' in html
@@ -134,12 +135,12 @@ def test_control_panel_footer_save_updates_config_and_all_public_pages(tmp_path:
 def test_footer_save_rolls_back_config_and_pages_on_commit_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     copy_page_sources(tmp_path)
     original = FOOTER.read_footer_content(tmp_path)
-    SERVER.save_footer_content_and_render_pages(original, root=tmp_path)
-    tracked_paths = [tmp_path / "partials/site-footer.content.json", *[tmp_path / page.filename for page in SERVER.PAGE_DOCUMENTS]]
+    SERVICE.save_footer_content_and_render_pages(original, root=tmp_path)
+    tracked_paths = [tmp_path / "partials/site-footer.content.json", *[tmp_path / page.filename for page in PAGE_DOCUMENTS]]
     before = {path: path.read_bytes() for path in tracked_paths}
 
     changed = dict(original, bottomNote="טקסט שלא אמור להישאר אחרי כשל")
-    real_atomic_write = SERVER.atomic_write_bytes
+    real_atomic_write = SERVICE.atomic_write_bytes
     failed_once = False
 
     def flaky_atomic_write(path: Path, data: bytes) -> None:
@@ -149,9 +150,9 @@ def test_footer_save_rolls_back_config_and_pages_on_commit_failure(tmp_path: Pat
             raise OSError("simulated disk failure")
         real_atomic_write(path, data)
 
-    monkeypatch.setattr(SERVER, "atomic_write_bytes", flaky_atomic_write)
+    monkeypatch.setattr(SERVICE, "atomic_write_bytes", flaky_atomic_write)
     with pytest.raises(OSError, match="simulated disk failure"):
-        SERVER.save_footer_content_and_render_pages(changed, root=tmp_path)
+        SERVICE.save_footer_content_and_render_pages(changed, root=tmp_path)
 
     after = {path: path.read_bytes() for path in tracked_paths}
     assert after == before

@@ -6,6 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
 
 
 def load_module(name: str, filename: str):
@@ -19,7 +21,7 @@ def load_module(name: str, filename: str):
 
 PROFILES = load_module("catalog_conversion_profiles_tests", "catalog_conversion_profiles.py")
 BUILD = load_module("build_catalogs_profile_tests", "build_catalogs.py")
-SERVER = load_module("catalog_control_profile_tests", "catalog_control_server.py")
+import catalog_control_jobs as JOBS
 
 
 def test_production_profile_is_the_cli_default() -> None:
@@ -74,9 +76,9 @@ def test_explicit_cli_values_override_profile_numeric_defaults() -> None:
 
 
 def test_control_panel_uses_the_same_thin_profile_commands() -> None:
-    assert SERVER.ACTIONS["convert"].command == PROFILES.conversion_profile_command("production")
-    assert SERVER.ACTIONS["convert_force"].command == PROFILES.conversion_profile_command("force")
-    assert SERVER.ACTIONS["refresh_ocr"].command == PROFILES.conversion_profile_command("ocr-refresh")
+    assert JOBS.ACTIONS["convert"].command == PROFILES.conversion_profile_command("production")
+    assert JOBS.ACTIONS["convert_force"].command == PROFILES.conversion_profile_command("force")
+    assert JOBS.ACTIONS["refresh_ocr"].command == PROFILES.conversion_profile_command("ocr-refresh")
 
 
 def test_windows_wrappers_delegate_to_the_cross_platform_profile_tasks() -> None:
@@ -122,7 +124,7 @@ def test_confirmed_missing_pdf_ids_are_revalidated_by_the_converter() -> None:
 
 
 def test_control_panel_job_command_carries_the_exact_confirmation() -> None:
-    command = SERVER.action_command_for_job(
+    command = JOBS.action_command_for_job(
         "convert",
         prune_missing_pdfs=True,
         confirmed_missing_pdf_ids=("missing-b", "missing-a", "missing-a"),

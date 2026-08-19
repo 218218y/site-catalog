@@ -11,6 +11,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
 
 BUILD_SPEC = importlib.util.spec_from_file_location(
     "build_catalogs_cleanup_contract",
@@ -21,14 +23,9 @@ BUILD = importlib.util.module_from_spec(BUILD_SPEC)
 sys.modules[BUILD_SPEC.name] = BUILD
 BUILD_SPEC.loader.exec_module(BUILD)
 
-CONTROL_SPEC = importlib.util.spec_from_file_location(
-    "catalog_control_server_cleanup_contract",
-    TOOLS / "catalog_control_server.py",
-)
-assert CONTROL_SPEC and CONTROL_SPEC.loader
-CONTROL = importlib.util.module_from_spec(CONTROL_SPEC)
-sys.modules[CONTROL_SPEC.name] = CONTROL
-CONTROL_SPEC.loader.exec_module(CONTROL)
+import catalog_control_files as CONTROL_FILES
+import catalog_control_jobs as JOBS
+import catalog_control_service as SERVICE
 
 
 def write_pdf(path: Path, text: str) -> None:
@@ -130,13 +127,13 @@ def test_conversion_always_reconciles_removed_catalogs(
 
 
 def test_only_two_conversion_actions_and_batch_files_remain() -> None:
-    assert "convert" in CONTROL.ACTIONS
-    assert "convert_force" in CONTROL.ACTIONS
-    assert "convert_delete" not in CONTROL.ACTIONS
-    assert "convert_delete_force" not in CONTROL.ACTIONS
+    assert "convert" in JOBS.ACTIONS
+    assert "convert_force" in JOBS.ACTIONS
+    assert "convert_delete" not in JOBS.ACTIONS
+    assert "convert_delete_force" not in JOBS.ACTIONS
     assert not (ROOT / "convert-catalogsdelete.bat").exists()
     assert not (ROOT / "convert-catalogs-deleteforce.bat").exists()
-    assert all("--delete-unlisted" not in action.command for action in CONTROL.ACTIONS.values())
+    assert all("--delete-unlisted" not in action.command for action in JOBS.ACTIONS.values())
 
 
 def test_full_conversion_and_control_panel_save_emit_identical_catalog_bytes(
@@ -181,14 +178,17 @@ def test_full_conversion_and_control_panel_save_emit_identical_catalog_bytes(
     )
     conversion_bytes = {name: (root / name).read_bytes() for name in managed}
 
-    monkeypatch.setattr(CONTROL, "PROJECT_ROOT", root)
-    monkeypatch.setattr(CONTROL, "CONFIG_FILE", root / "catalogs.config.json")
-    monkeypatch.setattr(CONTROL, "TAXONOMY_FILE", root / "catalog-taxonomy.config.json")
-    monkeypatch.setattr(CONTROL, "SEARCH_OVERRIDES_FILE", root / "catalogs.search-overrides.json")
-    monkeypatch.setattr(CONTROL, "PDF_DIR", root / "assets/pdfs")
-    monkeypatch.setattr(CONTROL, "PAGES_DIR", root / "assets/pages")
-    monkeypatch.setattr(CONTROL, "compile_taxonomy_and_site_pages", lambda *_args, **_kwargs: ())
-    CONTROL.save_catalogs_transactionally(catalogs, taxonomy, [])
+    monkeypatch.setattr(SERVICE, "PROJECT_ROOT", root)
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", root / "catalogs.config.json")
+    monkeypatch.setattr(SERVICE, "TAXONOMY_FILE", root / "catalog-taxonomy.config.json")
+    monkeypatch.setattr(SERVICE, "SEARCH_OVERRIDES_FILE", root / "catalogs.search-overrides.json")
+    monkeypatch.setattr(SERVICE, "PDF_DIR", root / "assets/pdfs")
+    monkeypatch.setattr(SERVICE, "PAGES_DIR", root / "assets/pages")
+    monkeypatch.setattr(CONTROL_FILES, "PROJECT_ROOT", root)
+    monkeypatch.setattr(CONTROL_FILES, "PDF_DIR", root / "assets/pdfs")
+    monkeypatch.setattr(CONTROL_FILES, "PAGES_DIR", root / "assets/pages")
+    monkeypatch.setattr(SERVICE, "compile_taxonomy_and_site_pages", lambda *_args, **_kwargs: ())
+    SERVICE.save_catalogs_transactionally(catalogs, taxonomy, [])
 
     assert {name: (root / name).read_bytes() for name in managed} == conversion_bytes
 

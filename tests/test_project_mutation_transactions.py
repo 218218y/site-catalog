@@ -28,7 +28,9 @@ def load_module(name: str, filename: str):
 
 MUTATION = load_module("project_mutation_transaction_tests", "project_mutation.py")
 BUILD = load_module("build_catalogs_transaction_tests", "build_catalogs.py")
-SERVER = load_module("catalog_control_transaction_tests", "catalog_control_server.py")
+import catalog_control_files as CONTROL_FILES
+import catalog_control_jobs as JOBS
+import catalog_control_service as SERVICE
 CLEAN = load_module("clean_project_artifacts_lock_tests", "clean_project_artifacts.py")
 
 
@@ -217,12 +219,16 @@ def test_missing_pdf_without_explicit_prune_changes_nothing(
 
 
 def patch_control_paths(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
-    monkeypatch.setattr(SERVER, "PROJECT_ROOT", root)
-    monkeypatch.setattr(SERVER, "CONFIG_FILE", root / "catalogs.config.json")
-    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", root / "catalog-taxonomy.config.json")
-    monkeypatch.setattr(SERVER, "SEARCH_OVERRIDES_FILE", root / "catalogs.search-overrides.json")
-    monkeypatch.setattr(SERVER, "PDF_DIR", root / "assets/pdfs")
-    monkeypatch.setattr(SERVER, "PAGES_DIR", root / "assets/pages")
+    monkeypatch.setattr(SERVICE, "PROJECT_ROOT", root)
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", root / "catalogs.config.json")
+    monkeypatch.setattr(SERVICE, "TAXONOMY_FILE", root / "catalog-taxonomy.config.json")
+    monkeypatch.setattr(SERVICE, "SEARCH_OVERRIDES_FILE", root / "catalogs.search-overrides.json")
+    monkeypatch.setattr(SERVICE, "PDF_DIR", root / "assets/pdfs")
+    monkeypatch.setattr(SERVICE, "PAGES_DIR", root / "assets/pages")
+    monkeypatch.setattr(CONTROL_FILES, "PROJECT_ROOT", root)
+    monkeypatch.setattr(CONTROL_FILES, "PDF_DIR", root / "assets/pdfs")
+    monkeypatch.setattr(CONTROL_FILES, "PAGES_DIR", root / "assets/pages")
+    monkeypatch.setattr(JOBS, "PROJECT_ROOT", root)
 
 
 def control_fixture(root: Path) -> tuple[list[dict[str, object]], dict[str, object]]:
@@ -276,7 +282,7 @@ def test_control_panel_save_faults_rollback_every_file_and_directory(
     monkeypatch.setenv(MUTATION.FAULT_ENV, fault_point)
 
     with pytest.raises(RuntimeError, match="Injected mutation fault"):
-        SERVER.save_catalogs_transactionally(catalogs, taxonomy, [])
+        SERVICE.save_catalogs_transactionally(catalogs, taxonomy, [])
 
     assert snapshot_tree(root) == before
     assert (root / "assets/pages/old-id").is_dir()
@@ -292,7 +298,7 @@ def test_control_panel_save_commits_all_related_outputs_together(
     catalogs, taxonomy = control_fixture(root)
     patch_control_paths(monkeypatch, root)
 
-    result = SERVER.save_catalogs_transactionally(catalogs, taxonomy, [])
+    result = SERVICE.save_catalogs_transactionally(catalogs, taxonomy, [])
 
     saved_config = json.loads((root / "catalogs.config.json").read_text(encoding="utf-8"))
     generated = json.loads((root / "catalogs.generated.json").read_text(encoding="utf-8"))
@@ -329,12 +335,12 @@ def test_control_panel_rejects_a_job_while_another_mutation_owns_the_lock(
 ) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    monkeypatch.setattr(SERVER, "PROJECT_ROOT", root)
-    monkeypatch.setattr(SERVER, "current_taxonomy_state", lambda: {"issues": []})
+    monkeypatch.setattr(JOBS, "PROJECT_ROOT", root)
+    monkeypatch.setattr(JOBS, "current_taxonomy_state", lambda: {"issues": []})
 
     with MUTATION.ProjectMutationLock(root, "existing operation"):
         with pytest.raises(RuntimeError, match="נעול"):
-            SERVER.start_job("convert")
+            JOBS.start_job("convert")
 
 
 
@@ -368,27 +374,27 @@ def test_control_panel_rejects_a_second_running_job(
 ) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    monkeypatch.setattr(SERVER, "PROJECT_ROOT", root)
-    monkeypatch.setattr(SERVER, "current_taxonomy_state", lambda: {"issues": []})
-    running = SERVER.Job(
+    monkeypatch.setattr(JOBS, "PROJECT_ROOT", root)
+    monkeypatch.setattr(JOBS, "current_taxonomy_state", lambda: {"issues": []})
+    running = JOBS.Job(
         id="already-running",
         action_key="convert",
         label="המרה פעילה",
         started_at=1.0,
     )
-    with SERVER.jobs_lock:
-        SERVER.jobs.clear()
-        SERVER.jobs[running.id] = running
+    with JOBS.jobs_lock:
+        JOBS.jobs.clear()
+        JOBS.jobs[running.id] = running
     try:
         with pytest.raises(RuntimeError, match="עדיין פועלת"):
-            SERVER.start_job("convert_force")
+            JOBS.start_job("convert_force")
     finally:
-        with SERVER.jobs_lock:
-            SERVER.jobs.clear()
+        with JOBS.jobs_lock:
+            JOBS.jobs.clear()
 
 
 def test_every_control_panel_worker_command_acquires_the_shared_lock_itself() -> None:
-    for action in SERVER.ACTIONS.values():
+    for action in JOBS.ACTIONS.values():
         script_path = ROOT / action.command[0]
         source = script_path.read_text(encoding="utf-8")
         assert "ProjectMutationLock" in source, action.command[0]
@@ -427,7 +433,7 @@ def test_control_save_reconstructs_a_missing_generated_module_from_state(
     catalogs, taxonomy = control_fixture(root)
     patch_control_paths(monkeypatch, root)
     (root / "catalogs.generated.module.js").unlink()
-    SERVER.save_catalogs_transactionally(catalogs, taxonomy, [])
+    SERVICE.save_catalogs_transactionally(catalogs, taxonomy, [])
 
     generated = json.loads((root / "catalogs.generated.json").read_text(encoding="utf-8"))
     assert (root / "catalogs.generated.module.js").is_file()

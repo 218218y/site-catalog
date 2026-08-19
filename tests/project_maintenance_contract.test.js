@@ -56,6 +56,7 @@ const controlPanel = fs.readFileSync(path.join(root, "catalog-control-panel.html
 const controlPanelJobs = fs.readFileSync(path.join(root, "src", "control-panel", "features", "jobs.js"), "utf8");
 const controlPanelApi = fs.readFileSync(path.join(root, "src", "control-panel", "core", "api.js"), "utf8");
 const controlServer = fs.readFileSync(path.join(root, "tools", "catalog_control_server.py"), "utf8");
+const controlJobs = fs.readFileSync(path.join(root, "tools", "catalog_control_jobs.py"), "utf8");
 const projectTasks = fs.readFileSync(path.join(root, "tools", "project_tasks.js"), "utf8");
 const linuxOcrSetup = fs.readFileSync(path.join(root, "tools", "setup_linux_ocr.js"), "utf8");
 const pythonLauncher = fs.readFileSync(path.join(root, "tools", "run_project_python.js"), "utf8");
@@ -302,10 +303,10 @@ assert.match(controlPanel, /id="cancelJob"/);
 assert.ok(hasFunction(controlPanelJobsAst, 'cancelActiveJob'));
 assert.match(controlPanelJobs, /controlApi\.cancelJob\(activeJobId\)/);
 assert.match(controlPanelApi, /`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/cancel`/);
-assert.match(controlServer, /def cancel_job\(/);
-assert.match(controlServer, /cancel_requested/);
-assert.match(controlServer, /_recover_after_canceled_job/);
-assert.match(controlServer, /BARGIG_CONTROL_E2E/);
+assert.match(controlJobs, /def cancel_job\(/);
+assert.match(controlJobs, /cancel_requested/);
+assert.match(controlJobs, /_recover_after_canceled_job/);
+assert.match(controlJobs, /BARGIG_CONTROL_E2E/);
 assert.equal(fs.existsSync(path.join(root, "tests", "fixtures", "control_panel_interruptible_job.py")), true);
 
 assert.equal(fs.existsSync(path.join(root, "tools", "project_tasks.js")), true);

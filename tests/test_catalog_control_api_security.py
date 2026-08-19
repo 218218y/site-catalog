@@ -29,6 +29,8 @@ def load_module(name: str, filename: str):
 
 API = load_module("catalog_control_api_security_tests", "catalog_control_api.py")
 SERVER = load_module("catalog_control_server_security_tests", "catalog_control_server.py")
+import catalog_control_files as CONTROL_FILES
+import catalog_control_jobs as JOBS
 
 
 class TrackingStream(io.BytesIO):
@@ -76,7 +78,7 @@ def test_oversized_pdf_upload_is_rejected_before_body_read() -> None:
     )
 
     with pytest.raises(SERVER.ApiRequestError) as error:
-        SERVER.read_multipart_pdf_upload(handler)
+        CONTROL_FILES.read_multipart_pdf_upload(handler)
 
     assert error.value.status == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
     assert handler.rfile.read_calls == 0
@@ -138,7 +140,7 @@ def test_missing_pdf_pruning_requires_an_exact_current_confirmation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        SERVER,
+        JOBS,
         "configured_missing_pdfs",
         lambda: [
             {"id": "missing-a", "title": "A", "pdf": "assets/pdfs/a.pdf"},
@@ -151,7 +153,7 @@ def test_missing_pdf_pruning_requires_an_exact_current_confirmation(
         "confirmedMissingPdfIds": ["missing-a"],
     })
     with pytest.raises(SERVER.ApiRequestError) as error:
-        SERVER.validate_missing_pdf_confirmation(stale)
+        JOBS.validate_missing_pdf_confirmation(stale)
     assert error.value.status == HTTPStatus.CONFLICT
 
     exact = API.RunActionRequest.parse({
@@ -159,7 +161,7 @@ def test_missing_pdf_pruning_requires_an_exact_current_confirmation(
         "pruneMissingPdfs": True,
         "confirmedMissingPdfIds": ["missing-b", "missing-a"],
     })
-    SERVER.validate_missing_pdf_confirmation(exact)
+    JOBS.validate_missing_pdf_confirmation(exact)
 
     wrong_action = API.RunActionRequest.parse({
         "action": "bundle_r2",
@@ -167,7 +169,7 @@ def test_missing_pdf_pruning_requires_an_exact_current_confirmation(
         "confirmedMissingPdfIds": ["missing-a", "missing-b"],
     })
     with pytest.raises(SERVER.ApiRequestError) as error:
-        SERVER.validate_missing_pdf_confirmation(wrong_action)
+        JOBS.validate_missing_pdf_confirmation(wrong_action)
     assert error.value.status == HTTPStatus.BAD_REQUEST
 
 

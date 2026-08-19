@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from tools import catalog_compiler as COMPILER
-from tools import catalog_control_server as SERVER
+from tools import catalog_control_files as CONTROL_FILES
+from tools import catalog_control_service as SERVICE
 from tools import catalog_schema as SCHEMA
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -213,17 +214,20 @@ def test_control_panel_save_and_full_compiler_emit_identical_catalog_outputs(
     COMPILER.compile_current_project_catalog_data(root, writer=lambda path, data: path.write_bytes(data))
     (root / "catalogs.search-overrides.json").write_text("{}\n", encoding="utf-8")
 
-    monkeypatch.setattr(SERVER, "PROJECT_ROOT", root)
-    monkeypatch.setattr(SERVER, "CONFIG_FILE", root / "catalogs.config.json")
-    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", root / "catalog-taxonomy.config.json")
-    monkeypatch.setattr(SERVER, "SEARCH_OVERRIDES_FILE", root / "catalogs.search-overrides.json")
-    monkeypatch.setattr(SERVER, "PDF_DIR", root / "assets/pdfs")
-    monkeypatch.setattr(SERVER, "PAGES_DIR", root / "assets/pages")
-    monkeypatch.setattr(SERVER, "compile_taxonomy_and_site_pages", lambda *_args, **_kwargs: ())
+    monkeypatch.setattr(SERVICE, "PROJECT_ROOT", root)
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", root / "catalogs.config.json")
+    monkeypatch.setattr(SERVICE, "TAXONOMY_FILE", root / "catalog-taxonomy.config.json")
+    monkeypatch.setattr(SERVICE, "SEARCH_OVERRIDES_FILE", root / "catalogs.search-overrides.json")
+    monkeypatch.setattr(SERVICE, "PDF_DIR", root / "assets/pdfs")
+    monkeypatch.setattr(SERVICE, "PAGES_DIR", root / "assets/pages")
+    monkeypatch.setattr(CONTROL_FILES, "PROJECT_ROOT", root)
+    monkeypatch.setattr(CONTROL_FILES, "PDF_DIR", root / "assets/pdfs")
+    monkeypatch.setattr(CONTROL_FILES, "PAGES_DIR", root / "assets/pages")
+    monkeypatch.setattr(SERVICE, "compile_taxonomy_and_site_pages", lambda *_args, **_kwargs: ())
 
     edited = deepcopy(original)
     edited["title"] = "New title"
-    SERVER.save_catalogs_transactionally([edited], taxonomy(), [])
+    SERVICE.save_catalogs_transactionally([edited], taxonomy(), [])
     panel_bytes = {
         relative: (root / relative).read_bytes()
         for relative in COMPILER.MANAGED_CATALOG_OUTPUTS

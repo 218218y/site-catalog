@@ -10,6 +10,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
 
 
 def load_module(name: str, filename: str):
@@ -21,7 +23,7 @@ def load_module(name: str, filename: str):
     return module
 
 
-SERVER = load_module("catalog_control_job_tests", "catalog_control_server.py")
+import catalog_control_jobs as JOBS
 
 
 def wait_for(predicate, timeout: float = 12.0) -> None:
@@ -75,25 +77,25 @@ except KeyboardInterrupt:
     )
 
     action_key = "cancel_test"
-    monkeypatch.setattr(SERVER, "PROJECT_ROOT", root)
-    monkeypatch.setattr(SERVER, "current_taxonomy_state", lambda: {"issues": []})
+    monkeypatch.setattr(JOBS, "PROJECT_ROOT", root)
+    monkeypatch.setattr(JOBS, "current_taxonomy_state", lambda: {"issues": []})
     monkeypatch.setitem(
-        SERVER.ACTIONS,
+        JOBS.ACTIONS,
         action_key,
-        SERVER.Action(
+        JOBS.Action(
             "Cancel test",
             "Cancel test",
             [str(worker), str(root), str(TOOLS)],
         ),
     )
-    with SERVER.jobs_lock:
-        SERVER.jobs.clear()
+    with JOBS.jobs_lock:
+        JOBS.jobs.clear()
 
-    job = SERVER.start_job(action_key)
+    job = JOBS.start_job(action_key)
     wait_for(lambda: any("[ready]" in line for line in job.log))
     assert marker.read_text(encoding="utf-8") == "mutating\n"
 
-    canceled = SERVER.cancel_job(job.id)
+    canceled = JOBS.cancel_job(job.id)
     assert canceled.cancel_requested is True
     assert canceled.status in {"canceling", "canceled"}
     wait_for(lambda: job.status not in {"running", "canceling"})
@@ -103,12 +105,12 @@ except KeyboardInterrupt:
     assert any("canceled" in line or "שחזור" in line or "recovered" in line for line in job.log)
     assert not list(root.glob(".cancel-test-transaction-*"))
 
-    with SERVER.jobs_lock:
-        SERVER.jobs.clear()
+    with JOBS.jobs_lock:
+        JOBS.jobs.clear()
 
 
 def test_canceling_a_finished_job_is_idempotent() -> None:
-    job = SERVER.Job(
+    job = JOBS.Job(
         id="finished",
         action_key="convert",
         label="Finished",
@@ -117,17 +119,17 @@ def test_canceling_a_finished_job_is_idempotent() -> None:
         returncode=0,
         finished_at=2.0,
     )
-    with SERVER.jobs_lock:
-        SERVER.jobs.clear()
-        SERVER.jobs[job.id] = job
+    with JOBS.jobs_lock:
+        JOBS.jobs.clear()
+        JOBS.jobs[job.id] = job
     try:
-        result = SERVER.cancel_job(job.id)
+        result = JOBS.cancel_job(job.id)
         assert result is job
         assert result.status == "success"
         assert result.cancel_requested is False
     finally:
-        with SERVER.jobs_lock:
-            SERVER.jobs.clear()
+        with JOBS.jobs_lock:
+            JOBS.jobs.clear()
 
 
 def test_job_output_is_streamed_before_worker_exit(
@@ -154,8 +156,8 @@ print("[stream-last]")
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(SERVER, "PROJECT_ROOT", root)
-    job = SERVER.Job(
+    monkeypatch.setattr(JOBS, "PROJECT_ROOT", root)
+    job = JOBS.Job(
         id="streaming",
         action_key="streaming",
         label="Streaming",
@@ -163,7 +165,7 @@ print("[stream-last]")
     )
 
     thread = threading.Thread(
-        target=SERVER.run_job,
+        target=JOBS.run_job,
         args=(job, [str(worker), str(started_marker)]),
         daemon=True,
     )

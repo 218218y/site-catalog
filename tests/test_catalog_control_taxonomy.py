@@ -22,7 +22,7 @@ def load_module(name: str, filename: str):
     return module
 
 
-SERVER = load_module("catalog_control_taxonomy_test", "catalog_control_server.py")
+import catalog_control_service as SERVICE
 
 
 def complete_taxonomy():
@@ -48,18 +48,18 @@ def test_atomic_catalog_and_taxonomy_write_is_one_rollback_unit(
     taxonomy_path.write_text('{"categories":[],"subcategories":[]}\n', encoding="utf-8")
     before = {config_path: config_path.read_bytes(), taxonomy_path: taxonomy_path.read_bytes()}
 
-    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
-    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", taxonomy_path)
-    real_write = SERVER.atomic_write_bytes
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVICE, "TAXONOMY_FILE", taxonomy_path)
+    real_write = SERVICE.atomic_write_bytes
 
     def fail_taxonomy(path: Path, data: bytes) -> None:
         if path == taxonomy_path:
             raise OSError("taxonomy write failed")
         real_write(path, data)
 
-    monkeypatch.setattr(SERVER, "atomic_write_bytes", fail_taxonomy)
+    monkeypatch.setattr(SERVICE, "atomic_write_bytes", fail_taxonomy)
     with pytest.raises(OSError, match="taxonomy write failed"):
-        SERVER.atomic_write_catalogs_and_taxonomy(
+        SERVICE.atomic_write_catalogs_and_taxonomy(
             [{"id": "new", "title": "חדש"}], complete_taxonomy()
         )
 
@@ -105,7 +105,7 @@ def test_prepare_save_adds_missing_taxonomy_and_applies_name_renames() -> None:
         ],
     }
 
-    updated_catalogs, updated_taxonomy, added = SERVER.prepare_taxonomy_and_catalogs_for_save(
+    updated_catalogs, updated_taxonomy, added = SERVICE.prepare_taxonomy_and_catalogs_for_save(
         taxonomy, catalogs
     )
 
@@ -124,12 +124,12 @@ def test_bundle_and_deploy_actions_are_blocked_until_taxonomy_is_complete() -> N
     incomplete = {"issues": [{"label": "חסר slug"}]}
     complete = {"issues": []}
 
-    assert SERVER.taxonomy_action_availability("convert", incomplete) == (True, "")
-    assert SERVER.taxonomy_action_availability("bundle_r2", complete) == (True, "")
-    enabled, reason = SERVER.taxonomy_action_availability("bundle_r2", incomplete)
+    assert SERVICE.taxonomy_action_availability("convert", incomplete) == (True, "")
+    assert SERVICE.taxonomy_action_availability("bundle_r2", complete) == (True, "")
+    enabled, reason = SERVICE.taxonomy_action_availability("bundle_r2", incomplete)
     assert enabled is False
     assert "להשלים" in reason
-    enabled, reason = SERVER.taxonomy_action_availability("cloudflare_pages_deploy", incomplete)
+    enabled, reason = SERVICE.taxonomy_action_availability("cloudflare_pages_deploy", incomplete)
     assert enabled is False
     assert "העלאה" in reason
 
@@ -139,10 +139,10 @@ def test_taxonomy_serialization_written_by_server_has_no_editor_metadata(
 ) -> None:
     config_path = tmp_path / "catalogs.config.json"
     taxonomy_path = tmp_path / "catalog-taxonomy.config.json"
-    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
-    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", taxonomy_path)
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVICE, "TAXONOMY_FILE", taxonomy_path)
 
-    SERVER.atomic_write_catalogs_and_taxonomy(
+    SERVICE.atomic_write_catalogs_and_taxonomy(
         [{"id": "a"}],
         {
             "categories": [
@@ -214,10 +214,10 @@ def test_atomic_control_panel_save_appends_new_public_routes(
         json.dumps(complete_taxonomy(), ensure_ascii=False), encoding="utf-8"
     )
     write_route_sync_fixture(tmp_path)
-    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
-    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", taxonomy_path)
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVICE, "TAXONOMY_FILE", taxonomy_path)
 
-    result = SERVER.atomic_write_catalogs_and_taxonomy(
+    result = SERVICE.atomic_write_catalogs_and_taxonomy(
         [
             {"id": "cocktail-2026", "category": "קטגוריה"},
             {"id": "roya-2026", "category": "קטגוריה"},
@@ -242,10 +242,10 @@ def test_incomplete_taxonomy_draft_does_not_force_route_lock_generation(
     taxonomy_path.write_text('{"categories":[],"subcategories":[]}\n', encoding="utf-8")
     write_route_sync_fixture(tmp_path)
     before_lock = (tmp_path / "seo-routes.lock.json").read_bytes()
-    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
-    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", taxonomy_path)
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVICE, "TAXONOMY_FILE", taxonomy_path)
 
-    result = SERVER.atomic_write_catalogs_and_taxonomy(
+    result = SERVICE.atomic_write_catalogs_and_taxonomy(
         [{"id": "new-catalog", "category": "קטגוריה חדשה"}],
         {
             "categories": [
@@ -275,16 +275,16 @@ def test_route_lock_sync_failure_rolls_back_catalog_taxonomy_and_lock(
         taxonomy_path: taxonomy_path.read_bytes(),
         route_lock_path: route_lock_path.read_bytes(),
     }
-    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
-    monkeypatch.setattr(SERVER, "TAXONOMY_FILE", taxonomy_path)
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVICE, "TAXONOMY_FILE", taxonomy_path)
 
     def fail_route_sync(root: Path) -> dict[str, list[str]]:
         route_lock_path.write_text('{"partially":"changed"}\n', encoding="utf-8")
         raise OSError("route lock sync failed")
 
-    monkeypatch.setattr(SERVER, "append_new_configured_routes_to_lock", fail_route_sync)
+    monkeypatch.setattr(SERVICE, "append_new_configured_routes_to_lock", fail_route_sync)
     with pytest.raises(OSError, match="route lock sync failed"):
-        SERVER.atomic_write_catalogs_and_taxonomy(
+        SERVICE.atomic_write_catalogs_and_taxonomy(
             [{"id": "new", "category": "קטגוריה"}], complete_taxonomy()
         )
 
@@ -310,13 +310,13 @@ def test_control_panel_rejects_noncanonical_catalog_fields(
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(SERVER, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(SERVICE, "CONFIG_FILE", config_path)
 
     with pytest.raises(ValueError, match="unsupported properties"):
-        SERVER.read_config()
+        SERVICE.read_config()
 
     with pytest.raises(ValueError, match="unsupported properties"):
-        SERVER.validate_catalogs_for_save(
+        SERVICE.validate_catalogs_for_save(
             [
                 {
                     "id": "catalog",
@@ -330,6 +330,6 @@ def test_control_panel_rejects_noncanonical_catalog_fields(
 
 def test_control_panel_rejects_coercible_ocr_values() -> None:
     with pytest.raises(ValueError, match="ocr must be a boolean"):
-        SERVER.validate_catalogs_for_save(
+        SERVICE.validate_catalogs_for_save(
             [{"id": "catalog", "title": "Catalog", "pdf": "assets/pdfs/catalog.pdf", "ocr": "false"}]
         )
