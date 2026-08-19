@@ -117,7 +117,7 @@ function escapeNavigationMarkup(value) {
 function navigationResultMarkup(result) {
   let type = result.resultType, typeLabel = type === "category" ? "קטגוריה" : type === "subcategory" ? "תת קטגוריה" : "קטלוג", action = type === "category" ? "פתיחת הקטגוריה במסך הראשי" : type === "subcategory" ? "הצגת תת הקטגוריה במסך הראשי" : "פתיחת דף הקטלוג", context = type === "subcategory" ? result?.category ? ` · בתוך ${result.category}` : "" : type === "catalog" ? ` · ${[result?.category, result?.subcategory].filter(Boolean).join(" · ")}` : "", catalog = type === "catalog" ? findCatalog(result.catalogId) : null;
   if (catalog) {
-    let page = catalogFirstPage(catalog), title = String(result?.label || catalog.title || "קטלוג").trim() || "קטלוג", thumb = thumbSrc(catalog, page), preview = mediumSrc(catalog, page) || pageSrc(catalog, page) || thumb;
+    let page = catalogFirstPage(catalog), title = String(result?.label || catalog.title || "קטלוג").trim() || "קטלוג", thumb = thumbSrc(catalog, page), preview = thumb;
     return `
       <article class="search-result-card search-navigation-result-card search-navigation-catalog-result-card">
         <button type="button" class="search-result-button search-navigation-result-button search-navigation-catalog-result-button" data-search-navigation-type="catalog" data-search-navigation-target="" data-search-navigation-catalog="${escapeNavigationMarkup(catalog.id)}" data-search-catalog="${escapeNavigationMarkup(catalog.id)}" data-search-page="${page}" data-search-preview-src="${escapeNavigationMarkup(preview)}" data-search-preview-title="${escapeNavigationMarkup(title)}">
@@ -200,13 +200,6 @@ function pageSrc(catalog, page) {
 function thumbSrc(catalog, page) {
   let assetPage = displayPageToAssetPage(catalog, page);
   return withAssetVersion(`${catalogDir(catalog)}/thumbs/page-${pad(assetPage)}.${imageExt(catalog)}`, catalog, "thumb");
-}
-function mediumSrc(catalog, page) {
-  if (String(configuredCatalogImageDeliveryMode || "").trim().toLowerCase() === "full-only") return "";
-  let variant = catalog?.imageVariants?.medium;
-  if (!variant || typeof variant != "object") return "";
-  let directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium", assetPage = displayPageToAssetPage(catalog, page);
-  return withAssetVersion(`${catalogDir(catalog)}/${directory}/page-${pad(assetPage)}.${imageExt(catalog)}`, catalog, "medium");
 }
 function navigationImageDimensionAttributes(catalog, page) {
   let assetPage = displayPageToAssetPage(catalog, page), size = Array.isArray(catalog?.pageSizes) ? catalog.pageSizes[assetPage - 1] : null, width = Number(size?.[0]), height = Number(size?.[1]);

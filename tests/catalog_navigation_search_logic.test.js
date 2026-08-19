@@ -164,6 +164,7 @@ const actualCatalogMarkup = catalogSearch.navigationResultMarkup({
   category: catalogWithMediumCover.category,
   subcategory: catalogWithMediumCover.subcategory
 });
-assert.match(actualCatalogMarkup, /\/medium\/page-001\./, "floating catalog preview should prefer the medium cover tier");
+assert.match(actualCatalogMarkup, /data-search-preview-src="[^"]*\/thumbs\/page-001\./, "floating catalog preview should reuse the lightweight cover thumbnail");
+assert.doesNotMatch(actualCatalogMarkup, /data-search-preview-src="[^"]*\/medium\//, "floating catalog preview must not spend bandwidth on the medium tier");
 
 console.log("catalog_navigation_search_logic.test.js: PASS");

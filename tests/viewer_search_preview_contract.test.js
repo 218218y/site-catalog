@@ -9,7 +9,9 @@ const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
 const viewer = fs.readFileSync(path.join(root, 'viewer.html'), 'utf8');
 const searchPreviewSource = fs.readFileSync(path.join(root, 'src/js/47-search-preview.js'), 'utf8');
+const globalSearchSource = fs.readFileSync(path.join(root, 'src/js/48-global-search-ui.js'), 'utf8');
 const readerSearchSource = fs.readFileSync(path.join(root, 'src/js/49-search-reader-ui.js'), 'utf8');
+const catalogSearchRuntime = fs.readFileSync(path.join(root, 'src/runtime/catalog-search.js'), 'utf8');
 const searchRootSource = fs.readFileSync(path.join(root, 'src/js/50-search-ui.js'), 'utf8');
 const favoritesRoutingCss = fs.readFileSync(path.join(root, 'src/css/85-favorites-routing.css'), 'utf8');
 const searchPreviewAst = inventoryProjectFiles(root, ['src/js/47-search-preview.js'])['src/js/47-search-preview.js'];
@@ -35,5 +37,15 @@ assert.match(readerSearchSource, /bindSearchFloatingPreviewEvents\(searchElement
 assert.match(searchRootSource, /searchElements\.lightboxSearchResults\?\.addEventListener\("wheel", handleSearchPreviewScrollIntent/);
 assert.match(searchRootSource, /searchElements\.lightboxSearchResults\?\.addEventListener\("scroll", \(\) => suppressSearchFloatingPreview\(\)/);
 assert.ok(hasFunction(searchPreviewAst, 'restoreSearchFloatingPreviewAfterSuppression'));
+
+assert.match(searchPreviewSource, /preview\.classList\.remove\("visible"\)[\s\S]*previewImage\.onload = revealLoadedPreview[\s\S]*previewImage\.src = src/);
+assert.match(searchPreviewSource, /loadSequence !== searchPreviewLoadSequence/);
+assert.match(searchPreviewSource, /previewImage\.loading = "eager"/);
+assert.match(searchPreviewSource, /previewImage\.fetchPriority = "high"/);
+assert.match(globalSearchSource, /const rawPreview = rawThumb \|\| rawImage;/);
+assert.match(readerSearchSource, /const rawPreview = rawThumb \|\| rawImage;/);
+assert.match(catalogSearchRuntime, /const preview = thumb;/);
+assert.doesNotMatch(globalSearchSource, /const rawPreview = result\.image/);
+assert.doesNotMatch(readerSearchSource, /const rawPreview = result\.image/);
 
 console.log('viewer_search_preview_contract.test.js: PASS');

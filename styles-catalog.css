@@ -1599,8 +1599,8 @@ main {
   display: block;
   width: auto;
   height: auto;
-  max-width: min(430px, calc(100vw - 46px));
-  max-height: min(72vh, 620px, calc(100vh - 46px));
+  max-width: min(360px, calc(100vw - 46px));
+  max-height: min(62vh, 520px, calc(100vh - 46px));
   border-radius: 15px;
   object-fit: contain;
   background: #fff;

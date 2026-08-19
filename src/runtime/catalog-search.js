@@ -237,7 +237,7 @@ function navigationResultMarkup(result) {
     const page = catalogFirstPage(catalog);
     const title = String(result?.label || catalog.title || "קטלוג").trim() || "קטלוג";
     const thumb = thumbSrc(catalog, page);
-    const preview = mediumSrc(catalog, page) || pageSrc(catalog, page) || thumb;
+    const preview = thumb;
     return `
       <article class="search-result-card search-navigation-result-card search-navigation-catalog-result-card">
         <button type="button" class="search-result-button search-navigation-result-button search-navigation-catalog-result-button" data-search-navigation-type="catalog" data-search-navigation-target="" data-search-navigation-catalog="${escapeNavigationMarkup(catalog.id)}" data-search-catalog="${escapeNavigationMarkup(catalog.id)}" data-search-page="${page}" data-search-preview-src="${escapeNavigationMarkup(preview)}" data-search-preview-title="${escapeNavigationMarkup(title)}">

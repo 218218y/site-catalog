@@ -16,10 +16,10 @@ import { catalogSearch, catalogs } from "./03-runtime-context.js";
 import { getFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { MOBILE_READER_SEARCH_MEDIA, SEARCH_INPUT_DEBOUNCE_MS, searchElements, searchState } from "./13-search-state.js";
 import { telemetryTrackSearch } from "../runtime/telemetry.js";
-import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
+import { thumbSrc } from "./17-catalog-asset-urls.js";
 import { activeCatalog } from "./18-navigation-feature.js";
 import { escapeHtml } from "./19-shared-pure.js";
-import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, mediumSrc } from "./20-catalog-runtime.js";
+import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage } from "./20-catalog-runtime.js";
 import { isHtmlElement } from "./21-ui-runtime.js";
 import { searchCatalogDomain } from "./39-search-catalog-domain.js";
 import { ensureSearchIndexLoaded, normalizeSearchResultsDirection, retrySearchIndexLoad, searchEmptyStateMarkup, searchIndexErrorMarkup } from "./42-search-runtime.js";
@@ -380,9 +380,9 @@ async function renderLightboxSearchResults(query) {
       const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || activeCatalog();
       if (!catalog) return "";
       const page = clampPage(result.page, catalog);
-      const rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page);
       const rawThumb = result.thumb || thumbSrc(catalog, page);
-      const rawImage = rawThumb || rawPreview;
+      const rawImage = rawThumb || result.image || "";
+      const rawPreview = rawThumb || rawImage;
       const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
       return `
         <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">

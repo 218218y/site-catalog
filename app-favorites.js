@@ -94,7 +94,8 @@ function catalogPageNumbers(catalog) {
 }
 
 // src/js/10-app-state.js
-var CATALOG_IMAGE_TIER_THUMB = "thumb", CATALOG_IMAGE_TIER_MEDIUM = "medium", CATALOG_IMAGE_TIER_FULL = "full", CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE = "responsive", CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY = "full-only";
+var CATALOG_IMAGE_TIER_THUMB = "thumb";
+var CATALOG_IMAGE_TIER_FULL = "full";
 var CATALOG_IMAGE_RETRY_PARAM = "bargig_retry";
 var uiRuntime = {
   actionToastTimer: 0
@@ -550,12 +551,6 @@ function networkInformation() {
 function isSaveDataEnabled() {
   return !!networkInformation()?.saveData;
 }
-function catalogImageDeliveryMode() {
-  return String(configuredCatalogImageDeliveryMode || "").trim().toLowerCase() === CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY ? CATALOG_IMAGE_DELIVERY_MODE_FULL_ONLY : CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
-}
-function catalogMediumImagesEnabled() {
-  return catalogImageDeliveryMode() === CATALOG_IMAGE_DELIVERY_MODE_RESPONSIVE;
-}
 function normalizeCatalogImageUrl(url) {
   let value = String(url || "").trim();
   if (!value) return "";
@@ -683,31 +678,6 @@ function recoverCatalogImageAfterInitialFailure(img) {
     isCurrent: () => img.isConnected !== !1,
     onExhausted: () => syncImagePlaceholderState(img)
   }), !0;
-}
-function padImagePage(value) {
-  return String(value).padStart(3, "0");
-}
-function catalogImageVariant(catalog, tier) {
-  if (tier === CATALOG_IMAGE_TIER_MEDIUM && !catalogMediumImagesEnabled()) return null;
-  let variants = catalog?.imageVariants;
-  if (variants && typeof variants == "object" && variants[tier] && typeof variants[tier] == "object")
-    return variants[tier];
-  if (tier === CATALOG_IMAGE_TIER_THUMB) return { directory: "thumbs", maxSide: 420 };
-  if (tier === CATALOG_IMAGE_TIER_FULL) {
-    let size = pageSize(catalog, catalogFirstPage(catalog));
-    return { directory: "", maxSide: size ? Math.max(size.width, size.height) : 2800 };
-  }
-  return null;
-}
-function mediumSrc(catalog, page) {
-  let variant = catalogImageVariant(catalog, CATALOG_IMAGE_TIER_MEDIUM);
-  if (!variant) return "";
-  let directory = String(variant.directory || "medium").trim().replace(/^\/+|\/+$/g, "") || "medium";
-  return withAssetVersion(
-    `${catalogDir(catalog)}/${directory}/page-${padImagePage(displayPageToAssetPage(catalog, page))}.${imageExt(catalog)}`,
-    catalog,
-    CATALOG_IMAGE_TIER_MEDIUM
-  );
 }
 function pageSize(catalog, page) {
   let assetPage = displayPageToAssetPage(catalog, page), observed = catalog ? observedCatalogPageSizes.get(catalog)?.get(assetPage) : null;
@@ -2831,8 +2801,14 @@ async function retrySearchIndexLoad(trigger = "retry") {
 
 // src/js/47-search-preview.js
 import { tooltips as tooltips2 } from "./tooltip-manager.js";
+var searchPreviewLoadSequence = 0;
+function cancelPendingSearchPreviewLoad() {
+  searchPreviewLoadSequence += 1;
+  let previewImage = searchElements.searchFloatingPreviewImage;
+  previewImage && (previewImage.onload = null, previewImage.onerror = null);
+}
 function hideSearchFloatingPreview() {
-  searchElements.searchFloatingPreview?.classList.remove("visible");
+  cancelPendingSearchPreviewLoad(), searchElements.searchFloatingPreview?.classList.remove("visible");
 }
 function rememberSearchPreviewPointer(event) {
   let clientX = Number(event?.clientX), clientY = Number(event?.clientY);
@@ -2870,7 +2846,7 @@ function suppressSearchFloatingPreview(duration = SEARCH_PREVIEW_SCROLL_SUPPRESS
 function positionSearchFloatingPreview(target) {
   let preview = searchElements.searchFloatingPreview;
   if (!preview || !target) return;
-  let targetRect = target.getBoundingClientRect(), gap = 16, safeMargin = 12, fallbackWidth = Math.min(430, Math.max(180, window.innerWidth * 0.34)), fallbackHeight = Math.min(620, Math.max(180, window.innerHeight * 0.64)), previewRect = preview.getBoundingClientRect(), previewWidth = previewRect.width || fallbackWidth, previewHeight = previewRect.height || fallbackHeight, left;
+  let targetRect = target.getBoundingClientRect(), gap = 16, safeMargin = 12, fallbackWidth = Math.min(360, Math.max(180, window.innerWidth * 0.3)), fallbackHeight = Math.min(520, Math.max(180, window.innerHeight * 0.58)), previewRect = preview.getBoundingClientRect(), previewWidth = previewRect.width || fallbackWidth, previewHeight = previewRect.height || fallbackHeight, left;
   targetRect.left - gap - previewWidth >= safeMargin ? left = targetRect.left - gap - previewWidth : targetRect.right + gap + previewWidth <= window.innerWidth - safeMargin ? left = targetRect.right + gap : left = targetRect.left + targetRect.width / 2 - previewWidth / 2;
   let top = targetRect.top + targetRect.height / 2 - previewHeight / 2;
   preview.style.left = `${clampValue(left, safeMargin, Math.max(safeMargin, window.innerWidth - previewWidth - safeMargin))}px`, preview.style.top = `${clampValue(top, safeMargin, Math.max(safeMargin, window.innerHeight - previewHeight - safeMargin))}px`;
@@ -2879,8 +2855,14 @@ function showSearchFloatingPreview(target) {
   if (!target || !searchElements.searchFloatingPreview || !searchElements.searchFloatingPreviewImage || !searchPreviewTargetBelongsToOpenResults(target) || isSearchPreviewSuppressed() || isSearchPreviewBlockedByOpenMenu(target)) return;
   let src = String(target.dataset.searchPreviewSrc || "").trim();
   if (!src) return;
-  let label = String(target.dataset.searchPreviewTitle || "קטלוג").trim() || "קטלוג", previewImage = searchElements.searchFloatingPreviewImage;
-  previewImage.removeAttribute("width"), previewImage.removeAttribute("height"), previewImage.onload = () => positionSearchFloatingPreview(target), previewImage.src = src, searchElements.searchFloatingPreviewImage.alt = label, searchElements.searchFloatingPreviewPage && (searchElements.searchFloatingPreviewPage.textContent = label), searchElements.searchFloatingPreview.classList.add("visible"), positionSearchFloatingPreview(target);
+  let label = String(target.dataset.searchPreviewTitle || "קטלוג").trim() || "קטלוג", preview = searchElements.searchFloatingPreview, previewImage = searchElements.searchFloatingPreviewImage, loadSequence = ++searchPreviewLoadSequence;
+  preview.classList.remove("visible"), previewImage.onload = null, previewImage.onerror = null, previewImage.removeAttribute("width"), previewImage.removeAttribute("height"), previewImage.alt = label, previewImage.loading = "eager", previewImage.fetchPriority = "high", searchElements.searchFloatingPreviewPage && (searchElements.searchFloatingPreviewPage.textContent = label);
+  let revealLoadedPreview = () => {
+    loadSequence === searchPreviewLoadSequence && searchPreviewTargetBelongsToOpenResults(target) && (isSearchPreviewSuppressed() || isSearchPreviewBlockedByOpenMenu(target) || previewImage.getAttribute("src") !== src || !previewImage.naturalWidth || (preview.classList.add("visible"), positionSearchFloatingPreview(target)));
+  };
+  previewImage.onload = revealLoadedPreview, previewImage.onerror = () => {
+    loadSequence === searchPreviewLoadSequence && preview.classList.remove("visible");
+  }, previewImage.src = src, previewImage.complete && previewImage.naturalWidth > 0 && queueMicrotask(revealLoadedPreview);
 }
 function bindSearchFloatingPreviewEvents(container) {
   container && container.querySelectorAll("[data-search-preview-src]").forEach((candidate) => {
@@ -3068,7 +3050,7 @@ async function submitGlobalSearch() {
 function globalSearchResultMarkup(result) {
   if (result?.resultType !== "ocr")
     return catalogSearch ? catalogSearch.navigationResultMarkup(result) : "";
-  let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId), page = clampPage(result.page, catalog), rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : ""), rawPreview = result.image || (catalog ? mediumSrc(catalog, page) || pageSrc(catalog, page) : rawThumb), rawImage = rawThumb || rawPreview, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+  let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId), page = clampPage(result.page, catalog), rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : ""), rawImage = rawThumb || result.image || "", rawPreview = rawThumb || rawImage, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
   return `
     <article class="search-result-card">
       <button type="button" class="search-result-button" data-search-catalog="${escapeHtml(result.catalogId)}" data-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
@@ -3295,7 +3277,7 @@ async function renderLightboxSearchResults(query) {
     return renderSequence !== lightboxSearchRenderSequence || renderKey !== lightboxSearchKey(searchElements.lightboxSearchInput?.value || "") ? [] : (lastLightboxSearchKey = lightboxSearchKey(rawQuery), lastLightboxSearchResults = results, updateLightboxSearchResultsLayout(results.length), searchElements.lightboxSearchResults.classList.remove("hidden"), searchElements.lightboxSearchResults.removeAttribute("aria-busy"), results.length ? (searchElements.lightboxSearchStatus.textContent = scope === "all" ? `נמצאו ${results.length} תוצאות בכל הקטלוגים.` : `נמצאו ${results.length} תוצאות בקטלוג הזה.`, searchElements.lightboxSearchResults.innerHTML = results.map((result) => {
       let catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId) || activeCatalog();
       if (!catalog) return "";
-      let page = clampPage(result.page, catalog), rawPreview = result.image || mediumSrc(catalog, page) || pageSrc(catalog, page), rawImage = result.thumb || thumbSrc(catalog, page) || rawPreview, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
+      let page = clampPage(result.page, catalog), rawThumb = result.thumb || thumbSrc(catalog, page), rawImage = rawThumb || result.image || "", rawPreview = rawThumb || rawImage, catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
       return `
         <button class="reader-search-result lightbox-search-result" type="button" data-lightbox-search-catalog="${escapeHtml(result.catalogId || catalog?.id || "")}" data-lightbox-search-page="${page}" data-search-preview-src="${escapeHtml(rawPreview || rawImage)}" data-search-preview-title="${escapeHtml(catalogTitle)}">
           <span class="reader-search-result-title" title="${escapeHtml(catalogTitle)}">${escapeHtml(catalogTitle)}</span>

@@ -76,8 +76,10 @@ assert.match(
 );
 assert.match(styles, /\.search-floating-preview \{[^}]*width:\s*fit-content;/);
 assert.match(styles, /\.search-floating-preview img \{[^}]*width:\s*auto;[^}]*height:\s*auto;/);
-assert.match(styles, /max-width:\s*min\(430px, calc\(100vw - 46px\)\);/);
-assert.match(styles, /max-height:\s*min\(72vh, 620px, calc\(100vh - 46px\)\);/);
+assert.match(styles, /max-width:\s*min\(360px, calc\(100vw - 46px\)\);/);
+assert.match(styles, /max-height:\s*min\(62vh, 520px, calc\(100vh - 46px\)\);/);
+assert.equal(identifiers(searchPreview).has("searchPreviewLoadSequence"), true, "search preview must invalidate stale async image loads");
+assert.equal(findCalls(searchPreview, "preview.classList.add").some((call) => call.arguments[0] === "visible"), true);
 assert.equal(frontendBuilder.includes("45-navigation-search.js"), false);
 assert.equal(fs.existsSync(path.join(root, "src/js/45-navigation-search.js")), false);
 

@@ -17,9 +17,9 @@ import { catalogSearch, catalogs } from "./03-runtime-context.js";
 import { getFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { SEARCH_INPUT_DEBOUNCE_MS, searchElements, searchState } from "./13-search-state.js";
 import { telemetryFlush, telemetryTrackSearch } from "../runtime/telemetry.js";
-import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
+import { thumbSrc } from "./17-catalog-asset-urls.js";
 import { clampValue, escapeHtml } from "./19-shared-pure.js";
-import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, getCatalogCategoryGroups, mediumSrc } from "./20-catalog-runtime.js";
+import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, getCatalogCategoryGroups } from "./20-catalog-runtime.js";
 import { isHtmlElement } from "./21-ui-runtime.js";
 import { searchCatalogDomain } from "./39-search-catalog-domain.js";
 import { ensureSearchIndexLoaded, normalizeSearchResultsDirection, retrySearchIndexLoad, searchEmptyStateMarkup, searchIndexErrorMarkup } from "./42-search-runtime.js";
@@ -353,8 +353,8 @@ function globalSearchResultMarkup(result) {
   const catalog = result.catalog || catalogs.find((item) => item.id === result.catalogId);
   const page = clampPage(result.page, catalog);
   const rawThumb = result.thumb || (catalog ? thumbSrc(catalog, page) : "");
-  const rawPreview = result.image || (catalog ? (mediumSrc(catalog, page) || pageSrc(catalog, page)) : rawThumb);
-  const rawImage = rawThumb || rawPreview;
+  const rawImage = rawThumb || result.image || "";
+  const rawPreview = rawThumb || rawImage;
   const catalogTitle = result.catalogTitle || catalog?.title || "קטלוג";
   return `
     <article class="search-result-card">

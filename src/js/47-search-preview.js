@@ -8,11 +8,21 @@
 import { tooltips } from "../runtime/tooltip-manager.js";
 import { getFeatureInterface } from "./10-app-state.js";
 import { searchElements, searchState, SEARCH_PREVIEW_SCROLL_SUPPRESS_MS } from "./13-search-state.js";
-import { pageSrc } from "./17-catalog-asset-urls.js";
 import { clampValue } from "./19-shared-pure.js";
 import { hasHoverPointer, isTouchLikePointer } from "./21-ui-runtime.js";
 
+let searchPreviewLoadSequence = 0;
+
+function cancelPendingSearchPreviewLoad() {
+  searchPreviewLoadSequence += 1;
+  const previewImage = searchElements.searchFloatingPreviewImage;
+  if (!previewImage) return;
+  previewImage.onload = null;
+  previewImage.onerror = null;
+}
+
 function hideSearchFloatingPreview() {
+  cancelPendingSearchPreviewLoad();
   searchElements.searchFloatingPreview?.classList.remove("visible");
 }
 
@@ -107,8 +117,8 @@ function positionSearchFloatingPreview(target) {
   const targetRect = target.getBoundingClientRect();
   const gap = 16;
   const safeMargin = 12;
-  const fallbackWidth = Math.min(430, Math.max(180, window.innerWidth * 0.34));
-  const fallbackHeight = Math.min(620, Math.max(180, window.innerHeight * 0.64));
+  const fallbackWidth = Math.min(360, Math.max(180, window.innerWidth * 0.30));
+  const fallbackHeight = Math.min(520, Math.max(180, window.innerHeight * 0.58));
   const previewRect = preview.getBoundingClientRect();
   const previewWidth = previewRect.width || fallbackWidth;
   const previewHeight = previewRect.height || fallbackHeight;
@@ -138,16 +148,39 @@ function showSearchFloatingPreview(target) {
   if (!src) return;
 
   const label = String(target.dataset.searchPreviewTitle || "קטלוג").trim() || "קטלוג";
+  const preview = searchElements.searchFloatingPreview;
   const previewImage = searchElements.searchFloatingPreviewImage;
+  const loadSequence = ++searchPreviewLoadSequence;
+
+  // Never leave the previous hover image visible while a new target is loading.
+  // Search previews deliberately reuse the lightweight thumbnail URL, so an
+  // already-loading/result-card request can be shared by the browser cache.
+  preview.classList.remove("visible");
+  previewImage.onload = null;
+  previewImage.onerror = null;
   previewImage.removeAttribute("width");
   previewImage.removeAttribute("height");
-  previewImage.onload = () => positionSearchFloatingPreview(target);
-  previewImage.src = src;
-  searchElements.searchFloatingPreviewImage.alt = label;
+  previewImage.alt = label;
+  previewImage.loading = "eager";
+  previewImage.fetchPriority = "high";
   if (searchElements.searchFloatingPreviewPage) searchElements.searchFloatingPreviewPage.textContent = label;
 
-  searchElements.searchFloatingPreview.classList.add("visible");
-  positionSearchFloatingPreview(target);
+  const revealLoadedPreview = () => {
+    if (loadSequence !== searchPreviewLoadSequence) return;
+    if (!searchPreviewTargetBelongsToOpenResults(target)) return;
+    if (isSearchPreviewSuppressed() || isSearchPreviewBlockedByOpenMenu(target)) return;
+    if (previewImage.getAttribute("src") !== src || !previewImage.naturalWidth) return;
+    preview.classList.add("visible");
+    positionSearchFloatingPreview(target);
+  };
+
+  previewImage.onload = revealLoadedPreview;
+  previewImage.onerror = () => {
+    if (loadSequence !== searchPreviewLoadSequence) return;
+    preview.classList.remove("visible");
+  };
+  previewImage.src = src;
+  if (previewImage.complete && previewImage.naturalWidth > 0) queueMicrotask(revealLoadedPreview);
 }
 
 /** @param {ParentNode|null|undefined} container */
