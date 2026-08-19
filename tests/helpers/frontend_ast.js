@@ -88,12 +88,46 @@ function findCalls(inventory, callee) {
   return inventory.calls.filter((call) => call.callee === callee);
 }
 
-function hasPropertyPath(inventory, propertyPath) {
-  return inventory.propertyAccesses.some((access) => access.path === propertyPath);
+function hasPropertyPath(inventory, propertyPath, enclosingFunction = undefined) {
+  return inventory.propertyAccesses.some((access) => (
+    access.path === propertyPath
+    && (enclosingFunction === undefined || access.enclosingFunction === enclosingFunction)
+  ));
+}
+
+function hasAssignmentTarget(inventory, assignmentPath, enclosingFunction = undefined) {
+  return inventory.assignments.some((assignment) => (
+    assignment.path === assignmentPath
+    && (enclosingFunction === undefined || assignment.enclosingFunction === enclosingFunction)
+  ));
+}
+
+function hasFunction(inventory, name) {
+  return inventory.functionDeclarations.includes(name) || inventory.declarations.some((declaration) => (
+    declaration.kind === "FunctionDeclaration" && declaration.name === name
+  ));
+}
+
+function hasCall(inventory, callee, enclosingFunction = undefined) {
+  return inventory.calls.some((call) => (
+    call.callee === callee
+    && (enclosingFunction === undefined || call.enclosingFunction === enclosingFunction)
+  ));
+}
+
+function callsInFunction(inventory, enclosingFunction, callee = undefined) {
+  return inventory.calls.filter((call) => (
+    call.enclosingFunction === enclosingFunction
+    && (callee === undefined || call.callee === callee)
+  ));
 }
 
 module.exports = {
+  callsInFunction,
   findCalls,
+  hasAssignmentTarget,
+  hasCall,
+  hasFunction,
   hasPropertyPath,
   inventoryProjectFiles,
   inventorySource,

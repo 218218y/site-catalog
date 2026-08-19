@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { hasFunction, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
@@ -11,6 +12,7 @@ const searchPreviewSource = fs.readFileSync(path.join(root, 'src/js/47-search-pr
 const readerSearchSource = fs.readFileSync(path.join(root, 'src/js/49-search-reader-ui.js'), 'utf8');
 const searchRootSource = fs.readFileSync(path.join(root, 'src/js/50-search-ui.js'), 'utf8');
 const favoritesRoutingCss = fs.readFileSync(path.join(root, 'src/css/85-favorites-routing.css'), 'utf8');
+const searchPreviewAst = inventoryProjectFiles(root, ['src/js/47-search-preview.js'])['src/js/47-search-preview.js'];
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxSearchResults"/);
@@ -32,6 +34,6 @@ assert.doesNotMatch(
 assert.match(readerSearchSource, /bindSearchFloatingPreviewEvents\(searchElements\.lightboxSearchResults\)/);
 assert.match(searchRootSource, /searchElements\.lightboxSearchResults\?\.addEventListener\("wheel", handleSearchPreviewScrollIntent/);
 assert.match(searchRootSource, /searchElements\.lightboxSearchResults\?\.addEventListener\("scroll", \(\) => suppressSearchFloatingPreview\(\)/);
-assert.match(searchPreviewSource, /function restoreSearchFloatingPreviewAfterSuppression\(\)/);
+assert.ok(hasFunction(searchPreviewAst, 'restoreSearchFloatingPreviewAfterSuppression'));
 
 console.log('viewer_search_preview_contract.test.js: PASS');

@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { hasFunction, inventoryProjectFiles } = require("./helpers/frontend_ast");
 
 const root = path.join(__dirname, "..");
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts), "utf8");
@@ -19,6 +20,12 @@ const verifier = read("tools", "verify_project.py");
 const packageJson = JSON.parse(read("package.json"));
 const jsconfig = JSON.parse(read("jsconfig.json"));
 const functionsPackage = JSON.parse(read("functions", "package.json"));
+const frontendAst = inventoryProjectFiles(root, [
+  'src/control-panel/catalog-control-panel.js',
+  'src/control-panel/core/state.js',
+]);
+const bootstrapAst = frontendAst['src/control-panel/catalog-control-panel.js'];
+const stateAst = frontendAst['src/control-panel/core/state.js'];
 
 assert.match(html, /catalog-control-panel\.css/);
 assert.match(html, /<script type="module" src="\/src\/control-panel\/catalog-control-panel\.js"><\/script>/);
@@ -29,13 +36,15 @@ assert.ok(jsconfig.files.includes("types/control-panel-api.d.ts"));
 assert.ok(jsconfig.files.includes("types/control-panel-client.d.ts"));
 
 assert.match(bootstrap, /import \{ applyServerState, state \} from "\.\/core\/state\.js"/);
-assert.match(bootstrap, /function applyCanonicalState/);
+assert.ok(hasFunction(bootstrapAst, 'applyCanonicalState'));
 assert.match(bootstrap, /applyServerState\(data, options\)/);
 assert.match(bootstrap, /renderCanonicalState\(\)/);
-assert.doesNotMatch(bootstrap, /function (?:renderCatalogs|renderTaxonomyEditor|footerFieldMarkup|cancelActiveJob)/);
+for (const implementationFunction of ['renderCatalogs', 'renderTaxonomyEditor', 'footerFieldMarkup', 'cancelActiveJob']) {
+  assert.equal(hasFunction(bootstrapAst, implementationFunction), false);
+}
 assert.ok(bootstrap.split(/\r?\n/).length <= 120, "Control-panel bootstrap must remain a small composition root");
 
-assert.match(state, /export function applyServerState/);
+assert.ok(stateAst.declarations.some((declaration) => declaration.name === 'applyServerState' && declaration.kind === 'FunctionDeclaration' && declaration.exported));
 assert.match(state, /state\.catalogs = data\.catalogs\.map/);
 assert.match(state, /state\.taxonomy = \{[\s\S]*?categories: data\.taxonomy\.categories\.map[\s\S]*?subcategories: data\.taxonomy\.subcategories\.map/);
 assert.match(api, /saveCatalogs\(request\)/);

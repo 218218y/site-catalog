@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
+const { hasFunction, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
 const app = readAllBundles();
@@ -22,6 +23,13 @@ const viewerImageSource = fs.readFileSync(path.join(root, 'src/js/53-viewer-imag
 const viewerGeometrySource = fs.readFileSync(path.join(root, 'src/js/54-viewer-geometry.js'), 'utf8');
 const viewerShellSource = fs.readFileSync(path.join(root, 'src/js/56-viewer-shell.js'), 'utf8');
 const viewerSource = fs.readFileSync(path.join(root, 'src/js/60-viewer.js'), 'utf8');
+const frontendAst = inventoryProjectFiles(root, [
+  'src/js/20-catalog-runtime.js',
+  'src/js/42-search-runtime.js',
+  'src/js/53-viewer-image.js',
+  'src/js/54-viewer-geometry.js',
+  'src/js/56-viewer-shell.js',
+]);
 
 for (const html of [template, viewer]) {
   assert.match(html, /class="skip-link" href="#main-content"/);
@@ -34,12 +42,12 @@ for (const html of [template, favorites]) {
   assert.match(html, /id="favoritesEmpty"[\s\S]*?empty-state-icon[\s\S]*?לצפייה בקטלוגים/);
 }
 
-assert.match(viewerGeometrySource, /function singleImageFitLayout\(/);
-assert.match(viewerGeometrySource, /function applyLightboxFrameGeometry\(/);
-assert.match(viewerImageSource, /function applyStableViewerPageGeometry\(/);
+assert.ok(hasFunction(frontendAst['src/js/54-viewer-geometry.js'], 'singleImageFitLayout'));
+assert.ok(hasFunction(frontendAst['src/js/54-viewer-geometry.js'], 'applyLightboxFrameGeometry'));
+assert.ok(hasFunction(frontendAst['src/js/53-viewer-image.js'], 'applyStableViewerPageGeometry'));
 assert.match(viewerImageSource, /return applyLightboxFrameGeometry\(width, height, options\)/);
 assert.match(viewerImageSource, /loadCatalogImageWithRecovery\(image, \{/);
-assert.match(imageRuntimeSource, /function initImagePlaceholderObserver\(/);
+assert.ok(hasFunction(frontendAst['src/js/20-catalog-runtime.js'], 'initImagePlaceholderObserver'));
 assert.match(imageRuntimeSource, /new MutationObserver/);
 assert.match(favoritesShareSource, /showFavoritePersistenceFeedback/);
 assert.match(favoritesShareSource, /נשמר זמנית בלבד — אחסון המועדפים חסום בדפדפן/);
@@ -47,7 +55,7 @@ assert.match(favoritesShareSource, /הוסר מהמועדפים/);
 assert.match(currentLinkSharingSource, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
 assert.match(viewerShellSource, /aria-valuetext/);
 assert.match(viewerShellSource, /viewerPageIndicatorCurrent\.textContent/);
-assert.match(searchRuntimeSource, /function searchEmptyStateMarkup\(/);
+assert.ok(hasFunction(frontendAst['src/js/42-search-runtime.js'], 'searchEmptyStateMarkup'));
 assert.match(searchRuntimeSource, /data-empty-search-clear/);
 assert.match(searchRuntimeSource, /data-lightbox-empty-search-clear/);
 
@@ -106,8 +114,8 @@ assert.match(css, /\.viewer-page-indicator\.visible\s*\{[\s\S]*?opacity:\s*1/);
 assert.match(css, /\.viewer-page-indicator\s*\{[\s\S]*?font-family:\s*Tahoma, "Segoe UI", Arial, sans-serif;[\s\S]*?align-items:\s*center;/);
 assert.match(css, /\.viewer-page-indicator > span,[\s\S]*?\.viewer-page-indicator > strong\s*\{[\s\S]*?display:\s*inline-grid;[\s\S]*?place-items:\s*center;[\s\S]*?line-height:\s*1;/);
 assert.match(viewerStateSource, /const VIEWER_PAGE_INDICATOR_HIDE_MS\s*=\s*1000/);
-assert.match(viewerShellSource, /function showViewerPageIndicatorTemporarily\(/);
-assert.match(viewerShellSource, /function hideViewerPageIndicator\(/);
+assert.ok(hasFunction(frontendAst['src/js/56-viewer-shell.js'], 'showViewerPageIndicatorTemporarily'));
+assert.ok(hasFunction(frontendAst['src/js/56-viewer-shell.js'], 'hideViewerPageIndicator'));
 assert.match(viewerShellSource, /showViewerPageIndicatorTemporarily\(\)/);
 assert.match(viewerSource, /hideViewerPageIndicator\(\)/);
 assert.match(css, /\.catalog-progress\s*\{[\s\S]*?height:\s*5px/);

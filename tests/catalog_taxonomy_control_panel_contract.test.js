@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { hasFunction, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(root, 'catalog-control-panel.html'), 'utf8');
@@ -11,6 +12,7 @@ const jobsFeature = fs.readFileSync(path.join(root, 'src', 'control-panel', 'fea
 const panelCss = fs.readFileSync(path.join(root, 'src', 'control-panel', 'catalog-control-panel.css'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'tools', 'catalog_control_server.py'), 'utf8');
 const editor = fs.readFileSync(path.join(root, 'tools', 'taxonomy_editor.py'), 'utf8');
+const taxonomyAst = inventoryProjectFiles(root, ['src/control-panel/features/taxonomy.js'])['src/control-panel/features/taxonomy.js'];
 
 assert.match(panel, /<h2>ניהול קטגוריות וכתובות SEO<\/h2>/);
 assert.match(panel, /href="\/src\/control-panel\/catalog-control-panel\.css"/);
@@ -19,8 +21,8 @@ assert.doesNotMatch(panel, /<style>|<script(?![^>]*src=)/);
 assert.match(panel, /id="taxonomyCategories"/);
 assert.match(panel, /id="taxonomySubcategories"/);
 assert.match(panel, /id="saveTaxonomy"/);
-assert.match(taxonomyFeature, /function reconcileTaxonomyDraftFromCatalogs/);
-assert.match(taxonomyFeature, /function renderTaxonomyEditor/);
+assert.ok(hasFunction(taxonomyAst, 'reconcileTaxonomyDraftFromCatalogs'));
+assert.ok(hasFunction(taxonomyAst, 'renderTaxonomyEditor'));
 assert.match(taxonomyFeature, /controlApi\.saveTaxonomy\(/);
 assert.match(taxonomyFeature, /taxonomy: taxonomyPayload\(\)/);
 assert.match(taxonomyFeature, /routeLockUpdates/);

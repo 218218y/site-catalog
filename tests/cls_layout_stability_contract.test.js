@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { readAllCssBundles, readCssBundle } = require("./frontend_test_assets");
+const { hasFunction, inventoryProjectFiles } = require("./helpers/frontend_ast");
 
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -19,6 +20,12 @@ const catalogInitialHydration = read("src/js/41-catalog-initial-hydration.js");
 const playwrightConfig = require("../playwright.config.js");
 const css = readAllCssBundles();
 const catalogs = JSON.parse(read("catalogs.generated.json"));
+const frontendAst = inventoryProjectFiles(root, [
+  'src/js/20-catalog-runtime.js',
+  'src/js/40-catalog-grid.js',
+  'src/js/41-catalog-initial-hydration.js',
+  'src/js/53-viewer-image.js',
+]);
 
 assert.match(template, /class="has-bargig-logo\{\{ROOT_CLASS_SUFFIX\}\}"/);
 assert.match(pageBuilder, /"\{\{ROOT_CLASS_SUFFIX\}\}": " viewer-open" if page\.mode == "viewer" else ""/);
@@ -30,7 +37,7 @@ assert.match(geometry, /const stageWidth = Math\.max\(0, Number\(stage\.clientWi
 assert.match(geometry, /const stageHeight = Math\.max\(0, Number\(stage\.clientHeight\) \|\| viewportHeight\);/);
 assert.doesNotMatch(geometry, /Math\.max\(260, stage\.clientWidth - 18\)/);
 
-assert.match(viewerImage, /function applyStableViewerPageGeometry\(catalog, page, image, options = \{\}\)/);
+assert.ok(hasFunction(frontendAst['src/js/53-viewer-image.js'], 'applyStableViewerPageGeometry'));
 assert.match(viewerImage, /const declaredSize = pageSize\(catalog, page\);/);
 assert.match(viewerImage, /Number\(declaredSize\?\.width\) \|\| Number\(image\?\.naturalWidth\)/);
 assert.equal(
@@ -50,10 +57,10 @@ for (const catalog of catalogs) {
   });
 }
 
-assert.match(catalogInitialHydration, /function canHydrateInitialCatalogCards\(grid, columns, catalogs\)/);
+assert.ok(hasFunction(frontendAst['src/js/41-catalog-initial-hydration.js'], 'canHydrateInitialCatalogCards'));
 assert.match(catalogInitialHydration, /querySelector\("\[data-initial-catalog-layout-columns\]\[data-initial-catalog-ids\]"\)/);
 assert.match(catalogInitialHydration, /requireFeatureInterface\("catalog-grid"\)\.setInitialLayoutHydrator\(canHydrateInitialCatalogCards\)/);
-assert.match(catalogGrid, /function setInitialLayoutHydrator\(hydrator\)/);
+assert.ok(hasFunction(frontendAst['src/js/40-catalog-grid.js'], 'setInitialLayoutHydrator'));
 assert.match(catalogGrid, /if \(!initialLayoutHydrator\?\.\(catalogElements\.catalogGrid, columns, catalogs\)\) \{[\s\S]*?catalogElements\.catalogGrid\.innerHTML = categorySegments/s);
 assert.match(pageBuilder, /INITIAL_HOME_CATALOG_COLUMNS = 3/);
 assert.match(pageBuilder, /def _catalog_layout_segments\([\s\S]*?Mirror searchCatalogDomain\.catalogCategorySegments for first paint\./);
@@ -61,7 +68,7 @@ assert.match(pageBuilder, /data-initial-catalog-layout-columns=/);
 assert.match(pageBuilder, /data-catalog-card-id=/);
 assert.match(catalogGrid, /catalogImageDimensionAttributes\(catalog, 1\)/);
 assert.match(catalogGrid, /pageAspectVariableStyle\(catalog, page, "--page-thumb-aspect-ratio"\)/);
-assert.match(imageRuntime, /function catalogImageDimensionAttributes\(catalog, page\)/);
+assert.ok(hasFunction(frontendAst['src/js/20-catalog-runtime.js'], 'catalogImageDimensionAttributes'));
 assert.match(imageRuntime, /return size \? ` width="\$\{size\.width\}" height="\$\{size\.height\}"` : "";/);
 assert.match(imageRuntime, /const observedCatalogPageSizes = new WeakMap\(\);/);
 assert.doesNotMatch(imageRuntime, /catalog\.pageSizes\s*=|catalog\.pageSizes\s*\[/);

@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
+const { hasFunction, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
 const css = readAllCssBundles();
@@ -13,6 +14,7 @@ const accessibility = fs.readFileSync(path.join(root, 'accessibility.html'), 'ut
 const verify = fs.readFileSync(path.join(root, 'tools', 'verify_project.py'), 'utf8');
 const searchRuntimeSource = fs.readFileSync(path.join(root, 'src/js/42-search-runtime.js'), 'utf8');
 const viewerImageSource = fs.readFileSync(path.join(root, 'src/js/53-viewer-image.js'), 'utf8');
+const searchRuntimeAst = inventoryProjectFiles(root, ['src/js/42-search-runtime.js'])['src/js/42-search-runtime.js'];
 
 assert.match(css, /--focus-ring-color:/);
 assert.match(css, /--shadow-control:/);
@@ -25,7 +27,7 @@ assert.match(template, /id="catalogLoadStatus" role="status" aria-live="polite"/
 assert.match(template, /id="catalogGrid" aria-busy="\{\{CATALOG_GRID_BUSY\}\}"/);
 assert.match(template, /id="viewerImageFeedback"[\s\S]*?aria-atomic="true"/);
 assert.match(viewerImageSource, /setAttribute\("role", isError \? "alert" : "status"\)/);
-assert.match(searchRuntimeSource, /function searchIndexErrorMarkup\(/);
+assert.ok(hasFunction(searchRuntimeAst, 'searchIndexErrorMarkup'));
 assert.match(searchRuntimeSource, /data-global-search-index-retry/);
 assert.match(viewerImageSource, /viewerElements\.lightboxImageFrame\?\.setAttribute\("aria-busy", "true"\)/);
 assert.match(accessibility, /הצהרת נגישות/);

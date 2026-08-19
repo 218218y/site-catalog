@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
+const { hasCall, hasFunction, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
 const publicPages = ['index.html', 'catalog.html', 'favorites.html', 'viewer.html', 'payment.html', 'terms.html', 'privacy.html', 'accessibility.html'];
@@ -70,6 +71,12 @@ const footerModule = fs.readFileSync(path.join(root, 'tools', 'footer_content.py
 const pageBuilder = fs.readFileSync(path.join(root, 'tools', 'build_site_pages.py'), 'utf8');
 const controlPanel = fs.readFileSync(path.join(root, 'catalog-control-panel.html'), 'utf8');
 const controlPanelFooter = fs.readFileSync(path.join(root, 'src', 'control-panel', 'features', 'footer.js'), 'utf8');
+const frontendAst = inventoryProjectFiles(root, [
+  'src/entries/payment.js',
+  'src/control-panel/features/footer.js',
+]);
+const paymentAst = frontendAst['src/entries/payment.js'];
+const controlPanelFooterAst = frontendAst['src/control-panel/features/footer.js'];
 const controlPanelApi = fs.readFileSync(path.join(root, 'src', 'control-panel', 'core', 'api.js'), 'utf8');
 const controlServer = fs.readFileSync(path.join(root, 'tools', 'catalog_control_server.py'), 'utf8');
 const deployTool = fs.readFileSync(path.join(root, 'tools', 'deploy_cloudflare_pages.py'), 'utf8');
@@ -132,7 +139,7 @@ assert.doesNotMatch(footerLegalCssSource, /\.payment-(?:main|layout|intro-card|f
 assert.match(footerLegalCssSource, /@media \(max-width: 460px\)[\s\S]*?\.legal-header-actions \.legal-back-link span\s*\{\s*display:\s*none;/);
 assert.match(controlPanel, /<h2>עריכת טקסט הפוטר<\/h2>/);
 assert.match(controlPanel, /id="footerEditorGroups"/);
-assert.match(controlPanelFooter, /function footerFieldMarkup/);
+assert.ok(hasFunction(controlPanelFooterAst, 'footerFieldMarkup'));
 assert.match(controlPanelFooter, /data-footer-field="\$\{escapeHtml\(key\)\}"/);
 assert.match(controlPanelFooter, /controlApi\.saveFooter\(/);
 assert.match(controlPanelApi, /postJson\("\/api\/footer", request\)/);
@@ -231,7 +238,9 @@ assert.match(browserSharingSource, /navigator\.clipboard\?\.writeText/);
 assert.match(browserSharingSource, /if \(!document\.execCommand\("copy"\)\)/);
 assert.doesNotMatch(paymentSource, /document\.execCommand|navigator\.clipboard|navigator\.share\(/);
 assert.match(paymentSource, /showShareToast\("הקישור הועתק"\)/);
-assert.match(paymentSource, /function copyBankDetail\(button\)[\s\S]*?copyTextToClipboard\(value\)[\s\S]*?showShareToast\(`\$\{label\} הועתק`\)/);
+assert.ok(hasFunction(paymentAst, 'copyBankDetail'));
+assert.ok(hasCall(paymentAst, 'copyTextToClipboard', 'copyBankDetail'));
+assert.ok(hasCall(paymentAst, 'showShareToast', 'copyBankDetail'));
 assert.match(paymentSource, /bankCopyButtons[\s\S]*?button\.addEventListener\("click"/);
 assert.match(paymentSource, /shareButton\.addEventListener\("click"/);
 

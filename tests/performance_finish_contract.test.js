@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { hasFunction, inventoryProjectFiles } = require("./helpers/frontend_ast");
 
 const root = path.resolve(__dirname, "..");
 const appState = fs.readFileSync(path.join(root, "src/js/10-app-state.js"), "utf8");
@@ -13,10 +14,11 @@ const telemetryFunction = fs.readFileSync(path.join(root, "functions/api/telemet
 const pageBuilder = fs.readFileSync(path.join(root, "tools/build_site_pages.py"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools/verify_project.py"), "utf8");
 const budgets = JSON.parse(fs.readFileSync(path.join(root, "performance-budgets.json"), "utf8"));
+const imageRuntimeAst = inventoryProjectFiles(root, ['src/js/20-catalog-runtime.js'])['src/js/20-catalog-runtime.js'];
 
 assert.match(appState, /const CATALOG_EAGER_COVER_COUNT = 2;/);
-assert.match(imageRuntime, /function catalogImageDimensionAttributes\(/);
-assert.match(imageRuntime, /function catalogCoverLoadingAttributes\(/);
+assert.ok(hasFunction(imageRuntimeAst, 'catalogImageDimensionAttributes'));
+assert.ok(hasFunction(imageRuntimeAst, 'catalogCoverLoadingAttributes'));
 assert.match(imageRuntime, /loading="eager" decoding="async" fetchpriority="high"/);
 assert.match(catalogGrid, /catalogImageDimensionAttributes\(catalog, 1\)/);
 assert.match(catalogGrid, /catalogCoverLoadingAttributes\(catalog\)/);

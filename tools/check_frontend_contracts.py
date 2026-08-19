@@ -10,41 +10,19 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from bootstrap_typescript_offline import BootstrapError, ensure_typescript_available
+from build_frontend_assets import (
+    BUNDLE_SPECS,
+    CAPABILITY_BOUNDARIES,
+    CONFIG_EXTERNAL_MODULES,
+    GENERATED_DATA_EXTERNAL_MODULES,
+    ROUTE_ASSETS,
+    RUNTIME_EXTERNAL_MODULES,
+    capability_owned_inputs,
+)
 
-STATE_OWNERS: Mapping[str, str] = {
-    "catalogAssetState": "src/js/10-app-state.js",
-    "uiRuntime": "src/js/10-app-state.js",
-    "navigationState": "src/js/11-navigation-state.js",
-    "catalogState": "src/js/12-catalog-state.js",
-    "searchState": "src/js/13-search-state.js",
-    "favoritesState": "src/js/14-favorites-state.js",
-    "viewerSessionState": "src/js/16-viewer-state.js",
-    "viewerViewportState": "src/js/16-viewer-state.js",
-    "viewerGestureState": "src/js/16-viewer-state.js",
-    "viewerChromeState": "src/js/16-viewer-state.js",
-    "viewerImageState": "src/js/16-viewer-state.js",
-    "viewerNavigationState": "src/js/16-viewer-state.js",
-    "viewerOnboardingState": "src/js/16-viewer-state.js",
-    "inquiryState": "src/js/32-shared-inquiry.js",
-}
-FEATURE_COMPOSITION_ROOTS: Mapping[str, str] = {
-    "src/js/40-catalog-grid.js": "catalog-grid",
-    "src/js/50-search-ui.js": "search",
-    "src/js/60-viewer.js": "viewer",
-}
-
-
-ELEMENT_OWNERS: Mapping[str, str] = {
-    "shellElements": "src/js/11-navigation-state.js",
-    "catalogElements": "src/js/12-catalog-state.js",
-    "searchElements": "src/js/13-search-state.js",
-    "favoritesElements": "src/js/14-favorites-state.js",
-    "viewerElements": "src/js/16-viewer-state.js",
-    "inquiryElements": "src/js/32-shared-inquiry.js",
-}
 # Direct access to mutable state and feature-owned DOM is permitted only inside
-# the owning feature boundary. A state declaration may live in a small state
-# module while the implementation is split across a reviewed set of files.
+# the reviewed owning feature boundary. Declaration locations are derived from
+# the TypeScript AST instead of being repeated in a second ownership ledger.
 DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
     "catalogAssetState": ("src/js/10-app-state.js", "src/js/20-catalog-runtime.js"),
     "uiRuntime": ("src/js/10-app-state.js", "src/js/21-ui-runtime.js"),
@@ -200,19 +178,75 @@ def ast_owner_properties(inventory: AstInventory, owner: str) -> set[str]:
     }
 
 
+def ast_declaration_properties(inventory: AstInventory, declaration_name: str) -> set[str]:
+    for declaration in inventory.get("declarations", []):
+        if declaration.get("name") == declaration_name:
+            return {str(name) for name in declaration.get("properties", [])}
+    return set()
+
+
+def static_feature_registrations(
+    base: Path,
+    sources: list[Path],
+    inventory: Mapping[str, AstInventory],
+    failures: list[str],
+) -> dict[str, tuple[str, ...]]:
+    registrations: dict[str, tuple[str, ...]] = {}
+    for path in sources:
+        relative = path.relative_to(base).as_posix()
+        names: list[str] = []
+        for call in ast_calls(inventory[relative], "registerFeatureInterface"):
+            arguments = call.get("arguments", [])
+            if arguments and isinstance(arguments[0], str):
+                names.append(arguments[0])
+            else:
+                failures.append(f"feature registration must use a static literal name: {relative}")
+        if names:
+            registrations[relative] = tuple(names)
+    return registrations
+
+
+def owner_declaration_paths(
+    base: Path,
+    sources: list[Path],
+    inventory: Mapping[str, AstInventory],
+    failures: list[str],
+) -> dict[str, str]:
+    declarations: dict[str, str] = {}
+    for owner in DIRECT_ACCESS_OWNERS:
+        matches = [
+            path.relative_to(base).as_posix()
+            for path in sources
+            if owner in inventory[path.relative_to(base).as_posix()].get("objectDeclarations", {})
+        ]
+        if len(matches) != 1:
+            failures.append(
+                f"mutable owner {owner} must have exactly one object declaration; found={matches}"
+            )
+            continue
+        declaration_path = matches[0]
+        declarations[owner] = declaration_path
+        if declaration_path not in DIRECT_ACCESS_OWNERS[owner]:
+            failures.append(
+                f"mutable owner {owner} declaration is outside its reviewed boundary: {declaration_path}"
+            )
+    return declarations
+
+
+def generated_bundle_inputs(source: str) -> tuple[str, ...]:
+    return tuple(
+        match.group(1)
+        for match in re.finditer(r"^ \*   - ([^\r\n]+)$", source, flags=re.MULTILINE)
+    )
+
+
 APPROVED_DYNAMIC_IMPORTS: Mapping[str, tuple[str, ...]] = {}
-APPROVED_ROOT_BROWSER_MODULES: tuple[str, ...] = (
-    "catalog-assets.config.js",
+APPROVED_ROOT_BROWSER_MODULES: tuple[str, ...] = tuple(dict.fromkeys((
+    *CONFIG_EXTERNAL_MODULES.keys(),
+    *GENERATED_DATA_EXTERNAL_MODULES.keys(),
     "catalog-snapshot.js",
-    "catalogs.generated.module.js",
-    "catalog-taxonomy.generated.module.js",
-)
-EXTERNAL_RUNTIME_MODULES: tuple[str, ...] = (
-    "catalog-search.js",
-    "tooltip-manager.js",
-    "favorites-store.js",
-    "site-routes.js",
-)
+)))
+EXTERNAL_RUNTIME_ASSETS: tuple[str, ...] = tuple(RUNTIME_EXTERNAL_MODULES.values())
 FORBIDDEN_RUNTIME_GLOBALS: tuple[str, ...] = (
     "BARGIG_CATALOG_ASSET_BASE_URL",
     "BARGIG_CATALOG_IMAGE_DELIVERY_MODE",
@@ -222,19 +256,6 @@ FORBIDDEN_RUNTIME_GLOBALS: tuple[str, ...] = (
     "BargigRoutes",
 )
 
-
-FEATURE_NAMES = frozenset({
-    "navigation",
-    "favorites",
-    "inquiry",
-    "favorites-workspace",
-    "catalog-grid",
-    "catalog-navigation",
-    "catalog-detail",
-    "search",
-    "viewer",
-    "app-shell",
-})
 
 Z_INDEX_SCALE: tuple[str, ...] = (
     "--z-sticky",
@@ -425,10 +446,16 @@ def check_feature_registry(
     inventory: Mapping[str, AstInventory],
     failures: list[str],
 ) -> None:
-    contracts = (base / "types/frontend-contracts.d.ts").read_text(encoding="utf-8")
-    registry = (base / "src/js/10-app-state.js").read_text(encoding="utf-8")
-    if not re.search(r"export\s+(?:type|interface)\s+FeatureRegistry\b", contracts) or "keyof FeatureRegistry" not in contracts:
+    contracts_relative = "types/frontend-contracts.d.ts"
+    contracts_inventory = inventory.get(contracts_relative, {})
+    feature_names = ast_declaration_properties(contracts_inventory, "FeatureRegistry")
+    if not feature_names:
         failures.append("frontend contracts do not define an exact FeatureRegistry")
+
+    registry = (base / "src/js/10-app-state.js").read_text(encoding="utf-8")
+    contracts = (base / contracts_relative).read_text(encoding="utf-8")
+    if "keyof FeatureRegistry" not in contracts:
+        failures.append("frontend contracts do not derive FeatureName from FeatureRegistry")
     if re.search(r"@typedef\s+\{Object\}\s+FeatureInterface\b", contracts):
         failures.append("legacy generic FeatureInterface contract remains")
     if "@template {FeatureName} K" not in registry:
@@ -436,22 +463,15 @@ def check_feature_registry(
     if "function requireFeatureInterface(name)" not in registry:
         failures.append("required feature seams can still degrade into silent optional no-ops")
 
-    registered: list[str] = []
-    for path in sources:
-        relative = path.relative_to(base).as_posix()
-        for call in ast_calls(inventory[relative], "registerFeatureInterface"):
-            arguments = call.get("arguments", [])
-            if arguments and isinstance(arguments[0], str):
-                registered.append(arguments[0])
-            else:
-                failures.append(f"feature registration must use a static literal name: {relative}")
-    unknown = sorted(set(registered) - FEATURE_NAMES)
-    missing = sorted(FEATURE_NAMES - set(registered))
+    registrations_by_module = static_feature_registrations(base, sources, inventory, failures)
+    registered = [name for names in registrations_by_module.values() for name in names]
+    unknown = sorted(set(registered) - feature_names)
+    missing = sorted(feature_names - set(registered))
     duplicates = sorted(name for name in set(registered) if registered.count(name) > 1)
     if unknown:
-        failures.append(f"unknown feature registrations: {', '.join(unknown)}")
+        failures.append(f"feature registrations missing from FeatureRegistry: {', '.join(unknown)}")
     if missing:
-        failures.append(f"missing feature registrations: {', '.join(missing)}")
+        failures.append(f"FeatureRegistry entries without a registration: {', '.join(missing)}")
     if duplicates:
         failures.append(f"duplicate feature registrations: {', '.join(duplicates)}")
 
@@ -502,6 +522,15 @@ def check_test_strategy(base: Path, failures: list[str]) -> None:
         if "data:text/javascript" in text:
             failures.append(
                 f"{relative} imports JavaScript reconstructed from source text; import the module file directly"
+            )
+
+        if re.search(
+            r"assert\.(?:match|doesNotMatch)\([^\n]{0,500}?/function\b[^\n]{0,500}?\[\\s\\S\]",
+            text,
+        ):
+            failures.append(
+                f"{relative} matches across a JavaScript function body with regex; "
+                "use the shared TypeScript AST helper or a runtime behavior test"
             )
 
         bundle_variables = re.findall(
@@ -750,31 +779,23 @@ def check_feature_composition_roots(
     inventory: Mapping[str, AstInventory],
     failures: list[str],
 ) -> None:
-    """Keep public feature communication on FeatureRegistry, not module exports.
+    """Derive registry-only composition roots from executable source facts.
 
-    Route entries may import a composition root for registration side effects.
-    Runtime modules under src/js must consume that feature through its typed
-    registry API, so implementation helpers cannot quietly become a second API.
+    A module that registers one or more features and exports no module API is a
+    composition root by construction. Route entries may import it for
+    registration side effects; runtime owners must consume its capabilities via
+    FeatureRegistry instead of creating an implementation-level second API.
     """
 
-    for relative_root, feature_name in FEATURE_COMPOSITION_ROOTS.items():
-        root_inventory = inventory.get(relative_root)
-        if root_inventory is None:
-            failures.append(f"feature composition root is missing from AST inventory: {relative_root}")
-            continue
-        registrations = [
-            call.get("arguments", [None])[0]
-            for call in ast_calls(root_inventory, "registerFeatureInterface")
-            if call.get("arguments")
-        ]
-        if feature_name not in registrations:
-            failures.append(
-                f"{relative_root} must register the {feature_name} feature interface"
-            )
-        if int(root_inventory.get("exportStatementCount", 0)) != 0:
-            failures.append(
-                f"{relative_root} exposes a module API; consume {feature_name} through FeatureRegistry"
-            )
+    registrations_by_module = static_feature_registrations(base, sources, inventory, failures)
+    composition_roots = {
+        relative: names
+        for relative, names in registrations_by_module.items()
+        if int(inventory[relative].get("exportStatementCount", 0)) == 0
+    }
+    if not composition_roots:
+        failures.append("no registry-only feature composition roots were derived from source")
+        return
 
     for path in sources:
         relative = path.relative_to(base).as_posix()
@@ -784,10 +805,11 @@ def check_feature_composition_roots(
             target = _resolve_static_import(relative, specifier)
             if target is None or target == relative:
                 continue
-            imported_feature_name = FEATURE_COMPOSITION_ROOTS.get(target)
-            if imported_feature_name is not None:
+            imported_features = composition_roots.get(target)
+            if imported_features is not None:
                 failures.append(
-                    f"{relative} imports {target} directly; consume {imported_feature_name} through FeatureRegistry"
+                    f"{relative} imports registry-only composition root {target} directly; "
+                    f"consume {', '.join(imported_features)} through FeatureRegistry"
                 )
 
 
@@ -800,7 +822,8 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         *all_browser_sources,
         *sorted((base / "src/entries").glob("*.js")),
         *(base / relative for relative in APPROVED_ROOT_BROWSER_MODULES),
-        *(base / relative for relative in EXTERNAL_RUNTIME_MODULES),
+        *(base / relative for relative in EXTERNAL_RUNTIME_ASSETS),
+        base / "types/frontend-contracts.d.ts",
     ]))
     inventory = load_ast_inventory(base, ast_paths)
     failures: list[str] = []
@@ -811,7 +834,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     check_feature_composition_roots(base, sources, inventory, failures)
     check_bootstrap_boundary(base, inventory, failures)
 
-    for path in [*runtime_sources, *(base / name for name in EXTERNAL_RUNTIME_MODULES)]:
+    for path in [*runtime_sources, *(base / name for name in EXTERNAL_RUNTIME_ASSETS)]:
         if not path.is_file():
             failures.append(f"external runtime module is missing: {path.relative_to(base).as_posix()}")
             continue
@@ -846,31 +869,29 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     if any(access.get("object") == "els" for access in all_property_accesses):
         failures.append("legacy monolithic els.* access remains")
 
-    all_state_properties: dict[str, str] = {}
-    for owner, relative_path in STATE_OWNERS.items():
+    owner_paths = owner_declaration_paths(base, sources, inventory, failures)
+    owned_properties_by_kind: dict[str, dict[str, str]] = {
+        "state property": {},
+        "DOM reference": {},
+    }
+    for owner, relative_path in owner_paths.items():
         declared = declared_properties(inventory, owner, relative_path)
+        owner_kind = "DOM reference" if owner.endswith("Elements") else "state property"
+        owned_properties = owned_properties_by_kind[owner_kind]
         for name in declared:
-            previous = all_state_properties.get(name)
+            previous = owned_properties.get(name)
             if previous:
-                failures.append(f"state property '{name}' is owned by both {previous} and {owner}")
-            all_state_properties[name] = owner
-        used = set().union(*(ast_owner_properties(inventory[path.relative_to(base).as_posix()], owner) for path in sources))
+                failures.append(
+                    f"{owner_kind} '{name}' is owned by both {previous} and {owner}"
+                )
+            owned_properties[name] = owner
+        used = set().union(*(
+            ast_owner_properties(inventory[path.relative_to(base).as_posix()], owner)
+            for path in sources
+        ))
         unknown = sorted(used - declared)
         if unknown:
             failures.append(f"{owner} uses undeclared properties: {', '.join(unknown)}")
-
-    all_element_properties: dict[str, str] = {}
-    for owner, relative_path in ELEMENT_OWNERS.items():
-        declared = declared_properties(inventory, owner, relative_path)
-        for name in declared:
-            previous = all_element_properties.get(name)
-            if previous:
-                failures.append(f"DOM reference '{name}' is owned by both {previous} and {owner}")
-            all_element_properties[name] = owner
-        used = set().union(*(ast_owner_properties(inventory[path.relative_to(base).as_posix()], owner) for path in sources))
-        unknown = sorted(used - declared)
-        if unknown:
-            failures.append(f"{owner} uses undeclared DOM references: {', '.join(unknown)}")
 
     # Every runtime owner is a real ES module; no source file may rely on the old
     # concatenated lexical scope. TypeScript then proves every cross-file symbol
@@ -917,115 +938,42 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     except (OSError, json.JSONDecodeError) as error:
         failures.append(f"could not validate pinned esbuild dependency: {error}")
 
-    # Route outputs must prove that omitted features are physically absent, not merely disabled.
-    route_expectations = {
-        "app-catalog.js": {
-            "required": (
-                "src/js/39-search-catalog-domain.js",
-                "src/js/40-catalog-grid.js",
-                "src/js/50-search-ui.js",
-            ),
-            "forbidden": (
-                "src/js/16-viewer-state.js",
-                "src/js/17-viewer-state-transitions.js",
-                "src/js/31-viewer-share.js",
-                "src/js/51-viewer-session-state.js",
-                "src/js/52-viewer-session.js",
-                "src/js/53-viewer-image.js",
-                "src/js/54-viewer-geometry.js",
-                "src/js/55-viewer-zoom-controller.js",
-                "src/js/56-viewer-shell.js",
-                "src/js/57-viewer-fit-controller.js",
-                "src/js/58-viewer-navigation.js",
-                "src/js/59-viewer-page-controller.js",
-                "src/js/60-viewer.js",
-                "src/js/61-viewer-layout-controller.js",
-                "src/js/62-viewer-actions.js",
-                "src/js/65-viewer-onboarding.js",
-                "src/js/70-viewer-input.js",
-                "src/js/35-favorites-workspace.js",
-            ),
-        },
-        "app-favorites.js": {
-            "required": (
-                "src/js/32-shared-inquiry.js",
-                "src/js/35-favorites-workspace.js",
-                "src/js/39-search-catalog-domain.js",
-                "src/js/40-catalog-grid.js",
-            ),
-            "forbidden": (
-                "src/js/16-viewer-state.js",
-                "src/js/17-viewer-state-transitions.js",
-                "src/js/31-viewer-share.js",
-                "src/js/51-viewer-session-state.js",
-                "src/js/52-viewer-session.js",
-                "src/js/53-viewer-image.js",
-                "src/js/54-viewer-geometry.js",
-                "src/js/55-viewer-zoom-controller.js",
-                "src/js/56-viewer-shell.js",
-                "src/js/57-viewer-fit-controller.js",
-                "src/js/58-viewer-navigation.js",
-                "src/js/59-viewer-page-controller.js",
-                "src/js/60-viewer.js",
-                "src/js/61-viewer-layout-controller.js",
-                "src/js/62-viewer-actions.js",
-                "src/js/65-viewer-onboarding.js",
-                "src/js/70-viewer-input.js",
-            ),
-        },
-        "app-viewer.js": {
-            "required": (
-                "src/js/16-viewer-state.js",
-                "src/js/17-viewer-state-transitions.js",
-                "src/js/31-viewer-share.js",
-                "src/js/32-shared-inquiry.js",
-                "src/js/35-favorites-workspace.js",
-                "src/js/39-search-catalog-domain.js",
-                "src/js/40-catalog-grid.js",
-                "src/js/51-viewer-session-state.js",
-                "src/js/52-viewer-session.js",
-                "src/js/53-viewer-image.js",
-                "src/js/54-viewer-geometry.js",
-                "src/js/55-viewer-zoom-controller.js",
-                "src/js/56-viewer-shell.js",
-                "src/js/57-viewer-fit-controller.js",
-                "src/js/58-viewer-navigation.js",
-                "src/js/59-viewer-page-controller.js",
-                "src/js/60-viewer.js",
-                "src/js/61-viewer-layout-controller.js",
-                "src/js/62-viewer-actions.js",
-                "src/js/65-viewer-onboarding.js",
-                "src/js/70-viewer-input.js",
-            ),
-            "forbidden": (),
-        },
-        "app-payment.js": {
-            "required": ("src/entries/payment.js",),
-            "forbidden": (
-                "src/js/16-viewer-state.js",
-                "src/js/17-viewer-state-transitions.js",
-                "src/js/35-favorites-workspace.js",
-                "src/js/40-catalog-grid.js",
-                "src/js/60-viewer.js",
-            ),
-        },
-    }
-    for output, expectation in route_expectations.items():
-        path = base / output
+    # Generated route bundles are validated against the canonical build manifest.
+    # Required roots and disabled capability ownership come from build_frontend_assets
+    # rather than a second hand-maintained route ledger in this checker.
+    for spec in (item for item in BUNDLE_SPECS if item.kind == "js"):
+        path = base / spec.output_name
         if not path.is_file():
-            failures.append(f"route bundle is missing: {output}")
+            failures.append(f"route bundle is missing: {spec.output_name}")
             continue
         text = path.read_text(encoding="utf-8")
+        inputs = generated_bundle_inputs(text)
+        input_set = set(inputs)
         if "Output format: native browser ES module" not in text:
-            failures.append(f"{output} is not marked as a native browser ES module")
+            failures.append(f"{spec.output_name} is not marked as a native browser ES module")
         if _has_legacy_top_level_iife_wrapper(text):
-            failures.append(f"{output} still contains a top-level IIFE compatibility wrapper")
-        for source in expectation["required"]:
-            if f" *   - {source}" not in text:
-                failures.append(f"{output} is missing required feature source {source}")
-        for source in expectation["forbidden"]:
-            if f" *   - {source}" in text:
-                failures.append(f"{output} contains forbidden feature source {source}")
+            failures.append(f"{spec.output_name} still contains a top-level IIFE compatibility wrapper")
+        if spec.entrypoint and spec.entrypoint not in input_set:
+            failures.append(f"{spec.output_name} is missing its manifest entrypoint {spec.entrypoint}")
+        for required in spec.required_inputs:
+            if required not in input_set:
+                failures.append(f"{spec.output_name} is missing required manifest input {required}")
+
+        capabilities = dict(spec.capabilities or {})
+        for capability_name, enabled in capabilities.items():
+            boundary = CAPABILITY_BOUNDARIES[capability_name]
+            owned_inputs = capability_owned_inputs(inputs, boundary)
+            if enabled:
+                for required_root in boundary.required_roots:
+                    if required_root not in input_set:
+                        failures.append(
+                            f"{spec.output_name} enables {capability_name} but misses {required_root}"
+                        )
+            elif owned_inputs:
+                failures.append(
+                    f"{spec.output_name} disables {capability_name} but contains owned inputs: "
+                    f"{', '.join(owned_inputs)}"
+                )
 
 
     viewer_implementation_sources = [
@@ -1046,13 +994,10 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         "viewerChromeState", "viewerImageState", "viewerNavigationState",
         "viewerOnboardingState", "viewerElements",
     }
-    search_implementation_sources = (
-        "src/js/42-search-runtime.js",
-        "src/js/47-search-preview.js",
-        "src/js/48-global-search-ui.js",
-        "src/js/49-search-reader-ui.js",
-        "src/js/50-search-ui.js",
-    )
+    search_implementation_sources = tuple(sorted(
+        set(DIRECT_ACCESS_OWNERS["searchState"])
+        | set(DIRECT_ACCESS_OWNERS["searchElements"])
+    ))
     for search_relative in search_implementation_sources:
         search_identifiers = set(inventory[search_relative].get("identifiers", []))
         if search_identifiers.intersection(forbidden_viewer_internals):
@@ -1072,14 +1017,12 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     if "_partition_metafile_inputs" not in (base / "tools/build_frontend_assets.py").read_text(encoding="utf-8"):
         failures.append("esbuild physical and virtual metafile inputs are not validated separately")
 
-    route_pages = {
-        "index.html": "app-catalog.js",
-        "catalog.html": "app-catalog.js",
-        "favorites.html": "app-favorites.js",
-        "viewer.html": "app-viewer.js",
-        "payment.html": "app-payment.js",
+    route_documents = {
+        "index.html": "home",
+        **{f"{route}.html": route for route in ROUTE_ASSETS if route != "home"},
     }
-    for page_name, route_asset in route_pages.items():
+    for page_name, route_name in route_documents.items():
+        route_asset = ROUTE_ASSETS[route_name][1]
         page_path = base / page_name
         if not page_path.is_file():
             failures.append(f"route document is missing: {page_name}")
@@ -1088,7 +1031,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
         expected_tag = f'<script type="module" data-bargig-route-module src="{route_asset}"></script>'
         if expected_tag not in page_text:
             failures.append(f"{page_name} does not load {route_asset} as a native module")
-        for runtime_asset in EXTERNAL_RUNTIME_MODULES:
+        for runtime_asset in EXTERNAL_RUNTIME_ASSETS:
             if f'<script src="{runtime_asset}"></script>' in page_text:
                 failures.append(f"{page_name} still loads business runtime {runtime_asset} as a classic script")
 
@@ -1098,7 +1041,7 @@ def check_frontend_contracts(root: Path | None = None) -> None:
     payment_template_text = (base / "payment.template.html").read_text(encoding="utf-8")
     if '<script type="module" data-bargig-route-module src="{{ROUTE_SCRIPT}}"></script>' not in payment_template_text:
         failures.append("payment.template.html does not emit the native payment route module")
-    for runtime_asset in EXTERNAL_RUNTIME_MODULES:
+    for runtime_asset in EXTERNAL_RUNTIME_ASSETS:
         if f'<script src="{runtime_asset}"></script>' in template_text:
             failures.append(f"site.template.html still loads business runtime {runtime_asset} as a classic script")
 

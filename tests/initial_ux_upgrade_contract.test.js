@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
+const { hasAssignmentTarget, hasCall, hasFunction, hasPropertyPath, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
@@ -18,6 +19,18 @@ const currentLinkSharingSource = fs.readFileSync(path.join(root, 'src', 'js', '2
 const browserSharingSource = fs.readFileSync(path.join(root, 'src', 'js', '22-browser-sharing.js'), 'utf8');
 const catalogGridSource = fs.readFileSync(path.join(root, 'src', 'js', '40-catalog-grid.js'), 'utf8');
 const css = readAllCssBundles();
+const inventories = inventoryProjectFiles(root, [
+  'src/js/22-browser-sharing.js',
+  'src/js/23-current-link-sharing.js',
+  'src/js/30-favorites-share.js',
+  'src/js/60-viewer.js',
+  'src/js/65-viewer-onboarding.js',
+]);
+const browserSharingAst = inventories['src/js/22-browser-sharing.js'];
+const currentLinkSharingAst = inventories['src/js/23-current-link-sharing.js'];
+const favoritesShareAst = inventories['src/js/30-favorites-share.js'];
+const viewerAst = inventories['src/js/60-viewer.js'];
+const onboardingAst = inventories['src/js/65-viewer-onboarding.js'];
 
 for (const html of [template, index, viewer]) {
   assert.match(html, /id="headerCopyLink"[^>]*aria-label="שיתוף העמוד הנוכחי"[^>]*title="שיתוף"/);
@@ -37,28 +50,76 @@ for (const html of [template, index, viewer]) {
 assert.match(catalogGridSource, /data-open-catalog-entry="\$\{safeCatalogId\}"[^>]*>פתיחת הקטלוג</);
 assert.match(catalogGridSource, /data-open-catalog-preview="\$\{safeCatalogId\}"[^>]*>תצוגה מקדימה</);
 assert.doesNotMatch(catalogGridSource, /צפייה בקטלוג קטן|data-enter-catalog-card/);
-assert.match(browserSharingSource, /function tryNativeShare\([\s\S]*?navigator\.share[\s\S]*?userAgentData\?\.mobile/);
-assert.match(currentLinkSharingSource, /function shareOrCopyCurrentLink\([\s\S]*?window\.location\.href[\s\S]*?tryNativeShare\([\s\S]*?mobileOnly: true[\s\S]*?copyTextToClipboard\(link\)/);
-assert.doesNotMatch(favoritesShareSource, /document\.execCommand|navigator\.clipboard|navigator\.share\(/);
-assert.match(currentLinkSharingSource, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
-assert.match(viewerStateSource, /VIEWER_ONBOARDING_STORAGE_KEY = "bargig\.viewer-onboarding\.v2"/);
-assert.match(onboardingSource, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouchPoints[\s\S]*?ontouchstart/);
-assert.match(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "page-navigation"[\s\S]*?מעבר בין עמודים[\s\S]*?id: "zoom"[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?id: "inquiry"[\s\S]*?מועדפים ובירור אחד מרוכז/);
-assert.doesNotMatch(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "top-bar"/);
-assert.doesNotMatch(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "pin-top-bar"/);
-assert.doesNotMatch(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "page-rail"/);
-assert.match(onboardingSource, /function viewerNavigationOnboardingCopy\([\s\S]*?החליקו למעלה, למטה, ימינה או שמאלה[\s\S]*?מקשי החצים ו־Page Up\/Down/);
-assert.match(onboardingSource, /id: "page-navigation"[\s\S]*?targetRect: getViewerOnboardingNavigationFocusRect[\s\S]*?floatingTargets: \(\) => \[[\s\S]*?viewerElements\.nextPageBtn[\s\S]*?viewerElements\.prevPageBtn[\s\S]*?gesture: "swipe-both"/);
-assert.match(onboardingSource, /id: "inquiry"[\s\S]*?target: \(\) => getFeatureInterface\("inquiry"\)\?\.onboardingTarget\(\) \|\| null[\s\S]*?floatingTargets: \(\) => \{[\s\S]*?getFeatureInterface\("inquiry"\)\?\.onboardingTarget\(\)[\s\S]*?getFeatureInterface\("favorites"\)\?\.onboardingTarget\(\)/);
-assert.match(onboardingSource, /viewerOnboardingNext\.textContent = viewerOnboardingState\.viewerOnboardingStep === steps\.length - 1 \? "סיום" : "הבא"/);
-assert.match(onboardingSource, /function syncViewerOnboardingFloatingTargetState\([\s\S]*?"data-favorite-active"/);
-assert.match(onboardingSource, /function updateViewerOnboardingFloatingTargets\([\s\S]*?cloneNode\(true\)[\s\S]*?clone\.dataset\.tourTarget = id[\s\S]*?source\.click\(\)/);
-assert.match(onboardingSource, /function layoutViewerOnboarding\([\s\S]*?getBoundingClientRect[\s\S]*?setViewerOnboardingShadeRect[\s\S]*?calculateViewerOnboardingCalloutPosition/);
-assert.match(onboardingSource, /function scheduleViewerOnboardingLayout\(delay = 0\)[\s\S]*?if \(delay > 0\) \{[\s\S]*?window\.clearTimeout\(viewerOnboardingState\.viewerOnboardingLayoutTimer\)[\s\S]*?return;[\s\S]*?run\(\);/);
-assert.doesNotMatch(onboardingSource, /thumbsHotspot|lightboxThumbs|show-thumbs|thumbsHideTimer/);
-assert.match(onboardingSource, /function showViewerOnboardingIfNeeded\([\s\S]*?viewerOnboardingWasSeen\(\)[\s\S]*?viewer-tour-active[\s\S]*?renderViewerOnboardingStep\(\{ focus: false, scheduleLayout: false \}\)[\s\S]*?layoutViewerOnboarding\(\)[\s\S]*?layout-ready[\s\S]*?classList\.add\("visible"\)/);
-assert.match(onboardingSource, /function closeViewerOnboarding\([\s\S]*?markViewerOnboardingSeen\(\)[\s\S]*?restoreViewerUiAfterOnboarding/);
-assert.match(viewerSource, /window\.requestAnimationFrame\(showViewerOnboardingIfNeeded\)/);
+assert.ok(hasFunction(browserSharingAst, 'tryNativeShare'));
+assert.ok(hasCall(browserSharingAst, 'navigator.share', 'tryNativeShare'));
+assert.ok(hasPropertyPath(browserSharingAst, 'navigator.userAgentData.mobile', 'tryNativeShare'));
+
+assert.ok(hasFunction(currentLinkSharingAst, 'shareOrCopyCurrentLink'));
+assert.ok(hasPropertyPath(currentLinkSharingAst, 'window.location.href', 'shareOrCopyCurrentLink'));
+assert.ok(hasCall(currentLinkSharingAst, 'tryNativeShare', 'shareOrCopyCurrentLink'));
+assert.ok(hasCall(currentLinkSharingAst, 'copyTextToClipboard', 'shareOrCopyCurrentLink'));
+const currentLinkNativeShare = currentLinkSharingAst.calls.find((call) => call.callee === 'tryNativeShare' && call.enclosingFunction === 'shareOrCopyCurrentLink');
+assert.equal(currentLinkNativeShare?.objectArguments[1]?.literalProperties.mobileOnly, true);
+assert.equal(favoritesShareAst.calls.some((call) => ['document.execCommand', 'navigator.clipboard.writeText', 'navigator.share'].includes(call.callee)), false);
+assert.ok(currentLinkSharingAst.calls.some((call) => call.callee === 'showActionToast' && call.arguments[0] === 'הקישור הועתק'));
+
+assert.equal(viewerStateSource.includes('VIEWER_ONBOARDING_STORAGE_KEY = "bargig.viewer-onboarding.v2"'), true);
+assert.ok(hasFunction(onboardingAst, 'viewerHasTouchCapability'));
+assert.ok(hasPropertyPath(onboardingAst, 'navigator.maxTouchPoints', 'viewerHasTouchCapability'));
+assert.ok(onboardingAst.stringLiterals.includes('ontouchstart'));
+
+assert.ok(hasFunction(onboardingAst, 'getViewerOnboardingSteps'));
+const onboardingStepProperties = onboardingAst.objectPropertyLiterals.filter((entry) => entry.enclosingFunction === 'getViewerOnboardingSteps');
+const onboardingStepIds = onboardingStepProperties.filter((entry) => entry.property === 'id').map((entry) => entry.value);
+assert.deepEqual(onboardingStepIds, ['page-navigation', 'zoom', 'inquiry']);
+for (const title of ['מעבר בין עמודים', 'הגדלה וגרירת התמונה', 'מועדפים ובירור אחד מרוכז']) {
+  assert.ok(onboardingStepProperties.some((entry) => entry.property === 'title' && entry.value === title));
+}
+for (const removedStep of ['top-bar', 'pin-top-bar', 'page-rail']) assert.equal(onboardingStepIds.includes(removedStep), false);
+
+assert.ok(hasFunction(onboardingAst, 'viewerNavigationOnboardingCopy'));
+assert.ok(onboardingAst.stringLiterals.some((value) => value.includes('החליקו למעלה, למטה, ימינה או שמאלה')));
+assert.ok(onboardingAst.stringLiterals.some((value) => value.includes('מקשי החצים ו־Page Up/Down')));
+assert.ok(onboardingAst.identifiers.includes('getViewerOnboardingNavigationFocusRect'));
+assert.ok(onboardingAst.propertyAccesses.some((access) => access.path === 'viewerElements.nextPageBtn'));
+assert.ok(onboardingAst.propertyAccesses.some((access) => access.path === 'viewerElements.prevPageBtn'));
+assert.ok(onboardingStepProperties.some((entry) => entry.property === 'gesture' && entry.value === 'swipe-both'));
+assert.ok(onboardingAst.calls.some((call) => call.callee === 'getFeatureInterface' && call.arguments[0] === 'inquiry'));
+assert.ok(onboardingAst.calls.some((call) => call.callee === 'getFeatureInterface' && call.arguments[0] === 'favorites'));
+
+assert.ok(hasAssignmentTarget(onboardingAst, 'viewerElements.viewerOnboardingNext.textContent', 'renderViewerOnboardingStep'));
+assert.ok(onboardingAst.stringLiterals.includes('סיום'));
+assert.ok(onboardingAst.stringLiterals.includes('הבא'));
+assert.ok(hasFunction(onboardingAst, 'syncViewerOnboardingFloatingTargetState'));
+assert.ok(onboardingAst.stringLiterals.includes('data-favorite-active'));
+assert.ok(hasFunction(onboardingAst, 'updateViewerOnboardingFloatingTargets'));
+assert.ok(hasCall(onboardingAst, 'source.cloneNode', 'updateViewerOnboardingFloatingTargets'));
+assert.ok(hasAssignmentTarget(onboardingAst, 'clone.dataset.tourTarget', 'updateViewerOnboardingFloatingTargets'));
+assert.ok(hasCall(onboardingAst, 'source.click', 'updateViewerOnboardingFloatingTargets'));
+
+assert.ok(hasFunction(onboardingAst, 'layoutViewerOnboarding'));
+assert.ok(hasCall(onboardingAst, 'target.getBoundingClientRect', 'layoutViewerOnboarding'));
+assert.ok(hasCall(onboardingAst, 'setViewerOnboardingShadeRect', 'layoutViewerOnboarding'));
+assert.ok(hasCall(onboardingAst, 'calculateViewerOnboardingCalloutPosition', 'layoutViewerOnboarding'));
+
+assert.ok(hasFunction(onboardingAst, 'scheduleViewerOnboardingLayout'));
+assert.ok(hasCall(onboardingAst, 'window.clearTimeout', 'scheduleViewerOnboardingLayout'));
+assert.ok(hasCall(onboardingAst, 'window.setTimeout', 'scheduleViewerOnboardingLayout'));
+assert.ok(hasCall(onboardingAst, 'run', 'scheduleViewerOnboardingLayout'));
+assert.equal(onboardingAst.identifiers.some((identifier) => ['thumbsHotspot', 'lightboxThumbs', 'show-thumbs', 'thumbsHideTimer'].includes(identifier)), false);
+
+assert.ok(hasFunction(onboardingAst, 'showViewerOnboardingIfNeeded'));
+for (const callee of ['viewerOnboardingWasSeen', 'renderViewerOnboardingStep', 'layoutViewerOnboarding']) {
+  assert.ok(hasCall(onboardingAst, callee, 'showViewerOnboardingIfNeeded'));
+}
+assert.ok(onboardingAst.calls.some((call) => call.enclosingFunction === 'showViewerOnboardingIfNeeded' && call.callee === 'viewerElements.lightbox.classList.add' && call.arguments[0] === 'viewer-tour-active'));
+assert.ok(onboardingAst.calls.some((call) => call.enclosingFunction === 'showViewerOnboardingIfNeeded' && call.callee === 'viewerElements.viewerOnboarding.classList.add' && call.arguments[0] === 'layout-ready'));
+assert.ok(onboardingAst.calls.some((call) => call.enclosingFunction === 'showViewerOnboardingIfNeeded' && call.callee === 'viewerElements.viewerOnboarding.classList.add' && call.arguments[0] === 'visible'));
+
+assert.ok(hasFunction(onboardingAst, 'closeViewerOnboarding'));
+assert.ok(hasCall(onboardingAst, 'markViewerOnboardingSeen', 'closeViewerOnboarding'));
+assert.ok(hasCall(onboardingAst, 'restoreViewerUiAfterOnboarding', 'closeViewerOnboarding'));
+assert.ok(viewerAst.calls.some((call) => call.callee === 'window.requestAnimationFrame') && viewerAst.identifiers.includes('showViewerOnboardingIfNeeded'));
 assert.match(css, /\.site-action-toast\s*\{[\s\S]*?top:\s*max\(16px, env\(safe-area-inset-top\)\);/);
 assert.doesNotMatch(index, /id="headerFullscreenToggle"/);
 assert.doesNotMatch(viewer, /id="headerFullscreenToggle"/);

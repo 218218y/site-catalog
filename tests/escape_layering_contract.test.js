@@ -1,22 +1,28 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
-const { readAllBundles } = require('./frontend_test_assets');
 const { importFrontendModule } = require('./frontend_test_module');
+const { findCalls, hasCall, hasFunction, hasPropertyPath, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
-const hierarchySource = fs.readFileSync(path.join(root, 'src', 'js', '21-ui-runtime.js'), 'utf8');
-const appShell = fs.readFileSync(path.join(root, 'src', 'js', '80-app-shell.js'), 'utf8');
-const bootstrap = fs.readFileSync(path.join(root, 'src', 'js', '90-bootstrap.js'), 'utf8');
-const app = readAllBundles();
-const favoriteWorkspace = fs.readFileSync(path.join(root, 'src', 'js', '35-favorites-workspace.js'), 'utf8');
-const favoritesShare = fs.readFileSync(path.join(root, 'src', 'js', '30-favorites-share.js'), 'utf8');
-const catalogGrid = fs.readFileSync(path.join(root, 'src', 'js', '40-catalog-grid.js'), 'utf8');
-const searchUi = fs.readFileSync(path.join(root, 'src', 'js', '50-search-ui.js'), 'utf8');
-const viewer = fs.readFileSync(path.join(root, 'src', 'js', '60-viewer.js'), 'utf8');
-const sharedInquiry = fs.readFileSync(path.join(root, 'src', 'js', '32-shared-inquiry.js'), 'utf8');
+const inventories = inventoryProjectFiles(root, [
+  'src/js/21-ui-runtime.js',
+  'src/js/30-favorites-share.js',
+  'src/js/32-shared-inquiry.js',
+  'src/js/35-favorites-workspace.js',
+  'src/js/40-catalog-grid.js',
+  'src/js/50-search-ui.js',
+  'src/js/60-viewer.js',
+  'src/js/80-app-shell.js',
+  'src/js/90-bootstrap.js',
+]);
+const hierarchyAst = inventories['src/js/21-ui-runtime.js'];
+const appShellAst = inventories['src/js/80-app-shell.js'];
+const bootstrapAst = inventories['src/js/90-bootstrap.js'];
+const favoriteWorkspaceAst = inventories['src/js/35-favorites-workspace.js'];
+const favoritesShareAst = inventories['src/js/30-favorites-share.js'];
+const sharedInquiryAst = inventories['src/js/32-shared-inquiry.js'];
 
 global.window = { location: { href: 'https://example.test/' } };
 Object.defineProperty(globalThis, 'navigator', { value: {}, writable: true, configurable: true });
@@ -42,23 +48,37 @@ function createHarness(layerResults) {
   return { calls, event };
 }
 
-assert.match(appShell, /if \(event\.defaultPrevented\) return;\s*if \(handleTopLayerEscape\(event\)\) return;/);
-assert.doesNotMatch(bootstrap, /addEventListener|handleTopLayerEscape/, 'bootstrap must remain a startup-only composition entry');
-assert.match(hierarchySource, /function handleTopLayerEscape\(event\)/);
-assert.match(hierarchySource, /for \(const api of featureInterfacesByEscapePriority\(\)\)/);
-assert.match(favoriteWorkspace, /event\.key === "Escape"[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeCallback\(\)/);
-assert.match(favoritesShare, /function handleFavoritesTransferKeydown\(event\)[\s\S]*?event\.key === "Escape"[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeFavoritesTransferDialog/);
-assert.match(sharedInquiry, /function handleViewerInquiryKeydown\(event\)[\s\S]*?event\.key === "Escape"[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closeViewerInquiry\(\)/);
+assert.ok(hasPropertyPath(appShellAst, 'event.defaultPrevented'));
+assert.ok(hasCall(appShellAst, 'handleTopLayerEscape'));
+assert.equal(hasCall(bootstrapAst, 'handleTopLayerEscape'), false, 'bootstrap must remain a startup-only composition entry');
+assert.equal(bootstrapAst.calls.some((call) => call.callee?.endsWith('.addEventListener')), false, 'bootstrap must not own browser events');
+assert.ok(hasFunction(hierarchyAst, 'handleTopLayerEscape'));
+assert.ok(hasCall(hierarchyAst, 'featureInterfacesByEscapePriority', 'handleTopLayerEscape'));
+assert.ok(hasCall(hierarchyAst, 'api.closeTopLayer', 'handleTopLayerEscape'));
 
-for (const [source, name, priority] of [
-  [sharedInquiry, 'inquiry', 600],
-  [favoritesShare, 'favorites', 500],
-  [catalogGrid, 'catalog-navigation', 400],
-  [searchUi, 'search', 300],
-  [catalogGrid, 'catalog-detail', 200],
-  [viewer, 'viewer', 100]
+for (const [inventory, handler, closer] of [
+  [favoriteWorkspaceAst, 'trapFavoriteWorkspaceDialogFocus', 'closeCallback'],
+  [favoritesShareAst, 'handleFavoritesTransferKeydown', 'closeFavoritesTransferDialog'],
+  [sharedInquiryAst, 'handleViewerInquiryKeydown', 'closeViewerInquiry'],
 ]) {
-  assert.match(source, new RegExp(`registerFeatureInterface\\("${name}",[\\s\\S]*?escapePriority: ${priority}`));
+  assert.ok(hasPropertyPath(inventory, 'event.key', handler));
+  assert.ok(hasCall(inventory, 'event.preventDefault', handler));
+  assert.ok(hasCall(inventory, 'event.stopPropagation', handler));
+  assert.ok(hasCall(inventory, closer, handler));
+}
+
+for (const [filename, name, priority] of [
+  ['src/js/32-shared-inquiry.js', 'inquiry', 600],
+  ['src/js/30-favorites-share.js', 'favorites', 500],
+  ['src/js/40-catalog-grid.js', 'catalog-navigation', 400],
+  ['src/js/50-search-ui.js', 'search', 300],
+  ['src/js/40-catalog-grid.js', 'catalog-detail', 200],
+  ['src/js/60-viewer.js', 'viewer', 100],
+]) {
+  const registration = findCalls(inventories[filename], 'registerFeatureInterface')
+    .find((call) => call.arguments[0] === name);
+  assert.ok(registration, `missing ${name} feature registration`);
+  assert.equal(registration.objectArguments[1]?.literalProperties.escapePriority, priority);
 }
 
 {

@@ -4,28 +4,33 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { readAllBundles, readAllCssBundles } = require("./frontend_test_assets");
-const { findCalls, inventoryProjectFiles } = require("./helpers/frontend_ast.js");
+const { findCalls, hasCall, hasFunction, inventoryProjectFiles } = require("./helpers/frontend_ast.js");
 
 const root = path.join(__dirname, "..");
 const app = readAllBundles();
 const css = readAllCssBundles();
 const template = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
-const sharedPureSource = fs.readFileSync(path.join(root, "src/js/19-shared-pure.js"), "utf8");
-const sharedInquirySource = fs.readFileSync(path.join(root, "src/js/32-shared-inquiry.js"), "utf8");
-const globalSearchSource = fs.readFileSync(path.join(root, "src/js/48-global-search-ui.js"), "utf8");
-const readerSearchSource = fs.readFileSync(path.join(root, "src/js/49-search-reader-ui.js"), "utf8");
-const searchUiSource = fs.readFileSync(path.join(root, "src/js/50-search-ui.js"), "utf8");
-const pageControllerSource = fs.readFileSync(path.join(root, "src/js/59-viewer-page-controller.js"), "utf8");
-const viewerSource = fs.readFileSync(path.join(root, "src/js/60-viewer.js"), "utf8");
-const viewerActionsSource = fs.readFileSync(path.join(root, "src/js/62-viewer-actions.js"), "utf8");
-const telemetrySource = fs.readFileSync(path.join(root, "src/js/15-telemetry.js"), "utf8");
 const sourceAst = inventoryProjectFiles(root, [
+  "src/js/15-telemetry.js",
+  "src/js/19-shared-pure.js",
+  "src/js/32-shared-inquiry.js",
   "src/js/48-global-search-ui.js",
   "src/js/49-search-reader-ui.js",
+  "src/js/50-search-ui.js",
+  "src/js/59-viewer-page-controller.js",
+  "src/js/60-viewer.js",
+  "src/js/62-viewer-actions.js",
 ]);
+const telemetryAst = sourceAst["src/js/15-telemetry.js"];
+const sharedPureAst = sourceAst["src/js/19-shared-pure.js"];
+const sharedInquiryAst = sourceAst["src/js/32-shared-inquiry.js"];
 const globalSearchAst = sourceAst["src/js/48-global-search-ui.js"];
 const readerSearchAst = sourceAst["src/js/49-search-reader-ui.js"];
-assert.doesNotMatch(sharedInquirySource, /setTooltipText\(viewerElements\.viewerInquiryButton/, "inquiry button must not be registered with the tooltip manager");
+const searchUiAst = sourceAst["src/js/50-search-ui.js"];
+const pageControllerAst = sourceAst["src/js/59-viewer-page-controller.js"];
+const viewerAst = sourceAst["src/js/60-viewer.js"];
+const viewerActionsAst = sourceAst["src/js/62-viewer-actions.js"];
+assert.equal(hasCall(sharedInquiryAst, "setTooltipText"), false, "inquiry button must not be registered with the tooltip manager");
 
 for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.html"]) {
   const html = fs.readFileSync(path.join(root, relative), "utf8");
@@ -56,22 +61,32 @@ assert.match(template, /data-viewer-mobile-action="fit-height"/);
 assert.match(template, /data-viewer-mobile-action="fit-width"/);
 assert.match(template, /id="viewerMobileFavoritesLink"/);
 
-assert.match(sharedInquirySource, /function viewerPageInquiryReference\(\)[\s\S]*?const catalog = activeCatalog\(\);[\s\S]*?const page = clampPage\(activePage\(\), catalog\);[\s\S]*?absoluteDocumentUrl\(viewerDocumentUrl\(catalog\.id, page\)\)/);
-assert.match(sharedInquirySource, /function viewerInquiryReference\(\)[\s\S]*?inquiryState\.reference \|\| viewerPageInquiryReference\(\)/);
-assert.match(sharedInquirySource, /`קטלוג: \$\{title\}`/);
-assert.match(sharedInquirySource, /`עמוד: \$\{page\}`/);
-assert.match(sharedInquirySource, /function syncViewerInquiryUi\([\s\S]*?viewerInquiryCatalog\.textContent = reference\.referenceTitle \|\| reference\.title[\s\S]*?viewerInquiryPage\.textContent = reference\.pageLabel/);
-assert.match(sharedInquirySource, /function viewerInquiryMailtoUrl\([\s\S]*?buildViewerInquiryMailtoUrl\(emailAddress, reference\)/);
-assert.match(sharedPureSource, /function buildViewerInquiryMailtoUrl\([\s\S]*?encodeURIComponent\(String\(reference\?\.subject \|\| ""\)\)[\s\S]*?replace\(\/\\r\?\\n\/g, "\\r\\n"\)[\s\S]*?`mailto:\$\{String\(emailAddress \|\| ""\)\}\?subject=\$\{subject\}&body=\$\{body\}`/);
-assert.match(sharedInquirySource, /emailAvailable \? viewerInquiryMailtoUrl\(emailAddress, reference\) : ""/);
-assert.match(sharedInquirySource, /function viewerInquiryGmailUrl\([\s\S]*?mail\.google\.com\/mail\/\?/);
-assert.match(sharedInquirySource, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?tryNativeShare\(shareData\)[\s\S]*?shareResult === "shared"[\s\S]*?viewerInquiryTelemetryFields\(reference, "share"\)/);
-assert.doesNotMatch(sharedInquirySource, /viewerInquiry(?:Gmail|Email)\.title\s*=|setTooltipText\(els\.viewerInquiry(?:Gmail|Email)/);
-assert.match(sharedInquirySource, /function copyViewerInquiryReference\([\s\S]*?copyTextToClipboard\(reference\.text\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "copy"\)/);
-assert.match(pageControllerSource, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)/);
-assert.match(pageControllerSource, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)[\s\S]*?syncViewerMobileMoreMenuState\(\)/);
-assert.match(viewerActionsSource, /function handleViewerMobileMoreKeydown\([\s\S]*?ArrowDown[\s\S]*?ArrowUp[\s\S]*?Home[\s\S]*?End/);
-assert.match(viewerSource, /function hideLightboxUi\([\s\S]*?closeViewerInquiry\(\{ restoreFocus: false \}\)[\s\S]*?closeViewerMobileMoreMenu\(\)/);
+for (const callee of ["activeCatalog", "activePage", "clampPage", "viewerDocumentUrl", "absoluteDocumentUrl"]) {
+  assert.equal(hasCall(sharedInquiryAst, callee, "viewerPageInquiryReference"), true, `viewerPageInquiryReference must use ${callee}`);
+}
+assert.equal(hasCall(sharedInquiryAst, "viewerPageInquiryReference", "viewerInquiryReference"), true);
+assert.ok(sharedInquiryAst.propertyAccesses.some((access) => access.path === "inquiryState.reference"));
+assert.ok(sharedInquiryAst.stringLiterals.includes("קטלוג: "));
+assert.ok(sharedInquiryAst.stringLiterals.includes("עמוד: "));
+assert.ok(sharedInquiryAst.assignmentTargets.includes("inquiryElements.viewerInquiryCatalog.textContent"));
+assert.ok(sharedInquiryAst.assignmentTargets.includes("inquiryElements.viewerInquiryPage.textContent"));
+assert.equal(hasCall(sharedInquiryAst, "buildViewerInquiryMailtoUrl", "viewerInquiryMailtoUrl"), true);
+assert.equal(hasFunction(sharedPureAst, "buildViewerInquiryMailtoUrl"), true);
+assert.equal(hasCall(sharedPureAst, "encodeURIComponent", "buildViewerInquiryMailtoUrl"), true);
+assert.ok(sharedInquiryAst.stringLiterals.includes("https://mail.google.com/mail/?"));
+assert.equal(hasFunction(sharedInquiryAst, "viewerInquiryGmailUrl"), true);
+assert.equal(hasCall(sharedInquiryAst, "tryNativeShare", "shareViewerInquiryReference"), true);
+assert.equal(findCalls(sharedInquiryAst, "viewerInquiryTelemetryFields").some((call) => call.enclosingFunction === "shareViewerInquiryReference" && call.arguments[1] === "share"), true);
+assert.equal(hasCall(sharedInquiryAst, "copyTextToClipboard", "shareViewerInquiryReference"), true);
+assert.equal(hasCall(sharedInquiryAst, "copyTextToClipboard", "copyViewerInquiryReference"), true);
+assert.equal(findCalls(sharedInquiryAst, "viewerInquiryTelemetryFields").some((call) => call.enclosingFunction === "copyViewerInquiryReference" && call.arguments[1] === "copy"), true);
+assert.equal(sharedInquiryAst.assignmentTargets.some((target) => /viewerInquiry(?:Gmail|Email)\.title$/.test(target)), false);
+assert.equal(hasCall(pageControllerAst, "syncViewerInquiryUi", "updateLightbox"), true);
+assert.equal(hasCall(pageControllerAst, "syncViewerMobileMoreMenuState", "updateLightbox"), true);
+assert.equal(hasFunction(viewerActionsAst, "handleViewerMobileMoreKeydown"), true);
+for (const key of ["ArrowDown", "ArrowUp", "Home", "End"]) assert.ok(viewerActionsAst.stringLiterals.includes(key));
+assert.equal(hasCall(viewerAst, "closeViewerInquiry", "hideLightboxUi"), true);
+assert.equal(hasCall(viewerAst, "closeViewerMobileMoreMenu", "hideLightboxUi"), true);
 
 assert.equal(
   [...findCalls(globalSearchAst, "telemetryTrackSearch"), ...findCalls(readerSearchAst, "telemetryTrackSearch")]
@@ -109,8 +124,12 @@ assert.equal(
   true,
   "global search telemetry flushes before navigation",
 );
-assert.match(telemetrySource, /function telemetryTrackSearch\([\s\S]*?completion = telemetryCleanText\(options\.completion \|\| "submit"[\s\S]*?action: completion[\s\S]*?immediate: options\.immediate === true/);
-assert.doesNotMatch(telemetrySource + globalSearchSource + readerSearchSource + searchUiSource, /TELEMETRY_SEARCH_DELAY_MS|searchTimers/);
+assert.equal(hasFunction(telemetryAst, "telemetryTrackSearch"), true);
+assert.equal(hasCall(telemetryAst, "telemetryCleanText", "telemetryTrackSearch"), true);
+for (const inventory of [telemetryAst, globalSearchAst, readerSearchAst, searchUiAst]) {
+  assert.equal(inventory.identifiers.includes("TELEMETRY_SEARCH_DELAY_MS"), false);
+  assert.equal(inventory.identifiers.includes("searchTimers"), false);
+}
 
 assert.match(css, /\.inquiry-trigger-button\s*\{[\s\S]*?min-height:\s*46px;/);
 assert.match(css, /\.viewer-inquiry-button\s*\{[\s\S]*?position:\s*fixed;/);

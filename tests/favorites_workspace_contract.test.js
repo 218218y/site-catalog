@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readAllBundles, readAllCssBundles } = require('./frontend_test_assets');
+const { hasCall, hasFunction, hasPropertyPath, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
@@ -13,6 +14,9 @@ const css = readAllCssBundles();
 const store = fs.readFileSync(path.join(root, 'src', 'runtime', 'favorites-store.js'), 'utf8');
 const favoritesWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'js', '35-favorites-workspace.js'), 'utf8');
 const privacy = fs.readFileSync(path.join(root, 'legal', 'privacy.content.html'), 'utf8');
+const favoritesWorkspaceAst = inventoryProjectFiles(root, [
+  'src/js/35-favorites-workspace.js',
+])['src/js/35-favorites-workspace.js'];
 
 function divMarkupById(html, id) {
   const markerIndex = html.indexOf(`id="${id}"`);
@@ -49,22 +53,32 @@ assert.match(store, /setNoteDetailed\(item, note\)/);
 assert.match(store, /reorderDetailed\(keys\)/);
 assert.match(store, /payload\.version !== STORAGE_VERSION/);
 
-assert.match(favoritesWorkspaceSource, /function favoriteWorkspaceCardKey\(/);
-assert.match(favoritesWorkspaceSource, /function favoriteWorkspaceFindCardByKey\(/);
+assert.ok(hasFunction(favoritesWorkspaceAst, 'favoriteWorkspaceCardKey'));
+assert.ok(hasFunction(favoritesWorkspaceAst, 'favoriteWorkspaceFindCardByKey'));
 assert.doesNotMatch(app, /data-favorite-key=/);
 assert.match(favoritesWorkspaceSource, /\[data-favorite-catalog\]\[data-favorite-page\]/);
-assert.match(favoritesWorkspaceSource, /function favoriteWorkspaceVisibleEntries\(/);
-assert.match(favoritesWorkspaceSource, /function favoriteWorkspaceShareLinkEntries\([\s\S]*?return selectedEntries\.length \? selectedEntries : entries/);
-assert.match(favoritesWorkspaceSource, /function moveFavoriteWithinVisibleOrder\(/);
-assert.match(favoritesWorkspaceSource, /function reorderFavoriteByDrop\(/);
-assert.match(favoritesWorkspaceSource, /function openFavoriteNoteEditor\(/);
+assert.ok(hasFunction(favoritesWorkspaceAst, 'favoriteWorkspaceVisibleEntries'));
+assert.ok(hasFunction(favoritesWorkspaceAst, 'favoriteWorkspaceShareLinkEntries'));
+assert.ok(hasCall(favoritesWorkspaceAst, 'favoriteWorkspaceSelectedEntries', 'favoriteWorkspaceShareLinkEntries'));
+assert.ok(hasPropertyPath(favoritesWorkspaceAst, 'selectedEntries.length', 'favoriteWorkspaceShareLinkEntries'));
+assert.ok(hasFunction(favoritesWorkspaceAst, 'moveFavoriteWithinVisibleOrder'));
+assert.ok(hasFunction(favoritesWorkspaceAst, 'reorderFavoriteByDrop'));
+assert.ok(hasFunction(favoritesWorkspaceAst, 'openFavoriteNoteEditor'));
 assert.match(favoritesWorkspaceSource, /class="favorite-remove-button"[^>]*data-remove-favorite="1"[^>]*title="הסרה מהמועדפים"/);
 assert.doesNotMatch(app, /favorite-remove-inline/);
-assert.match(favoritesWorkspaceSource, /function favoriteWorkspaceInquiryReference\([\s\S]*?purpose: "inquiry"[\s\S]*?קישור לרשימת הדגמים/);
-assert.match(favoritesWorkspaceSource, /function openFavoriteWorkspaceInquiry\([\s\S]*?selectedEntries\.length \? selectedEntries : entries[\s\S]*?getFeatureInterface\("inquiry"\)\?\.openInquiry\?\.\(\{[\s\S]*?reference,[\s\S]*?returnFocus: favoritesElements\.favoritesInquiryButton/);
+assert.ok(hasFunction(favoritesWorkspaceAst, 'favoriteWorkspaceInquiryReference'));
+assert.ok(favoritesWorkspaceAst.objectPropertyLiterals.some((entry) => entry.enclosingFunction === 'favoriteWorkspaceInquiryReference' && entry.property === 'purpose' && entry.value === 'inquiry'));
+assert.ok(favoritesWorkspaceAst.stringLiterals.some((value) => value.includes('קישור לרשימת הדגמים')));
+assert.ok(hasFunction(favoritesWorkspaceAst, 'openFavoriteWorkspaceInquiry'));
+assert.ok(hasCall(favoritesWorkspaceAst, 'favoriteWorkspaceSelectedEntries', 'openFavoriteWorkspaceInquiry'));
+assert.ok(hasPropertyPath(favoritesWorkspaceAst, 'selectedEntries.length', 'openFavoriteWorkspaceInquiry'));
+assert.ok(hasCall(favoritesWorkspaceAst, 'getFeatureInterface("inquiry").openInquiry', 'openFavoriteWorkspaceInquiry'));
+assert.ok(hasPropertyPath(favoritesWorkspaceAst, 'favoritesElements.favoritesInquiryButton', 'openFavoriteWorkspaceInquiry'));
 assert.match(favoritesWorkspaceSource, /favoritesInquiryButton\.classList\.toggle\("hidden", !hasEntries\)/);
 assert.match(favoritesWorkspaceSource, /favoritesInquiryLabel\.textContent = selectedCount \? "בירור על הדגמים שנבחרו" : "בירור על הדגמים"/);
-assert.match(favoritesWorkspaceSource, /function copyFavoriteWorkspaceLink\([\s\S]*?favoriteWorkspaceSelectionUrl\(entries\)[\s\S]*?copyTextToClipboard\(selectionUrl\)/);
+assert.ok(hasFunction(favoritesWorkspaceAst, 'copyFavoriteWorkspaceLink'));
+assert.ok(hasCall(favoritesWorkspaceAst, 'favoriteWorkspaceSelectionUrl', 'copyFavoriteWorkspaceLink'));
+assert.ok(hasCall(favoritesWorkspaceAst, 'copyTextToClipboard', 'copyFavoriteWorkspaceLink'));
 assert.match(favoritesWorkspaceSource, /buildFavoritesShareUrl\(entries\.map/);
 assert.match(favoritesWorkspaceSource, /if \(String\(entry\.note \|\| ""\)\.trim\(\)\) lines\.push/);
 assert.match(favoritesWorkspaceSource, /if \(!note\) return "";/);

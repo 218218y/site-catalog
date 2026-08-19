@@ -3,8 +3,10 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { hasFunction, inventoryProjectFiles } = require("./helpers/frontend_ast");
 
 const root = path.join(__dirname, "..");
+const controlPanelJobsAst = inventoryProjectFiles(root, ['src/control-panel/features/jobs.js'])['src/control-panel/features/jobs.js'];
 const exactNpmVersion = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const windowsLaunchers = Object.freeze({
   bundleSite: ".01-bundle-site-r2.bat",
@@ -297,7 +299,7 @@ assert.match(verifier, /sys\.dont_write_bytecode = True/);
 assert.match(verifier, /PYTHONDONTWRITEBYTECODE/);
 assert.match(architecture, /אין לפצל מודול רק בגלל מספר השורות/);
 assert.match(controlPanel, /id="cancelJob"/);
-assert.match(controlPanelJobs, /function cancelActiveJob/);
+assert.ok(hasFunction(controlPanelJobsAst, 'cancelActiveJob'));
 assert.match(controlPanelJobs, /controlApi\.cancelJob\(activeJobId\)/);
 assert.match(controlPanelApi, /`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/cancel`/);
 assert.match(controlServer, /def cancel_job\(/);

@@ -98,6 +98,23 @@ function literalArrayValues(initializer, is, SyntaxKind) {
   return values;
 }
 
+
+function objectLiteralFacts(node, is, SyntaxKind) {
+  if (!node || !is.isObjectLiteralExpression(node)) return null;
+  const properties = [];
+  const literalProperties = Object.create(null);
+  for (const property of node.properties) {
+    const name = propertyNameText(property.name, is);
+    if (!name) continue;
+    properties.push(name);
+    if (is.isPropertyAssignment(property)) {
+      const value = literalValue(property.initializer, is, SyntaxKind);
+      if (value !== undefined) literalProperties[name] = value;
+    }
+  }
+  return { properties, literalProperties };
+}
+
 function declarationProperties(node, is) {
   if (is.isInterfaceDeclaration(node)) {
     return node.members.map((member) => propertyNameText(member.name, is)).filter(Boolean);
@@ -119,7 +136,8 @@ function enclosingFunctionName(node, is) {
         return parent.name.text;
       }
       if (parent && is.isPropertyAssignment(parent)) return propertyNameText(parent.name, is);
-      return null;
+      current = current.parent;
+      continue;
     }
     current = current.parent;
   }
@@ -147,6 +165,7 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
   const calls = [];
   const newExpressions = [];
   const assignmentTargets = [];
+  const assignments = [];
   const declarations = [];
   let exportStatementCount = 0;
 
@@ -228,13 +247,20 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
           path: accessPath,
           object: separator >= 0 ? accessPath.slice(0, separator) : "",
           property: separator >= 0 ? accessPath.slice(separator + 1) : accessPath,
+          enclosingFunction: enclosingFunctionName(node, is),
         });
       }
     }
 
     if (is.isBinaryExpression(node) && node.operatorToken.kind === SyntaxKind.EqualsToken) {
       const target = expressionPath(node.left, is, SyntaxKind);
-      if (target) assignmentTargets.push(target);
+      if (target) {
+        assignmentTargets.push(target);
+        assignments.push({
+          path: target,
+          enclosingFunction: enclosingFunctionName(node, is),
+        });
+      }
     }
 
     if (is.isNewExpression(node)) {
@@ -256,6 +282,7 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
       calls.push({
         callee,
         arguments: args,
+        objectArguments: node.arguments.map((argument) => objectLiteralFacts(argument, is, SyntaxKind)),
         path: expressionPath(node, is, SyntaxKind),
         enclosingFunction: enclosingFunctionName(node, is),
       });
@@ -304,6 +331,7 @@ function inventorySourceFile(sourceFile, is, SyntaxKind) {
     calls,
     newExpressions,
     assignmentTargets,
+    assignments,
     declarations,
     exportStatementCount,
   };

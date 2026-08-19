@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readAllBundles, readAllCssBundles, readCssBundle } = require('./frontend_test_assets');
+const { hasFunction, inventoryProjectFiles } = require('./helpers/frontend_ast');
 
 const root = path.join(__dirname, '..');
 const template = fs.readFileSync(path.join(root, 'site.template.html'), 'utf8');
@@ -14,6 +15,7 @@ const viewerCss = readCssBundle('viewer');
 const favoritesStateSource = fs.readFileSync(path.join(root, 'src/js/14-favorites-state.js'), 'utf8');
 const favoritesShareSource = fs.readFileSync(path.join(root, 'src/js/30-favorites-share.js'), 'utf8');
 const visualPolishSource = fs.readFileSync(path.join(root, 'src/css/90-visual-polish.css'), 'utf8');
+const favoritesShareAst = inventoryProjectFiles(root, ['src/js/30-favorites-share.js'])['src/js/30-favorites-share.js'];
 
 for (const html of [template, viewer]) {
   assert.match(html, /id="lightboxFavoritesButton"[^>]*href="favorites\.html"/);
@@ -27,7 +29,7 @@ for (const html of [template, viewer]) {
 assert.match(favoritesStateSource, /lightboxFavoritesButton: \$requiredAnchor\("lightboxFavoritesButton"\)/);
 assert.match(favoritesStateSource, /lightboxFavoritesCount: requiredElement\("lightboxFavoritesCount"\)/);
 assert.match(favoritesStateSource, /lightboxFavoritesSeparator: requiredElement\("lightboxFavoritesSeparator"\)/);
-assert.match(favoritesShareSource, /function syncFavoritesShortcut\(button, countElement, count\)/);
+assert.ok(hasFunction(favoritesShareAst, 'syncFavoritesShortcut'));
 assert.match(favoritesShareSource, /syncFavoritesShortcut\(favoritesElements\.headerFavoritesButton, favoritesElements\.headerFavoritesCount, count\)/);
 assert.match(favoritesShareSource, /syncFavoritesShortcut\(favoritesElements\.lightboxFavoritesButton, favoritesElements\.lightboxFavoritesCount, count\)/);
 assert.match(favoritesShareSource, /favoritesElements\.lightboxFavoritesSeparator\?\.classList\.toggle\("hidden", count === 0\)/);
