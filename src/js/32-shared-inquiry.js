@@ -18,7 +18,7 @@ import { buildViewerInquiryMailtoUrl } from "./19-shared-pure.js";
 import { clampPage } from "./20-catalog-runtime.js";
 import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
 import { focusHtmlElement, isHtmlElement, showActionToast, syncDocumentLock } from "./21-ui-runtime.js";
-import { copyTextToClipboard } from "./30-favorites-share.js";
+import { copyTextToClipboard, tryNativeShare } from "./22-browser-sharing.js";
 
 /** @type {{open:boolean, returnFocus:HTMLElement|null, reference:InquiryReference|null, tipOpenCount:number, tipShown:boolean}} */
 const inquiryState = {
@@ -314,25 +314,13 @@ async function shareViewerInquiryReference() {
     text: reference.shareText,
     url: reference.url
   };
-  let canUseNativeShare = typeof navigator.share === "function";
-  if (canUseNativeShare && typeof navigator.canShare === "function") {
-    try {
-      canUseNativeShare = navigator.canShare(shareData);
-    } catch (_error) {
-      canUseNativeShare = false;
-    }
+  const shareResult = await tryNativeShare(shareData);
+  if (shareResult === "shared") {
+    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: true });
+    closeViewerInquiry({ restoreFocus: false });
+    return;
   }
-
-  if (canUseNativeShare) {
-    try {
-      await navigator.share(shareData);
-      telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: true });
-      closeViewerInquiry({ restoreFocus: false });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-    }
-  }
+  if (shareResult === "cancelled") return;
 
   try {
     await copyTextToClipboard(reference.text);

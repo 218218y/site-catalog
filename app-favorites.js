@@ -20,6 +20,7 @@
  *   - src/js/19-shared-pure.js
  *   - src/js/20-catalog-runtime.js
  *   - src/js/21-ui-runtime.js
+ *   - src/js/22-browser-sharing.js
  *   - src/js/29-favorites-portability.js
  *   - src/js/30-favorites-share.js
  *   - src/js/32-shared-inquiry.js
@@ -1557,6 +1558,37 @@ function handleTopLayerEscape(event) {
   return !1;
 }
 
+// src/js/22-browser-sharing.js
+async function tryNativeShare(data, options = {}) {
+  if (typeof navigator.share != "function" || options.mobileOnly && !(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "") || navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1 || navigator.userAgentData?.mobile === !0))
+    return "fallback";
+  if (typeof navigator.canShare == "function")
+    try {
+      if (!navigator.canShare(data)) return "fallback";
+    } catch {
+      return "fallback";
+    }
+  try {
+    return await navigator.share(data), "shared";
+  } catch (error) {
+    return error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "fallback";
+  }
+}
+async function copyTextToClipboard(value) {
+  let text = String(value);
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  let textarea = document.createElement("textarea");
+  textarea.value = text, textarea.setAttribute("readonly", ""), textarea.style.position = "fixed", textarea.style.insetInlineStart = "-1000px", textarea.style.top = "0", document.body.appendChild(textarea);
+  try {
+    if (textarea.select(), textarea.setSelectionRange(0, textarea.value.length), !document.execCommand("copy")) throw new Error("Clipboard copy command failed");
+  } finally {
+    textarea.remove();
+  }
+}
+
 // src/js/29-favorites-portability.js
 function createFavoritesPortabilityDomain(dependencies) {
   let {
@@ -1952,41 +1984,22 @@ function handleFavoritesPanelKeydown(event) {
 function currentVisibleDocumentUrl() {
   return window.location.href;
 }
-async function copyTextToClipboard(value) {
-  if (navigator.clipboard?.writeText && window.isSecureContext) {
-    await navigator.clipboard.writeText(value);
-    return;
-  }
-  let input = document.createElement("textarea");
-  input.value = value, input.setAttribute("readonly", ""), input.style.position = "fixed", input.style.top = "-1000px", document.body.appendChild(input), input.select(), document.execCommand("copy"), input.remove();
-}
-function isMobileShareEnvironment() {
-  if (typeof navigator.share != "function") return !1;
-  let mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || ""), iPadDesktopMode = navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1, userAgentDataMobile = navigator.userAgentData?.mobile === !0;
-  return !!(mobileUserAgent || iPadDesktopMode || userAgentDataMobile);
-}
 function currentShareLabel() {
   let catalog = activeCatalog();
   return catalog && isAppPage("viewer") ? `${catalog.title} · עמוד ${activePage()}` : catalog && isAppPage("catalog") ? catalog.title : isAppPage("favorites") ? "המועדפים שלי · רהיטי ברגיג" : "קטלוגי רהיטי ברגיג";
 }
 async function shareOrCopyCurrentLink(button) {
-  let link = currentVisibleDocumentUrl();
-  if (isMobileShareEnvironment())
+  let link = currentVisibleDocumentUrl(), shareResult = await tryNativeShare({
+    title: document.title,
+    text: currentShareLabel(),
+    url: link
+  }, { mobileOnly: !0 });
+  if (!(shareResult === "shared" || shareResult === "cancelled"))
     try {
-      await navigator.share({
-        title: document.title,
-        text: currentShareLabel(),
-        url: link
-      });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      await copyTextToClipboard(link), flashActionButton(button, "הקישור הועתק"), showActionToast("הקישור הועתק", { tone: "link" });
+    } catch {
+      showActionToast("לא ניתן להעתיק אוטומטית — אפשר להעתיק מהחלון שנפתח"), window.prompt("אפשר להעתיק את הקישור מכאן:", link);
     }
-  try {
-    await copyTextToClipboard(link), flashActionButton(button, "הקישור הועתק"), showActionToast("הקישור הועתק", { tone: "link" });
-  } catch {
-    showActionToast("לא ניתן להעתיק אוטומטית — אפשר להעתיק מהחלון שנפתח"), window.prompt("אפשר להעתיק את הקישור מכאן:", link);
-  }
 }
 async function shareCurrentMainHeaderLink() {
   await shareOrCopyCurrentLink(favoritesElements.headerCopyLink);
@@ -2212,28 +2225,20 @@ async function shareViewerInquiryReference() {
     title: reference.subject,
     text: reference.shareText,
     url: reference.url
-  }, canUseNativeShare = typeof navigator.share == "function";
-  if (canUseNativeShare && typeof navigator.canShare == "function")
-    try {
-      canUseNativeShare = navigator.canShare(shareData);
-    } catch {
-      canUseNativeShare = !1;
-    }
-  if (canUseNativeShare)
-    try {
-      await navigator.share(shareData), telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: !0 }), closeViewerInquiry({ restoreFocus: !1 });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-    }
-  try {
-    await copyTextToClipboard(reference.text), telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share", "copy-fallback"), { immediate: !0 }), showActionToast(
-      reference.kind === "favorites" ? "אפשרויות שיתוף אינן זמינות — פרטי הדגמים הועתקו" : "אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו",
-      { tone: "link" }
-    ), closeViewerInquiry();
-  } catch {
-    window.prompt("אפשר להעתיק ולשתף את פרטי הבירור מכאן:", reference.text);
+  }, shareResult = await tryNativeShare(shareData);
+  if (shareResult === "shared") {
+    telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share"), { immediate: !0 }), closeViewerInquiry({ restoreFocus: !1 });
+    return;
   }
+  if (shareResult !== "cancelled")
+    try {
+      await copyTextToClipboard(reference.text), telemetryTrack("contact", viewerInquiryTelemetryFields(reference, "share", "copy-fallback"), { immediate: !0 }), showActionToast(
+        reference.kind === "favorites" ? "אפשרויות שיתוף אינן זמינות — פרטי הדגמים הועתקו" : "אפשרויות שיתוף אינן זמינות — פרטי הדגם הועתקו",
+        { tone: "link" }
+      ), closeViewerInquiry();
+    } catch {
+      window.prompt("אפשר להעתיק ולשתף את פרטי הבירור מכאן:", reference.text);
+    }
 }
 function attachSharedInquiryEvents() {
   inquiryElements.viewerInquiryButton.addEventListener("click", (event) => {

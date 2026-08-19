@@ -1,6 +1,6 @@
 /** Route entry: hosted payment handoff page. */
 
-export {};
+import { copyTextToClipboard, tryNativeShare } from "../js/22-browser-sharing.js";
 
 const form = /** @type {HTMLFormElement | null} */ (document.getElementById("paymentForm"));
 const submitButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("paymentSubmit"));
@@ -12,38 +12,6 @@ const shareButton = /** @type {HTMLButtonElement | null} */ (document.getElement
 const shareToast = /** @type {HTMLElement | null} */ (document.getElementById("paymentShareToast"));
 const bankCopyButtons = Array.from(document.querySelectorAll("[data-bank-copy-value]"));
 let shareToastTimer = 0;
-
-/** @param {string} value @returns {Promise<void>} */
-async function copyTextToClipboard(value) {
-  if (navigator.clipboard?.writeText && window.isSecureContext) {
-    await navigator.clipboard.writeText(value);
-    return;
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.insetInlineStart = "-1000px";
-  textarea.style.top = "0";
-  document.body.appendChild(textarea);
-  try {
-    textarea.select();
-    textarea.setSelectionRange(0, textarea.value.length);
-    if (!document.execCommand("copy")) throw new Error("Clipboard copy command failed");
-  } finally {
-    textarea.remove();
-  }
-}
-
-/** @returns {boolean} */
-function isMobileShareEnvironment() {
-  if (typeof navigator.share !== "function") return false;
-  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-  const iPadDesktopMode = navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1;
-  const userAgentDataMobile = navigator.userAgentData?.mobile === true;
-  return Boolean(mobileUserAgent || iPadDesktopMode || userAgentDataMobile);
-}
 
 /** @param {string} message @param {string} [tone] */
 function showShareToast(message, tone = "link") {
@@ -65,18 +33,12 @@ function showShareToast(message, tone = "link") {
 async function shareOrCopyPaymentLink() {
   const link = window.location.href;
 
-  if (isMobileShareEnvironment()) {
-    try {
-      await navigator.share({
-        title: document.title,
-        text: "תשלום חוב · רהיטי ברגיג",
-        url: link,
-      });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-    }
-  }
+  const shareResult = await tryNativeShare({
+    title: document.title,
+    text: "תשלום חוב · רהיטי ברגיג",
+    url: link,
+  }, { mobileOnly: true });
+  if (shareResult === "shared" || shareResult === "cancelled") return;
 
   try {
     await copyTextToClipboard(link);

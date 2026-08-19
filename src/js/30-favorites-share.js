@@ -20,6 +20,7 @@ import { activeCatalog, activePage, activeViewerSource, setActiveLocation } from
 import { clampPage, findCatalogById } from "./20-catalog-runtime.js";
 import { clampValue } from "./19-shared-pure.js";
 import { flashActionButton, focusHtmlElement, isHtmlElement, setTooltipText, showActionToast, syncDocumentLock } from "./21-ui-runtime.js";
+import { copyTextToClipboard, tryNativeShare } from "./22-browser-sharing.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { createFavoritesPortabilityDomain } from "./29-favorites-portability.js";
 
@@ -534,32 +535,6 @@ function currentVisibleDocumentUrl() {
   return window.location.href;
 }
 
-/** @param {string} value */
-async function copyTextToClipboard(value) {
-  if (navigator.clipboard?.writeText && window.isSecureContext) {
-    await navigator.clipboard.writeText(value);
-    return;
-  }
-
-  const input = document.createElement("textarea");
-  input.value = value;
-  input.setAttribute("readonly", "");
-  input.style.position = "fixed";
-  input.style.top = "-1000px";
-  document.body.appendChild(input);
-  input.select();
-  document.execCommand("copy");
-  input.remove();
-}
-
-function isMobileShareEnvironment() {
-  if (typeof navigator.share !== "function") return false;
-  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-  const iPadDesktopMode = navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1;
-  const userAgentDataMobile = navigator.userAgentData?.mobile === true;
-  return Boolean(mobileUserAgent || iPadDesktopMode || userAgentDataMobile);
-}
-
 function currentShareLabel() {
   const catalog = activeCatalog();
   if (catalog && isAppPage("viewer")) return `${catalog.title} · עמוד ${activePage()}`;
@@ -572,18 +547,12 @@ function currentShareLabel() {
 async function shareOrCopyCurrentLink(button) {
   const link = currentVisibleDocumentUrl();
 
-  if (isMobileShareEnvironment()) {
-    try {
-      await navigator.share({
-        title: document.title,
-        text: currentShareLabel(),
-        url: link
-      });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-    }
-  }
+  const shareResult = await tryNativeShare({
+    title: document.title,
+    text: currentShareLabel(),
+    url: link
+  }, { mobileOnly: true });
+  if (shareResult === "shared" || shareResult === "cancelled") return;
 
   try {
     await copyTextToClipboard(link);
@@ -693,4 +662,4 @@ registerFeatureInterface("favorites", {
   }
 });
 
-export { buildFavoritesShareUrl, copyTextToClipboard, favoritesPortabilityDomain, getFavoriteEntries, isFavoritesLightboxMode, shareOrCopyCurrentLink, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary };
+export { buildFavoritesShareUrl, favoritesPortabilityDomain, getFavoriteEntries, isFavoritesLightboxMode, shareOrCopyCurrentLink, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary };

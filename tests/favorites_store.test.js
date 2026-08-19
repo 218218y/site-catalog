@@ -49,26 +49,33 @@ function run() {
   assert.equal(store.storageKey, STORAGE_KEY);
   assert.deepEqual(store.read(), []);
 
-  assert.equal(store.add({ catalogId: 'chairs', page: 2, savedAt: 100 }), true);
+  assert.deepEqual(
+    ['add', 'update', 'setNote', 'reorder', 'remove', 'toggle', 'clear', 'replace']
+      .filter((method) => typeof store[method] !== 'undefined'),
+    [],
+    'legacy mutation wrappers must not reappear alongside the canonical Detailed API'
+  );
+
+  assert.equal(store.addDetailed({ catalogId: 'chairs', page: 2, savedAt: 100 }).changed, true);
   assert.equal(store.has({ catalogId: 'chairs', page: 2 }), true);
-  assert.equal(store.toggle({ catalogId: 'tables', page: 7, savedAt: 200 }), true);
+  assert.equal(store.toggleDetailed({ catalogId: 'tables', page: 7, savedAt: 200 }).active, true);
   assert.deepEqual(store.read(), [
     { catalogId: 'tables', page: 7, savedAt: 200 },
     { catalogId: 'chairs', page: 2, savedAt: 100 }
   ]);
 
-  assert.equal(store.setNote({ catalogId: 'chairs', page: 2 }, 'לחדר הילדים'), true);
+  assert.equal(store.setNoteDetailed({ catalogId: 'chairs', page: 2 }, 'לחדר הילדים').changed, true);
   assert.equal(store.read()[1].note, 'לחדר הילדים');
-  assert.equal(store.reorder(['chairs\u00002', 'tables\u00007']), true);
+  assert.equal(store.reorderDetailed(['chairs\u00002', 'tables\u00007']).changed, true);
   assert.deepEqual(store.read().map((item) => `${item.catalogId}:${item.page}`), ['chairs:2', 'tables:7']);
 
-  assert.equal(store.toggle({ catalogId: 'chairs', page: 2 }), false);
+  assert.equal(store.toggleDetailed({ catalogId: 'chairs', page: 2 }).active, false);
   assert.equal(store.has({ catalogId: 'chairs', page: 2 }), false);
-  assert.equal(store.remove({ catalogId: 'missing', page: 1 }), false);
+  assert.equal(store.removeDetailed({ catalogId: 'missing', page: 1 }).changed, false);
 
   const secondStore = createStore({ storage });
   assert.deepEqual(secondStore.read(), [{ catalogId: 'tables', page: 7, savedAt: 200 }]);
-  store.clear();
+  assert.equal(store.clearDetailed().changed, true);
   secondStore.reload();
   assert.deepEqual(secondStore.read(), []);
 

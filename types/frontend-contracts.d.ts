@@ -351,21 +351,13 @@ export type FavoritesStore = {
     });
     lastMutation: () => FavoriteMutationResult | null;
     has: (item: FavoriteItem) => boolean;
-    add: (item: FavoriteItem) => boolean;
     addDetailed: (item: FavoriteItem) => FavoriteMutationResult;
-    update: (item: FavoriteItem, patch: Partial<FavoriteItem>) => boolean;
     updateDetailed: (item: FavoriteItem, patch: Partial<FavoriteItem>) => FavoriteMutationResult;
-    reorder: (keys: string[]) => boolean;
     reorderDetailed: (keys: string[]) => FavoriteMutationResult;
-    toggle: (item: FavoriteItem) => boolean;
     toggleDetailed: (item: FavoriteItem) => FavoriteMutationResult;
-    remove: (item: FavoriteItem) => boolean;
     removeDetailed: (item: FavoriteItem) => FavoriteMutationResult;
-    clear: () => boolean;
     clearDetailed: () => FavoriteMutationResult;
-    replace: (items: Array<FavoriteItem>) => Array<FavoriteItem>;
     replaceDetailed: (items: Array<FavoriteItem>) => FavoriteMutationResult;
-    setNote: (item: FavoriteItem, note: string) => boolean;
     setNoteDetailed: (item: FavoriteItem, note: string) => FavoriteMutationResult;
 };
 export type FavoriteItem = {

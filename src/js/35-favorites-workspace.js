@@ -17,7 +17,8 @@ import { escapeHtml } from "./19-shared-pure.js";
 import { flashActionButton, focusHtmlElement, isHtmlElement, showActionToast, syncDocumentLock } from "./21-ui-runtime.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { thumbSrc } from "./17-catalog-asset-urls.js";
-import { buildFavoritesShareUrl, copyTextToClipboard, favoritesPortabilityDomain, getFavoriteEntries, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary } from "./30-favorites-share.js";
+import { copyTextToClipboard } from "./22-browser-sharing.js";
+import { buildFavoritesShareUrl, favoritesPortabilityDomain, getFavoriteEntries, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary } from "./30-favorites-share.js";
 
 /** @param {FavoriteEntry} entry */
 function favoriteWorkspaceEntryKey(entry) {

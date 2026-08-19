@@ -212,9 +212,6 @@ function createStore(options = {}) {
       const nextItems = [merged, ...memoryItems.filter((candidate) => itemKey(candidate) !== key)];
       return mutationResult("add", true, persist(nextItems), { active: true });
     },
-    add(item) {
-      return this.addDetailed(item).changed;
-    },
     updateDetailed(item, patch) {
       const key = itemKey(item);
       if (!key || !patch || typeof patch !== "object") return unchanged("update", { reason: "invalid-update" });
@@ -228,16 +225,10 @@ function createStore(options = {}) {
       if (serializePayload(nextItems) === serializePayload(memoryItems)) return unchanged("update");
       return mutationResult("update", true, persist(nextItems));
     },
-    update(item, patch) {
-      return this.updateDetailed(item, patch).changed;
-    },
     setNoteDetailed(item, note) {
       const result = { ...this.updateDetailed(item, { note: normalizeNote(note) }), operation: "set-note" };
       lastMutation = result;
       return result;
-    },
-    setNote(item, note) {
-      return this.setNoteDetailed(item, note).changed;
     },
     reorderDetailed(keys) {
       if (!Array.isArray(keys)) return unchanged("reorder", { reason: "invalid-order" });
@@ -250,18 +241,12 @@ function createStore(options = {}) {
       if (serializePayload(nextItems) === serializePayload(memoryItems)) return unchanged("reorder");
       return mutationResult("reorder", true, persist(nextItems));
     },
-    reorder(keys) {
-      return this.reorderDetailed(keys).changed;
-    },
     removeDetailed(item) {
       const key = itemKey(item);
       if (!key) return unchanged("remove", { active: false, reason: "invalid-item" });
       const nextItems = memoryItems.filter((candidate) => itemKey(candidate) !== key);
       if (nextItems.length === memoryItems.length) return unchanged("remove", { active: false, reason: "not-found" });
       return mutationResult("remove", true, persist(nextItems), { active: false });
-    },
-    remove(item) {
-      return this.removeDetailed(item).changed;
     },
     toggleDetailed(item) {
       const result = this.has(item)
@@ -270,24 +255,14 @@ function createStore(options = {}) {
       lastMutation = result;
       return result;
     },
-    toggle(item) {
-      return Boolean(this.toggleDetailed(item).active);
-    },
     clearDetailed() {
       if (!memoryItems.length) return unchanged("clear");
       return mutationResult("clear", true, persist([]));
-    },
-    clear() {
-      return this.clearDetailed().changed;
     },
     replaceDetailed(items) {
       const nextItems = normalizeItems(items);
       if (serializePayload(nextItems) === serializePayload(memoryItems)) return unchanged("replace");
       return mutationResult("replace", true, persist(nextItems));
-    },
-    replace(items) {
-      this.replaceDetailed(items);
-      return memoryItems.slice();
     }
   };
 

@@ -45,8 +45,8 @@ for (const html of [template, favorites]) {
 
 assert.match(store, /const STORAGE_VERSION = 2;/);
 assert.doesNotMatch(store, /LEGACY_STORAGE_VERSION/);
-assert.match(store, /setNote\(item, note\)/);
-assert.match(store, /reorder\(keys\)/);
+assert.match(store, /setNoteDetailed\(item, note\)/);
+assert.match(store, /reorderDetailed\(keys\)/);
 assert.match(store, /payload\.version !== STORAGE_VERSION/);
 
 assert.match(favoritesWorkspaceSource, /function favoriteWorkspaceCardKey\(/);

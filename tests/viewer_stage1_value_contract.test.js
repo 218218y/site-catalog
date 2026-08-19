@@ -61,7 +61,7 @@ assert.match(sharedInquirySource, /function viewerInquiryMailtoUrl\([\s\S]*?buil
 assert.match(sharedPureSource, /function buildViewerInquiryMailtoUrl\([\s\S]*?encodeURIComponent\(String\(reference\?\.subject \|\| ""\)\)[\s\S]*?replace\(\/\\r\?\\n\/g, "\\r\\n"\)[\s\S]*?`mailto:\$\{String\(emailAddress \|\| ""\)\}\?subject=\$\{subject\}&body=\$\{body\}`/);
 assert.match(sharedInquirySource, /emailAvailable \? viewerInquiryMailtoUrl\(emailAddress, reference\) : ""/);
 assert.match(sharedInquirySource, /function viewerInquiryGmailUrl\([\s\S]*?mail\.google\.com\/mail\/\?/);
-assert.match(sharedInquirySource, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?navigator\.share\(shareData\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "share"\)/);
+assert.match(sharedInquirySource, /function shareViewerInquiryReference\([\s\S]*?const shareData = \{[\s\S]*?title: reference\.subject,[\s\S]*?text: reference\.shareText,[\s\S]*?url: reference\.url[\s\S]*?tryNativeShare\(shareData\)[\s\S]*?shareResult === "shared"[\s\S]*?viewerInquiryTelemetryFields\(reference, "share"\)/);
 assert.doesNotMatch(sharedInquirySource, /viewerInquiry(?:Gmail|Email)\.title\s*=|setTooltipText\(els\.viewerInquiry(?:Gmail|Email)/);
 assert.match(sharedInquirySource, /function copyViewerInquiryReference\([\s\S]*?copyTextToClipboard\(reference\.text\)[\s\S]*?viewerInquiryTelemetryFields\(reference, "copy"\)/);
 assert.match(pageControllerSource, /function updateLightbox\([\s\S]*?syncViewerInquiryUi\(\)/);

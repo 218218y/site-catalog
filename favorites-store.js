@@ -139,9 +139,6 @@ function createStore(options = {}) {
       let key = itemKey(normalized), existing = memoryItems.find((candidate) => itemKey(candidate) === key), nextItems = [existing ? { ...existing, ...normalized } : normalized, ...memoryItems.filter((candidate) => itemKey(candidate) !== key)];
       return mutationResult("add", !0, persist(nextItems), { active: !0 });
     },
-    add(item) {
-      return this.addDetailed(item).changed;
-    },
     updateDetailed(item, patch) {
       let key = itemKey(item);
       if (!key || !patch || typeof patch != "object") return unchanged("update", { reason: "invalid-update" });
@@ -152,15 +149,9 @@ function createStore(options = {}) {
       let nextItems = memoryItems.slice();
       return nextItems[index] = next, serializePayload(nextItems) === serializePayload(memoryItems) ? unchanged("update") : mutationResult("update", !0, persist(nextItems));
     },
-    update(item, patch) {
-      return this.updateDetailed(item, patch).changed;
-    },
     setNoteDetailed(item, note) {
       let result = { ...this.updateDetailed(item, { note: normalizeNote(note) }), operation: "set-note" };
       return lastMutation = result, result;
-    },
-    setNote(item, note) {
-      return this.setNoteDetailed(item, note).changed;
     },
     reorderDetailed(keys) {
       if (!Array.isArray(keys)) return unchanged("reorder", { reason: "invalid-order" });
@@ -172,37 +163,22 @@ function createStore(options = {}) {
       let nextItems = normalizedKeys.map((key) => currentByKey.get(key)).filter((item) => !!item);
       return serializePayload(nextItems) === serializePayload(memoryItems) ? unchanged("reorder") : mutationResult("reorder", !0, persist(nextItems));
     },
-    reorder(keys) {
-      return this.reorderDetailed(keys).changed;
-    },
     removeDetailed(item) {
       let key = itemKey(item);
       if (!key) return unchanged("remove", { active: !1, reason: "invalid-item" });
       let nextItems = memoryItems.filter((candidate) => itemKey(candidate) !== key);
       return nextItems.length === memoryItems.length ? unchanged("remove", { active: !1, reason: "not-found" }) : mutationResult("remove", !0, persist(nextItems), { active: !1 });
     },
-    remove(item) {
-      return this.removeDetailed(item).changed;
-    },
     toggleDetailed(item) {
       let result = this.has(item) ? { ...this.removeDetailed(item), operation: "toggle", active: !1 } : { ...this.addDetailed(item), operation: "toggle", active: !0 };
       return lastMutation = result, result;
     },
-    toggle(item) {
-      return !!this.toggleDetailed(item).active;
-    },
     clearDetailed() {
       return memoryItems.length ? mutationResult("clear", !0, persist([])) : unchanged("clear");
-    },
-    clear() {
-      return this.clearDetailed().changed;
     },
     replaceDetailed(items) {
       let nextItems = normalizeItems(items);
       return serializePayload(nextItems) === serializePayload(memoryItems) ? unchanged("replace") : mutationResult("replace", !0, persist(nextItems));
-    },
-    replace(items) {
-      return this.replaceDetailed(items), memoryItems.slice();
     }
   };
 }
