@@ -111,6 +111,15 @@ assert.equal(functions("51-viewer-session-state.js").has("transitionViewerFullsc
 assert.equal(functions("52-viewer-session.js").has("transitionViewerPhase"), false);
 assert.equal(assignments("52-viewer-session.js").has("viewerSessionState.viewerPhase"), false);
 
+
+for (const name of sourceNames.filter((candidate) => /viewer/.test(candidate))) {
+  assert.equal(
+    imports(name).has("./30-favorites-share.js"),
+    false,
+    `${name} must not depend on the Favorites implementation boundary`,
+  );
+}
+
 assert.equal(imports("53-viewer-image.js").has("./56-viewer-shell.js"), false);
 assert.equal(imports("54-viewer-geometry.js").has("./53-viewer-image.js"), false);
 assert.equal(imports("54-viewer-geometry.js").has("./56-viewer-shell.js"), false);

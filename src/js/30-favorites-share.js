@@ -8,21 +8,19 @@
 
 /** @import { DialogCloseOptions, FavoriteEntry, FavoriteItem, FavoriteMutationResult, FavoriteViewerSyncOptions, FavoritesPanelCloseOptions, FavoritesPanelOpenOptions, FavoritesSyncOptions, FavoritesTransfer, FavoritesTransferPrepareOptions } from "../../types/frontend-contracts.js" */
 
-import { normalizeItems as normalizeFavoriteItems } from "../runtime/favorites-store.js";
 import { canReturnToSameSite, favoritesDocumentUrl, hasInDocumentRouteSession, homeDocumentUrl, isAppPage, navigateBack, navigateTo, updateDocumentMetadata, viewerDocumentUrl } from "./00-navigation.js";
-import { catalogs } from "./03-runtime-context.js";
 import { isCatalogPage } from "./06-catalog-page-numbering.js";
 import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
-import { FAVORITES_SHARE_PARAM, FAVORITES_SHARE_VERSION, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
+import { FAVORITES_SHARE_PARAM, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
 import { telemetryTrackFavorite } from "./15-telemetry.js";
-import { activeCatalog, activePage, activeViewerSource, setActiveLocation } from "./18-navigation-feature.js";
+import { activeCatalog, activePage, activeViewerSource, isFavoritesLightboxMode, setActiveLocation } from "./18-navigation-feature.js";
 import { clampPage, findCatalogById } from "./20-catalog-runtime.js";
 import { clampValue } from "./19-shared-pure.js";
 import { flashActionButton, focusHtmlElement, isHtmlElement, setTooltipText, showActionToast, syncDocumentLock } from "./21-ui-runtime.js";
-import { copyTextToClipboard, tryNativeShare } from "./22-browser-sharing.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
-import { createFavoritesPortabilityDomain } from "./29-favorites-portability.js";
+import { shareOrCopyCurrentLink } from "./23-current-link-sharing.js";
+import { favoritesPortabilityDomain } from "./28-favorites-domain.js";
 
 function favoriteIdentity(catalog = activeCatalog(), page = activePage()) {
   if (!catalog) return null;
@@ -83,23 +81,6 @@ function getValidFavoriteItems() {
     if (String(note || "").trim()) item.note = String(note).trim();
     return item;
   });
-}
-
-const favoritesPortabilityDomain = createFavoritesPortabilityDomain({
-  normalizeItems: normalizeFavoriteItems,
-  findCatalogById,
-  catalogs: () => catalogs,
-  encodeBase64: (value) => window.btoa(value),
-  decodeBase64: (value) => window.atob(value),
-  shareVersion: FAVORITES_SHARE_VERSION
-});
-
-/** @param {unknown} items */
-function buildFavoritesShareUrl(items) {
-  const url = new URL(favoritesDocumentUrl(), window.location.href);
-  url.hash = "";
-  url.searchParams.set(FAVORITES_SHARE_PARAM, favoritesPortabilityDomain.buildFavoritesShareToken(items));
-  return url.toString();
 }
 
 function cleanFavoritesSelectionFromUrl() {
@@ -248,10 +229,6 @@ function handleFavoritesTransferKeydown(event) {
     event.preventDefault();
     focusHtmlElement(first);
   }
-}
-
-function isFavoritesLightboxMode() {
-  return activeViewerSource() === LIGHTBOX_SOURCE_FAVORITES;
 }
 
 /** @param {FavoriteEntry[]} entries @param {unknown} catalogId @param {unknown} page */
@@ -531,39 +508,6 @@ function handleFavoritesPanelKeydown(event) {
   }
 }
 
-function currentVisibleDocumentUrl() {
-  return window.location.href;
-}
-
-function currentShareLabel() {
-  const catalog = activeCatalog();
-  if (catalog && isAppPage("viewer")) return `${catalog.title} · עמוד ${activePage()}`;
-  if (catalog && isAppPage("catalog")) return catalog.title;
-  if (isAppPage("favorites")) return "המועדפים שלי · רהיטי ברגיג";
-  return "קטלוגי רהיטי ברגיג";
-}
-
-/** @param {Element|null|undefined} button */
-async function shareOrCopyCurrentLink(button) {
-  const link = currentVisibleDocumentUrl();
-
-  const shareResult = await tryNativeShare({
-    title: document.title,
-    text: currentShareLabel(),
-    url: link
-  }, { mobileOnly: true });
-  if (shareResult === "shared" || shareResult === "cancelled") return;
-
-  try {
-    await copyTextToClipboard(link);
-    flashActionButton(button, "הקישור הועתק");
-    showActionToast("הקישור הועתק", { tone: "link" });
-  } catch (_error) {
-    showActionToast("לא ניתן להעתיק אוטומטית — אפשר להעתיק מהחלון שנפתח");
-    window.prompt("אפשר להעתיק את הקישור מכאן:", link);
-  }
-}
-
 async function shareCurrentMainHeaderLink() {
   await shareOrCopyCurrentLink(favoritesElements.headerCopyLink);
 }
@@ -637,7 +581,9 @@ registerFeatureInterface("favorites", {
       hideFavoritesPanelUi();
     }
   },
-  syncUi: () => syncFavoritesUi({ renderPanel: isAppPage("favorites") }),
+  syncUi: (options = {}) => syncFavoritesUi(options),
+  showPersistenceFeedback: (result, messages) => showFavoritePersistenceFeedback(result, messages),
+  warnIfChangeIsTemporary: (result) => warnIfFavoriteChangeIsTemporary(result),
   openRoute: () => {
     openFavoritesPanel({ allowEmpty: true, captureReturnFocus: false });
     processFavoritesSelectionFromUrl();
@@ -662,4 +608,4 @@ registerFeatureInterface("favorites", {
   }
 });
 
-export { buildFavoritesShareUrl, favoritesPortabilityDomain, getFavoriteEntries, isFavoritesLightboxMode, shareOrCopyCurrentLink, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary };
+export { getFavoriteEntries, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary };

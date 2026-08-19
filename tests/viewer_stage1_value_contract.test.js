@@ -12,15 +12,19 @@ const css = readAllCssBundles();
 const template = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
 const sharedPureSource = fs.readFileSync(path.join(root, "src/js/19-shared-pure.js"), "utf8");
 const sharedInquirySource = fs.readFileSync(path.join(root, "src/js/32-shared-inquiry.js"), "utf8");
+const globalSearchSource = fs.readFileSync(path.join(root, "src/js/48-global-search-ui.js"), "utf8");
+const readerSearchSource = fs.readFileSync(path.join(root, "src/js/49-search-reader-ui.js"), "utf8");
 const searchUiSource = fs.readFileSync(path.join(root, "src/js/50-search-ui.js"), "utf8");
 const pageControllerSource = fs.readFileSync(path.join(root, "src/js/59-viewer-page-controller.js"), "utf8");
 const viewerSource = fs.readFileSync(path.join(root, "src/js/60-viewer.js"), "utf8");
 const viewerActionsSource = fs.readFileSync(path.join(root, "src/js/62-viewer-actions.js"), "utf8");
 const telemetrySource = fs.readFileSync(path.join(root, "src/js/15-telemetry.js"), "utf8");
 const sourceAst = inventoryProjectFiles(root, [
-  "src/js/50-search-ui.js",
+  "src/js/48-global-search-ui.js",
+  "src/js/49-search-reader-ui.js",
 ]);
-const searchAst = sourceAst["src/js/50-search-ui.js"];
+const globalSearchAst = sourceAst["src/js/48-global-search-ui.js"];
+const readerSearchAst = sourceAst["src/js/49-search-reader-ui.js"];
 assert.doesNotMatch(sharedInquirySource, /setTooltipText\(viewerElements\.viewerInquiryButton/, "inquiry button must not be registered with the tooltip manager");
 
 for (const relative of ["index.html", "catalog.html", "favorites.html", "viewer.html"]) {
@@ -70,43 +74,43 @@ assert.match(viewerActionsSource, /function handleViewerMobileMoreKeydown\([\s\S
 assert.match(viewerSource, /function hideLightboxUi\([\s\S]*?closeViewerInquiry\(\{ restoreFocus: false \}\)[\s\S]*?closeViewerMobileMoreMenu\(\)/);
 
 assert.equal(
-  findCalls(searchAst, "telemetryTrackSearch")
+  [...findCalls(globalSearchAst, "telemetryTrackSearch"), ...findCalls(readerSearchAst, "telemetryTrackSearch")]
     .some((call) => ["renderLightboxSearchResults", "renderSearchResults"].includes(call.enclosingFunction)),
   false,
   "rendering search results must remain telemetry-free",
 );
 assert.equal(
-  findCalls(searchAst, "trackCompletedLightboxSearch")
+  findCalls(readerSearchAst, "trackCompletedLightboxSearch")
     .some((call) => call.enclosingFunction === "submitLightboxSearch" && call.arguments[0] === "submit"),
   true,
   "lightbox search completion is owned by explicit submit",
 );
 assert.equal(
-  findCalls(searchAst, "trackCompletedGlobalSearch")
+  findCalls(globalSearchAst, "trackCompletedGlobalSearch")
     .some((call) => call.enclosingFunction === "submitGlobalSearch" && call.arguments[0] === "submit"),
   true,
   "global search completion is owned by explicit submit",
 );
 assert.equal(
-  findCalls(searchAst, "trackCompletedLightboxSearch")
+  findCalls(readerSearchAst, "trackCompletedLightboxSearch")
     .some((call) => call.arguments[0] === "result-open"),
   true,
   "lightbox result navigation records a completed search",
 );
 assert.equal(
-  findCalls(searchAst, "trackCompletedGlobalSearch")
+  findCalls(globalSearchAst, "trackCompletedGlobalSearch")
     .some((call) => call.arguments[0] === "result-open"),
   true,
   "global result navigation records a completed search",
 );
 assert.equal(
-  findCalls(searchAst, "telemetryFlush")
+  findCalls(globalSearchAst, "telemetryFlush")
     .some((call) => call.enclosingFunction === "flushGlobalSearchTelemetryBeforeNavigation"),
   true,
   "global search telemetry flushes before navigation",
 );
 assert.match(telemetrySource, /function telemetryTrackSearch\([\s\S]*?completion = telemetryCleanText\(options\.completion \|\| "submit"[\s\S]*?action: completion[\s\S]*?immediate: options\.immediate === true/);
-assert.doesNotMatch(telemetrySource + searchUiSource, /TELEMETRY_SEARCH_DELAY_MS|searchTimers/);
+assert.doesNotMatch(telemetrySource + globalSearchSource + readerSearchSource + searchUiSource, /TELEMETRY_SEARCH_DELAY_MS|searchTimers/);
 
 assert.match(css, /\.inquiry-trigger-button\s*\{[\s\S]*?min-height:\s*46px;/);
 assert.match(css, /\.viewer-inquiry-button\s*\{[\s\S]*?position:\s*fixed;/);

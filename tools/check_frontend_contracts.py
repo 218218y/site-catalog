@@ -52,8 +52,21 @@ DIRECT_ACCESS_OWNERS: Mapping[str, tuple[str, ...]] = {
     "shellElements": ("src/js/11-navigation-state.js", "src/js/18-navigation-feature.js"),
     "catalogState": ("src/js/12-catalog-state.js", "src/js/40-catalog-grid.js"),
     "catalogElements": ("src/js/12-catalog-state.js", "src/js/40-catalog-grid.js"),
-    "searchState": ("src/js/13-search-state.js", "src/js/50-search-ui.js"),
-    "searchElements": ("src/js/13-search-state.js", "src/js/50-search-ui.js"),
+    "searchState": (
+        "src/js/13-search-state.js",
+        "src/js/42-search-runtime.js",
+        "src/js/47-search-preview.js",
+        "src/js/48-global-search-ui.js",
+        "src/js/49-search-reader-ui.js",
+        "src/js/50-search-ui.js",
+    ),
+    "searchElements": (
+        "src/js/13-search-state.js",
+        "src/js/47-search-preview.js",
+        "src/js/48-global-search-ui.js",
+        "src/js/49-search-reader-ui.js",
+        "src/js/50-search-ui.js",
+    ),
     "favoritesState": ("src/js/14-favorites-state.js", "src/js/30-favorites-share.js", "src/js/35-favorites-workspace.js"),
     "favoritesElements": ("src/js/14-favorites-state.js", "src/js/30-favorites-share.js", "src/js/35-favorites-workspace.js"),
     "inquiryState": ("src/js/32-shared-inquiry.js",),
@@ -1028,15 +1041,25 @@ def check_frontend_contracts(root: Path | None = None) -> None:
                 f"{relative}"
             )
 
-    search_relative = "src/js/50-search-ui.js"
-    search_identifiers = set(inventory[search_relative].get("identifiers", []))
     forbidden_viewer_internals = {
         "viewerSessionState", "viewerViewportState", "viewerGestureState",
         "viewerChromeState", "viewerImageState", "viewerNavigationState",
         "viewerOnboardingState", "viewerElements",
     }
-    if search_identifiers.intersection(forbidden_viewer_internals):
-        failures.append("Search implementation reaches into Viewer internals instead of the feature interface")
+    search_implementation_sources = (
+        "src/js/42-search-runtime.js",
+        "src/js/47-search-preview.js",
+        "src/js/48-global-search-ui.js",
+        "src/js/49-search-reader-ui.js",
+        "src/js/50-search-ui.js",
+    )
+    for search_relative in search_implementation_sources:
+        search_identifiers = set(inventory[search_relative].get("identifiers", []))
+        if search_identifiers.intersection(forbidden_viewer_internals):
+            failures.append(
+                "Search implementation reaches into Viewer internals instead of the feature interface: "
+                f"{search_relative}"
+            )
 
     for path in sources:
         relative = path.relative_to(base).as_posix()

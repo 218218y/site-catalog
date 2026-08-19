@@ -32,6 +32,10 @@ Object.assign(globalThis, {
   getFeatureInterface(name) {
     return name === "inquiry" ? { openInquiry(options) { calls.push(options); } } : null;
   },
+  requireFeatureInterface(name) {
+    if (name !== "favorites") throw new Error(`Unexpected required feature: ${name}`);
+    return { entries: () => entries };
+  },
   registerFeatureInterface() {},
   escapeHtml: (value) => String(value),
   thumbSrc: () => "",

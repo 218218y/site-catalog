@@ -14,7 +14,7 @@ import { clampPage } from "./20-catalog-runtime.js";
 import { flashActionButton, showActionToast } from "./21-ui-runtime.js";
 import { pageSrc } from "./17-catalog-asset-urls.js";
 import catalogSnapshotApi from "../../catalog-snapshot.js";
-import { shareOrCopyCurrentLink } from "./30-favorites-share.js";
+import { shareOrCopyCurrentLink } from "./23-current-link-sharing.js";
 
 /** @param {unknown} value */
 function safeFilePart(value) {

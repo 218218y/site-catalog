@@ -12,7 +12,7 @@
 import { attachNavigationEvents, currentAppPage, setCurrentAppPage } from "./00-navigation.js";
 import { clampCatalogPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
-import { navigationState, shellElements } from "./11-navigation-state.js";
+import { LIGHTBOX_SOURCE_FAVORITES, navigationState, shellElements } from "./11-navigation-state.js";
 
 /** @param {string} nextPage */
 function syncDocumentRouteShell(nextPage) {
@@ -85,6 +85,10 @@ function activeViewerSource() {
   return navigationFeature().source();
 }
 
+function isFavoritesLightboxMode() {
+  return activeViewerSource() === LIGHTBOX_SOURCE_FAVORITES;
+}
+
 /** @param {CatalogRecord|null} catalog @param {number} [page] @param {LightboxSource} [source] */
 function setActiveLocation(catalog, page = undefined, source = activeViewerSource()) {
   navigationFeature().setLocation(catalog, page, source);
@@ -104,4 +108,4 @@ function clearActiveLocation() {
   navigationFeature().clearLocation();
 }
 
-export { activeCatalog, activePage, activeViewerSource, clearActiveLocation, navigationFeature, setActiveLocation, setActivePage, setActiveViewerSource };
+export { activeCatalog, activePage, activeViewerSource, clearActiveLocation, isFavoritesLightboxMode, navigationFeature, setActiveLocation, setActivePage, setActiveViewerSource };

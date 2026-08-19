@@ -106,7 +106,7 @@ CAPABILITY_BOUNDARIES: Mapping[str, CapabilityBoundary] = {
     ),
     "search": CapabilityBoundary(
         required_roots=("src/js/50-search-ui.js",),
-        owned_patterns=("src/js/50-search-ui.js",),
+        owned_patterns=("src/js/*search*.js",),
     ),
 }
 

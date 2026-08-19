@@ -11,13 +11,12 @@
 import { catalogPageNumbers } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface } from "./10-app-state.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_SOURCE_AUTO, VIEWER_FIT_SOURCE_MANUAL, VIEWER_FIT_WIDTH, VIEWER_PAGE_INDICATOR_HIDE_MS, VIEWER_ZOOM_INDICATOR_HIDE_MS, viewerChromeState, viewerElements, viewerOnboardingState, viewerViewportState } from "./16-viewer-state.js";
-import { activeCatalog, activePage } from "./18-navigation-feature.js";
+import { activeCatalog, activePage, isFavoritesLightboxMode } from "./18-navigation-feature.js";
 import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, findCatalogById } from "./20-catalog-runtime.js";
 import { clampValue, escapeHtml } from "./19-shared-pure.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
 import { hasHoverPointer, isTouchLikePointer, setTooltipText } from "./21-ui-runtime.js";
-import { isFavoritesLightboxMode } from "./30-favorites-share.js";
 import { isViewerSessionOpen } from "./51-viewer-session-state.js";
 import { getSafeViewerZoom, isAutoViewerZoom, normalizeViewerFitMode, viewerUsesAutomaticFitMode } from "./54-viewer-geometry.js";
 

@@ -14,11 +14,10 @@ import { catalogFirstPage, catalogLastPage, catalogPageOrdinal } from "./06-cata
 import { CATALOG_IMAGE_TIER_FULL, getFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { viewerElements, viewerViewportState } from "./16-viewer-state.js";
 import { VIEWER_NAVIGATION_SOURCE_PAGE_RAIL, VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC, beginViewerPageTransitionCommand, createViewerNavigationCommand } from "./17-viewer-state-transitions.js";
-import { activeCatalog, activePage, setActivePage } from "./18-navigation-feature.js";
+import { activeCatalog, activePage, setActivePage, isFavoritesLightboxMode } from "./18-navigation-feature.js";
 import { catalogPagesShareAspectRatio, clampPage } from "./20-catalog-runtime.js";
 import { clampValue } from "./19-shared-pure.js";
 import { eventTargetElement } from "./02-dom-contracts.js";
-import { isFavoritesLightboxMode } from "./30-favorites-share.js";
 import { syncViewerInquiryUi } from "./32-shared-inquiry.js";
 import {
   activeSingleViewerImageLogicalSrc,

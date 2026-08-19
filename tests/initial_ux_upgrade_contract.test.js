@@ -14,6 +14,7 @@ const viewerStateSource = fs.readFileSync(path.join(root, 'src', 'js', '16-viewe
 const onboardingSource = fs.readFileSync(path.join(root, 'src', 'js', '65-viewer-onboarding.js'), 'utf8');
 const viewerSource = fs.readFileSync(path.join(root, 'src', 'js', '60-viewer.js'), 'utf8');
 const favoritesShareSource = fs.readFileSync(path.join(root, 'src', 'js', '30-favorites-share.js'), 'utf8');
+const currentLinkSharingSource = fs.readFileSync(path.join(root, 'src', 'js', '23-current-link-sharing.js'), 'utf8');
 const browserSharingSource = fs.readFileSync(path.join(root, 'src', 'js', '22-browser-sharing.js'), 'utf8');
 const catalogGridSource = fs.readFileSync(path.join(root, 'src', 'js', '40-catalog-grid.js'), 'utf8');
 const css = readAllCssBundles();
@@ -37,9 +38,9 @@ assert.match(catalogGridSource, /data-open-catalog-entry="\$\{safeCatalogId\}"[^
 assert.match(catalogGridSource, /data-open-catalog-preview="\$\{safeCatalogId\}"[^>]*>תצוגה מקדימה</);
 assert.doesNotMatch(catalogGridSource, /צפייה בקטלוג קטן|data-enter-catalog-card/);
 assert.match(browserSharingSource, /function tryNativeShare\([\s\S]*?navigator\.share[\s\S]*?userAgentData\?\.mobile/);
-assert.match(favoritesShareSource, /function shareOrCopyCurrentLink\([\s\S]*?currentVisibleDocumentUrl\(\)[\s\S]*?tryNativeShare\([\s\S]*?mobileOnly: true[\s\S]*?copyTextToClipboard\(link\)/);
+assert.match(currentLinkSharingSource, /function shareOrCopyCurrentLink\([\s\S]*?window\.location\.href[\s\S]*?tryNativeShare\([\s\S]*?mobileOnly: true[\s\S]*?copyTextToClipboard\(link\)/);
 assert.doesNotMatch(favoritesShareSource, /document\.execCommand|navigator\.clipboard|navigator\.share\(/);
-assert.match(favoritesShareSource, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
+assert.match(currentLinkSharingSource, /showActionToast\("הקישור הועתק", \{ tone: "link" \}\)/);
 assert.match(viewerStateSource, /VIEWER_ONBOARDING_STORAGE_KEY = "bargig\.viewer-onboarding\.v2"/);
 assert.match(onboardingSource, /function viewerHasTouchCapability\([\s\S]*?navigator\.maxTouchPoints[\s\S]*?ontouchstart/);
 assert.match(onboardingSource, /function getViewerOnboardingSteps\([\s\S]*?id: "page-navigation"[\s\S]*?מעבר בין עמודים[\s\S]*?id: "zoom"[\s\S]*?הגדלה וגרירת התמונה[\s\S]*?id: "inquiry"[\s\S]*?מועדפים ובירור אחד מרוכז/);

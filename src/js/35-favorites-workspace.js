@@ -10,7 +10,7 @@
 /** @import { FavoriteEntry, FavoriteWorkspaceInquiryOptions, FavoriteWorkspaceMessageOptions, InquiryReference, NoteEditorCloseOptions } from "../../types/frontend-contracts.js" */
 
 import { absoluteDocumentUrl, viewerDocumentUrl } from "./00-navigation.js";
-import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
+import { getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { FAVORITES_NOTE_MAX_LENGTH, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
 import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, pageAspectStyle } from "./20-catalog-runtime.js";
 import { escapeHtml } from "./19-shared-pure.js";
@@ -18,7 +18,11 @@ import { flashActionButton, focusHtmlElement, isHtmlElement, showActionToast, sy
 import { eventTargetElement } from "./02-dom-contracts.js";
 import { thumbSrc } from "./17-catalog-asset-urls.js";
 import { copyTextToClipboard } from "./22-browser-sharing.js";
-import { buildFavoritesShareUrl, favoritesPortabilityDomain, getFavoriteEntries, showFavoritePersistenceFeedback, syncFavoritesUi, warnIfFavoriteChangeIsTemporary } from "./30-favorites-share.js";
+import { buildFavoritesShareUrl, favoritesPortabilityDomain } from "./28-favorites-domain.js";
+
+function favoritesFeature() {
+  return requireFeatureInterface("favorites");
+}
 
 /** @param {FavoriteEntry} entry */
 function favoriteWorkspaceEntryKey(entry) {
@@ -44,24 +48,24 @@ function favoriteWorkspaceFindCardByKey(key) {
 }
 
 /** @param {Array<FavoriteEntry>} [entries] @returns {Array<FavoriteEntry>} */
-function favoriteWorkspaceSelectedEntries(entries = getFavoriteEntries()) {
+function favoriteWorkspaceSelectedEntries(entries = favoritesFeature().entries()) {
   return entries.filter((entry) => favoritesState.favoritesSelectedKeys.has(favoriteWorkspaceEntryKey(entry)));
 }
 
 /** @param {Array<FavoriteEntry>} [entries] @returns {Array<FavoriteEntry>} */
-function favoriteWorkspaceVisibleEntries(entries = getFavoriteEntries()) {
+function favoriteWorkspaceVisibleEntries(entries = favoritesFeature().entries()) {
   const filter = String(favoritesState.favoritesFilterCatalogId || "");
   return filter ? entries.filter((entry) => String(entry.catalog?.id || entry.catalogId) === filter) : entries;
 }
 
 /** @param {Array<FavoriteEntry>} [entries] @returns {Array<FavoriteEntry>} */
-function favoriteWorkspaceShareLinkEntries(entries = getFavoriteEntries()) {
+function favoriteWorkspaceShareLinkEntries(entries = favoritesFeature().entries()) {
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   return selectedEntries.length ? selectedEntries : entries;
 }
 
 /** @param {Array<FavoriteEntry>} [entries] */
-function pruneFavoritesWorkspaceState(entries = getFavoriteEntries()) {
+function pruneFavoritesWorkspaceState(entries = favoritesFeature().entries()) {
   const validKeys = new Set(entries.map(favoriteWorkspaceEntryKey).filter(Boolean));
   for (const key of favoritesState.favoritesSelectedKeys) {
     if (!validKeys.has(key)) favoritesState.favoritesSelectedKeys.delete(key);
@@ -138,7 +142,7 @@ function favoriteWorkspaceInquiryReference(entries, options = {}) {
 }
 
 function openFavoriteWorkspaceInquiry() {
-  const entries = getFavoriteEntries();
+  const entries = favoritesFeature().entries();
   const selectedEntries = favoriteWorkspaceSelectedEntries(entries);
   const actionEntries = selectedEntries.length ? selectedEntries : entries;
   const reference = favoriteWorkspaceInquiryReference(actionEntries, { selected: selectedEntries.length > 0 });
@@ -258,7 +262,7 @@ function favoriteWorkspaceCardMarkup(entry, visibleIndex, visibleCount) {
 }
 
 /** @param {Array<FavoriteEntry>} [entries] */
-function renderFavoritesWorkspace(entries = getFavoriteEntries()) {
+function renderFavoritesWorkspace(entries = favoritesFeature().entries()) {
   if (!favoritesElements.favoritesGrid) return;
   pruneFavoritesWorkspaceState(entries);
   const count = entries.length;
@@ -288,13 +292,13 @@ function favoriteWorkspaceReorderVisible(orderedVisibleKeys) {
     return replacement || item;
   });
   const mutation = favoritesStore.replaceDetailed(nextItems);
-  warnIfFavoriteChangeIsTemporary(mutation);
+  favoritesFeature().warnIfChangeIsTemporary(mutation);
   return mutation.changed;
 }
 
 /** @param {string} key @param {number} direction */
 function moveFavoriteWithinVisibleOrder(key, direction) {
-  const entries = getFavoriteEntries();
+  const entries = favoritesFeature().entries();
   const visibleEntries = favoriteWorkspaceVisibleEntries(entries);
   const keys = visibleEntries.map(favoriteWorkspaceEntryKey);
   const index = keys.indexOf(key);
@@ -302,7 +306,7 @@ function moveFavoriteWithinVisibleOrder(key, direction) {
   if (index < 0 || targetIndex < 0 || targetIndex >= keys.length) return false;
   [keys[index], keys[targetIndex]] = [keys[targetIndex], keys[index]];
   favoriteWorkspaceReorderVisible(keys);
-  syncFavoritesUi({ renderPanel: true });
+  favoritesFeature().syncUi({ renderPanel: true });
   requestAnimationFrame(() => {
     const movedCard = favoriteWorkspaceFindCardByKey(key);
     focusHtmlElement(movedCard?.querySelector(`[data-move-favorite="${direction}"]`));
@@ -319,7 +323,7 @@ function reorderFavoriteByDrop(sourceKey, targetKey) {
   if (from < 0 || to < 0) return false;
   visibleKeys.splice(to, 0, visibleKeys.splice(from, 1)[0]);
   favoriteWorkspaceReorderVisible(visibleKeys);
-  syncFavoritesUi({ renderPanel: true });
+  favoritesFeature().syncUi({ renderPanel: true });
   return true;
 }
 
@@ -328,12 +332,12 @@ function setFavoriteWorkspaceSelection(key, selected) {
   if (!key) return;
   if (selected) favoritesState.favoritesSelectedKeys.add(key);
   else favoritesState.favoritesSelectedKeys.delete(key);
-  renderFavoritesWorkspace(getFavoriteEntries());
+  renderFavoritesWorkspace(favoritesFeature().entries());
 }
 
 function clearFavoritesSelection() {
   favoritesState.favoritesSelectedKeys.clear();
-  renderFavoritesWorkspace(getFavoriteEntries());
+  renderFavoritesWorkspace(favoritesFeature().entries());
 }
 
 /** @param {FavoriteEntry} entry */
@@ -378,7 +382,7 @@ async function copyFavoriteWorkspaceLink(entries, button = null) {
 
 /** @param {string} key @returns {FavoriteEntry|null} */
 function favoriteWorkspaceFindEntryByKey(key) {
-  return getFavoriteEntries().find((entry) => favoriteWorkspaceEntryKey(entry) === key) || null;
+  return favoritesFeature().entries().find((entry) => favoriteWorkspaceEntryKey(entry) === key) || null;
 }
 
 function syncFavoriteNoteCount() {
@@ -430,8 +434,8 @@ function saveFavoriteNote() {
     favoritesElements.favoriteNoteInput.value
   );
   closeFavoriteNoteEditor({ restoreFocus: false });
-  syncFavoritesUi({ renderPanel: true });
-  if (mutation.changed) showFavoritePersistenceFeedback(mutation, hasNote ? {
+  favoritesFeature().syncUi({ renderPanel: true });
+  if (mutation.changed) favoritesFeature().showPersistenceFeedback(mutation, hasNote ? {
     persisted: "ההערה נשמרה",
     temporary: "ההערה נשמרה זמנית בלבד — היא תיעלם לאחר רענון",
     tone: "saved"
@@ -546,11 +550,11 @@ function handleFavoritesWorkspaceDragEnd() {
 function attachFavoritesWorkspaceEvents() {
   favoritesElements.favoritesCatalogFilter?.addEventListener("change", () => {
     favoritesState.favoritesFilterCatalogId = favoritesElements.favoritesCatalogFilter.value;
-    renderFavoritesWorkspace(getFavoriteEntries());
+    renderFavoritesWorkspace(favoritesFeature().entries());
   });
   favoritesElements.favoritesResetFilter?.addEventListener("click", () => {
     favoritesState.favoritesFilterCatalogId = "";
-    renderFavoritesWorkspace(getFavoriteEntries());
+    renderFavoritesWorkspace(favoritesFeature().entries());
     requestAnimationFrame(() => favoritesElements.favoritesCatalogFilter?.focus?.());
   });
   favoritesElements.favoritesClearSelection?.addEventListener("click", clearFavoritesSelection);
@@ -570,10 +574,10 @@ function attachFavoritesWorkspaceEvents() {
 }
 registerFeatureInterface("favorites-workspace", {
   attachEvents: attachFavoritesWorkspaceEvents,
-  shareLinkEntries: (entries = getFavoriteEntries()) => favoriteWorkspaceShareLinkEntries(entries),
+  shareLinkEntries: (entries = favoritesFeature().entries()) => favoriteWorkspaceShareLinkEntries(entries),
   copyShareLink: (entries, button = null) => copyFavoriteWorkspaceLink(entries, button),
-  render: (entries = getFavoriteEntries()) => renderFavoritesWorkspace(entries),
-  prune: (entries = getFavoriteEntries()) => pruneFavoritesWorkspaceState(entries),
+  render: (entries = favoritesFeature().entries()) => renderFavoritesWorkspace(entries),
+  prune: (entries = favoritesFeature().entries()) => pruneFavoritesWorkspaceState(entries),
   handleGridClick: (event) => handleFavoritesWorkspaceGridClick(event),
   closeNoteEditor: (options = {}) => closeFavoriteNoteEditor(options)
 });

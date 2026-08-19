@@ -30,6 +30,7 @@ const app = readAllBundles();
 const navigationSource = fs.readFileSync(path.join(root, 'src', 'js', '00-navigation.js'), 'utf8');
 const navigationFeatureSource = fs.readFileSync(path.join(root, 'src', 'js', '18-navigation-feature.js'), 'utf8');
 const favoritesShareSource = fs.readFileSync(path.join(root, 'src', 'js', '30-favorites-share.js'), 'utf8');
+const currentLinkSharingSource = fs.readFileSync(path.join(root, 'src', 'js', '23-current-link-sharing.js'), 'utf8');
 const viewerShareSource = fs.readFileSync(path.join(root, 'src', 'js', '31-viewer-share.js'), 'utf8');
 const searchSource = fs.readFileSync(path.join(root, 'src', 'js', '50-search-ui.js'), 'utf8');
 const appShellSource = fs.readFileSync(path.join(root, 'src', 'js', '80-app-shell.js'), 'utf8');
@@ -75,8 +76,7 @@ assert.match(navigationSource, /window\.addEventListener\("popstate"[\s\S]*?requ
 assert.match(navigationFeatureSource, /function syncDocumentRouteShell\([\s\S]*?nextPage === "home"[\s\S]*?catalogsSection\.classList\.toggle\("hidden", !showCatalogs\)/);
 assert.match(appShellSource, /function prepareDocumentRoute\([\s\S]*?requireFeatureInterface\("favorites"\)[\s\S]*?requireFeatureInterface\("catalog-grid"\)[\s\S]*?requireFeatureInterface\("search"\)[\s\S]*?getFeatureInterface\("viewer"\)\?\.prepareRoute\(nextPage\)[\s\S]*?favorites\.prepareRoute\(nextPage\)[\s\S]*?catalogGrid\.prepareRoute\(nextPage\)[\s\S]*?search\.prepareRoute\(nextPage\)[\s\S]*?navigationFeature\(\)\.setAppPage\(nextPage\)[\s\S]*?navigationFeature\(\)\.syncRouteShell\(nextPage\)/);
 assert.match(navigationSource, /function navigateBack\(\) \{\s*window\.history\.back\(\);\s*\}/);
-assert.match(favoritesShareSource, /function currentVisibleDocumentUrl\(\) \{\s*return window\.location\.href;\s*\}/);
-assert.match(favoritesShareSource, /function shareOrCopyCurrentLink\([\s\S]*?currentVisibleDocumentUrl\(\)/);
+assert.match(currentLinkSharingSource, /function shareOrCopyCurrentLink\([\s\S]*?const link = window\.location\.href/);
 assert.match(favoritesShareSource, /function shareCurrentMainHeaderLink\([\s\S]*?shareOrCopyCurrentLink\(favoritesElements\.headerCopyLink\)/);
 assert.match(viewerShareSource, /function shareCurrentLightboxLink\([\s\S]*?shareOrCopyCurrentLink\(viewerElements\.lightboxCopyLink\)/);
 assert.doesNotMatch(app, /function build(?:MainHeader|LightboxPage)Url/);

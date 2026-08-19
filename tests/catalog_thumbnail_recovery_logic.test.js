@@ -88,7 +88,8 @@ assert.equal(attempts.length, 2);
 for (const [relative, expectedMinimum] of [
   ["src/js/35-favorites-workspace.js", 1],
   ["src/js/40-catalog-grid.js", 2],
-  ["src/js/50-search-ui.js", 2],
+  ["src/js/48-global-search-ui.js", 1],
+  ["src/js/49-search-reader-ui.js", 1],
   ["src/js/56-viewer-shell.js", 2]
 ]) {
   const source = fs.readFileSync(path.join(root, relative), "utf8");

@@ -10,11 +10,13 @@ const styles = fs.readFileSync(path.join(root, "src/css/10-catalog.css"), "utf8"
 const frontendBuilder = fs.readFileSync(path.join(root, "tools/build_frontend_assets.py"), "utf8");
 const ast = inventoryProjectFiles(root, [
   "src/runtime/catalog-search.js",
-  "src/js/50-search-ui.js",
+  "src/js/47-search-preview.js",
+  "src/js/48-global-search-ui.js",
   "src/js/40-catalog-grid.js",
 ]);
 const searchRuntime = ast["src/runtime/catalog-search.js"];
-const searchUi = ast["src/js/50-search-ui.js"];
+const searchPreview = ast["src/js/47-search-preview.js"];
+const globalSearch = ast["src/js/48-global-search-ui.js"];
 const catalogGrid = ast["src/js/40-catalog-grid.js"];
 const functions = (inventory) => new Set(inventory.functionDeclarations);
 const identifiers = (inventory) => new Set(inventory.identifiers);
@@ -45,17 +47,17 @@ for (const callee of [
   "searchCatalogDomain.executeGlobalSearchResultAction",
   "catalogSearch.navigationResultMarkup",
 ]) {
-  assert.equal(findCalls(searchUi, callee).length > 0, true, `Search UI must call ${callee}`);
+  assert.equal(findCalls(globalSearch, callee).length > 0, true, `Search UI must call ${callee}`);
 }
-assert.equal(findCalls(searchUi, "requireFeatureInterface").some((call) => call.arguments[0] === "catalog-grid"), true);
-assert.equal(findCalls(searchUi, "navigateTo").length > 0, true);
-assert.equal(findCalls(searchUi, "catalogDocumentUrl").length > 0, true);
-assert.equal(hasPropertyPath(searchUi, "catalogGrid.activateCategoryTarget"), true);
-assert.equal(findCalls(searchUi, "preview.getBoundingClientRect").length > 0, true);
-assert.equal(findCalls(searchUi, "previewImage.removeAttribute").some((call) => call.arguments[0] === "width"), true);
-assert.equal(findCalls(searchUi, "previewImage.removeAttribute").some((call) => call.arguments[0] === "height"), true);
-assert.equal(hasPropertyPath(searchUi, "preview.offsetWidth"), false);
-assert.equal(hasPropertyPath(searchUi, "preview.offsetHeight"), false);
+assert.equal(findCalls(globalSearch, "requireFeatureInterface").some((call) => call.arguments[0] === "catalog-grid"), true);
+assert.equal(findCalls(globalSearch, "navigateTo").length > 0, true);
+assert.equal(findCalls(globalSearch, "catalogDocumentUrl").length > 0, true);
+assert.equal(hasPropertyPath(globalSearch, "catalogGrid.activateCategoryTarget"), true);
+assert.equal(findCalls(searchPreview, "preview.getBoundingClientRect").length > 0, true);
+assert.equal(findCalls(searchPreview, "previewImage.removeAttribute").some((call) => call.arguments[0] === "width"), true);
+assert.equal(findCalls(searchPreview, "previewImage.removeAttribute").some((call) => call.arguments[0] === "height"), true);
+assert.equal(hasPropertyPath(searchPreview, "preview.offsetWidth"), false);
+assert.equal(hasPropertyPath(searchPreview, "preview.offsetHeight"), false);
 
 assert.equal(functions(catalogGrid).has("activateCatalogCategoryTarget"), true);
 assert.equal(identifiers(catalogGrid).has("activateCategoryTarget"), true);

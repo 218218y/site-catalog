@@ -598,7 +598,9 @@ export type FavoritesFeatureApi = {
     syncInquiryTrigger: (open: boolean, activeTrigger?: HTMLElement | null) => void;
     onboardingTarget: () => HTMLButtonElement;
     prepareRoute: (nextPage: string) => void;
-    syncUi: () => void;
+    syncUi: (options?: FavoritesSyncOptions) => void;
+    showPersistenceFeedback: (result: FavoriteMutationResult | null | undefined, messages: { persisted: string; temporary: string; tone?: string; duration?: number }) => boolean;
+    warnIfChangeIsTemporary: (result: FavoriteMutationResult | null | undefined) => void;
     openRoute: () => void;
     isPanelOpen: () => boolean;
 };
@@ -657,9 +659,12 @@ export type CatalogDetailFeatureApi = EscapeFeatureApi & {
     close: () => void;
     containsTarget: (target: EventTarget | null) => boolean;
 };
-export type SearchFeatureApi = {
+export type GlobalSearchFeatureApi = {
     escapePriority: number;
     closeTopLayer: (event?: KeyboardEvent) => boolean;
+    closeGlobalPanel: (options?: SearchCloseOptions) => void;
+};
+export type ReaderSearchFeatureApi = {
     closeViewerTopLayer: (event?: KeyboardEvent) => boolean;
     isLightboxMobileOpen: () => boolean;
     setLightboxMobileOpen: (open: boolean, options?: SearchCloseOptions) => void;
@@ -668,7 +673,8 @@ export type SearchFeatureApi = {
     syncViewerStatus: () => void;
     closeViewerMenus: () => void;
     hideViewerResults: (options?: SearchCloseOptions) => void;
-    closeGlobalPanel: (options?: SearchCloseOptions) => void;
+};
+export type SearchLifecycleFeatureApi = {
     attachEvents: () => void;
     initialize: () => void;
     prepareRoute: (nextPage: string) => void;
@@ -676,6 +682,7 @@ export type SearchFeatureApi = {
     handleResize: () => void;
     handleScroll: () => void;
 };
+export type SearchFeatureApi = GlobalSearchFeatureApi & ReaderSearchFeatureApi & SearchLifecycleFeatureApi;
 export type ViewerFeatureApi = {
     escapePriority: number;
     requiresDocumentLock: () => boolean;
