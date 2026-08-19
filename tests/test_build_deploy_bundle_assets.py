@@ -86,6 +86,7 @@ def test_runtime_deploy_manifest_excludes_retired_artifacts() -> None:
         "tooltip-manager.js",
         "favorites-store.js",
         "site-routes.js",
+        "telemetry.js",
         "catalogs.generated.module.js",
         "catalog-taxonomy.generated.module.js",
     }
@@ -293,6 +294,7 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
         "tooltip-manager": "export const tooltips = {};\n",
         "favorites-store": "export function createStore() { return {}; }\n",
         "site-routes": "export const siteRoutes = {};\n",
+        "telemetry": "export function telemetryInit() {}\n",
     }
     runtime_assets: dict[str, Path] = {}
     for stem, content in runtime_sources.items():
@@ -307,7 +309,7 @@ def write_search_runtime_bundle(out: Path) -> dict[str, Path]:
         f'import "./{external_assets[stem].name}";\n'
         for stem in (
             "catalog-assets.config", "catalog-search", "tooltip-manager", "favorites-store", "site-routes",
-            "catalogs.generated.module", "catalog-taxonomy.generated.module",
+            "telemetry", "catalogs.generated.module", "catalog-taxonomy.generated.module",
         )
     )
     route_apps: dict[str, Path] = {}
@@ -367,7 +369,7 @@ def test_bundle_validation_hashes_each_shared_asset_once(
 
     monkeypatch.setattr(MODULE, "content_hash", counting_content_hash)
 
-    assert MODULE.validate_fingerprinted_bundle(out) == 13
+    assert MODULE.validate_fingerprinted_bundle(out) == len(assets)
     assert hash_calls == {path: 1 for path in assets.values()}
 
 
@@ -505,7 +507,7 @@ def test_search_runtime_validation_rejects_missing_dynamic_asset(tmp_path: Path)
 
 
 def test_deployment_release_id_is_shared_deterministic_and_option_sensitive() -> None:
-    inputs = {"src/js/15-telemetry.js": "a" * 64}
+    inputs = {"src/runtime/telemetry.js": "a" * 64}
     private_options = MODULE.build_options_payload(
         external_assets_url="https://cdn.example.com",
         seo_mode="private",
@@ -569,7 +571,7 @@ def test_deploy_code_assets_receive_production_only_standard_minification(tmp_pa
                 assert f'window.__BARGIG_RELEASE_ID__="{release_id}"' in optimized
                 assert optimized.count(f'window.__BARGIG_RELEASE_ID__="{release_id}"') == 1
             else:
-                assert "__BARGIG_RELEASE_ID__" not in optimized
+                assert f'window.__BARGIG_RELEASE_ID__="{release_id}"' not in optimized
             assert "GENERATED FILE — DO NOT EDIT DIRECTLY" not in optimized
         elif spec["kind"] == "css" and relative.startswith("styles"):
             assert "@layer bargig.application" in optimized

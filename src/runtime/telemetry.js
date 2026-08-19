@@ -1,5 +1,5 @@
 /**
- * Source module: 15-telemetry.js
+ * Runtime module: telemetry.js
  * Privacy-first business telemetry and runtime error reporting.
  *
  * The browser sends only whitelisted, coarse events to the same-origin Pages Function.
@@ -8,12 +8,6 @@
  */
 
 /** @import { CatalogRecord } from "../../types/catalog-data.generated.js" */
-
-import { currentAppPage } from "./00-navigation.js";
-import { eventTargetElement } from "./02-dom-contracts.js";
-import { CATALOG_IMAGE_RETRY_PARAM } from "./10-app-state.js";
-import { LIGHTBOX_SOURCE_CATALOG } from "./11-navigation-state.js";
-import { activeCatalog, activePage } from "./18-navigation-feature.js";
 
 /** @typedef {"LCP"|"INP"|"CLS"} TelemetryWebVitalName */
 /**
@@ -41,7 +35,7 @@ import { activeCatalog, activePage } from "./18-navigation-feature.js";
  */
 /** @typedef {{immediate?:boolean}} TelemetryTrackOptions */
 /** @typedef {{beacon?:boolean}} TelemetryFlushOptions */
-/** @typedef {{recoverCatalogImageAfterInitialFailure?:(image:HTMLImageElement)=>boolean}} TelemetryInitOptions */
+/** @typedef {{recoverCatalogImageAfterInitialFailure?:(image:HTMLImageElement)=>boolean, getCatalogId?:()=>unknown, getPageNumber?:()=>unknown, retryParam?:unknown}} TelemetryInitOptions */
 /** @typedef {{surface?:unknown, scope?:unknown, catalogId?:unknown, completion?:unknown, immediate?:boolean}} TelemetrySearchOptions */
 /** @typedef {{requestId:string, catalogId:string, pageNumber:number, detail:string, surface:string, visibility:string, requestedTier:string, networkState:string, page:string, path:string, viewport:string, releaseId:string}} TelemetryImageRequestContext */
 /** @typedef {{img?:HTMLImageElement|null, detail?:unknown, action?:unknown, failedAttempts?:unknown, attempt?:unknown, value?:unknown, surface?:unknown, visibility?:unknown, requestedTier?:unknown, requestId?:unknown, requestContext?:TelemetryImageRequestContext|null}} TelemetryImageEventOptions */
@@ -53,6 +47,48 @@ import { activeCatalog, activePage } from "./18-navigation-feature.js";
 /** @typedef {{supported:Set<TelemetryWebVitalName>, reported:Set<TelemetryWebVitalName>, lcp:number, lcpComponent:string, inp:number, cls:number, clsComponent:string, clsSessionValue:number, clsSessionStart:number, clsLastEntry:number, clsSessionComponents:Map<string,number>, interactions:Map<number,number>}} TelemetryWebVitalsRuntime */
 /** @typedef {{enabled:boolean|null, queue:Array<Record<string,string|number>>, flushTimer:number, flushing:boolean, catalogKey:string, catalogAt:number, searchKeys:Map<string,number>, diagnosticEvents:Set<string>, webVitals:TelemetryWebVitalsRuntime, initialized:boolean}} TelemetryRuntime */
 /** @typedef {PerformanceEntry & {interactionId?:number, duration?:number}} TelemetryInteractionEntry */
+
+const TELEMETRY_DEFAULT_CATALOG_SOURCE = "catalog";
+const TELEMETRY_DEFAULT_RETRY_PARAM = "bargig_retry";
+/** @type {{getCatalogId:()=>unknown, getPageNumber:()=>unknown, retryParam:string}} */
+const telemetryContext = {
+  getCatalogId: () => "",
+  getPageNumber: () => 0,
+  retryParam: TELEMETRY_DEFAULT_RETRY_PARAM
+};
+
+/** @param {TelemetryInitOptions} [options] */
+function telemetryConfigureContext(options = {}) {
+  if (typeof options.getCatalogId === "function") telemetryContext.getCatalogId = options.getCatalogId;
+  if (typeof options.getPageNumber === "function") telemetryContext.getPageNumber = options.getPageNumber;
+  const retryParam = String(options.retryParam || "").trim();
+  telemetryContext.retryParam = /^[A-Za-z0-9_-]{1,40}$/.test(retryParam)
+    ? retryParam
+    : TELEMETRY_DEFAULT_RETRY_PARAM;
+}
+
+function telemetryCurrentCatalogId() {
+  try {
+    return telemetryCleanText(telemetryContext.getCatalogId(), 100);
+  } catch (_error) {
+    return "";
+  }
+}
+
+function telemetryCurrentPageNumber() {
+  try {
+    return telemetryNumber(telemetryContext.getPageNumber(), 0, 100_000);
+  } catch (_error) {
+    return 0;
+  }
+}
+
+/** @param {EventTarget|null} target */
+function telemetryEventTargetElement(target) {
+  if (typeof Element === "function" && target instanceof Element) return target;
+  if (typeof Node === "function" && target instanceof Node && target.parentElement instanceof Element) return target.parentElement;
+  return null;
+}
 
 const TELEMETRY_ENDPOINT = "/api/telemetry";
 const TELEMETRY_SCHEMA_VERSION = 4;
@@ -246,7 +282,7 @@ function telemetryNormalizeEvent(name, fields = {}) {
 
   return {
     name: eventName,
-    page: telemetryCleanText(fields.page || currentAppPage || document.body?.dataset?.page || "", 30),
+    page: telemetryCleanText(fields.page || document.body?.dataset?.page || "", 30),
     path: telemetryCleanPathname(fields.path),
     catalogId: telemetryCleanText(fields.catalogId, 100),
     query: telemetryCleanText(fields.query, 80),
@@ -332,7 +368,7 @@ async function telemetryFlush(options = {}) {
 }
 
 /** @param {CatalogRecord|null|undefined} catalog @param {number} page @param {string} [source] */
-function telemetryTrackCatalogOpen(catalog, page, source = LIGHTBOX_SOURCE_CATALOG) {
+function telemetryTrackCatalogOpen(catalog, page, source = TELEMETRY_DEFAULT_CATALOG_SOURCE) {
   if (!catalog) return;
   const now = Date.now();
   const key = `${catalog.id}|${source}`;
@@ -619,8 +655,8 @@ function telemetryObserveWebVitals() {
 function telemetryCatalogImageContext(img, src = "") {
   const value = String(src || img?.currentSrc || img?.getAttribute?.("src") || "");
   const match = value.match(/\/assets\/pages\/([^/]+)\/(?:thumbs\/)?page-(\d+)/i);
-  const catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || activeCatalog()?.id || "", 100);
-  const pageNumber = Number.parseInt(String(match?.[2] || img?.dataset?.page || activePage() || 0), 10) || 0;
+  const catalogId = telemetryCleanText(match?.[1] || img?.dataset?.catalogId || telemetryCurrentCatalogId() || "", 100);
+  const pageNumber = Number.parseInt(String(match?.[2] || img?.dataset?.page || telemetryCurrentPageNumber() || 0), 10) || 0;
   let detail = "image";
   if (/\/thumbs\//i.test(value)) detail = "thumbnail";
   else if (img?.id === "lightboxImage") detail = "viewer";
@@ -675,7 +711,7 @@ function telemetryCreateImageRequestContext(img, src = "", options = {}) {
     visibility: telemetryCleanVisibility(options.visibility || telemetryImageVisibility(img, surface)),
     requestedTier: telemetryCleanImageTier(options.requestedTier || img?.dataset?.telemetryRequestedTier),
     networkState: telemetryNetworkState(),
-    page: telemetryCleanText(currentAppPage || document.body?.dataset?.page || "", 30),
+    page: telemetryCleanText(document.body?.dataset?.page || "", 30),
     path: telemetryCleanPathname(),
     viewport: telemetryViewportBucket(),
     releaseId: TELEMETRY_RELEASE_ID
@@ -689,11 +725,11 @@ function telemetryStableResourceUrl(value) {
   try {
     const parsed = new URL(raw, window.location.href);
     parsed.hash = "";
-    parsed.searchParams.delete(CATALOG_IMAGE_RETRY_PARAM);
+    parsed.searchParams.delete(telemetryContext.retryParam);
     return parsed.href;
   } catch {
     return raw
-      .replace(new RegExp(`([?&])${CATALOG_IMAGE_RETRY_PARAM}=[^&#]*&?`, "g"), "$1")
+      .replace(new RegExp(`([?&])${telemetryContext.retryParam}=[^&#]*&?`, "g"), "$1")
       .replace(/[?&]$/, "")
       .split("#")[0];
   }
@@ -829,7 +865,7 @@ function telemetryTrackRuntimeError(event) {
   const errorName = telemetryCleanText(event.error?.name || "Error", 40);
   const message = telemetryCleanText(event.message || event.error?.message || "JavaScript error", 120);
   return telemetryTrack("js_error", {
-    catalogId: activeCatalog()?.id || "",
+    catalogId: telemetryCurrentCatalogId(),
     action: errorName,
     detail: message,
     scope: telemetryErrorSourceScope(filename),
@@ -914,7 +950,7 @@ function telemetryTrackUnhandledRejection(event) {
   const errorName = telemetryCleanText(reason?.name || "UnhandledRejection", 40);
   const message = telemetryCleanText(reason?.message || reason || "Unhandled promise rejection", 120);
   telemetryTrack("js_error", {
-    catalogId: activeCatalog()?.id || "",
+    catalogId: telemetryCurrentCatalogId(),
     action: errorName,
     detail: message,
     scope: "promise",
@@ -925,7 +961,7 @@ function telemetryTrackUnhandledRejection(event) {
 
 /** @param {MouseEvent} event */
 function telemetryHandleDocumentClick(event) {
-  const link = eventTargetElement(event.target)?.closest("a[href]");
+  const link = telemetryEventTargetElement(event.target)?.closest("a[href]");
   if (!(link instanceof HTMLAnchorElement)) return;
   const href = String(link.getAttribute("href") || "").trim();
   let action = telemetryCleanText(link.dataset.contactAction, 50);
@@ -944,6 +980,7 @@ function telemetryHandleDocumentClick(event) {
 
 /** @param {TelemetryInitOptions} [options] */
 function telemetryInit(options = {}) {
+  telemetryConfigureContext(options);
   if (telemetryRuntime.initialized) return;
   telemetryRuntime.initialized = true;
   if (!telemetryIsEnabled()) return;
@@ -974,7 +1011,7 @@ function telemetryInit(options = {}) {
       telemetryTrackRuntimeError(event);
       return;
     }
-    if (classification === "resource") telemetryTrackResourceError(eventTargetElement(event.target));
+    if (classification === "resource") telemetryTrackResourceError(telemetryEventTargetElement(event.target));
   }, true);
   window.addEventListener("unhandledrejection", telemetryTrackUnhandledRejection);
   document.addEventListener("click", telemetryHandleDocumentClick, true);

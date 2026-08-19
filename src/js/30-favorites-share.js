@@ -13,7 +13,7 @@ import { isCatalogPage } from "./06-catalog-page-numbering.js";
 import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
 import { FAVORITES_SHARE_PARAM, favoritesElements, favoritesState, favoritesStore } from "./14-favorites-state.js";
-import { telemetryTrackFavorite } from "./15-telemetry.js";
+import { telemetryTrackFavorite } from "../runtime/telemetry.js";
 import { activeCatalog, activePage, activeViewerSource, isFavoritesLightboxMode, setActiveLocation } from "./18-navigation-feature.js";
 import { clampPage, findCatalogById } from "./20-catalog-runtime.js";
 import { clampValue } from "./19-shared-pure.js";

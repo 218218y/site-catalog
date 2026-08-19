@@ -11,7 +11,7 @@ const app = readAllBundles();
 const css = readAllCssBundles();
 const template = fs.readFileSync(path.join(root, "site.template.html"), "utf8");
 const sourceAst = inventoryProjectFiles(root, [
-  "src/js/15-telemetry.js",
+  "src/runtime/telemetry.js",
   "src/js/19-shared-pure.js",
   "src/js/32-shared-inquiry.js",
   "src/js/48-global-search-ui.js",
@@ -21,7 +21,7 @@ const sourceAst = inventoryProjectFiles(root, [
   "src/js/60-viewer.js",
   "src/js/62-viewer-actions.js",
 ]);
-const telemetryAst = sourceAst["src/js/15-telemetry.js"];
+const telemetryAst = sourceAst["src/runtime/telemetry.js"];
 const sharedPureAst = sourceAst["src/js/19-shared-pure.js"];
 const sharedInquiryAst = sourceAst["src/js/32-shared-inquiry.js"];
 const globalSearchAst = sourceAst["src/js/48-global-search-ui.js"];

@@ -16,7 +16,7 @@ import { eventTargetElement } from "./02-dom-contracts.js";
 import { catalogSearch, catalogs } from "./03-runtime-context.js";
 import { getFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { SEARCH_INPUT_DEBOUNCE_MS, searchElements, searchState } from "./13-search-state.js";
-import { telemetryFlush, telemetryTrackSearch } from "./15-telemetry.js";
+import { telemetryFlush, telemetryTrackSearch } from "../runtime/telemetry.js";
 import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
 import { clampValue, escapeHtml } from "./19-shared-pure.js";
 import { catalogImageDimensionAttributes, catalogImageRecoveryAttributes, clampPage, getCatalogCategoryGroups, mediumSrc } from "./20-catalog-runtime.js";

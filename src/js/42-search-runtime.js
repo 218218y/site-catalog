@@ -8,7 +8,7 @@
 
 import { catalogSearch } from "./03-runtime-context.js";
 import { SEARCH_INDEX_PRELOAD_DELAY_MS, searchState } from "./13-search-state.js";
-import { telemetryCleanText, telemetryTrackSearchIndexFailure } from "./15-telemetry.js";
+import { telemetryCleanText, telemetryTrackSearchIndexFailure } from "../runtime/telemetry.js";
 import { isSaveDataEnabled } from "./20-catalog-runtime.js";
 import { escapeHtml } from "./19-shared-pure.js";
 

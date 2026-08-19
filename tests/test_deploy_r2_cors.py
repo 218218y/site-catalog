@@ -239,6 +239,7 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
         "tooltip-manager": b"export const tooltips = {};\n",
         "favorites-store": b"export function createStore() { return {}; }\n",
         "site-routes": b"export const siteRoutes = {};\n",
+        "telemetry": b"export function telemetryInit() {}\n",
     }
     for stem, content in runtime_sources.items():
         runtime_name = f"{stem}.{hashlib.sha256(content).hexdigest()[:12]}.js"
@@ -253,7 +254,7 @@ def write_minimal_bundle(bundle_dir: Path, missing_reference: tuple[str, str] | 
         f'import "./{runtime_names[stem]}";\n'
         for stem in (
             "catalog-assets.config", "catalog-search", "tooltip-manager", "favorites-store", "site-routes",
-            "catalogs.generated.module", "catalog-taxonomy.generated.module",
+            "telemetry", "catalogs.generated.module", "catalog-taxonomy.generated.module",
         )
     )
     route_scripts: dict[str, str] = {}

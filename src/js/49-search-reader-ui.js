@@ -15,7 +15,7 @@ import { eventTargetElement } from "./02-dom-contracts.js";
 import { catalogSearch, catalogs } from "./03-runtime-context.js";
 import { getFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { MOBILE_READER_SEARCH_MEDIA, SEARCH_INPUT_DEBOUNCE_MS, searchElements, searchState } from "./13-search-state.js";
-import { telemetryTrackSearch } from "./15-telemetry.js";
+import { telemetryTrackSearch } from "../runtime/telemetry.js";
 import { pageSrc, thumbSrc } from "./17-catalog-asset-urls.js";
 import { activeCatalog } from "./18-navigation-feature.js";
 import { escapeHtml } from "./19-shared-pure.js";

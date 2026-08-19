@@ -11,7 +11,7 @@
 import { absoluteDocumentUrl, viewerDocumentUrl } from "./00-navigation.js";
 import { $requiredAnchor, $requiredButton, $requiredImage, requiredElement } from "./02-dom-contracts.js";
 import { getFeatureInterface, registerFeatureInterface } from "./10-app-state.js";
-import { telemetryTrack } from "./15-telemetry.js";
+import { telemetryTrack } from "../runtime/telemetry.js";
 import { activeCatalog, activePage } from "./18-navigation-feature.js";
 import { catalogLastPage } from "./06-catalog-page-numbering.js";
 import { buildViewerInquiryMailtoUrl } from "./19-shared-pure.js";

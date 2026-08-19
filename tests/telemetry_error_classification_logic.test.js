@@ -23,7 +23,7 @@ global.Element = FakeElement;
 global.HTMLImageElement = FakeHTMLImageElement;
 
 const { telemetryClassifyWindowError: classify, telemetryIsRuntimeErrorEvent: isRuntime } =
-  importFrontendModule("src/js/15-telemetry.js");
+  importFrontendModule("src/runtime/telemetry.js");
 
 const scriptError = { type: "error", target: new FakeElement("SCRIPT") };
 const linkError = { type: "error", target: new FakeElement("LINK") };

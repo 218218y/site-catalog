@@ -10,9 +10,9 @@
 
 import { favoritesDocumentUrl, homeDocumentUrl, navigateTo, updateDocumentMetadata } from "./00-navigation.js";
 import { catalogs, siteRoutes } from "./03-runtime-context.js";
-import { bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
+import { CATALOG_IMAGE_RETRY_PARAM, bindFeatureEventsOnce, getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
-import { telemetryInit } from "./15-telemetry.js";
+import { telemetryInit } from "../runtime/telemetry.js";
 import { clearActiveLocation, navigationFeature } from "./18-navigation-feature.js";
 import { findCatalogById, initImagePlaceholderObserver, recoverCatalogImageAfterInitialFailure } from "./20-catalog-runtime.js";
 import { handleTopLayerEscape, syncDocumentLock } from "./21-ui-runtime.js";
@@ -149,7 +149,12 @@ function initializeApplicationShell() {
   const search = requireFeatureInterface("search");
   const favorites = requireFeatureInterface("favorites");
 
-  telemetryInit({ recoverCatalogImageAfterInitialFailure });
+  telemetryInit({
+    recoverCatalogImageAfterInitialFailure,
+    getCatalogId: () => navigationFeature().catalog()?.id || "",
+    getPageNumber: () => navigationFeature().page(),
+    retryParam: CATALOG_IMAGE_RETRY_PARAM
+  });
   catalogGrid.initialize();
   initImagePlaceholderObserver();
   attachFeatureEvents();

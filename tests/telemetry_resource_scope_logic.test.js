@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const { importFrontendModule } = require("./frontend_test_module");
 
 global.window = {
+  __BARGIG_DISABLE_TELEMETRY__: true,
   location: {
     href: "https://bargig-furniture.com/catalog/test",
     origin: "https://bargig-furniture.com"
@@ -11,9 +12,8 @@ global.window = {
 };
 global.document = { querySelector: () => null };
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
-global.CATALOG_IMAGE_RETRY_PARAM = "retry";
 
-const helpers = importFrontendModule("src/js/15-telemetry.js");
+const helpers = importFrontendModule("src/runtime/telemetry.js");
 const beacon = "https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496";
 assert.equal(helpers.telemetryResourceSourceName(beacon), "beacon.min.js");
 assert.equal(helpers.telemetryResourceScope(beacon), "cloudflare-observability");
@@ -25,7 +25,21 @@ assert.equal(helpers.telemetryResourceScope("https://review.internal.netfree.lin
 assert.equal(helpers.telemetryResourceScope("chrome-extension://example/injected.js"), "extension");
 assert.equal(helpers.telemetryResourceScope("https://example.test/optional.js"), "external");
 assert.equal(
-  helpers.telemetryStableResourceUrl("https://cdn.bargig-furniture.com/page.webp?v=one&retry=two#hash"),
+  helpers.telemetryStableResourceUrl("https://cdn.bargig-furniture.com/page.webp?v=one&bargig_retry=two#hash"),
+  "https://cdn.bargig-furniture.com/page.webp?v=one"
+);
+
+helpers.telemetryInit({
+  getCatalogId: () => "context-catalog",
+  getPageNumber: () => 11,
+  retryParam: "image_retry"
+});
+assert.deepEqual(
+  helpers.telemetryCatalogImageContext({ dataset: {}, getAttribute: () => "" }, ""),
+  { catalogId: "context-catalog", pageNumber: 11, detail: "image", value: "" }
+);
+assert.equal(
+  helpers.telemetryStableResourceUrl("https://cdn.bargig-furniture.com/page.webp?v=one&image_retry=two#hash"),
   "https://cdn.bargig-furniture.com/page.webp?v=one"
 );
 

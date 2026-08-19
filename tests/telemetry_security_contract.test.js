@@ -13,11 +13,11 @@ const notFound = fs.readFileSync(path.join(root, "404.html"), "utf8");
 const e2eServer = fs.readFileSync(path.join(root, "tools/e2e_server.js"), "utf8");
 const wrangler = JSON.parse(fs.readFileSync(path.join(root, "wrangler.jsonc"), "utf8"));
 const ast = inventoryProjectFiles(root, [
-  "src/js/15-telemetry.js",
+  "src/runtime/telemetry.js",
   "src/js/80-app-shell.js",
   "functions/api/telemetry.js"
 ]);
-const telemetry = ast["src/js/15-telemetry.js"];
+const telemetry = ast["src/runtime/telemetry.js"];
 const appShell = ast["src/js/80-app-shell.js"];
 const telemetryIngest = ast["functions/api/telemetry.js"];
 const telemetryFunctions = new Set(telemetry.functionDeclarations);

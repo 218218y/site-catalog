@@ -17,6 +17,7 @@ const externalRuntimeAssets = [
   "tooltip-manager.js",
   "favorites-store.js",
   "site-routes.js",
+  "telemetry.js",
 ];
 const routeApps = ["app-catalog.js", "app-favorites.js", "app-viewer.js"];
 const javascriptFiles = [

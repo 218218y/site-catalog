@@ -89,6 +89,7 @@ def test_external_browser_module_contract_is_explicit() -> None:
         "src/runtime/tooltip-manager.js": "tooltip-manager.js",
         "src/runtime/favorites-store.js": "favorites-store.js",
         "src/runtime/site-routes.js": "site-routes.js",
+        "src/runtime/telemetry.js": "telemetry.js",
     }
     assert dict(MODULE.GENERATED_DATA_EXTERNAL_MODULES) == {
         "catalogs.generated.module.js": "catalogs.generated.module.js",
@@ -125,6 +126,7 @@ def test_frontend_manifests_define_real_route_boundaries() -> None:
         "tooltip-manager.js",
         "favorites-store.js",
         "site-routes.js",
+        "telemetry.js",
         "app-catalog.js",
         "app-favorites.js",
         "app-viewer.js",
@@ -404,6 +406,60 @@ def test_esbuild_metafile_partitions_reviewed_sources_from_known_virtual_defines
     with pytest.raises(RuntimeError, match="Unexpected esbuild virtual input"):
         MODULE._partition_metafile_inputs(root, {"<define:UNREVIEWED_DEFINE>": {}})
 
+
+
+def test_bundle_analysis_reports_metafile_contributions_and_external_import_kinds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "project"
+    entry = root / "src/entries/catalog.js"
+    entry.parent.mkdir(parents=True)
+    entry.write_text("export {};\n", encoding="utf-8")
+    runtime = root / "src/runtime/telemetry.js"
+    runtime.parent.mkdir(parents=True)
+    runtime.write_text("export function telemetryInit() {}\n", encoding="utf-8")
+    spec = MODULE.FrontendBundleSpec(
+        "app-catalog.js",
+        "js",
+        entrypoint="src/entries/catalog.js",
+        required_inputs=("src/entries/catalog.js",),
+        external_modules={"src/runtime/telemetry.js": "telemetry.js"},
+    )
+
+    def fake_esbuild(command: list[str], **_kwargs: object) -> object:
+        outfile = Path(command[command.index("--outfile") + 1])
+        metafile = Path(command[command.index("--metafile") + 1])
+        outfile.write_text("import './telemetry.js';\n", encoding="utf-8")
+        metafile.write_text(json.dumps({
+            "inputs": {
+                "src/entries/catalog.js": {"bytes": 20},
+                "<define:__BARGIG_FEATURE_CAPABILITIES__>": {"bytes": 4},
+            },
+            "outputs": {
+                "app-catalog.js": {
+                    "bytes": 12,
+                    "inputs": {
+                        "src/entries/catalog.js": {"bytesInOutput": 9},
+                        "<define:__BARGIG_FEATURE_CAPABILITIES__>": {"bytesInOutput": 0},
+                    },
+                    "imports": [
+                        {"path": "./telemetry.js", "kind": "import-statement", "external": True},
+                    ],
+                },
+            },
+        }), encoding="utf-8")
+        return type("Completed", (), {"returncode": 0, "stderr": "", "stdout": ""})()
+
+    monkeypatch.setattr(MODULE, "ensure_local_esbuild", lambda: None)
+    monkeypatch.setattr(MODULE.subprocess, "run", fake_esbuild)
+    analysis = MODULE.analyze_javascript_bundle(root, spec)
+
+    assert analysis.output_bytes == 12
+    assert [(item.source, item.bytes_in_output) for item in analysis.contributions] == [
+        ("src/entries/catalog.js", 9),
+    ]
+    assert analysis.external_imports == (("./telemetry.js", "import-statement"),)
 
 
 def test_render_javascript_bundle_accepts_esbuild_define_virtual_inputs(

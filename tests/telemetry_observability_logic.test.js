@@ -48,7 +48,7 @@ Object.assign(globalThis, {
   eventTargetElement: (value) => value
 });
 
-const api = importFrontendModule("src/js/15-telemetry.js");
+const api = importFrontendModule("src/runtime/telemetry.js");
 
 const explicit = new FakeElement({ token: "Hero Banner 01" });
 assert.equal(api.telemetryComponentToken(explicit), "hero-banner-01");

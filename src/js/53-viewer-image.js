@@ -8,7 +8,7 @@
 
 import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
 import { CATALOG_IMAGE_TIER_FULL, CATALOG_IMAGE_TIER_MEDIUM, CATALOG_IMAGE_TIER_THUMB, getFeatureInterface } from "./10-app-state.js";
-import { telemetryCreateImageRequestContext } from "./15-telemetry.js";
+import { telemetryCreateImageRequestContext } from "../runtime/telemetry.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_FULL_RESOLUTION_WARMUP_ZOOM_EPSILON, VIEWER_FULL_RESOLUTION_ZOOM_THRESHOLD, VIEWER_MEDIUM_OVERSUBSCRIPTION_RATIO, VIEWER_NEIGHBOR_PRELOAD_SETTLE_MS, VIEWER_PAGE_SWAP_CLEANUP_MS, viewerElements, viewerImageState, viewerViewportState } from "./16-viewer-state.js";
 import { attachViewerResolutionStopCommand, beginViewerImageSwapCommand, beginViewerResolutionCommand, cancelViewerResolutionCommand, commitViewerResolutionCommand, isViewerImageSwapCurrent, markViewerResolutionReadyCommand, releaseViewerRetainedResolutionCommand, retainViewerResolutionForSwapCommand } from "./17-viewer-state-transitions.js";
 import { activeCatalog, activePage, isFavoritesLightboxMode } from "./18-navigation-feature.js";

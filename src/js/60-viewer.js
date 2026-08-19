@@ -14,7 +14,7 @@ import { catalogs } from "./03-runtime-context.js";
 import { catalogFirstPage, catalogLastPage } from "./06-catalog-page-numbering.js";
 import { getFeatureInterface, registerFeatureInterface, requireFeatureInterface } from "./10-app-state.js";
 import { LIGHTBOX_SOURCE_CATALOG, LIGHTBOX_SOURCE_FAVORITES } from "./11-navigation-state.js";
-import { telemetryTrackCatalogOpen } from "./15-telemetry.js";
+import { telemetryTrackCatalogOpen } from "../runtime/telemetry.js";
 import { AUTO_VIEWER_ZOOM, VIEWER_FIT_HEIGHT, VIEWER_FIT_WIDTH, VIEWER_PHASE_CLOSED, VIEWER_PHASE_CLOSING, VIEWER_PHASE_OPEN, VIEWER_PHASE_OPENING, viewerChromeState, viewerElements, viewerImageState, viewerOnboardingState, viewerViewportState } from "./16-viewer-state.js";
 import { VIEWER_NAVIGATION_SOURCE_BUTTON, VIEWER_NAVIGATION_SOURCE_HOME_END, VIEWER_NAVIGATION_SOURCE_KEYBOARD, VIEWER_NAVIGATION_SOURCE_PROGRAMMATIC, finalizeViewerClosedStateCommand, initializeViewerOpenStateCommand, invalidateViewerImageSwapCommand } from "./17-viewer-state-transitions.js";
 import { activeCatalog, activePage, activeViewerSource, setActiveLocation, setActivePage, setActiveViewerSource, isFavoritesLightboxMode } from "./18-navigation-feature.js";

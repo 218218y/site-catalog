@@ -25,7 +25,7 @@ const moduleAst = inventoryProjectFiles(root, [
   'src/entries/catalog.js',
   'src/entries/favorites.js',
   'src/entries/viewer.js',
-  'src/js/15-telemetry.js',
+  'src/runtime/telemetry.js',
 ]);
 
 const sourceMarker = (relativePath) => ` *   - ${relativePath}`;
@@ -162,7 +162,7 @@ assert.doesNotMatch(contractChecker, /if \"\(\(\) => \\{\" in text/);
 assert.match(contractChecker, /native ES module depends on document\.currentScript/);
 assert.match(contractChecker, /def check_css_architecture/);
 assert.match(contractChecker, /unreviewed z-index declaration/);
-const telemetryAst = moduleAst['src/js/15-telemetry.js'];
+const telemetryAst = moduleAst['src/runtime/telemetry.js'];
 assert.equal(hasPropertyPath(telemetryAst, 'document.currentScript'), false);
 assert.equal(telemetryAst.stringLiterals.includes('script[type=module][data-bargig-route-module]'), true);
 

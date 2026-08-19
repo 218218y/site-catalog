@@ -97,6 +97,17 @@ def test_budget_checker_rejects_wrong_share_image_dimensions(tmp_path: Path) -> 
         MODULE.check_performance_budgets(tmp_path, bundle)
 
 
+
+def test_javascript_can_enforce_stricter_headroom_than_css(tmp_path: Path) -> None:
+    bundle = write_fixture(tmp_path, app_size=410)
+    budget_path = tmp_path / "performance-budgets.json"
+    budget = json.loads(budget_path.read_text(encoding="utf-8"))
+    budget["javascriptRequiredHeadroomPercent"] = 20
+    budget_path.write_text(json.dumps(budget), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="20% headroom"):
+        MODULE.check_performance_budgets(tmp_path, bundle)
+
 def test_project_assets_fit_committed_budgets() -> None:
     measurements = MODULE.check_performance_budgets(ROOT)
     assert measurements

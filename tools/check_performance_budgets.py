@@ -175,6 +175,11 @@ def check_performance_budgets(root: Path, bundle_dir: Path | None = None) -> lis
         ("cssBundles", "CSS"),
     )
     for group_key, kind_label in grouped_budgets:
+        group_headroom_percent = (
+            float(budgets.get("javascriptRequiredHeadroomPercent", headroom_percent))
+            if group_key == "javascriptBundles"
+            else headroom_percent
+        )
         group = budgets.get(group_key)
         if not isinstance(group, dict) or not group:
             raise ValueError(f"{group_key} must contain at least one named bundle budget")
@@ -186,7 +191,7 @@ def check_performance_budgets(root: Path, bundle_dir: Path | None = None) -> lis
                 label=f"{bundle_name.title()} {kind_label}",
                 path=path,
                 budget=budget,
-                headroom_percent=headroom_percent,
+                headroom_percent=group_headroom_percent,
             )
 
     for key, label in (("searchIndex", "Search index"), ("searchWorker", "Search worker")):
@@ -199,6 +204,11 @@ def check_performance_budgets(root: Path, bundle_dir: Path | None = None) -> lis
     if bundle_dir is not None:
         resolved_bundle = bundle_dir.resolve()
         for group_key, kind_label in grouped_budgets:
+            group_headroom_percent = (
+                float(budgets.get("javascriptRequiredHeadroomPercent", headroom_percent))
+                if group_key == "javascriptBundles"
+                else headroom_percent
+            )
             for bundle_name, budget in budgets[group_key].items():
                 path = resolve_bundle_asset(resolved_bundle, str(budget["bundlePattern"]))
                 check_asset_budget(
@@ -207,7 +217,7 @@ def check_performance_budgets(root: Path, bundle_dir: Path | None = None) -> lis
                     label=f"Deploy {bundle_name} {kind_label}",
                     path=path,
                     budget=budget,
-                    headroom_percent=headroom_percent,
+                    headroom_percent=group_headroom_percent,
                 )
 
         for key, label in (("searchIndex", "Deploy search index"), ("searchWorker", "Deploy search worker")):

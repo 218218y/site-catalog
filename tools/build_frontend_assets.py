@@ -69,6 +69,7 @@ RUNTIME_EXTERNAL_MODULES: Mapping[str, str] = {
     "src/runtime/tooltip-manager.js": "tooltip-manager.js",
     "src/runtime/favorites-store.js": "favorites-store.js",
     "src/runtime/site-routes.js": "site-routes.js",
+    "src/runtime/telemetry.js": "telemetry.js",
 }
 GENERATED_DATA_EXTERNAL_MODULES: Mapping[str, str] = {
     "catalogs.generated.module.js": "catalogs.generated.module.js",
@@ -449,8 +450,13 @@ def _partition_metafile_inputs(
 
 
 
-def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
-    entrypoint = validate_js_spec(root, spec)
+def _run_esbuild_bundle(
+    root: Path,
+    spec: FrontendBundleSpec,
+    entrypoint: str,
+) -> tuple[str, Mapping[str, object]]:
+    """Run the pinned compiler once and return its bundle plus authoritative metafile."""
+
     ensure_local_esbuild()
     capabilities = None if spec.kind == "runtime-js" else {
         "viewer": False, "favoritesWorkspace": False, "catalogGrid": False, "search": False,
@@ -482,8 +488,106 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
             raise RuntimeError(f"esbuild failed for {spec.output_name}: {details}")
         raw_bundle = normalize_text(raw_output.read_text(encoding="utf-8"))
         metafile = json.loads(metafile_path.read_text(encoding="utf-8"))
+    if not isinstance(metafile, dict):
+        raise RuntimeError(f"esbuild emitted an invalid metafile for {spec.output_name}")
+    return raw_bundle, metafile
 
-    actual_inputs, virtual_inputs = _partition_metafile_inputs(root, metafile.get("inputs", {}))
+
+def _metafile_mapping(value: object, *, label: str, output_name: str) -> Mapping[str, object]:
+    if not isinstance(value, dict):
+        raise RuntimeError(f"Invalid esbuild {label} for {output_name}")
+    return value
+
+
+def _single_metafile_output(
+    metafile: Mapping[str, object],
+    output_name: str,
+) -> Mapping[str, object]:
+    outputs = _metafile_mapping(
+        metafile.get("outputs", {}),
+        label="output inventory",
+        output_name=output_name,
+    )
+    if len(outputs) != 1:
+        raise RuntimeError(f"Expected one esbuild output record for {output_name}")
+    return _metafile_mapping(
+        next(iter(outputs.values())),
+        label="output record",
+        output_name=output_name,
+    )
+
+
+@dataclass(frozen=True)
+class JavascriptInputContribution:
+    source: str
+    bytes_in_output: int
+
+
+@dataclass(frozen=True)
+class JavascriptBundleAnalysis:
+    output_name: str
+    output_bytes: int
+    contributions: tuple[JavascriptInputContribution, ...]
+    external_imports: tuple[tuple[str, str], ...]
+
+
+def analyze_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> JavascriptBundleAnalysis:
+    """Measure source contributions from the same metafile used by production builds."""
+
+    if spec.kind not in {"js", "runtime-js"}:
+        raise ValueError(f"Bundle contribution analysis requires JavaScript: {spec.output_name}")
+    entrypoint = validate_js_spec(root, spec)
+    _raw_bundle, metafile = _run_esbuild_bundle(root, spec, entrypoint)
+    output_record = _single_metafile_output(metafile, spec.output_name)
+    input_records = _metafile_mapping(
+        output_record.get("inputs", {}),
+        label="input contribution map",
+        output_name=spec.output_name,
+    )
+
+    contributions: list[JavascriptInputContribution] = []
+    for raw_source, raw_record in input_records.items():
+        source = str(raw_source)
+        if source.startswith("<") and source.endswith(">"):
+            continue
+        if not isinstance(raw_record, dict):
+            raise RuntimeError(f"Invalid esbuild contribution record for {source}")
+        normalized = Path(source).as_posix().removeprefix("./")
+        contributions.append(JavascriptInputContribution(
+            normalized,
+            max(0, int(raw_record.get("bytesInOutput", 0))),
+        ))
+    contributions.sort(key=lambda item: (-item.bytes_in_output, item.source))
+
+    raw_imports = output_record.get("imports", [])
+    if not isinstance(raw_imports, list):
+        raise RuntimeError(f"Invalid esbuild import inventory for {spec.output_name}")
+    external_imports = tuple(sorted(
+        (str(item.get("path", "")), str(item.get("kind", "")))
+        for item in raw_imports
+        if isinstance(item, dict) and item.get("external")
+    ))
+    raw_output_bytes = output_record.get("bytes", 0)
+    if not isinstance(raw_output_bytes, int):
+        raise RuntimeError(f"Invalid esbuild output byte count for {spec.output_name}")
+    return JavascriptBundleAnalysis(
+        output_name=spec.output_name,
+        output_bytes=max(0, raw_output_bytes),
+        contributions=tuple(contributions),
+        external_imports=external_imports,
+    )
+
+
+def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
+    entrypoint = validate_js_spec(root, spec)
+    raw_bundle, metafile = _run_esbuild_bundle(root, spec, entrypoint)
+
+    metafile_inputs = _metafile_mapping(
+        metafile.get("inputs", {}),
+        label="input inventory",
+        output_name=spec.output_name,
+    )
+    actual_inputs, virtual_inputs = _partition_metafile_inputs(root, metafile_inputs)
     actual_input_set = set(actual_inputs)
     required_inputs = set(spec.required_inputs)
     missing_required = sorted(required_inputs - actual_input_set)
@@ -525,13 +629,14 @@ def render_javascript_bundle(root: Path, spec: FrontendBundleSpec) -> str:
                 raise RuntimeError(
                     f"Disabled capability {capability!r} leaked into {spec.output_name}: {list(present)}"
                 )
-    output_records = list(metafile.get("outputs", {}).values())
-    if len(output_records) != 1:
-        raise RuntimeError(f"Expected one esbuild output record for {spec.output_name}")
+    output_record = _single_metafile_output(metafile, spec.output_name)
+    raw_imports = output_record.get("imports", [])
+    if not isinstance(raw_imports, list):
+        raise RuntimeError(f"Invalid esbuild import inventory for {spec.output_name}")
     actual_external_imports = tuple(
         str(item.get("path", ""))
-        for item in output_records[0].get("imports", [])
-        if item.get("external")
+        for item in raw_imports
+        if isinstance(item, dict) and item.get("external")
     )
     expected_external_imports = frozenset(
         f"./{output_name}" for output_name in (spec.external_modules or {}).values()

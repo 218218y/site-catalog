@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const telemetry = fs.readFileSync(path.join(root, "src/js/15-telemetry.js"), "utf8");
+const telemetry = fs.readFileSync(path.join(root, "src/runtime/telemetry.js"), "utf8");
 const viewerCss = fs.readFileSync(path.join(root, "src/css/90-visual-polish.css"), "utf8");
 const footerCss = fs.readFileSync(path.join(root, "src/css/50-footer-legal.css"), "utf8");
 const viewerShell = fs.readFileSync(path.join(root, "src/js/56-viewer-shell.js"), "utf8");

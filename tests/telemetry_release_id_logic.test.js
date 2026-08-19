@@ -6,7 +6,7 @@ const { importFrontendModule } = require("./frontend_test_module");
 global.window = {};
 global.document = { querySelector: () => null };
 Object.defineProperty(globalThis, "navigator", { value: {}, writable: true, configurable: true });
-const { telemetryResolveReleaseId } = importFrontendModule("src/js/15-telemetry.js");
+const { telemetryResolveReleaseId } = importFrontendModule("src/runtime/telemetry.js");
 
 function resolve(windowValue, scriptSrc) {
   global.window = windowValue;

@@ -21,6 +21,7 @@
     "setup:browsers:linux": "playwright install --with-deps chromium",
     "build": "npm run build:local",
     "build:frontend": "node tools/run_project_python.js tools/build_frontend_assets.py",
+    "report:frontend-bundles": "node tools/run_project_python.js tools/report_frontend_bundles.py",
     "build:catalog-data": "node tools/run_project_python.js tools/catalog_compiler.py",
     "check:catalog-data": "node tools/run_project_python.js tools/catalog_compiler.py --check",
     "check:frontend": "node tools/run_project_python.js tools/build_frontend_assets.py --check",

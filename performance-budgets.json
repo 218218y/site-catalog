@@ -74,5 +74,6 @@
       "INP": 200,
       "CLS": 0.1
     }
-  }
+  },
+  "javascriptRequiredHeadroomPercent": 20
 }
