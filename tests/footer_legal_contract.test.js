@@ -9,6 +9,7 @@ const { hasCall, hasFunction, inventoryProjectFiles } = require('./helpers/front
 const root = path.join(__dirname, '..');
 const publicPages = ['index.html', 'catalog.html', 'favorites.html', 'viewer.html', 'payment.html', 'terms.html', 'privacy.html', 'accessibility.html'];
 const footerContent = JSON.parse(fs.readFileSync(path.join(root, 'partials', 'site-footer.content.json'), 'utf8'));
+assert.ok(!Object.hasOwn(footerContent, 'topLabel'));
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, character => ({
@@ -58,7 +59,7 @@ for (const filename of publicPages) {
   assert.match(html, /href="terms\.html">/);
   assert.match(html, /href="privacy\.html">/);
   assert.match(html, /href="accessibility\.html">/);
-  assert.match(html, /href="#top" class="site-footer-top-link"/);
+  assert.doesNotMatch(html, /href="#top"|site-footer-top-link/);
   assert.doesNotMatch(html, /\{\{FOOTER_[A-Z0-9_]+\}\}/);
   assert.doesNotMatch(html, /site-footer-intro|site-footer-logo|site-footer-brand/);
 }
@@ -90,6 +91,7 @@ assert.match(legalTemplate, /\{\{LEGAL_CONTENT\}\}/);
 assert.match(legalTemplate, /<main class="legal-main" id="main-content" tabindex="-1">/);
 assert.match(footerFragment, /\{\{FOOTER_VISIT_TITLE\}\}/);
 assert.match(footerFragment, /href="payment\.html" class="site-footer-payment-link">\{\{FOOTER_PAYMENT_LABEL\}\}<\/a>/);
+assert.doesNotMatch(footerFragment, /FOOTER_TOP_LABEL|site-footer-top-link|href="#top"/);
 assert.match(footerFragment, /href="tel:\{\{FOOTER_MOBILE_TEL_HREF\}\}"/);
 assert.match(footerFragment, /href="\{\{FOOTER_GMAIL_HREF\}\}"/);
 assert.match(footerFragment, /\{\{FOOTER_REGISTRATION_NUMBER\}\}/);
@@ -149,16 +151,21 @@ assert.match(controlService, /def save_footer_content_and_render_pages\(/);
 assert.match(controlServer, /"footerEditor": footer_editor_schema\(\)/);
 assert.match(deployTool, /PUBLIC_HTML_FILES = tuple\([\s\S]*?TECHNICAL_SHELL_FILENAMES[\s\S]*?\) \+ \("404\.html",\)/);
 assert.match(css, /\.site-footer-grid\s*\{[\s\S]*?grid-template-columns:/);
+assert.match(css, /\.site-footer-card\s*\{[\s\S]*?grid-template-columns:\s*32px minmax\(0, 1fr\);[\s\S]*?gap:\s*9px;[\s\S]*?padding:\s*14px 15px;/);
+assert.match(css, /\.site-footer-card-icon\s*\{[\s\S]*?width:\s*32px;[\s\S]*?height:\s*32px;/);
+assert.match(css, /\.site-footer-card-icon svg\s*\{[\s\S]*?width:\s*18px;[\s\S]*?height:\s*18px;/);
+assert.match(css, /\.site-footer-contact-list,\s*\.site-footer-link-list\s*\{[\s\S]*?gap:\s*2px;/);
 assert.match(css, /\.site-footer-bottom\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-assert.match(css, /\.site-footer-contact-list\s*\{[\s\S]*?--footer-contact-inline-padding:\s*8px;[\s\S]*?--footer-contact-label-width:\s*44px;/);
+assert.match(css, /\.site-footer-contact-list\s*\{[\s\S]*?--footer-contact-inline-padding:\s*6px;[\s\S]*?--footer-contact-label-width:\s*40px;/);
 assert.match(css, /\.site-footer-contact-list > a,\s*\.site-footer-email-row\s*\{[\s\S]*?grid-template-columns:\s*var\(--footer-contact-label-width\) minmax\(0, 1fr\)/);
 assert.match(css, /\.site-footer-contact-list > a\s*\{[\s\S]*?padding-inline:\s*0;/);
-assert.match(css, /\.site-footer-contact-list > a > span,\s*\.site-footer-contact-label\s*\{[\s\S]*?padding-inline-start:\s*var\(--footer-contact-inline-padding\)/);
+assert.match(css, /\.site-footer-contact-list > a > span,\s*\.site-footer-contact-label\s*\{[\s\S]*?padding-inline-start:\s*var\(--footer-contact-inline-padding\)[\s\S]*?text-align:\s*right;[\s\S]*?white-space:\s*nowrap;/);
+assert.match(css, /\.site-footer-email-row\s*\{[\s\S]*?border:\s*1px solid transparent;/);
 assert.match(css, /\.site-footer-contact-list > a > bdi\s*\{[\s\S]*?padding-left:\s*var\(--footer-contact-inline-padding\);[\s\S]*?text-align:\s*left;/);
 assert.match(css, /\.site-footer-email-actions\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
-assert.match(css, /\.site-footer-contact-list \.site-footer-email-actions a\s*\{[\s\S]*?width:\s*100%[\s\S]*?min-height:\s*31px[\s\S]*?padding:\s*4px var\(--footer-contact-inline-padding\)/);
+assert.match(css, /\.site-footer-contact-list \.site-footer-email-actions a\s*\{[\s\S]*?width:\s*100%[\s\S]*?min-height:\s*29px[\s\S]*?padding:\s*3px var\(--footer-contact-inline-padding\)/);
 assert.match(css, /\.site-footer-contact-list \.site-footer-email-link\s*\{[\s\S]*?justify-content:\s*flex-end;[\s\S]*?text-align:\s*left;/);
-assert.match(css, /\.site-footer-contact-list \.site-footer-gmail-link\s*\{[\s\S]*?grid-template-columns:\s*20px minmax\(0, 1fr\)/);
+assert.match(css, /\.site-footer-contact-list \.site-footer-gmail-link\s*\{[\s\S]*?grid-template-columns:\s*18px minmax\(0, 1fr\)/);
 assert.match(css, /\.site-footer-gmail-link span\s*\{[\s\S]*?text-align:\s*left;/);
 assert.doesNotMatch(css, /\.site-footer-gmail-link\s*\{[^}]*border-radius:\s*50%/);
 assert.match(css, /\.site-footer-contact-list a:hover,[\s\S]*?background:\s*linear-gradient\([\s\S]*?box-shadow:/);
@@ -166,6 +173,7 @@ assert.match(css, /\.site-footer-link-list a:focus-visible[\s\S]*?outline:\s*2px
 assert.match(css, /body:is\(\[data-page="home"\], \[data-page="catalog"\], \[data-page="favorites"\]\):not\(\[data-app-ready="true"\]\) > \.site-footer/);
 assert.match(css, /\.site-footer\s*\{[\s\S]*?padding:\s*0\s+clamp\(/);
 assert.doesNotMatch(css, /\.site-footer-intro\s*\{/);
+assert.doesNotMatch(css, /\.site-footer-top-link/);
 assert.match(css, /--viewer-control-inner-shadow:\s*none;/);
 assert.match(css, /--viewer-control-hover-shadow:\s*0 16px 36px rgba\(70, 50, 36, 0\.17\);/);
 assert.doesNotMatch(css, /--viewer-control-hover-bg:[^;]*#fff/);

@@ -2,168 +2,181 @@
   {
     "id": "opening-tbi-2026",
     "title": "ארונות פתיחה ת.ב.י רהיטים 2026",
+    "pdf": "assets/pdfs/opening-tbi-2026.pdf",
     "description": "ארונות פתיחה סנדביץ' בעיצוב מודרני",
     "category": "ארונות פתיחה",
     "subcategory": "",
-    "pdf": "assets/pdfs/opening-tbi-2026.pdf",
     "ocr": true,
     "pageNumberStart": 0
   },
   {
     "id": "opening-fredi-2026",
     "title": "ארונות פתיחה פרדי 2026",
+    "pdf": "assets/pdfs/opening-fredi-2026.pdf",
     "description": "ארונות פתיחה סנדביץ'/MDF בעיצוב מודרני",
     "category": "ארונות פתיחה",
     "subcategory": "",
-    "pdf": "assets/pdfs/opening-fredi-2026.pdf",
-    "ocr": false
+    "ocr": false,
+    "pageNumberStart": 1
   },
   {
     "id": "sliding-tbi-2026",
     "title": "ארונות הזזה ת.ב.י רהיטים 2026",
+    "pdf": "assets/pdfs/sliding-tbi-2026.pdf",
     "description": "ארונות הזזה סנדביץ'/מלמין, בעיצוב מודרני",
     "category": "ארונות הזזה",
     "subcategory": "",
-    "pdf": "assets/pdfs/sliding-tbi-2026.pdf",
     "ocr": true,
     "pageNumberStart": 0
   },
   {
     "id": "kids-tbi-2026",
     "title": "חדרי ילדים ת.ב.י רהיטים 2026",
+    "pdf": "assets/pdfs/kids-tbi-2026.pdf",
     "description": "ריהוט מושלם לחדרי ילדים",
     "category": "חדרי ילדים",
     "subcategory": "חדרי ילדים קומפלט",
-    "pdf": "assets/pdfs/kids-tbi-2026.pdf",
     "ocr": true,
     "pageNumberStart": 0
   },
   {
     "id": "kids-fredi-2026",
     "title": "חדרי ילדים פרדי 2026",
+    "pdf": "assets/pdfs/kids-fredi-2026.pdf",
     "description": "ריהוט מושלם לחדרי ילדים",
     "category": "חדרי ילדים",
     "subcategory": "חדרי ילדים קומפלט",
-    "pdf": "assets/pdfs/kids-fredi-2026.pdf",
-    "ocr": false
+    "ocr": false,
+    "pageNumberStart": 1
   },
   {
     "id": "beds-birch-2026",
     "title": "מיטות נגר בירץ' 2026",
+    "pdf": "assets/pdfs/beds-birch-2026.pdf",
     "description": "מיטות נוער סנדביץ' בירץ' באיכות גבוהה",
     "category": "חדרי ילדים",
     "subcategory": "מיטות נגר",
-    "pdf": "assets/pdfs/beds-birch-2026.pdf",
-    "ocr": false
+    "ocr": false,
+    "pageNumberStart": 1
   },
   {
     "id": "hi-riser-qualita-2026",
     "title": "היי ריזר קואליטה 2026",
+    "pdf": "assets/pdfs/hi-riser-qualita-2026.pdf",
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "subcategory": "היי ריזר",
-    "pdf": "assets/pdfs/hi-riser-qualita-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 1
   },
   {
     "id": "hi-riser-comfort-2026",
     "title": "היי ריזר קומפורט 2026",
+    "pdf": "assets/pdfs/hi-riser-comfort-2026.pdf",
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "subcategory": "היי ריזר",
-    "pdf": "assets/pdfs/hi-riser-comfort-2026.pdf",
-    "ocr": false
+    "ocr": false,
+    "pageNumberStart": 1
   },
   {
     "id": "hi-riser-perfect-2026",
     "title": "היי ריזר פרפקט 2026",
+    "pdf": "assets/pdfs/hi-riser-perfect-2026.pdf",
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "subcategory": "היי ריזר",
-    "pdf": "assets/pdfs/hi-riser-perfect-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 1
   },
   {
     "id": "kachtan-2026",
     "title": "היי ריזר קחטן 2026",
+    "pdf": "assets/pdfs/kachtan-2026.pdf",
     "description": "מיטות על קל לנוער ולאירוח, מזרונים נשלפים",
     "category": "חדרי ילדים",
     "subcategory": "היי ריזר",
-    "pdf": "assets/pdfs/kachtan-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 1
   },
   {
     "id": "custom-upholstered",
     "title": "מרופדים עבודת יד מבית לקוח",
+    "pdf": "assets/pdfs/custom-upholstered.pdf",
     "description": "מיטות מרופדות בעיצוב אישי בעבודת נגר",
     "category": "חדרי שינה",
     "subcategory": "מרופדים עיצוב אישי",
-    "pdf": "assets/pdfs/custom-upholstered.pdf",
-    "ocr": false
+    "ocr": false,
+    "pageNumberStart": 1
   },
   {
     "id": "bedrooms-upholstered-fredi",
     "title": "חדרי שינה מרופדים פרדי",
+    "pdf": "assets/pdfs/bedrooms-upholstered-fredi.pdf",
     "description": "מיטות מרופדות בעיצוב חדשני",
     "category": "חדרי שינה",
     "subcategory": "מרופדים",
-    "pdf": "assets/pdfs/bedrooms-upholstered-fredi.pdf",
-    "ocr": false
+    "ocr": false,
+    "pageNumberStart": 1
   },
   {
     "id": "bedrooms-tbi-2026",
     "title": "חדרי שינה ת.ב.י. רהיטים 2026",
+    "pdf": "assets/pdfs/bedrooms-tbi-2026.pdf",
     "description": "חדרי שינה סנדביץ' בקו נקי ועדכני",
     "category": "חדרי שינה",
     "subcategory": "חדרי שינה",
-    "pdf": "assets/pdfs/bedrooms-tbi-2026.pdf",
     "ocr": true,
     "pageNumberStart": 0
   },
   {
     "id": "bedrooms-guber-gallery",
     "title": "חדרי שינה גובר גלרי",
+    "pdf": "assets/pdfs/bedrooms-guber-gallery.pdf",
     "description": "חדרי שינה מגוונים קומפלט",
     "category": "חדרי שינה",
     "subcategory": "חדרי שינה",
-    "pdf": "assets/pdfs/bedrooms-guber-gallery.pdf",
-    "ocr": false
+    "ocr": false,
+    "pageNumberStart": 1
   },
   {
     "id": "libraries-tbi-2026",
     "title": "ספריות קודש ת.ב.י רהיטים 2026",
+    "pdf": "assets/pdfs/libraries-tbi-2026.pdf",
     "description": "ספריות קודש בעיצוב נקי ועדכני",
     "category": "ספריות קודש",
     "subcategory": "",
-    "pdf": "assets/pdfs/libraries-tbi-2026.pdf",
     "ocr": true,
     "pageNumberStart": 0
   },
   {
     "id": "libraries-fredi-2026",
     "title": "ספריות קודש פרדי 2026",
+    "pdf": "assets/pdfs/libraries-fredi-2026.pdf",
     "description": "ספריות קודש בעיצוב נקי ועדכני",
     "category": "ספריות קודש",
     "subcategory": "",
-    "pdf": "assets/pdfs/libraries-fredi-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 1
   },
   {
     "id": "roya-2026",
     "title": "רויה 2026",
+    "pdf": "assets/pdfs/roya-2026.pdf",
     "description": "שולחנות חדישים וכסאות מרופדים",
     "category": "פינות אוכל",
     "subcategory": "",
-    "pdf": "assets/pdfs/roya-2026.pdf",
-    "ocr": false
+    "ocr": false,
+    "pageNumberStart": 1
   },
   {
     "id": "cocktail-2026",
     "title": "קוקטייל 2026",
+    "pdf": "assets/pdfs/cocktail-2026.pdf",
     "description": "שולחנות חדישים וכסאות מרופדים",
     "category": "פינות אוכל",
     "subcategory": "",
-    "pdf": "assets/pdfs/cocktail-2026.pdf",
-    "ocr": true
+    "ocr": true,
+    "pageNumberStart": 1
   }
 ]

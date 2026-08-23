@@ -686,15 +686,15 @@
 
 @media (max-width: 700px) {
   .site-footer { padding-inline: 9px; padding-bottom: 9px; }
-  .site-footer-shell { padding: 11px; border-radius: 22px; }
-  .site-footer-grid { grid-template-columns: 1fr; gap: 10px; }
-  .site-footer-card { padding: 15px; }
+  .site-footer-shell { padding: 10px; border-radius: 22px; }
+  .site-footer-grid { grid-template-columns: 1fr; gap: 8px; }
+  .site-footer-card { padding: 13px 14px; }
   .site-footer-bottom {
     grid-template-columns: 1fr;
     justify-items: start;
     align-items: start;
-    margin-top: 9px;
-    padding: 9px 2px 1px;
+    margin-top: 8px;
+    padding: 8px 2px 1px;
   }
   .site-footer-bottom p:last-child { text-align: right; }
 

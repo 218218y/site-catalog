@@ -39,7 +39,6 @@ FOOTER_FIELD_LIMITS: "OrderedDict[str, int]" = OrderedDict(
         ("termsLabel", 120),
         ("privacyLabel", 120),
         ("accessibilityLabel", 120),
-        ("topLabel", 120),
         ("businessName", 160),
         ("registrationLabel", 80),
         ("registrationNumber", 80),
@@ -136,7 +135,6 @@ _FOOTER_EDITOR_GROUPS: tuple[dict[str, Any], ...] = (
             {"key": "termsLabel", "label": "טקסט קישור תקנון רכישה ותשלום"},
             {"key": "privacyLabel", "label": "טקסט קישור מדיניות פרטיות"},
             {"key": "accessibilityLabel", "label": "טקסט קישור הצהרת נגישות"},
-            {"key": "topLabel", "label": "טקסט הקישור חזרה למעלה"},
         ),
     },
     {
@@ -331,7 +329,6 @@ def render_footer_template(template: str, content: Mapping[str, Any]) -> str:
         "{{FOOTER_TERMS_LABEL}}": escaped["termsLabel"],
         "{{FOOTER_PRIVACY_LABEL}}": escaped["privacyLabel"],
         "{{FOOTER_ACCESSIBILITY_LABEL}}": escaped["accessibilityLabel"],
-        "{{FOOTER_TOP_LABEL}}": escaped["topLabel"],
         "{{FOOTER_BUSINESS_NAME}}": escaped["businessName"],
         "{{FOOTER_REGISTRATION_LABEL}}": escaped["registrationLabel"],
         "{{FOOTER_REGISTRATION_NUMBER}}": escaped["registrationNumber"],

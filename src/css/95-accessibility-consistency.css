@@ -55,7 +55,6 @@
   .viewer-mobile-more-menu button,
   .viewer-mobile-more-menu a,
   .site-footer-gmail-link,
-  .site-footer-top-link,
   .legal-back-link
 ) > svg {
   flex: 0 0 auto;
@@ -74,7 +73,6 @@
   .viewer-inquiry-action,
   .viewer-mobile-more-menu button,
   .viewer-mobile-more-menu a,
-  .site-footer-top-link,
   .legal-back-link
 ) > svg {
   fill: none;
@@ -83,8 +81,7 @@
 }
 
 .viewer-inquiry-action > svg,
-.viewer-inquiry-button > svg,
-.site-footer-card-icon > svg {
+.viewer-inquiry-button > svg {
   width: var(--icon-size-action);
   height: var(--icon-size-action);
 }
