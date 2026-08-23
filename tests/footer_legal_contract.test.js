@@ -153,6 +153,9 @@ assert.match(deployTool, /PUBLIC_HTML_FILES = tuple\([\s\S]*?TECHNICAL_SHELL_FIL
 assert.match(css, /\.site-footer-grid\s*\{[\s\S]*?grid-template-columns:/);
 assert.match(css, /\.site-footer-card\s*\{[\s\S]*?grid-template-columns:\s*32px minmax\(0, 1fr\);[\s\S]*?gap:\s*9px;[\s\S]*?padding:\s*14px 15px;/);
 assert.match(css, /\.site-footer-card-icon\s*\{[\s\S]*?width:\s*32px;[\s\S]*?height:\s*32px;/);
+assert.match(css, /\.site-footer-card\s*\{[\s\S]*?transition:\s*border-color var\(--motion-fast\) ease, box-shadow var\(--motion-fast\) ease, background var\(--motion-fast\) ease;/);
+assert.match(css, /@media \(hover: hover\) and \(pointer: fine\)\s*\{[\s\S]*?\.site-footer-card:hover\s*\{[\s\S]*?border-color:[\s\S]*?background:[\s\S]*?box-shadow:/);
+assert.doesNotMatch(css, /\.site-footer-card:hover\s*\{[^}]*transform\s*:/, "footer cards must not move on hover");
 assert.match(css, /\.site-footer-card-icon svg\s*\{[\s\S]*?width:\s*18px;[\s\S]*?height:\s*18px;/);
 assert.match(css, /\.site-footer-contact-list,\s*\.site-footer-link-list\s*\{[\s\S]*?gap:\s*2px;/);
 assert.match(css, /\.site-footer-bottom\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);

@@ -54,11 +54,10 @@ body[data-app-ready="true"] > .site-footer {
   border-radius: var(--radius-md);
   background: rgba(255,255,255,0.56);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.82);
-  transition: transform var(--motion-fast) var(--motion-easing), border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background var(--motion-fast) ease;
+  transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background var(--motion-fast) ease;
 }
 @media (hover: hover) and (pointer: fine) {
   .site-footer-card:hover {
-    transform: translateY(-2px);
     border-color: rgba(117, 88, 68, 0.22);
     background: rgba(255,255,255,0.75);
     box-shadow: 0 14px 32px rgba(70,50,36,.08), inset 0 1px 0 rgba(255,255,255,.9);
