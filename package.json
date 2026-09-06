@@ -89,10 +89,10 @@
     "check:python-quality": "node tools/run_project_python.js tools/run_python_quality.py"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.63.0",
     "esbuild": "0.28.2",
     "typescript": "7.0.2",
-    "wrangler": "4.127.1"
+    "wrangler": "4.129.0"
   },
   "allowScripts": {
     "esbuild": true,

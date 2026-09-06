@@ -4,7 +4,7 @@
   "packages": {
     "": {
       "devDependencies": {
-        "@playwright/test": "1.62.1",
+        "@playwright/test": "1.63.0",
         "esbuild": "0.28.2",
         "typescript": "7.0.2"
       },
@@ -34,16 +34,16 @@
         "playwright": "cli.js"
       },
       "dependencies": {
-        "playwright": "1.62.1"
+        "playwright": "1.63.0"
       },
       "dev": true,
       "engines": {
         "node": ">=20"
       },
-      "integrity": "sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ==",
+      "integrity": "sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==",
       "license": "Apache-2.0",
-      "resolved": "file:vendor/npm/linux-x64-glibc/archives/@playwright/test/1.62.1.tgz",
-      "version": "1.62.1"
+      "resolved": "file:vendor/npm/linux-x64-glibc/archives/@playwright/test/1.63.0.tgz",
+      "version": "1.63.0"
     },
     "node_modules/@typescript/typescript-linux-x64": {
       "cpu": [
@@ -109,19 +109,16 @@
         "playwright": "cli.js"
       },
       "dependencies": {
-        "playwright-core": "1.62.1"
+        "playwright-core": "1.63.0"
       },
       "dev": true,
       "engines": {
         "node": ">=20"
       },
-      "integrity": "sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==",
+      "integrity": "sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==",
       "license": "Apache-2.0",
-      "optionalDependencies": {
-        "fsevents": "2.3.2"
-      },
-      "resolved": "file:vendor/npm/linux-x64-glibc/archives/playwright/1.62.1.tgz",
-      "version": "1.62.1"
+      "resolved": "file:vendor/npm/linux-x64-glibc/archives/playwright/1.63.0.tgz",
+      "version": "1.63.0"
     },
     "node_modules/playwright-core": {
       "bin": {
@@ -131,10 +128,10 @@
       "engines": {
         "node": ">=20"
       },
-      "integrity": "sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==",
+      "integrity": "sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==",
       "license": "Apache-2.0",
-      "resolved": "file:vendor/npm/linux-x64-glibc/archives/playwright-core/1.62.1.tgz",
-      "version": "1.62.1"
+      "resolved": "file:vendor/npm/linux-x64-glibc/archives/playwright-core/1.63.0.tgz",
+      "version": "1.63.0"
     },
     "node_modules/typescript": {
       "bin": {
