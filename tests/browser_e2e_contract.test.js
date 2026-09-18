@@ -25,6 +25,7 @@ const spec = fs.readFileSync(path.join(root, "tests", "e2e", "site-catalog.spec.
 const visualSpec = fs.readFileSync(path.join(root, "tests", "e2e", "visual-components.spec.js"), "utf8");
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
 const browserCheck = fs.readFileSync(path.join(root, "tools", "check_playwright_browser.js"), "utf8");
+const browserInstaller = fs.readFileSync(path.join(root, "tools", "install_playwright_browser.js"), "utf8");
 const prepublishGate = fs.readFileSync(path.join(root, "docs", "prepublish-quality-gate.md"), "utf8");
 
 function pngDimensions(relativePath) {
@@ -37,7 +38,8 @@ function pngDimensions(relativePath) {
 }
 
 assert.match(packageJson.devDependencies?.["@playwright/test"] || "", /^\^?1\./);
-assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
+assert.equal(packageJson.scripts["setup:browsers"], "node tools/install_playwright_browser.js");
+assert.equal(packageJson.scripts["setup:browsers:linux"], "node tools/install_playwright_browser.js --with-deps");
 assert.equal(packageJson.scripts["test:e2e"], "playwright test");
 assert.equal(packageJson.scripts["test:e2e:update"], "node tools/update_visual_snapshots.js");
 assert.equal(packageJson.scripts["pretest:e2e:update"], "node tools/check_playwright_browser.js");
@@ -106,6 +108,11 @@ assert.match(browserCheck, /arg !== "--launch"/);
 assert.match(browserCheck, /chromium\.launch\(launchOptions\)/);
 assert.match(browserCheck, /await browser\.close\(\)/);
 assert.match(browserCheck, /process\.platform === "linux"/);
+assert.match(browserInstaller, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT/);
+assert.match(browserInstaller, /DEFAULT_DOWNLOAD_CONNECTION_TIMEOUT_MS = "120000"/);
+assert.match(browserInstaller, /require\.resolve\("playwright"\)/);
+assert.match(browserInstaller, /installArgs\.push\("chromium"\)/);
+assert.match(browserInstaller, /args\.includes\("--with-deps"\)/);
 assert.match(prepublishGate, /סקירה חזותית ידנית על מכשירים אמיתיים/);
 assert.match(prepublishGate, /LCP[\s\S]*INP[\s\S]*CLS/);
 assert.match(prepublishGate, /אחסון חסום/);
@@ -113,6 +120,7 @@ assert.match(prepublishGate, /אחסון חסום/);
 for (const relative of [
   "tools/e2e_server.js",
   "tools/check_playwright_browser.js",
+  "tools/install_playwright_browser.js",
   "tools/update_visual_snapshots.js",
   "tests/e2e/__screenshots__/catalog-card.png",
   "tests/e2e/__screenshots__/viewer-stage.png",

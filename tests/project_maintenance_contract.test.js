@@ -71,12 +71,12 @@ assert.equal(packageJson.scripts["setup:python"], "node tools/run_project_python
 assert.equal(packageJson.scripts["update:python:offline:linux"], "node tools/run_project_python.js --system tools/sync_python_offline_linux.py");
 assert.equal(packageJson.scripts["check:python:offline:linux"], "node tools/run_project_python.js --system tools/sync_python_offline_linux.py --check");
 assert.equal(packageJson.scripts["setup:python:offline:linux"], "node tools/run_project_python.js --system tools/setup_python_env.py --offline");
-assert.equal(packageJson.scripts["setup:browsers"], "playwright install chromium");
+assert.equal(packageJson.scripts["setup:browsers"], "node tools/install_playwright_browser.js");
 assert.equal(packageJson.scripts["update:offline:linux"], "node tools/run_project_python.js --system tools/sync_npm_offline_linux.py");
 assert.equal(packageJson.scripts["check:offline:linux"], "node tools/run_project_python.js --system tools/sync_npm_offline_linux.py --check");
 assert.equal(packageJson.scripts["setup:npm:offline:linux"], "node tools/run_project_python.js --system tools/bootstrap_npm_offline_linux.py");
 assert.equal(packageJson.scripts["check:npm:offline:linux"], "node tools/run_project_python.js --system tools/bootstrap_npm_offline_linux.py --check");
-assert.equal(packageJson.scripts["setup:browsers:linux"], "playwright install --with-deps chromium");
+assert.equal(packageJson.scripts["setup:browsers:linux"], "node tools/install_playwright_browser.js --with-deps");
 assert.equal(packageJson.scripts.build, "npm run build:local");
 assert.match(packageJson.scripts["build:local"], /--out dist\/site-upload-r2/);
 assert.match(packageJson.scripts["build:local"], /--skip-if-current/);

@@ -28,6 +28,13 @@ import catalog_control_jobs as JOBS
 import catalog_control_service as SERVICE
 
 
+@pytest.fixture(autouse=True)
+def stub_site_page_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep focused conversion fixtures independent from the full site templates."""
+
+    monkeypatch.setattr(BUILD, "compile_taxonomy_and_site_pages", lambda *_args, **_kwargs: ())
+
+
 def write_pdf(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     document = fitz.open()
@@ -233,6 +240,57 @@ def test_two_consecutive_full_conversions_leave_no_byte_diff(
         if path.is_file() and ".site-catalog.mutation.lock" not in path.name
     }
     assert second == first
+
+
+def test_conversion_refreshes_catalog_derived_root_pages_in_same_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    write_pdf(root / "assets/pdfs/one.pdf", "one catalog")
+    (root / "catalogs.config.json").write_text(
+        json.dumps([{"id": "one", "title": "One", "pdf": "assets/pdfs/one.pdf", "ocr": False}], indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (root / "catalog-taxonomy.config.json").write_text(
+        json.dumps({
+            "categories": [{"name": "קטלוג", "slug": "catalog", "description": "Catalogs"}],
+            "subcategories": [],
+        }, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    refresh_calls: list[tuple[Path, object, Path]] = []
+
+    def record_refresh(
+        refresh_root: Path,
+        *,
+        writer: object,
+        staging_root: Path,
+    ) -> tuple[Path, ...]:
+        refresh_calls.append((refresh_root, writer, staging_root))
+        return ()
+
+    monkeypatch.setattr(BUILD, "compile_taxonomy_and_site_pages", record_refresh)
+    monkeypatch.setattr(BUILD, "project_root", lambda: root)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_catalogs.py", "--ocr", "never", "--format", "png", "--dpi", "72",
+            "--max-width", "600", "--max-height", "600", "--medium-size", "320",
+            "--thumb-size", "80", "--sharpen", "0",
+        ],
+    )
+
+    assert BUILD.main() == 0
+    assert len(refresh_calls) == 1
+    refresh_root, writer, staging_root = refresh_calls[0]
+    assert refresh_root == root
+    assert callable(writer)
+    assert staging_root.parent == root
+    assert staging_root.name.startswith(".catalog-build-transaction-")
 
 
 def valid_render_manifest() -> dict[str, object]:

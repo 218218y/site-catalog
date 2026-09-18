@@ -589,6 +589,10 @@ esbuild, TypeScript ו־Playwright API. רק אחרי שכל השלבים עבר
 npm run setup:browsers
 ```
 
+פקודת ההתקנה מפעילה את Playwright עם זמן חיבור ברירת מחדל של 120 שניות לכל
+ניסיון הורדה, כדי שחיבור איטי ל־CDN לא ייחתך אחרי 30 שניות. אם הוגדר
+`PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT` במפורש, הערך שהוגדר נשמר.
+
 פעולות פריסה ל־Cloudflare דורשות התקנת npm רגילה (`npm ci`) שבה Wrangler קיים.
 לאחר עדכון מוצלח נמחקים אוטומטית גם `vendor/npm/esbuild/`,
 `vendor/npm/typescript/` ו־`.cache/npm-offline-linux/` הישנים.
@@ -694,6 +698,9 @@ npm run test:e2e:update
 ```bat
 npm run setup:browsers
 ```
+
+הפקודה מותאמת גם לחיבורים איטיים ל־CDN של Playwright ומאפשרת כברירת מחדל עד
+120 שניות לחיבור בכל ניסיון הורדה. לאחר התקנה מוצלחת מריצים שוב `npm run verify`.
 
 כלי הבנייה מאמת לכל entrypoint חוזי Route ו־capability במקום להקפיא רשימה ידנית של כל תלות טרנזיטיבית. composition roots נדרשים חייבים להופיע, Feature כבוי חייב להיעדר פיזית, ומודולי Viewer חדשים מזוהים אוטומטית לפי גבול ownership. קלטי compiler וירטואליים של esbuild נבדקים בנפרד מקובצי המקור.
 

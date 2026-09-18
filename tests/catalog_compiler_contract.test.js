@@ -59,6 +59,7 @@ assert.doesNotMatch(controlService, /window\.BARGIG_CATALOG_SEARCH\s*=/);
 
 assert.match(converter, /build_state_from_artifacts/);
 assert.match(converter, /compile_and_write_catalog_data\(/);
+assert.match(converter, /compile_taxonomy_and_site_pages\(/);
 assert.doesNotMatch(converter, /def write_generated_files/);
 assert.doesNotMatch(converter, /window\.BARGIG_CATALOGS\s*=/);
 assert.doesNotMatch(converter, /window\.BARGIG_CATALOG_SEARCH\s*=/);

@@ -47,6 +47,7 @@ try:
         build_artifact_entry,
         build_state_from_artifacts,
         compile_and_write_catalog_data,
+        compile_taxonomy_and_site_pages,
         load_build_state,
     )
 except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
@@ -54,6 +55,7 @@ except ModuleNotFoundError:  # Direct execution: python tools/build_catalogs.py
         build_artifact_entry,
         build_state_from_artifacts,
         compile_and_write_catalog_data,
+        compile_taxonomy_and_site_pages,
         load_build_state,
     )
 
@@ -1750,6 +1752,11 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
             writer=transaction.write_bytes,
             write_build_state=True,
         )
+        compile_taxonomy_and_site_pages(
+            root,
+            writer=transaction.write_bytes,
+            staging_root=transaction.temp_root,
+        )
 
         print("\nDone.")
         print(f"Conversion profile: {args.profile}")
@@ -1758,6 +1765,7 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
         print("Generated: catalogs.build-state.json")
         print("Generated: catalogs.generated.module.js")
         print("Generated: catalogs.search-index.json")
+        print("Generated: catalog taxonomy module and root site pages")
         if (root / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html").is_file():
             print("Generated: catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html")
         print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings can refresh the search index without re-rendering images. Use --force to rebuild all catalogs.")
