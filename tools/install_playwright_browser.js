@@ -13,15 +13,20 @@ function fail(message) {
   process.exitCode = 1;
 }
 
-function resolvePlaywrightCli() {
+function pathIsFile(filePath, statSync = fs.statSync) {
+  const stat = statSync(filePath, { throwIfNoEntry: false });
+  return Boolean(stat?.isFile());
+}
+
+function resolvePlaywrightCli(resolveModule = require.resolve, statSync = fs.statSync) {
   let playwrightEntry;
   try {
-    playwrightEntry = require.resolve("playwright");
+    playwrightEntry = resolveModule("playwright");
   } catch (_error) {
     throw new Error("Playwright is not installed. Run `npm install` first.");
   }
   const cli = path.join(path.dirname(playwrightEntry), "cli.js");
-  if (!fs.isFileSync(cli)) {
+  if (!pathIsFile(cli, statSync)) {
     throw new Error(`Playwright CLI was not found at: ${cli}`);
   }
   return cli;
@@ -76,4 +81,12 @@ function main() {
   }
 }
 
-main();
+module.exports = {
+  DEFAULT_DOWNLOAD_CONNECTION_TIMEOUT_MS,
+  pathIsFile,
+  resolvePlaywrightCli,
+};
+
+if (require.main === module) {
+  main();
+}

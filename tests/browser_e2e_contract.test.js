@@ -26,6 +26,7 @@ const visualSpec = fs.readFileSync(path.join(root, "tests", "e2e", "visual-compo
 const verifier = fs.readFileSync(path.join(root, "tools", "verify_project.py"), "utf8");
 const browserCheck = fs.readFileSync(path.join(root, "tools", "check_playwright_browser.js"), "utf8");
 const browserInstaller = fs.readFileSync(path.join(root, "tools", "install_playwright_browser.js"), "utf8");
+const browserInstallerModule = require(path.join(root, "tools", "install_playwright_browser.js"));
 const prepublishGate = fs.readFileSync(path.join(root, "docs", "prepublish-quality-gate.md"), "utf8");
 
 function pngDimensions(relativePath) {
@@ -110,9 +111,41 @@ assert.match(browserCheck, /await browser\.close\(\)/);
 assert.match(browserCheck, /process\.platform === "linux"/);
 assert.match(browserInstaller, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT/);
 assert.match(browserInstaller, /DEFAULT_DOWNLOAD_CONNECTION_TIMEOUT_MS = "120000"/);
-assert.match(browserInstaller, /require\.resolve\("playwright"\)/);
+assert.match(browserInstaller, /resolveModule\("playwright"\)/);
 assert.match(browserInstaller, /installArgs\.push\("chromium"\)/);
 assert.match(browserInstaller, /args\.includes\("--with-deps"\)/);
+assert.doesNotMatch(browserInstaller, /fs\.isFileSync/);
+assert.equal(browserInstallerModule.pathIsFile(__filename), true);
+assert.equal(
+  browserInstallerModule.pathIsFile(path.join(root, "__definitely_missing_playwright_cli__")),
+  false,
+);
+
+const fakePlaywrightEntry = path.join(root, "__contract_fixture__", "playwright", "index.js");
+const expectedPlaywrightCli = path.join(path.dirname(fakePlaywrightEntry), "cli.js");
+let statOptions = null;
+assert.equal(
+  browserInstallerModule.resolvePlaywrightCli(
+    (request) => {
+      assert.equal(request, "playwright");
+      return fakePlaywrightEntry;
+    },
+    (candidate, options) => {
+      assert.equal(candidate, expectedPlaywrightCli);
+      statOptions = options;
+      return { isFile: () => true };
+    },
+  ),
+  expectedPlaywrightCli,
+);
+assert.deepEqual(statOptions, { throwIfNoEntry: false });
+assert.throws(
+  () => browserInstallerModule.resolvePlaywrightCli(
+    () => fakePlaywrightEntry,
+    () => undefined,
+  ),
+  /Playwright CLI was not found/,
+);
 assert.match(prepublishGate, /סקירה חזותית ידנית על מכשירים אמיתיים/);
 assert.match(prepublishGate, /LCP[\s\S]*INP[\s\S]*CLS/);
 assert.match(prepublishGate, /אחסון חסום/);
