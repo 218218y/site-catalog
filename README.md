@@ -531,7 +531,7 @@ npm ci
 npm run setup
 ```
 
-`npm run setup` מכין את סביבת Python המקומית `.venv` ומתקין את Chromium המבודד של Playwright. אפשר במקום זאת להריץ את `.20-setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
+`npm run setup` מכין את סביבת Python המקומית `.venv`. בדפדפן, הוא משתמש קודם ב־Chromium המבודד של Playwright אם הוא כבר קיים; ב־Windows/macOS מקומי, אם Chromium הזה חסר אבל מותקן Google Chrome או Microsoft Edge יציב, Playwright משתמש בדפדפן המותקן דרך channel רשמי ואינו תלוי בהורדה מה־CDN. רק כשאין דפדפן מתאים מתבצעת הורדת Chromium. ב־CI נשמר תמיד Chromium המבודד והנעול של Playwright כדי לשמור על שחזור מדויק. אפשר במקום זאת להריץ את `.20-setup-windows.bat`, שמבצע את כל השלבים האלה ברצף.
 קו התאימות המינימלי של Python נשמר ב־`.python-version`: ‏CI, Ruff ו־mypy בודקים מול גרסת הבסיס, בעוד כלי הפיתוח המקומיים מקבלים גם גרסאות minor חדשות יותר באותו major. גרסאות חבילות Python נעולות במפורש ב־`tools/requirements*.txt`. Wrangler מותקן כתלות מקומית נעולה של הפרויקט. כלי ההעלאה אינו משתמש ב־Wrangler גלובלי או בגרסת `npx` צפה; לאחר שינוי lockfiles יש להריץ `npm ci` ו־`npm run setup:python`. גרסת Node המומלצת ל־CI ולפיתוח נשמרת ב־`.nvmrc`.
 
 ### סביבת npm אופליין ללינוקס של הצ׳אט
@@ -589,9 +589,7 @@ esbuild, TypeScript ו־Playwright API. רק אחרי שכל השלבים עבר
 npm run setup:browsers
 ```
 
-פקודת ההתקנה מפעילה את Playwright עם זמן חיבור ברירת מחדל של 120 שניות לכל
-ניסיון הורדה, כדי שחיבור איטי ל־CDN לא ייחתך אחרי 30 שניות. אם הוגדר
-`PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT` במפורש, הערך שהוגדר נשמר.
+ב־Windows/macOS מקומי הפקודה בודקת קודם אם Chromium של Playwright כבר קיים, ואם לא — אם Google Chrome או Microsoft Edge יציב זמינים בנתיבי המערכת הרגילים. במקרה כזה אין הורדה כלל והבדיקות רצות מול channel רשמי של הדפדפן המותקן. אם נדרשת בכל זאת הורדה, Playwright מקבל זמן חיבור ברירת מחדל של 120 שניות לכל ניסיון, כדי שחיבור איטי ל־CDN לא ייחתך אחרי 30 שניות. אם הוגדר `PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT` במפורש, הערך שהוגדר נשמר. ב־CI אין fallback לדפדפן מערכת: Chromium הנעול של Playwright נשאר תנאי כדי לשמור על reproducibility ותמונות ייחוס עקביות.
 
 פעולות פריסה ל־Cloudflare דורשות התקנת npm רגילה (`npm ci`) שבה Wrangler קיים.
 לאחר עדכון מוצלח נמחקים אוטומטית גם `vendor/npm/esbuild/`,
@@ -699,8 +697,7 @@ npm run test:e2e:update
 npm run setup:browsers
 ```
 
-הפקודה מותאמת גם לחיבורים איטיים ל־CDN של Playwright ומאפשרת כברירת מחדל עד
-120 שניות לחיבור בכל ניסיון הורדה. לאחר התקנה מוצלחת מריצים שוב `npm run verify`.
+ב־Windows/macOS מקומי הפקודה אינה מחייבת גישה ל־CDN כאשר Chrome או Edge יציב כבר מותקנים: היא בוחרת אוטומטית channel מקומי נתמך. רק אם אין Chromium מנוהל ואין דפדפן מערכת מתאים, היא מורידה את Chromium של Playwright; להורדה עצמה מוקצות כברירת מחדל עד 120 שניות לחיבור בכל ניסיון. לאחר שהפקודה מאשרת דפדפן זמין מריצים שוב `npm run verify`.
 
 כלי הבנייה מאמת לכל entrypoint חוזי Route ו־capability במקום להקפיא רשימה ידנית של כל תלות טרנזיטיבית. composition roots נדרשים חייבים להופיע, Feature כבוי חייב להיעדר פיזית, ומודולי Viewer חדשים מזוהים אוטומטית לפי גבול ownership. קלטי compiler וירטואליים של esbuild נבדקים בנפרד מקובצי המקור.
 

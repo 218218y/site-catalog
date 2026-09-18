@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 "use strict";
 
-const fs = require("node:fs");
+const {
+  applyRuntimeToLaunchOptions,
+  resolvePlaywrightBrowserRuntime,
+  runtimeDescription,
+} = require("./playwright_browser_runtime");
 
 const args = new Set(process.argv.slice(2));
 const unknownArgs = [...args].filter((arg) => arg !== "--launch");
@@ -35,35 +39,32 @@ async function main() {
     return;
   }
 
-  const override = String(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || "").trim();
-  const executable = override || chromium.executablePath();
-  if (!executable || !fs.existsSync(executable)) {
-    fail(`Playwright Chromium is not available at: ${executable || "unknown path"}`);
+  const runtime = resolvePlaywrightBrowserRuntime({
+    managedExecutablePath: chromium.executablePath(),
+  });
+  if (runtime.kind === "missing") {
+    fail(runtimeDescription(runtime));
     return;
   }
 
-  process.stdout.write(`Playwright Chromium: ${executable}\n`);
+  process.stdout.write(`${runtimeDescription(runtime)}\n`);
   if (!args.has("--launch")) return;
 
-  const launchOptions = {
+  const launchOptions = applyRuntimeToLaunchOptions({
     headless: true,
-    args: ["--disable-dev-shm-usage"]
-  };
-  if (override) {
-    launchOptions.executablePath = override;
-    launchOptions.args.push("--no-sandbox");
-  }
+    args: ["--disable-dev-shm-usage"],
+  }, runtime);
 
   let browser;
   try {
     browser = await chromium.launch(launchOptions);
   } catch (error) {
-    fail(`Playwright Chromium exists but failed to launch:\n${errorMessage(error)}`);
+    fail(`Playwright browser exists but failed to launch:\n${errorMessage(error)}`);
     return;
   }
 
   try {
-    process.stdout.write("Playwright Chromium launch: OK\n");
+    process.stdout.write("Playwright browser launch: OK\n");
   } finally {
     await browser.close();
   }

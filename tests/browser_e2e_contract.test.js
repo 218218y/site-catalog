@@ -10,10 +10,16 @@ const packageLock = fs.readFileSync(path.join(root, "package-lock.json"), "utf8"
 const config = fs.readFileSync(path.join(root, "playwright.config.js"), "utf8");
 const vm = require("node:vm");
 const configModule = { exports: {} };
+const browserRuntimeModule = require(path.join(root, "tools", "playwright_browser_runtime.js"));
 vm.runInNewContext(config, {
   require(request) {
-    if (request === "node:fs") return fs;
-    if (request === "@playwright/test") return { defineConfig: (value) => value };
+    if (request === "@playwright/test") {
+      return {
+        defineConfig: (value) => value,
+        chromium: { executablePath: () => path.join(root, "__missing_managed_chromium__") },
+      };
+    }
+    if (request === "./tools/playwright_browser_runtime") return browserRuntimeModule;
     throw new Error(`Unexpected playwright config dependency: ${request}`);
   },
   module: configModule,
@@ -108,12 +114,16 @@ assert.match(verifier, /Playwright browser journeys/);
 assert.match(browserCheck, /arg !== "--launch"/);
 assert.match(browserCheck, /chromium\.launch\(launchOptions\)/);
 assert.match(browserCheck, /await browser\.close\(\)/);
-assert.match(browserCheck, /process\.platform === "linux"/);
+assert.match(browserCheck, /resolvePlaywrightBrowserRuntime/);
+assert.match(browserCheck, /applyRuntimeToLaunchOptions/);
 assert.match(browserInstaller, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT/);
 assert.match(browserInstaller, /DEFAULT_DOWNLOAD_CONNECTION_TIMEOUT_MS = "120000"/);
 assert.match(browserInstaller, /resolveModule\("playwright"\)/);
 assert.match(browserInstaller, /installArgs\.push\("chromium"\)/);
 assert.match(browserInstaller, /args\.includes\("--with-deps"\)/);
+assert.match(browserInstaller, /resolvePlaywrightBrowserRuntime/);
+assert.match(config, /resolvePlaywrightBrowserRuntime/);
+assert.match(config, /applyRuntimeToLaunchOptions/);
 assert.doesNotMatch(browserInstaller, /fs\.isFileSync/);
 assert.equal(browserInstallerModule.pathIsFile(__filename), true);
 assert.equal(
@@ -139,6 +149,41 @@ assert.equal(
   expectedPlaywrightCli,
 );
 assert.deepEqual(statOptions, { throwIfNoEntry: false });
+
+const fakeWindowsEnvironment = {
+  LOCALAPPDATA: "C:\\Users\\tester\\AppData\\Local",
+  PROGRAMFILES: "C:\\Program Files",
+  "PROGRAMFILES(X86)": "C:\\Program Files (x86)",
+  HOMEDRIVE: "C:",
+};
+const expectedChromePath = "C:\\Users\\tester\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe";
+const checkedBrowserPaths = [];
+const systemRuntime = browserRuntimeModule.resolvePlaywrightBrowserRuntime({
+  managedExecutablePath: "C:\\Users\\tester\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
+  platform: "win32",
+  env: fakeWindowsEnvironment,
+  statSync(candidate) {
+    checkedBrowserPaths.push(candidate);
+    return candidate === expectedChromePath ? { isFile: () => true } : undefined;
+  },
+});
+assert.equal(systemRuntime.kind, "system");
+assert.equal(systemRuntime.channel, "chrome");
+assert.equal(systemRuntime.executablePath, expectedChromePath);
+assert.ok(checkedBrowserPaths.includes(expectedChromePath));
+const systemLaunchOptions = browserRuntimeModule.applyRuntimeToLaunchOptions({ args: ["--disable-dev-shm-usage"] }, systemRuntime);
+assert.equal(systemLaunchOptions.channel, "chrome");
+assert.deepEqual(systemLaunchOptions.args, ["--disable-dev-shm-usage"]);
+
+const ciRuntime = browserRuntimeModule.resolvePlaywrightBrowserRuntime({
+  managedExecutablePath: "C:\\missing-playwright\\chrome.exe",
+  platform: "win32",
+  env: { ...fakeWindowsEnvironment, CI: "1" },
+  statSync(candidate) {
+    return candidate === expectedChromePath ? { isFile: () => true } : undefined;
+  },
+});
+assert.equal(ciRuntime.kind, "missing", "CI must not silently switch away from pinned Playwright Chromium");
 assert.throws(
   () => browserInstallerModule.resolvePlaywrightCli(
     () => fakePlaywrightEntry,
@@ -154,6 +199,7 @@ for (const relative of [
   "tools/e2e_server.js",
   "tools/check_playwright_browser.js",
   "tools/install_playwright_browser.js",
+  "tools/playwright_browser_runtime.js",
   "tools/update_visual_snapshots.js",
   "tests/e2e/__screenshots__/catalog-card.png",
   "tests/e2e/__screenshots__/viewer-stage.png",

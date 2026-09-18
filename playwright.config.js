@@ -1,20 +1,26 @@
 "use strict";
 
-const fs = require("node:fs");
-const { defineConfig } = require("@playwright/test");
+const { defineConfig, chromium } = require("@playwright/test");
+const {
+  applyRuntimeToLaunchOptions,
+  resolvePlaywrightBrowserRuntime,
+  runtimeDescription,
+} = require("./tools/playwright_browser_runtime");
 
-const explicitExecutable = String(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || "").trim();
-const launchOptions = {
-  args: ["--disable-dev-shm-usage"]
-};
+const browserRuntime = resolvePlaywrightBrowserRuntime({
+  managedExecutablePath: chromium.executablePath(),
+});
+if (browserRuntime.reason === "explicit-missing") {
+  throw new Error(runtimeDescription(browserRuntime));
+}
+const launchOptions = applyRuntimeToLaunchOptions({
+  args: ["--disable-dev-shm-usage"],
+}, browserRuntime);
+
 // E2E reuses the same validated private artifact as .05-start-server.bat. The
 // currentness check is normally instant; a first or stale build can still take
 // noticeably longer on Windows, so keep startup separate from per-test timeouts.
 const webServerStartupTimeout = 5 * 60_000;
-if (explicitExecutable && fs.existsSync(explicitExecutable)) {
-  launchOptions.executablePath = explicitExecutable;
-  launchOptions.args.push("--no-sandbox");
-}
 
 module.exports = defineConfig({
   testDir: "./tests/e2e",
