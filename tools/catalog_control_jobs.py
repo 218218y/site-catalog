@@ -29,23 +29,23 @@ class Action:
 ACTIONS: dict[str, Action] = {
     "sync_pdfs": Action(
         "הוסף PDFים חסרים לרשימה",
-        "סורק assets/pdfs ומוסיף ל-catalogs.config.json קטלוגים שלא רשומים עדיין. לא ממיר ולא מריץ OCR.",
+        "סורק assets/pdfs ומוסיף קטלוגים שלא רשומים עדיין לקטגוריית ברירת המחדל 'כללי', יחד עם טקסונומיה תקינה. אחר כך אפשר לבחור קטגוריה קיימת או להקליד חדשה בלוח. לא ממיר ולא מריץ OCR.",
         ["tools/sync_catalog_pdfs.py"],
     ),
     "convert": Action(
         "המרה רגילה",
-        "ממיר קטלוגים חסרים/שהשתנו לשלוש שכבות תמונה: thumbnail, medium ו-full. קטלוג שהוסר מהרשימה ינוקה; PDF חסר לעולם לא יגרום למחיקה בלי אישור מפורש. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
-        conversion_profile_command("production"),
+        "ממיר קטלוגים חסרים/שהשתנו לשלוש שכבות תמונה: thumbnail, medium ו-full, ומרענן גם את נכסי ה-frontend ודפי ה-HTML המקומיים. קטלוג שהוסר מהרשימה ינוקה; PDF חסר לעולם לא יגרום למחיקה בלי אישור מפורש. OCR במצב auto, אבל קטלוג עם ocr=false ידולג ב-OCR.",
+        conversion_profile_command("production", refresh_site=True),
     ),
     "convert_force": Action(
         "המרה מחדש לכל הקטלוגים",
-        "מרנדר מחדש את כל הקטלוגים התקינים עם שכבות thumbnail, medium ו-full. PDF חסר עוצר את הפעולה, אלא אם המשתמש מאשר במפורש להסיר את הקטלוג החסר.",
-        conversion_profile_command("force"),
+        "מרנדר מחדש את כל הקטלוגים התקינים עם שכבות thumbnail, medium ו-full, ואז מרענן את נכסי ה-frontend ודפי ה-HTML המקומיים. PDF חסר עוצר את הפעולה, אלא אם המשתמש מאשר במפורש להסיר את הקטלוג החסר.",
+        conversion_profile_command("force", refresh_site=True),
     ),
     "refresh_ocr": Action(
         "רענון אינדקס חיפוש/OCR בלבד",
-        "בונה מחדש את catalogs.search-index.json בלי לרנדר מחדש תמונות קיימות, ככל האפשר.",
-        conversion_profile_command("ocr-refresh"),
+        "בונה מחדש את catalogs.search-index.json בלי לרנדר מחדש תמונות קיימות, ככל האפשר, ומוודא שגם נכסי ה-frontend ודפי ה-HTML המקומיים מעודכנים.",
+        conversion_profile_command("ocr-refresh", refresh_site=True),
     ),
     "r2_preview": Action(
         "בדיקת סנכרון R2 בלי שינוי",

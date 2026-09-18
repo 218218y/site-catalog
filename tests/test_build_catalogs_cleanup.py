@@ -261,15 +261,16 @@ def test_conversion_refreshes_catalog_derived_root_pages_in_same_transaction(
         encoding="utf-8",
     )
 
-    refresh_calls: list[tuple[Path, object, Path]] = []
+    refresh_calls: list[tuple[Path, object, Path, bool]] = []
 
     def record_refresh(
         refresh_root: Path,
         *,
         writer: object,
         staging_root: Path,
+        include_indexing_files: bool = False,
     ) -> tuple[Path, ...]:
-        refresh_calls.append((refresh_root, writer, staging_root))
+        refresh_calls.append((refresh_root, writer, staging_root, include_indexing_files))
         return ()
 
     monkeypatch.setattr(BUILD, "compile_taxonomy_and_site_pages", record_refresh)
@@ -286,11 +287,82 @@ def test_conversion_refreshes_catalog_derived_root_pages_in_same_transaction(
 
     assert BUILD.main() == 0
     assert len(refresh_calls) == 1
-    refresh_root, writer, staging_root = refresh_calls[0]
+    refresh_root, writer, staging_root, include_indexing_files = refresh_calls[0]
     assert refresh_root == root
     assert callable(writer)
     assert staging_root.parent == root
     assert staging_root.name.startswith(".catalog-build-transaction-")
+    assert include_indexing_files is False
+
+
+
+def test_control_panel_refresh_site_builds_frontend_before_conversion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    write_pdf(root / "assets/pdfs/one.pdf", "one catalog")
+    (root / "catalogs.config.json").write_text(
+        json.dumps([
+            {
+                "id": "one",
+                "title": "One",
+                "pdf": "assets/pdfs/one.pdf",
+                "category": "קטלוג",
+                "ocr": False,
+            }
+        ], ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (root / "catalog-taxonomy.config.json").write_text(
+        json.dumps({
+            "categories": [{"name": "קטלוג", "slug": "catalog", "description": "Catalogs"}],
+            "subcategories": [],
+        }, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    import build_frontend_assets as FRONTEND
+
+    frontend_calls: list[Path] = []
+    site_refresh_calls: list[bool] = []
+
+    class Result:
+        changed = False
+
+    def record_frontend(build_root: Path):
+        frontend_calls.append(build_root)
+        return (Result(), Result())
+
+    def record_site_refresh(
+        _refresh_root: Path,
+        *,
+        writer: object,
+        staging_root: Path,
+        include_indexing_files: bool = False,
+    ) -> tuple[Path, ...]:
+        assert callable(writer)
+        assert staging_root.parent == root
+        site_refresh_calls.append(include_indexing_files)
+        return ()
+
+    monkeypatch.setattr(FRONTEND, "build_frontend_assets", record_frontend)
+    monkeypatch.setattr(BUILD, "compile_taxonomy_and_site_pages", record_site_refresh)
+    monkeypatch.setattr(BUILD, "project_root", lambda: root)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_catalogs.py", "--refresh-site", "--ocr", "never", "--format", "png", "--dpi", "72",
+            "--max-width", "600", "--max-height", "600", "--medium-size", "320",
+            "--thumb-size", "80", "--sharpen", "0",
+        ],
+    )
+
+    assert BUILD.main() == 0
+    assert frontend_calls == [root]
+    assert site_refresh_calls == [True]
 
 
 def valid_render_manifest() -> dict[str, object]:

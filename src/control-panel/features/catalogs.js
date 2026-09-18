@@ -116,12 +116,34 @@ export function createCatalogsFeature({ elements, controlApi, applyCanonicalStat
     </tr>`;
   }
 
+  /** @returns {string} */
+  function categorySuggestionOptions() {
+    return (state.taxonomy.categories || [])
+      .map(item => groupKey(item.name))
+      .filter(Boolean)
+      .map(name => `<option value="${escapeHtml(name)}"></option>`)
+      .join('');
+  }
+
+  /** @param {string} category @returns {string} */
+  function subcategorySuggestionOptions(category) {
+    const parent = groupKey(category);
+    return (state.taxonomy.subcategories || [])
+      .filter(item => groupKey(item.category) === parent)
+      .map(item => groupKey(item.name))
+      .filter(Boolean)
+      .map(name => `<option value="${escapeHtml(name)}"></option>`)
+      .join('');
+  }
+
   /** @param {ControlCatalogDto} catalog @param {number} index @returns {string} */
   function catalogRow(catalog, index) {
     const status = catalog.status || { state: 'missing', label: 'לא הומר' };
     const filterActive = isFilterActive();
     const canMoveUp = index > 0 && sameCatalogGroup(catalog, state.catalogs[index - 1]) && !filterActive;
     const canMoveDown = index < state.catalogs.length - 1 && sameCatalogGroup(catalog, state.catalogs[index + 1]) && !filterActive;
+    const categoryListId = `catalog-category-options-${index}`;
+    const subcategoryListId = `catalog-subcategory-options-${index}`;
     return `<tr data-index="${index}">
       <td class="order-cell">
         <div class="order-controls">
@@ -145,8 +167,14 @@ export function createCatalogsFeature({ elements, controlApi, applyCanonicalStat
       </td>
       <td><input class="title-input" type="text" data-field="title" value="${escapeHtml(catalog.title || '')}" /></td>
       <td><textarea class="description-input" data-field="description" placeholder="תיאור קצר שיופיע באתר">${escapeHtml(catalog.description || '')}</textarea></td>
-      <td><input class="category-input" type="text" data-field="category" value="${escapeHtml(catalog.category || '')}" /></td>
-      <td><input class="subcategory-input" type="text" data-field="subcategory" value="${escapeHtml(catalog.subcategory || '')}" /></td>
+      <td>
+        <input class="category-input" type="text" data-field="category" list="${categoryListId}" value="${escapeHtml(catalog.category || '')}" placeholder="בחר קיימת או הקלד חדשה" title="בחר קטגוריה קיימת מהרשימה או הקלד שם חדש" />
+        <datalist id="${categoryListId}">${categorySuggestionOptions()}</datalist>
+      </td>
+      <td>
+        <input class="subcategory-input" type="text" data-field="subcategory" list="${subcategoryListId}" value="${escapeHtml(catalog.subcategory || '')}" placeholder="בחר קיימת או הקלד חדשה" title="אפשר לבחור תת־קטגוריה קיימת או להקליד חדשה" />
+        <datalist id="${subcategoryListId}">${subcategorySuggestionOptions(catalog.category || '')}</datalist>
+      </td>
       <td><span class="badge ${escapeHtml(status.state)}">${escapeHtml(status.label)}</span></td>
       <td><input class="id-input" type="text" data-field="id" value="${escapeHtml(catalog.id || '')}" pattern="[a-z0-9][a-z0-9-]*" title="ID חייב להיות באנגלית קטנה, מספרים ומקפים בלבד. ID מקורי: ${escapeHtml(catalog.originalId || catalog.id || '')}" /></td>
       <td class="pdf-cell">
@@ -413,6 +441,7 @@ export function createCatalogsFeature({ elements, controlApi, applyCanonicalStat
       if (input.dataset.field === "category" || input.dataset.field === "subcategory") {
         taxonomy.reconcileFromCatalogs();
         taxonomy.markUnsaved();
+        if (input.dataset.field === "category") renderCatalogs();
       }
     });
     els.rows.addEventListener("click", event => {

@@ -14,6 +14,7 @@ import { errorMessage, escapeHtml, eventElement } from "../core/format.js";
  */
 export function createJobsFeature({ elements, controlApi, getTaxonomyIssues, onTaxonomyBlocked, reloadState }) {
   const els = { actions: elements.actions, jobStatus: elements.status, cancelJob: elements.cancel, jobLog: elements.log, jobHistory: elements.history };
+  const taxonomyCompleteActions = new Set(['convert', 'convert_force', 'refresh_ocr', 'bundle_r2', 'cloudflare_pages_deploy']);
   /** @type {string | null} */
   let activeJobId = null;
   /** @type {ReturnType<typeof setTimeout> | null} */
@@ -22,9 +23,9 @@ export function createJobsFeature({ elements, controlApi, getTaxonomyIssues, onT
   function renderActions() {
     const incompleteTaxonomy = getTaxonomyIssues().length > 0;
     els.actions.innerHTML = state.actions.map(action => {
-      const taxonomyBlocked = incompleteTaxonomy && ['bundle_r2', 'cloudflare_pages_deploy'].includes(action.key);
+      const taxonomyBlocked = incompleteTaxonomy && taxonomyCompleteActions.has(action.key);
       const disabled = Boolean(action.disabled || taxonomyBlocked);
-      const reason = taxonomyBlocked ? 'יש להשלים את שדות הטקסונומיה לפני בנייה או העלאה.' : (action.disabledReason || '');
+      const reason = taxonomyBlocked ? 'יש להשלים את שדות הטקסונומיה לפני המרה, בנייה או העלאה.' : (action.disabledReason || '');
       return `<div class="action">
         <strong>${escapeHtml(action.label)}</strong>
         <p>${escapeHtml(action.description)}</p>
@@ -62,7 +63,7 @@ export function createJobsFeature({ elements, controlApi, getTaxonomyIssues, onT
   async function runAction(actionKey) {
     const action = state.actions.find(item => item.key === actionKey);
     if (!action) return;
-    if (action.disabled || (['bundle_r2', 'cloudflare_pages_deploy'].includes(action.key) && getTaxonomyIssues().length)) {
+    if (action.disabled || (taxonomyCompleteActions.has(action.key) && getTaxonomyIssues().length)) {
       onTaxonomyBlocked(action.disabledReason || 'יש להשלים את שדות הטקסונומיה לפני בנייה או העלאה.');
       return;
     }

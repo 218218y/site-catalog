@@ -120,12 +120,16 @@ def test_prepare_save_adds_missing_taxonomy_and_applies_name_renames() -> None:
     assert added_category["description"] == ""
 
 
-def test_bundle_and_deploy_actions_are_blocked_until_taxonomy_is_complete() -> None:
+def test_site_build_actions_are_blocked_until_taxonomy_is_complete() -> None:
     incomplete = {"issues": [{"label": "חסר slug"}]}
     complete = {"issues": []}
 
-    assert SERVICE.taxonomy_action_availability("convert", incomplete) == (True, "")
+    assert SERVICE.taxonomy_action_availability("sync_pdfs", incomplete) == (True, "")
     assert SERVICE.taxonomy_action_availability("bundle_r2", complete) == (True, "")
+    for action_key in ("convert", "convert_force", "refresh_ocr"):
+        enabled, reason = SERVICE.taxonomy_action_availability(action_key, incomplete)
+        assert enabled is False
+        assert "המרה" in reason
     enabled, reason = SERVICE.taxonomy_action_availability("bundle_r2", incomplete)
     assert enabled is False
     assert "להשלים" in reason

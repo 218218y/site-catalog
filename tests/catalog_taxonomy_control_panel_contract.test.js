@@ -8,6 +8,7 @@ const { hasFunction, inventoryProjectFiles } = require('./helpers/frontend_ast')
 const root = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(root, 'catalog-control-panel.html'), 'utf8');
 const taxonomyFeature = fs.readFileSync(path.join(root, 'src', 'control-panel', 'features', 'taxonomy.js'), 'utf8');
+const catalogsFeature = fs.readFileSync(path.join(root, 'src', 'control-panel', 'features', 'catalogs.js'), 'utf8');
 const jobsFeature = fs.readFileSync(path.join(root, 'src', 'control-panel', 'features', 'jobs.js'), 'utf8');
 const panelCss = fs.readFileSync(path.join(root, 'src', 'control-panel', 'catalog-control-panel.css'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'tools', 'catalog_control_server.py'), 'utf8');
@@ -29,11 +30,16 @@ assert.match(taxonomyFeature, /taxonomy: taxonomyPayload\(\)/);
 assert.match(taxonomyFeature, /routeLockUpdates/);
 assert.match(taxonomyFeature, /נעילת כתובות SEO עודכנה אוטומטית/);
 assert.match(taxonomyFeature, /placeholder="חסר — לדוגמה dining-tables"/);
+assert.match(catalogsFeature, /categorySuggestionOptions/);
+assert.match(catalogsFeature, /placeholder="בחר קיימת או הקלד חדשה"/);
+assert.match(catalogsFeature, /subcategorySuggestionOptions/);
+assert.match(panel, /אין צורך להריץ ידנית build:frontend או build:pages/);
 assert.match(panelCss, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 assert.equal((panel.match(/class="taxonomy-panel-scroll"/g) || []).length, 2);
 assert.match(panelCss, /\.taxonomy-panel-scroll \{[\s\S]*overflow-x: auto;/);
 assert.match(panelCss, /\.taxonomy-list \{[^}]*min-width: 680px;/);
-assert.match(jobsFeature, /\['bundle_r2', 'cloudflare_pages_deploy'\]/);
+assert.match(jobsFeature, /taxonomyCompleteActions/);
+assert.match(jobsFeature, /'convert', 'convert_force', 'refresh_ocr', 'bundle_r2', 'cloudflare_pages_deploy'/);
 
 assert.match(server, /if path == "\/api\/taxonomy"/);
 assert.match(service, /atomic_write_catalogs_and_taxonomy/);

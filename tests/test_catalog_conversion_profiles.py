@@ -76,9 +76,10 @@ def test_explicit_cli_values_override_profile_numeric_defaults() -> None:
 
 
 def test_control_panel_uses_the_same_thin_profile_commands() -> None:
-    assert JOBS.ACTIONS["convert"].command == PROFILES.conversion_profile_command("production")
-    assert JOBS.ACTIONS["convert_force"].command == PROFILES.conversion_profile_command("force")
-    assert JOBS.ACTIONS["refresh_ocr"].command == PROFILES.conversion_profile_command("ocr-refresh")
+    assert JOBS.ACTIONS["convert"].command == PROFILES.conversion_profile_command("production", refresh_site=True)
+    assert JOBS.ACTIONS["convert_force"].command == PROFILES.conversion_profile_command("force", refresh_site=True)
+    assert JOBS.ACTIONS["refresh_ocr"].command == PROFILES.conversion_profile_command("ocr-refresh", refresh_site=True)
+    assert JOBS.ACTIONS["convert"].command[-1] == "--refresh-site"
 
 
 def test_windows_wrappers_delegate_to_the_cross_platform_profile_tasks() -> None:
@@ -133,6 +134,7 @@ def test_control_panel_job_command_carries_the_exact_confirmation() -> None:
         "tools/build_catalogs.py",
         "--profile",
         "production",
+        "--refresh-site",
         "--prune-missing-pdfs",
         "--confirmed-missing-pdf-id",
         "missing-a",

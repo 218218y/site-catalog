@@ -16,13 +16,19 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from tools.project_mutation import MutationBusyError, ProjectMutationLock
+    from tools.catalog_schema import validate_catalog_config
+    from tools.project_mutation import MutationBusyError, ProjectMutationLock, ProjectTransaction
 except ModuleNotFoundError:  # Direct execution
-    from project_mutation import MutationBusyError, ProjectMutationLock
+    from catalog_schema import validate_catalog_config
+    from project_mutation import MutationBusyError, ProjectMutationLock, ProjectTransaction
 
 BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 DEFAULT_CONFIG = "catalogs.config.json"
+DEFAULT_TAXONOMY = "catalog-taxonomy.config.json"
 DEFAULT_PDF_DIR = "assets/pdfs"
+DEFAULT_CATEGORY_NAME = "כללי"
+DEFAULT_CATEGORY_SLUG = "general"
+DEFAULT_CATEGORY_DESCRIPTION = "קטלוגים כלליים שטרם שויכו לקטגוריה ייעודית."
 
 
 @dataclass(frozen=True)
@@ -263,9 +269,14 @@ def update_config_pdf_references(root: Path, config: list[dict[str, Any]], renam
 
 
 def find_missing_pdf_catalogs(
-    config: list[dict[str, Any]], pdf_dir: Path, pdf_files: list[Path] | None = None
+    config: list[dict[str, Any]],
+    pdf_dir: Path,
+    pdf_files: list[Path] | None = None,
+    *,
+    root: Path | None = None,
+    default_category: str = DEFAULT_CATEGORY_NAME,
 ) -> list[dict[str, Any]]:
-    root = project_root()
+    root = (root or project_root()).resolve()
     known_pdf_paths = configured_pdf_paths(root, config)
     used_ids = {
         str(item.get("id", "")).strip()
@@ -285,7 +296,7 @@ def find_missing_pdf_catalogs(
                 "id": catalog_id,
                 "title": remove_bidi_controls(pdf_path.stem).strip() or catalog_id,
                 "description": "",
-                "category": "",
+                "category": default_category,
                 "subcategory": "",
                 "pdf": pdf_reference_for_config(root, pdf_path),
                 "ocr": True,
@@ -297,26 +308,115 @@ def find_missing_pdf_catalogs(
 
 
 
-def sync_config(config_path: Path, pdf_dir: Path, dry_run: bool = False) -> SyncResult:
-    root = project_root()
+def read_taxonomy(taxonomy_path: Path) -> dict[str, Any]:
+    if not taxonomy_path.exists():
+        return {"categories": [], "subcategories": []}
+    payload = json.loads(taxonomy_path.read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{rel_to_root(taxonomy_path)} must contain a JSON object")
+    categories = payload.get("categories")
+    subcategories = payload.get("subcategories")
+    if not isinstance(categories, list) or not isinstance(subcategories, list):
+        raise ValueError(f"{rel_to_root(taxonomy_path)} must contain categories/subcategories arrays")
+    return {"categories": [dict(item) if isinstance(item, dict) else item for item in categories], "subcategories": [dict(item) if isinstance(item, dict) else item for item in subcategories]}
+
+
+def ensure_default_taxonomy_category(taxonomy: dict[str, Any]) -> bool:
+    categories = taxonomy["categories"]
+    for item in categories:
+        if not isinstance(item, dict):
+            raise ValueError("Taxonomy categories must contain JSON objects")
+        if str(item.get("name", "")).strip() == DEFAULT_CATEGORY_NAME:
+            changed = False
+            if not str(item.get("slug", "")).strip():
+                used_slugs = {str(row.get("slug", "")).strip() for row in categories if isinstance(row, dict) and row is not item}
+                slug = DEFAULT_CATEGORY_SLUG
+                suffix = 2
+                while slug in used_slugs:
+                    slug = f"{DEFAULT_CATEGORY_SLUG}-{suffix}"
+                    suffix += 1
+                item["slug"] = slug
+                changed = True
+            if not str(item.get("description", "")).strip():
+                item["description"] = DEFAULT_CATEGORY_DESCRIPTION
+                changed = True
+            return changed
+
+    used_slugs = {str(item.get("slug", "")).strip() for item in categories if isinstance(item, dict)}
+    slug = DEFAULT_CATEGORY_SLUG
+    suffix = 2
+    while slug in used_slugs:
+        slug = f"{DEFAULT_CATEGORY_SLUG}-{suffix}"
+        suffix += 1
+    categories.append({
+        "name": DEFAULT_CATEGORY_NAME,
+        "slug": slug,
+        "description": DEFAULT_CATEGORY_DESCRIPTION,
+    })
+    return True
+
+
+def sync_config(
+    config_path: Path,
+    pdf_dir: Path,
+    dry_run: bool = False,
+    *,
+    root: Path | None = None,
+    taxonomy_path: Path | None = None,
+) -> SyncResult:
+    root = (root or project_root()).resolve()
+    taxonomy_path = taxonomy_path or (root / DEFAULT_TAXONOMY)
     config = read_config(config_path)
 
     planned_renames = plan_bidi_pdf_renames(pdf_dir)
-    if planned_renames and not dry_run:
-        apply_pdf_renames(planned_renames, pdf_dir)
-
     updated_refs = update_config_pdf_references(root, config, planned_renames)
 
     pdf_files_for_scan: list[Path] | None = None
-    if dry_run and planned_renames:
+    if planned_renames:
         rename_lookup = {path_key(rename.old_path): rename.new_path for rename in planned_renames}
         pdf_files_for_scan = [rename_lookup.get(path_key(path), path) for path in iter_pdf_files(pdf_dir)]
 
-    additions = find_missing_pdf_catalogs(config, pdf_dir, pdf_files=pdf_files_for_scan)
+    additions = find_missing_pdf_catalogs(
+        config,
+        pdf_dir,
+        pdf_files=pdf_files_for_scan,
+        root=root,
+    )
 
-    if (additions or updated_refs) and not dry_run:
-        config.extend(additions)
-        write_config(config_path, config)
+    if dry_run:
+        return SyncResult(additions=additions, renamed_pdfs=planned_renames, updated_pdf_refs=updated_refs)
+
+    if not additions and not updated_refs and not planned_renames:
+        return SyncResult(additions=additions, renamed_pdfs=planned_renames, updated_pdf_refs=updated_refs)
+
+    next_config = [dict(item) for item in config]
+    next_config.extend(additions)
+    # Reject the exact invalid state that previously broke the control panel:
+    # a newly discovered PDF may never be persisted with an empty category.
+    validate_catalog_config(next_config, root)
+
+    taxonomy = read_taxonomy(taxonomy_path)
+    taxonomy_changed = bool(additions) and ensure_default_taxonomy_category(taxonomy)
+
+    with ProjectTransaction(root, prefix=".pdf-sync-transaction-") as transaction:
+        if planned_renames:
+            transaction.rename_paths({item.old_path: item.new_path for item in planned_renames})
+        if additions or updated_refs:
+            transaction.write_text(
+                config_path,
+                json.dumps(next_config, ensure_ascii=False, indent=2) + "\n",
+            )
+        if taxonomy_changed:
+            transaction.write_text(
+                taxonomy_path,
+                json.dumps(taxonomy, ensure_ascii=False, indent=2) + "\n",
+            )
+
+    # Preserve the previous hygiene behavior after the durable rename commit:
+    # direction-marker cleanup may have moved a PDF out of an old now-empty
+    # directory. Directory cleanup is non-critical and never affects catalog data.
+    for rename in planned_renames:
+        cleanup_empty_parents(rename.old_path.parent, pdf_dir)
 
     return SyncResult(additions=additions, renamed_pdfs=planned_renames, updated_pdf_refs=updated_refs)
 
@@ -328,6 +428,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--config", default=DEFAULT_CONFIG, help="Path to config JSON, relative to the project root")
     parser.add_argument("--pdf-dir", default=DEFAULT_PDF_DIR, help="Folder to scan for PDF files, relative to the project root")
+    parser.add_argument("--taxonomy", default=DEFAULT_TAXONOMY, help="Taxonomy JSON, relative to the project root")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be added/renamed without changing files")
     return parser.parse_args()
 
@@ -338,9 +439,16 @@ def _main_unlocked() -> int:
     root = project_root()
     config_path = (root / str(args.config)).resolve()
     pdf_dir = (root / str(args.pdf_dir)).resolve()
+    taxonomy_path = (root / str(args.taxonomy)).resolve()
 
     try:
-        result = sync_config(config_path, pdf_dir, dry_run=bool(args.dry_run))
+        result = sync_config(
+            config_path,
+            pdf_dir,
+            dry_run=bool(args.dry_run),
+            root=root,
+            taxonomy_path=taxonomy_path,
+        )
     except Exception as exc:
         print(f"\nERROR: {exc}", file=sys.stderr)
         return 1
@@ -368,7 +476,10 @@ def _main_unlocked() -> int:
     if args.dry_run:
         print("Dry run only. No files were changed.")
     elif result.additions:
-        print("Done. Edit title/description/category/subcategory/ocr in catalogs.config.json, then run .10-convert-catalogs.bat.")
+        print(
+            f"Done. New catalogs were assigned to the default category '{DEFAULT_CATEGORY_NAME}'. "
+            "Edit title/description/category/subcategory/ocr in the control panel, then run conversion there."
+        )
     elif result.renamed_pdfs or result.updated_pdf_refs:
         print("Done. Hidden direction markers were cleaned from PDF filenames/references.")
     return 0

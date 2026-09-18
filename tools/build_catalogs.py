@@ -1505,6 +1505,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Skip pages that already have image and thumbnail files",
     )
     parser.add_argument(
+        "--refresh-site",
+        action="store_true",
+        help=(
+            "Before conversion, rebuild the checked-in frontend bundles. The conversion then "
+            "regenerates catalog data, taxonomy projection and root HTML pages in its normal transaction."
+        ),
+    )
+    parser.add_argument(
         "--prune-missing-pdfs",
         action="store_true",
         help="Explicitly remove config entries and generated outputs whose configured source PDF is missing",
@@ -1581,6 +1589,21 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
             f"{details}\n"
             "Restore the files, remove the catalogs explicitly in the control panel, "
             "or rerun with --prune-missing-pdfs after confirming deletion."
+        )
+
+    if args.refresh_site:
+        # The control-panel conversion is the operator's one-stop workflow.
+        # Build the frontend before the catalog transaction so a frontend failure
+        # cannot leave a partially converted catalog state. Catalog-generated data
+        # modules are external browser modules, so the subsequent transaction can
+        # safely refresh them and the HTML without rebundling a second time.
+        from build_frontend_assets import build_frontend_assets
+
+        frontend_results = build_frontend_assets(root)
+        changed_frontend = sum(1 for result in frontend_results if result.changed)
+        print(
+            f"[site-refresh] Frontend bundles are current "
+            f"({changed_frontend} updated, {len(frontend_results) - changed_frontend} unchanged)."
         )
 
     removed_missing_pdf_ids: list[str] = []
@@ -1756,6 +1779,7 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
             root,
             writer=transaction.write_bytes,
             staging_root=transaction.temp_root,
+            include_indexing_files=bool(args.refresh_site),
         )
 
         print("\nDone.")
@@ -1766,6 +1790,8 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
         print("Generated: catalogs.generated.module.js")
         print("Generated: catalogs.search-index.json")
         print("Generated: catalog taxonomy module and root site pages")
+        if args.refresh_site:
+            print("Site refresh: frontend bundles + root HTML are current")
         if (root / "catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html").is_file():
             print("Generated: catalog-big-pages-viewer-netfree/catalog-big-pages-viewer.html")
         print("Existing converted catalogs are skipped only when their source PDF and image conversion settings did not change. OCR/search settings can refresh the search index without re-rendering images. Use --force to rebuild all catalogs.")
@@ -1774,7 +1800,7 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
         if deleted_output_dirs:
             print(f"Deleted stale converted catalog folders: {len(deleted_output_dirs)}")
         print("Catalogs removed explicitly from catalogs.config.json are also removed from assets/pages and the generated search index.")
-        print("Run .01-bundle-site-r2.bat to update the complete clean-route site, then .05-start-server.bat to preview it.")
+        print("Run .01-bundle-site-r2.bat only when you want a complete R2/deployment bundle; local frontend and root HTML are already current.")
         return 0
 
 

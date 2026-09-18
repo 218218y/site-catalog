@@ -95,12 +95,23 @@ def current_taxonomy_state(catalogs: Sequence[Mapping[str, object]] | None = Non
     return taxonomy_editor_state(PROJECT_ROOT, list(catalogs) if catalogs is not None else read_config())
 
 
+TAXONOMY_COMPLETE_ACTION_KEYS = frozenset({
+    "convert",
+    "convert_force",
+    "refresh_ocr",
+    "bundle_r2",
+    "cloudflare_pages_deploy",
+})
+
+
 def taxonomy_action_availability(action_key: str, taxonomy_state: Mapping[str, object]) -> tuple[bool, str]:
-    if action_key not in {"bundle_r2", "cloudflare_pages_deploy"}:
+    if action_key not in TAXONOMY_COMPLETE_ACTION_KEYS:
         return True, ""
     issues = taxonomy_state.get("issues", [])
     if not isinstance(issues, list) or not issues:
         return True, ""
+    if action_key in {"convert", "convert_force", "refresh_ocr"}:
+        return False, f"יש להשלים {len(issues)} שדות בטקסונומיה לפני המרה, כדי שהקטלוג ודפי האתר ייבנו יחד במצב תקין."
     return False, f"יש להשלים {len(issues)} שדות בטקסונומיה לפני בנייה או העלאה."
 
 

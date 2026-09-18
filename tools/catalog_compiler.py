@@ -508,8 +508,14 @@ def compile_taxonomy_and_site_pages(
     *,
     writer: ByteWriter,
     staging_root: Path,
+    include_indexing_files: bool = False,
 ) -> tuple[Path, ...]:
-    """Emit the taxonomy ESM projection and root pages in one transaction."""
+    """Emit the taxonomy ESM projection and root pages in one transaction.
+
+    Catalog-only conversions keep indexing/control files untouched. Operator
+    workflows that explicitly refresh the whole local site can opt in so the
+    result matches the checked-in root-page build contract.
+    """
     try:
         from tools.build_site_pages import render_site_pages
         from tools.seo_site import load_taxonomy, taxonomy_generated_module
@@ -527,7 +533,7 @@ def compile_taxonomy_and_site_pages(
         pages_root,
         build_assets=False,
         build_taxonomy=False,
-        include_indexing_files=False,
+        include_indexing_files=include_indexing_files,
     )
     written = [taxonomy_path]
     for staged in staged_pages:

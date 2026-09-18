@@ -68,7 +68,10 @@ def get_conversion_profile(name: str) -> ConversionProfile:
         raise ValueError(f"Unknown conversion profile {name!r}. Expected one of: {choices}") from exc
 
 
-def conversion_profile_command(name: str) -> list[str]:
-    """Return the intentionally thin command used by UI and wrapper scripts."""
+def conversion_profile_command(name: str, *, refresh_site: bool = False) -> list[str]:
+    """Return the intentionally thin command used by control-panel jobs."""
     get_conversion_profile(name)
-    return ["tools/build_catalogs.py", "--profile", name]
+    command = ["tools/build_catalogs.py", "--profile", name]
+    if refresh_site:
+        command.append("--refresh-site")
+    return command

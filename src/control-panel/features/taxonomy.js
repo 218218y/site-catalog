@@ -200,14 +200,14 @@ export function createTaxonomyFeature({ elements, controlApi, applyCanonicalStat
     state.taxonomy.complete = issues.length === 0;
     state.counts.taxonomyMissing = issues.length;
     onCountsChanged();
-    els.taxonomySummary.innerHTML = `<span class="taxonomy-status ${issues.length ? 'incomplete' : 'ready'}">${issues.length ? `דורש השלמה · ${issues.length} שדות` : 'מוכן לבנייה'}</span>`;
+    els.taxonomySummary.innerHTML = `<span class="taxonomy-status ${issues.length ? 'incomplete' : 'ready'}">${issues.length ? `דורש השלמה · ${issues.length} שדות` : 'מוכן להמרה ולבנייה'}</span>`;
     const added = state.taxonomy.autoAdded || { categories: [], subcategories: [] };
     const addedItems = [...(added.categories || []), ...(added.subcategories || [])];
     if (issues.length || addedItems.length) {
       const details = addedItems.length ? ` נוספו אוטומטית: ${addedItems.join(' | ')}.` : '';
       els.taxonomyAlert.hidden = false;
       els.taxonomyAlert.className = 'taxonomy-alert';
-      els.taxonomyAlert.textContent = `${issues.length ? `יש להשלים ${issues.length} שדות לפני בנייה או העלאה.` : ''}${details}`.trim();
+      els.taxonomyAlert.textContent = `${issues.length ? `יש להשלים ${issues.length} שדות לפני המרה, בנייה או העלאה.` : ''}${details}`.trim();
     } else {
       els.taxonomyAlert.hidden = true;
       els.taxonomyAlert.textContent = '';
