@@ -8,6 +8,7 @@ contracts, and composition of those capabilities.
 from __future__ import annotations
 
 import argparse
+import errno
 import hmac
 import ipaddress
 import json
@@ -16,7 +17,7 @@ import secrets
 import sys
 import threading
 import webbrowser
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -178,7 +179,38 @@ class ControlServerSettings:
 class ControlHTTPServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], settings: ControlServerSettings) -> None:
         super().__init__(address, ControlHandler)
-        self.settings = settings
+        bound_port = int(self.server_address[1])
+        self.settings = settings if settings.port == bound_port else replace(settings, port=bound_port)
+
+
+def _is_blocked_local_port_error(error: OSError) -> bool:
+    return (
+        isinstance(error, PermissionError)
+        or error.errno == errno.EACCES
+        or getattr(error, "winerror", None) == 10013
+    )
+
+
+def bind_control_server(
+    settings: ControlServerSettings,
+    *,
+    allow_local_port_fallback: bool,
+) -> tuple[ControlHTTPServer, bool]:
+    """Bind the requested endpoint, optionally recovering from a blocked default local port."""
+    try:
+        return ControlHTTPServer((settings.bind_host, settings.port), settings), False
+    except OSError as error:
+        if (
+            not allow_local_port_fallback
+            or settings.remote_mode
+            or not _is_loopback_host(settings.bind_host)
+            or not _is_blocked_local_port_error(error)
+        ):
+            raise
+
+    fallback_settings = replace(settings, port=0)
+    server = ControlHTTPServer((fallback_settings.bind_host, 0), fallback_settings)
+    return server, True
 
 
 def _normalized_hostname(value: str) -> str:
@@ -503,7 +535,7 @@ class ControlHandler(BaseHTTPRequestHandler):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Open the local catalog control panel.")
     parser.add_argument("--host", default=DEFAULT_HOST, help="Bind address. Default: 127.0.0.1")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Local port. Default: 8765")
+    parser.add_argument("--port", type=int, default=None, help="Local port. Default: prefer 8765, then choose a free local port if unavailable")
     parser.add_argument("--no-open", action="store_true", help="Do not open the browser automatically")
     parser.add_argument("--allow-remote", action="store_true", help="Explicitly permit a non-loopback bind")
     parser.add_argument("--allowed-host", action="append", default=[], help="Host name/IP accepted in remote mode; repeat as needed")
@@ -525,9 +557,10 @@ def main() -> int:
         print(f"ERROR: Failed to recover the project before starting the control panel: {exc}", file=sys.stderr)
         return 1
     try:
+        requested_port = DEFAULT_PORT if args.port is None else int(args.port)
         settings = build_server_settings(
             str(args.host),
-            int(args.port),
+            requested_port,
             allow_remote=bool(args.allow_remote),
             allowed_hosts=tuple(args.allowed_host),
             token=str(args.token or ""),
@@ -535,7 +568,35 @@ def main() -> int:
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
-    server = ControlHTTPServer((settings.bind_host, settings.port), settings)
+    try:
+        server, used_port_fallback = bind_control_server(
+            settings,
+            allow_local_port_fallback=args.port is None,
+        )
+    except OSError as exc:
+        print(
+            f"ERROR: Cannot bind catalog control panel to {settings.bind_host}:{settings.port}: {exc}",
+            file=sys.stderr,
+        )
+        if not settings.remote_mode:
+            if exc.errno == errno.EADDRINUSE or getattr(exc, "winerror", None) == 10048:
+                hint = (
+                    "That port is already in use. If another catalog control panel is already open, use it; "
+                    "otherwise close the process using the port or run with --port 0."
+                )
+            else:
+                hint = (
+                    "The local port may be blocked or reserved by Windows. "
+                    "Run with --port 0 to let Windows choose a free local port."
+                )
+            print(hint, file=sys.stderr)
+        return 1
+
+    settings = server.settings
+    if used_port_fallback:
+        print(
+            f"Preferred local port {requested_port} is unavailable; using free local port {settings.port} instead."
+        )
     display_host = next(iter(sorted(settings.allowed_hosts))) if settings.remote_mode else settings.bind_host
     url = f"http://{display_host}:{settings.port}/catalog-control-panel.html"
     open_url = f"{url}?token={settings.token}" if settings.token else url

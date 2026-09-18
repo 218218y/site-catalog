@@ -3,7 +3,7 @@
 import { errorMessage } from "./format.js";
 
 function controlServerHelp() {
-  return "הדף הזה נפתח בלי שרת לוח השליטה. אל תפתח אותו דרך .05-start-server.bat, npx serve או שרת האתר הראשי. הפעל את הקובץ .04-catalog-control-panel.bat, או פתח ישירות: http://127.0.0.1:8765/catalog-control-panel.html";
+  return "הדף הזה נפתח בלי שרת לוח השליטה. אל תפתח אותו דרך .05-start-server.bat, npx serve או שרת האתר הראשי. הפעל את הקובץ .04-catalog-control-panel.bat; הוא יפתח את הכתובת המקומית הנכונה אוטומטית. אם הדפדפן לא נפתח, השתמש בכתובת שמודפסת בחלון הפקודה";
 }
 
 /** @template T @param {string} path @param {RequestInit} [options] @returns {Promise<T>} */

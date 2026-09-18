@@ -25,7 +25,7 @@
 נתונים מעודכנים מתוך catalogs.generated.json:
 # BEGIN GENERATED CATALOG STATS
 - מספר קטלוגים: 18
-- סך תמונות/עמודים בכל גודל: 844
+- סך תמונות/עמודים בכל גודל: 848
 - מספר קבוצות של עד 50 תמונות: 17
 # END GENERATED CATALOG STATS
 

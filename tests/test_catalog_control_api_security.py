@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import contextlib
+import errno
 import http.client
 import io
 import json
@@ -122,6 +123,63 @@ def test_loopback_mode_has_a_closed_host_allowlist_without_token() -> None:
     assert settings.remote_mode is False
     assert settings.token is None
     assert {"localhost", "127.0.0.1", "::1"}.issubset(settings.allowed_hosts)
+
+
+def test_default_local_bind_falls_back_when_preferred_port_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = SERVER.build_server_settings("127.0.0.1", 8765)
+    real_server = SERVER.ControlHTTPServer
+    attempts: list[tuple[str, int]] = []
+
+    def fake_server(address, current_settings):
+        attempts.append(address)
+        if len(attempts) == 1:
+            error = PermissionError(13, "permission denied")
+            error.winerror = 10013
+            raise error
+        return real_server(address, current_settings)
+
+    monkeypatch.setattr(SERVER, "ControlHTTPServer", fake_server)
+    server, used_fallback = SERVER.bind_control_server(settings, allow_local_port_fallback=True)
+    try:
+        assert used_fallback is True
+        assert attempts == [("127.0.0.1", 8765), ("127.0.0.1", 0)]
+        assert server.settings.port == server.server_address[1]
+        assert server.settings.port != 0
+    finally:
+        server.server_close()
+
+
+def test_explicit_local_port_does_not_silently_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = SERVER.build_server_settings("127.0.0.1", 8765)
+
+    def denied_server(address, current_settings):
+        del address, current_settings
+        error = PermissionError(13, "permission denied")
+        error.winerror = 10013
+        raise error
+
+    monkeypatch.setattr(SERVER, "ControlHTTPServer", denied_server)
+    with pytest.raises(PermissionError):
+        SERVER.bind_control_server(settings, allow_local_port_fallback=False)
+
+
+def test_busy_default_port_does_not_start_a_second_control_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = SERVER.build_server_settings("127.0.0.1", 8765)
+
+    def busy_server(address, current_settings):
+        del address, current_settings
+        raise OSError(errno.EADDRINUSE, "address already in use")
+
+    monkeypatch.setattr(SERVER, "ControlHTTPServer", busy_server)
+    with pytest.raises(OSError) as error:
+        SERVER.bind_control_server(settings, allow_local_port_fallback=True)
+    assert error.value.errno == errno.EADDRINUSE
 
 
 def test_api_dtos_reject_wrong_shapes() -> None:

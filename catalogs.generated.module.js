@@ -3407,27 +3407,27 @@ const catalogRecords = [
     "title": "רויה 2026",
     "description": "שולחנות חדישים וכסאות מרופדים",
     "category": "פינות אוכל",
-    "pages": 20,
+    "pages": 24,
     "pageNumberStart": 1,
     "dir": "assets/pages/roya-2026",
     "cover": "assets/pages/roya-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "c5718ae8ded2",
+    "assetVersion": "5dd2e155f2fa",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
         "maxSide": 420,
-        "version": "a73079366124"
+        "version": "15a9ed008d25"
       },
       "medium": {
         "directory": "medium",
         "maxSide": 1600,
-        "version": "a40ce4baf4b5"
+        "version": "8096108746c4"
       },
       "full": {
         "directory": "",
         "maxSide": 2800,
-        "version": "2ab9ae06e0ce"
+        "version": "456c3ba95046"
       }
     },
     "pageSizes": [
@@ -3437,7 +3437,27 @@ const catalogRecords = [
       ],
       [
         2800,
-        1981
+        1978
+      ],
+      [
+        2800,
+        1978
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
       ],
       [
         2800,
@@ -3453,39 +3473,7 @@ const catalogRecords = [
       ],
       [
         2800,
-        1981
-      ],
-      [
-        2800,
-        1981
-      ],
-      [
-        2800,
-        1977
-      ],
-      [
-        2800,
-        1981
-      ],
-      [
-        2800,
-        1981
-      ],
-      [
-        2800,
-        1981
-      ],
-      [
-        2800,
-        1981
-      ],
-      [
-        2800,
-        1981
-      ],
-      [
-        2800,
-        1981
+        1978
       ],
       [
         2800,
@@ -3498,6 +3486,34 @@ const catalogRecords = [
       [
         2800,
         2100
+      ],
+      [
+        2800,
+        1981
+      ],
+      [
+        2800,
+        1981
+      ],
+      [
+        2800,
+        1981
+      ],
+      [
+        2800,
+        1981
+      ],
+      [
+        2800,
+        1981
+      ],
+      [
+        2800,
+        1981
+      ],
+      [
+        2800,
+        1981
       ],
       [
         2800,
