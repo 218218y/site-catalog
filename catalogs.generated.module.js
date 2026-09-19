@@ -3412,22 +3412,22 @@ const catalogRecords = [
     "dir": "assets/pages/roya-2026",
     "cover": "assets/pages/roya-2026/page-001.webp",
     "imageExt": "webp",
-    "assetVersion": "5dd2e155f2fa",
+    "assetVersion": "cbe31f401fef",
     "imageVariants": {
       "thumb": {
         "directory": "thumbs",
         "maxSide": 420,
-        "version": "15a9ed008d25"
+        "version": "00e409fd77f0"
       },
       "medium": {
         "directory": "medium",
         "maxSide": 1600,
-        "version": "8096108746c4"
+        "version": "da9adff4d5de"
       },
       "full": {
         "directory": "",
         "maxSide": 2800,
-        "version": "456c3ba95046"
+        "version": "b770446b1ee6"
       }
     },
     "pageSizes": [
@@ -3441,10 +3441,6 @@ const catalogRecords = [
       ],
       [
         2800,
-        1978
-      ],
-      [
-        2800,
         2100
       ],
       [
@@ -3461,7 +3457,11 @@ const catalogRecords = [
       ],
       [
         2800,
-        1981
+        2100
+      ],
+      [
+        2800,
+        2079
       ],
       [
         2800,
@@ -3469,19 +3469,7 @@ const catalogRecords = [
       ],
       [
         2800,
-        1981
-      ],
-      [
-        2800,
-        1978
-      ],
-      [
-        2800,
-        1981
-      ],
-      [
-        2800,
-        1981
+        1998
       ],
       [
         2800,
@@ -3489,19 +3477,31 @@ const catalogRecords = [
       ],
       [
         2800,
-        1981
+        2100
       ],
       [
         2800,
-        1981
+        2100
       ],
       [
         2800,
-        1981
+        2005
       ],
       [
         2800,
-        1981
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
+      ],
+      [
+        2800,
+        2100
       ],
       [
         2800,
