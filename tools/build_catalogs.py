@@ -1656,6 +1656,12 @@ def run_build(args: argparse.Namespace, root: Path) -> int:
                     search_refresh_reason = "forced OCR/search refresh with existing images preserved"
                 elif not previous_pages_for_catalog:
                     search_refresh_reason = "no previous OCR/search text found"
+                elif catalog_options.ocr_mode == "never" and manual_pages:
+                    # For OCR-disabled scanned catalogs the checked-in manual map is the
+                    # durable search source. Re-reading the PDF is cheap (embedded text +
+                    # manual terms only) and, unlike additive reuse, removes obsolete terms
+                    # when a model moves to another page or an override is corrected.
+                    search_refresh_reason = "OCR is disabled and manual search overrides must be rebuilt from the current map"
                 else:
                     search_refresh_reason = search_manifest_mismatch_reason(out_dir, catalog_options)
 
