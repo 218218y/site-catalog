@@ -92,7 +92,7 @@
     "@playwright/test": "1.63.0",
     "esbuild": "0.28.2",
     "typescript": "7.0.2",
-    "wrangler": "4.132.0"
+    "wrangler": "4.136.1"
   },
   "allowScripts": {
     "esbuild": true,
