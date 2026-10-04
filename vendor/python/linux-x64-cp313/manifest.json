@@ -1,14 +1,14 @@
 {
   "lockFile": "requirements.offline.lock.txt",
-  "lockSha256": "c7e612352c96d8efb8b08351cbd7c62ca1145c1293f48594f777d77811fd3d42",
+  "lockSha256": "0c77fb616c3b52a0c9dd4f41b69ad0d44feb86a93043dd220fc716acb5c51b3c",
   "packageCount": 15,
   "packages": [
     {
-      "filename": "ast_serialize-0.11.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "filename": "ast_serialize-0.12.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
       "name": "ast_serialize",
-      "sha256": "a7004ba572f09be34342ccb98dcd4bad5707d3d81adc8cb4c3f685d2a2c51bbc",
-      "size": 1312642,
-      "version": "0.11.2"
+      "sha256": "50a9eaedf1db4857dad7cc47dd757ed70bfcc40b89d44d516c4a2f0d5033bd76",
+      "size": 1311809,
+      "version": "0.12.1"
     },
     {
       "filename": "colorama-0.4.6-py2.py3-none-any.whl",
@@ -25,11 +25,11 @@
       "version": "2.3.0"
     },
     {
-      "filename": "librt-0.15.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "filename": "librt-0.16.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
       "name": "librt",
-      "sha256": "234d8d394721fa0d786af15ebf1f3fb7f3ed82fd1cd0cde45c2f247b5d4281d2",
-      "size": 531661,
-      "version": "0.15.0"
+      "sha256": "17bac7f7a16b328fff77e440287693eb017abde913595b5827ebccbc21ecd8a6",
+      "size": 531689,
+      "version": "0.16.0"
     },
     {
       "filename": "mypy-2.3.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
