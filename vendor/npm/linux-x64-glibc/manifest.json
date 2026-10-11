@@ -18,14 +18,14 @@
       "version": "0.28.2"
     },
     {
-      "archive": "vendor/npm/linux-x64-glibc/archives/@playwright/test/1.63.0.tgz",
+      "archive": "vendor/npm/linux-x64-glibc/archives/@playwright/test/1.64.0.tgz",
       "installPath": "node_modules/@playwright/test",
-      "integrity": "sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==",
+      "integrity": "sha512-oTN9FNYuN6bqQMwiho6jJKLCG2/QOYCixGXuCjRmzOq23eODeukuY2XiAVoVpAECbuezMt1MHQjAiQxK8F+Y+g==",
       "metadataSource": "lockfile",
       "name": "@playwright/test",
       "optional": false,
-      "registryResolved": "https://registry.npmjs.org/@playwright/test/-/test-1.63.0.tgz",
-      "version": "1.63.0"
+      "registryResolved": "https://registry.npmjs.org/@playwright/test/-/test-1.64.0.tgz",
+      "version": "1.64.0"
     },
     {
       "archive": "vendor/npm/linux-x64-glibc/archives/@typescript/typescript-linux-x64/7.0.2.tgz",
@@ -48,24 +48,24 @@
       "version": "0.28.2"
     },
     {
-      "archive": "vendor/npm/linux-x64-glibc/archives/playwright/1.63.0.tgz",
+      "archive": "vendor/npm/linux-x64-glibc/archives/playwright/1.64.0.tgz",
       "installPath": "node_modules/playwright",
-      "integrity": "sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==",
+      "integrity": "sha512-kVzTnYFYEyQ9RGzBjNCd2+yEqWmVbxl3AHPynv3qQ6JTjv4a+kwRcnqQwIpuP3NnrnIrE/Q6wWAIAvMfIE2/Yg==",
       "metadataSource": "lockfile",
       "name": "playwright",
       "optional": false,
-      "registryResolved": "https://registry.npmjs.org/playwright/-/playwright-1.63.0.tgz",
-      "version": "1.63.0"
+      "registryResolved": "https://registry.npmjs.org/playwright/-/playwright-1.64.0.tgz",
+      "version": "1.64.0"
     },
     {
-      "archive": "vendor/npm/linux-x64-glibc/archives/playwright-core/1.63.0.tgz",
+      "archive": "vendor/npm/linux-x64-glibc/archives/playwright-core/1.64.0.tgz",
       "installPath": "node_modules/playwright-core",
-      "integrity": "sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==",
+      "integrity": "sha512-T9r+MZkTECl2+oUcZ26YgZzTrYidTsIhYYkJix+6iDOymOb1FB2RLLSOxRGnZGv5DStt+aduIVbt+E8WygXYpg==",
       "metadataSource": "lockfile",
       "name": "playwright-core",
       "optional": false,
-      "registryResolved": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.63.0.tgz",
-      "version": "1.63.0"
+      "registryResolved": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.64.0.tgz",
+      "version": "1.64.0"
     },
     {
       "archive": "vendor/npm/linux-x64-glibc/archives/typescript/7.0.2.tgz",
@@ -80,7 +80,7 @@
   ],
   "playwrightBrowsersIncluded": false,
   "profile": "chat-tests",
-  "profileLockSha256": "9ebb53a8ba9438d0693e33033b9f4480b58f404fc542f46e8936c9a425c2456b",
+  "profileLockSha256": "3438e88d89d1f07af64a746191df29b5a49b3b283946ff93c6da9aba45bcfae1",
   "registryPackPackageCount": 0,
   "rootPackages": [
     "@playwright/test",
