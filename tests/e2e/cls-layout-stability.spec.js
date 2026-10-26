@@ -117,6 +117,39 @@ test.describe("CLS layout stability", () => {
     await installClsObserver(page);
   });
 
+  test("server-rendered home sections do not create implicit columns before hydration", async ({ page }) => {
+    // Keep the server markup in place. The regular boot replaces the 3-column
+    // layout on mobile, which would otherwise conceal the pre-hydration shift.
+    await page.route("**/static/app-catalog.*.js", (route) => route.fulfill({
+      status: 200,
+      contentType: "text/javascript",
+      body: ""
+    }));
+    await mockCatalogImages(page);
+
+    for (const [width, expectedColumns] of [[390, 1], [800, 2]]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("/index.html");
+      const layout = await page.locator("#catalogGrid").evaluate((grid) => ({
+        originalMarkupPresent: Boolean(grid.querySelector('[data-initial-catalog-layout-columns="3"]')),
+        tracks: getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).filter(Boolean),
+        sections: Array.from(grid.children)
+          .filter((item) => item.matches(".catalog-category-section, .catalog-subcategory-section"))
+          .map((item) => ({
+            name: item.classList.contains("catalog-subcategory-section") ? "subcategory" : "category",
+            columnEnd: getComputedStyle(item).gridColumnEnd
+          }))
+      }));
+      expect(layout.originalMarkupPresent, "The test must examine the actual SSR layout").toBe(true);
+      expect(layout.sections.length).toBeGreaterThan(0);
+      expect(layout.tracks, `${width}px: ${JSON.stringify(layout)}`).toHaveLength(expectedColumns);
+      if (expectedColumns === 1) {
+        expect(layout.sections.every((section) => section.columnEnd === "-1"),
+          `Mobile sections must not span implicit tracks: ${JSON.stringify(layout.sections)}`).toBe(true);
+      }
+    }
+  });
+
   test("catalog xs keeps card geometry during cold and cache-hit image timings", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 800 });
     const state = {

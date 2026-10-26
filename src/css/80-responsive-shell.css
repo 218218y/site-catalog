@@ -8,6 +8,12 @@
 @media (max-width: 1180px) {
   .search-panel.global-search-popover .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .catalog-category-list { --catalog-layout-columns: 2; }
+  /* The pre-rendered home markup is built for three columns. Until hydration,
+     a three-track section must not create a third implicit track on tablets. */
+  .catalog-category-list > .catalog-category-section[data-category-span="3"],
+  .catalog-category-list > .catalog-subcategory-section[data-subcategory-span="3"] {
+    grid-column: span 2;
+  }
   .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .catalog-category-grid { grid-template-columns: repeat(var(--category-span, var(--catalog-layout-columns, 2)), minmax(0, 1fr)); }
   .catalog-subcategory-grid { grid-template-columns: repeat(var(--subcategory-span, var(--subcategory-layout-columns, var(--catalog-layout-columns, 2))), minmax(0, 1fr)); }
@@ -60,7 +66,13 @@
     column-gap: 0;
     row-gap: 32px;
   }
-  .catalog-category-section { grid-column: span 1; }
+  /* Both kinds of section must fit the single explicit mobile track. Otherwise
+     a server-rendered subcategory with --subcategory-span: 2/3 creates implicit
+     columns, then jumps when client hydration rebuilds the mobile markup. */
+  .catalog-category-list > .catalog-category-section,
+  .catalog-category-list > .catalog-subcategory-section {
+    grid-column: 1 / -1;
+  }
   .catalog-category-section[data-inline-divider="1"]::after,
   .catalog-subcategory-section[data-inline-divider="1"]::after { content: none; }
   .catalog-grid, .page-grid, .search-results { grid-template-columns: 1fr; }
