@@ -127,7 +127,11 @@ test.describe("CLS layout stability", () => {
     }));
     await mockCatalogImages(page);
 
-    for (const [width, expectedColumns] of [[390, 1], [800, 2]]) {
+    // Cover the responsive boundaries as well as representative device widths.
+    // 760px must never inherit the tablet-only span; 761px must still retain it.
+    for (const [width, expectedColumns] of [
+      [390, 1], [760, 1], [761, 2], [800, 2], [1180, 2], [1181, 3]
+    ]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/index.html");
       const layout = await page.locator("#catalogGrid").evaluate((grid) => ({
