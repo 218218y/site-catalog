@@ -1,14 +1,14 @@
 {
   "lockFile": "requirements.offline.lock.txt",
-  "lockSha256": "0c77fb616c3b52a0c9dd4f41b69ad0d44feb86a93043dd220fc716acb5c51b3c",
+  "lockSha256": "e14936114e2fb317adf9943c0369cc0204ece4fa9280b31b9a54a42f1965f7c3",
   "packageCount": 15,
   "packages": [
     {
-      "filename": "ast_serialize-0.12.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "filename": "ast_serialize-0.13.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
       "name": "ast_serialize",
-      "sha256": "50a9eaedf1db4857dad7cc47dd757ed70bfcc40b89d44d516c4a2f0d5033bd76",
-      "size": 1311809,
-      "version": "0.12.1"
+      "sha256": "9f99786e0d62082a5b121b3437f3167562133711df22128de1e9886f57f0b226",
+      "size": 1313260,
+      "version": "0.13.1"
     },
     {
       "filename": "colorama-0.4.6-py2.py3-none-any.whl",
