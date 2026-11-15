@@ -1,6 +1,6 @@
 {
   "lockFile": "requirements.offline.lock.txt",
-  "lockSha256": "e14936114e2fb317adf9943c0369cc0204ece4fa9280b31b9a54a42f1965f7c3",
+  "lockSha256": "458ec736e36fff058e06bf21b267f1d0779ab0d3888f161f575d9a4a2608c787",
   "packageCount": 15,
   "packages": [
     {
@@ -39,11 +39,11 @@
       "version": "2.3.0"
     },
     {
-      "filename": "mypy_extensions-1.1.0-py3-none-any.whl",
+      "filename": "mypy_extensions-1.2.0-py3-none-any.whl",
       "name": "mypy_extensions",
-      "sha256": "1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505",
-      "size": 4963,
-      "version": "1.1.0"
+      "sha256": "993e7a20aa5671eb41a7132cf555af30062da99729601601b9a8382b11cae768",
+      "size": 5114,
+      "version": "1.2.0"
     },
     {
       "filename": "packaging-26.2-py3-none-any.whl",
